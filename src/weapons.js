@@ -39,7 +39,8 @@ export function spawnBullet(origin, dir, isPlayer) {
 // ── Object-collision (swept) ─────────────────────────────────────────────────
 // Helpers live in bulletCollision.js. _impactPos/_impactNrm are scratch
 // vectors re-exported from that module — read after a successful sweep test.
-const _reflDir = new THREE.Vector3();
+const _reflDir       = new THREE.Vector3();
+const _bodyBurstNrm  = new THREE.Vector3();
 
 
 // ── Hit callbacks — set by main.js ───────────────────────────────────────────
@@ -73,7 +74,9 @@ export function tickWeapons(dt, playerPos) {
           const by = b.mesh.position.y;
           const xzSq = bx*bx + bz*bz;
           if (xzSq < 0.20 && by >= -0.1 && by <= 1.95) {
-            spawnSpark(b.mesh.position);
+            // Body-hit burst sprays back toward the shooter.
+            _bodyBurstNrm.copy(b.vel).normalize().negate();
+            spawnSpark(b.mesh.position, _bodyBurstNrm);
             if (window._onBotHit) window._onBotHit(bot, 3);
             remove = true; break;
           }
@@ -91,7 +94,9 @@ export function tickWeapons(dt, playerPos) {
       // 3. Wall / crate — swept segment test, applies to player AND bot bullets.
       // Catches fast bullets that would otherwise tunnel through thin walls.
       if (!remove && (sweepWalls(b) || sweepCrates(b))) {
-        spawnSpark(_impactPos);
+        // Burst sprays outward along the surface normal; ricochet uses the
+        // reflected vector (fx.js adds its own jitter).
+        spawnSpark(_impactPos, _impactNrm);
         const dot = b.vel.dot(_impactNrm);
         _reflDir.copy(b.vel).addScaledVector(_impactNrm, -2 * dot).normalize();
         spawnRicochet(_impactPos, _reflDir);

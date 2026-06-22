@@ -137,7 +137,7 @@ function _buildToriiGate() {
   const cb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 6.5), mat);
   cb.position.set(0, 5.2, 0); fallback.add(cb);
   fallback.position.set(ARENA_HALF, 0, 0);
-  fallback.rotation.y = Math.PI / 4; // match GLB diagonal yaw
+  fallback.rotation.y = Math.PI / 2; // match GLB — crossbar parallel to east wall
   scene.add(fallback);
 
   // Accent light — stays regardless of GLB
@@ -162,11 +162,12 @@ function _buildToriiGate() {
     gate.scale.setScalar(s);
 
     // Centre at east wall gate position, feet on floor.
-    // Rotated 45° off the wall axis (was -PI/2 — perpendicular). The new yaw
-    // turns the gate so it presents a diagonal face from the arena interior.
+    // Rotated 90° off the original perpendicular orientation so the gate's
+    // crossbar runs north–south, parallel to the east wall — players walk
+    // through it along the X axis.
     box.setFromObject(gate);
     gate.position.set(ARENA_HALF - 0.2, -box.min.y, 0);
-    gate.rotation.y = -Math.PI / 2 + Math.PI / 4; // 45° rotated from wall normal
+    gate.rotation.y = 0; // 90° from prior -π/2 — aligned with east wall
 
     gate.traverse(o => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }

@@ -4,6 +4,7 @@ import { scene } from './scene.js';
 import { state, PHASE } from './state.js';
 import { emit, EV } from './events.js';
 import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, BOT_SPREAD, ARENA_HALF, CRATES, EAST_GAP_HALF } from './config.js';
+import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER } from './player.js';
@@ -203,6 +204,7 @@ export function tickBots(dt) {
         _shootDir.z += ((Math.random() + Math.random()) - 1) * BOT_SPREAD;
         _shootDir.normalize();
         if (_spawnBulletFn) _spawnBulletFn(_shootOrigin, _shootDir, false);
+        playBotShoot();
         isShooting = true;
       }
     }

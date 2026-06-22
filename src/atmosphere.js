@@ -223,10 +223,13 @@ const _BIRD_COUNT = 12;
 const _birds = [];
 
 function _buildBirds() {
+  // Per-bird material so each can share the line but — critically — each bird
+  // owns its own BufferGeometry so the wing-tip Y can be mutated independently
+  // on the flap tick without disturbing the others.
   const mat = new THREE.LineBasicMaterial({ color: 0x1a1a2e, fog: false });
   for (let i = 0; i < _BIRD_COUNT; i++) {
     const geo = new THREE.BufferGeometry();
-    // V shape: left wing, body, right wing
+    // V shape: left-wing tip, body, right-wing tip. Wing tips will flap on Y.
     geo.setAttribute('position', new THREE.Float32BufferAttribute([
       -0.6, 0.12, 0,
        0,   0,    0,
@@ -238,7 +241,11 @@ function _buildBirds() {
     const speed    = 0.10 + Math.random() * 0.15;
     const phase    = Math.random() * Math.PI * 2;
     const tilt     = (Math.random() - 0.5) * 0.15;
-    line.userData = { altitude, radius, speed, phase, tilt };
+    // Slow, lazy flap — ~0.6–1.2 Hz, like a soaring crow. Independent per-bird
+    // phase so the flock doesn't beat in sync.
+    const flapSpeed = 0.6 + Math.random() * 0.6;
+    const flapPhase = Math.random() * Math.PI * 2;
+    line.userData = { altitude, radius, speed, phase, tilt, flapSpeed, flapPhase };
     line.scale.setScalar(1.8 + Math.random() * 1.2);
     scene.add(line);
     _birds.push(line);
@@ -260,9 +267,9 @@ export function tickAtmosphere(dt) {
     if (Math.abs(m.position.z) > ARENA_HALF * 1.8) m.position.z *= -0.9;
   }
 
-  // Animate birds in slow arcs
+  // Animate birds in slow arcs + lazy wing flap
   for (const b of _birds) {
-    const { altitude, radius, speed, phase, tilt } = b.userData;
+    const { altitude, radius, speed, phase, tilt, flapSpeed, flapPhase } = b.userData;
     const t = _mistUTime * speed + phase;
     b.position.set(
       Math.cos(t) * radius,
@@ -271,14 +278,25 @@ export function tickAtmosphere(dt) {
     );
     // Face direction of travel
     b.rotation.y = -t + Math.PI / 2;
-    b.rotation.z = tilt + Math.sin(t * 2.1) * 0.06; // gentle wing-tilt
+    b.rotation.z = tilt + Math.sin(t * 2.1) * 0.06; // gentle body-roll
+
+    // Wing flap — mutate the wing-tip Y on both ends of the V. Down-beat dips
+    // tips below the body; up-beat raises them well above. Rest position is
+    // y=0.12 so we oscillate around that with amplitude 0.42.
+    const f      = Math.sin(_mistUTime * flapSpeed + flapPhase);
+    const tipY   = 0.12 + f * 0.42;
+    const pos    = b.geometry.attributes.position;
+    const arr    = pos.array;
+    arr[1] = tipY;   // left-wing tip Y  (vertex 0)
+    arr[7] = tipY;   // right-wing tip Y (vertex 2)
+    pos.needsUpdate = true;
   }
 }
 
 // ── Init — call once after scene is ready ─────────────────────────────────────
 export function initAtmosphere() {
   _buildMountains();
-  _buildTrees();
+  // _buildTrees(); // disabled — billboard crosses read as messy clutter, revisit with real GLB later
   _buildMist();
   _buildBirds();
 }

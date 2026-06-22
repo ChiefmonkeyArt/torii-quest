@@ -4,26 +4,40 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene, gunScene } from './scene.js';
-import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H } from './config.js';
+import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H, EAST_GAP_HALF, CRATES } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
-import { sweepWalls, sweepCrates, impactPos as _impactPos, impactNrm as _impactNrm } from './bulletCollision.js';
 
 // ── Bullet pool ──────────────────────────────────────────────────────────────
 const _pool   = [];
 const _active = [];
 const _geo    = new THREE.CylinderGeometry(0.06, 0.02, 0.4, 6);
-const _matP   = new THREE.MeshBasicMaterial({ color: 0xffffff });
-const _matB   = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+// Player bullets — neon purple with hot orange tip. Bots — neon green core
+// with a pink hint. Two-tone is implemented as one base material per shooter;
+// the tip pop is rendered by overlaying a small sphere material toggled below.
+const _matP        = new THREE.MeshBasicMaterial({ color: 0xb84cff }); // neon purple
+const _matB        = new THREE.MeshBasicMaterial({ color: 0x39ff14 }); // neon green
+const _tipMatP_geo = new THREE.SphereGeometry(0.09, 6, 4);
+const _tipMatP     = new THREE.MeshBasicMaterial({ color: 0xff7a00 }); // neon orange tip (player)
+const _tipMatB     = new THREE.MeshBasicMaterial({ color: 0xff2bd6 }); // neon pink   tip (bot)
 const _bUp    = new THREE.Vector3(0,1,0);
 const _bQ     = new THREE.Quaternion();
 const _bN     = new THREE.Vector3();
 
 export function spawnBullet(origin, dir, isPlayer) {
   let b = _pool.pop();
-  if (!b) b = { mesh: new THREE.Mesh(_geo, _matP), vel: new THREE.Vector3(), prev: new THREE.Vector3(), life: 0, isPlayer };
+  if (!b) {
+    const mesh = new THREE.Mesh(_geo, _matP);
+    // Tip child — spawns ahead of bullet along its local +Y (cylinder axis)
+    // so the pop colour reads on the leading edge of the tracer.
+    const tip = new THREE.Mesh(_tipMatP_geo, _tipMatP);
+    tip.position.y = 0.22;
+    mesh.add(tip);
+    b = { mesh, tip, vel: new THREE.Vector3(), prev: new THREE.Vector3(), life: 0, isPlayer };
+  }
   b.isPlayer = isPlayer;
   b.life = BULLET_LIFE;
   b.mesh.material = isPlayer ? _matP : _matB;
+  b.tip.material  = isPlayer ? _tipMatP : _tipMatB;
   b.mesh.position.copy(origin);
   b.prev.copy(origin);
   _bN.copy(dir).normalize();
@@ -37,10 +51,97 @@ export function spawnBullet(origin, dir, isPlayer) {
 }
 
 // ── Object-collision (swept) ─────────────────────────────────────────────────
-// Helpers live in bulletCollision.js. _impactPos/_impactNrm are scratch
-// vectors re-exported from that module — read after a successful sweep test.
+// At BULLET_SPEED ~60 m/s a bullet covers ~1 m per tick, so a point-in-AABB
+// test would tunnel through thin walls and crate edges. We sweep the prev→curr
+// segment instead. East-wall plane is suppressed inside the torii gate gap
+// (|z| < EAST_GAP_HALF) so the opening is a real hole. _impactPos/_impactNrm
+// are scratch vectors — read them after a successful sweep test, before the
+// next call overwrites them.
+const _impactPos     = new THREE.Vector3();
+const _impactNrm     = new THREE.Vector3();
 const _reflDir       = new THREE.Vector3();
 const _bodyBurstNrm  = new THREE.Vector3();
+
+function sweepWalls(b) {
+  const p0 = b.prev, p1 = b.mesh.position;
+  let tHit = 2, hx = 0, hy = 0, hz = 0, nx = 0, nz = 0;
+  if (p1.x >= ARENA_HALF && p0.x < ARENA_HALF) {
+    const t = (ARENA_HALF - p0.x) / (p1.x - p0.x);
+    const zAt = p0.z + (p1.z - p0.z) * t;
+    if (Math.abs(zAt) > EAST_GAP_HALF && t < tHit) {
+      tHit = t; hx = ARENA_HALF; hy = p0.y + (p1.y - p0.y) * t; hz = zAt; nx = -1; nz = 0;
+    }
+  }
+  if (p1.x <= -ARENA_HALF && p0.x > -ARENA_HALF) {
+    const t = (-ARENA_HALF - p0.x) / (p1.x - p0.x);
+    if (t < tHit) { tHit = t; hx = -ARENA_HALF; hy = p0.y + (p1.y - p0.y) * t; hz = p0.z + (p1.z - p0.z) * t; nx = 1; nz = 0; }
+  }
+  if (p1.z >= ARENA_HALF && p0.z < ARENA_HALF) {
+    const t = (ARENA_HALF - p0.z) / (p1.z - p0.z);
+    if (t < tHit) { tHit = t; hx = p0.x + (p1.x - p0.x) * t; hy = p0.y + (p1.y - p0.y) * t; hz = ARENA_HALF; nx = 0; nz = -1; }
+  }
+  if (p1.z <= -ARENA_HALF && p0.z > -ARENA_HALF) {
+    const t = (-ARENA_HALF - p0.z) / (p1.z - p0.z);
+    if (t < tHit) { tHit = t; hx = p0.x + (p1.x - p0.x) * t; hy = p0.y + (p1.y - p0.y) * t; hz = -ARENA_HALF; nx = 0; nz = 1; }
+  }
+  if (tHit > 1) return false;
+  _impactPos.set(hx, hy, hz);
+  _impactNrm.set(nx, 0, nz);
+  return true;
+}
+
+// Slab method swept-AABB against one crate. Returns t ∈ [0,1] or -1.
+function _sweepCrate(b, cx, cz, hw, hd, fullH) {
+  const p0 = b.prev, p1 = b.mesh.position;
+  const dx = p1.x - p0.x, dy = p1.y - p0.y, dz = p1.z - p0.z;
+  let tEnter = 0, tExit = 1;
+  let nx = 0, ny = 0, nz = 0;
+  if (Math.abs(dx) < 1e-8) { if (p0.x < cx - hw || p0.x > cx + hw) return -1; }
+  else {
+    let t1 = (cx - hw - p0.x) / dx, t2 = (cx + hw - p0.x) / dx, eN = -1;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; eN = 1; }
+    if (t1 > tEnter) { tEnter = t1; nx = eN; ny = 0; nz = 0; }
+    if (t2 < tExit) tExit = t2;
+    if (tEnter > tExit) return -1;
+  }
+  if (Math.abs(dy) < 1e-8) { if (p0.y < 0 || p0.y > fullH) return -1; }
+  else {
+    let t1 = (0 - p0.y) / dy, t2 = (fullH - p0.y) / dy, eN = -1;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; eN = 1; }
+    if (t1 > tEnter) { tEnter = t1; nx = 0; ny = eN; nz = 0; }
+    if (t2 < tExit) tExit = t2;
+    if (tEnter > tExit) return -1;
+  }
+  if (Math.abs(dz) < 1e-8) { if (p0.z < cz - hd || p0.z > cz + hd) return -1; }
+  else {
+    let t1 = (cz - hd - p0.z) / dz, t2 = (cz + hd - p0.z) / dz, eN = -1;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; eN = 1; }
+    if (t1 > tEnter) { tEnter = t1; nx = 0; ny = 0; nz = eN; }
+    if (t2 < tExit) tExit = t2;
+    if (tEnter > tExit) return -1;
+  }
+  if (tEnter < 0 || tEnter > 1) return -1;
+  _impactPos.set(p0.x + dx * tEnter, p0.y + dy * tEnter, p0.z + dz * tEnter);
+  _impactNrm.set(nx, ny, nz);
+  return tEnter;
+}
+
+function sweepCrates(b) {
+  let bestT = 2, hpx = 0, hpy = 0, hpz = 0, hnx = 0, hny = 0, hnz = 0;
+  for (let i = 0; i < CRATES.length; i++) {
+    const c = CRATES[i];
+    const t = _sweepCrate(b, c[0], c[1], c[2], c[3], c[4]);
+    if (t >= 0 && t < bestT) {
+      bestT = t;
+      hpx = _impactPos.x; hpy = _impactPos.y; hpz = _impactPos.z;
+      hnx = _impactNrm.x; hny = _impactNrm.y; hnz = _impactNrm.z;
+    }
+  }
+  if (bestT > 1) return false;
+  _impactPos.set(hpx, hpy, hpz);
+  _impactNrm.set(hnx, hny, hnz);
+  return true;
+}
 
 
 // ── Hit callbacks — set by main.js ───────────────────────────────────────────

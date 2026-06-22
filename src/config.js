@@ -2,7 +2,7 @@
 export const VERSION   = 'v0.2.42-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
-export const WALL_H         = 4.4; // was 8 → 5.5 → 4.4 (another -20%)
+export const WALL_H         = 3.52; // was 8 → 5.5 → 4.4 → 3.52 (another -20%)
 // East-wall gate gap (centred on z=0). Half-width — kept wider than the
 // torii's footprint so a player can walk under the gate cleanly.
 // Used by arena.js (wall split) AND weapons.js (skip wall collision in gap).

@@ -205,12 +205,15 @@ function _loadWallTexture() {
         // RepeatX: how many tiles wide. Texture aspect is 2:1 so tile width = WALL_H*2
         const repsX = span / (WALL_H * 2);
         // RepeatY = 1.0 — texture fills exact wall height, no squish/stretch
-        faceGroups[i].forEach((fi, side) => {
+        // BOTH faces render the texture in its native left-to-right orientation
+        // when viewed from the interior of the arena — no UV flipping. Previously
+        // we negated repsX on side===1 which left south + east-segment interiors
+        // reading right-to-left (back-to-front).
+        faceGroups[i].forEach((fi) => {
           const t = tex.clone();
           t.wrapS = t.wrapT = THREE.RepeatWrapping;
-          // Flip UV on back face to avoid mirrored seam
-          t.repeat.set(side === 0 ? repsX : -repsX, 1.0);
-          t.offset.set(side === 0 ? 0 : repsX, 0);
+          t.repeat.set(repsX, 1.0);
+          t.offset.set(0, 0);
           t.needsUpdate = true;
           mesh.material[fi] = new THREE.MeshBasicMaterial({ map: t });
           mesh.material[fi].needsUpdate = true;

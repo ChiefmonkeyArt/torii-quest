@@ -112,6 +112,47 @@ export function playFootstep() {
   osc.stop(t + 0.07);
 }
 
+// ── Bot shoot — raspy higher zap, clearly different from player's pow ──────
+// Player uses a deep sine sweep 440→90Hz. Bots get a thinner, brighter sawtooth
+// sweep 1100→380Hz with a crackle band, so you can tell incoming fire by ear.
+export function playBotShoot() {
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+
+  // Tone — sawtooth zap, higher and rasper than the player's sine
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1100, t);
+  osc.frequency.exponentialRampToValueAtTime(380, t + 0.09);
+  gain.gain.setValueAtTime(0.055, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.11);
+
+  // Crackle — short highpassed noise burst for that synthetic energy-weapon edge
+  const dur = 0.05;
+  const sr  = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+  const ch  = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  const src   = ctx.createBufferSource();
+  const ngain = ctx.createGain();
+  const hp    = ctx.createBiquadFilter();
+  src.buffer = buf;
+  hp.type = 'highpass';
+  hp.frequency.value = 1800;
+  ngain.gain.setValueAtTime(0.03, t);
+  ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(hp);
+  hp.connect(ngain);
+  ngain.connect(ctx.destination);
+  src.start(t);
+}
+
 // ── Jump land — deeper, single thump on touchdown ──────────────────────────
 export function playJumpLand() {
   const ctx = _audioCtx();

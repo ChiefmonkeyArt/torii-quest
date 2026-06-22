@@ -95,18 +95,34 @@ export function loadPlayerModel(parentObj) {
     const s = TARGET_HEIGHT / geoH;
     _root.scale.setScalar(s);
 
-    // Offset feet to y=0 of parentObj
-    _root.position.y = -gMinY * s;
+    // Offset feet to world y=0. parentObj (playerObj) sits at eye-height 1.7,
+    // so subtract 1.7 here to put model feet at the ground in the reflection.
+    const EYE_OFFSET = 1.7;
+    _root.position.y = (-gMinY * s) - EYE_OFFSET;
 
     // Face -Z (camera forward direction)
     _root.rotation.y = Math.PI;
 
-    // Layer 1 — hidden from player's own FPS camera, visible in mirror
+    // Layer 1 — hidden from player's own FPS camera, visible in mirror.
+    // Also force transparent=false, depthWrite=true, frustumCulled=false on every
+    // mesh: GLB exports with alphaMode:BLEND otherwise split apart in the mirror,
+    // and bind-pose frustum-cull boxes clip skinned meshes mid-animation.
     _root.traverse(o => {
       if (o.isMesh) {
         o.castShadow = true;
         o.receiveShadow = true;
         o.layers.set(1);
+        o.frustumCulled = false;
+        if (o.material) {
+          // Material may be an array — normalise to array and patch each.
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of mats) {
+            m.transparent = false;
+            m.depthWrite  = true;
+            m.alphaTest   = 0;
+            m.needsUpdate = true;
+          }
+        }
       }
     });
 

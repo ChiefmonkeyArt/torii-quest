@@ -16,6 +16,7 @@ import { initHUD, tickHUD, flashCross, drawMinimap } from './hud.js';
 import { ARENA_HALF, WALL_H } from './config.js';
 import { nostrLogin } from './nostr.js';
 import { playShoot } from './audio.js';
+import { initPlayerStats } from './playerStats.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ buildArena();
 initAtmosphere();
 buildMirror();
 initHUD();
+initPlayerStats();
 initPlayer();
 initBots(playerObj, spawnBullet);
 initWeapons(bots, takeDamage);
@@ -71,7 +73,7 @@ document.querySelectorAll('.char-btn').forEach(btn => {
     setCharacter(btn.dataset.char);
   });
 });
-const elNostrBtn       = document.getElementById('btn-nostr');
+// Left-panel login button removed in v0.2.47 — only centre button remains.
 const elNostrCentreBtn = document.getElementById('btn-nostr-centre');
 const elResumeBtn= document.getElementById('btn-resume');
 const elHomeBtn  = document.getElementById('btn-home');
@@ -121,7 +123,6 @@ async function _doNostrLogin() {
   const result = await nostrLogin();
   if (elNostrTxt) elNostrTxt.textContent = result;
 }
-elNostrBtn?.addEventListener('click', _doNostrLogin);
 elNostrCentreBtn?.addEventListener('click', _doNostrLogin);
 
 // ESC — pause the instant pointer lock is lost (fires before keydown 'Escape')

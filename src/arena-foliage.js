@@ -1,8 +1,20 @@
 // arena-foliage.js — instanced grass blades + wildflowers. 2 draw calls total.
-// Extracted from arena.js to keep both files under 300 lines.
+// Confined to the NAP Zone only (east of the torii gate) so the main arena
+// reads as a clean turquoise underlit floor with mist swirls.
 import * as THREE from 'three';
 import { scene } from './scene.js';
-import { ARENA_HALF } from './config.js';
+import { ARENA_HALF, NAP_X, NAP_FAR_X } from './config.js';
+
+// NAP-zone footprint shared by both grass + flowers.
+//   x: just inside the gate edge → just inside the far wall (small inset so
+//      blades don't intersect the torii pillars or NAP_FAR_X clamp).
+//   z: full arena width minus a small inset.
+const NAP_GRASS_X0 = NAP_X + 1.0;
+const NAP_GRASS_X1 = NAP_FAR_X - 1.0;
+const NAP_GRASS_Z0 = -ARENA_HALF + 1.0;
+const NAP_GRASS_Z1 =  ARENA_HALF - 1.0;
+const NAP_GRASS_W  = NAP_GRASS_X1 - NAP_GRASS_X0;
+const NAP_GRASS_D  = NAP_GRASS_Z1 - NAP_GRASS_Z0;
 
 // Module-level scratch — shared with arena.js equivalents but isolated here
 const _up   = new THREE.Vector3(0, 1, 0);
@@ -109,12 +121,22 @@ function _buildGrass() {
     side: THREE.DoubleSide,
   });
 
+  // Patch grid confined to NAP-zone footprint — see NAP_GRASS_* constants at
+  // the top of the file. Skip any patch that lands within ~1.5u of the tree
+  // trunk at (NAP_X+6, 0) so we don't bury the bonsai base in blades.
+  const TREE_X = NAP_X + 6;
+  const TREE_Z = 0;
+  const TREE_CLEAR_SQ = 1.5 * 1.5;
   const patches = [];
-  for (let x = -ARENA_HALF; x <= ARENA_HALF; x += SPACING) {
-    for (let z = -ARENA_HALF; z <= ARENA_HALF; z += SPACING) {
+  for (let x = NAP_GRASS_X0; x <= NAP_GRASS_X1; x += SPACING) {
+    for (let z = NAP_GRASS_Z0; z <= NAP_GRASS_Z1; z += SPACING) {
+      const jx = x + (Math.random() - 0.5) * 0.5;
+      const jz = z + (Math.random() - 0.5) * 0.5;
+      const dx = jx - TREE_X, dz = jz - TREE_Z;
+      if (dx * dx + dz * dz < TREE_CLEAR_SQ) continue;
       patches.push({
-        x: x + (Math.random() - 0.5) * 0.5,
-        z: z + (Math.random() - 0.5) * 0.5,
+        x: jx,
+        z: jz,
         ry: Math.random() * Math.PI * 2,
         s:  0.7 + Math.random() * 0.6,
         phase: Math.random(),
@@ -226,11 +248,22 @@ function _buildWildflowers() {
     depthWrite: false,
   });
 
+  // Flowers also confined to the NAP zone. Reject any sample inside the tree
+  // exclusion radius to keep the trunk base clean.
+  const TREE_X = NAP_X + 6;
+  const TREE_Z = 0;
+  const TREE_CLEAR_SQ = 1.5 * 1.5;
   const mesh = new THREE.InstancedMesh(geo, mat, FLOWER_COUNT);
   const _col = new THREE.Color();
   for (let i = 0; i < FLOWER_COUNT; i++) {
-    const fx  = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
-    const fz  = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
+    let fx, fz;
+    // Rejection sample — max a few tries, fall back to last value if all fail
+    for (let t = 0; t < 6; t++) {
+      fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
+      fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
+      const dx = fx - TREE_X, dz = fz - TREE_Z;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ) break;
+    }
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);
     _quat.setFromAxisAngle(_up, Math.random() * Math.PI * 2);

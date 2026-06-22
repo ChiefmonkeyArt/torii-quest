@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene, gunScene } from './scene.js';
-import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H, EAST_GAP_HALF, CRATES } from './config.js';
+import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H, EAST_GAP_HALF, CRATES, OBSTACLES } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
 
 // ── Bullet pool ──────────────────────────────────────────────────────────────
@@ -128,13 +128,18 @@ function _sweepCrate(b, cx, cz, hw, hd, fullH) {
 
 function sweepCrates(b) {
   let bestT = 2, hpx = 0, hpy = 0, hpz = 0, hnx = 0, hny = 0, hnz = 0;
-  for (let i = 0; i < CRATES.length; i++) {
-    const c = CRATES[i];
-    const t = _sweepCrate(b, c[0], c[1], c[2], c[3], c[4]);
-    if (t >= 0 && t < bestT) {
-      bestT = t;
-      hpx = _impactPos.x; hpy = _impactPos.y; hpz = _impactPos.z;
-      hnx = _impactNrm.x; hny = _impactNrm.y; hnz = _impactNrm.z;
+  // Sweep both visual crates AND collision-only OBSTACLES (tree trunk, torii
+  // pillars). Identical tuple shape so we just iterate two lists back-to-back.
+  for (let src = 0; src < 2; src++) {
+    const list = src === 0 ? CRATES : OBSTACLES;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      const t = _sweepCrate(b, c[0], c[1], c[2], c[3], c[4]);
+      if (t >= 0 && t < bestT) {
+        bestT = t;
+        hpx = _impactPos.x; hpy = _impactPos.y; hpz = _impactPos.z;
+        hnx = _impactNrm.x; hny = _impactNrm.y; hnz = _impactNrm.z;
+      }
     }
   }
   if (bestT > 1) return false;
@@ -312,20 +317,42 @@ export function setRightHandBone(bone) {
 const _wsScale = new THREE.Vector3();
 function _attachWorldGun() {
   _worldGun = _worldGunSrc.clone(true);
-  // Compensate for inherited bone scale. The Mixamo character root is uniformly
-  // scaled by ~1/175 (TARGET_HEIGHT/geoH cm→m), and that scale cascades through
-  // every bone. Without compensation the gun renders ~0.5% of intended size —
-  // i.e. invisible inside the wrist. Read the bone's world scale, then size and
-  // offset the gun in WORLD units divided by that scale.
+
+  // The Mixamo skeleton inherits a uniform character-root scale of ~1/175
+  // (TARGET_HEIGHT/geoH, cm → m) that cascades to every bone. A child added
+  // to RightHand renders at that tiny scale by default — effectively invisible.
+  //
+  // We solve this with a NORMALIZER GROUP: a wrapper that counter-scales the
+  // bone's world scale back to 1.0, then we place the gun inside the wrapper
+  // in plain world-unit values (cm-friendly). This is more robust than baking
+  // `inv` into the gun's own scale/position because the wrapper transform
+  // composes cleanly with any future bone animation — we never have to re-read
+  // world scale or fight with cm/m mismatches at the gun's own level.
   _rightHandBone.updateWorldMatrix(true, false);
   _rightHandBone.getWorldScale(_wsScale);
   const inv = 1 / Math.max(_wsScale.x, 1e-6);
-  // Bone-local placement — small WORLD-space offset positions the grip in the
-  // hand and orients the barrel away from the wrist. Multiply by inv to convert
-  // from world units to bone-local units.
-  _worldGun.scale.setScalar(0.18 * inv);
-  _worldGun.position.set(0.06 * inv, 0.0 * inv, 0.04 * inv);
-  _worldGun.rotation.set(0, Math.PI / 2, Math.PI / 2);
+
+  const wrap = new THREE.Group();
+  wrap.name = 'world-gun-normalizer';
+  wrap.scale.setScalar(inv); // cancels inherited bone scale — wrap interior = world units
+  _rightHandBone.add(wrap);
+
+  // Place + orient the gun inside the wrapper in straightforward world units.
+  // Position is a small offset that seats the grip in the palm; rotation aligns
+  // the barrel with the forearm so the muzzle points forward (away from the
+  // wrist) in third-person view.
+  //   - +X along the palm → grip slightly outboard of the wrist origin
+  //   - +Y across the back of the hand → raise to clear the knuckle line
+  //   - +Z forward of the wrist → push muzzle past the fingertips
+  // Rotation: yaw 90° to swing the barrel parallel to the forearm, plus a roll
+  // so the grip's underside faces the palm (was reading upside-down before).
+  _worldGun.scale.setScalar(0.22);
+  _worldGun.position.set(0.04, 0.02, 0.10);
+  _worldGun.rotation.set(0, Math.PI / 2, -Math.PI / 2);
+  wrap.add(_worldGun);
+
+  // Layer 1 = visible to mirror reflection camera, hidden from FP camera.
+  // Force opaque + no-cull so it never vanishes from skinned bounds or alpha.
   _worldGun.traverse(o => {
     if (o.isMesh) {
       o.layers.set(1);
@@ -342,6 +369,5 @@ function _attachWorldGun() {
       }
     }
   });
-  _rightHandBone.add(_worldGun);
-  console.log('[weapons] world gun attached to RightHand bone');
+  console.log('[weapons] world gun attached via normalizer (boneScale=', _wsScale.x.toFixed(4), 'inv=', inv.toFixed(2), ')');
 }

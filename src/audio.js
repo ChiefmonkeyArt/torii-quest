@@ -126,7 +126,7 @@ export function playBotShoot() {
   osc.type = 'sawtooth';
   osc.frequency.setValueAtTime(1100, t);
   osc.frequency.exponentialRampToValueAtTime(380, t + 0.09);
-  gain.gain.setValueAtTime(0.022, t); // softened from 0.055 — was too sharp
+  gain.gain.setValueAtTime(0.010, t); // softened twice: 0.055 → 0.022 → 0.010
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.10);
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -145,7 +145,7 @@ export function playBotShoot() {
   src.buffer = buf;
   hp.type = 'highpass';
   hp.frequency.value = 1800;
-  ngain.gain.setValueAtTime(0.012, t); // softened from 0.03 — crackle barely audible
+  ngain.gain.setValueAtTime(0.005, t); // softened twice: 0.03 → 0.012 → 0.005
   ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(hp);
   hp.connect(ngain);

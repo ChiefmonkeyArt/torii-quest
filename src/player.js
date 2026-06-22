@@ -6,7 +6,7 @@ import { keys, getYaw, getPitch, setYaw, onKeyDown, onShoot, requestLock } from 
 import { scene, camera } from './scene.js';
 import { stepPhysics, createKinematic, physicsReady } from './physics.js';
 import { getGunBarrelWorld } from './weapons.js';
-import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, CRATES, JUMP_FORCE, GRAVITY, godMode, EAST_GAP_HALF, NAP_X, NAP_FAR_X } from './config.js';
+import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, CRATES, OBSTACLES, JUMP_FORCE, GRAVITY, godMode, EAST_GAP_HALF, NAP_X, NAP_FAR_X } from './config.js';
 
 
 
@@ -122,28 +122,33 @@ export function tickPlayer(dt) {
   _onGround = false;
   if (ny <= EYE) { ny = EYE; _vy = 0; _onGround = true; }
 
-  // Per-crate AABB: top landing + side pushout.
+  // Per-collider AABB: top landing + side pushout.
   // Run twice so corner cases resolve after a first-pass pushout.
+  // CRATES = visual + collidable. OBSTACLES = collidable only (tree trunk,
+  // torii pillars). Both use the same [cx, cz, hw, hd, fullH] tuple shape.
   for (let pass = 0; pass < 2; pass++) {
-    for (const [cx2, cz2, hw, hd, ch] of CRATES) {
-      const footY  = ny - EYE;
-      const dX     = nx - cx2;
-      const dZ     = nz - cz2;
-      const overlapX = hw + PR - Math.abs(dX);
-      const overlapZ = hd + PR - Math.abs(dZ);
-      if (overlapX <= 0 || overlapZ <= 0) continue; // no XZ overlap
+    for (let src = 0; src < 2; src++) {
+      const list = src === 0 ? CRATES : OBSTACLES;
+      for (const [cx2, cz2, hw, hd, ch] of list) {
+        const footY  = ny - EYE;
+        const dX     = nx - cx2;
+        const dZ     = nz - cz2;
+        const overlapX = hw + PR - Math.abs(dX);
+        const overlapZ = hd + PR - Math.abs(dZ);
+        if (overlapX <= 0 || overlapZ <= 0) continue; // no XZ overlap
 
-      if (footY >= ch - 0.05 && _vy <= 0) {
-        // Standing/landing on top of crate
-        ny = ch + EYE;
-        _vy = 0;
-        _onGround = true;
-      } else if (footY < ch) {
-        // Inside crate column — push out on the smallest penetration axis
-        if (overlapX <= overlapZ) {
-          nx += dX >= 0 ?  overlapX : -overlapX;
-        } else {
-          nz += dZ >= 0 ?  overlapZ : -overlapZ;
+        if (footY >= ch - 0.05 && _vy <= 0) {
+          // Standing/landing on top of crate
+          ny = ch + EYE;
+          _vy = 0;
+          _onGround = true;
+        } else if (footY < ch) {
+          // Inside collider column — push out on smallest penetration axis
+          if (overlapX <= overlapZ) {
+            nx += dX >= 0 ?  overlapX : -overlapX;
+          } else {
+            nz += dZ >= 0 ?  overlapZ : -overlapZ;
+          }
         }
       }
     }

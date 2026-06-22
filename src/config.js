@@ -1,5 +1,5 @@
 // config.js — ALL constants. Never scatter magic numbers.
-export const VERSION   = 'v0.2.42-alpha';
+export const VERSION   = 'v0.2.54-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 3.52; // was 8 → 5.5 → 4.4 → 3.52 (another -20%)
@@ -49,4 +49,18 @@ export const CRATES = [
   [ 14,    0,  0.75, 0.75,  2.0 ],
   [ -5,   13,  1.5,  0.5,   1.0 ],
   [  5,  -13,  1.5,  0.5,   1.0 ],
+];
+
+// OBSTACLES — collision-only colliders (no visual mesh built from this list).
+// Same shape as CRATES: [cx, cz, halfW, halfD, fullH]. Player + bots run AABB
+// pushout against this list in addition to CRATES; weapons sweep both lists
+// for bullet impacts. Add anything solid that doesn't belong in CRATES.
+//   - Bonsai tree trunk at (NAP_X+6, 0) — the NAP-zone tree must be solid.
+//   - Torii pillars at the east gate — z=±3.0 just inside EAST_GAP_HALF (3.5)
+//     so the central walkway stays clear. Half-width 0.4 covers the GLB pillar.
+export const OBSTACLES = [
+  // cx              cz    hw    hd    fullH
+  [ ARENA_HALF + 6,  0,    0.55, 0.55, 3.2 ], // bonsai trunk (NAP zone)
+  [ ARENA_HALF,     -3.0,  0.4,  0.4,  WALL_H * 1.1 ], // torii pillar (north)
+  [ ARENA_HALF,      3.0,  0.4,  0.4,  WALL_H * 1.1 ], // torii pillar (south)
 ];

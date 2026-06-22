@@ -7,16 +7,22 @@ import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X } from './c
 import { buildFoliage } from './arena-foliage.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
-const C_FLOOR  = 0x1a3210;
+const C_FLOOR  = 0x0a1f23; // deep teal-black, underlit by floor light
+const C_FLOOR_EMI = 0x1ad6c4; // turquoise emissive
 const C_WALL   = 0x1e3020;
 const C_CRATE  = 0x4a4458;
 const C_ORANGE = 0xf7931a;
 const C_PURPLE = 0x8b5cf6;
+const C_TURQ   = 0x1ad6c4;
 
 // perf: shared fallback materials (overwritten by texture load for walls)
 const _wallFallback = new THREE.MeshBasicMaterial({ color: C_WALL });
 const crateMat      = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
-const floorMat      = new THREE.MeshStandardMaterial({ color: C_FLOOR, roughness: 0.95 });
+// Arena floor — turquoise emissive, faintly underlit. Reads as cool, otherworldly.
+const floorMat      = new THREE.MeshStandardMaterial({
+  color: C_FLOOR, emissive: C_FLOOR_EMI, emissiveIntensity: 0.35,
+  roughness: 0.6, metalness: 0.1,
+});
 
 export const wallMeshes = [];
 
@@ -32,16 +38,18 @@ const _m4   = new THREE.Matrix4();
 
 export function buildArena() {
   _buildFloor();
-  _buildGrid();
   _buildWalls();
   _buildCrates();
   _buildToriiGate();
   _buildNapZone();     // floor extension + tree past the torii gate
-  buildFoliage();      // grass + wildflowers — arena-foliage.js
+  buildFoliage();      // grass + wildflowers — arena-foliage.js (NAP zone only)
   _loadWallTexture();  // async, deferred 1 rAF
 }
 
 // ── Floor ─────────────────────────────────────────────────────────────────────
+// Turquoise emissive solid floor with two underlights pushing teal glow up
+// through the surface. No grass, no grid — mist swirls (atmosphere.js) sit
+// just above the floor for the underlit-fog look.
 function _buildFloor() {
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(ARENA_HALF * 2, ARENA_HALF * 2),
@@ -51,20 +59,25 @@ function _buildFloor() {
   mesh.receiveShadow = true;
   scene.add(mesh);
 
-  // Orange perimeter trim
+  // Orange perimeter trim — keeps the arena edge readable against the teal floor
   const trim = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(ARENA_HALF*2, 0.08, ARENA_HALF*2)),
     new THREE.LineBasicMaterial({ color: C_ORANGE })
   );
   trim.position.y = 0.04;
   scene.add(trim);
-}
 
-// ── Neon grid ─────────────────────────────────────────────────────────────────
-function _buildGrid() {
-  const grid = new THREE.GridHelper(ARENA_HALF * 2, 20, C_PURPLE, 0x1a1a2e);
-  grid.position.y = 0.01;
-  scene.add(grid);
+  // Underlight rig — two point lights mounted just below the floor plane,
+  // shining up. With the emissive material this fakes a glowing translucent
+  // floor (no real subsurface scattering, just a vibe). Range tuned so the
+  // light pool stays inside the arena and doesn't bleed across walls.
+  const l1 = new THREE.PointLight(C_TURQ, 4.0, ARENA_HALF * 1.4);
+  l1.position.set(-8, -0.6, -8); scene.add(l1);
+  const l2 = new THREE.PointLight(C_TURQ, 4.0, ARENA_HALF * 1.4);
+  l2.position.set( 8, -0.6,  8); scene.add(l2);
+  // Single overhead accent so crates and bots still get a top-down read
+  const top = new THREE.PointLight(C_TURQ, 1.2, ARENA_HALF * 2.4);
+  top.position.set(0, WALL_H + 4, 0); scene.add(top);
 }
 
 // ── Walls ─────────────────────────────────────────────────────────────────────
@@ -168,7 +181,10 @@ function _buildToriiGate() {
     // through it along the X axis.
     box.setFromObject(gate);
     gate.position.set(ARENA_HALF - 0.2, -box.min.y, 0);
-    gate.rotation.y = 0; // 90° from prior -π/2 — aligned with east wall
+    // Spin 180° from the previous 0-rad orientation — user request, makes the
+    // "front" face of the torii (and its plaque/markings) read from inside the
+    // arena rather than from the NAP zone side.
+    gate.rotation.y = Math.PI;
 
     gate.traverse(o => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
@@ -249,63 +265,91 @@ function _buildNapZone() {
   _buildNapTree(NAP_X + 6, 0); // ~x=26 just past the gate, centred on z=0
 }
 
-// One chunky low-poly stylised tree. Cylinder trunk + three icosahedron canopy
-// blobs in graduated greens with a faint emissive lift, so it reads at night.
+// Bonsai-style oak. Chunky brown trunk + curving branches reaching out to
+// flattened cloud-like leaf clusters in layered greens. Each cluster is a
+// group of squashed icospheres so it reads as a soft puff rather than a hard
+// blob. Trunk is intentionally short and gnarled, branches splay outward
+// asymmetrically for the bonsai silhouette.
 function _buildNapTree(x, z) {
   const group = new THREE.Group();
 
-  // Trunk — tapered cylinder, dark warm brown
-  const trunkMat = new THREE.MeshStandardMaterial({
-    color: 0x3a2418, roughness: 0.85,
+  // Wood material - dark warm brown, shared by trunk + branches
+  const woodMat = new THREE.MeshStandardMaterial({
+    color: 0x4a2818, roughness: 0.88, flatShading: true,
   });
+
+  // Trunk - short, thick, tapered. Slight lean for a wind-blown bonsai feel.
   const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.28, 0.42, 3.0, 8),
-    trunkMat,
+    new THREE.CylinderGeometry(0.32, 0.55, 2.4, 10),
+    woodMat,
   );
-  trunk.position.y = 1.5;
+  trunk.position.y = 1.2;
+  trunk.rotation.z = 0.08; // ~4.5deg lean
   trunk.castShadow = trunk.receiveShadow = true;
   group.add(trunk);
 
-  // Canopy — three offset icosahedrons in slightly different greens. Detail=1
-  // keeps the chunky low-poly read. Faint emissive so it doesn't go black at
-  // night under the arena's dim ambient.
-  const canopyDefs = [
-    { y: 3.6, r: 1.5, c: 0x2d6a3a, e: 0x0a2614, ox: 0,    oz: 0    },
-    { y: 4.4, r: 1.2, c: 0x3a8a4a, e: 0x0e2a18, ox: 0.6,  oz: 0.3  },
-    { y: 4.2, r: 1.1, c: 0x256b35, e: 0x081e10, ox: -0.7, oz: -0.4 },
+  // Branches splay out from the top-shoulder of the trunk. Each entry is
+  //   [tipX, tipY, tipZ, branchRadius, leafSize, leafTint]
+  // The branch is a cylinder oriented from (0, TRUNK_TOP_Y, 0) to (tx,ty,tz);
+  // a cloud-leaf cluster is parented at the same tip.
+  const branchDefs = [
+    [ 1.9, 2.8,  0.3, 0.16, 1.25, 0x3a8a4a],
+    [-1.7, 3.0,  0.4, 0.14, 1.05, 0x2d6a3a],
+    [ 0.6, 3.4, -1.4, 0.13, 0.95, 0x4a9a55],
+    [-0.4, 2.6,  1.5, 0.12, 0.85, 0x256b35],
   ];
-  for (const d of canopyDefs) {
-    const m = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(d.r, 1),
-      new THREE.MeshStandardMaterial({
-        color: d.c, emissive: d.e, emissiveIntensity: 0.6, roughness: 0.8, flatShading: true,
-      }),
+  const TRUNK_TOP_Y = 2.2;
+  for (const [tx, ty, tz, br, ls, lc] of branchDefs) {
+    const dx = tx - 0;
+    const dy = ty - TRUNK_TOP_Y;
+    const dz = tz - 0;
+    const len = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    const branch = new THREE.Mesh(
+      new THREE.CylinderGeometry(br * 0.65, br, len, 6),
+      woodMat,
     );
-    m.position.set(d.ox, d.y, d.oz);
-    m.castShadow = m.receiveShadow = true;
-    group.add(m);
-  }
+    // Cylinder default axis = +Y. Position midpoint, then orient via
+    // quaternion that maps +Y onto the branch direction.
+    branch.position.set(dx * 0.5, TRUNK_TOP_Y + dy * 0.5, dz * 0.5);
+    const dir = new THREE.Vector3(dx, dy, dz).normalize();
+    branch.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    branch.castShadow = branch.receiveShadow = true;
+    group.add(branch);
 
-  // A few small offshoot leaves for asymmetric silhouette
-  const leafMat = new THREE.MeshStandardMaterial({
-    color: 0x4a9a55, emissive: 0x102e18, emissiveIntensity: 0.5,
-    roughness: 0.8, flatShading: true,
-  });
-  const leafDefs = [
-    { y: 2.8, r: 0.42, ox:  1.0, oz: 0.2 },
-    { y: 3.1, r: 0.36, ox: -0.9, oz: 0.5 },
-    { y: 2.6, r: 0.32, ox:  0.1, oz: 1.0 },
-  ];
-  for (const d of leafDefs) {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(d.r, 0), leafMat);
-    m.position.set(d.ox, d.y, d.oz);
-    m.castShadow = m.receiveShadow = true;
-    group.add(m);
+    // Cloud-like leaf cluster - 4 overlapping flattened icospheres. Y-squash
+    // gives each puff the thin-cloud silhouette the user asked for; tint per
+    // cluster keeps the four canopies from reading identical.
+    const leafMat = new THREE.MeshStandardMaterial({
+      color: lc,
+      emissive: 0x0a2614, emissiveIntensity: 0.45,
+      roughness: 0.85, flatShading: true,
+    });
+    const puffs = [
+      { r: ls,        ox:  0.0,         oy:  0.0,          oz:  0.0 },
+      { r: ls * 0.78, ox:  ls * 0.55,   oy:  ls * 0.18,    oz:  ls * 0.20 },
+      { r: ls * 0.70, ox: -ls * 0.50,   oy: -ls * 0.10,    oz: -ls * 0.25 },
+      { r: ls * 0.62, ox:  ls * 0.10,   oy:  ls * 0.35,    oz:  ls * 0.40 },
+    ];
+    const cluster = new THREE.Group();
+    cluster.position.set(tx, ty, tz);
+    for (const p of puffs) {
+      const m = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(p.r, 1),
+        leafMat,
+      );
+      m.position.set(p.ox, p.oy, p.oz);
+      // Squash on Y so each puff reads as a flat disc-cloud
+      m.scale.set(1.0, 0.55, 1.0);
+      m.castShadow = m.receiveShadow = true;
+      cluster.add(m);
+    }
+    cluster.rotation.y = (tx * 0.7 + tz * 1.3) % (Math.PI * 2);
+    group.add(cluster);
   }
 
   group.position.set(x, 0, z);
-  // Gentle random-looking yaw so it doesn't read as machine-placed
-  group.rotation.y = 0.4;
+  // Subtle yaw - just enough to break machine-placed symmetry
+  group.rotation.y = 0.35;
   scene.add(group);
 }
 

@@ -15,6 +15,7 @@ import { initWeapons, spawnBullet, tickWeapons, triggerRecoil } from './weapons.
 import { initHUD, tickHUD, flashCross, drawMinimap } from './hud.js';
 import { ARENA_HALF, WALL_H } from './config.js';
 import { nostrLogin } from './nostr.js';
+import { playShoot } from './audio.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
@@ -28,10 +29,11 @@ initWeapons(bots, takeDamage);
 initLoop(update);
 startLoop();
 
-// Shoot wire: player emits EV.SHOOT → spawn bullet + recoil
+// Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX
 on(EV.SHOOT, ({ origin, dir }) => {
   spawnBullet(origin, dir, true);
   triggerRecoil();
+  playShoot();
 });
 
 // Bot-hit bridge

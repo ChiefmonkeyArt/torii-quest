@@ -4,8 +4,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene, gunScene } from './scene.js';
-import { BULLET_SPEED, BULLET_LIFE, ARENA_HALF, WALL_H, CRATES } from './config.js';
+import { BULLET_SPEED, BULLET_LIFE, ARENA_HALF, WALL_H } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
+import { sweepWalls, sweepCrates, impactPos as _impactPos, impactNrm as _impactNrm } from './bulletCollision.js';
 
 // ── Bullet pool ──────────────────────────────────────────────────────────────
 const _pool   = [];
@@ -35,46 +36,11 @@ export function spawnBullet(origin, dir, isPlayer) {
   return b;
 }
 
-// ── Object-collision helpers ─────────────────────────────────────────────────
-// Bullets test against arena walls (planes at ±ARENA_HALF) and CRATES (AABBs
-// from config.js — same source as physics colliders).
-const _impactPos = new THREE.Vector3();
-const _impactNrm = new THREE.Vector3();
-const _reflDir   = new THREE.Vector3();
+// ── Object-collision (swept) ─────────────────────────────────────────────────
+// Helpers live in bulletCollision.js. _impactPos/_impactNrm are scratch
+// vectors re-exported from that module — read after a successful sweep test.
+const _reflDir = new THREE.Vector3();
 
-function _testWallCollision(b) {
-  const p = b.mesh.position;
-  if (p.x >  ARENA_HALF) { _impactPos.set( ARENA_HALF, p.y, p.z); _impactNrm.set(-1, 0,  0); return true; }
-  if (p.x < -ARENA_HALF) { _impactPos.set(-ARENA_HALF, p.y, p.z); _impactNrm.set( 1, 0,  0); return true; }
-  if (p.z >  ARENA_HALF) { _impactPos.set(p.x, p.y,  ARENA_HALF); _impactNrm.set( 0, 0, -1); return true; }
-  if (p.z < -ARENA_HALF) { _impactPos.set(p.x, p.y, -ARENA_HALF); _impactNrm.set( 0, 0,  1); return true; }
-  return false;
-}
-
-function _testCrateCollision(b) {
-  const p = b.mesh.position;
-  for (let i = 0; i < CRATES.length; i++) {
-    const [cx, cz, hw, hd, fullH] = CRATES[i];
-    if (p.x < cx - hw || p.x > cx + hw) continue;
-    if (p.z < cz - hd || p.z > cz + hd) continue;
-    if (p.y < 0      || p.y > fullH)    continue;
-    // Smallest penetration = entry face. Push impact point to that face.
-    const dxPos = (cx + hw) - p.x;
-    const dxNeg = p.x - (cx - hw);
-    const dzPos = (cz + hd) - p.z;
-    const dzNeg = p.z - (cz - hd);
-    const dyPos = fullH - p.y;
-    let minPen = dxPos, nx = 1, ny = 0, nz = 0, px = cx + hw, py = p.y, pz = p.z;
-    if (dxNeg < minPen) { minPen = dxNeg; nx = -1; ny = 0; nz = 0; px = cx - hw; py = p.y; pz = p.z; }
-    if (dzPos < minPen) { minPen = dzPos; nx = 0;  ny = 0; nz = 1; px = p.x; py = p.y; pz = cz + hd; }
-    if (dzNeg < minPen) { minPen = dzNeg; nx = 0;  ny = 0; nz = -1; px = p.x; py = p.y; pz = cz - hd; }
-    if (dyPos < minPen) { minPen = dyPos; nx = 0;  ny = 1; nz = 0; px = p.x; py = fullH; pz = p.z; }
-    _impactPos.set(px, py, pz);
-    _impactNrm.set(nx, ny, nz);
-    return true;
-  }
-  return false;
-}
 
 // ── Hit callbacks — set by main.js ───────────────────────────────────────────
 let _onPlayerHit = null;
@@ -122,8 +88,9 @@ export function tickWeapons(dt, playerPos) {
         }
       }
 
-      // 3. Wall / crate — spark + ricochet tracer + despawn
-      if (!remove && (_testWallCollision(b) || _testCrateCollision(b))) {
+      // 3. Wall / crate — swept segment test, applies to player AND bot bullets.
+      // Catches fast bullets that would otherwise tunnel through thin walls.
+      if (!remove && (sweepWalls(b) || sweepCrates(b))) {
         spawnSpark(_impactPos);
         const dot = b.vel.dot(_impactNrm);
         _reflDir.copy(b.vel).addScaledVector(_impactNrm, -2 * dot).normalize();

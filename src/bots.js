@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, PHASE } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, ARENA_HALF, CRATES } from './config.js';
+import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, ARENA_HALF, CRATES, EAST_GAP_HALF } from './config.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER } from './player.js';
@@ -100,7 +100,10 @@ export function initBotPhysics() {} // API compat
 
 // ── AABB pushout — same as player.js ─────────────────────────────────────────
 function _pushout(nx, nz) {
-  nx = Math.max(-ARENA_HALF + BOT_R, Math.min(ARENA_HALF - BOT_R, nx));
+  // East wall gate gap — same opening as player.js so bots can chase through.
+  nx = Math.max(-ARENA_HALF + BOT_R, nx);
+  const inGap = Math.abs(nz) < EAST_GAP_HALF - BOT_R;
+  if (!inGap) nx = Math.min(ARENA_HALF - BOT_R, nx);
   nz = Math.max(-ARENA_HALF + BOT_R, Math.min(ARENA_HALF - BOT_R, nz));
   for (const [cx, cz, hw, hd] of CRATES) {
     const dx = nx - cx, dz = nz - cz;

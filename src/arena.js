@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
-import { ARENA_HALF, WALL_H, CRATES } from './config.js';
+import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF } from './config.js';
 import { buildFoliage } from './arena-foliage.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
@@ -70,11 +70,16 @@ function _buildGrid() {
 function _buildWalls() {
   // [w, h, d, x, y, z, span]  — span = textured face width for UV tiling
   const A = ARENA_HALF * 2 + 0.5;
+  // East wall is split in two so the torii gate can sit in a true opening.
+  // Each segment runs from a corner to the gap edge along Z.
+  const eastSegLen = ARENA_HALF - EAST_GAP_HALF + 0.25; // extends past corner
+  const eastSegZ   = (EAST_GAP_HALF + ARENA_HALF) / 2;   // midpoint of segment
   const wallDefs = [
-    [A,      WALL_H, 0.5,  0,          WALL_H/2, -ARENA_HALF, A],   // north
-    [A,      WALL_H, 0.5,  0,          WALL_H/2,  ARENA_HALF, A],   // south
-    [0.5, WALL_H, A, -ARENA_HALF, WALL_H/2, 0,              A],   // west
-    [0.5, WALL_H, A,  ARENA_HALF, WALL_H/2, 0,              A],   // east
+    [A,    WALL_H, 0.5,  0,          WALL_H/2, -ARENA_HALF, A],            // north
+    [A,    WALL_H, 0.5,  0,          WALL_H/2,  ARENA_HALF, A],            // south
+    [0.5,  WALL_H, A,   -ARENA_HALF, WALL_H/2,  0,          A],            // west
+    [0.5,  WALL_H, eastSegLen,  ARENA_HALF, WALL_H/2, -eastSegZ, eastSegLen], // east-north
+    [0.5,  WALL_H, eastSegLen,  ARENA_HALF, WALL_H/2,  eastSegZ, eastSegLen], // east-south
   ];
 
   const capMat    = new THREE.MeshBasicMaterial({ color: C_ORANGE });
@@ -132,6 +137,7 @@ function _buildToriiGate() {
   const cb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 6.5), mat);
   cb.position.set(0, 5.2, 0); fallback.add(cb);
   fallback.position.set(ARENA_HALF, 0, 0);
+  fallback.rotation.y = Math.PI / 4; // match GLB diagonal yaw
   scene.add(fallback);
 
   // Accent light — stays regardless of GLB
@@ -155,10 +161,12 @@ function _buildToriiGate() {
     const s = targetH / (size.y || 1);
     gate.scale.setScalar(s);
 
-    // Centre at east wall gate position, feet on floor
+    // Centre at east wall gate position, feet on floor.
+    // Rotated 45° off the wall axis (was -PI/2 — perpendicular). The new yaw
+    // turns the gate so it presents a diagonal face from the arena interior.
     box.setFromObject(gate);
     gate.position.set(ARENA_HALF - 0.2, -box.min.y, 0);
-    gate.rotation.y = -Math.PI / 2; // face into arena
+    gate.rotation.y = -Math.PI / 2 + Math.PI / 4; // 45° rotated from wall normal
 
     gate.traverse(o => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
@@ -187,10 +195,11 @@ function _loadWallTexture() {
         [4, 5],  // north wall
         [4, 5],  // south wall
         [0, 1],  // west wall
-        [0, 1],  // east wall
+        [0, 1],  // east-north segment
+        [0, 1],  // east-south segment
       ];
 
-      wallMeshes.slice(0, 4).forEach((mesh, i) => {
+      wallMeshes.slice(0, 5).forEach((mesh, i) => {
         const span  = _wallSpans[i];
         // RepeatX: how many tiles wide. Texture aspect is 2:1 so tile width = WALL_H*2
         const repsX = span / (WALL_H * 2);

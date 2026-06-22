@@ -6,7 +6,7 @@ import { keys, getYaw, getPitch, setYaw, onKeyDown, onShoot, requestLock } from 
 import { scene, camera } from './scene.js';
 import { stepPhysics, createKinematic, physicsReady } from './physics.js';
 import { getGunBarrelWorld } from './weapons.js';
-import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, CRATES, JUMP_FORCE, GRAVITY, godMode } from './config.js';
+import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, CRATES, JUMP_FORCE, GRAVITY, godMode, EAST_GAP_HALF } from './config.js';
 
 
 
@@ -101,8 +101,11 @@ export function tickPlayer(dt) {
   let nx = cx.x + _move.x * dt;
   let nz = cx.z + _move.z * dt;
 
-  // Arena wall clamp XZ
-  nx = Math.max(-ARENA_HALF + PR, Math.min(ARENA_HALF - PR, nx));
+  // Arena wall clamp XZ. East wall has a gate gap centred on z=0 — only
+  // block the east plane when the player is outside that opening.
+  nx = Math.max(-ARENA_HALF + PR, nx);
+  const inGap = Math.abs(nz) < EAST_GAP_HALF - PR;
+  if (!inGap) nx = Math.min(ARENA_HALF - PR, nx);
   nz = Math.max(-ARENA_HALF + PR, Math.min(ARENA_HALF - PR, nz));
 
   // Default ground

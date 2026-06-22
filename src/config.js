@@ -71,8 +71,8 @@ const _EAST_SEG_HALFD = (ARENA_HALF - EAST_GAP_HALF) / 2;
 export const OBSTACLES = [
   // cx              cz                 hw    hd                 fullH
   [ ARENA_HALF + 6,  0,                 0.55, 0.55,              4.4 ], // bonsai trunk (NAP zone)
-  [ ARENA_HALF,     -3.0,               0.4,  0.4,               WALL_H * 1.1 ], // torii pillar (north)
-  [ ARENA_HALF,      3.0,               0.4,  0.4,               WALL_H * 1.1 ], // torii pillar (south)
+  [ ARENA_HALF,     -3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (north) — matches gate ×1.3 scale
+  [ ARENA_HALF,      3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (south) — matches gate ×1.3 scale
   [ ARENA_HALF,     -_EAST_SEG_MIDZ,    0.25, _EAST_SEG_HALFD,   WALL_H ],       // east-north wall segment
   [ ARENA_HALF,      _EAST_SEG_MIDZ,    0.25, _EAST_SEG_HALFD,   WALL_H ],       // east-south wall segment
 ];

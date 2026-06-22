@@ -167,11 +167,15 @@ function _buildToriiGate() {
     scene.remove(fallback);
     const gate = gltf.scene;
 
-    // Scale to fit wall height — gate should span WALL_H tall
+    // Scale: torii is a gateway, not a hurdle — it should be impressive and
+    // imposing. Target 30% taller than the wall (user request v0.2.59), and
+    // because we scale uniformly the crossbar grows proportionally wider too
+    // — the GLB's natural aspect ratio is preserved. At WALL_H = 2.6 this
+    // makes the gate 3.38m tall (vs the previous 2.86m at ×1.1).
     const box = new THREE.Box3().setFromObject(gate);
     const size = new THREE.Vector3();
     box.getSize(size);
-    const targetH = WALL_H * 1.1; // slightly taller than wall
+    const targetH = WALL_H * 1.3; // 30% taller than wall — imposing gateway
     const s = targetH / (size.y || 1);
     gate.scale.setScalar(s);
 

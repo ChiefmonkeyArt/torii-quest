@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene, gunScene } from './scene.js';
-import { BULLET_SPEED, BULLET_LIFE, ARENA_HALF, WALL_H } from './config.js';
+import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
 import { sweepWalls, sweepCrates, impactPos as _impactPos, impactNrm as _impactNrm } from './bulletCollision.js';
 
@@ -86,7 +86,7 @@ export function tickWeapons(dt, playerPos) {
       // 2. Player hit
       if (!remove && !b.isPlayer && _onPlayerHit) {
         if (b.mesh.position.distanceToSquared(playerPos) < 0.5) {
-          _onPlayerHit(12);
+          _onPlayerHit(BOT_DAMAGE);
           remove = true;
         }
       }
@@ -208,12 +208,22 @@ export function setRightHandBone(bone) {
   if (_worldGunSrc && !_worldGun) _attachWorldGun();
 }
 
+const _wsScale = new THREE.Vector3();
 function _attachWorldGun() {
   _worldGun = _worldGunSrc.clone(true);
-  // Bone-local placement — small offset positions the grip in the hand and
-  // orients the barrel away from the wrist.
-  _worldGun.scale.setScalar(0.5);
-  _worldGun.position.set(0.04, 0.01, 0.06);
+  // Compensate for inherited bone scale. The Mixamo character root is uniformly
+  // scaled by ~1/175 (TARGET_HEIGHT/geoH cm→m), and that scale cascades through
+  // every bone. Without compensation the gun renders ~0.5% of intended size —
+  // i.e. invisible inside the wrist. Read the bone's world scale, then size and
+  // offset the gun in WORLD units divided by that scale.
+  _rightHandBone.updateWorldMatrix(true, false);
+  _rightHandBone.getWorldScale(_wsScale);
+  const inv = 1 / Math.max(_wsScale.x, 1e-6);
+  // Bone-local placement — small WORLD-space offset positions the grip in the
+  // hand and orients the barrel away from the wrist. Multiply by inv to convert
+  // from world units to bone-local units.
+  _worldGun.scale.setScalar(0.18 * inv);
+  _worldGun.position.set(0.06 * inv, 0.0 * inv, 0.04 * inv);
   _worldGun.rotation.set(0, Math.PI / 2, Math.PI / 2);
   _worldGun.traverse(o => {
     if (o.isMesh) {

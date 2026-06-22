@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, PHASE } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, ARENA_HALF, CRATES, EAST_GAP_HALF } from './config.js';
+import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, BOT_SPREAD, ARENA_HALF, CRATES, EAST_GAP_HALF } from './config.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER } from './player.js';
@@ -196,8 +196,12 @@ export function tickBots(dt) {
         bot.shootCd = BOT_SHOOT_CD + Math.random() * 0.8;
         _shootOrigin.set(nx, EYE_Y, nz);
         _shootDir.set(pp.x - nx, pp.y - EYE_Y, pp.z - nz).normalize();
-        _shootDir.x += (Math.random() - 0.5) * 0.08;
-        _shootDir.z += (Math.random() - 0.5) * 0.08;
+        // Per-axis Gaussian-ish spread — sum of two uniforms is bell-shaped, so
+        // most shots land near centre but the occasional wide miss feels human.
+        _shootDir.x += ((Math.random() + Math.random()) - 1) * BOT_SPREAD;
+        _shootDir.y += ((Math.random() + Math.random()) - 1) * BOT_SPREAD * 0.5;
+        _shootDir.z += ((Math.random() + Math.random()) - 1) * BOT_SPREAD;
+        _shootDir.normalize();
         if (_spawnBulletFn) _spawnBulletFn(_shootOrigin, _shootDir, false);
         isShooting = true;
       }

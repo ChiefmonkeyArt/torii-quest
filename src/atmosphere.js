@@ -185,48 +185,75 @@ function _buildTrees() {
 // Plus an arena-only swirl layer of smaller turquoise-tinted planes that
 // hug the arena floor for the underlit-fog effect.
 const _MIST_COUNT = 24;
-const _ARENA_SWIRL_COUNT = 28;
+const _ARENA_SWIRL_COUNT = 36;
 const _mistMeshes = [];
-const _arenaSwirls = []; // { mesh, baseX, baseZ, baseY, phase, ampX, ampZ, ... }
+const _arenaSwirls = []; // { sprite, baseX, baseZ, baseY, phase, ampX, ampZ, life, lifeMax, baseScale, ... }
 let   _mistUTime  = 0;
 
-// Arena swirls — soft turquoise puffs hugging the arena floor. Each spins
-// slowly and drifts in a small ellipse around its base position. Additive
-// blending so they pile into a glowing low-mist haze where they overlap.
+// Canvas-painted soft puff texture — radial gradient, hot turquoise core fading
+// to fully transparent edge. Cached and shared by every swirl sprite so the
+// texture cost is paid once.
+let _puffTexture = null;
+function _buildPuffTexture() {
+  if (_puffTexture) return _puffTexture;
+  const SIZE = 128;
+  const cvs  = document.createElement('canvas');
+  cvs.width = SIZE; cvs.height = SIZE;
+  const ctx = cvs.getContext('2d');
+  const grad = ctx.createRadialGradient(SIZE/2, SIZE/2, 0, SIZE/2, SIZE/2, SIZE/2);
+  grad.addColorStop(0.00, 'rgba(220, 250, 245, 0.95)');
+  grad.addColorStop(0.25, 'rgba(160, 235, 220, 0.55)');
+  grad.addColorStop(0.55, 'rgba(110, 220, 200, 0.22)');
+  grad.addColorStop(1.00, 'rgba(110, 220, 200, 0.00)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  _puffTexture = new THREE.CanvasTexture(cvs);
+  _puffTexture.colorSpace = THREE.SRGBColorSpace;
+  return _puffTexture;
+}
+
+// Arena swirls — volumetric-feel smoke puffs. Each puff is a camera-facing
+// THREE.Sprite using the soft radial-gradient canvas texture, additively
+// blended so overlapping puffs build into a glowing low haze. Each puff drifts
+// slowly upward, fades in over its first 20% of life, holds, then fades out
+// and respawns near the floor. Reads as drifting smoke instead of flat slabs.
 function _buildArenaSwirls() {
-  const baseMat = new THREE.MeshBasicMaterial({
-    color: 0x6ee9d8,
-    transparent: true,
-    opacity: 0.18,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    fog: false,
-    blending: THREE.AdditiveBlending,
-  });
+  const tex = _buildPuffTexture();
 
   for (let i = 0; i < _ARENA_SWIRL_COUNT; i++) {
-    const w = 3.5 + Math.random() * 5.5;
-    const d = 3.5 + Math.random() * 5.5;
-    const geo = new THREE.PlaneGeometry(w, d);
-    const m   = new THREE.Mesh(geo, baseMat.clone());
-    m.material.opacity = 0.12 + Math.random() * 0.18;
-    m.rotation.x = -Math.PI / 2;
-    m.rotation.z = Math.random() * Math.PI * 2;
+    const mat = new THREE.SpriteMaterial({
+      map: tex,
+      color: 0x9ff0e0,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const sp = new THREE.Sprite(mat);
+    const baseScale = 5.0 + Math.random() * 4.5;
+    sp.scale.set(baseScale, baseScale, 1);
+    sp.renderOrder = 2;
+    sp.frustumCulled = false;
+
     const baseX = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
     const baseZ = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
-    const y     = 0.15 + Math.random() * 0.45;
-    m.position.set(baseX, y, baseZ);
-    m.renderOrder = 2;
-    scene.add(m);
+    const y     = 0.25 + Math.random() * 0.5;
+    sp.position.set(baseX, y, baseZ);
+    scene.add(sp);
+
+    const lifeMax = 4.5 + Math.random() * 3.5;
     _arenaSwirls.push({
-      mesh: m,
+      sprite: sp,
       baseX, baseZ, baseY: y,
-      rotSpeed:  (Math.random() < 0.5 ? -1 : 1) * (0.10 + Math.random() * 0.25),
       phase:     Math.random() * Math.PI * 2,
-      ampX:      0.6 + Math.random() * 1.2,
-      ampZ:      0.6 + Math.random() * 1.2,
-      bobAmp:    0.08 + Math.random() * 0.10,
-      bobSpeed:  0.5 + Math.random() * 0.6,
+      ampX:      0.4 + Math.random() * 0.9,
+      ampZ:      0.4 + Math.random() * 0.9,
+      rise:      0.18 + Math.random() * 0.22,
+      maxOpacity:0.32 + Math.random() * 0.28,
+      baseScale,
+      lifeMax,
+      life:      Math.random() * lifeMax,
     });
   }
 }
@@ -312,15 +339,36 @@ export function tickAtmosphere(dt) {
     if (Math.abs(m.position.z) > ARENA_HALF * 1.8) m.position.z *= -0.9;
   }
 
-  // Arena swirls — spin + small elliptical drift around their base position.
-  // Stays inside the arena (base is sampled inside ARENA_HALF bounds, drift
-  // amplitude is small) so it reads as in-arena underlit fog.
+  // Arena swirls — billboard smoke puffs with birth/drift/death lifecycle.
+  // Each puff rises slowly, drifts in a small ellipse, fades in then out, and
+  // respawns near the floor at a fresh ground position. Sprites auto-face the
+  // camera so the result reads volumetric without needing real volumetric fog.
   for (const s of _arenaSwirls) {
+    s.life += dt;
+    if (s.life >= s.lifeMax) {
+      s.life   = 0;
+      s.baseX  = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
+      s.baseZ  = (Math.random() - 0.5) * (ARENA_HALF * 2 - 4);
+      s.baseY  = 0.25 + Math.random() * 0.4;
+      s.phase  = Math.random() * Math.PI * 2;
+      s.lifeMax = 4.5 + Math.random() * 3.5;
+      s.baseScale = 5.0 + Math.random() * 4.5;
+    }
+
+    const lt = s.life / s.lifeMax;
+    let alpha;
+    if (lt < 0.20)      alpha = lt / 0.20;
+    else if (lt > 0.70) alpha = (1.0 - lt) / 0.30;
+    else                alpha = 1.0;
+    s.sprite.material.opacity = alpha * s.maxOpacity;
+
     const t = _mistUTime;
-    s.mesh.rotation.z += s.rotSpeed * dt;
-    s.mesh.position.x = s.baseX + Math.cos(t * 0.4 + s.phase) * s.ampX;
-    s.mesh.position.z = s.baseZ + Math.sin(t * 0.4 + s.phase) * s.ampZ;
-    s.mesh.position.y = s.baseY + Math.sin(t * s.bobSpeed + s.phase) * s.bobAmp;
+    s.sprite.position.x = s.baseX + Math.cos(t * 0.35 + s.phase) * s.ampX;
+    s.sprite.position.z = s.baseZ + Math.sin(t * 0.30 + s.phase) * s.ampZ;
+    s.sprite.position.y = s.baseY + s.rise * s.life;
+
+    const swell = 1.0 + lt * 0.45;
+    s.sprite.scale.set(s.baseScale * swell, s.baseScale * swell, 1);
   }
 
   // Animate birds in slow arcs + lazy wing flap

@@ -7,37 +7,70 @@ import { scene, gunScene } from './scene.js';
 import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H, EAST_GAP_HALF, CRATES, OBSTACLES } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
 
-// ── Bullet pool ──────────────────────────────────────────────────────────────
+// -- Bullet pool ----------------------------------------------------------
 const _pool   = [];
 const _active = [];
+// Core tracer geometry - tapered cylinder pointing along +Y. Bots get a
+// thicker, longer cylinder + glow halo so incoming fire reads across the arena.
 const _geo    = new THREE.CylinderGeometry(0.06, 0.02, 0.4, 6);
-// Player bullets — neon purple with hot orange tip. Bots — neon green core
-// with a pink hint. Two-tone is implemented as one base material per shooter;
-// the tip pop is rendered by overlaying a small sphere material toggled below.
-const _matP        = new THREE.MeshBasicMaterial({ color: 0xb84cff }); // neon purple
-const _matB        = new THREE.MeshBasicMaterial({ color: 0x39ff14 }); // neon green
+const _geoBot = new THREE.CylinderGeometry(0.13, 0.05, 0.7, 8);
+
+// Per-shooter materials.
+//   Player: neon purple core + neon orange tip.
+//   Bots:   bright neon green core + neon pink tip + additive green halo.
+// Brighter green keeps the bot tracer readable against the turquoise floor.
+const _matP        = new THREE.MeshBasicMaterial({ color: 0xb84cff });
+const _matB        = new THREE.MeshBasicMaterial({ color: 0x6dff3a });
+
 const _tipMatP_geo = new THREE.SphereGeometry(0.09, 6, 4);
-const _tipMatP     = new THREE.MeshBasicMaterial({ color: 0xff7a00 }); // neon orange tip (player)
-const _tipMatB     = new THREE.MeshBasicMaterial({ color: 0xff2bd6 }); // neon pink   tip (bot)
-const _bUp    = new THREE.Vector3(0,1,0);
-const _bQ     = new THREE.Quaternion();
-const _bN     = new THREE.Vector3();
+const _tipMatB_geo = new THREE.SphereGeometry(0.18, 8, 6);
+const _tipMatP     = new THREE.MeshBasicMaterial({ color: 0xff7a00 });
+const _tipMatB     = new THREE.MeshBasicMaterial({ color: 0xff2bd6 });
+
+// Bot glow halo - additive outer sphere so the tracer carries far. Player
+// bullets don't need one; purple/orange already pops against the teal floor.
+const _haloMatB_geo = new THREE.SphereGeometry(0.30, 10, 8);
+const _haloMatB     = new THREE.MeshBasicMaterial({
+  color: 0x39ff14, transparent: true, opacity: 0.40,
+  blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+});
+
+const _bUp = new THREE.Vector3(0,1,0);
+const _bQ  = new THREE.Quaternion();
+const _bN  = new THREE.Vector3();
 
 export function spawnBullet(origin, dir, isPlayer) {
-  let b = _pool.pop();
-  if (!b) {
-    const mesh = new THREE.Mesh(_geo, _matP);
-    // Tip child — spawns ahead of bullet along its local +Y (cylinder axis)
-    // so the pop colour reads on the leading edge of the tracer.
-    const tip = new THREE.Mesh(_tipMatP_geo, _tipMatP);
-    tip.position.y = 0.22;
+  // Pool BY SHOOTER so a returned player bullet (small geo) can't be reused
+  // as a bot bullet and silently revert the visibility upgrade. Costs one
+  // linear scan; pool stays tiny in practice.
+  let idx = -1;
+  for (let i = _pool.length - 1; i >= 0; i--) {
+    if (_pool[i].isPlayer === isPlayer) { idx = i; break; }
+  }
+  let b = null;
+  if (idx >= 0) {
+    b = _pool[idx];
+    _pool.splice(idx, 1);
+  } else {
+    const geo = isPlayer ? _geo : _geoBot;
+    const mat = isPlayer ? _matP : _matB;
+    const mesh = new THREE.Mesh(geo, mat);
+    const tipGeo = isPlayer ? _tipMatP_geo : _tipMatB_geo;
+    const tipMat = isPlayer ? _tipMatP    : _tipMatB;
+    const tip    = new THREE.Mesh(tipGeo, tipMat);
+    tip.position.y = isPlayer ? 0.22 : 0.38;
     mesh.add(tip);
-    b = { mesh, tip, vel: new THREE.Vector3(), prev: new THREE.Vector3(), life: 0, isPlayer };
+    let halo = null;
+    if (!isPlayer) {
+      halo = new THREE.Mesh(_haloMatB_geo, _haloMatB);
+      halo.position.y = 0.20;
+      halo.renderOrder = 1; // additive draws after opaque
+      mesh.add(halo);
+    }
+    b = { mesh, tip, halo, vel: new THREE.Vector3(), prev: new THREE.Vector3(), life: 0, isPlayer };
   }
   b.isPlayer = isPlayer;
   b.life = BULLET_LIFE;
-  b.mesh.material = isPlayer ? _matP : _matB;
-  b.tip.material  = isPlayer ? _tipMatP : _tipMatB;
   b.mesh.position.copy(origin);
   b.prev.copy(origin);
   _bN.copy(dir).normalize();
@@ -338,17 +371,33 @@ function _attachWorldGun() {
   _rightHandBone.add(wrap);
 
   // Place + orient the gun inside the wrapper in straightforward world units.
-  // Position is a small offset that seats the grip in the palm; rotation aligns
-  // the barrel with the forearm so the muzzle points forward (away from the
-  // wrist) in third-person view.
-  //   - +X along the palm → grip slightly outboard of the wrist origin
-  //   - +Y across the back of the hand → raise to clear the knuckle line
-  //   - +Z forward of the wrist → push muzzle past the fingertips
-  // Rotation: yaw 90° to swing the barrel parallel to the forearm, plus a roll
-  // so the grip's underside faces the palm (was reading upside-down before).
+  //
+  // Mixamo RightHand bone local axes (approx, after the root-scale cascade is
+  // cancelled by `wrap`):
+  //   +Y down the fingers (toward fingertips)
+  //   +X across the palm (toward the thumb on a right hand)
+  //   +Z out the BACK of the hand (knuckle side)
+  //   -Z into the PALM
+  //
+  // The gun-steampunk GLB sits in its own default orientation. The FP view-
+  // model uses rotation.y = -π/2, which means in GLB space the barrel points
+  // along +X by default and we yaw it to look down -Z for the FP camera.
+  //
+  // For the world gun we want:
+  //   barrel pointing along bone +Y  (down the fingers)
+  //   grip   pointing along bone -Z  (into the palm)
+  //
+  // Previous rotation `(0, π/2, -π/2)` left the gun's SIDE pressed against the
+  // palm (the grip was perpendicular to the fingers — "the side of the gun is
+  // stuck to the palm"). Replace with a rotation that swings the barrel along
+  // bone +Y and rolls the grip into the palm.
+  //
+  // Euler XYZ: rotate -π/2 around Z first (puts default-+X-barrel onto +Y,
+  // i.e. down the fingers), then -π/2 around Y (rolls the grip from pointing
+  // along +X to pointing along -Z, i.e. into the palm).
   _worldGun.scale.setScalar(0.22);
-  _worldGun.position.set(0.04, 0.02, 0.10);
-  _worldGun.rotation.set(0, Math.PI / 2, -Math.PI / 2);
+  _worldGun.position.set(0.0, 0.06, -0.03); // sit gun in the palm, slid up along the fingers
+  _worldGun.rotation.set(0, -Math.PI / 2, -Math.PI / 2);
   wrap.add(_worldGun);
 
   // Layer 1 = visible to mirror reflection camera, hidden from FP camera.

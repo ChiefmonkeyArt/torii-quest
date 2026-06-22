@@ -278,68 +278,89 @@ function _buildNapTree(x, z) {
     color: 0x4a2818, roughness: 0.88, flatShading: true,
   });
 
-  // Trunk - short, thick, tapered. Slight lean for a wind-blown bonsai feel.
+  // Trunk - taller and gnarled. Two visible tiers of branches need a tall
+  // central spine, so we doubled height from 2.4 -> 4.4 and shifted the
+  // taper a touch. Slight lean for a wind-blown bonsai feel.
+  const TRUNK_H = 4.4;
   const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.32, 0.55, 2.4, 10),
+    new THREE.CylinderGeometry(0.30, 0.62, TRUNK_H, 12),
     woodMat,
   );
-  trunk.position.y = 1.2;
-  trunk.rotation.z = 0.08; // ~4.5deg lean
+  trunk.position.y = TRUNK_H / 2;
+  trunk.rotation.z = 0.06; // gentle lean
   trunk.castShadow = trunk.receiveShadow = true;
   group.add(trunk);
 
-  // Branches splay out from the top-shoulder of the trunk. Each entry is
-  //   [tipX, tipY, tipZ, branchRadius, leafSize, leafTint]
-  // The branch is a cylinder oriented from (0, TRUNK_TOP_Y, 0) to (tx,ty,tz);
-  // a cloud-leaf cluster is parented at the same tip.
+  // Branches splay in TWO tiers - lower tier at ~y=2.2 and upper tier at
+  // ~y=3.6. Each tier wraps around the trunk asymmetrically. Each entry is
+  //   [originY, tipX, tipY, tipZ, branchRadius, leafSize, leafTint]
+  // The branch cylinder goes from (0, originY, 0) to (tx, ty, tz); a layered
+  // cloud-leaf cluster is parented at the same tip.
   const branchDefs = [
-    [ 1.9, 2.8,  0.3, 0.16, 1.25, 0x3a8a4a],
-    [-1.7, 3.0,  0.4, 0.14, 1.05, 0x2d6a3a],
-    [ 0.6, 3.4, -1.4, 0.13, 0.95, 0x4a9a55],
-    [-0.4, 2.6,  1.5, 0.12, 0.85, 0x256b35],
+    // Lower tier - reach OUT more than UP, big chunky pads catching ambient
+    [2.2,  2.5, 2.6,  0.4, 0.18, 1.45, 0x3a8a4a],
+    [2.2, -2.3, 2.5,  0.5, 0.17, 1.30, 0x2d6a3a],
+    [2.2,  0.5, 2.7, -2.1, 0.15, 1.20, 0x4a9a55],
+    [2.2, -0.6, 2.4,  2.2, 0.15, 1.15, 0x256b35],
+    // Upper tier - shorter, lifted, smaller leaf pads for crown silhouette
+    [3.6,  1.6, 4.5,  0.7, 0.13, 1.00, 0x4ea862],
+    [3.6, -1.4, 4.7,  0.6, 0.12, 0.95, 0x35784a],
+    [3.6,  0.4, 4.9, -1.5, 0.11, 0.85, 0x5cb872],
+    [3.6, -0.3, 4.6,  1.6, 0.11, 0.80, 0x2f6d3f],
   ];
-  const TRUNK_TOP_Y = 2.2;
-  for (const [tx, ty, tz, br, ls, lc] of branchDefs) {
+  for (const [originY, tx, ty, tz, br, ls, lc] of branchDefs) {
     const dx = tx - 0;
-    const dy = ty - TRUNK_TOP_Y;
+    const dy = ty - originY;
     const dz = tz - 0;
     const len = Math.sqrt(dx*dx + dy*dy + dz*dz);
     const branch = new THREE.Mesh(
       new THREE.CylinderGeometry(br * 0.65, br, len, 6),
       woodMat,
     );
-    // Cylinder default axis = +Y. Position midpoint, then orient via
-    // quaternion that maps +Y onto the branch direction.
-    branch.position.set(dx * 0.5, TRUNK_TOP_Y + dy * 0.5, dz * 0.5);
+    // Cylinder default axis = +Y. Position midpoint along the branch line,
+    // then orient via quaternion mapping +Y onto branch direction.
+    branch.position.set(dx * 0.5, originY + dy * 0.5, dz * 0.5);
     const dir = new THREE.Vector3(dx, dy, dz).normalize();
     branch.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
     branch.castShadow = branch.receiveShadow = true;
     group.add(branch);
 
-    // Cloud-like leaf cluster - 4 overlapping flattened icospheres. Y-squash
-    // gives each puff the thin-cloud silhouette the user asked for; tint per
-    // cluster keeps the four canopies from reading identical.
+    // Layered cloud-leaf cluster - 7 flattened icospheres stacked into two
+    // visible foliage layers (upper crown + lower skirt) so each pad reads
+    // as a tiered cloud rather than a single blob. Y-squash gives every puff
+    // the thin disc silhouette; tier-tint shading between layers adds depth.
     const leafMat = new THREE.MeshStandardMaterial({
       color: lc,
       emissive: 0x0a2614, emissiveIntensity: 0.45,
       roughness: 0.85, flatShading: true,
     });
+    const leafMatDark = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(lc).multiplyScalar(0.72),
+      emissive: 0x081e10, emissiveIntensity: 0.35,
+      roughness: 0.88, flatShading: true,
+    });
+    // Upper layer (lighter, sits above midline) + lower layer (darker, shadow)
     const puffs = [
-      { r: ls,        ox:  0.0,         oy:  0.0,          oz:  0.0 },
-      { r: ls * 0.78, ox:  ls * 0.55,   oy:  ls * 0.18,    oz:  ls * 0.20 },
-      { r: ls * 0.70, ox: -ls * 0.50,   oy: -ls * 0.10,    oz: -ls * 0.25 },
-      { r: ls * 0.62, ox:  ls * 0.10,   oy:  ls * 0.35,    oz:  ls * 0.40 },
+      // Upper layer
+      { r: ls,        ox:  0.0,        oy:  ls * 0.25, oz:  0.0,        mat: leafMat },
+      { r: ls * 0.78, ox:  ls * 0.55,  oy:  ls * 0.40, oz:  ls * 0.20,  mat: leafMat },
+      { r: ls * 0.70, ox: -ls * 0.50,  oy:  ls * 0.30, oz: -ls * 0.25,  mat: leafMat },
+      { r: ls * 0.62, ox:  ls * 0.10,  oy:  ls * 0.55, oz:  ls * 0.40,  mat: leafMat },
+      // Lower layer
+      { r: ls * 0.85, ox:  ls * 0.15,  oy: -ls * 0.20, oz: -ls * 0.10,  mat: leafMatDark },
+      { r: ls * 0.72, ox: -ls * 0.45,  oy: -ls * 0.10, oz:  ls * 0.30,  mat: leafMatDark },
+      { r: ls * 0.60, ox:  ls * 0.40,  oy: -ls * 0.05, oz:  ls * 0.45,  mat: leafMatDark },
     ];
     const cluster = new THREE.Group();
     cluster.position.set(tx, ty, tz);
     for (const p of puffs) {
       const m = new THREE.Mesh(
         new THREE.IcosahedronGeometry(p.r, 1),
-        leafMat,
+        p.mat,
       );
       m.position.set(p.ox, p.oy, p.oz);
-      // Squash on Y so each puff reads as a flat disc-cloud
-      m.scale.set(1.0, 0.55, 1.0);
+      // Heavy Y-squash so each puff reads as a flat disc-cloud
+      m.scale.set(1.0, 0.50, 1.0);
       m.castShadow = m.receiveShadow = true;
       cluster.add(m);
     }

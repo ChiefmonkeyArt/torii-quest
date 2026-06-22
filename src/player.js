@@ -174,19 +174,41 @@ export function tickPlayer(dt) {
 
 export function getRecoilT() { return _recoilTimer / RECOIL_DUR; }
 
-const _shootOrigin = new THREE.Vector3();
-const _shootDir    = new THREE.Vector3();
+const _shootOrigin     = new THREE.Vector3();
+const _shootDir        = new THREE.Vector3();
+const _camFwd          = new THREE.Vector3();
+const _camPos          = new THREE.Vector3();
+const _convergePoint   = new THREE.Vector3();
+// Distance ahead of the camera along its forward axis where the player's
+// crosshair effectively "focuses". The bullet is aimed from the barrel
+// THROUGH this point so the trajectory converges with the crosshair line
+// instead of running parallel to it. 80m balances near-target convergence
+// with far-target accuracy for our 60u/s bullet @ 2.5s life (= ~150m range).
+const CROSSHAIR_CONVERGE_DIST = 80;
 
 export function shoot() {
   if (state.shootCd > 0 || state.reloading || state.ammo <= 0) return null;
   state.ammo--;
   state.shootCd = SHOOT_CD;
   _recoilTimer  = RECOIL_DUR;
-  camera.getWorldDirection(_shootDir);
-  // Bullet spawns from barrel tip in world space
+
+  // 1. Camera forward + position (the crosshair's true aim line in world space)
+  camera.getWorldDirection(_camFwd);
+  _camPos.setFromMatrixPosition(camera.matrixWorld);
+
+  // 2. Bullet origin = barrel tip in world space (offset from camera centre)
   _shootOrigin.copy(getGunBarrelWorld(camera));
-  // Direction: straight toward crosshair (camera forward = screen centre)
-  // but we nudge origin so bullet actually travels from barrel to where you're aiming
+
+  // 3. Convergence point: where the crosshair is "aiming" at CROSSHAIR_CONVERGE_DIST
+  _convergePoint.copy(_camPos).addScaledVector(_camFwd, CROSSHAIR_CONVERGE_DIST);
+
+  // 4. Bullet direction = barrel -> convergence (so the bullet line crosses
+  // the camera/crosshair line at that convergence point). This is the fix:
+  // previously dir was camera forward, which is PARALLEL to the crosshair
+  // line but offset by the barrel position, so bullets visibly missed the
+  // reticle. Now bullets actually travel toward what the crosshair is on.
+  _shootDir.copy(_convergePoint).sub(_shootOrigin).normalize();
+
   emit(EV.SHOOT, { origin: _shootOrigin.clone(), dir: _shootDir.clone() });
   emit(EV.HUD_UPDATE);
   if (state.ammo === 0) startReload();

@@ -60,7 +60,7 @@ export const CRATES = [
 //     so the central walkway stays clear. Half-width 0.4 covers the GLB pillar.
 export const OBSTACLES = [
   // cx              cz    hw    hd    fullH
-  [ ARENA_HALF + 6,  0,    0.55, 0.55, 3.2 ], // bonsai trunk (NAP zone)
+  [ ARENA_HALF + 6,  0,    0.55, 0.55, 4.4 ], // bonsai trunk (NAP zone, taller after v0.2.55)
   [ ARENA_HALF,     -3.0,  0.4,  0.4,  WALL_H * 1.1 ], // torii pillar (north)
   [ ARENA_HALF,      3.0,  0.4,  0.4,  WALL_H * 1.1 ], // torii pillar (south)
 ];

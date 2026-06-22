@@ -230,10 +230,16 @@ export function tickWeapons(dt, playerPos) {
           if (hit) {
             _rayHitP.set(hit.point.x, hit.point.y, hit.point.z);
             if (hit.bot && hit.bot.alive) {
-              // Bot body hit — spark sprays back at shooter, then damage.
+              // Bot hit — spark sprays back at shooter. Headshots deal 3× body
+              // damage (9 vs 3). v0.2.64 introduced the head sphere collider;
+              // hit.bodyPart === 'head' for the sphere, 'body' for the capsule.
               _bodyBurstNrm.copy(b.vel).normalize().negate();
               spawnSpark(_rayHitP, _bodyBurstNrm);
-              if (window._onBotHit) window._onBotHit(hit.bot, 3);
+              const isHead = hit.bodyPart === 'head';
+              const dmg    = isHead ? 9 : 3;
+              // Second spark on headshots so the hit reads as more impactful.
+              if (isHead) spawnSpark(_rayHitP, _bodyBurstNrm);
+              if (window._onBotHit) window._onBotHit(hit.bot, dmg);
             } else {
               // Wall / crate / obstacle / ground — use Rapier-provided normal.
               _impactNrm.set(hit.normal.x, hit.normal.y, hit.normal.z);

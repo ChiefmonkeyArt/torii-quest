@@ -13,10 +13,13 @@ let world, RAPIER;
 let _controller = null;
 export let physicsReady = false;
 
-// Collider → bot map, populated by createBotBody(). Used by the bullet raycast
-// to translate a Rapier hit into a game-side bot reference. Keyed by collider
-// handle (integer), value is the bot object passed to createBotBody.
+// Collider → bot map, populated by createBotBody/createBotHead. Used by the
+// bullet raycast to translate a Rapier hit into a game-side bot reference.
+// Keyed by collider handle (integer), value is the bot object.
 const _colliderToBot = new Map();
+// Collider → body-part map ('body' or 'head'). Lets the bullet raycast apply
+// headshot damage multipliers without inspecting collider geometry.
+const _colliderToPart = new Map();
 
 // Player capsule geometry — matches PLAYER_RADIUS (0.35). 1.8m total height.
 export const PLAYER_CAPSULE_HALF_H = 0.55;
@@ -74,30 +77,59 @@ export function createDynamic(x, y, z) {
   return { body, collider };
 }
 
-// Bot body — kinematic capsule. Position is teleported by bots.js each frame
-// (bots use their own AI movement, not the character controller). Capsule
-// dimensions match the bot hit cylinder (footY -0.1 to 1.95 = ~2m tall,
-// radius 0.4 lateral). halfHeight 0.6 + radius 0.4 = 2m total.
+// Bot body — kinematic SLIM capsule that hugs the Banker GLB silhouette.
+// halfHeight 0.5 + radius 0.22 → 1.44m total height (hips to shoulders),
+// 0.44m wide. Centre sits at footY + 0.72 (radius + halfHeight). Head sits
+// in a SEPARATE sphere collider so headshots are detectable independently.
+// v0.2.64: shrank from (0.6, 0.4) → (0.5, 0.22) to track GLB silhouette.
+export const BOT_BODY_HALF_H = 0.5;
+export const BOT_BODY_RADIUS = 0.22;
+export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.72
+export const BOT_HEAD_RADIUS = 0.18;
+// Head centre sits this far above the foot — just above the body capsule cap.
+export const BOT_HEAD_CENTRE_Y_OFFSET = 1.65;
+
 export function createBotBody(bot, x, y, z) {
   if (!world) return null;
   const body = world.createRigidBody(
     RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
   );
   const collider = world.createCollider(
-    RAPIER.ColliderDesc.capsule(0.6, 0.4),
+    RAPIER.ColliderDesc.capsule(BOT_BODY_HALF_H, BOT_BODY_RADIUS),
     body
   );
   _colliderToBot.set(collider.handle, bot);
+  _colliderToPart.set(collider.handle, 'body');
+  return { body, collider };
+}
+
+// Bot head — separate kinematic sphere collider on its own rigid body.
+// Sync independently from the body so head can sit higher or follow the
+// head bone in future phases (currently both move in lockstep with bot.pos).
+export function createBotHead(bot, x, y, z) {
+  if (!world) return null;
+  const body = world.createRigidBody(
+    RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
+  );
+  const collider = world.createCollider(
+    RAPIER.ColliderDesc.ball(BOT_HEAD_RADIUS),
+    body
+  );
+  _colliderToBot.set(collider.handle, bot);
+  _colliderToPart.set(collider.handle, 'head');
   return { body, collider };
 }
 
 export function getBotForColliderHandle(h) {
   return _colliderToBot.get(h) || null;
 }
+export function getBodyPartForColliderHandle(h) {
+  return _colliderToPart.get(h) || null;
+}
 
-// Move a bot's kinematic body to a new position (teleport-style — bots don't
-// use the character controller). Y is the body CENTRE, so caller passes
-// (botFootY + 1.0) for a 2m capsule.
+// Move a bot's kinematic body/head to a new position. Y is the collider
+// CENTRE (caller passes footY + BOT_BODY_CENTRE_Y_OFFSET for body, footY +
+// BOT_HEAD_CENTRE_Y_OFFSET for head).
 export function setBotBodyPos(body, x, y, z) {
   if (body) body.setNextKinematicTranslation({ x, y, z });
 }
@@ -144,6 +176,7 @@ export function castRay(ox, oy, oz, dx, dy, dz, maxDist, excludeCollider = null)
     normal:   hit.normal,
     collider: hit.collider,
     bot:      _colliderToBot.get(hit.collider.handle) || null,
+    bodyPart: _colliderToPart.get(hit.collider.handle) || null,
   };
 }
 

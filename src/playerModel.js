@@ -72,8 +72,7 @@ let _oneshotFade   = '';  // clip to fade back to when timer expires
 
 // FP body clone state — see loadPlayerModel for setup.
 let _fpBody          = null;
-let _fpClipPlaneY    = null;   // horizontal plane (clips above knees)
-let _fpClipPlaneFwd  = null;   // vertical plane (clips ahead of spine)
+let _fpClipPlaneY    = null;   // horizontal plane (clips above chin / under-eye)
 let _fpClipLocalY    = 0.70;
 let _fpClipFrontOffs = 0.10;
 
@@ -88,7 +87,7 @@ export function loadPlayerModel(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _loaded = false; }
   if (_fpBody) {
     parentObj.remove(_fpBody);
-    _fpBody = null; _fpClipPlaneY = null; _fpClipPlaneFwd = null;
+    _fpBody = null; _fpClipPlaneY = null;
   }
 
   const char = CHARACTERS[_charKey];
@@ -151,28 +150,25 @@ export function loadPlayerModel(parentObj) {
     // original skeleton, so one AnimationMixer drives both. Cost: one extra
     // skinned draw call per frame for legs/feet.
     //
-    // Plane 1 (horizontal): normal (0,-1,0), constant = world-space y above
-    // which to clip. Clips upper body. Updated each frame so it tracks player y.
-    //
-    // Plane 2 (vertical, body-relative): normal points OPPOSITE the player's
-    // facing direction; constant chosen so the plane sits ~0.10m forward of
-    // the spine. Clips anything ahead of the spine — the chest/shoulders that
-    // peek into view when the camera pitches down. The model faces -Z in local
-    // space (rotated by π), so its chest extends along local -Z from the spine.
-    // playerObj rotates with yaw, so we recompute this plane each frame.
-    const CLIP_LOCAL_Y    = 0.70;        // metres above feet — just above knees
-    const CLIP_FRONT_OFFS = 0.10;        // metres in front of spine to clip
-    const fpClipPlaneY     = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
-    const fpClipPlaneFwd   = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // axis updated per frame
+    // SINGLE horizontal clip plane: normal (0,-1,0), constant = world-space y
+    // above which to clip. Set at chin level (~1.55m above foot) so the head
+    // and neck stub never intersect the camera, but everything below — torso,
+    // arms, legs, feet — renders. v0.2.63 had an extra vertical forward plane
+    // that hid the feet when looking down. Dropped in v0.2.64 in favour of a
+    // much bigger backward body shift (the body now sits 0.40m behind the
+    // eye in local Z, so no chest geometry sits near the camera).
+    const CLIP_LOCAL_Y    = 1.55;        // metres above feet — just below chin
+    const fpClipPlaneY    = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);
     _fpClipPlaneY   = fpClipPlaneY;
-    _fpClipPlaneFwd = fpClipPlaneFwd;
-    _fpClipFrontOffs = CLIP_FRONT_OFFS;
 
     const fpBody = _root.clone(true);   // deep clone preserving hierarchy
-    // Shift the FP body slightly BACKWARD so even with the front-clip the legs
-    // visibly start behind the camera (no chest fragments protruding when
-    // looking down). Model faces -Z, so positive local Z = behind the camera.
-    fpBody.position.z = (_root.position.z || 0) + 0.12;
+    // Shift the FP body BACKWARD on local Z so the spine, chest and shoulders
+    // sit well behind the camera. Combined with the chin-level horizontal clip,
+    // this means: looking straight down → see legs/feet receding behind you;
+    // looking forward → see arms in lower periphery; chest never pokes into
+    // view because it's geometrically behind the eye. Model faces local -Z,
+    // so positive local Z = behind the camera.
+    fpBody.position.z = (_root.position.z || 0) + 0.40;
     // Re-bind every SkinnedMesh in the clone to the ORIGINAL skeleton so the
     // mixer animates both renders from one bone hierarchy.
     const origSkinned = [];
@@ -201,7 +197,7 @@ export function loadPlayerModel(parentObj) {
             c.transparent     = false;
             c.depthWrite      = true;
             c.alphaTest       = 0;
-            c.clippingPlanes  = [fpClipPlaneY, fpClipPlaneFwd];
+            c.clippingPlanes  = [fpClipPlaneY];
             c.clipShadows     = false;
             c.needsUpdate     = true;
             return c;
@@ -284,32 +280,14 @@ export function tickPlayerModel(dt, isShooting, isReloading, isJumping) {
   if (!_loaded || !_mixer) return;
   _mixer.update(dt);
 
-  // Update FP clipping planes each frame so they track the player's position
-  // and facing direction in world space.
-  if (_fpClipPlaneY && _fpClipPlaneFwd && _root && _root.parent) {
-    const parent = _root.parent;        // playerObj
-    const footY  = parent.position.y - 1.7;
-
-    // Plane 1 — horizontal, world-space y. Normal (0,-1,0) clips above `clipY`.
+  // Update the FP horizontal clip plane each frame so it tracks player y
+  // (jumping/falling). Plane normal is (0,-1,0), so plane equation:
+  //   -y + constant = 0  →  y = constant  → clips everything with y > constant.
+  // We want to clip everything above (footY + CLIP_LOCAL_Y), so constant =
+  // footY + CLIP_LOCAL_Y.
+  if (_fpClipPlaneY && _root && _root.parent) {
+    const footY = _root.parent.position.y - 1.7;
     _fpClipPlaneY.constant = footY + _fpClipLocalY;
-
-    // Plane 2 — vertical, body-relative. Model faces local -Z, so the player's
-    // forward direction in world space is (-sin(yaw), 0, -cos(yaw)) once
-    // playerObj is rotated by `yaw`. We want to clip anything FORWARD of a
-    // plane sitting CLIP_FRONT_OFFS metres in front of the spine. Plane normal
-    // points BACKWARD (-forward), so geometry with positive distance is behind
-    // the plane and survives the clip.
-    const yaw  = parent.rotation.y;
-    const fwdX = -Math.sin(yaw);
-    const fwdZ = -Math.cos(yaw);
-    // Plane normal = -forward (so the plane's positive half-space is BEHIND it)
-    _fpClipPlaneFwd.normal.set(-fwdX, 0, -fwdZ);
-    // Point on plane = spine + forward * CLIP_FRONT_OFFS
-    //   spine is at playerObj XZ (the model origin sits at the spine projection)
-    const px = parent.position.x + fwdX * _fpClipFrontOffs;
-    const pz = parent.position.z + fwdZ * _fpClipFrontOffs;
-    // Plane equation: n·p + d = 0  =>  d = -n·p
-    _fpClipPlaneFwd.constant = -(_fpClipPlaneFwd.normal.x * px + _fpClipPlaneFwd.normal.z * pz);
   }
 
   // One-shot timer — dt-accumulator, no setTimeout

@@ -8,7 +8,8 @@ import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER } from './player.js';
-import { createBotBody, setBotBodyPos, physicsReady } from './physics.js';
+import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
+         BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
 
 export const bots = [];
 
@@ -76,15 +77,34 @@ function _spawnBot(i) {
     _isDying: false,
     _deathHideTimer: 0,
     _blowVx: 0, _blowVz: 0, _blowVy: 0, _blowY: 0,
-    // Rapier hit-capsule (created lazily after physics is ready)
-    rapierBody: null,
+    // Rapier hit-capsule + head sphere (created lazily after physics is ready).
+    // v0.2.64: slim body capsule (hugs Banker silhouette) + separate head sphere
+    // for headshot detection.
+    rapierBody:     null,
     rapierCollider: null,
+    rapierHeadBody: null,
+    rapierHeadCollider: null,
   };
   bots.push(bot);
-  // Capsule centre = foot + 1.0 (half-height 0.6 + radius 0.4).
-  if (physicsReady) {
-    const h = createBotBody(bot, x, 1.0, z);
+  if (physicsReady) _ensureBotColliders(bot, x, z);
+}
+
+// Create (or re-position) both the body capsule AND head sphere for a bot.
+// Body centre  = foot + BOT_BODY_CENTRE_Y_OFFSET (0.72)
+// Head  centre = foot + BOT_HEAD_CENTRE_Y_OFFSET (1.65)
+function _ensureBotColliders(bot, x, z) {
+  if (!physicsReady) return;
+  if (!bot.rapierBody) {
+    const h = createBotBody(bot, x, BOT_BODY_CENTRE_Y_OFFSET, z);
     if (h) { bot.rapierBody = h.body; bot.rapierCollider = h.collider; }
+  } else {
+    setBotBodyPos(bot.rapierBody, x, BOT_BODY_CENTRE_Y_OFFSET, z);
+  }
+  if (!bot.rapierHeadBody) {
+    const h = createBotHead(bot, x, BOT_HEAD_CENTRE_Y_OFFSET, z);
+    if (h) { bot.rapierHeadBody = h.body; bot.rapierHeadCollider = h.collider; }
+  } else {
+    setBotBodyPos(bot.rapierHeadBody, x, BOT_HEAD_CENTRE_Y_OFFSET, z);
   }
 }
 
@@ -199,8 +219,14 @@ export function tickBots(dt) {
     bot.pos.x = nx;
     bot.pos.z = nz;
 
-    // Sync Rapier hit-capsule to the new position. Centre = foot + 1.0.
-    if (bot.rapierBody) setBotBodyPos(bot.rapierBody, nx, 1.0, nz);
+    // Sync Rapier body + head colliders. Lazy-create here if they're missing
+    // (covers the race where bot GLB loaded before physics finished init).
+    if (!bot.rapierBody || !bot.rapierHeadBody) {
+      _ensureBotColliders(bot, nx, nz);
+    } else {
+      setBotBodyPos(bot.rapierBody,     nx, BOT_BODY_CENTRE_Y_OFFSET, nz);
+      setBotBodyPos(bot.rapierHeadBody, nx, BOT_HEAD_CENTRE_Y_OFFSET, nz);
+    }
 
     const rotY = Math.atan2(pp.x - nx, pp.z - nz);
 
@@ -284,9 +310,10 @@ export function killBot(bot) {
     bot._isDying = false;
   }
 
-  // Park the Rapier hit-capsule far below the floor so bullets can't hit a
-  // dying/dead bot. Cheaper than removing/recreating the body each respawn.
-  if (bot.rapierBody) setBotBodyPos(bot.rapierBody, bot.pos.x, -100, bot.pos.z);
+  // Park BOTH colliders far below the floor so bullets can't hit a dying bot.
+  // Cheaper than removing/recreating each respawn.
+  if (bot.rapierBody)     setBotBodyPos(bot.rapierBody,     bot.pos.x, -100, bot.pos.z);
+  if (bot.rapierHeadBody) setBotBodyPos(bot.rapierHeadBody, bot.pos.x, -100, bot.pos.z);
 
   state.kills++;
   state.sats += 5;
@@ -303,13 +330,8 @@ function _reviveBot(bot) {
   bot._blowVx  = bot._blowVz = bot._blowVy = bot._blowY = 0;
   const { x: rx, z: rz } = _safeSpawnPos();
   bot.pos.set(rx, 0, rz);
-  // Lazy-create the Rapier capsule on first revive if physics wasn't ready at spawn.
-  if (!bot.rapierBody && physicsReady) {
-    const h = createBotBody(bot, rx, 1.0, rz);
-    if (h) { bot.rapierBody = h.body; bot.rapierCollider = h.collider; }
-  } else if (bot.rapierBody) {
-    setBotBodyPos(bot.rapierBody, rx, 1.0, rz);
-  }
+  // Lazy-create or re-position BOTH colliders.
+  _ensureBotColliders(bot, rx, rz);
 
   if (bot.model?.root) {
     bot.model.show();

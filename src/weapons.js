@@ -18,6 +18,10 @@ export { isInHeadSphere, classifyHeadshot };
 // v0.2.124 — target-practice diagnostics. Pure aim-vs-outcome miss classifier
 // (no Three/Rapier) so "why did my shot miss?" is explainable from the console.
 import { classifyShotOutcome } from './engine/combat/shotDiagnostics.js';
+// v0.2.125 — pure damage model (head/body damage + kill threshold), extracted
+// from the old inline `isHead ? 9 : 3` so it is unit-testable and the
+// one-shot-headshot contract is locked by tests against BOT_HP.
+import { shotDamage } from './engine/combat/damage.js';
 
 // Last bot-hit classification, surfaced through ToriiDebug.combat.lastHit for
 // in-arena tuning. Mutated in place — never reallocated in the hot path.
@@ -273,7 +277,7 @@ export function tickWeapons(dt, playerPos) {
               const relY   = _rayHitP.y - footY;
               const inHeadSphere = isInHeadSphere(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bot);
               const isHead = classifyHeadshot(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bodyPart, hit.bot);
-              const dmg    = isHead ? 9 : 3;
+              const dmg    = shotDamage(isHead);
               // Debug snapshot for ToriiDebug.combat.lastHit (no alloc).
               _lastHit.part = hit.bodyPart; _lastHit.classified = isHead ? 'head' : 'body';
               _lastHit.impactY = _rayHitP.y; _lastHit.footY = footY; _lastHit.relY = relY;
@@ -286,7 +290,7 @@ export function tickWeapons(dt, playerPos) {
               // Player bullet struck a bot — publish on the bus (v0.2.117). The
               // subscriber in main.js applies damage + crosshair flash. Replaces
               // the old `window._onBotHit` global bridge; per-shot, not per-frame.
-              emit(EV.BOT_HIT_BY_PLAYER, { bot: hit.bot, dmg });
+              emit(EV.BOT_HIT_BY_PLAYER, { bot: hit.bot, dmg, isHead });
             } else {
               // Wall / crate / obstacle / ground — use Rapier-provided normal.
               _impactNrm.set(hit.normal.x, hit.normal.y, hit.normal.z);

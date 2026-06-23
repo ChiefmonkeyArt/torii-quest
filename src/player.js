@@ -4,8 +4,9 @@ import { state, isPlaying, isDead, transition, GAME_EVENT } from './state.js';
 import { emit, EV } from './events.js';
 import { keys, getYaw, getPitch, setYaw, onKeyDown, onShoot, requestLock } from './input.js';
 import { scene, camera } from './scene.js';
-import { stepPhysics, createKinematic, movePlayer, physicsReady } from './physics.js';
+import { stepPhysics, createKinematic, movePlayer, physicsReady, castRay } from './physics.js';
 import { getGunBarrelWorld } from './weapons.js';
+import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
 // Player entity boundary (v0.2.114): geometry, spawn shape, and look-down POV
@@ -200,13 +201,11 @@ const _shootOrigin     = new THREE.Vector3();
 const _shootDir        = new THREE.Vector3();
 const _camFwd          = new THREE.Vector3();
 const _camPos          = new THREE.Vector3();
-const _convergePoint   = new THREE.Vector3();
-// Distance ahead of the camera along its forward axis where the player's
-// crosshair effectively "focuses". The bullet is aimed from the barrel
-// THROUGH this point so the trajectory converges with the crosshair line
-// instead of running parallel to it. 80m balances near-target convergence
-// with far-target accuracy for our 60u/s bullet @ 2.5s life (= ~150m range).
-const CROSSHAIR_CONVERGE_DIST = 80;
+const _aimPoint        = new THREE.Vector3();
+// Camera ray reach (m) used to find what the crosshair is on. Matches the
+// reticle/diagnostic range so the bullet aims through the same target the
+// reticle previews.
+const AIM_RANGE = 80;
 
 export function shoot() {
   if (state.shootCd > 0 || state.reloading || state.ammo <= 0) return null;
@@ -214,26 +213,40 @@ export function shoot() {
   state.shootCd = SHOOT_CD;
   _recoilTimer  = RECOIL_DUR;
 
-  // 1. Camera forward + position (the crosshair's true aim line in world space)
+  // Camera forward + position = the crosshair's true aim line in world space.
   camera.getWorldDirection(_camFwd);
   _camPos.setFromMatrixPosition(camera.matrixWorld);
 
-  // 2. Bullet origin = barrel tip in world space (offset from camera centre)
+  // v0.2.126 — barrel-origin projectile aimed THROUGH the crosshair. The bullet
+  // starts at the gun's actual muzzle, but it flies toward the point the
+  // crosshair is on, so the shot stays honest at every range. We find that
+  // point by casting the camera/crosshair ray: its first hit is what the reticle
+  // is previewing; if it hits nothing we fall back to a convergence point.
+  // Then the bullet direction is barrel → that point, so the projectile passes
+  // through the exact spot the reticle classified (a previewed headshot lands as
+  // a headshot) without pretending the muzzle sits at the camera (the v0.2.125
+  // camera-origin experiment, now retired — it moved the muzzle off the gun).
+  const aimHit = castRay(
+    _camPos.x, _camPos.y, _camPos.z,
+    _camFwd.x, _camFwd.y, _camFwd.z,
+    AIM_RANGE, _collider || null,
+  );
+  const aimDist = aimHit ? aimHit.toi : CONVERGE_DIST;
+  crosshairPoint(_camPos.x, _camPos.y, _camPos.z, _camFwd.x, _camFwd.y, _camFwd.z, aimDist, _aimPoint);
+
+  // Bullet ORIGIN = gun barrel/muzzle world position.
   _shootOrigin.copy(getGunBarrelWorld(camera));
-
-  // 3. Convergence point: where the crosshair is "aiming" at CROSSHAIR_CONVERGE_DIST
-  _convergePoint.copy(_camPos).addScaledVector(_camFwd, CROSSHAIR_CONVERGE_DIST);
-
-  // 4. Bullet direction = barrel -> convergence (so the bullet line crosses
-  // the camera/crosshair line at that convergence point). This is the fix:
-  // previously dir was camera forward, which is PARALLEL to the crosshair
-  // line but offset by the barrel position, so bullets visibly missed the
-  // reticle. Now bullets actually travel toward what the crosshair is on.
-  _shootDir.copy(_convergePoint).sub(_shootOrigin).normalize();
+  // Bullet DIRECTION = barrel → crosshair target point (camera forward fallback).
+  aimDirection(
+    _shootOrigin.x, _shootOrigin.y, _shootOrigin.z,
+    _aimPoint.x, _aimPoint.y, _aimPoint.z,
+    _camFwd.x, _camFwd.y, _camFwd.z,
+    _shootDir,
+  );
 
   // aimOrigin/aimDir = the CAMERA crosshair line (what the reticle is on);
-  // origin/dir = the muzzle bullet line. Both travel on EV.SHOOT so the shot
-  // diagnostics (v0.2.124) can compare intent vs the bullet's actual path.
+  // origin/dir = the bullet line (barrel → crosshair target). Both travel on
+  // EV.SHOOT so the v0.2.124 shot diagnostics honestly compare the two paths.
   emit(EV.SHOOT, {
     origin: _shootOrigin.clone(), dir: _shootDir.clone(),
     aimOrigin: _camPos.clone(), aimDir: _camFwd.clone(),

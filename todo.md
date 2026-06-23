@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.130-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.131-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -32,9 +32,9 @@ These tasks build the structural layer that makes the project legible to any age
 |---|----------|------|
 | ~~ARS-1~~ | DEBUG | ~~**Debug dump / handoff snapshot** — `ToriiDebug.snapshot()` + `combat.report()`/`physics.report()` via pure `engine/debug/snapshot.js` (JSON-serialisable, safe before init). Shape documented in `CODE_INDEX.md`. **DONE v0.2.130** (`tests/snapshot.test.js`).~~ |
 | ~~ARS-2~~ | PHYSICS | ~~**Physics interaction API** — pure `engine/physics/interactions.js` (`nudgeImpulse`/`applyNudge` + crate tuning, allocation-free); crate-nudge tuning moved off `weapons.js`. **DONE v0.2.130** (`tests/interactions.test.js`).~~ |
-| ~~ARS-3~~ | PHYSICS | ~~**Rapier raycast service** — injectable `createRaycastService` facade + default `raycastService` in `engine/physics/raycastService.js`, surfaced on `ToriiDebug.physics.service`. Call-site migration is the follow-up. **DONE v0.2.130** (`tests/raycast-service.test.js`).~~ |
-| ARS-4 | ARCH | **Player state machine cleanup** — fold `reloading` and `pointerLocked` into the guarded FSM in `src/state.js`. Add tests for the new edges. Remove any remaining direct `state.phase =` writes outside `state.js`. *Partial v0.2.130:* dead `state.paused` removed; pure `canShoot`/`canReload` predicates extracted to `state.js` and adopted by `player.js shoot()`/`startReload()` (`tests/state.test.js`). Remaining: fold reloading/pointerLocked into the FSM proper. |
-| ARS-5 | SDK | **SDK/API skeleton** — add a top-level `src/sdk/index.js` that re-exports the stable public APIs from physics, combat, entities, and identity layers. This is the single import point for external contributors and future community modules. Document each export's stability tier (`stable` / `experimental` / `internal`) in `CODE_INDEX.md`. |
+| ~~ARS-3~~ | PHYSICS | ~~**Rapier raycast service** — injectable `createRaycastService` facade + default `raycastService` in `engine/physics/raycastService.js`, surfaced on `ToriiDebug.physics.service`. **DONE v0.2.130** (`tests/raycast-service.test.js`). *Follow-up v0.2.131:* first live call-site migrated — `bots.js` bot-LOS now calls `raycastService.lineOfSight(...)` instead of importing `hasLineOfSight` direct (LOS short-circuit + behaviour identical; both resolve to `raycast.js`).~~ |
+| ARS-4 | ARCH | **Player state machine cleanup** — fold `reloading` and `pointerLocked` into the guarded FSM in `src/state.js`. Add tests for the new edges. Remove any remaining direct `state.phase =` writes outside `state.js`. *Partial v0.2.130:* dead `state.paused` removed; pure `canShoot`/`canReload` predicates extracted to `state.js` and adopted by `player.js shoot()`/`startReload()`. *Partial v0.2.131:* pointer-lock fold slice — pure `isEngaged`/`needsPointerLock` predicates added to `state.js` and `needsPointerLock()` adopted at the canvas-click re-lock guard in `main.js` (behaviour-identical; `tests/state.test.js`). Remaining: fold `reloading` into the FSM proper; further pointer-lock call-site adoption. |
+| ~~ARS-5~~ | SDK | ~~**SDK/API skeleton** — `src/sdk/index.js` public entrypoint: curated namespace re-exports of the node-safe engine leaf modules (combat aim/classifier/damage, physics interactions/raycastService, weapons muzzle/reloadPose, botAgent, debug snapshot, ui phaseScreens) + `SDK_VERSION`, a `STABILITY` tier enum, and a frozen `SDK_SURFACE` map tagging each surface `stable`/`experimental`/`internal` (internals forward-declared with `module:null`). No runtime wiring; no scene/WebGLRenderer pull. **DONE v0.2.131** (`tests/sdk.test.js`). Tiers documented in `CODE_INDEX.md`.~~ |
 | ARS-6 | INDEX | **CODE_INDEX.md upkeep** — after each ARS task, update `CODE_INDEX.md` to reflect the new module boundary, public API, debug hook, test file, and any known constraints or open edges. The index is the primary agent-handoff document; it must stay current or it becomes misleading. *(Kept open as a standing per-task chore.)* |
 | ~~ARS-7~~ | ARCH | ~~**Handoff template** — `HANDOFF.md` created: repo state, hard constraints, version markers, source-of-truth docs, build/test/check + deploy commands, debug surface, active issues, next-job format. **DONE v0.2.130**.~~ |
 | PROGRESS-1 | DOCS | **Formalise / maintain `progress.md`** — keep track bars, sprint table, and completed-last-24h current. After each sprint or significant landing, move crossed-out completed items from `todo.md` into the Archive in `progress.md` and update the relevant track bar. Aim for weekly upkeep at minimum. |
@@ -114,12 +114,38 @@ These tasks build the structural layer that makes the project legible to any age
 
 ---
 
+## Later — Component Economy / Marketplace
+
+> **Vision source of truth:** `strategy.md` → "Reusable Components Library and Community Marketplace". These are the approved CMP-1..CMP-16 work items. **NOT immediate sprint** — they unlock only after the SDK boundary (ARS-5), identity, and NAP-zone foundations are stable. A *component* is a self-contained, droppable world module with a `mount(scene, options)` / `unmount()` lifecycle, explicit dependency metadata, and a signed Nostr distribution manifest with bundle-hash verification. Build the contract + loader first (CMP-1..CMP-7), then reference components (CMP-8..CMP-13), then the marketplace/economy layer (CMP-14..CMP-16).
+
+| # | Codebase | Category | Task |
+|---|----------|----------|------|
+| CMP-1 | TQ | SDK | **Component module contract** — define the pure `mount(scene, options) -> handle` / `unmount(handle)` lifecycle interface plus a minimal capability/metadata shape (`name`, `version`, `kind`, declared deps). Lives behind the ARS-5 SDK boundary; no runtime coupling until the loader (CMP-7) lands. Unit-test the contract validator. |
+| CMP-2 | TQ | NOSTR | **Component manifest format** — extend the `torii.asset` manifest to components: author `npub`, semver, declared deps, asset-bundle reference + `bundle hash`, capability tier. Pure builder/validator + tests. |
+| CMP-3 | TQ | SDK | **Dependency declaration + resolution** — components declare deps as explicit metadata (engine API tier, other components, asset bundles); a pure resolver checks availability/version-compat before mount. |
+| CMP-4 | TQ | SECURITY | **Bundle hash verification before mount** — verify the fetched bundle hash against the signed manifest hash before any code runs; refuse mismatch. Pure hash-compare seam first; wiring follows the loader. |
+| CMP-5 | TQ | NOSTR | **Signed component event** — publish/parse a signed Nostr component event (NIP-78 kind 30078 or a Torii-specific kind) carrying the CMP-2 manifest; verify author signature. |
+| CMP-6 | TQ | NOSTR | **Relay-based discovery** — query relays for component listing events, filter by kind/author/tag, dedupe by latest version. Discovery is relay-native, no central index. |
+| CMP-7 | TQ | SDK | **Component loader / mount host** — safe runtime that fetches a verified bundle (CMP-4), resolves deps (CMP-3), calls `mount`/`unmount` (CMP-1), and isolates failures so a bad component can't crash the world. |
+| CMP-8 | TQ | NAP ZONE | **Reference component — n2n node jumper / Torii gateway** — the canonical first component: a Torii gateway that hands off to another node/zone. Proves the contract end-to-end. |
+| CMP-9 | TQ | NOSTR | **Reference component — live chat** — NIP-28/29 public/group chat panel as a droppable component. |
+| CMP-10 | TQ | NAP ZONE | **Reference component — video chat** — WebRTC video panel component (depends on the NAP video-chat infra, items 3/4a/4b). |
+| CMP-11 | TQ | NOSTR | **Reference component — art frame** — wall frame that renders a Plebeian gallery feed. |
+| CMP-12 | TQ | NAP ZONE | **Reference component — live auction panel** — auction podium component over kind:30402/16 (depends on item 6). |
+| CMP-13 | TQ | NOSTR | **Reference component — product display / browser** — single-product display and a multi-product browser over NIP-15 stalls. |
+| CMP-14 | TQ | ECASH | **Marketplace listing + sats pricing** — signed Nostr listing events for components with sats pricing (Lightning / Cashu / Nutzap); relay-based marketplace discovery reuses CMP-6. |
+| CMP-15 | TQ | ECASH | **Revenue-share via Zap splits** — optional author/host revenue-share using Zap splits (NIP-57 / NIP-61) encoded in the listing. |
+| CMP-16 | TQ | NOSTR | **Versioning, forks & remixes** — new events supersede prior versions (latest-wins by hash), forks/remixes carry original-author `npub` attribution, all bundle hashes verified. |
+
+---
+
 ## Open / Parked
 
 | # | Category | Task |
 |---|----------|------|
 | NIP46-1 | BUG | **Primal remote signer — pubkey not returned** — external blocker. Keep visible; real fix requires Primal NIP-46 compliance. |
 | TP1 ⏸ | GAMEPLAY | **Touchpad / laptop controls — PARKED** — revisit after core gameplay and pointer-lock controls are stable. |
+| ESBUILD-1 ⚠ | DEPS | **esbuild dev-server advisory (GHSA-g7r4-m6w7-qqqr) — DEFERRED (v0.2.131).** Low severity; arbitrary file read only when running the esbuild **dev server on Windows** — irrelevant to this Linux/CI build and to the production `dist/` artifact (no dev server in prod). `npm audit fix` was assessed and **rejected as unsafe/broad**: it rewrites the whole rollup/rolldown/lightningcss/vite toolchain and adds dozens of platform-specific binaries — high regression risk for a cosmetic dev-only advisory. Revisit when bumping Vite as part of a deliberate toolchain upgrade, not as a drive-by fix. |
 
 ---
 

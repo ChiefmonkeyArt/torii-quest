@@ -9,8 +9,8 @@ import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
-         hasLineOfSight,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
+import { raycastService } from './engine/physics/raycastService.js';
 import { engageSpeed, steerComponent, inEngageRange } from './engine/entities/bot-agent.js';
 
 export const bots = [];
@@ -241,7 +241,7 @@ export function tickBots(dt) {
     // through cover. Eye-to-eye segment, player capsule excluded so it doesn't
     // self-block.
     if (inEngageRange(dist, playerInNap) &&
-        hasLineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
+        raycastService.lineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
       bot.shootCd -= dt;
       if (bot.shootCd <= 0) {
         bot.shootCd = BOT_SHOOT_CD + Math.random() * 0.8;

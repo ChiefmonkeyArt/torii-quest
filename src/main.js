@@ -1,5 +1,5 @@
 // main.js — wiring only. No game logic here.
-import { state, isTitle, isPlaying, isPaused, isLive, transition, GAME_EVENT, resetRun } from './state.js';
+import { state, isTitle, isPlaying, isPaused, isLive, needsPointerLock, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
 import { renderer, renderFrame } from './scene.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
@@ -131,7 +131,7 @@ const elNostrTxt = document.getElementById('nostr-status');
 
 // Canvas click → re-engage pointer lock when playing
 renderer.domElement.addEventListener('click', () => {
-  if (isPlaying() && !state.pointerLocked) {
+  if (needsPointerLock()) {
     requestLock(renderer.domElement);
   }
 });

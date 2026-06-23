@@ -112,3 +112,15 @@ export const isGameover = () => state.phase === PHASE.GAMEOVER;
 // "Live" = the world ticks/renders with the player in it: PLAYING or the brief
 // DEAD death-cam before respawn. Used by the render gate.
 export const isLive     = () => state.phase === PHASE.PLAYING || state.phase === PHASE.DEAD;
+
+// ── Pointer-lock / engagement predicates (v0.2.131, ARS-4 fold slice) ───────
+// Folds the `pointerLocked` boolean into pure, testable phase predicates so the
+// "is the player actively in control" question lives in one place instead of
+// being hand-rolled as `isPlaying() && (!)state.pointerLocked` at call sites.
+// Pure: takes a state-like object (live `state` by default), reads only phase +
+// pointerLocked, so it is behaviour-identical to the inline guards it replaces.
+//   isEngaged       — PLAYING with the cursor captured: input is live.
+//   needsPointerLock— PLAYING but cursor free: a canvas click should re-acquire
+//                     (was: `isPlaying() && !state.pointerLocked` in main.js).
+export const isEngaged        = (s = state) => s.phase === PHASE.PLAYING && s.pointerLocked;
+export const needsPointerLock = (s = state) => s.phase === PHASE.PLAYING && !s.pointerLocked;

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.130-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.131-alpha (see §3 for every place the version string lives)
 - **Live:** https://torii-quest.pplx.app (a Perplexity Space — deploy is a separate manual step, see §7)
 - **License:** GPL-3.0
 
@@ -70,6 +70,9 @@ Breaking one should fail CI/the check, not ship.
   dashboard. **`todo.md`** — active task queue.
 - **`engine/`** — extracted, mostly-pure SDK seams (debug, physics, combat,
   entities, ui, weapons). Prefer adding pure logic here so it is node-testable.
+- **`src/sdk/index.js`** — public SDK entrypoint (ARS-5). Curated node-safe
+  re-exports + `SDK_VERSION`, `STABILITY` tiers, and the frozen `SDK_SURFACE`
+  tier map. Only re-export modules that never transitively import `scene.js`.
 
 ## 5. Build / test / check commands
 
@@ -83,7 +86,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**152 tests / 14 files**, all 11 regression checks GREEN, build clean.
+**163 tests / 15 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -122,8 +125,13 @@ smoke test on real hardware first).
 - Travel-time lead on fast-moving targets (bullets are hitscan-aimed but
   projectile-flown; long shots on strafing bots can trail). Tracked in `todo.md`.
 - Live deployment trails source by several versions — needs manual smoke + publish.
-- ARS-4 (full FSM fold of `reloading`/`pointerLocked`), ARS-5 (`src/sdk/index.js`
-  skeleton) still open. See `progress.md` Current Sprint.
+- ARS-5 (`src/sdk/index.js` skeleton) landed in v0.2.131. ARS-4 partial:
+  `canShoot`/`canReload` + `isEngaged`/`needsPointerLock` predicates extracted; the
+  `reloading` FSM fold and further pointer-lock call-site adoption are still open.
+  See `progress.md` Current Sprint.
+- ESBUILD-1 (deferred): low-severity dev-server-only esbuild advisory; `npm audit
+  fix` pulls a broad rolldown/vite chain, deemed too risky for an alpha — left as a
+  tracked WARN in `todo.md`.
 
 ## 9. Next-job format
 

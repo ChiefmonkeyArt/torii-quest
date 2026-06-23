@@ -7,6 +7,7 @@ import {
   PHASE, GAME_EVENT, state,
   nextPhase, canTransition, transition,
   isTitle, isPlaying, isPaused, isDead, isGameover, isLive,
+  isEngaged, needsPointerLock,
   canShoot, canReload,
 } from '../src/state.js';
 import { MAX_AMMO } from '../src/config.js';
@@ -90,6 +91,38 @@ describe('phase predicates', () => {
     setPhase(PHASE.DEAD);    expect(isLive()).toBe(true);
     setPhase(PHASE.TITLE);   expect(isLive()).toBe(false);
     setPhase(PHASE.PAUSED);  expect(isLive()).toBe(false);
+  });
+});
+
+describe('pointer-lock predicates (pure, take a state-like object)', () => {
+  // isEngaged: PLAYING && pointerLocked ; needsPointerLock: PLAYING && !pointerLocked
+  it('isEngaged true only when PLAYING with the cursor captured', () => {
+    expect(isEngaged({ phase: PHASE.PLAYING, pointerLocked: true })).toBe(true);
+    expect(isEngaged({ phase: PHASE.PLAYING, pointerLocked: false })).toBe(false);
+    expect(isEngaged({ phase: PHASE.PAUSED,  pointerLocked: true })).toBe(false);
+    expect(isEngaged({ phase: PHASE.TITLE,   pointerLocked: true })).toBe(false);
+  });
+  it('needsPointerLock true only when PLAYING with the cursor free', () => {
+    expect(needsPointerLock({ phase: PHASE.PLAYING, pointerLocked: false })).toBe(true);
+    expect(needsPointerLock({ phase: PHASE.PLAYING, pointerLocked: true })).toBe(false);
+    expect(needsPointerLock({ phase: PHASE.PAUSED,  pointerLocked: false })).toBe(false);
+    expect(needsPointerLock({ phase: PHASE.TITLE,   pointerLocked: false })).toBe(false);
+  });
+  it('isEngaged and needsPointerLock are mutually exclusive and never both true', () => {
+    for (const phase of Object.values(PHASE)) {
+      for (const pointerLocked of [true, false]) {
+        const s = { phase, pointerLocked };
+        expect(isEngaged(s) && needsPointerLock(s)).toBe(false);
+      }
+    }
+  });
+  it('default to the live state singleton when no argument is passed', () => {
+    setPhase(PHASE.PLAYING); state.pointerLocked = true;
+    expect(isEngaged()).toBe(true);
+    expect(needsPointerLock()).toBe(false);
+    state.pointerLocked = false;
+    expect(isEngaged()).toBe(false);
+    expect(needsPointerLock()).toBe(true);
   });
 });
 

@@ -1,4 +1,4 @@
-// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.119).
+// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.120).
 // No external deps. Run with: node tools/regression-check.mjs  (or: npm run check)
 //
 // Catches the regressions the Strategy doc calls out, without needing a browser:
@@ -14,6 +14,8 @@
 //  10. no internal READ of window._grassMat/_flowerMat (v0.2.118) or
 //      window._mirrorMesh (v0.2.119) — use the foliage registry
 //      (tickFoliage/getGrassMat/getFlowerMat) / mirror getMirror() instead
+//  11. unit-test scaffold present (v0.2.120) — `test` script + tests/*.test.js
+//      exist (static only; run the suite with `npm test`)
 //
 // Exit code 0 = all green; non-zero = at least one FAIL.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -21,7 +23,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.119-alpha';
+const EXPECTED_VERSION = 'v0.2.120-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -105,7 +107,7 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   const count = (html.match(new RegExp(EXPECTED_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
   if (count < 2) fail(`index.html has ${count} ${EXPECTED_VERSION} markers (expected >=2)`);
   else pass(`index.html has ${count} version markers`);
-  if (/v0\.2\.118-alpha/.test(html)) fail('index.html still references v0.2.118-alpha');
+  if (/v0\.2\.119-alpha/.test(html)) fail('index.html still references v0.2.119-alpha');
 }
 
 // 6. dist markers (only if built)
@@ -201,6 +203,23 @@ console.log('[10] no internal window._grassMat/_flowerMat/_mirrorMesh read');
     }
   }
   if (!bad) pass('foliage + mirror handles read via accessors, not the globals');
+}
+
+// 11. unit-test scaffold present (v0.2.120) — guards against the Vitest
+// foundation silently rotting away. Static only: confirms the `test` script and
+// at least one tests/**/*.test.js exist; it does NOT run the suite (kept fast).
+// Run the tests themselves with `npm test`.
+console.log('[11] unit-test scaffold present (npm test)');
+{
+  let bad = false;
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  if (!pkg.scripts || !pkg.scripts.test) { fail('package.json has no "test" script'); bad = true; }
+  const testsDir = join(ROOT, 'tests');
+  const testFiles = existsSync(testsDir)
+    ? walk(testsDir).filter((p) => p.endsWith('.test.js'))
+    : [];
+  if (testFiles.length === 0) { fail('no tests/**/*.test.js found'); bad = true; }
+  if (!bad) pass(`${testFiles.length} test file(s) + npm test script present`);
 }
 
 console.log(fails === 0 ? '\nALL GREEN' : `\n${fails} FAILURE(S)`);

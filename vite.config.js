@@ -18,5 +18,12 @@ export default defineConfig({
   // Silence Rolldown codeSplitting suggestion — we're handling it manually
   optimizeDeps: {
     exclude: ['@dimforge/rapier3d-compat'] // don't pre-bundle Rapier — it's lazy
-  }
+  },
+  // Vitest config (v0.2.120). Node environment — the unit suite covers pure
+  // logic seams (state machine, event bus, headshot classifier) only, so no
+  // jsdom/Three/Rapier/browser is needed. `npm test` runs `vitest run`.
+  test: {
+    environment: 'node',
+    include: ['tests/**/*.test.js'],
+  },
 });

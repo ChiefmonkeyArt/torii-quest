@@ -22,6 +22,9 @@ import { classifyShotOutcome } from './engine/combat/shotDiagnostics.js';
 // from the old inline `isHead ? 9 : 3` so it is unit-testable and the
 // one-shot-headshot contract is locked by tests against BOT_HP.
 import { shotDamage } from './engine/combat/damage.js';
+// v0.2.127 — pure reload viewmodel pose curve ("click down, clack snap back"),
+// extracted so the snap timing is unit-testable and allocation-free.
+import { reloadDip } from './engine/weapons/reloadPose.js';
 
 // Last bot-hit classification, surfaced through ToriiDebug.combat.lastHit for
 // in-arena tuning. Mutated in place — never reallocated in the hot path.
@@ -452,11 +455,15 @@ function _tickGun(dt) {
 
   // v0.2.111: visible reload feedback. The 3rd-person model plays a reload clip
   // (mirror-only), but the FP viewmodel showed nothing, so reload "looked broken".
-  // Drop + roll the gun out of view and back over the reload window — purely a
-  // dt/state-driven viewmodel pose, no timers. progress 0→1 across RELOAD_TIME.
+  // v0.2.127: feel reworked to "click down, clack snap back" — the symmetric
+  // sin hump was replaced by a quick drop, brief hold, then a fast snap-back
+  // with a slight overshoot (pure curve in engine/weapons/reloadPose.js). Still
+  // purely a dt/state-driven viewmodel pose, no timers. progress 0→1 across
+  // RELOAD_TIME (unchanged, so audio sync is preserved). dip: 0 rest, 1 lowered,
+  // negative on the snap-back overshoot (gun kicks slightly above rest).
   if (state.reloading) {
     const progress = 1 - Math.max(0, Math.min(1, state.reloadTimer / RELOAD_TIME));
-    const dip = Math.sin(progress * Math.PI); // 0 at start/end, 1 mid-reload
+    const dip = reloadDip(progress);
     mesh.position.y = FP_REST_Y - 0.22 * dip;
     mesh.position.z = z - 0.10 * dip;
     mesh.rotation.z = -0.6 * dip;

@@ -3,8 +3,8 @@
 Living document. This will change as we learn.
 
 Current live game: `https://torii-quest.pplx.app`  
-Current live version: `v0.2.108-alpha`  
-Clean source version: `v0.2.110-alpha` — **source reconciliation COMPLETE (2026-06-23)** and **foundation sprint COMPLETE (2026-06-23)**. The clean source contains all live fixes v0.2.100→v0.2.108 (reverse-ported by concern), plus the first real SDK boundaries (physics raycast + bodies), a deliberate `window.ToriiDebug` API, a security hardening batch, and inert world/identity skeletons (NAP zone metadata, local handoff, presence). Builds green (45 modules); all static regression checks pass (`npm run check`). See `torii-source-reconciliation-report.md` and `torii-foundation-sprint-report.md`. Not yet published/pushed.  
+Current live version: `v0.2.111-alpha`  
+Clean source version: `v0.2.111-alpha` — **source reconciliation COMPLETE (2026-06-23)**, **foundation sprint COMPLETE (2026-06-23)**, and **regression repair pass COMPLETE (2026-06-23)**. The clean source contains all live fixes v0.2.100→v0.2.108, the first SDK boundaries (physics raycast + bodies), `window.ToriiDebug`, hardening, inert NAP/handoff/presence skeletons, plus the v0.2.111 repair batch for FP body neck clipping, footstep cadence, reflected gun roll, headshot classification, NAP NPC placement/materials, and reload viewmodel animation. Builds green; all static regression checks pass (`npm run check`). See `torii-source-reconciliation-report.md`, `torii-foundation-sprint-report.md`, and `torii-v0.2.111-regression-repair-report.md`.  
 Project direction: Torii Quest is an extension of Plebeian.Market, exploring a self-sovereign, federated, decentralised metaverse built on Nostr, Bitcoin, open protocols, free markets, and FOSS developer participation.
 
 ## Vision
@@ -38,10 +38,13 @@ These are now live on `torii-quest.pplx.app`:
 - **v0.2.106-alpha**: added dynamic Rapier crates.
 - **v0.2.107-alpha**: added a non-hostile Chiefmonkey NPC in the NAP zone using `Stylish_Walk_inplace`.
 - **v0.2.108-alpha**: first-person headless Chiefmonkey body (dedicated `chiefmonkey-headless.glb` on layer 2; replaced the old clip-plane leg-clone).
+- **v0.2.109-alpha**: source reconciliation build produced from clean source after reverse-porting v0.2.100→v0.2.108.
+- **v0.2.110-alpha**: foundation sprint build with physics SDK seams, `window.ToriiDebug`, hardening, NAP metadata, handoff, presence skeletons, and regression tooling.
+- **v0.2.111-alpha**: regression repair build: FP neck clipping/POV, footstep drumroll, reflected gun orientation, headshot counting, NAP NPC tree/skin issues, and reload viewmodel animation.
 
 The important pattern is that Rapier is now becoming the physical truth layer. Bot bullets, LOS, boundaries, and dynamic crates all move the game toward a real simulation instead of disconnected visual tricks.
 
-**Source reconciliation done (2026-06-23):** all nine fixes above (v0.2.100→v0.2.108) have been reverse-ported into the clean source by concern (not by minified diff) and the source now builds at `v0.2.109-alpha` (39 modules, green). Static marker comparison against the live bundle matches. Manual in-browser smoke test still pending before publish.
+**Source reconciliation done (2026-06-23):** all nine fixes above (v0.2.100→v0.2.108) were reverse-ported into clean source by concern (not by minified diff). The follow-on foundation sprint and v0.2.111 regression repair are also source-built and pushed. The clean source is again the source of truth.
 
 ## Current Strategic Problem
 
@@ -133,7 +136,8 @@ Recommendation:
 
 - **Source reconciliation**: ✅ DONE (2026-06-23) — v0.2.100 through v0.2.108 reverse-ported into clean source. See `torii-source-reconciliation-report.md`.
 - **Foundation sprint**: ✅ DONE (2026-06-23) — SDK boundaries, ToriiDebug, hardening batch, and world/identity skeletons landed at v0.2.110-alpha. See `torii-foundation-sprint-report.md`.
-- **Manual smoke test + publish**: run the smoke checklist below in a browser, then publish the source-built v0.2.110-alpha. (Still the only remaining gate before deploy — handled by the main agent.)
+- **Regression repair**: ✅ DONE (2026-06-23) — v0.2.111-alpha fixed FP neck clipping, footstep cadence, reflected gun roll, headshot classification, NAP NPC placement/materials, and reload viewmodel animation. See `torii-v0.2.111-regression-repair-report.md`.
+- **Manual smoke test**: manually verify v0.2.111-alpha on real hardware, especially neck/feet view, reflected gun handle-down, headshot counting, reload dip, NAP NPC pose/materials, and crates.
 - **Freeze dist architecture changes**: only emergency hotfixes should go directly into dist after the freeze.
 - **FP body integration**: ✅ DONE — implemented via the dedicated `chiefmonkey-headless.glb` (layer-2 FP body), superseding the planned `chiefmonkey17-fp.glb` clip-plane approach.
 - **Debug API cleanup**: ✅ DONE — `window.ToriiDebug` namespace (`engine/debug/toriiDebug.js`); legacy functional globals (`_onBotHit`, `_grassMat`, `_flowerMat`, `_mirrorMesh`) preserved and mirrored under the namespace.
@@ -476,7 +480,7 @@ Use these rules to avoid repeated AI-created bugs:
 1. ✅ FP body integrated via `chiefmonkey-headless.glb` (layer-2 FP body).
 2. ✅ Source reconciliation for v0.2.100 through v0.2.108 completed.
 3. ✅ Reverse-ported live fixes by concern (clean source modules, not minified diff).
-4. Manual browser smoke test, then publish the source-built `v0.2.109-alpha` (build is green; publish is the only remaining step).
+4. Manual browser smoke test of live `v0.2.111-alpha`, then begin the next fun-feature sprint if the repair pass feels good.
 5. Extract `engine/physics/raycast.js` (now backed by the new `castRay`/`castRayStatic`/`hasLineOfSight` in `src/physics.js`).
 6. Extract `engine/physics/bodies.js`.
 7. Create `window.ToriiDebug`.

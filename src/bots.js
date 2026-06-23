@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_SPEED, BOT_HP, BOT_SHOOT_CD, BOT_SIGHT, BOT_SPREAD, ARENA_HALF, CRATES, EAST_GAP_HALF, NAP_X } from './config.js';
+import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPREAD, ARENA_HALF, CRATES, EAST_GAP_HALF, NAP_X } from './config.js';
 import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
@@ -11,6 +11,7 @@ import { PLAYER_SAFE_CORNER, getPlayerCollider } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          hasLineOfSight,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
+import { engageSpeed, steerComponent, inEngageRange } from './engine/entities/bot-agent.js';
 
 export const bots = [];
 
@@ -212,9 +213,9 @@ export function tickBots(dt) {
       if (d < BOT_R * 2.5 && d > 0) { _sep.x += dx / d; _sep.z += dz / d; }
     });
 
-    const spd = BOT_SPEED * (dist > 8 ? 1.0 : 0.75);
-    const vx  = (_toPlayer.x * 0.7 + _sep.x * 0.3) * spd;
-    const vz  = (_toPlayer.z * 0.7 + _sep.z * 0.3) * spd;
+    const spd = engageSpeed(dist);
+    const vx  = steerComponent(_toPlayer.x, _sep.x) * spd;
+    const vz  = steerComponent(_toPlayer.z, _sep.z) * spd;
 
     const [nx, nz] = _pushout(px + vx * dt, pz + vz * dt);
     bot.pos.x = nx;
@@ -239,7 +240,7 @@ export function tickBots(dt) {
     // the player — no wall, crate or obstacle in the way. Stops bots shooting
     // through cover. Eye-to-eye segment, player capsule excluded so it doesn't
     // self-block.
-    if (dist < BOT_SIGHT && !playerInNap &&
+    if (inEngageRange(dist, playerInNap) &&
         hasLineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
       bot.shootCd -= dt;
       if (bot.shootCd <= 0) {

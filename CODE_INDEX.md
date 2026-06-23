@@ -3,7 +3,7 @@
 > Lightweight developer/agent index. Keep this practical and update it as systems are touched.
 > Purpose: help future debugging, SDK extraction, FOSS contribution, and AI handoff speed.
 
-Current version: `v0.2.121-alpha`  
+Current version: `v0.2.122-alpha`  
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 ---
@@ -31,9 +31,9 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 | Scene/rendering | `src/scene.js`, mirror modules, Three.js renderer | Mirror and first-person camera regressions should be checked manually. |
 | Player | `src/engine/entities/player.js` (boundary), `src/player.js` (runtime), `src/firstPersonBody.js`, `playerObj` | v0.2.114 began the boundary: geometry, spawn shape, and look-down POV math now live in `engine/entities/player.js`. Movement tick, combat, lifecycle, and body-state still in `src/player.js` (next slice). |
 | Weapons/combat | `src/weapons.js`, `src/engine/combat/classifier.js`, `src/targetReticle.js`, `src/hud.js` | v0.2.113 introduced the shared headshot classifier for bullets and HUD preview. v0.2.120 extracted it into a pure module `engine/combat/classifier.js` (`isInHeadSphere`/`classifyHeadshot` + derived `HEAD_BOTTOM`/`HEAD_PROX`; imports only the geometry constants from `bodies.js`, no Three/Rapier) so it is unit-tested; `weapons.js` re-exports it unchanged. |
-| Tests | `tests/*.test.js`, `vite.config.js` (`test` block), `npm test` | v0.2.120 added Vitest (node env). Suites: `state.test.js` (FSM transitions/guards/predicates), `events.test.js` (bus on/emit/off/no-op/ordering), `classifier.test.js` (head-vs-body geometry), `phaseScreens.test.js` (v0.2.121 — phase→screen map + the PHASE_CHANGE subscriber integration). 43 tests. Run with `npm test`; `npm run check` stays separate but check [11] statically guards the scaffold exists. |
+| Tests | `tests/*.test.js`, `vite.config.js` (`test` block), `npm test` | v0.2.120 added Vitest (node env). Suites: `state.test.js` (FSM transitions/guards/predicates), `events.test.js` (bus on/emit/off/no-op/ordering), `classifier.test.js` (head-vs-body geometry), `phaseScreens.test.js` (v0.2.121 — phase→screen map + the PHASE_CHANGE subscriber integration), `bot-agent.test.js` (v0.2.122 — BotAgent decision helpers + decideActions facade). 54 tests. Run with `npm test`; `npm run check` stays separate but check [11] statically guards the scaffold exists. |
 | Physics | `src/engine/physics/raycast.js`, `src/engine/physics/bodies.js` | Rapier-backed truth layer for LOS, bullets, crates, bodies. |
-| Bots/NPCs | bot runtime modules, future `engine/entities/bot-agent.js` | Next extraction target: BotAgent SDK interface. |
+| Bots/NPCs | `src/bots.js` (runtime), `src/engine/entities/bot-agent.js` (SDK boundary) | v0.2.122 began the BotAgent boundary: pure decision helpers `engageSpeed`/`steerComponent`/`inEngageRange`/`wantsToShoot`, `BOT_ACTION` constants, and a `decideActions(worldState) -> BotAction[]` facade (the `BotAgent.tick` direction). `bots.js` consumes the allocation-free scalar helpers in `tickBots()` (LOS short-circuit preserved: cheap `inEngageRange()` gates the expensive `hasLineOfSight()`); `decideActions` is tested-but-unwired (allocates per call). Remaining: migrate the stateful tick/shoot/blowback runtime behind the boundary. |
 | HUD/UI | `src/hud.js`, `src/engine/ui/phaseScreens.js`, `index.html` HUD markup/styles | Reticle states: none, close, body, headshot. v0.2.121: top-level screen visibility (title/HUD/pause modal) is derived from a pure phase→visibility map in `engine/ui/phaseScreens.js` and applied by a single `EV.PHASE_CHANGE` subscriber in main.js. |
 | Audio | `src/audio.js` | Reload is WebAudio-scheduled; no new `setTimeout`. |
 | World/NAP | `src/world/napZone.js`, `src/world/handoff.js`, `src/identity/presence.js` | Skeletons exist; formalise after SDK Layer 1. |
@@ -47,7 +47,8 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 - **Physics raycast**: `castRay`, `castRayStatic`, `hasLineOfSight`.
 - **Physics bodies**: dynamic/static/kinematic/body factory direction; crate collider mapping now supports bullet impulses.
 - **Combat targeting**: shared headshot classifier used by both bullet hit result and target reticle preview. Extracted to a pure, dependency-light module `engine/combat/classifier.js` (v0.2.120) and unit-tested.
-- **Vitest suite (started v0.2.120)**: `tests/*.test.js`, node env, `npm test`. First seams covered: state machine, event bus, headshot classifier — all pure, no browser/Three/Rapier. Check [11] guards the scaffold.
+- **Vitest suite (started v0.2.120)**: `tests/*.test.js`, node env, `npm test`. Seams covered: state machine, event bus, headshot classifier, phase→screen map, BotAgent decision helpers (v0.2.122) — all pure, no browser/Three/Rapier. Check [11] guards the scaffold.
+- **BotAgent boundary (started v0.2.122)**: `engine/entities/bot-agent.js` — pure decision helpers (`engageSpeed`, `steerComponent`, `inEngageRange`, `wantsToShoot`), `BOT_ACTION` action constants, and a `decideActions(worldState) -> BotAction[]` facade in the `BotAgent.tick` shape. Imports only config tuning constants. `bots.js` consumes the scalar helpers in its hot path (LOS short-circuit intact); `decideActions` is unit-tested but not yet wired (allocates per call). Stateful tick/shoot/blowback runtime still in `src/bots.js`.
 - **Player boundary (started v0.2.114)**: `engine/entities/player.js` — pure geometry (`EYE`, `BODY_FROM_EYE`), spawn shape (`SPAWN_X/Y/Z`, `SPAWN_YAW`, `PLAYER_SAFE_CORNER`), and allocation-free look-down POV math (`lookDownEyeY`, `lookDownEyeZ`). Stateful tick/combat/lifecycle/body-state still in `src/player.js`.
 - **State machine (started v0.2.115)**: `src/state.js` — `GAME_EVENT` event set, frozen `TRANSITIONS` table, `transition(event)`/`canTransition`/`nextPhase`, and phase predicates. The table mirrors the prior `if (phase !== X) return;` guards exactly, so behaviour is unchanged; all 6 call sites (main, player, input, bots, targetReticle, hud) now read via predicates and write via `transition()`.
 - **Event bus (live; seam formalised v0.2.116)**: `src/events.js` — `EV` registry + `on/off/emit`. Already the cross-module signalling backbone (HUD, combat, nostr, stats). v0.2.116 documented the registry convention, wired `EV.PHASE_CHANGE` from `state.transition()` (`{from,to,event}`), and added check 8 (no undefined `EV.<NAME>` references). Imports nothing → no dependency cycles.
@@ -58,8 +59,8 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 - **Player boundary (continue)**: lift the stateful movement/kinematic tick, combat (shoot/reload/recoil), lifecycle (damage/death/respawn), and body-state (`setPlayerBody`/`getPlayerCollider`/`spawnPlayerBody`) behind the boundary; then add dash/zoom shape.
 - **State machine (continue)**: first slice landed v0.2.115 (see Stable/started). Remaining: fold the secondary booleans (`reloading`, `pointerLocked`) into derived/guarded state, wire a real `GAMEOVER` edge if an end-of-run screen lands, and add unit tests for the transition table.
 - **Event bus / decoupling (continue)**: first slice formalised v0.2.116; bot-hit bridge migrated v0.2.117 (`EV.BOT_HIT_BY_PLAYER`, `window._onBotHit` now a deprecated forwarding alias, check 9); foliage shader materials moved off `window` into a module-scope registry in `arena-foliage.js` v0.2.118 (`tickFoliage`/`getGrassMat`/`getFlowerMat`, deprecated `_grassMat`/`_flowerMat` aliases, check 10); mirror Reflector handle moved off `window` into `mirror.js` `getMirror()` v0.2.119 (deprecated `_mirrorMesh` alias, check 10 extended). **All functional `window.*` globals are now decoupled** — only deprecated debug aliases remain. v0.2.121 added the first real `PHASE_CHANGE` subscriber (top-level screen visibility via `engine/ui/phaseScreens.js`). Remaining: add further `PHASE_CHANGE` reactions (audio/presence) and emit `WS_*` from the netcode skeleton when it lands.
-- **BotAgent**: `BotAgent.tick(worldState) -> BotAction[]`.
-- **Vitest suite (continue)**: first seams landed v0.2.120 (state machine, event bus, classifier). Next: physics raycast/bodies (with injected mock world), BotAgent once extracted, and later kind:0 profile fetch.
+- **BotAgent (continue)**: boundary started v0.2.122 (pure decision helpers + `decideActions` facade; scalar helpers wired into `bots.js`). Remaining: migrate the stateful runtime — movement tick, shoot/cooldown, blowback/death/respawn, world-state shaping — behind the boundary, and wire `decideActions` once it can run off the hot path (or made allocation-free).
+- **Vitest suite (continue)**: seams landed v0.2.120–122 (state machine, event bus, classifier, phase map, BotAgent helpers). Next: physics raycast/bodies (with injected mock world), and later kind:0 profile fetch.
 
 ---
 
@@ -75,7 +76,7 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 | Check no god mode | `npm run check` |
 | Check no disallowed timers | `npm run check` |
 | Check no stale version markers | `npm run check` |
-| Run logic unit tests (FSM, bus, classifier) | `npm test` |
+| Run logic unit tests (FSM, bus, classifier, BotAgent) | `npm test` |
 
 ---
 
@@ -131,3 +132,4 @@ Run on real hardware after publish:
 - `torii-v0.2.119-mirror-accessor-report.md` — v0.2.119 mirror Reflector handle moved off `window` into a mirror.js `getMirror()` accessor; `_mirrorMesh` deprecated to a debug alias. Last functional global decoupled.
 - `torii-v0.2.120-vitest-foundation-report.md` — v0.2.120 added Vitest + first unit suites (state machine, event bus, headshot classifier); classifier extracted to a pure `engine/combat/classifier.js`; regression check [11] guards the scaffold.
 - `torii-v0.2.121-phase-subscriber-report.md` — v0.2.121 added the first real `EV.PHASE_CHANGE` subscriber: top-level screen visibility centralised into a pure `engine/ui/phaseScreens.js` map applied by one main.js subscriber; imperative title/HUD/pause toggles removed from the transition call sites; tests added.
+- `torii-v0.2.122-botagent-report.md` — v0.2.122 began the BotAgent SDK boundary: pure `engine/entities/bot-agent.js` (decision helpers + `decideActions` facade); `bots.js` hot path now consumes the scalar helpers (LOS short-circuit preserved); `tests/bot-agent.test.js` added (54 tests total).

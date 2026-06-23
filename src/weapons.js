@@ -18,6 +18,11 @@ export { isInHeadSphere, classifyHeadshot };
 // v0.2.124 — target-practice diagnostics. Pure aim-vs-outcome miss classifier
 // (no Three/Rapier) so "why did my shot miss?" is explainable from the console.
 import { classifyShotOutcome } from './engine/combat/shotDiagnostics.js';
+// v0.2.129 — barrel/muzzle origin math extracted to a pure module so the
+// +right (visible right-hand gun) side convention is unit-testable without the
+// WebGL renderer. The helper builds the offset basis from the camera's WORLD
+// quaternion so the muzzle tracks player yaw (fixes the bullet-from-the-left bug).
+import { barrelWorldFromCamera } from './engine/weapons/muzzle.js';
 // v0.2.125 — pure damage model (head/body damage + kill threshold), extracted
 // from the old inline `isHead ? 9 : 3` so it is unit-testable and the
 // one-shot-headshot contract is locked by tests against BOT_HP.
@@ -425,20 +430,13 @@ function _buildGun() {
 
 export function triggerRecoil() { _recoilTimer = 0.08; }
 
-const _bFwd   = new THREE.Vector3();
-const _bRight = new THREE.Vector3();
-const _bUp2   = new THREE.Vector3();
-
 // Returns barrel tip in world space (used to spawn bullets from the gun barrel).
+// Delegates to the pure muzzle module (v0.2.129): the offset basis is built from
+// the camera's WORLD quaternion so the +right barrel offset tracks player yaw and
+// the muzzle/tracer stays on the visible right-hand gun. Direction down the barrel
+// (toward the crosshair) is unchanged — only the origin side is corrected.
 export function getGunBarrelWorld(mainCamera) {
-  mainCamera.getWorldPosition(_barrelWorld);
-  _bFwd  .set(0, 0, -1).applyQuaternion(mainCamera.quaternion);
-  _bRight.set(1, 0,  0).applyQuaternion(mainCamera.quaternion);
-  _bUp2  .set(0, 1,  0).applyQuaternion(mainCamera.quaternion);
-  _barrelWorld.addScaledVector(_bFwd,   0.30);
-  _barrelWorld.addScaledVector(_bRight, 0.12);
-  _barrelWorld.addScaledVector(_bUp2,  -0.10);
-  return _barrelWorld;
+  return barrelWorldFromCamera(mainCamera, _barrelWorld);
 }
 
 function _tickGun(dt) {

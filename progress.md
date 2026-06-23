@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. See `strategy.md` for vision and decision rules. See `todo.md` for active tasks.
-> Current version: **v0.2.132-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.133-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 ---
 
@@ -17,7 +17,7 @@ Tasks: ARS-1 through ARS-7 (7 total) | Done: 5 | In progress: 0 | Remaining: 2
 [####################################..............] 5 / 7
 ```
 
-Status: ARS-1 (snapshot tooling), ARS-2 (interactions API), ARS-3 (RaycastService), ARS-7 (HANDOFF.md) landed in v0.2.130; ARS-5 (`src/sdk/index.js` public entrypoint + stability tiers) landed in v0.2.131. Remaining: ARS-4 (FSM fold — partial: v0.2.130 canShoot/canReload + v0.2.131 isEngaged/needsPointerLock pointer-lock predicates + v0.2.132 `isReloading`/`tickReload` reload sub-state fold), ARS-6 (ongoing CODE_INDEX upkeep). ARS-3 follow-up: bot-LOS call-site migrated to the facade in v0.2.131; weapons/player bullet+aim ray call-sites migrated to `raycastService.ray`/`.rayStatic` in v0.2.132.
+Status: ARS-1 (snapshot tooling), ARS-2 (interactions API), ARS-3 (RaycastService), ARS-7 (HANDOFF.md) landed in v0.2.130; ARS-5 (`src/sdk/index.js` public entrypoint + stability tiers) landed in v0.2.131. Remaining: ARS-4 (FSM fold — partial: v0.2.130 canShoot/canReload + v0.2.131 isEngaged/needsPointerLock pointer-lock predicates + v0.2.132 `isReloading`/`tickReload` reload sub-state fold + v0.2.133 real `GAMEOVER` edge `GAME_EVENT.END`/`endRun()`), ARS-6 (ongoing CODE_INDEX upkeep). ARS-3 follow-up: bot-LOS call-site migrated to the facade in v0.2.131; weapons/player bullet+aim ray call-sites migrated to `raycastService.ray`/`.rayStatic` in v0.2.132; the last direct `castRay` consumer (reticle preview) migrated in v0.2.133 + injected-world tests added — ARS-3 cleanup done.
 
 ---
 
@@ -35,17 +35,17 @@ Major closed: hit-reg parallax, head-zone height, re-entry collider orphan, muzz
 
 ### Rapier / Physics
 
-Seams extracted: bodies, raycast, RaycastService facade (ARS-3, now consumed by bot LOS + weapons/player bullet+aim rays as of v0.2.132) | Remaining: injected-world tests, raycast.js direct-import cleanup
+Seams extracted: bodies, raycast, RaycastService facade (ARS-3, consumed by bot LOS + weapons/player bullet+aim rays as of v0.2.132 + the reticle preview as of v0.2.133; injected-fake-world tests added v0.2.133; no direct `castRay` consumers remain) | ARS-3 raycast migration COMPLETE
 
 ```
-[######################################............] 4 / ~5 SDK seams
+[##############################################....] 5 / ~5 SDK seams
 ```
 
 ---
 
 ### SDK / API
 
-SDK boundaries started: 6 (physics raycast, physics bodies, combat classifier, combat damage, combat aim, reload pose) [baseline] + `src/sdk/index.js` public entrypoint (ARS-5, v0.2.131) + component contract (`engine/components/contract.js`, CMP-1/2, v0.2.132)
+SDK boundaries started: 6 (physics raycast, physics bodies, combat classifier, combat damage, combat aim, reload pose) [baseline] + `src/sdk/index.js` public entrypoint (ARS-5, v0.2.131) + component contract (`engine/components/contract.js`, CMP-1/2, v0.2.132) + first reference component (`engine/components/toriiGateway.js`, CMP-8, v0.2.133)
 Remaining before Layer 1 complete: player boundary full lift, BotAgent runtime, grow the SDK surface as boundaries stabilise
 
 ```
@@ -96,9 +96,10 @@ Next: manual smoke test v0.2.113+ → publish source-built artifact to `torii-qu
 | ARS-1 | Foundation | ToriiDebug.snapshot() / combat.report() / physics.report() | done (v0.2.130) |
 | ARS-2 | Rapier | Physics interaction API (pure interactions.js + mock tests) | done (v0.2.130) |
 | ARS-3 | Rapier | RaycastService injectable facade (+ bot-LOS call-site migrated v0.2.131) | done (v0.2.130) |
-| ARS-4 | Foundation | Fold reloading/pointerLocked into guarded FSM | partial — canShoot/canReload + isEngaged/needsPointerLock + isReloading/tickReload (v0.2.132) predicates extracted |
-| ARS-3+ | Rapier | Weapons/player bullet+aim ray migration to RaycastService | done (v0.2.132) |
+| ARS-4 | Foundation | Fold reloading/pointerLocked into guarded FSM + GAMEOVER edge | partial — canShoot/canReload + isEngaged/needsPointerLock + isReloading/tickReload (v0.2.132) predicates extracted; real GAMEOVER edge (`END`/`endRun()`) wired v0.2.133 |
+| ARS-3+ | Rapier | Weapons/player bullet+aim ray migration to RaycastService | done (v0.2.132); reticle preview migrated + injected-world tests v0.2.133 → ARS-3 cleanup done |
 | CMP-1/2 | SDK/Nostr | Component contract + manifest spec (`COMPONENTS.md`, `contract.js`, SDK `component`) | done (v0.2.132) |
+| CMP-8 | SDK | First reference component — Torii gateway skeleton (`toriiGateway.js`, SDK `toriiGateway`) | done (v0.2.133) |
 | ARS-5 | SDK | src/sdk/index.js skeleton with stability tiers | done (v0.2.131) |
 | ARS-6 | Foundation | CODE_INDEX.md upkeep pass after each ARS task | ongoing |
 | ARS-7 | Foundation | HANDOFF.md template | done (v0.2.130) |
@@ -111,6 +112,7 @@ Next: manual smoke test v0.2.113+ → publish source-built artifact to `torii-qu
 
 Items stay here (crossed out) for ~24 hours, then move to Archive below.
 
+- ~~v0.2.133-alpha gateway batch (reconciled onto published v0.2.132 — no v0.2.132 work dropped) — ARS-4 real `GAMEOVER` edge (`GAME_EVENT.END` + `endRun()` in state.js, PLAYING/DEAD → terminal GAMEOVER; behaviour-preserving, no live caller yet; +state tests); ARS-3 final raycast cleanup (reticle preview `targetReticle.js` → `raycastService.ray`, no direct `castRay` consumers remain; +injected-fake-world ray/LOS tests); CMP-8 first reference component `engine/components/toriiGateway.js` (`createToriiGateway`/`toriiGateway`, skeleton no-op lifecycle, manifest kind:'gateway'/mountTarget:'scene', SDK `toriiGateway` experimental namespace; `tests/torii-gateway.test.js`). +15 tests (200 total / 17 files)~~
 - ~~v0.2.132-alpha infrastructure batch — ARS-4 reload sub-state fold (`isReloading`/`tickReload` pure predicates in state.js, adopted in player.js/weapons.js/main.js; +5 state tests); ARS-3 weapons/player bullet+aim ray migration to `raycastService.ray`/`.rayStatic` (behaviour-identical, barrel→crosshair preserved; +3 service-wiring tests); CMP-1 `COMPONENTS.md` manifest spec (identity/provenance/npub, bundle hash, capabilities, deps, assets, config→mount options, pricing/zap split, Nostr listing events, security rules); CMP-2 `src/engine/components/contract.js` pure lifecycle contract (`validateManifest`/`isComponent`/`defineComponent`, idempotent mount/unmount) surfaced via SDK `component` namespace (experimental tier); `tests/component.test.js` (+14 tests). +22 tests (185 total / 16 files)~~
 - ~~v0.2.131 foundation batch — ARS-5 `src/sdk/index.js` public SDK entrypoint (curated node-safe re-exports + `SDK_VERSION`/`STABILITY`/frozen `SDK_SURFACE` tier map; `tests/sdk.test.js`); ARS-3 follow-up: bot-LOS call-site migrated to `raycastService.lineOfSight()`; ARS-4 pointer-lock fold (`isEngaged`/`needsPointerLock` predicates in state.js, adopted at the main.js canvas re-lock guard; +4 state tests); CMP-1..16 component-marketplace tasks added to todo.md (Later track); esbuild dev-server advisory assessed + deferred (audit fix too broad). +11 tests (163 total / 15 files)~~
 - ~~v0.2.130 no-blocker foundation batch — ARS-1 `engine/debug/snapshot.js` (`ToriiDebug.snapshot()`/`combat.report()`/`physics.report()`); ARS-2 `engine/physics/interactions.js` (pure `nudgeImpulse`/`applyNudge`, crate nudge tuning moved off weapons.js); ARS-3 `engine/physics/raycastService.js` (injectable facade on `ToriiDebug.physics.service`); FSM slice `canShoot`/`canReload` predicates in state.js (dead `state.paused` removed); ARS-7 `HANDOFF.md`; +26 tests (152 total / 14 files)~~

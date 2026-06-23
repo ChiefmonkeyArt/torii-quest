@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   PHASE, GAME_EVENT, state,
-  nextPhase, canTransition, transition,
+  nextPhase, canTransition, transition, endRun,
   isTitle, isPlaying, isPaused, isDead, isGameover, isLive,
   isEngaged, needsPointerLock,
   canShoot, canReload, isReloading, tickReload,
@@ -44,6 +44,18 @@ describe('nextPhase / canTransition (pure reads)', () => {
     expect(nextPhase(GAME_EVENT.ENTER)).toBeNull();
     expect(nextPhase(GAME_EVENT.RESPAWN)).toBeNull();
   });
+  it('PLAYING + END → GAMEOVER, DEAD + END → GAMEOVER (v0.2.133)', () => {
+    setPhase(PHASE.PLAYING);
+    expect(nextPhase(GAME_EVENT.END)).toBe(PHASE.GAMEOVER);
+    setPhase(PHASE.DEAD);
+    expect(nextPhase(GAME_EVENT.END)).toBe(PHASE.GAMEOVER);
+  });
+  it('END is illegal from TITLE and PAUSED (v0.2.133)', () => {
+    setPhase(PHASE.TITLE);
+    expect(nextPhase(GAME_EVENT.END)).toBeNull();
+    setPhase(PHASE.PAUSED);
+    expect(nextPhase(GAME_EVENT.END)).toBeNull();
+  });
   it('GAMEOVER is a terminal phase with no outgoing edges', () => {
     setPhase(PHASE.GAMEOVER);
     for (const ev of Object.values(GAME_EVENT)) {
@@ -75,6 +87,26 @@ describe('transition (mutating)', () => {
     expect(transition(GAME_EVENT.DIE)).toBe(true);     // DEAD
     expect(transition(GAME_EVENT.RESPAWN)).toBe(true); // PLAYING
     expect(state.phase).toBe(PHASE.PLAYING);
+  });
+});
+
+describe('endRun (GAMEOVER edge, v0.2.133)', () => {
+  it('ends a run from PLAYING → GAMEOVER', () => {
+    setPhase(PHASE.PLAYING);
+    expect(endRun()).toBe(true);
+    expect(state.phase).toBe(PHASE.GAMEOVER);
+  });
+  it('ends a run from DEAD → GAMEOVER', () => {
+    setPhase(PHASE.DEAD);
+    expect(endRun()).toBe(true);
+    expect(state.phase).toBe(PHASE.GAMEOVER);
+  });
+  it('is a no-op from TITLE / PAUSED / GAMEOVER (returns false, phase unchanged)', () => {
+    for (const p of [PHASE.TITLE, PHASE.PAUSED, PHASE.GAMEOVER]) {
+      setPhase(p);
+      expect(endRun()).toBe(false);
+      expect(state.phase).toBe(p);
+    }
   });
 });
 

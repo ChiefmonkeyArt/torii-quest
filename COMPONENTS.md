@@ -37,6 +37,42 @@ Reference components targeted for the library: n2n node jumper / gateway, live
 chat (NIP-28/29), video chat (WebRTC), art frame (Plebeian gallery), auction
 panel (kind:30402 / kind:16), product display + browser (NIP-15).
 
+### Reference component: Torii gateway (CMP-8, v0.2.133)
+
+The first concrete reference component lives at
+`src/engine/components/toriiGateway.js` and is surfaced via the SDK
+`toriiGateway` namespace (experimental tier). It is built on the `defineComponent`
+contract (CMP-2) so it is contract-valid, idempotent, and node-testable
+(`tests/torii-gateway.test.js`).
+
+```js
+import { createToriiGateway, toriiGateway, GATEWAY_VERSION } from
+  '../engine/components/toriiGateway.js';            // or SDK.toriiGateway.*
+
+const gate = createToriiGateway({ npub, relay, target, position });
+gate.mount(scene, { position });                     // idempotent
+gate.unmount();                                       // symmetric teardown
+```
+
+- **Manifest:** `id: 'torii.gateway'`, `kind: 'gateway'`, `mountTarget: 'scene'`,
+  provenance `author.npub`, and a `gateway: { npub, relay, target, position }`
+  destination block. `createToriiGateway(config)` threads the supplied
+  `npub`/`relay`/`target`/`position` into that block (one factory serves many
+  gates); per-mount `options` override placement at mount time.
+- **Lifecycle (skeleton):** mount/unmount are symmetric no-ops today — pure and
+  node-safe (NO Three/Rapier/DOM/Nostr imports). The portal mesh and the n2n
+  Nostr handoff (cross the gate → hand the player's identity off to the
+  destination node identified by `npub`/`relay`) are documented TODOs in the
+  module header, not yet built. The skeleton exists to prove the
+  mount/unmount lifecycle end-to-end and give the SDK a discoverable first
+  droppable component.
+
+> **v0.2.133 reconciliation note.** This component and this spec are built on the
+> **published v0.2.132 contract** (`defineComponent` / `validateManifest` →
+> `{valid,errors}` / `isComponent`). An earlier, divergent v0.2.133 draft of the
+> contract + a parallel COMPONENTS/contract approach was intentionally superseded
+> in favour of the v0.2.132 published API so no v0.2.132 work is dropped.
+
 ---
 
 ## 2. The manifest

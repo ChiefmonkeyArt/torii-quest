@@ -30,6 +30,7 @@ export * as botAgent from '../engine/entities/bot-agent.js';
 export * as snapshot from '../engine/debug/snapshot.js';
 export * as phaseScreens from '../engine/ui/phaseScreens.js';
 export * as component from '../engine/components/contract.js';
+export * as toriiGateway from '../engine/components/toriiGateway.js';
 export { createRaycastService, raycastService } from '../engine/physics/raycastService.js';
 
 // ---- Metadata --------------------------------------------------------------
@@ -59,6 +60,8 @@ export const SDK_SURFACE = Object.freeze({
   phaseScreens:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/ui/phaseScreens.js' },
   // Component economy contract (CMP-2) — mount/unmount + manifest validation.
   component:       { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/contract.js' },
+  // Reference component: Torii gateway (CMP-8 skeleton, v0.2.133).
+  toriiGateway:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/toriiGateway.js' },
   // Forward-declared internals — public story, not safe/ready to re-export yet:
   physicsBodies:   { tier: STABILITY.INTERNAL,     module: null },
   physicsRaycast:  { tier: STABILITY.INTERNAL,     module: null },

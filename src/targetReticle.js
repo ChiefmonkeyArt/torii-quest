@@ -12,7 +12,8 @@
 // while paused, reloading, or in the NAP zone (weapon disabled past the gate).
 import * as THREE from 'three';
 import { camera } from './scene.js';
-import { castRay, BOT_BODY_CENTRE_Y_OFFSET } from './physics.js';
+import { BOT_BODY_CENTRE_Y_OFFSET } from './physics.js';
+import { raycastService } from './engine/physics/raycastService.js';
 import { classifyHeadshot } from './weapons.js';
 import { setReticleState } from './hud.js';
 import { state, isPlaying } from './state.js';
@@ -48,8 +49,10 @@ export function tickTargetReticle() {
   camera.getWorldPosition(_camPos);
   _camDir.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
 
-  // Direct hit — what would the shot actually score?
-  const hit = castRay(
+  // Direct hit — what would the shot actually score? Read-only reticle preview,
+  // routed through the RaycastService facade — behaviour-identical to castRay
+  // (the default service wraps the same raycast.js layer).
+  const hit = raycastService.ray(
     _camPos.x, _camPos.y, _camPos.z,
     _camDir.x, _camDir.y, _camDir.z,
     RANGE,

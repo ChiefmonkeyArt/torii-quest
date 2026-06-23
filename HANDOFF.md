@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.132-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.133-alpha (see §3 for every place the version string lives)
 - **Live:** https://torii-quest.pplx.app (a Perplexity Space — deploy is a separate manual step, see §7)
 - **License:** GPL-3.0
 
@@ -73,12 +73,16 @@ Breaking one should fail CI/the check, not ship.
 - **`src/sdk/index.js`** — public SDK entrypoint (ARS-5). Curated node-safe
   re-exports + `SDK_VERSION`, `STABILITY` tiers, and the frozen `SDK_SURFACE`
   tier map. Only re-export modules that never transitively import `scene.js`.
-  v0.2.132 added the `component` namespace (experimental).
+  v0.2.132 added the `component` namespace; v0.2.133 added the `toriiGateway`
+  namespace (both experimental).
 - **`src/engine/components/contract.js`** + **`COMPONENTS.md`** — component
   economy foundation (CMP-1/2, v0.2.132). Pure `validateManifest` /
   `isComponent` / `defineComponent` (idempotent mount/unmount) + the full
   manifest spec doc. No THREE/Rapier/DOM. Signature/hash/capability
-  ENFORCEMENT is later CMP work.
+  ENFORCEMENT is later CMP work. **`src/engine/components/toriiGateway.js`**
+  (CMP-8, v0.2.133) — first reference component built on that contract
+  (`createToriiGateway`/`toriiGateway`); pure node-safe skeleton (no-op
+  mount/unmount; portal mesh + Nostr handoff are documented TODOs).
 
 ## 5. Build / test / check commands
 
@@ -92,7 +96,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**185 tests / 16 files**, all 11 regression checks GREEN, build clean.
+**200 tests / 17 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -133,13 +137,17 @@ smoke test on real hardware first).
 - Live deployment trails source by several versions — needs manual smoke + publish.
 - ARS-5 (`src/sdk/index.js` skeleton) landed in v0.2.131. ARS-4: `canShoot`/
   `canReload` + `isEngaged`/`needsPointerLock` + `isReloading`/`tickReload`
-  (v0.2.132) predicates extracted; remaining ARS-4 work is a real `GAMEOVER`
-  edge. ARS-3: all live raycast call sites (bots LOS, weapons/player bullet+aim)
-  now route through `raycastService` as of v0.2.132; remaining is injected-world
-  tests + `raycast.js` direct-import cleanup. CMP-1/2 (component contract +
-  manifest spec) landed v0.2.132; next CMP work is the loader/Nostr event
-  (CMP-5/CMP-7) with signature/hash/capability enforcement. See `progress.md`
-  Current Sprint.
+  (v0.2.132) predicates extracted; **v0.2.133 wired the real `GAMEOVER` edge**
+  (`GAME_EVENT.END` + `endRun()`, terminal; no live caller fires it yet — the
+  named entry point for a future end-of-run screen). ARS-3: all live raycast
+  call sites now route through `raycastService` — bots LOS + weapons/player
+  bullet+aim (v0.2.132) and the reticle preview (`targetReticle.js`, v0.2.133);
+  injected-fake-world tests added (v0.2.133); no direct `castRay` consumers
+  remain outside the service. CMP-1/2 (component contract + manifest spec) landed
+  v0.2.132; **CMP-8 first reference component (`toriiGateway`) landed v0.2.133**;
+  next CMP work is the loader/Nostr event (CMP-5/CMP-7) with signature/hash/
+  capability enforcement + the gateway's portal mesh + n2n handoff. See
+  `progress.md` Current Sprint.
 - ESBUILD-1 (deferred): low-severity dev-server-only esbuild advisory; `npm audit
   fix` pulls a broad rolldown/vite chain, deemed too risky for an alpha — left as a
   tracked WARN in `todo.md`.

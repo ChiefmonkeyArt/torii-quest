@@ -74,3 +74,49 @@ describe('default raycastService — production wiring (no world loaded)', () =>
     expect(raycastService.lineOfSight(0, 0, 0, 1, 1, 1)).toBe(true);
   });
 });
+
+// Injected fake-world contract (v0.2.133). Beyond verbatim delegation, lock the
+// service against a small, deterministic fake "world" so the ray/LOS contract is
+// pinned without Rapier: walls are planes perpendicular to +X at given x values;
+// a ray from the origin along +X hits the nearest wall within reach, and LOS is
+// blocked iff a wall sits strictly between origin.x and target.x. This is the
+// shape the reticle preview (targetReticle.js) and bot LOS depend on.
+function makeWorld(wallXs) {
+  const walls = [...wallXs].sort((a, b) => a - b);
+  return {
+    castRay(ox, _oy, _oz, dx, _dy, _dz, maxDist) {
+      if (dx <= 0) return null;                 // fake only models +X rays
+      for (const wx of walls) {
+        const dist = wx - ox;
+        if (dist > 0 && dist <= maxDist) return { x: wx, dist };
+      }
+      return null;                              // nothing within reach
+    },
+    hasLineOfSight(ox, _oy, _oz, tx) {
+      const lo = Math.min(ox, tx), hi = Math.max(ox, tx);
+      return !walls.some((wx) => wx > lo && wx < hi);
+    },
+  };
+}
+
+describe('createRaycastService — injected fake world contract', () => {
+  it('ray() returns the NEAREST wall within reach', () => {
+    const svc = createRaycastService(makeWorld([3, 7]));
+    expect(svc.ray(0, 0, 0, 1, 0, 0, 10)).toEqual({ x: 3, dist: 3 });
+  });
+  it('ray() returns null when every wall is beyond maxDist', () => {
+    const svc = createRaycastService(makeWorld([8, 12]));
+    expect(svc.ray(0, 0, 0, 1, 0, 0, 5)).toBeNull();
+  });
+  it('lineOfSight() is blocked by a wall between origin and target, clear otherwise', () => {
+    const svc = createRaycastService(makeWorld([5]));
+    expect(svc.lineOfSight(0, 0, 0, 10, 0, 0)).toBe(false); // wall at x=5 sits between
+    expect(svc.lineOfSight(0, 0, 0, 4, 0, 0)).toBe(true);   // target before the wall
+  });
+  it('holds no hidden global state — swapping worlds changes results', () => {
+    const a = createRaycastService(makeWorld([2]));
+    const b = createRaycastService(makeWorld([9]));
+    expect(a.ray(0, 0, 0, 1, 0, 0, 10)).toEqual({ x: 2, dist: 2 });
+    expect(b.ray(0, 0, 0, 1, 0, 0, 10)).toEqual({ x: 9, dist: 9 });
+  });
+});

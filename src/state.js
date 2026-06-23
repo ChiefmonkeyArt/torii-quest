@@ -6,8 +6,11 @@ export const PHASE = Object.freeze({
   TITLE: 'title', PLAYING: 'playing',
   DEAD: 'dead', PAUSED: 'paused', GAMEOVER: 'gameover',
 });
-// GAMEOVER is reserved for a future end-of-run screen; nothing transitions into
-// it yet (no edge in the table below). Kept for compatibility.
+// GAMEOVER is the terminal end-of-run phase. v0.2.133 wired the inbound edge:
+// PLAYING/DEAD → GAMEOVER via GAME_EVENT.END (see TRANSITIONS + endRun()).
+// GAMEOVER itself has no outgoing edge yet (a future GAMEOVER → TITLE exit will
+// land with the end-of-run screen). Behaviour-preserving: no live call site fires
+// END today, so the endless die→respawn flow is unchanged.
 
 export const state = {
   phase:      PHASE.TITLE,
@@ -54,15 +57,16 @@ export const GAME_EVENT = Object.freeze({
   HOME:    'home',     // PAUSED  → TITLE    (Home button)
   DIE:     'die',      // PLAYING → DEAD     (hp <= 0)
   RESPAWN: 'respawn',  // DEAD    → PLAYING  (respawn timer elapsed)
+  END:     'end',      // PLAYING/DEAD → GAMEOVER (end of run; no respawn)
 });
 
 // phase → (event → nextPhase). An event not listed for the current phase is an
 // illegal transition and is rejected (phase unchanged).
 const TRANSITIONS = Object.freeze({
   [PHASE.TITLE]:    { [GAME_EVENT.ENTER]:   PHASE.PLAYING },
-  [PHASE.PLAYING]:  { [GAME_EVENT.PAUSE]:   PHASE.PAUSED,  [GAME_EVENT.DIE]: PHASE.DEAD },
+  [PHASE.PLAYING]:  { [GAME_EVENT.PAUSE]:   PHASE.PAUSED,  [GAME_EVENT.DIE]: PHASE.DEAD, [GAME_EVENT.END]: PHASE.GAMEOVER },
   [PHASE.PAUSED]:   { [GAME_EVENT.RESUME]:  PHASE.PLAYING, [GAME_EVENT.HOME]: PHASE.TITLE },
-  [PHASE.DEAD]:     { [GAME_EVENT.RESPAWN]: PHASE.PLAYING },
+  [PHASE.DEAD]:     { [GAME_EVENT.RESPAWN]: PHASE.PLAYING, [GAME_EVENT.END]: PHASE.GAMEOVER },
   [PHASE.GAMEOVER]: {},
 });
 
@@ -91,6 +95,12 @@ export function transition(event) {
   emit(EV.PHASE_CHANGE, { from, to: next, event });
   return true;
 }
+
+// endRun() → fire GAME_EVENT.END (PLAYING/DEAD → GAMEOVER). The named, testable
+// entry point for an end-of-run/game-over flow. Behaviour-preserving — no live
+// call site fires it yet, so the endless die→respawn loop is unchanged; it exists
+// so a future end-of-run screen has one canonical place to terminate a run.
+export function endRun() { return transition(GAME_EVENT.END); }
 
 // ── Weapon-state predicates (v0.2.130) ─────────────────────────────────────
 // Pure gates for the firing/reload flow, extracted from player.js so the rules

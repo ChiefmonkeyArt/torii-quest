@@ -125,8 +125,9 @@ Run on real hardware after publish:
 
 ## Living Reports
 
-- `strategy.md` — strategic source of truth.
+- `strategy.md` — strategic source of truth: vision, decision rules, architecture direction.
 - `todo.md` — active task source of truth.
+- `progress.md` — visual execution dashboard: track bars (Foundation/Combat/Rapier/SDK/Nostr/Deployment), active goals, current sprint table, completed-last-24h, archive, and update rules.
 - `torii-source-reconciliation-report.md` — source reconciliation history.
 - `torii-foundation-sprint-report.md` — v0.2.110 foundation history.
 - `torii-v0.2.111-regression-repair-report.md` — v0.2.111 repair history.

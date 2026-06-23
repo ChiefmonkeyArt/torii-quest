@@ -4,6 +4,7 @@
 > Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.129-alpha**
 
 > Strategy source of truth: `strategy.md`.
+> Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
 > Mission: get to fast, safe feature delivery on solid foundations.
 > Project purpose: we are building an open world builder on open protocols, FOSS, Bitcoin, and Nostr. The shoot'em up is a proof-of-work/game layer. The strategic goal is a self-sovereign, FOSS, Nostr/Bitcoin-powered open world builder and decentralised metaverse layer for Plebeian/Plebeian.Market.
 
@@ -36,6 +37,7 @@ These tasks build the structural layer that makes the project legible to any age
 | ARS-5 | SDK | **SDK/API skeleton** — add a top-level `src/sdk/index.js` that re-exports the stable public APIs from physics, combat, entities, and identity layers. This is the single import point for external contributors and future community modules. Document each export's stability tier (`stable` / `experimental` / `internal`) in `CODE_INDEX.md`. |
 | ARS-6 | INDEX | **CODE_INDEX.md upkeep** — after each ARS task, update `CODE_INDEX.md` to reflect the new module boundary, public API, debug hook, test file, and any known constraints or open edges. The index is the primary agent-handoff document; it must stay current or it becomes misleading. |
 | ARS-7 | ARCH | **Handoff template** — write a `HANDOFF.md` template (or add a `## Handoff` section to `CODE_INDEX.md`) that any agent or developer fills in at the end of a session: version changed, what was tested, open edges, next recommended task, and constraints discovered. Makes the next session's context window useful immediately, regardless of which AI or developer picks up. |
+| PROGRESS-1 | DOCS | **Formalise / maintain `progress.md`** — keep track bars, sprint table, and completed-last-24h current. After each sprint or significant landing, move crossed-out completed items from `todo.md` into the Archive in `progress.md` and update the relevant track bar. Aim for weekly upkeep at minimum. |
 
 ---
 

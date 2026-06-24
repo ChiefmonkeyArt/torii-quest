@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.156-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.157-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -39,7 +39,12 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `updateCheck`,
-`updatePreview`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
+`updatePreview`, `githubReleaseSource`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
+
+`githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
+`normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
+object, a `releases` array, or a manifest into an update verdict; the optional
+`fetchLatestRelease` is host-only and requires an injected `fetcher` (no auto-fetch).
 
 ### INTERNAL (forward-declared, `module:null` — do NOT depend on yet)
 

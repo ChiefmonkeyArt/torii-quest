@@ -46,6 +46,7 @@ export * as leaderboardView from '../engine/nostr/leaderboardView.js';
 export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
+export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
 export * as mvpLoop from '../engine/mvpLoop.js';
 export * as proofSurfaceSpecs from '../engine/world/proofSurfaceSpecs.js';
 export * as anchorTransforms from '../engine/world/anchorTransforms.js';
@@ -111,6 +112,10 @@ export const SDK_SURFACE = Object.freeze({
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },
   // torii.quest update-check visible PREVIEW block — inert title/HUD card (LEAN-5, v0.2.142).
   updatePreview:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updatePreview.js' },
+  // torii.quest GitHub Releases source adapter (LEAN-5, v0.2.157) — pure normalise
+  // of a releases-latest/array/manifest payload into evaluateUpdate()'s shape; an
+  // optional host-only fetch helper that requires an injected fetcher (no auto-fetch).
+  githubReleaseSource: { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/githubReleaseSource.js' },
   // MVP loop header — frames the four PoC preview cards as one Travel→Market→Score→Update loop (v0.2.143).
   mvpLoop:         { tier: STABILITY.EXPERIMENTAL, module: '../engine/mvpLoop.js' },
   // In-world proof-mesh LAYOUT/SPEC contracts for the four MVP proof surfaces — pure

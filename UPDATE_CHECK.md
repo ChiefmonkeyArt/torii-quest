@@ -45,12 +45,34 @@ NO shell execution, NO auto-update, and NO navigation. Read-only at
 `ToriiDebug.shells.updatePreview()`. SDK `updatePreview` (experimental). Covered by
 `tests/update-preview.test.js`.
 
+### Source adapter (v0.2.157)
+
+`src/engine/update/githubReleaseSource.js` — pure, node-safe adapter that prepares
+the read-only update-check path by turning a raw GitHub Releases payload into the
+release object the helpers above already accept.
+
+| Export | Shape | Notes |
+|---|---|---|
+| `SOURCE_KIND` | `{ LATEST, LIST, UNKNOWN }` | How the payload was recognised. |
+| `SOURCE_STATUS` | `{ OK, EMPTY, MALFORMED }` | Whether a usable release was found. |
+| `normalizeRelease(raw)` | canonical GitHub-release object \| `null` | Maps a GitHub release object OR a manifest (`version\|tag`/`url`/`notes`) into the `parseRelease()` shape. `null` for non-objects / no version identifier. Never throws. |
+| `selectLatestRelease(payload, { includePrerelease=true, includeDraft=false })` | `{ status, kind, release, candidates, errors }` | Accepts a single `releases/latest` object, a `releases` array, or a manifest; picks the highest-version ELIGIBLE release (tolerant semver). Drafts excluded by default; prereleases kept by default (alpha project). |
+| `evaluateFromSource(payload, opts)` | `{ source, status, currentVersion, latestVersion, updateAvailable, release }` | Folds `selectLatestRelease()` into `evaluateUpdate()`. Draft/empty/malformed → `UNKNOWN` / `updateAvailable:false`. Never throws. |
+| `fetchLatestRelease(opts)` | `Promise<{ ok, status, url, payload, evaluation, errors }>` | **OPTIONAL host-only** fetch. REQUIRES an injected `fetcher` (no global-fetch fallback), NEVER auto-invoked from the game loop, timeout honoured WITHOUT `setTimeout` (caller `signal` or `AbortSignal.timeout()`), JSON/shape-validated; thrown/HTTP errors become safe `MALFORMED` states. |
+
+Surfaced on the SDK as `githubReleaseSource` (tier: experimental). Covered by
+`tests/github-release-source.test.js`. The pure helpers do NO network; only
+`fetchLatestRelease()` can reach the wire, and only when a host explicitly injects a
+fetcher — importing the module can never silently fetch.
+
 ## 3. What is deferred (the host step — NOT in this module)
 
 - **The actual read-only fetch** of the GitHub releases endpoint
   (`RELEASE_SOURCE.latestReleaseUrl`). Must be a deliberate, audited host call —
-  CSP `connect-src` would need a GitHub API entry, and rate-limiting/error handling
-  belong there, not in the pure helper.
+  CSP `connect-src` would need a GitHub API entry, and rate-limiting belongs there.
+  As of v0.2.157 `githubReleaseSource.fetchLatestRelease()` provides the *shape* of
+  that call (injected fetcher, timeout, shape validation), but it is host-only and
+  never wired into the game loop — a host must invoke it explicitly with a fetcher.
 - **The in-world prompt MESH / HUD** that renders `updateCheckView(...)`. Browser
   side effect; deferred like the other LEAN view-model meshes.
 - **Any "Update" affordance.** The view-model is display-only by design

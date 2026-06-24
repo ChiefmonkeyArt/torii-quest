@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.156-alpha",
+  "version": "0.2.157-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",

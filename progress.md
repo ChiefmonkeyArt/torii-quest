@@ -65,6 +65,8 @@ Skeletons present: NAP zone module, world handoff, presence | Protocol drafted: 
 v0.2.134 added the open **Gateway Protocol** draft (`GATEWAY_PROTOCOL.md`) + pure URL-handoff helpers (`travelIntent.js`) and pure unsigned Nostr leaderboard score-event helpers (`leaderboard.js`) — wire-format + helpers, not yet wired to relays/handoff. v0.2.135 added the component loader/registry (`registry.js`, CMP-7), the gateway portal/handoff shell (`gatewayHandoff.js`, CMP-8 — turns a gateway component into a validated travel intent/URL, pure return values, no navigation), the product panel view-model (`productPanel.js`), and the leaderboard publisher adapter shape (`leaderboardPublisher.js`, LB-1 — injected signer/publisher, build-only by default, no relay/secrets).
 Blocked on: SDK Layer 1 close-out, identity boundary, kind:0 profile sync, the real signer/publisher + relay read, and wiring the gateway handoff into `world/handoff.js` + a portal mesh to actually move the player.
 
+**Security gates (v0.2.135 review):** SEC-1 — require explicit user consent before any live NIP-07 signing or relay publish (leaderboardPublisher is currently pure/injected, not wired). SEC-2 — add cryptographic verification / signing-layer checks to `world/handoff.js` before it acts on live relay data. SEC-3 — tighten product URL validation from regex-only to `URL`-object parsing before productDisplay/productPanel URLs become clickable or fetched.
+
 ---
 
 ### Deployment / VPS / Update System

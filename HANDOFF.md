@@ -191,6 +191,15 @@ smoke test on real hardware first).
 - ESBUILD-1 (deferred): low-severity dev-server-only esbuild advisory; `npm audit
   fix` pulls a broad rolldown/vite chain, deemed too risky for an alpha — left as a
   tracked WARN in `todo.md`.
+- **SEC-1 (consent gate):** before wiring `leaderboardPublisher` to a real NIP-07
+  signer or live relay publish, require explicit user consent. Current implementation
+  is pure/injected and not wired to live publish.
+- **SEC-2 (handoff verification gate):** before `world/handoff.js` acts on live relay
+  data, add cryptographic verification / signing-layer checks for incoming handoff
+  events. Do not act on unverified travel intents from the wire.
+- **SEC-3 (product URL validation):** before `productDisplay`/`productPanel` URLs are
+  made clickable or fetched, replace the regex-only `https://` check with `URL`-object
+  parsing (validate scheme + host). Regex alone is insufficient for untrusted input.
 
 ## 9. Next-job format
 

@@ -161,6 +161,18 @@ These tasks build the structural layer that makes the project legible to any age
 
 ---
 
+## Security Follow-Up (v0.2.135 review)
+
+These are pre-wiring gates — no action needed now, but must be resolved before the listed features go live.
+
+| # | Codebase | Category | Blocker / Gate |
+|---|----------|----------|-----------------|
+| SEC-1 | TQ | NOSTR | **Leaderboard signer consent gate** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent before any live signing or relay publish action. `leaderboardPublisher` is currently pure/injected and not wired to live publish; keep it that way until consent UX is in place. |
+| SEC-2 | TQ | NOSTR | **Handoff event verification gate** — before `world/handoff.js` acts on live relay data, add cryptographic verification / signing-layer checks for incoming handoff events. Do not act on an unverified travel intent from the wire. |
+| SEC-3 | TQ | SECURITY | **Product URL validation tightening** — before `productDisplay`/`productPanel` URLs are made clickable or fetched, replace the current regex-only `https://` check with `URL`-object parsing to validate scheme, host, and structure. Regex alone is insufficient for untrusted input. |
+
+---
+
 ## Open / Parked
 
 | # | Category | Task |

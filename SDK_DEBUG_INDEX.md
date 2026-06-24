@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.148-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.149-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -39,7 +39,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `updateCheck`,
-`updatePreview`, `mvpLoop`.
+`updatePreview`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 ### INTERNAL (forward-declared, `module:null` — do NOT depend on yet)
 
@@ -93,6 +93,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.diff(a?,b?)` | **v0.2.146** pure diff of two `summary()` outputs, flagging invariant flips that loosen inertness (see §4.1) |
 | `shells.surfaceSpecs()` | **v0.2.147** pure in-world proof-surface LAYOUT/SPEC layer — `{badge,anchorZone,count,bounds,specs,allInert,rendered:false,actionable:false}` (see §4.2) |
 | `shells.surfaceSpecCheck(map?,specs?)` | **v0.2.148** pure cross-check that each spec's `previewSdk`/`shell` align with the live SDK + shells registries + inert invariants — `{ok,badge,checked,errors,warnings,surfaces}` (see §4.3) |
+| `shells.anchorTransforms(specs?)` | **v0.2.149** pure anchor→transform resolution — binds each spec's `anchor` id to a plain transform descriptor (origin/position/offset/size/yawRad) + lists unresolved anchors — `{ok,badge,count,resolved,unresolved}` (see §4.4) |
 
 Other namespaces on `ToriiDebug`: `snapshot()` / `combat.report()` / `physics.report()`
 (JSON-serialisable status), `bots`, `player`, `physics`, `world`, `identity`, `fx`.
@@ -230,6 +231,46 @@ wired correctly before promotion.
 
 ---
 
+## 4.4. `ToriiDebug.shells.anchorTransforms()` — anchor→transform contract (v0.2.149)
+
+`shells.anchorTransforms(specs?)` (pure `resolveAllAnchors()` in
+`engine/world/anchorTransforms.js`) is the single source of truth for what each
+proof-surface `anchor` id MEANS in world space, so the future mesh pass can resolve
+placement without re-deriving coordinates. It builds NO Three.js objects, touches NO
+DOM/renderer, integrates NO gameplay: every coordinate is a plain `{x,y,z}` object /
+plain number. The anchor registry (`PROOF_SURFACE_ANCHORS`, keyed by the four anchor
+ids) maps each anchor to a ground `origin` (y:0), a `parent` hint, and its NAP `zone`.
+`resolveAnchorTransform(spec)` binds one spec to its anchor; `resolveAllAnchors(specs)`
+resolves the set. Shape:
+
+```js
+{
+  badge: 'ANCHOR · PLAIN-TRANSFORM · NO RENDER',
+  count,                   // number of specs considered
+  ok,                      // true iff every spec's anchor resolved (unresolved empty)
+  resolved: [              // one descriptor per resolvable spec
+    { badge, surfaceId, anchor, parent, zone,
+      origin:{x,y,z},      // anchor ground point (y:0)
+      position:{x,y,z},    // surface world position (from the spec)
+      offset:{x,y,z},      // position − origin (local offset to apply at the anchor)
+      size:{width,height,depth}, yawRad,
+      rendered:false, actionable:false },
+    ...
+  ],
+  unresolved: [ { surfaceId, anchor }, ... ],   // specs pointing at an unknown anchor
+  rendered: false,
+  actionable: false,
+}
+```
+
+The four anchors are `torii-gate-threshold` (parent `torii-gate`),
+`nap-zone-north-stall`, `nap-zone-far-centre`, and `nap-zone-south-board` (parent
+`nap-zone-floor`). `getAnchor(id)` returns one anchor or null. The invariant
+`origin + offset === position` lets a mesh pass parent to the anchor and apply a
+local offset; `ok===true` confirms every spec resolves before any mesh binds.
+
+---
+
 ## 5. Where the tests live
 
 | Surface | Test file |
@@ -243,6 +284,7 @@ wired correctly before promotion.
 | `ToriiDebug.shells.*` reports + `summary()` | `tests/shell-report.test.js` |
 | `proofSurfaceSpecs` / `shells.surfaceSpecs()` | `tests/proof-surface-specs.test.js` |
 | `shells.surfaceSpecCheck()` (spec↔registry cross-check) | `tests/proof-surface-check.test.js` |
+| `anchorTransforms` / `shells.anchorTransforms()` | `tests/anchor-transforms.test.js` |
 | underlying view/shell modules | `tests/gateway-portal.test.js`, `tests/product-panel-shell.test.js`, `tests/leaderboard-view.test.js`, `tests/update-check.test.js` |
 
 Run all with `npm test` (Vitest, node env). `npm run check` separately guards the

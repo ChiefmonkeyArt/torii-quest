@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.148-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.149-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -10,7 +10,7 @@
 
 ---
 
-## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.148)
+## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.149)
 
 > **The project is refocused onto a 15-hour proof-of-concept.** Build the vision
 > fast, prove the architecture, avoid polish traps — then add retrospective polish
@@ -63,6 +63,15 @@
   re-asserts the inert invariants, and scans for leaked live-action keys —
   `{ok,errors,warnings,surfaces}`. The guard to run BEFORE the future mesh pass binds
   anything; deterministic, no render/network; +14 tests.
+- **Proof-surface anchors now resolve to plain transforms** (v0.2.149) —
+  `engine/world/anchorTransforms.js` (`PROOF_SURFACE_ANCHORS` + `resolveAnchorTransform()`/
+  `resolveAllAnchors()`, SDK `anchorTransforms` + read-only at
+  `ToriiDebug.shells.anchorTransforms()`) is the single source of truth mapping each
+  proof-surface `anchor` id to a ground origin + parent/zone hint, and binds a spec to a
+  plain transform descriptor (origin/position/`offset`/size/yawRad, with
+  `origin+offset===position`) while reporting unresolved anchors. PLAIN data — no
+  THREE/render/gameplay; +14 tests. The isolated mesh pass that reads these transforms
+  is the next slice.
 - **Proof surfaces are now review-symmetric + diffable** (v0.2.146) — the gateway
   preview gained `readOnly:true` so all four MVP proof surfaces expose the same
   `readOnly`+`actionable` invariant pair. Added a pure read-only

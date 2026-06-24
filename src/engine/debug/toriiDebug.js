@@ -41,6 +41,7 @@ import { raycastService } from '../physics/raycastService.js';
 import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, updatePreviewReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
+import { resolveAllAnchors } from '../world/anchorTransforms.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -196,6 +197,13 @@ export function installToriiDebug(refs) {
       // specs are wired correctly BEFORE the future mesh pass binds anything. Pass a
       // { sdk, shells } map to check against your own registries. No render/network.
       surfaceSpecCheck(surfaceMap, specs) { return checkProofSurfaceSpecs(surfaceMap, specs); },
+      // v0.2.149 — pure ANCHOR→TRANSFORM resolution for the four proof surfaces:
+      // binds each spec's `anchor` id to a plain transform descriptor (anchor
+      // ground origin, surface position, the offset between them, size, yawRad)
+      // and lists any unresolved anchors. `ok` is true iff every spec resolved.
+      // The placement contract the future mesh pass reads — no Three/render/
+      // gameplay. See SDK `anchorTransforms` + SDK_DEBUG_INDEX.md.
+      anchorTransforms(specs) { return resolveAllAnchors(specs); },
     },
   };
 

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.148-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.149-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -220,7 +220,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**407 tests / 36 files**, all 11 regression checks GREEN, build clean.
+**421 tests / 37 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -239,7 +239,7 @@ click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
 - `.snapshot()` — one JSON-serialisable object: version, phase, run state, player
   pos, combat last shot/hit/miss, physics+crate summary, tuning. Safe anytime.
 - `.combat.report()` / `.physics.report()` — focused JSON sub-reports.
-- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,updatePreview,mvpLoop,report,summary,diff,surfaceSpecs,surfaceSpecCheck}()` —
+- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,updatePreview,mvpLoop,report,summary,diff,surfaceSpecs,surfaceSpecCheck,anchorTransforms}()` —
   read-only reports over the VIEW shells + visible preview blocks (demo fixtures by
   default; pass overrides). No signer, no relay/publish, no navigation, no checkout,
   no fetch/auto-update
@@ -257,8 +257,12 @@ click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
   `engine/debug/proofSurfaceCheck.js`) cross-checks each spec's `previewSdk`/`shell`
   against the live SDK experimental + shells registries, re-asserts the inert
   invariants, and scans for leaked live-action keys — `{ok,errors,warnings,surfaces}`,
-  the guard to run before the future mesh pass binds anything. See
-  `SDK_DEBUG_INDEX.md`.
+  the guard to run before the future mesh pass binds anything. `anchorTransforms(specs?)`
+  (v0.2.149, pure `resolveAllAnchors()` from `engine/world/anchorTransforms.js`) is the
+  ANCHOR→TRANSFORM contract — it binds each spec's `anchor` id to a plain transform
+  descriptor (ground origin/position/`offset`/size/yawRad) and lists unresolved
+  anchors (`{ok,count,resolved,unresolved}`), the single source of truth the future
+  mesh pass reads to place each surface. See `SDK_DEBUG_INDEX.md`.
 - `.physics.service` — injectable RaycastService facade (`ray`/`rayStatic`/`lineOfSight`).
 - `.bots`, `.player`, `.physics`, `.world`, `.fx`, `.combat`, `.identity`.
 

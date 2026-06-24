@@ -15,6 +15,7 @@ import { productPanelShell } from '../components/productPanelShell.js';
 import { productPreviewBlock } from '../components/productPreview.js';
 import { rankScores } from '../nostr/leaderboardView.js';
 import { leaderboardPreviewBlock } from '../nostr/leaderboardPreview.js';
+import { readLeaderboardEvents } from '../nostr/leaderboardRelayRead.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -45,6 +46,40 @@ export const DEMO_SCORES = Object.freeze([
   { runId: 'run-a', score: 120, kills: 12, headshots: 5, accuracy: 0.62 },
   { runId: 'run-b', score: 240, kills: 20, headshots: 11, accuracy: 0.71 },
   { runId: 'run-c', score: 90, kills: 9, headshots: 2, accuracy: 0.5 },
+]);
+
+// A deterministic LOCAL sample of kind-30000 leaderboard score events — the shape
+// a read-only relay transport WOULD return — so the leaderboard relay-read report
+// can prove the READ→rank path without ever touching a relay. Includes a superseded
+// duplicate (same pubkey+run, older created_at) and one malformed entry so the
+// report exercises dedupe + skip. Display-only; no network, no signing, no publish.
+export const DEMO_RELAY_SCORE_EVENTS = Object.freeze([
+  {
+    id: '1'.repeat(64), pubkey: 'a'.repeat(64), created_at: 1000, kind: 30000,
+    tags: [['d', 'run-a'], ['t', 'torii-quest']],
+    content: JSON.stringify({ runId: 'run-a', score: 120, kills: 12, headshots: 5, accuracy: 0.62, version: 'v0.2.160-alpha' }),
+    sig: 'f'.repeat(128),
+  },
+  {
+    id: '2'.repeat(64), pubkey: 'b'.repeat(64), created_at: 1500, kind: 30000,
+    tags: [['d', 'run-b'], ['t', 'torii-quest']],
+    content: JSON.stringify({ runId: 'run-b', score: 240, kills: 20, headshots: 11, accuracy: 0.71, version: 'v0.2.160-alpha' }),
+    sig: 'e'.repeat(128),
+  },
+  {
+    // Superseded older run for pubkey a / run-a — dedupe should drop this one.
+    id: '3'.repeat(64), pubkey: 'a'.repeat(64), created_at: 500, kind: 30000,
+    tags: [['d', 'run-a'], ['t', 'torii-quest']],
+    content: JSON.stringify({ runId: 'run-a', score: 60, kills: 6, headshots: 1, accuracy: 0.4, version: 'v0.2.160-alpha' }),
+    sig: 'd'.repeat(128),
+  },
+  {
+    // Malformed (headshots > kills) — extraction should skip it.
+    id: '4'.repeat(64), pubkey: 'c'.repeat(64), created_at: 1200, kind: 30000,
+    tags: [['d', 'run-c'], ['t', 'torii-quest']],
+    content: JSON.stringify({ runId: 'run-c', score: 90, kills: 2, headshots: 9, accuracy: 0.5, version: 'v0.2.160-alpha' }),
+    sig: 'c'.repeat(128),
+  },
 ]);
 
 // A deterministic LOCAL sample GitHub release (newer than the current runtime) so
@@ -174,6 +209,28 @@ export function leaderboardPreviewReport(statsList = DEMO_SCORES, opts = {}) {
   };
 }
 
+// leaderboardRelayReadReport(events, opts) → the READ-ONLY leaderboard relay-read
+// PROOF (NOSTR-READ / LB-1, v0.2.160) over a deterministic LOCAL sample of relay
+// score events. Proves the READ→extract→dedupe→rank path WITHOUT any relay I/O:
+// defaults to DEMO_RELAY_SCORE_EVENTS (which includes a superseded duplicate and a
+// malformed entry). Pins signed/published false + readOnly true so the no-publish,
+// no-network guarantee is explicit in the report.
+export function leaderboardRelayReadReport(events = DEMO_RELAY_SCORE_EVENTS, opts = {}) {
+  const r = readLeaderboardEvents(events, opts);
+  return {
+    ok: r.ok,
+    filter: r.filter,
+    count: r.count,
+    rows: r.rows,
+    skipped: r.skipped.length,
+    duplicates: r.duplicates,
+    signed: r.signed,
+    published: r.published,
+    readOnly: r.readOnly,
+    errors: r.errors,
+  };
+}
+
 // updatePreviewReport(release, opts) → the visible-but-inert torii.quest
 // update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
 // pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
@@ -249,6 +306,7 @@ export function buildShellReport(inputs = {}) {
     product = DEMO_PRODUCT,
     scores = DEMO_SCORES,
     mode = 'build',
+    relayScoreEvents = DEMO_RELAY_SCORE_EVENTS,
     release = DEMO_RELEASE,
     updateFeed,
   } = inputs;
@@ -259,6 +317,7 @@ export function buildShellReport(inputs = {}) {
     productPreview: productPreviewReport(product),
     leaderboard: leaderboardReport(scores, { mode }),
     leaderboardPreview: leaderboardPreviewReport(scores),
+    leaderboardRelayRead: leaderboardRelayReadReport(relayScoreEvents),
     updatePreview: updatePreviewReport(release),
     updateStatus: updateStatusReport(updateFeed),
     mvpLoop: mvpLoopReport(),

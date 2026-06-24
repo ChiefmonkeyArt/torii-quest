@@ -45,6 +45,7 @@ export * as leaderboardPublisher from '../engine/nostr/leaderboardPublisher.js';
 export * as leaderboardView from '../engine/nostr/leaderboardView.js';
 export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
 export * as relayRead from '../engine/nostr/relayRead.js';
+export * as leaderboardRelayRead from '../engine/nostr/leaderboardRelayRead.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -113,6 +114,10 @@ export const SDK_SURFACE = Object.freeze({
   // validation, event normalise/validate, NIP-01 filter matching, REQ/CLOSE frame
   // builders, and an injected-transport adapter; NO signing/publishing/socket/auto-connect.
   relayRead:       { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/relayRead.js' },
+  // READ-ONLY leaderboard relay-read PROOF (NOSTR-READ / LB-1, v0.2.160) — builds the
+  // kind-30000 score filter, extracts/validates/dedupes score objects from injected
+  // relay events, ranks them via leaderboardView; NO signing/publishing/socket.
+  leaderboardRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboardRelayRead.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

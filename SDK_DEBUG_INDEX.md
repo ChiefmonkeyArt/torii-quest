@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.159-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.160-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -38,7 +38,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `botAgent`, `snapshot`, `phaseScreens`, `component`, `registry`, `toriiGateway`,
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
-`leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `updateCheck`,
+`leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
@@ -48,6 +48,16 @@ foundation: `validateRelayUrl` (ws/wss only, no credentials),
 (READ frames only — no EVENT/publish builder), and
 `createReadOnlyRelayAdapter({request})` whose injected host-only transport feeds a
 frozen `{read,readOnly:true}` adapter that NEVER signs/publishes/opens-a-socket/throws.
+
+`leaderboardRelayRead` (NOSTR-READ / LB-1, v0.2.160) is the pure READ-ONLY leaderboard
+relay-read proof on top of `relayRead`: `buildScoreFilter` builds the kind-30000
+`#t:torii-quest` score filter; `extractScoreFromEvent` rebuilds a local score from a
+normalised event (JSON content + indexable-tag fallback, runId from the `d` tag);
+`dedupeScores` keeps the newest event per addressable pubkey+runId; and
+`readLeaderboardEvents(input,opts)` consumes a relayRead `read()` result / events array /
+local sample, normalises→validates→extracts→dedupes→ranks (via `leaderboardView.rankScores`)
+into a read-only `{ok,filter,count,rows,scores,skipped,duplicates,signed:false,published:false,readOnly:true,errors}`
+report. NEVER signs/publishes/opens-a-socket/auto-connects/throws on event data.
 
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
@@ -95,7 +105,7 @@ symmetry), so a reviewer can assert one consistent shape across every proof surf
 ## 3. `ToriiDebug.shells.*` reports
 
 Read-only DEBUG reports over the proof surfaces, with safe frozen demo fixtures
-(`DEMO_GATEWAY`/`DEMO_PRODUCT`/`DEMO_SCORES`/`DEMO_RELEASE`) so each works
+(`DEMO_GATEWAY`/`DEMO_PRODUCT`/`DEMO_SCORES`/`DEMO_RELAY_SCORE_EVENTS`/`DEMO_RELEASE`) so each works
 out-of-the-box. They ONLY read the shells' pure return values — no signer, relay,
 publish, or navigation. Pass overrides to inspect your own data.
 
@@ -107,6 +117,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.productPreview(p?,o?)` | LEAN-3 preview block — `{title,ok,seller,sellerFull,marketplace,badge,lines,readOnly:true,actionable:false,errors}` |
 | `shells.leaderboard(s?,o?)` | ranked summary — `{mode,count,skipped,rows,signed:false,published:false}` |
 | `shells.leaderboardPreview(s?,o?)` | LEAN-4 preview block — `{title,mode,modeLabel,badge,signed:false,published:false,signer,count,shown,skipped,proof,rows,lines,readOnly:true,actionable:false}` |
+| `shells.leaderboardRelayRead(e?,o?)` | **v0.2.160** READ-ONLY leaderboard relay-read PROOF over a deterministic LOCAL sample — `{ok,filter,count,rows,skipped,duplicates,signed:false,published:false,readOnly:true,errors}` (extract→dedupe→rank; no relay I/O) |
 | `shells.updatePreview(r?,o?)` | LEAN-5 preview block — `{title,badge,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source,lines,readOnly:true,actionable:false}` |
 | `shells.updateStatus(p?,o?)` | **v0.2.158** LEAN-5 in-game UPDATE-STATUS panel — `{title,badge,surface,step,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source:{status,kind,candidates,errors},sourceUrl,lines,readOnly:true,actionable:false}` (defaults to local sample feed) |
 | `shells.mvpLoop(o?)` | loop header block — `{title,badge,flow,note,version,steps,lines,readOnly:true,actionable:false}` |
@@ -417,6 +428,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `updatePreview` | `tests/update-preview.test.js` |
 | `updateStatus` | `tests/update-status.test.js` |
 | `relayRead` | `tests/relay-read.test.js` |
+| `leaderboardRelayRead` | `tests/leaderboard-relay-read.test.js` |
 | `mvpLoop` | `tests/mvp-loop.test.js` |
 | `ToriiDebug.shells.*` reports + `summary()` | `tests/shell-report.test.js` |
 | `proofSurfaceSpecs` / `shells.surfaceSpecs()` | `tests/proof-surface-specs.test.js` |

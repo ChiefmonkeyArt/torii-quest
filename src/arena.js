@@ -153,6 +153,9 @@ function _buildToriiGate() {
   cb.position.set(0, 5.2, 0); fallback.add(cb);
   fallback.position.set(ARENA_HALF, 0, 0);
   fallback.rotation.y = Math.PI / 2; // match GLB — crossbar parallel to east wall
+  // Named for the proof-surface parent binding (v0.2.151), discoverable via
+  // scene.getObjectByName('torii-gate'); the GLB below inherits the same name.
+  fallback.name = 'torii-gate';
   scene.add(fallback);
 
   // Accent light — stays regardless of GLB
@@ -194,6 +197,7 @@ function _buildToriiGate() {
     gate.traverse(o => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
     });
+    gate.name = 'torii-gate'; // parity with the fallback for the proof-surface binding
     scene.add(gate);
     draco.dispose();
   }, undefined, err => {
@@ -260,6 +264,9 @@ function _buildNapZone() {
   napFloor.rotation.x = -Math.PI / 2;
   napFloor.position.set(NAP_X + NAP_W / 2, 0, 0);
   napFloor.receiveShadow = true;
+  // Named so the proof-surface parent binding (v0.2.151) is discoverable via
+  // scene.getObjectByName('nap-zone-floor'). Display-only; no behaviour attached.
+  napFloor.name = 'nap-zone-floor';
   scene.add(napFloor);
 
   // Soft teal accent light to mark the peace zone

@@ -14,6 +14,7 @@
 // not a foundation hot-path module). A `_built` guard makes re-entry a no-op.
 import * as THREE from 'three';
 import { buildProofSurfaceRenderPlan, RENDER_PLAN_BADGE } from './proofSurfaceRenderPlan.js';
+import { resolveParentBindings, parentGroupName, PROOF_SURFACE_GROUP } from './proofSurfaceParentBinding.js';
 
 // Render state mirrored for the debug surface. `rendered` is true ONLY after a
 // successful build; `reasons` carries the plan's gate failures otherwise. Frozen
@@ -65,8 +66,22 @@ export function buildProofSurfaceMeshes(scene, opts = {}) {
     return _state;
   }
 
+  // Mount the boards under one ROOT group, with a named SUBGROUP per parent hint
+  // (e.g. 'proof-surfaces::torii-gate') so each board's logical scene-graph parent is
+  // explicit and discoverable via scene.getObjectByName. The binding (v0.2.151) is a
+  // pure plan→grouping map; boards keep their WORLD positions (subgroups sit at the
+  // origin), so this is a structural change only — no placement / visual change.
+  const binding = resolveParentBindings(plan);
   const group = new THREE.Group();
-  group.name = 'proof-surfaces';
+  group.name = PROOF_SURFACE_GROUP;
+
+  const subByParent = new Map();
+  for (const g of binding.groups) {
+    const sub = new THREE.Group();
+    sub.name = g.groupName;
+    group.add(sub);
+    subByParent.set(g.parent, sub);
+  }
 
   for (const panel of plan.panels) {
     const boardMat = new THREE.MeshStandardMaterial({
@@ -94,10 +109,14 @@ export function buildProofSurfaceMeshes(scene, opts = {}) {
     plate.position.set(0, 0, panel.size.depth / 2 + 0.01);
     board.add(plate);
 
-    group.add(board);
+    // Mount under the board's parent subgroup; fall back to the root group if a
+    // panel's parent had no binding (keeps every board in the scene regardless).
+    const sub = subByParent.get(panel.parent) || group;
+    sub.add(board);
   }
 
   scene.add(group);
-  _state = Object.freeze({ rendered: true, count: plan.panels.length, ok: true, badge: plan.badge, reasons: [] });
+  const parents = binding.groups.map((g) => ({ parent: g.parent, parentNode: g.parentNode, groupName: g.groupName, count: g.panelIds.length }));
+  _state = Object.freeze({ rendered: true, count: plan.panels.length, ok: true, badge: plan.badge, reasons: [], parents: Object.freeze(parents) });
   return _state;
 }

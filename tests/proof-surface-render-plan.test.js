@@ -99,8 +99,17 @@ describe('proofSurfaceRenderPlan — default (live gates)', () => {
       expect(p.size).toEqual({ width: t.size.width, height: t.size.height, depth: t.size.depth });
       expect(p.yawRad).toBe(t.yawRad);
       expect(p.anchor).toBe(t.anchor);
+      expect(p.parent).toBe(t.parent);
       expect(p.label).toBe(spec.title);
       expect(p.sublabel).toBe(`${spec.step} · ${spec.lean}`);
+    }
+  });
+
+  it('carries the scene-graph parent hint on every panel', () => {
+    const plan = buildProofSurfaceRenderPlan();
+    for (const p of plan.panels) {
+      expect(typeof p.parent).toBe('string');
+      expect(p.parent.length).toBeGreaterThan(0);
     }
   });
 });

@@ -43,6 +43,8 @@ import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
 import { proofSurfaceRenderState } from '../world/proofSurfaceMeshes.js';
+import { buildProofSurfaceRenderPlan } from '../world/proofSurfaceRenderPlan.js';
+import { resolveParentBindings } from '../world/proofSurfaceParentBinding.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -210,6 +212,12 @@ export function installToriiDebug(refs) {
       // after the inert panels were built (gates passed); otherwise `reasons`
       // carries the gate failures. Read-only. See SDK_DEBUG_INDEX.md.
       surfaceRender() { return proofSurfaceRenderState(); },
+      // v0.2.151 — scene-graph PARENT BINDING for the proof-surface boards: groups
+      // the live render plan's panels by their `parent` hint, mapping each to the
+      // live scene-node name + the per-parent display-only group name the mesh
+      // adapter mounts them under — `{ok,badge,group,count,groups,unbound}`. Pure,
+      // read-only; builds nothing. See SDK_DEBUG_INDEX.md.
+      surfaceBindings(opts) { return resolveParentBindings(buildProofSurfaceRenderPlan(opts)); },
     },
   };
 

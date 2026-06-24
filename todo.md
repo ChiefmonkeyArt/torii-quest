@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.150-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.151-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -10,7 +10,7 @@
 
 ---
 
-## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.150)
+## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.151)
 
 > **The project is refocused onto a 15-hour proof-of-concept.** Build the vision
 > fast, prove the architecture, avoid polish traps — then add retrospective polish
@@ -83,6 +83,19 @@
   payments/Nostr/live-data/fetch; no per-frame allocation. +14 tests (pure plan + adapter
   guards). **Next:** anchor↔scene-graph parent binding (attach each panel to its live
   `parent` node) and folding `surfaceRender().ok` into promotion review / regression check.
+- **Anchor↔scene-graph PARENT BINDING for the proof-surface boards landed** (v0.2.151) —
+  added the PURE `engine/world/proofSurfaceParentBinding.js` (`PARENT_NODE_NAMES`,
+  `parentNodeName(parent)`, `parentGroupName(parent)`, `resolveParentBindings(plan)`) that
+  maps each panel's `parent` hint to a live scene-graph node name + a named subgroup under
+  the `proof-surfaces` root, reporting any `unbound` panels. The render plan now carries
+  `parent` on every panel; `proofSurfaceMeshes.js` builds one NAMED subgroup per parent and
+  mounts each board there (boards keep their WORLD positions — structural/discoverability
+  change only, NO visual change); `arena.js` `.name`s the live `nap-zone-floor` + `torii-gate`
+  (fallback + GLB) nodes so `scene.getObjectByName` can find them. Read-only at
+  `ToriiDebug.shells.surfaceBindings()`. DISPLAY-ONLY/INERT — no re-parenting onto rotated/async
+  live nodes, no click/raycast/navigation/payments/Nostr/live-data; no per-frame allocation.
+  +10 tests. **Next:** fold `surfaceRender().ok`/`surfaceBindings().ok` into promotion review /
+  regression check, and (only once promotion is sanctioned) the first live proof-surface read.
 - **Proof surfaces are now review-symmetric + diffable** (v0.2.146) — the gateway
   preview gained `readOnly:true` so all four MVP proof surfaces expose the same
   `readOnly`+`actionable` invariant pair. Added a pure read-only

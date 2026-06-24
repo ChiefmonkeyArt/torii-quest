@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.150-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.151-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -94,7 +94,8 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.surfaceSpecs()` | **v0.2.147** pure in-world proof-surface LAYOUT/SPEC layer — `{badge,anchorZone,count,bounds,specs,allInert,rendered:false,actionable:false}` (see §4.2) |
 | `shells.surfaceSpecCheck(map?,specs?)` | **v0.2.148** pure cross-check that each spec's `previewSdk`/`shell` align with the live SDK + shells registries + inert invariants — `{ok,badge,checked,errors,warnings,surfaces}` (see §4.3) |
 | `shells.anchorTransforms(specs?)` | **v0.2.149** pure anchor→transform resolution — binds each spec's `anchor` id to a plain transform descriptor (origin/position/offset/size/yawRad) + lists unresolved anchors — `{ok,badge,count,resolved,unresolved}` (see §4.4) |
-| `shells.surfaceRender()` | **v0.2.150** render state of the FIRST display-only in-world proof-surface mesh pass — `{rendered,count,ok,badge,reasons}`; `rendered` true only after the inert panels build (both gates pass), else `reasons` carries the failures (see §4.5) |
+| `shells.surfaceRender()` | **v0.2.150** render state of the FIRST display-only in-world proof-surface mesh pass — `{rendered,count,ok,badge,reasons,parents}`; `rendered` true only after the inert panels build (both gates pass), else `reasons` carries the failures (see §4.5) |
+| `shells.surfaceBindings(opts?)` | **v0.2.151** scene-graph PARENT BINDING — groups the render plan's panels by their `parent` hint, mapping each to the live scene-node name + per-parent display-only group name (`proof-surfaces::<parent>`) the mesh adapter mounts them under — `{ok,badge,group,count,groups,unbound}` (see §4.6) |
 
 Other namespaces on `ToriiDebug`: `snapshot()` / `combat.report()` / `physics.report()`
 (JSON-serialisable status), `bots`, `player`, `physics`, `world`, `identity`, `fx`.
@@ -307,6 +308,44 @@ Nostr actions, live data, or external fetch. The panels are visual markers only.
 
 ---
 
+## 4.6. `ToriiDebug.shells.surfaceBindings()` — scene-graph parent binding (v0.2.151)
+
+`shells.surfaceBindings(opts?)` (pure `resolveParentBindings()` in
+`engine/world/proofSurfaceParentBinding.js`) makes the proof-surface board MOUNTING
+explicit and discoverable. Each anchor carries a `parent` hint (`torii-gate` /
+`nap-zone-floor`); this groups the render plan's panels by that hint and maps each to
+the live scene-node name + the per-parent display-only group name the adapter mounts
+the boards under. Shape:
+
+```js
+{
+  badge: 'PARENT-BINDING · SCENE-GRAPH · NO RENDER',
+  group: 'proof-surfaces',          // root display-only group name
+  count,                            // panels considered
+  ok,                              // true iff every panel bound + ≥1 group formed
+  groups: [                        // one per distinct parent, in plan order
+    { parent: 'torii-gate',
+      parentNode: 'torii-gate',                 // live scene-node name (scene.getObjectByName)
+      groupName: 'proof-surfaces::torii-gate',  // per-parent subgroup the adapter creates
+      panelIds: ['gateway-portal-panel'] },
+    { parent: 'nap-zone-floor', parentNode: 'nap-zone-floor',
+      groupName: 'proof-surfaces::nap-zone-floor',
+      panelIds: ['product-stall-panel','leaderboard-board','update-prompt-board'] },
+  ],
+  unbound: [],                     // panel ids whose parent couldn't be determined
+  rendered: false, actionable: false,
+}
+```
+
+The mesh adapter (`proofSurfaceMeshes.js`) builds one named subgroup per parent under the
+`proof-surfaces` root and adds each board to its parent's subgroup. **Boards keep their
+WORLD positions** (subgroups sit at the origin) — this is a structural/discoverability
+change, not a placement or visual change, and adds NO behaviour (still display-only/inert).
+`arena.js` `.name`s the live `nap-zone-floor` + `torii-gate` nodes so they resolve via
+`scene.getObjectByName`. PURE/node-safe — NO THREE/DOM; builds and parents nothing.
+
+---
+
 ## 5. Where the tests live
 
 | Surface | Test file |
@@ -323,6 +362,7 @@ Nostr actions, live data, or external fetch. The panels are visual markers only.
 | `anchorTransforms` / `shells.anchorTransforms()` | `tests/anchor-transforms.test.js` |
 | `proofSurfaceRenderPlan` (pure plan) | `tests/proof-surface-render-plan.test.js` |
 | `shells.surfaceRender()` adapter guards | `tests/proof-surface-meshes.test.js` |
+| `proofSurfaceParentBinding` / `shells.surfaceBindings()` | `tests/proof-surface-parent-binding.test.js` |
 | underlying view/shell modules | `tests/gateway-portal.test.js`, `tests/product-panel-shell.test.js`, `tests/leaderboard-view.test.js`, `tests/update-check.test.js` |
 
 Run all with `npm test` (Vitest, node env). `npm run check` separately guards the

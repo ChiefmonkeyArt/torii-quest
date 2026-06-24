@@ -54,6 +54,9 @@ export function buildProofSurfaceRenderPlan(opts = {}) {
       sublabel: spec ? `${spec.step} · ${spec.lean}` : '',
       kind: spec ? spec.kind : 'panel',
       anchor: t.anchor,
+      // Scene-graph parent hint carried through from the anchor → the mesh adapter
+      // mounts the board under the matching named group (see proofSurfaceParentBinding).
+      parent: t.parent,
       position: { x: t.position.x, y: t.position.y, z: t.position.z },
       size: { width: t.size.width, height: t.size.height, depth: t.size.depth },
       yawRad: t.yawRad,

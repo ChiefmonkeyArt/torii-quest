@@ -47,6 +47,7 @@ export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
 export * as relayRead from '../engine/nostr/relayRead.js';
 export * as leaderboardRelayRead from '../engine/nostr/leaderboardRelayRead.js';
 export * as profileRead from '../engine/nostr/profileRead.js';
+export * as consentGate from '../engine/consent/consentGate.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -123,6 +124,12 @@ export const SDK_SURFACE = Object.freeze({
   // kind:0 profile filter, parses + sanitises (https-only URLs) metadata into a display-only
   // identity view-model, selects the newest profile per author; NO signing/publishing/socket/DOM.
   profileRead:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/profileRead.js' },
+  // Explicit, auditable CONSENT-GATE foundation (CONSENT-1, v0.2.162) — pure
+  // build/validate/summarise/evaluate over a known-action registry; read-only
+  // actions always allowed, write/sign/publish/update/travel actions blocked unless
+  // an explicit matching grant is present. INERT: never signs/publishes/acts; the
+  // decision is permission for the host to act later, not an action taken here.
+  consentGate:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/consent/consentGate.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

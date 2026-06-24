@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.161-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.162-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -330,7 +330,7 @@ These are pre-wiring gates — no action needed now, but must be resolved before
 
 | # | Codebase | Category | Blocker / Gate |
 |---|----------|----------|-----------------|
-| SEC-1 | TQ | NOSTR | **Leaderboard signer consent gate** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent before any live signing or relay publish action. `leaderboardPublisher` is currently pure/injected and not wired to live publish; keep it that way until consent UX is in place. |
+| SEC-1 | TQ | NOSTR | **Leaderboard signer consent gate** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent before any live signing or relay publish action. `leaderboardPublisher` is currently pure/injected and not wired to live publish; keep it that way until consent UX is in place. **v0.2.162: consent-gate foundation in** — `engine/consent/consentGate.js` (`CONSENT_ACTIONS`/`ACTION_KINDS`/`CONSENT_REASON`/`buildConsentRequest`/`summariseConsent`/`evaluateConsent`/`requestConsent`/`isKnownAction`/`getActionDescriptor`/`isWriteAction` + `CONSENT_GATE_VERSION`) defines the explicit, auditable boundary every future write/sign/publish/update/travel action MUST pass: a frozen known-action registry (`nostr:publish`/`profile:update`/`leaderboard:submit`/`update:apply`/`gateway:travel` write tier + `leaderboard:read`/`profile:read`/`relay:read` read tier) carrying write/signed/danger/requiresConsent facts; pure helpers that build + validate a consent request, summarise it into one human-readable line, and return an INERT allowed/blocked DECISION — read-only actions always allowed, write actions blocked unless an explicit grant (boolean `true` or scoped `{granted,action,token}`) is present, with a grant minted for one action NEVER authorising another (`CONSENT_MISMATCH`), and unknown/malformed shapes degrading to blocked. `performed:false`/`readOnly:true` pinned on every decision; the module exposes NO sign/publish/send/connect/submit/apply method and NEVER acts — a decision is permission for the host to act later behind its own audited transport. SDK `consentGate` (experimental) + read-only `ToriiDebug.shells.consentGate({grants?})`; `tests/consent-gate.test.js`. Still needs the consent UX (confirm/HUD prompt) + the real signer wire-up (NIP-07 + relay publish) it gates. |
 | SEC-2 | TQ | NOSTR | **Handoff event verification gate** — before `world/handoff.js` acts on live relay data, add cryptographic verification / signing-layer checks for incoming handoff events. Do not act on an unverified travel intent from the wire. |
 | SEC-3 | TQ | SECURITY | **Product URL validation tightening** — before `productDisplay`/`productPanel` URLs are made clickable or fetched, replace the current regex-only `https://` check with `URL`-object parsing to validate scheme, host, and structure. Regex alone is insufficient for untrusted input. |
 

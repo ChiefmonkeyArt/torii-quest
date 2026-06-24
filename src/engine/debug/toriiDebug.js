@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -177,6 +177,13 @@ export function installToriiDebug(refs) {
       // view-model. Read-only; signed:false, published:false — no relay I/O, no
       // signing, no publishing, no auto-connect, no DOM <img src> assignment.
       profileRead(events, opts) { return profileReadReport(events, opts); },
+      // v0.2.162 — the READ-ONLY CONSENT-GATE foundation map (CONSENT-1): walks the
+      // known-action registry showing each action's write/sign/danger facts + its
+      // default (no-grant) decision, proving reads are allowed while write/sign/
+      // publish/update/travel actions are blocked until an explicit grant arrives.
+      // Pass { grants } to preview what WOULD be allowed. Inert; performed:false —
+      // never signs, publishes, or acts.
+      consentGate(opts) { return consentGateReport(opts); },
       // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
       // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
       // fetch, no auto-update, no install, no navigation (deterministic local sample).

@@ -17,6 +17,7 @@ import { rankScores } from '../nostr/leaderboardView.js';
 import { leaderboardPreviewBlock } from '../nostr/leaderboardPreview.js';
 import { readLeaderboardEvents } from '../nostr/leaderboardRelayRead.js';
 import { readProfiles } from '../nostr/profileRead.js';
+import { CONSENT_ACTIONS, evaluateConsent, summariseConsent } from '../consent/consentGate.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -291,6 +292,44 @@ export function profileReadReport(events = DEMO_PROFILE_EVENTS, opts = {}) {
   };
 }
 
+// consentGateReport(opts) → the READ-ONLY CONSENT-GATE foundation map (CONSENT-1,
+// v0.2.162). Walks the known-action registry and, for each action, shows its
+// write/sign/danger facts, the default (NO-grant) decision, and a one-line summary
+// — proving read-only actions are allowed while write/sign/publish/update/travel
+// actions are blocked until an explicit grant arrives. Pure + inert: this NEVER
+// signs/publishes/acts; `performed:false` is pinned on every row. The optional
+// `grants` map ({ actionId: true|{granted,...} }) lets a caller preview what WOULD
+// be allowed under a given set of consents — still without performing anything.
+export function consentGateReport(opts = {}) {
+  const grants = (opts && typeof opts.grants === 'object' && opts.grants) || {};
+  const actions = Object.keys(CONSENT_ACTIONS).map((id) => {
+    const d = evaluateConsent(id, grants[id] ?? null);
+    return {
+      action: id,
+      kind: d.kind ?? CONSENT_ACTIONS[id].kind,
+      write: d.write,
+      signed: d.signed,
+      requiresConsent: d.requiresConsent,
+      danger: d.danger,
+      allowed: d.allowed,
+      blocked: d.blocked,
+      reason: d.reason,
+      performed: d.performed,
+      summary: summariseConsent(id),
+    };
+  });
+  return {
+    title: 'CONSENT GATE',
+    badge: 'FOUNDATION · INERT · NO WRITE/SIGN/PUBLISH',
+    count: actions.length,
+    writeActions: actions.filter((a) => a.requiresConsent).length,
+    allowedByDefault: actions.filter((a) => a.allowed).length,
+    actions,
+    readOnly: true,
+    performed: false,
+  };
+}
+
 // updatePreviewReport(release, opts) → the visible-but-inert torii.quest
 // update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
 // pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
@@ -368,6 +407,7 @@ export function buildShellReport(inputs = {}) {
     mode = 'build',
     relayScoreEvents = DEMO_RELAY_SCORE_EVENTS,
     profileEvents = DEMO_PROFILE_EVENTS,
+    consentGrants = null,
     release = DEMO_RELEASE,
     updateFeed,
   } = inputs;
@@ -380,6 +420,7 @@ export function buildShellReport(inputs = {}) {
     leaderboardPreview: leaderboardPreviewReport(scores),
     leaderboardRelayRead: leaderboardRelayReadReport(relayScoreEvents),
     profileRead: profileReadReport(profileEvents),
+    consentGate: consentGateReport(consentGrants ? { grants: consentGrants } : {}),
     updatePreview: updatePreviewReport(release),
     updateStatus: updateStatusReport(updateFeed),
     mvpLoop: mvpLoopReport(),

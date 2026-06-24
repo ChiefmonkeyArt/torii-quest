@@ -20,6 +20,7 @@ import { readProfiles } from '../nostr/profileRead.js';
 import { CONSENT_ACTIONS, evaluateConsent, summariseConsent } from '../consent/consentGate.js';
 import { prepareSubmitIntent, DEMO_SUBMIT_INPUT } from '../leaderboard/submitIntent.js';
 import { readGateways, DEMO_GATEWAY_EVENTS } from '../gateway/gatewayRead.js';
+import { prepareTravelIntent, DEMO_TRAVEL_INPUT } from '../gateway/travelConfirm.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -386,6 +387,33 @@ export function gatewayReadReport(input = DEMO_GATEWAY_EVENTS) {
   };
 }
 
+// gatewayTravelReport(input, grant) → the READ-ONLY gateway TRAVEL CONFIRMATION /
+// INTENT map (GATEWAY / NAP-zone handoff, v0.2.165). Shows the sanitised destination a
+// host WOULD travel to and the consent-gate decision for it. With no grant (default)
+// the decision is BLOCKED (consent-required); an optional `grant` previews what WOULD
+// be allowed — still without navigating/performing (`navigated`/`performed:false`
+// pinned). Defaults to the deterministic DEMO sample.
+export function gatewayTravelReport(input = DEMO_TRAVEL_INPUT, grant = null) {
+  const r = prepareTravelIntent(input, grant);
+  return {
+    title: 'GATEWAY TRAVEL INTENT',
+    badge: 'PREVIEW · INERT · NO NAVIGATION',
+    action: r.action,
+    ok: r.ok,
+    allowed: r.consent.allowed,
+    blocked: r.consent.blocked,
+    reason: r.consent.reason,
+    destination: r.destination,
+    summary: r.summary,
+    navigated: r.navigated,
+    performed: r.performed,
+    signed: r.signed,
+    published: r.published,
+    readOnly: r.readOnly,
+    errors: r.errors,
+  };
+}
+
 // updatePreviewReport(release, opts) → the visible-but-inert torii.quest
 // update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
 // pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
@@ -467,6 +495,8 @@ export function buildShellReport(inputs = {}) {
     submitInput = DEMO_SUBMIT_INPUT,
     submitGrant = null,
     gatewayEvents = DEMO_GATEWAY_EVENTS,
+    travelInput = DEMO_TRAVEL_INPUT,
+    travelGrant = null,
     release = DEMO_RELEASE,
     updateFeed,
   } = inputs;
@@ -482,6 +512,7 @@ export function buildShellReport(inputs = {}) {
     consentGate: consentGateReport(consentGrants ? { grants: consentGrants } : {}),
     leaderboardSubmit: leaderboardSubmitReport(submitInput, submitGrant),
     gatewayRead: gatewayReadReport(gatewayEvents),
+    gatewayTravel: gatewayTravelReport(travelInput, travelGrant),
     updatePreview: updatePreviewReport(release),
     updateStatus: updateStatusReport(updateFeed),
     mvpLoop: mvpLoopReport(),

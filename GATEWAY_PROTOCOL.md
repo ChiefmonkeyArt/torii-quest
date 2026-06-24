@@ -183,6 +183,21 @@ unsigned/demo tier; the signed event is the trust tier. No code in v0.2.134
 signs or publishes anything — this section is the target the MVP is shaped to
 grow into.
 
+> **Travel-intent confirmation (v0.2.165, `src/engine/gateway/travelConfirm.js`).**
+> Before any hop is performed, the destination is prepared and CONSENT-CHECKED. The
+> READ-side `gatewayRead` preview model (§2) — or a plain destination descriptor — is
+> re-sanitised by `sanitizeDestination` (required `zoneId`; control/markup-stripped text;
+> https-only website; ws/wss credential-free relays; valid npub/hex pubkey; known
+> `zoneType`) and routed through the v0.2.162 consent gate's `gateway:travel` action by
+> `prepareTravelIntent(input, grant)`. The result is INERT —
+> `{ok, action, destination, consent, summary, navigated:false, performed:false,
+> signed:false, published:false, readOnly:true}` — BLOCKED by default (`consent-required`)
+> and allowed only with an explicit matching grant. Even when allowed, it NEVER navigates,
+> unloads/reloads the world, signs, publishes, or opens a socket: `allowed:true` is proof
+> of what the host *could* later execute, not the act itself. The actual world hop
+> (§5, `world/handoff.js`) and the consent UX that mints the grant remain the deferred
+> host steps.
+
 ---
 
 ## 7. Relays
@@ -262,6 +277,17 @@ linked by signed spatial events, with **no central router**.
   so an invalid/unconfigured gate shows no actionable travel affordance.
   DISPLAY-ONLY — it never assigns `window.location`, contacts a relay, or signs;
   crossing the gate is still the deferred host step in `world/handoff.js`.
+- `src/engine/gateway/gatewayRead.js` (v0.2.164) — pure **read proof** for the
+  destination-record READ path (§2): builds the kind-30078 `#t:torii-gateway` filter
+  and extracts/sanitises injected/sample relay events into a safe travel-preview model,
+  deduped newest-per-zone. No relay I/O, navigation, or signing.
+- `src/engine/gateway/travelConfirm.js` (v0.2.165) — pure **travel confirmation/intent**
+  behind the consent gate (§6 note): `sanitizeDestination` re-sanitises a `gatewayRead`
+  preview model or a plain descriptor, and `prepareTravelIntent(input, grant)` routes it
+  through `evaluateConsent('gateway:travel', grant)` into an INERT
+  `{ok, action, destination, consent, summary, navigated:false, performed:false, …}`
+  report. BLOCKED by default; allowed-but-never-performed with a matching grant. No
+  navigation/world-unload/signing/publishing/relay I/O.
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will act
   on a validated intent.
 

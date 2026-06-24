@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.164-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.165-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -28,8 +28,14 @@
      `readGateways` builds the kind-30078 + `torii-gateway` topic filter and extracts +
      sanitises injected/sample relay events into a safe travel-preview model, deduped to
      the newest record per addressable zone; `navigated`/`signed`/`published`/`performed:false`,
-     `readOnly:true`). Real relay read transport + the in-world gateway/destination MESH
-     remain the deferred next slice.
+     `readOnly:true`). The travel CONFIRMATION/INTENT path now also has its PROOF
+     (v0.2.165 `travelConfirm.js` — `sanitizeDestination` accepts a `gatewayRead` preview
+     model or a plain descriptor and `prepareTravelIntent` routes it through the v0.2.162
+     consent gate action `gateway:travel`, returning an inert
+     `{ok, action, destination, consent, summary, navigated:false, performed:false,
+     signed:false, published:false, readOnly:true}`; blocked without a matching grant, and
+     even an allowed grant never navigates/signs/publishes). Real relay read transport +
+     the in-world gateway/destination MESH remain the deferred next slice.
   2. **Plebeian / Nostr product panel proof** — read-only product surface over
      `productPanelShell.js`, now VISIBLE on the title screen via the inert
      `productPreview.js` card (v0.2.140 — product identity, price, Nostr seller npub

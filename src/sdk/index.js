@@ -50,6 +50,7 @@ export * as profileRead from '../engine/nostr/profileRead.js';
 export * as consentGate from '../engine/consent/consentGate.js';
 export * as submitIntent from '../engine/leaderboard/submitIntent.js';
 export * as gatewayRead from '../engine/gateway/gatewayRead.js';
+export * as travelConfirm from '../engine/gateway/travelConfirm.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -143,6 +144,11 @@ export const SDK_SURFACE = Object.freeze({
   // travel-preview model, selects the newest record per addressable zone; NO navigation,
   // signing, publishing, socket, or auto-connect — navigated:false on every report.
   gatewayRead:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayRead.js' },
+  // Gateway TRAVEL CONFIRMATION / INTENT (GATEWAY / NAP-zone handoff, v0.2.165) —
+  // sanitises a gatewayRead destination preview and routes it through consentGate
+  // (`gateway:travel`). INERT: blocked without a matching grant; never navigates,
+  // signs, publishes, sends, or connects — navigated:false/performed:false on every report.
+  travelConfirm:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelConfirm.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

@@ -44,6 +44,7 @@ export * as leaderboard from '../engine/nostr/leaderboard.js';
 export * as leaderboardPublisher from '../engine/nostr/leaderboardPublisher.js';
 export * as leaderboardView from '../engine/nostr/leaderboardView.js';
 export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
+export * as relayRead from '../engine/nostr/relayRead.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -108,6 +109,10 @@ export const SDK_SURFACE = Object.freeze({
   leaderboardView: { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboardView.js' },
   // Local/mock leaderboard visible PREVIEW block — inert title/HUD card (LEAN-4, v0.2.141).
   leaderboardPreview: { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboardPreview.js' },
+  // READ-ONLY Nostr relay adapter foundation (NOSTR-READ, v0.2.159) — pure relay-URL
+  // validation, event normalise/validate, NIP-01 filter matching, REQ/CLOSE frame
+  // builders, and an injected-transport adapter; NO signing/publishing/socket/auto-connect.
+  relayRead:       { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/relayRead.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

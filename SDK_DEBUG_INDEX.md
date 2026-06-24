@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.158-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.159-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -38,8 +38,16 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `botAgent`, `snapshot`, `phaseScreens`, `component`, `registry`, `toriiGateway`,
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
-`leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `updateCheck`,
+`leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
+
+`relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
+foundation: `validateRelayUrl` (ws/wss only, no credentials),
+`normalizeRelayEvent`/`validateRelayEvent` (NIP-01 shape, no crypto verify),
+`eventMatchesFilter` (NIP-01 filter semantics), `buildReqMessage`/`buildCloseMessage`
+(READ frames only — no EVENT/publish builder), and
+`createReadOnlyRelayAdapter({request})` whose injected host-only transport feeds a
+frozen `{read,readOnly:true}` adapter that NEVER signs/publishes/opens-a-socket/throws.
 
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
@@ -408,6 +416,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `leaderboardPreview` | `tests/leaderboard-preview.test.js` |
 | `updatePreview` | `tests/update-preview.test.js` |
 | `updateStatus` | `tests/update-status.test.js` |
+| `relayRead` | `tests/relay-read.test.js` |
 | `mvpLoop` | `tests/mvp-loop.test.js` |
 | `ToriiDebug.shells.*` reports + `summary()` | `tests/shell-report.test.js` |
 | `proofSurfaceSpecs` / `shells.surfaceSpecs()` | `tests/proof-surface-specs.test.js` |

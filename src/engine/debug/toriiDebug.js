@@ -38,6 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
+import { gatewayReport, productReport, leaderboardReport, buildShellReport } from './shellReport.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -137,6 +138,18 @@ export function installToriiDebug(refs) {
     // version, phase, run state, player position, combat last shot/hit/miss,
     // physics/crate summary, and the key tuning values. Safe to call any time.
     snapshot() { return buildSnapshot(snapProviders); },
+
+    // v0.2.137 — read-only reports over the v0.2.136 VIEW shells (gateway portal,
+    // product panel, leaderboard). Lets a tester/AI handoff inspect what those
+    // shells produce from one place, using safe demo fixtures by default. These
+    // ONLY read the shells' pure return values — no signer, no relay/publish, no
+    // navigation. Pass overrides to inspect your own component/product/scores.
+    shells: {
+      gateway(component, context, opts) { return gatewayReport(component, context, opts); },
+      product(product) { return productReport(product); },
+      leaderboard(statsList, opts) { return leaderboardReport(statsList, opts); },
+      report(inputs) { return buildShellReport(inputs); },
+    },
   };
 
   window.ToriiDebug = api;

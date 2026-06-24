@@ -9,7 +9,12 @@
        documented in torii-foundation-sprint-report.md and must ship as an HTTP
        header (so it can roll out in Report-Only first) — meta CSP has no
        report-only mode and would risk breaking the Draco blob-worker + gstatic
-       fetch + Rapier WASM before a live smoke test confirms it. -->
+       fetch + Rapier WASM before a live smoke test confirms it.
+       connect-src https://www.gstatic.com is REQUIRED, not vestigial: DRACOLoader
+       fetches its decoder (wasm/js) from
+       https://www.gstatic.com/draco/versioned/decoders/1.5.6/ at runtime — see
+       src/arena.js and src/weapons.js. Removing it breaks GLB decode. Do not
+       drop or broaden this entry. (Reviewed v0.2.137.) -->
   <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'sha256-riXb2rw9XLAWUTw1DAr1oCa+0WTCQdAoXHRbOlIDoNc='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band https://www.gstatic.com"/>
   <meta name="description" content="Torii Quest — an open-world arena shooter built on Nostr and Bitcoin. Sats. Shots. Sovereignty."/>
   <meta property="og:title" content="Torii Quest"/>
@@ -239,6 +244,10 @@
     }
     #chat-input:focus { border-color: rgba(247,147,26,0.5); }
     #chat-send { padding: 7px 12px; font-size: 9px; letter-spacing: 2px; }
+    /* Mock chat is not wired to any network — show inputs as clearly inactive. */
+    #chat-input:disabled, #chat-send:disabled {
+      opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6);
+    }
 
     /* ══════════════════════════════════════════
        HUD
@@ -404,13 +413,13 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.136-alpha</div>
+      <div id="version-label">v0.2.137-alpha</div>
     </div>
 
     <!-- RIGHT: Live chat (orange) -->
     <div class="side-card side-card-orange">
       <div class="side-card-header">
-        <span>⚡ LIVE CHAT</span>
+        <span>⚡ LIVE CHAT <span style="opacity:.7;font-size:8px;">(preview)</span></span>
         <span style="color:#333;font-size:8px;">12 online</span>
       </div>
       <div class="side-card-body">
@@ -490,9 +499,13 @@
 
         </div>
 
+        <!-- Mock chat: this is a static UI preview, not wired to any network.
+             No JS handler reads #chat-input / #chat-send and nothing transmits.
+             Inputs are disabled so users aren't fooled into thinking it sends.
+             (v0.2.137 — keep non-transmitting; do not add networking.) -->
         <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="say something..."/>
-          <button class="btn btn-orange" id="chat-send">SEND</button>
+          <input id="chat-input" type="text" placeholder="chat preview — not live" disabled aria-disabled="true"/>
+          <button class="btn btn-orange" id="chat-send" disabled aria-disabled="true" title="Chat is a preview — not yet live">SEND</button>
         </div>
       </div>
     </div>
@@ -534,7 +547,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.136-alpha · torii quest</div>
+  <div id="ver">v0.2.137-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

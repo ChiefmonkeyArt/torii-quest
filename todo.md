@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.136-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.137-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -170,6 +170,19 @@ These are pre-wiring gates — no action needed now, but must be resolved before
 | SEC-1 | TQ | NOSTR | **Leaderboard signer consent gate** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent before any live signing or relay publish action. `leaderboardPublisher` is currently pure/injected and not wired to live publish; keep it that way until consent UX is in place. |
 | SEC-2 | TQ | NOSTR | **Handoff event verification gate** — before `world/handoff.js` acts on live relay data, add cryptographic verification / signing-layer checks for incoming handoff events. Do not act on an unverified travel intent from the wire. |
 | SEC-3 | TQ | SECURITY | **Product URL validation tightening** — before `productDisplay`/`productPanel` URLs are made clickable or fetched, replace the current regex-only `https://` check with `URL`-object parsing to validate scheme, host, and structure. Regex alone is insufficient for untrusted input. |
+
+---
+
+## Safe Hardening / Handoff Legibility (v0.2.137 review)
+
+Low-risk follow-ups from the security/handoff review — no gameplay-risk change.
+
+| # | Codebase | Category | Status |
+|---|----------|----------|--------|
+| HARD-1 | TQ | TOOLING | ✅ **Package/runtime version drift fixed** (v0.2.137) — `package.json` was stuck at `0.2.1` while runtime `VERSION` was `v0.2.136-alpha`. Bumped `package.json` to valid semver `0.2.137-alpha` (no leading `v`) and added regression-check [5] guard tying `package.json version` to `EXPECTED_VERSION` (v-stripped) so they can't drift again. |
+| HARD-2 | TQ | UI | ✅ **Mock chat marked non-live** (v0.2.137) — the chat `#chat-input`/`#chat-send` are an unwired static preview (no JS handler, no networking). Disabled both, greyed them out (`:disabled` CSS), retitled placeholder to "chat preview — not live", header to "LIVE CHAT (preview)", and added a comment so no one mistakes it for a transmitting surface. Still non-transmitting; no networking added. |
+| HARD-3 | TQ | SECURITY | ✅ **CSP gstatic entry reviewed + documented** (v0.2.137) — `connect-src https://www.gstatic.com` is REQUIRED: DRACOLoader fetches its decoder from `gstatic.com/draco/versioned/decoders/1.5.6/` at runtime (`arena.js`, `weapons.js`). Documented in the index.html CSP comment as required; NOT removed, NOT broadened. |
+| HARD-4 | TQ | DEBUG | ✅ **Shell debug reports added** (v0.2.137) — `engine/debug/shellReport.js` (`gatewayReport`/`productReport`/`leaderboardReport`/`buildShellReport` + safe demo fixtures) surfaced on `ToriiDebug.shells.{gateway,product,leaderboard,report}`. Read-only over the v0.2.136 shells: no signer, no relay/publish, no navigation. `tests/shell-report.test.js`. |
 
 ---
 

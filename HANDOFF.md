@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.136-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.137-alpha (see §3 for every place the version string lives)
 - **Live:** https://torii-quest.pplx.app (a Perplexity Space — deploy is a separate manual step, see §7)
 - **License:** GPL-3.0
 
@@ -55,6 +55,7 @@ Breaking one should fail CI/the check, not ship.
 | `src/config.js` | `export const VERSION` (line ~2) |
 | `index.html` | `#version-label` (~407) and `#ver` (~537) |
 | `tools/regression-check.mjs` | header comment (line 1), `EXPECTED_VERSION` (~26), stale-version guard regex (~110 — flag the PREVIOUS version) |
+| `package.json` | `"version"` — VALID SEMVER, so the `EXPECTED_VERSION` with the leading `v` STRIPPED (e.g. `0.2.137-alpha`). Regression-check [5] asserts it matches. |
 | `progress.md` / `todo.md` / `strategy.md` | "Current version" lines |
 
 ## 4. Source of truth
@@ -131,6 +132,11 @@ Breaking one should fail CI/the check, not ship.
   `leaderboardView` throws on any non-`mock`/`build` mode (no `live`/relay path);
   `leaderboardPreview` runs through a no-signer/no-publisher adapter → `signed:false`/
   `published:false`.
+- **`src/engine/debug/shellReport.js`** (HARD-4, v0.2.137) — read-only DEBUG
+  reports over the three v0.2.136 shells (`gatewayReport`/`productReport`/
+  `leaderboardReport`/`buildShellReport` + `DEMO_GATEWAY`/`DEMO_PRODUCT`/
+  `DEMO_SCORES` fixtures). Surfaced on `ToriiDebug.shells.*`. Only reads the
+  shells' pure return values — NO signer, NO relay/publish, NO navigation.
 
 ## 5. Build / test / check commands
 
@@ -144,7 +150,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**297 tests / 27 files**, all 11 regression checks GREEN, build clean.
+**305 tests / 28 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -163,6 +169,9 @@ click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
 - `.snapshot()` — one JSON-serialisable object: version, phase, run state, player
   pos, combat last shot/hit/miss, physics+crate summary, tuning. Safe anytime.
 - `.combat.report()` / `.physics.report()` — focused JSON sub-reports.
+- `.shells.{gateway,product,leaderboard,report}()` — read-only reports over the
+  v0.2.136 VIEW shells (demo fixtures by default; pass overrides). No signer, no
+  relay/publish, no navigation (`engine/debug/shellReport.js`, v0.2.137).
 - `.physics.service` — injectable RaycastService facade (`ray`/`rayStatic`/`lineOfSight`).
 - `.bots`, `.player`, `.physics`, `.world`, `.fx`, `.combat`, `.identity`.
 

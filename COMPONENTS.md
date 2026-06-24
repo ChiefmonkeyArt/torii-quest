@@ -105,6 +105,37 @@ card.mount(scene); card.unmount();                    // idempotent, symmetric
 - **Lifecycle (skeleton):** mount/unmount are symmetric no-ops; pure + node-safe
   (NO Three/Rapier/DOM/Nostr imports). The in-world panel/billboard mesh is a
   documented TODO.
+- **Panel view-model (v0.2.135):** `src/engine/components/productPanel.js`
+  (`productPanelViewModel`/`priceLabel`, SDK `productPanel`) turns a validated
+  product into a flat, render-ready bag (`title`, `imageUrl`, `hasImage`,
+  `priceLabel`, `seller`, `linkUrl`, `linkLabel`, `reward`, `hasReward`) for a
+  future panel mesh to consume. Still read-only — NO checkout/pay/zap/publish key
+  is emitted (asserted by `tests/product-panel.test.js`).
+
+### Component loader / registry (CMP-7, v0.2.135)
+
+`src/engine/components/registry.js` (SDK `registry`, experimental tier) is the
+pure, node-safe loader that discovers built-in components and validates them
+before handing back an instance.
+
+```js
+import { builtinRegistry } from '../engine/components/registry.js'; // or SDK.registry.*
+const { ok, component, manifest, errors } = builtinRegistry.load('torii.gateway', config);
+```
+
+- **`createRegistry()`** — empty registry. `register(factory)` probes the factory
+  ONCE, asserts the result is a valid component (`isComponent` + `validateManifest`
+  pass) and records it by `id`/`kind` (throws on a non-factory, a non-component,
+  or a duplicate id). `has(id)`/`ids()`/`kinds()`/`byKind(kind)`/`size` query it.
+- **`load(id, config)`** builds a FRESH contract-valid instance per call (instances
+  are independent), re-validates the manifest, and flags an `incompatible contract
+  version` when `manifest.contract !== COMPONENT_CONTRACT_VERSION`. Unknown ids and
+  incompatible loads degrade to `{ ok:false, errors }` — `load` NEVER throws.
+- **`createBuiltinRegistry()` / `builtinRegistry`** — registers the in-repo
+  built-ins (`createToriiGateway`, `createProductDisplay`).
+- **SECURITY:** LOCAL factories only. NO `eval`, NO dynamic `import()`, NO remote
+  fetch — the remote/Nostr-event distribution path (with signature/hash/capability
+  enforcement, §6) is later CMP work. Tested by `tests/registry.test.js`.
 
 ---
 

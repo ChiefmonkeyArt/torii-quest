@@ -30,10 +30,14 @@ export * as botAgent from '../engine/entities/bot-agent.js';
 export * as snapshot from '../engine/debug/snapshot.js';
 export * as phaseScreens from '../engine/ui/phaseScreens.js';
 export * as component from '../engine/components/contract.js';
+export * as registry from '../engine/components/registry.js';
 export * as toriiGateway from '../engine/components/toriiGateway.js';
 export * as productDisplay from '../engine/components/productDisplay.js';
+export * as productPanel from '../engine/components/productPanel.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
+export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as leaderboard from '../engine/nostr/leaderboard.js';
+export * as leaderboardPublisher from '../engine/nostr/leaderboardPublisher.js';
 export { createRaycastService, raycastService } from '../engine/physics/raycastService.js';
 
 // ---- Metadata --------------------------------------------------------------
@@ -63,14 +67,22 @@ export const SDK_SURFACE = Object.freeze({
   phaseScreens:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/ui/phaseScreens.js' },
   // Component economy contract (CMP-2) — mount/unmount + manifest validation.
   component:       { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/contract.js' },
+  // Component loader/registry (CMP-7, v0.2.135) — local built-in lookup only.
+  registry:        { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/registry.js' },
   // Reference component: Torii gateway (CMP-8 skeleton, v0.2.133).
   toriiGateway:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/toriiGateway.js' },
   // Reference component: read-only product display (CMP-13 skeleton, v0.2.134).
   productDisplay:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productDisplay.js' },
+  // Product panel view-model shell (CMP-13 continuation, v0.2.135).
+  productPanel:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productPanel.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
+  // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).
+  gatewayHandoff:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayHandoff.js' },
   // Nostr leaderboard score-event helpers (LB-1 skeleton, v0.2.134).
   leaderboard:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboard.js' },
+  // Leaderboard publisher adapter shape (LB-1 continuation, v0.2.135).
+  leaderboardPublisher: { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboardPublisher.js' },
   // Forward-declared internals — public story, not safe/ready to re-export yet:
   physicsBodies:   { tier: STABILITY.INTERNAL,     module: null },
   physicsRaycast:  { tier: STABILITY.INTERNAL,     module: null },

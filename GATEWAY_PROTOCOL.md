@@ -232,6 +232,12 @@ linked by signed spatial events, with **no central router**.
 - `src/engine/gateway/travelIntent.js` (v0.2.134) — pure **helpers** that
   build/parse/validate the URL-handoff MVP intent (§3–§4). No navigation, no
   signing, no relay I/O.
+- `src/engine/gateway/gatewayHandoff.js` (v0.2.135) — pure **shell** that joins
+  the two: `gatewayDestination(component)` reads the gate's `gateway` block,
+  `planGatewayTravel(component, context)` maps it (+ host context: from/player/
+  spawn/return/zoneType/state) onto a validated travel intent, and
+  `gatewayTravelUrl(component, context, {base})` serialises a valid plan to a URL.
+  Pure return values — still NO `window.location` / relay / signing.
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will act
   on a validated intent.
 

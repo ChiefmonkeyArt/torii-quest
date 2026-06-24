@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.134-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.135-alpha (see §3 for every place the version string lives)
 - **Live:** https://torii-quest.pplx.app (a Perplexity Space — deploy is a separate manual step, see §7)
 - **License:** GPL-3.0
 
@@ -74,8 +74,9 @@ Breaking one should fail CI/the check, not ship.
   re-exports + `SDK_VERSION`, `STABILITY` tiers, and the frozen `SDK_SURFACE`
   tier map. Only re-export modules that never transitively import `scene.js`.
   v0.2.132 added the `component` namespace; v0.2.133 added the `toriiGateway`
-  namespace; v0.2.134 added `productDisplay`, `travelIntent`, and `leaderboard`
-  (all experimental).
+  namespace; v0.2.134 added `productDisplay`, `travelIntent`, and `leaderboard`;
+  v0.2.135 added `registry`, `gatewayHandoff`, `productPanel`, and
+  `leaderboardPublisher` (all experimental).
 - **`src/engine/components/contract.js`** + **`COMPONENTS.md`** — component
   economy foundation (CMP-1/2, v0.2.132). Pure `validateManifest` /
   `isComponent` / `defineComponent` (idempotent mount/unmount) + the full
@@ -94,6 +95,25 @@ Breaking one should fail CI/the check, not ship.
 - **`src/engine/nostr/leaderboard.js`** (LB-1, v0.2.134) — pure Nostr leaderboard
   score-event helpers (`buildScoreEventTemplate`, kind 30000); builds the
   UNSIGNED event template only. No signing/relay/publish.
+- **`src/engine/components/registry.js`** (CMP-7, v0.2.135) — pure, node-safe
+  component loader/registry (`createRegistry`/`createBuiltinRegistry`/
+  `builtinRegistry`). Registers LOCAL built-in factories by id/kind, probes +
+  validates manifest/contract on register, and `load(id, config)` returns a
+  FRESH contract-valid instance (unknown/incompatible loads degrade, never
+  throw). NO eval / dynamic-import / remote fetch — local code only.
+- **`src/engine/gateway/gatewayHandoff.js`** (CMP-8 cont., v0.2.135) — pure
+  portal/handoff shell (`gatewayDestination`/`planGatewayTravel`/
+  `gatewayTravelUrl`) that maps a gateway component's destination onto a
+  validated travel intent / URL via `travelIntent.js`. Pure return values; NO
+  `window.location` / relay / signing.
+- **`src/engine/components/productPanel.js`** (CMP-13 cont., v0.2.135) — read-only
+  product panel view-model (`productPanelViewModel`/`priceLabel`); flat
+  render-ready bag over `validateProduct`. No checkout/pay/zap surface; the
+  actual Three.js panel mesh is a deferred TODO.
+- **`src/engine/nostr/leaderboardPublisher.js`** (LB-1 cont., v0.2.135) —
+  publisher adapter shape (`createLeaderboardPublisher({sign,publish})`).
+  INJECTED signer/publisher deps; build-only by default; captures sign/publish
+  failures without throwing. No keys/relay/secrets.
 
 ## 5. Build / test / check commands
 
@@ -107,7 +127,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**241 tests / 20 files**, all 11 regression checks GREEN, build clean.
+**274 tests / 24 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -159,10 +179,15 @@ smoke test on real hardware first).
   **v0.2.134 landed the lean-MVP foundation: CMP-13 read-only `productDisplay`,
   GWPROTO-1 `GATEWAY_PROTOCOL.md` + `travelIntent` URL-handoff helpers, and LB-1
   `leaderboard` unsigned score-event helpers — all pure/node-safe, no deploy
-  needed.** Next CMP work is the loader/Nostr event (CMP-5/CMP-7) with
-  signature/hash/capability enforcement + the gateway's portal mesh + n2n handoff
-  (act on a validated travel intent in `world/handoff.js`), then the leaderboard
-  signer/publisher + the product panel mesh. See `progress.md` Current Sprint.
+  needed.** **v0.2.135 landed the loader + handoff foundation: CMP-7
+  `registry` (local built-in component loader/registry), CMP-8 `gatewayHandoff`
+  (gateway component → validated travel intent/URL), `productPanel` view-model,
+  and LB-1 `leaderboardPublisher` adapter shape — all pure/node-safe, no deploy
+  needed.** Next: act on a validated travel intent in `world/handoff.js` + the
+  gateway's portal mesh (actually move the player), the real leaderboard
+  signer/publisher + relay read, the in-world product panel mesh, and the
+  loader's remote/Nostr-event path with signature/hash/capability enforcement.
+  See `progress.md` Current Sprint.
 - ESBUILD-1 (deferred): low-severity dev-server-only esbuild advisory; `npm audit
   fix` pulls a broad rolldown/vite chain, deemed too risky for an alpha — left as a
   tracked WARN in `todo.md`.

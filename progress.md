@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. See `strategy.md` for vision and decision rules. See `todo.md` for active tasks.
-> Current version: **v0.2.134-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.135-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 ---
 
@@ -45,11 +45,11 @@ Seams extracted: bodies, raycast, RaycastService facade (ARS-3, consumed by bot 
 
 ### SDK / API
 
-SDK boundaries started: 6 (physics raycast, physics bodies, combat classifier, combat damage, combat aim, reload pose) [baseline] + `src/sdk/index.js` public entrypoint (ARS-5, v0.2.131) + component contract (`engine/components/contract.js`, CMP-1/2, v0.2.132) + reference components (gateway CMP-8 v0.2.133; read-only product display CMP-13 v0.2.134) + gateway-protocol URL-handoff helpers (`engine/gateway/travelIntent.js`, GWPROTO-1, v0.2.134) + Nostr leaderboard score-event helpers (`engine/nostr/leaderboard.js`, LB-1, v0.2.134)
+SDK boundaries started: 6 (physics raycast, physics bodies, combat classifier, combat damage, combat aim, reload pose) [baseline] + `src/sdk/index.js` public entrypoint (ARS-5, v0.2.131) + component contract (`engine/components/contract.js`, CMP-1/2, v0.2.132) + reference components (gateway CMP-8 v0.2.133; read-only product display CMP-13 v0.2.134) + gateway-protocol URL-handoff helpers (`engine/gateway/travelIntent.js`, GWPROTO-1, v0.2.134) + Nostr leaderboard score-event helpers (`engine/nostr/leaderboard.js`, LB-1, v0.2.134) + component loader/registry (`engine/components/registry.js`, CMP-7, v0.2.135) + gateway portal/handoff shell (`engine/gateway/gatewayHandoff.js`, CMP-8, v0.2.135) + product panel view-model (`engine/components/productPanel.js`, v0.2.135) + leaderboard publisher adapter (`engine/nostr/leaderboardPublisher.js`, LB-1, v0.2.135)
 Remaining before Layer 1 complete: player boundary full lift, BotAgent runtime, grow the SDK surface as boundaries stabilise
 
 ```
-[##################################................] 11 / ~14 Layer 1 boundaries
+[#######################################...........] 15 / ~18 Layer 1 boundaries
 ```
 
 ---
@@ -62,8 +62,8 @@ Skeletons present: NAP zone module, world handoff, presence | Protocol drafted: 
 [########..................................................] 0 / 5+ formalised (Gateway Protocol drafted v0.2.134; skeletons only)
 ```
 
-v0.2.134 added the open **Gateway Protocol** draft (`GATEWAY_PROTOCOL.md`) + pure URL-handoff helpers (`travelIntent.js`) and pure unsigned Nostr leaderboard score-event helpers (`leaderboard.js`) — wire-format + helpers, not yet wired to relays/handoff.
-Blocked on: SDK Layer 1 close-out, identity boundary, kind:0 profile sync, the CMP-7 loader + the gateway portal/handoff to act on a travel intent.
+v0.2.134 added the open **Gateway Protocol** draft (`GATEWAY_PROTOCOL.md`) + pure URL-handoff helpers (`travelIntent.js`) and pure unsigned Nostr leaderboard score-event helpers (`leaderboard.js`) — wire-format + helpers, not yet wired to relays/handoff. v0.2.135 added the component loader/registry (`registry.js`, CMP-7), the gateway portal/handoff shell (`gatewayHandoff.js`, CMP-8 — turns a gateway component into a validated travel intent/URL, pure return values, no navigation), the product panel view-model (`productPanel.js`), and the leaderboard publisher adapter shape (`leaderboardPublisher.js`, LB-1 — injected signer/publisher, build-only by default, no relay/secrets).
+Blocked on: SDK Layer 1 close-out, identity boundary, kind:0 profile sync, the real signer/publisher + relay read, and wiring the gateway handoff into `world/handoff.js` + a portal mesh to actually move the player.
 
 ---
 
@@ -86,10 +86,10 @@ Time-boxed sprint to demonstrate the end-to-end freedom-tech loop (thin vertical
 
 | # | Slice | Status |
 |---|-------|--------|
-| LEAN-1 | Torii.quest live (publish v0.2.134-alpha — manual maintainer deploy) | pending (smoke first) |
-| LEAN-2 | n2n hop via Torii Gateway component (relay-mediated) | foundation in (v0.2.134: `GATEWAY_PROTOCOL.md` + `travelIntent` URL-handoff helpers); needs CMP-7 loader + CMP-8 portal/handoff to act on the intent |
-| LEAN-3 | Product component (Plebeian.Market product display) | skeleton in (v0.2.134: read-only `productDisplay`, links out, no checkout); needs the in-world panel mesh |
-| LEAN-4 | Nostr leaderboard (signed events) | skeleton in (v0.2.134: pure unsigned `leaderboard` score-event helpers); needs the signer/publisher + relay read |
+| LEAN-1 | Torii.quest live (publish v0.2.135-alpha — manual maintainer deploy) | pending (smoke first) |
+| LEAN-2 | n2n hop via Torii Gateway component (relay-mediated) | foundation in (v0.2.134 protocol + `travelIntent`; v0.2.135: CMP-7 `registry` loader + CMP-8 `gatewayHandoff` shell turns a gate into a validated travel intent/URL); needs the portal mesh + `world/handoff.js` to ACT on the intent |
+| LEAN-3 | Product component (Plebeian.Market product display) | skeleton in (v0.2.134: read-only `productDisplay`; v0.2.135: `productPanel` view-model shell); needs the in-world panel mesh over the view-model |
+| LEAN-4 | Nostr leaderboard (signed events) | skeleton in (v0.2.134: pure unsigned `leaderboard`; v0.2.135: `leaderboardPublisher` adapter shape — injected signer/publisher); needs the real signer + relay read |
 
 ---
 
@@ -115,8 +115,10 @@ Time-boxed sprint to demonstrate the end-to-end freedom-tech loop (thin vertical
 | CMP-1/2 | SDK/Nostr | Component contract + manifest spec (`COMPONENTS.md`, `contract.js`, SDK `component`) | done (v0.2.132) |
 | CMP-8 | SDK | First reference component — Torii gateway skeleton (`toriiGateway.js`, SDK `toriiGateway`) | done (v0.2.133) |
 | GWPROTO-1 | SDK/Nostr | Gateway Protocol draft (`GATEWAY_PROTOCOL.md`) + pure URL-handoff helpers (`engine/gateway/travelIntent.js`, SDK `travelIntent`) | done (v0.2.134) |
-| CMP-13 | SDK | Read-only product display reference component (`productDisplay.js`, SDK `productDisplay`) | done (v0.2.134) |
-| LB-1 | Nostr | Leaderboard score-event helpers — pure unsigned template (`engine/nostr/leaderboard.js`, SDK `leaderboard`) | done (v0.2.134) |
+| CMP-13 | SDK | Read-only product display reference component (`productDisplay.js`, SDK `productDisplay`) | done (v0.2.134); panel view-model `productPanel.js` added v0.2.135 |
+| LB-1 | Nostr | Leaderboard score-event helpers — pure unsigned template (`engine/nostr/leaderboard.js`, SDK `leaderboard`) | done (v0.2.134); publisher adapter shape `leaderboardPublisher.js` added v0.2.135 |
+| CMP-7 | SDK | Component loader/registry — local built-in lookup, validates before load (`engine/components/registry.js`, SDK `registry`) | done (v0.2.135) |
+| CMP-8+ | SDK | Gateway portal/handoff shell — gateway component → validated travel intent/URL (`engine/gateway/gatewayHandoff.js`, SDK `gatewayHandoff`) | done (v0.2.135); needs portal mesh + `world/handoff.js` to act on the intent |
 | ARS-5 | SDK | src/sdk/index.js skeleton with stability tiers | done (v0.2.131) |
 | ARS-6 | Foundation | CODE_INDEX.md upkeep pass after each ARS task | ongoing |
 | ARS-7 | Foundation | HANDOFF.md template | done (v0.2.130) |
@@ -129,6 +131,7 @@ Time-boxed sprint to demonstrate the end-to-end freedom-tech loop (thin vertical
 
 Items stay here (crossed out) for ~24 hours, then move to Archive below.
 
+- v0.2.135-alpha component-loader + handoff batch (safe — no DNS/VPS/deploy) — CMP-7 pure `engine/components/registry.js` component loader/registry (`createRegistry`/`createBuiltinRegistry`/`builtinRegistry`; register-by-factory probes + validates manifest/contract, `load(id, config)` returns a FRESH contract-valid instance, unknown/incompatible loads degrade safely; LOCAL built-ins only — no eval/dynamic-import/remote code; `tests/registry.test.js`); CMP-8 pure `engine/gateway/gatewayHandoff.js` portal/handoff shell (`gatewayDestination`/`planGatewayTravel`/`gatewayTravelUrl` map a gateway component's destination onto a validated travel intent / URL string; pure return values, NO window.location/relay/signing; `tests/gateway-handoff.test.js`); `engine/components/productPanel.js` read-only product panel view-model (`productPanelViewModel`/`priceLabel`; flat render-ready bag, no checkout surface; `tests/product-panel.test.js`); LB-1 `engine/nostr/leaderboardPublisher.js` publisher adapter shape (`createLeaderboardPublisher({sign,publish})`; INJECTED deps, build-only by default, captures sign/publish failures without throwing, no relay/secrets; `tests/leaderboard-publisher.test.js`); all four surfaced via the SDK at the experimental tier. +33 tests (274 total / 24 files)
 - ~~v0.2.134-alpha lean-MVP foundation batch (safe — no DNS/VPS/deploy) — GWPROTO-1 `GATEWAY_PROTOCOL.md` n2n spatial-hop protocol DRAFT (relay-first hybrid discovery, URL handoff MVP, world/zone/gateway identity, travel intent, return path, signed-event future, security tiers, NIP path; "component is code, protocol is agreement") + pure `engine/gateway/travelIntent.js` URL-handoff helpers (`buildTravelIntent`/`validateTravelIntent`/`buildTravelUrl`/`parseTravelUrl`; no navigation/relay/signing; `tests/travel-intent.test.js`); CMP-13 read-only `engine/components/productDisplay.js` reference component (`createProductDisplay`/`productDisplay`/`validateProduct`, manifest kind:'product'/mountTarget:'panel', links OUT to Plebeian.Market, NO checkout/pay/zap/publish, safe https-only validation; `tests/product-display.test.js`); LB-1 pure `engine/nostr/leaderboard.js` unsigned Nostr score-event helpers (`buildScore`/`validateScore`/`buildScoreEventTemplate`, kind 30000, indexable tags, headshots≤kills; no signing/relay/publish; `tests/leaderboard.test.js`); all three surfaced via the SDK at the experimental tier. +41 tests (241 total / 20 files)~~
 - ~~v0.2.133-alpha gateway batch (reconciled onto published v0.2.132 — no v0.2.132 work dropped) — ARS-4 real `GAMEOVER` edge (`GAME_EVENT.END` + `endRun()` in state.js, PLAYING/DEAD → terminal GAMEOVER; behaviour-preserving, no live caller yet; +state tests); ARS-3 final raycast cleanup (reticle preview `targetReticle.js` → `raycastService.ray`, no direct `castRay` consumers remain; +injected-fake-world ray/LOS tests); CMP-8 first reference component `engine/components/toriiGateway.js` (`createToriiGateway`/`toriiGateway`, skeleton no-op lifecycle, manifest kind:'gateway'/mountTarget:'scene', SDK `toriiGateway` experimental namespace; `tests/torii-gateway.test.js`). +15 tests (200 total / 17 files)~~
 - ~~v0.2.132-alpha infrastructure batch — ARS-4 reload sub-state fold (`isReloading`/`tickReload` pure predicates in state.js, adopted in player.js/weapons.js/main.js; +5 state tests); ARS-3 weapons/player bullet+aim ray migration to `raycastService.ray`/`.rayStatic` (behaviour-identical, barrel→crosshair preserved; +3 service-wiring tests); CMP-1 `COMPONENTS.md` manifest spec (identity/provenance/npub, bundle hash, capabilities, deps, assets, config→mount options, pricing/zap split, Nostr listing events, security rules); CMP-2 `src/engine/components/contract.js` pure lifecycle contract (`validateManifest`/`isComponent`/`defineComponent`, idempotent mount/unmount) surfaced via SDK `component` namespace (experimental tier); `tests/component.test.js` (+14 tests). +22 tests (185 total / 16 files)~~

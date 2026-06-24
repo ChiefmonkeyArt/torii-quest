@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.153-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.154-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no navigation, no signing/publishing, no auto-update.
@@ -404,6 +404,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `proofSurfaceGate` / `shells.surfaceGate()` (regression check [12]) | `tests/proof-surface-gate.test.js` |
 | underlying view/shell modules | `tests/gateway-portal.test.js`, `tests/product-panel-shell.test.js`, `tests/leaderboard-view.test.js`, `tests/update-check.test.js` |
 | `tools/bundleSizes.mjs` (bundle-size advisory, regression check [13] / `npm run bundle:report`) | `tests/bundle-sizes.test.js` |
+| `tools/docConsistency.mjs` (docs/status consistency guard, regression check [14]) | `tests/doc-consistency.test.js` |
 
 Run all with `npm test` (Vitest, node env). `npm run check` separately guards the
 scaffold + version markers statically.

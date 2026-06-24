@@ -1,4 +1,4 @@
-// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.153).
+// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.154).
 // No external deps. Run with: node tools/regression-check.mjs  (or: npm run check)
 //
 // Catches the regressions the Strategy doc calls out, without needing a browser:
@@ -23,6 +23,11 @@
 //  13. bundle size advisory (v0.2.153) — ADVISORY ONLY (never fails): reports built
 //      chunk sizes (app/three/rapier/total JS, raw+gzip) so the Vite large-chunk
 //      warning becomes a tracked baseline. Full table: `npm run bundle:report`
+//  14. docs/status consistency guard (v0.2.154) — FAILS on clear current-version drift in
+//      the core continuity docs (todo.md/progress.md/HANDOFF.md) or a missing core doc;
+//      ADVISORY warnings (never fail) for advisory-doc lag (SDK_DEBUG_INDEX/CODE_INDEX) and
+//      stale "live/published version: vX" contradiction lines. Pure helpers in
+//      tools/docConsistency.mjs (unit-tested); this block only reads the files.
 //
 // Exit code 0 = all green; non-zero = at least one FAIL.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -30,7 +35,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.153-alpha';
+const EXPECTED_VERSION = 'v0.2.154-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -114,7 +119,7 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   const count = (html.match(new RegExp(EXPECTED_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
   if (count < 2) fail(`index.html has ${count} ${EXPECTED_VERSION} markers (expected >=2)`);
   else pass(`index.html has ${count} version markers`);
-  if (/v0\.2\.152-alpha/.test(html)) fail('index.html still references v0.2.152-alpha');
+  if (/v0\.2\.153-alpha/.test(html)) fail('index.html still references v0.2.153-alpha');
   // package.json `version` must be valid semver (no leading 'v'), so it carries
   // the EXPECTED_VERSION with the 'v' stripped. Ties package metadata to the
   // runtime VERSION so the two can't drift (security-review finding, v0.2.137).
@@ -296,6 +301,29 @@ console.log('[13] bundle size advisory (npm run bundle:report)');
     } catch (e) {
       console.log(`  · bundle advisory unavailable: ${e.message}`);
     }
+  }
+}
+
+// 14. docs/status consistency guard (v0.2.154) — keep the cross-model handoff docs from
+// drifting away from the live runtime VERSION. HARD FAIL on clear current-version drift in
+// the core continuity docs (todo.md/progress.md/HANDOFF.md) or a missing core doc; ADVISORY
+// warnings (never fail) for advisory-doc lag + stale live/published version lines. The pure
+// logic lives in docConsistency.mjs (node-safe, unit-tested); this block only does fs reads.
+console.log('[14] docs/status consistency guard (docConsistency)');
+{
+  try {
+    const { checkDocConsistency, CONTINUITY_DOCS, ADVISORY_DOCS } = await import('./docConsistency.mjs');
+    const files = {};
+    for (const name of [...CONTINUITY_DOCS, ...ADVISORY_DOCS]) {
+      const p = join(ROOT, name);
+      if (existsSync(p)) files[name] = readFileSync(p, 'utf8');
+    }
+    const r = checkDocConsistency({ version: EXPECTED_VERSION, files });
+    for (const w of r.warnings) console.log(`  · advisory: ${w}`);
+    if (r.ok) pass(`continuity docs reference ${EXPECTED_VERSION} (${r.checked.length} doc(s) checked${r.warnings.length ? `, ${r.warnings.length} advisory` : ''})`);
+    else for (const e of r.errors) fail(e);
+  } catch (e) {
+    fail(`doc-consistency guard threw: ${e.message}`);
   }
 }
 

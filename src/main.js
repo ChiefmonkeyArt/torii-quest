@@ -24,6 +24,8 @@ import { playShoot, playFootstep, playJumpLand } from './audio.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
+import { gatewayPreviewBlock } from './engine/gateway/gatewayPreview.js';
+import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { VERSION, TUNING } from './config.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -108,6 +110,32 @@ const elEnterBtn = document.getElementById('btn-enter');
 // this just reacts to it. Behaviour-preserving: phaseVisibility() reproduces the
 // exact toggles the call sites used (see engine/ui/phaseScreens.js).
 on(EV.PHASE_CHANGE, ({ to }) => applyPhaseScreens(to, { elTitle, elHud, elPause }));
+
+// Gateway/NAP-to-NAP PREVIEW (LEAN-2, v0.2.139) — render the inert title-screen
+// preview card ONCE from the pure gatewayPreview block. This is display-only: it
+// shows a demo destination/intent/status so the freedom-tech hop is visible on
+// the title screen, but it NEVER navigates, fetches, signs, or publishes. The
+// armed demo gate (target + relay) makes the preview show a ready/armed view;
+// crossing the gate stays a deferred host decision (see GATEWAY_PROTOCOL.md).
+function renderGatewayPreview() {
+  const body = document.getElementById('gateway-preview-body');
+  if (!body) return;
+  const demoGate = createToriiGateway({
+    target: 'plebeian-market-bazaar',
+    relay: 'wss://relay.example.com',
+  });
+  const block = gatewayPreviewBlock(demoGate, { from: 'torii-quest' });
+  body.replaceChildren(...block.lines.flatMap(({ label, value }) => {
+    const l = document.createElement('div');
+    l.className = 'gw-row-label';
+    l.textContent = label;
+    const v = document.createElement('div');
+    v.className = 'gw-row-value';
+    v.textContent = value; // textContent only — no HTML, no link, no navigation
+    return [l, v];
+  }));
+}
+renderGatewayPreview();
 
 // Character selector
 document.querySelectorAll('.char-btn').forEach(btn => {

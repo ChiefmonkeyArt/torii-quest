@@ -10,6 +10,7 @@
 // accept overrides so they stay unit-testable.
 
 import { gatewayPortalView } from '../gateway/gatewayPortal.js';
+import { gatewayPreviewBlock } from '../gateway/gatewayPreview.js';
 import { productPanelShell } from '../components/productPanelShell.js';
 import { rankScores } from '../nostr/leaderboardView.js';
 import { createToriiGateway } from '../components/toriiGateway.js';
@@ -54,6 +55,26 @@ export function gatewayReport(component = DEMO_GATEWAY, context = {}, opts = {})
     prompt: v.prompt,
     urlPreview: v.urlPreview,
     errors: v.errors,
+  };
+}
+
+// gatewayPreviewReport(component, context, opts) → the visible-but-inert gateway
+// PREVIEW block (LEAN-2) a title/HUD card would draw. Read-only; pins
+// actionable:false so the no-navigation guarantee is explicit in the report.
+export function gatewayPreviewReport(component = DEMO_GATEWAY, context = {}, opts = {}) {
+  const b = gatewayPreviewBlock(component, context, opts);
+  return {
+    title: b.title,
+    status: b.status,
+    statusLabel: b.statusLabel,
+    armed: b.armed,
+    destination: b.destination,
+    relay: b.relay,
+    intent: b.intent,
+    urlPreview: b.urlPreview,
+    badge: b.badge,
+    lines: b.lines,
+    actionable: b.actionable,
   };
 }
 
@@ -103,6 +124,7 @@ export function buildShellReport(inputs = {}) {
   } = inputs;
   return {
     gateway: gatewayReport(gateway, gatewayContext, gatewayOpts),
+    gatewayPreview: gatewayPreviewReport(gateway, gatewayContext, gatewayOpts),
     product: productReport(product),
     leaderboard: leaderboardReport(scores, { mode }),
   };

@@ -38,6 +38,7 @@ export * as productPanelShell from '../engine/components/productPanelShell.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
+export * as gatewayPreview from '../engine/gateway/gatewayPreview.js';
 export * as leaderboard from '../engine/nostr/leaderboard.js';
 export * as leaderboardPublisher from '../engine/nostr/leaderboardPublisher.js';
 export * as leaderboardView from '../engine/nostr/leaderboardView.js';
@@ -87,6 +88,8 @@ export const SDK_SURFACE = Object.freeze({
   gatewayHandoff:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayHandoff.js' },
   // Gateway portal VIEW shell — render-ready portal view-model (CMP-8, v0.2.136).
   gatewayPortal:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayPortal.js' },
+  // Gateway/NAP-to-NAP visible PREVIEW block — inert title/HUD card (LEAN-2, v0.2.139).
+  gatewayPreview:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayPreview.js' },
   // Nostr leaderboard score-event helpers (LB-1 skeleton, v0.2.134).
   leaderboard:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/leaderboard.js' },
   // Leaderboard publisher adapter shape (LB-1 continuation, v0.2.135).

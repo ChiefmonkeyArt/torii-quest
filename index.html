@@ -163,6 +163,19 @@
     }
     #version-label { margin-top: 18px; font-size: 9px; color: #a0a8b8; letter-spacing: 2px; }
 
+    /* ── Gateway/NAP-to-NAP preview (inert, v0.2.139) ── */
+    #gateway-preview {
+      margin-top: 12px; width: 240px; text-align: left;
+      border: 1px solid rgba(139,92,246,0.35); border-radius: 6px;
+      background: rgba(26,10,46,0.35); padding: 7px 9px;
+    }
+    #gateway-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    #gateway-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #c4b5fd; }
+    #gateway-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
+    #gateway-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+    .gw-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
+    .gw-row-value { font-size: 9px; color: #d1c4ec; word-break: break-all; }
+
     /* ── LEFT: Stats panel ── */
     #stats-identity {
       display: flex; flex-direction: column; align-items: center;
@@ -413,7 +426,19 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.138-alpha</div>
+      <div id="version-label">v0.2.139-alpha</div>
+
+      <!-- Gateway/NAP-to-NAP PREVIEW (LEAN-2, v0.2.139). Rendered by main.js from
+           the pure gatewayPreview block. This is a DISPLAY-ONLY card: it shows a
+           destination/intent/status preview and NEVER navigates, fetches, signs,
+           or publishes. The "PREVIEW · SAFE · INERT" badge makes that explicit. -->
+      <div id="gateway-preview" aria-label="gateway travel preview (inert)">
+        <div id="gateway-preview-head">
+          <span id="gateway-preview-title">⛩ GATEWAY PREVIEW</span>
+          <span id="gateway-preview-badge">PREVIEW · SAFE · INERT</span>
+        </div>
+        <div id="gateway-preview-body"><!-- rows injected by main.js --></div>
+      </div>
     </div>
 
     <!-- RIGHT: Live chat (orange) -->
@@ -547,7 +572,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.138-alpha · torii quest</div>
+  <div id="ver">v0.2.139-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.138-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.139-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -84,7 +84,8 @@ Breaking one should fail CI/the check, not ship.
   namespace; v0.2.134 added `productDisplay`, `travelIntent`, and `leaderboard`;
   v0.2.135 added `registry`, `gatewayHandoff`, `productPanel`, and
   `leaderboardPublisher`; v0.2.136 added `gatewayPortal`, `productPanelShell`,
-  and `leaderboardView` (all experimental).
+  and `leaderboardView`; v0.2.138 added `updateCheck`; v0.2.139 added
+  `gatewayPreview` (all experimental).
 - **`src/engine/components/contract.js`** + **`COMPONENTS.md`** — component
   economy foundation (CMP-1/2, v0.2.132). Pure `validateManifest` /
   `isComponent` / `defineComponent` (idempotent mount/unmount) + the full
@@ -127,6 +128,15 @@ Breaking one should fail CI/the check, not ship.
   `shortKey`). Returns a render-ready portal view-model (status/armed/destination/
   prompt/relay/URL preview); `armed = plan.valid`, prompt+URL blank unless armed.
   DISPLAY-ONLY — never assigns `window.location` / contacts a relay / signs.
+- **`src/engine/gateway/gatewayPreview.js`** (LEAN-2, v0.2.139) — pure
+  visible-but-inert gateway/NAP-to-NAP PREVIEW block over `gatewayPortal`.
+  `gatewayPreviewBlock(component, context, opts)` flattens the portal view into a
+  render-ready block of `{label,value}` rows (Destination/Status/Relay/Intent/URL)
+  + `statusText`/`previewUrl` helpers + a `GATEWAY_PREVIEW_BADGE`
+  ("PREVIEW · SAFE · INERT"); every block is `actionable:false`. `main.js` renders
+  it into the title-screen `#gateway-preview` card via `textContent` only (no link,
+  no navigation, no fetch, no signing). Read-only at
+  `ToriiDebug.shells.gatewayPreview()`. SDK `gatewayPreview` (experimental).
 - **`src/engine/components/productPanelShell.js`** (CMP-13 cont., v0.2.136) —
   read-only product panel RENDER shell over `productPanel`. `productPanelShell`
   returns an ordered panel layout (`lines` Price/Seller/reward, link `footer`
@@ -227,7 +237,11 @@ smoke test on real hardware first).
   preview, never navigates), CMP-13 `productPanelShell` (read-only panel layout,
   `actionable:false` footer + empty `actions[]`), and LB-1 `leaderboardView`
   (read-only display + build-only preview, no signer/relay) — all pure/node-safe,
-  SEC gates intact, no deploy needed.** Next: act on a validated travel intent in
+  SEC gates intact, no deploy needed.** **v0.2.139 made the gateway/NAP-to-NAP
+  preview VISIBLE (LEAN-2): `gatewayPreview` flattens the portal view into an inert
+  title-screen card (`gatewayPreviewBlock`), rendered by `main.js` via `textContent`
+  only and surfaced read-only at `ToriiDebug.shells.gatewayPreview()` — no
+  navigation/fetch/signing.** Next: act on a validated travel intent in
   `world/handoff.js` + the
   gateway's portal mesh (actually move the player), the real leaderboard
   signer/publisher + relay read, the in-world product panel mesh, and the

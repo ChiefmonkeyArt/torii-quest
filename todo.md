@@ -1,7 +1,7 @@
 # Torii Quest — Master TODO
 
 > **Source of truth for active tasks.** Update this file whenever tasks are added, changed, completed, removed, or re-prioritised.
-> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.152-alpha**
+> Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app) | Current version: **v0.2.153-alpha**
 
 > Strategy source of truth: `strategy.md`.
 > Progress dashboard: `progress.md` — visual track bars, sprint status, completed-last-24h, archive, and update rules.
@@ -10,7 +10,7 @@
 
 ---
 
-## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.152)
+## ACTIVE FOCUS — 15-Hour Proof-of-Concept Route (v0.2.153)
 
 > **The project is refocused onto a 15-hour proof-of-concept.** Build the vision
 > fast, prove the architecture, avoid polish traps — then add retrospective polish
@@ -96,6 +96,17 @@
   live nodes, no click/raycast/navigation/payments/Nostr/live-data; no per-frame allocation.
   +10 tests. **Next:** fold `surfaceRender().ok`/`surfaceBindings().ok` into promotion review /
   regression check, and (only once promotion is sanctioned) the first live proof-surface read.
+- **Bundle-size tracking baseline landed** (v0.2.153) — turned the recurring Vite
+  "large chunk" build warning into a measurable LOCAL baseline without touching the
+  runtime or the existing `manualChunks` splitting. New PURE node-safe
+  `tools/bundleSizes.mjs` (`formatBytes`/`classifyAsset`/`isJsCategory`/`severityFor`/
+  `summarizeBundle` + `DEFAULT_WARN_LIMIT=700·KiB` mirroring vite `chunkSizeWarningLimit`)
+  + CLI `tools/bundle-report.mjs` (raw+gzip per asset/category via `node:zlib`;
+  `npm run bundle:report`; advisory, exits 0). Added a NON-FAILING advisory `[13]` to
+  `tools/regression-check.mjs` so `npm run check` stays green (13/13). Baseline: total JS
+  2.8 MB raw / ~1.0 MB gzip (app 116.3 KB, three 609.1 KB, rapier 2.1 MB; rapier is the
+  expected lazy over-limit chunk). +16 tests. **Next:** structured code-splitting work off
+  this baseline (NOT attempted in this slice).
 - **Proof-surface promotion/regression GATE landed** (v0.2.152) — added the PURE
   `engine/debug/proofSurfaceGate.js` (`proofSurfaceGate(opts?)`) folding the three pure
   layers that must ALL hold before the in-world proof boards may be built (or, later,

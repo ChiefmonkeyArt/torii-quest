@@ -1,4 +1,4 @@
-// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.152).
+// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.153).
 // No external deps. Run with: node tools/regression-check.mjs  (or: npm run check)
 //
 // Catches the regressions the Strategy doc calls out, without needing a browser:
@@ -20,6 +20,9 @@
 //  12. proof-surface promotion gate (v0.2.152) — imports the pure proofSurfaceGate()
 //      and fails if the in-world proof boards' spec-check, render plan, or scene-graph
 //      parent binding is broken/unsafe (fail-fast before a browser/promotion)
+//  13. bundle size advisory (v0.2.153) — ADVISORY ONLY (never fails): reports built
+//      chunk sizes (app/three/rapier/total JS, raw+gzip) so the Vite large-chunk
+//      warning becomes a tracked baseline. Full table: `npm run bundle:report`
 //
 // Exit code 0 = all green; non-zero = at least one FAIL.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -27,7 +30,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.152-alpha';
+const EXPECTED_VERSION = 'v0.2.153-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -111,7 +114,7 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   const count = (html.match(new RegExp(EXPECTED_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
   if (count < 2) fail(`index.html has ${count} ${EXPECTED_VERSION} markers (expected >=2)`);
   else pass(`index.html has ${count} version markers`);
-  if (/v0\.2\.151-alpha/.test(html)) fail('index.html still references v0.2.151-alpha');
+  if (/v0\.2\.152-alpha/.test(html)) fail('index.html still references v0.2.152-alpha');
   // package.json `version` must be valid semver (no leading 'v'), so it carries
   // the EXPECTED_VERSION with the 'v' stripped. Ties package metadata to the
   // runtime VERSION so the two can't drift (security-review finding, v0.2.137).
@@ -255,6 +258,44 @@ console.log('[12] proof-surface promotion gate (proofSurfaceGate)');
     }
   } catch (e) {
     fail(`proof-surface gate threw: ${e.message}`);
+  }
+}
+
+// 13. bundle size advisory (v0.2.153) — ADVISORY ONLY, never fails. Reports the built
+// chunk sizes (app / three-vendor / rapier / total JS, raw + gzip) so the recurring
+// Vite "large chunk" warning becomes a tracked baseline. Skipped when no dist/. Full
+// breakdown: `npm run bundle:report`. This block must never touch `fails`.
+console.log('[13] bundle size advisory (npm run bundle:report)');
+{
+  const distDir = join(ROOT, 'dist');
+  if (!existsSync(distDir)) {
+    console.log('  · no dist/ — skipped (run npm run build for sizes)');
+  } else {
+    try {
+      const { gzipSync } = await import('node:zlib');
+      const { summarizeBundle, formatBytes } = await import('./bundleSizes.mjs');
+      const assetsDir = join(distDir, 'assets');
+      const entries = [];
+      if (existsSync(assetsDir)) {
+        for (const name of readdirSync(assetsDir)) {
+          if (!name.endsWith('.js')) continue;
+          const buf = readFileSync(join(assetsDir, name));
+          let gzip = null; try { gzip = gzipSync(buf).length; } catch { /* ignore */ }
+          entries.push({ name, bytes: buf.length, gzip });
+        }
+      }
+      const htmlP = join(distDir, 'index.html');
+      if (existsSync(htmlP)) { const b = readFileSync(htmlP); entries.push({ name: 'index.html', bytes: b.length, gzip: gzipSync(b).length }); }
+      const r = summarizeBundle(entries);
+      const c = r.categories;
+      console.log(`  · total JS ${formatBytes(r.totals.jsBytes)} raw / ${formatBytes(r.totals.jsGzip)} gzip` +
+        `  (app ${formatBytes(c.app)}, three ${formatBytes(c.three)}, rapier ${formatBytes(c.rapier)})`);
+      if (r.warnings.length > 0) {
+        console.log(`  · advisory: ${r.warnings.length} chunk(s) over ${formatBytes(r.warnLimit)}: ${r.warnings.join(', ')} (tracked, not gated)`);
+      }
+    } catch (e) {
+      console.log(`  · bundle advisory unavailable: ${e.message}`);
+    }
   }
 }
 

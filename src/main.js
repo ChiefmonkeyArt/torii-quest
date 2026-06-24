@@ -28,6 +28,7 @@ import { gatewayPreviewBlock } from './engine/gateway/gatewayPreview.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { productPreviewBlock } from './engine/components/productPreview.js';
 import { leaderboardPreviewBlock } from './engine/nostr/leaderboardPreview.js';
+import { updatePreviewBlock } from './engine/update/updatePreview.js';
 import { VERSION, TUNING } from './config.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -196,6 +197,38 @@ function renderLeaderboardPreview() {
   }));
 }
 renderLeaderboardPreview();
+
+// torii.quest update-check PREVIEW (LEAN-5, v0.2.142) — render the inert,
+// read-only title-screen update card ONCE from the pure updatePreview block. This
+// is display-only: it compares the running VERSION against a DETERMINISTIC LOCAL
+// SAMPLE release (no GitHub fetch) and shows the running version, the sampled
+// latest release, the update-available/up-to-date/unknown status, and the GitHub
+// releases path as TEXT — so the "the world can keep itself current" proof is
+// visible on the title screen. It does NO network fetch, NO install, NO shell
+// execution, NO auto-update, and NEVER navigates — actionable:false by construction
+// (the real read-only fetch + any "Update" affordance stay MANUAL host steps).
+function renderUpdatePreview() {
+  const body = document.getElementById('update-preview-body');
+  if (!body) return;
+  const block = updatePreviewBlock({
+    tag_name: 'v0.2.999-alpha',
+    name: 'Torii Quest v0.2.999-alpha',
+    html_url: 'https://github.com/torii-quest/torii-quest/releases/tag/v0.2.999-alpha',
+    body: 'Sample release notes (local fixture) — bigger arena, nostrich skins, Chiefmonkey balance.',
+    prerelease: true,
+    published_at: '2026-06-24T00:00:00Z',
+  });
+  body.replaceChildren(...block.lines.flatMap(({ label, value }) => {
+    const l = document.createElement('div');
+    l.className = 'up-row-label';
+    l.textContent = label;
+    const v = document.createElement('div');
+    v.className = 'up-row-value';
+    v.textContent = value; // textContent only — no HTML, no link, no fetch, no auto-update
+    return [l, v];
+  }));
+}
+renderUpdatePreview();
 
 // Character selector
 document.querySelectorAll('.char-btn').forEach(btn => {

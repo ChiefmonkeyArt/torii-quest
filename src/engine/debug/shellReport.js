@@ -15,6 +15,7 @@ import { productPanelShell } from '../components/productPanelShell.js';
 import { productPreviewBlock } from '../components/productPreview.js';
 import { rankScores } from '../nostr/leaderboardView.js';
 import { leaderboardPreviewBlock } from '../nostr/leaderboardPreview.js';
+import { updatePreviewBlock } from '../update/updatePreview.js';
 import { createToriiGateway } from '../components/toriiGateway.js';
 
 // An ARMED demo gateway (has a `target`, so the travel plan validates) — lets the
@@ -43,6 +44,19 @@ export const DEMO_SCORES = Object.freeze([
   { runId: 'run-b', score: 240, kills: 20, headshots: 11, accuracy: 0.71 },
   { runId: 'run-c', score: 90, kills: 9, headshots: 2, accuracy: 0.5 },
 ]);
+
+// A deterministic LOCAL sample GitHub release (newer than the current runtime) so
+// the update-check report shows a non-trivial "update available" view WITHOUT ever
+// fetching the wire. Display-only; the real read-only fetch is a deferred host step.
+export const DEMO_RELEASE = Object.freeze({
+  tag_name: 'v0.2.999-alpha',
+  name: 'Torii Quest v0.2.999-alpha',
+  html_url: 'https://github.com/torii-quest/torii-quest/releases/tag/v0.2.999-alpha',
+  body: 'Sample release notes (local fixture) — bigger arena, nostrich skins, Chiefmonkey balance.',
+  draft: false,
+  prerelease: true,
+  published_at: '2026-06-24T00:00:00Z',
+});
 
 // gatewayReport(component, context, opts) → a compact, JSON-serialisable summary
 // of the gateway portal VIEW shell. Display-only fields; never navigates.
@@ -156,6 +170,27 @@ export function leaderboardPreviewReport(statsList = DEMO_SCORES, opts = {}) {
   };
 }
 
+// updatePreviewReport(release, opts) → the visible-but-inert torii.quest
+// update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
+// pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
+export function updatePreviewReport(release = DEMO_RELEASE, opts = {}) {
+  const b = updatePreviewBlock(release, opts);
+  return {
+    title: b.title,
+    badge: b.badge,
+    status: b.status,
+    statusLabel: b.statusLabel,
+    currentVersion: b.currentVersion,
+    latestVersion: b.latestVersion,
+    updateAvailable: b.updateAvailable,
+    prompt: b.prompt,
+    source: b.source,
+    lines: b.lines,
+    readOnly: b.readOnly,
+    actionable: b.actionable,
+  };
+}
+
 // buildShellReport(inputs) → { gateway, product, leaderboard }. One-call composite
 // for ToriiDebug; each section overridable via inputs for testing. Read-only.
 export function buildShellReport(inputs = {}) {
@@ -166,6 +201,7 @@ export function buildShellReport(inputs = {}) {
     product = DEMO_PRODUCT,
     scores = DEMO_SCORES,
     mode = 'build',
+    release = DEMO_RELEASE,
   } = inputs;
   return {
     gateway: gatewayReport(gateway, gatewayContext, gatewayOpts),
@@ -174,5 +210,6 @@ export function buildShellReport(inputs = {}) {
     productPreview: productPreviewReport(product),
     leaderboard: leaderboardReport(scores, { mode }),
     leaderboardPreview: leaderboardPreviewReport(scores),
+    updatePreview: updatePreviewReport(release),
   };
 }

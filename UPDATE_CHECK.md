@@ -29,6 +29,22 @@ auto-updater.
 Surfaced on the SDK as the `updateCheck` namespace (tier: experimental). Covered
 by `tests/update-check.test.js` (deterministic).
 
+### Visible preview (v0.2.142)
+
+`src/engine/update/updatePreview.js` — pure, node-safe presentation layer over
+`updateCheckView`. `updatePreviewBlock(release, { currentVersion, notesMax })`
+flattens the view-model into a render-ready block of `{ label, value }` rows
+(Version / Latest / Status / Source / Notes) + a `statusLabel` helper, a frozen
+`STATUS_TEXT` map, and an `UPDATE_PREVIEW_BADGE` (`"PREVIEW · MANUAL · NO
+AUTO-UPDATE"`). Every block is `actionable:false` / `readOnly:true`; the GitHub
+releases-page URL is surfaced as display-only TEXT (no link); draft/unparseable
+releases degrade to `UNKNOWN` without throwing. `main.js` renders it into the
+title-screen `#update-preview` card via `textContent` only, driven by a
+**deterministic LOCAL sample release** — it performs NO network fetch, NO install,
+NO shell execution, NO auto-update, and NO navigation. Read-only at
+`ToriiDebug.shells.updatePreview()`. SDK `updatePreview` (experimental). Covered by
+`tests/update-preview.test.js`.
+
 ## 3. What is deferred (the host step — NOT in this module)
 
 - **The actual read-only fetch** of the GitHub releases endpoint

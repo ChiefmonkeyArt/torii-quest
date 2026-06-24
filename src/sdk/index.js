@@ -45,6 +45,7 @@ export * as leaderboardPublisher from '../engine/nostr/leaderboardPublisher.js';
 export * as leaderboardView from '../engine/nostr/leaderboardView.js';
 export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
+export * as updatePreview from '../engine/update/updatePreview.js';
 export { createRaycastService, raycastService } from '../engine/physics/raycastService.js';
 
 // ---- Metadata --------------------------------------------------------------
@@ -105,6 +106,8 @@ export const SDK_SURFACE = Object.freeze({
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },
+  // torii.quest update-check visible PREVIEW block — inert title/HUD card (LEAN-5, v0.2.142).
+  updatePreview:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updatePreview.js' },
   // Forward-declared internals — public story, not safe/ready to re-export yet:
   physicsBodies:   { tier: STABILITY.INTERNAL,     module: null },
   physicsRaycast:  { tier: STABILITY.INTERNAL,     module: null },

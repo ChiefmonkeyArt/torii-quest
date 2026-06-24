@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.141-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.142-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -86,7 +86,7 @@ Breaking one should fail CI/the check, not ship.
   `leaderboardPublisher`; v0.2.136 added `gatewayPortal`, `productPanelShell`,
   and `leaderboardView`; v0.2.138 added `updateCheck`; v0.2.139 added
   `gatewayPreview`; v0.2.140 added `productPreview`; v0.2.141 added
-  `leaderboardPreview` (all experimental).
+  `leaderboardPreview`; v0.2.142 added `updatePreview` (all experimental).
 - **`src/engine/components/contract.js`** + **`COMPONENTS.md`** — component
   economy foundation (CMP-1/2, v0.2.132). Pure `validateManifest` /
   `isComponent` / `defineComponent` (idempotent mount/unmount) + the full
@@ -184,6 +184,16 @@ Breaking one should fail CI/the check, not ship.
   returns an INERT "update available" view-model (`actionable:false`). NO network
   fetch, NO auto-update, NO install — the actual fetch + the prompt MESH are
   deferred host steps. SDK `updateCheck` (experimental). See `UPDATE_CHECK.md`.
+- **`src/engine/update/updatePreview.js`** (LEAN-5, v0.2.142) — pure
+  visible-but-inert torii.quest update-check PREVIEW block over `updateCheckView`.
+  `updatePreviewBlock(release, opts)` flattens the view-model into a render-ready
+  block of `{label,value}` rows (Version/Latest/Status/Source/Notes) +
+  `statusLabel` helper + an `UPDATE_PREVIEW_BADGE` ("PREVIEW · MANUAL · NO
+  AUTO-UPDATE"); every block is `actionable:false`/`readOnly:true`; draft/unparseable
+  releases degrade to UNKNOWN (no throw). `main.js` renders it into the title-screen
+  `#update-preview` card via `textContent` only from a DETERMINISTIC LOCAL SAMPLE
+  release (no GitHub fetch, no install, no auto-update, no navigation). Read-only at
+  `ToriiDebug.shells.updatePreview()`. SDK `updatePreview` (experimental).
 
 ## 5. Build / test / check commands
 
@@ -197,7 +207,7 @@ npm run preview  # serve the built dist/ (used for headless smoke)
 ```
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**355 tests / 32 files**, all 11 regression checks GREEN, build clean.
+**366 tests / 33 files**, all 11 regression checks GREEN, build clean.
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`
@@ -216,11 +226,12 @@ click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
 - `.snapshot()` — one JSON-serialisable object: version, phase, run state, player
   pos, combat last shot/hit/miss, physics+crate summary, tuning. Safe anytime.
 - `.combat.report()` / `.physics.report()` — focused JSON sub-reports.
-- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,report}()` —
+- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,updatePreview,report}()` —
   read-only reports over the VIEW shells + visible preview blocks (demo fixtures by
-  default; pass overrides). No signer, no relay/publish, no navigation, no checkout
+  default; pass overrides). No signer, no relay/publish, no navigation, no checkout,
+  no fetch/auto-update
   (`engine/debug/shellReport.js`; `gatewayPreview` v0.2.139, `productPreview` v0.2.140,
-  `leaderboardPreview` v0.2.141).
+  `leaderboardPreview` v0.2.141, `updatePreview` v0.2.142).
 - `.physics.service` — injectable RaycastService facade (`ray`/`rayStatic`/`lineOfSight`).
 - `.bots`, `.player`, `.physics`, `.world`, `.fx`, `.combat`, `.identity`.
 

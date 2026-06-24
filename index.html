@@ -202,6 +202,19 @@
     .lb-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
     .lb-row-value { font-size: 9px; color: #c4ecd9; word-break: break-all; }
 
+    /* ── torii.quest update-check preview (inert, manual, no auto-update, v0.2.142) ── */
+    #update-preview {
+      margin-top: 10px; width: 240px; text-align: left;
+      border: 1px solid rgba(96,165,250,0.30); border-radius: 6px;
+      background: rgba(10,24,46,0.35); padding: 7px 9px;
+    }
+    #update-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    #update-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #bfdbfe; }
+    #update-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
+    #update-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+    .up-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
+    .up-row-value { font-size: 9px; color: #c4d9ec; word-break: break-all; }
+
     /* ── LEFT: Stats panel ── */
     #stats-identity {
       display: flex; flex-direction: column; align-items: center;
@@ -452,7 +465,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.141-alpha</div>
+      <div id="version-label">v0.2.142-alpha</div>
 
       <!-- Gateway/NAP-to-NAP PREVIEW (LEAN-2, v0.2.139). Rendered by main.js from
            the pure gatewayPreview block. This is a DISPLAY-ONLY card: it shows a
@@ -491,6 +504,13 @@
           <span id="leaderboard-preview-badge">PREVIEW · LOCAL MOCK · NO PUBLISH</span>
         </div>
         <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
+      </div>
+      <div id="update-preview" aria-label="torii.quest update-check preview (read-only, inert)">
+        <div id="update-preview-head">
+          <span id="update-preview-title">⬆ UPDATE CHECK PREVIEW</span>
+          <span id="update-preview-badge">PREVIEW · MANUAL · NO AUTO-UPDATE</span>
+        </div>
+        <div id="update-preview-body"><!-- rows injected by main.js --></div>
       </div>
     </div>
 
@@ -625,7 +645,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.141-alpha · torii quest</div>
+  <div id="ver">v0.2.142-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

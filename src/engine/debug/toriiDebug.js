@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, buildShellReport } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, updatePreviewReport, buildShellReport } from './shellReport.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -159,6 +159,10 @@ export function installToriiDebug(refs) {
       // (LEAN-4) the title/HUD card draws. Read-only; signed:false, published:false,
       // actionable:false — never signs, publishes, or submits.
       leaderboardPreview(statsList, opts) { return leaderboardPreviewReport(statsList, opts); },
+      // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
+      // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
+      // fetch, no auto-update, no install, no navigation (deterministic local sample).
+      updatePreview(release, opts) { return updatePreviewReport(release, opts); },
       report(inputs) { return buildShellReport(inputs); },
     },
   };

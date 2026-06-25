@@ -118,4 +118,4 @@ to keep the pinned length), `tests/continuum-dashboard.test.js` (version pins),
   `public/continuum.html`, `public/continuum-data.json`, `todo.md`, `progress.md`,
   `HANDOFF.md`, `CODE_INDEX.md`, `SDK_DEBUG_INDEX.md`.
 
-**Commit:** _(local-only; not pushed — see end of report)_
+**Commit:** `7d747fe` — _v0.2.191-alpha: add stale doc detector_ (local-only; not pushed)

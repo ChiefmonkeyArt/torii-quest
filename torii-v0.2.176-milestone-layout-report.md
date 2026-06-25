@@ -7,7 +7,7 @@ pass on grouped card values.
 **Type:** docs/tooling/dashboard only — no gameplay change, no runtime behaviour change,
 no new network/script surface.
 **Status:** GREEN. 830 tests / 60 files, 14/14 regression checks, build clean.
-Committed LOCALLY only (no push/deploy/publish). **Commit:** `<feat-hash>` (branch `v0.2.176`).
+Committed LOCALLY only (no push/deploy/publish). **Commit:** `f524c01` (branch `v0.2.176`).
 
 ---
 

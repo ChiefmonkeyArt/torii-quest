@@ -24,10 +24,14 @@
 //     the project's OWN live URL, shown as plain text (no external redirect). A
 //     nostrich could read it from a cold cache and nothing would fire.
 //   - Contributors/clankers is a clearly-flagged SEED metric, not live data.
-//   - Curated/static data is fine for this first version; it is isolated in
-//     CONTINUUM below so future automation can update (or generate) it.
+//   - Curated/static data is the FALLBACK; it is isolated in CONTINUUM below. As of
+//     v0.2.174 the generator (tools/build-continuum.mjs + tools/continuumParse.mjs)
+//     DERIVES the list sections (next-12 / active-now / completed-24h / archive) and a
+//     "docs-derived" task-count metric from progress.md + todo.md at build time and
+//     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
+//     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.173-alpha';
+export const CONTINUUM_VERSION = 'v0.2.174-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
@@ -91,12 +95,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.173-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '797+ passing / 59+ files (profiles: test:fast ~5, test:foundation ~16)' },
+    { label: 'Source version', value: 'v0.2.174-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '812+ passing / 60+ files (profiles: test:fast ~5, test:foundation ~17)' },
     { label: 'Regression check', value: '14 / 14 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1018 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.173 test-profile system (fast / foundation / release)' },
+    { label: 'Active slice', value: 'v0.2.174 dashboard data automation (derive lists from progress.md/todo.md)' },
   ],
 
   // Contributors / clankers — SEED placeholder, NOT live data. "clankers" are the
@@ -125,7 +129,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.173 — test-profile system for faster agent loops: npm run test:fast (~5 files) / test:foundation (~16 files) for inner loops; test:release runs the FULL suite + check/build/bundle/handoff before any deploy/publish.',
+    'v0.2.174 — dashboard data automation: the continuum page now DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric from progress.md + todo.md at build time, falling back to curated defaults on any parse gap.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -156,10 +160,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.174 — dashboard DATA AUTOMATION: pure tools/continuumParse.mjs parses progress.md + todo.md at build time so the continuum page DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric; buildContinuumModel(overrides) merges them over the curated fallback (safe fallback + parser-gap reporting on any miss). CSP unchanged. +tests.',
     'v0.2.173 — TEST-PROFILE system for faster agent loops: npm run test:fast (~5 core files) + test:foundation (~16 pure/guard files) for inner loops, test:release = FULL suite + check/build/bundle/handoff (release gate unchanged). Explicit curated lists (tools/testProfiles.mjs, no git-diff heuristics) validated against disk + a timing footer. +11 tests.',
     'v0.2.172 — Continuum dashboard CSP HARDENING: strict Content-Security-Policy meta on the generated page (script-src self + sha256 of the one packaged refresh script, NO unsafe-inline script; style-src self unsafe-inline for the data-driven bars; connect-src self for the same-origin JSON refresh). Resolves the prior inline-script WARN; page stays fully static/read-only.',
     'v0.2.171 — Torii Continuum project-oversight DASHBOARD: a thin static page (public/continuum.html) generated from a curated, node-safe progress.md data model (engine/dashboard/continuumData.js) — bars/rings/totals, Now/Next/Later, next-12, struck completed-24h, archive; docs/tooling only, no gameplay change.',
-    'v0.2.170 — same-origin host TRANSPORT adapter (engine/gateway/hostTransport.js): the injectable seam the v0.2.168 executor drives; recording host by default, createBrowserHostTransport runtime seam not yet wired. +21 tests.',
   ],
 
   // Archive clusters, newest first.
@@ -249,15 +253,24 @@ export function computeTotals(data = CONTINUUM) {
   };
 }
 
-// buildContinuumModel() — curated data + per-track bar cells + computed totals.
-// Pure (no mutation of CONTINUUM); the single entry point the renderer + tests use.
-export function buildContinuumModel() {
+// buildContinuumModel(overrides) — curated data MERGED with optional build-time overrides
+// (v0.2.174), plus per-track bar cells + computed totals. Pure (no mutation of CONTINUUM);
+// the single entry point the renderer + tests use. `overrides` may carry derived list
+// sections (next12/activeNow/completed24h/archive) that REPLACE the curated arrays, plus
+// two meta fields pulled out before the merge: `taskTotals` (the docs-derived metric) and
+// `derived` (parser provenance). With NO overrides it returns exactly the curated model,
+// so the existing tests + the no-JS fallback are unchanged.
+export function buildContinuumModel(overrides = {}) {
+  const { taskTotals = null, derived = null, ...dataOverrides } = overrides || {};
+  const base = { ...CONTINUUM, ...dataOverrides };
   return {
-    ...CONTINUUM,
+    ...base,
     badge: CONTINUUM_BADGE,
-    generatedAt: CONTINUUM.generatedAt || null,
-    tracks: CONTINUUM.tracks.map((t) => ({ ...t, bar: barCells(t.percent) })),
-    totals: computeTotals(CONTINUUM),
+    generatedAt: base.generatedAt || null,
+    tracks: (base.tracks || []).map((t) => ({ ...t, bar: barCells(t.percent) })),
+    totals: computeTotals(base),
+    taskTotals,
+    derived,
   };
 }
 
@@ -270,6 +283,8 @@ export function continuumDataJSON(model = buildContinuumModel()) {
     badge: model.badge,
     totals: model.totals,
     contributors: model.contributors || null,
+    taskTotals: model.taskTotals || null,
+    derived: model.derived || null,
   };
 }
 
@@ -354,6 +369,19 @@ export function renderContinuumPage(model = buildContinuumModel()) {
   const t = m.totals;
   const contrib = m.contributors
     ? `        <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">${escapeHtml(m.contributors.humans)} human · ${escapeHtml(m.contributors.clankers)} clankers</span></div>`
+    : '';
+  const tt = m.taskTotals;
+  const derivedRow = tt
+    ? `        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><span class="metric-value">${escapeHtml(
+        [
+          tt.todoCompletedMarkers != null ? `${tt.todoCompletedMarkers} completed task markers (todo.md)` : null,
+          t.tasksAhead != null ? `${t.tasksAhead} next-12` : null,
+          t.archivedClusters != null ? `${t.archivedClusters} archive clusters` : null,
+        ].filter(Boolean).join(' · ')
+      )}</span></div>`
+    : '';
+  const derivedNote = m.derived && Array.isArray(m.derived.parsed)
+    ? `    Dashboard lists generated from <b>${escapeHtml((m.derived.sources || []).join(' + ') || 'project docs')}</b> at build time — parsed: ${escapeHtml(m.derived.parsed.join(', ') || 'none')}${m.derived.gaps && m.derived.gaps.length ? `; fell back to curated for: ${escapeHtml(String(m.derived.gaps.length))} section(s)` : '; no parser gaps'}.`
     : '';
   const next12 = m.next12.map((x, i) =>
     `        <li><span class="num">${i + 1}</span>${escapeHtml(x)}</li>`
@@ -462,6 +490,7 @@ export function renderContinuumPage(model = buildContinuumModel()) {
       <div class="grid">
 ${_metricRows(m.metrics)}
 ${contrib}
+${derivedRow}
       </div>
       <div class="totals">
 ${_totalsStrip(t)}
@@ -530,6 +559,7 @@ ${_riskRows(m.risks)}
 ${_li(m.sourceOfTruth)}
     </ul>
     Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:continuum</b>.
+${derivedNote}
   </footer>
   <script>${CONTINUUM_REFRESH_SCRIPT}</script>
 </body>

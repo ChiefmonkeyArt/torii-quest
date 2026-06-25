@@ -1,12 +1,12 @@
 {
-  "version": "v0.2.173-alpha",
-  "generatedAt": "2026-06-25T02:45:11.795Z",
+  "version": "v0.2.174-alpha",
+  "generatedAt": "2026-06-25T07:19:33.842Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
     "activeTasks": 3,
-    "completedLast24h": 4,
-    "archivedClusters": 7,
+    "completedLast24h": 5,
+    "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
     "milestonesAchieved": 0,
@@ -20,5 +20,26 @@
     "humans": 1,
     "clankers": 3,
     "note": "Seed placeholder — not live Nostr/contributor data."
+  },
+  "taskTotals": {
+    "isDerived": true,
+    "todoCompletedMarkers": 12,
+    "next12": 12,
+    "activeNow": 3,
+    "completed24h": 5,
+    "archiveClusters": 11
+  },
+  "derived": {
+    "parsed": [
+      "next12 (12)",
+      "activeNow (3)",
+      "completed24h (5)",
+      "archive (11)"
+    ],
+    "gaps": [],
+    "sources": [
+      "progress.md",
+      "todo.md"
+    ]
   }
 }

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.173-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.174-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -91,7 +91,10 @@ Breaking one should fail CI/the check, not ship.
   v0.2.170 added `hostTransport` (the real same-site host transport adapter for
   gateway travel — injected History-pushState host, same-origin only);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
-  data model + pure static-page renderer — read-only, no live writes)
+  data model + pure static-page renderer — read-only, no live writes; v0.2.174
+  added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
+  parser `tools/continuumParse.mjs`, so the page DERIVES its list sections from
+  progress.md/todo.md with a safe curated fallback)
   (all experimental). **`SDK_DEBUG_INDEX.md`** (v0.2.145) is the compact
   discoverability map over this surface + the `ToriiDebug.shells` reports for AI
   handoffs / FOSS devs.
@@ -237,7 +240,7 @@ during implementation, but every public deploy/publish/push still requires `npm 
 profiles speed up iteration, they NEVER replace the release gate.**
 
 A change is "green" when **build + check + test** all pass. Current baseline:
-**797 tests / 59 files**, all 14 regression checks GREEN, build clean. Built bundle
+**812 tests / 60 files**, all 14 regression checks GREEN, build clean. Built bundle
 sizes are tracked as an advisory baseline — `npm run bundle:report` (full table) or the
 non-failing `[13]` line in `npm run check` (v0.2.153). Docs/status drift is guarded by
 check `[14]` (v0.2.154) — the continuity docs (`todo.md`/`progress.md`/`HANDOFF.md`) must

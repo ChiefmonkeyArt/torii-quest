@@ -30,8 +30,8 @@ const FAST = [
 // foundation: fast PLUS the wider pure-engine seams (combat damage, raycast service, player
 // boundary, bot agent), the SDK contract surface (sdk barrel, registry, component), the
 // read-only security gate, and the build-time guard suites (doc-consistency, handoff-status,
-// bundle-sizes). Broader confidence than fast, still far cheaper than the whole suite. Must
-// remain a superset of fast (enforced by validateProfiles + the unit test).
+// bundle-sizes, continuum-parse). Broader confidence than fast, still far cheaper than the
+// whole suite. Must remain a superset of fast (enforced by validateProfiles + the unit test).
 const FOUNDATION = [
   ...FAST,
   'combat-damage.test.js',
@@ -45,6 +45,7 @@ const FOUNDATION = [
   'doc-consistency.test.js',
   'handoff-status.test.js',
   'bundle-sizes.test.js',
+  'continuum-parse.test.js',
 ];
 
 // Frozen registry of basename lists. `release` is intentionally NOT a file list — the

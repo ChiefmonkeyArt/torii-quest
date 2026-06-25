@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.173-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.174-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.173-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **797 passing / 59 files** (profiles: `test:fast` ~5 files, `test:foundation` ~16 files) |
+| Source version | **v0.2.174-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **812 passing / 60 files** (profiles: `test:fast` ~5 files, `test:foundation` ~17 files) |
 | Regression check | **14 / 14 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1018 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |
-| Active slice | v0.2.173 test-profile system (fast / foundation / release) |
+| Active slice | v0.2.174 dashboard data automation (derive lists from progress.md/todo.md) |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 
@@ -55,7 +55,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 ## Active now
 
-- 🔄 **v0.2.173 — test-profile system** (`tools/testProfiles.mjs` + `tools/test-profile.mjs`): `npm run test:fast` (~5 files) / `test:foundation` (~16 files) for inner agent loops; `test:release` runs the FULL suite + check/build/bundle/handoff before any deploy/publish. Agents run fast/foundation while implementing; every public deploy/publish/push still requires `test:release`.
+- 🔄 **v0.2.174 — dashboard data automation** (`tools/continuumParse.mjs` + `tools/build-continuum.mjs`): the continuum page now DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric from `progress.md` + `todo.md` at build time, falling back to the curated `continuumData.js` defaults (with parser-gap reporting) on any miss. CSP unchanged; page stays fully static/read-only.
 - 🔄 **ARS-4** — finish folding reload/pointer-lock into the guarded FSM.
 - 🔄 **ARS-6 / PROGRESS-1** — ongoing CODE_INDEX + living-docs upkeep.
 
@@ -97,11 +97,11 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 Struck-through items stay ~24h, then collapse into Archive. Newest first.
 
+- ~~**v0.2.174** — dashboard **data automation**: a pure `tools/continuumParse.mjs` parses `progress.md` + `todo.md` at build time so the continuum page DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric; `buildContinuumModel(overrides)` merges them over the curated fallback with parser-gap reporting; CSP unchanged, page stays fully static/read-only. +15 tests.~~
 - ~~**v0.2.173** — **test-profile system** for faster agent loops (`tools/testProfiles.mjs` PURE registry + `tools/test-profile.mjs` CLI): `npm run test:fast` (5 core files — state/events/classifier/aim/snapshot) + `test:foundation` (16 pure/guard files) for inner loops, `test:release` = FULL suite + check/build/bundle/handoff (release gate unchanged). Explicit curated lists (no git-diff heuristics) validated against disk (`fast ⊆ foundation`, no stale entries) + a timing footer so savings are visible. Agents iterate on fast/foundation; every deploy/publish/push still runs `test:release`. +11 tests.~~
 - ~~**v0.2.172** — Continuum dashboard **CSP hardening**: strict `Content-Security-Policy` `<meta>` on the generated `public/continuum.html` — `script-src 'self'` + the sha256 of the one packaged refresh script (NO `'unsafe-inline'` script), `style-src 'self' 'unsafe-inline'` (data-driven track bars), `connect-src 'self'` (same-origin JSON refresh), `default-src 'self'` with `object-src`/`base-uri`/`form-action`/`frame-ancestors` locked to `'none'`. Script body + hash kept in sync by a node:crypto test (cannot drift). Resolves the prior inline-script WARN; page stays fully static/read-only. +7 tests.~~
 - ~~**v0.2.171** — Torii Continuum project-oversight **dashboard**: a thin static page (`public/continuum.html`) generated from a curated, node-safe `progress.md` data model (`engine/dashboard/continuumData.js`) — CSS bars + SVG donut rings + totals strip, Now/Next/Later, next-12, struck completed-24h, archive, seed contributors/clankers metric, source-of-truth footer. Regenerated from packaged data each build (`build:continuum`); a same-origin-only refresh script re-reads `continuum-data.json` (no external URL/eval/timers). Safe relative link added to the title screen. Docs/tooling only, no gameplay change. +22 tests.~~
 - ~~**v0.2.170** — same-origin host **transport adapter** (`engine/gateway/hostTransport.js`): the injectable seam the v0.2.168 executor drives — `createHostTransport`/`createRecordingHost` (default-safe in-memory) + `createBrowserHostTransport` runtime seam (pushState/replaceState only, not yet wired); `safeRoutePath` re-validated, back-home rollback, browser APIs behind DI; null host → executor no-op. +21 tests.~~
-- ~~**v0.2.169** — graphical **progress dashboard** rewrite (this file): compact bars/percentages/badges/totals, 24h struck-through completions, concise archive. Docs/tooling only.~~
 
 ---
 
@@ -109,6 +109,7 @@ Struck-through items stay ~24h, then collapse into Archive. Newest first.
 
 Concise clusters, newest first. Per-version detail lives in git history + the `torii-*-report.md` files.
 
+- **v0.2.169 — progress-dashboard rewrite (this file).** Compact bars/percentages/badges/totals, 24h struck-through completions, concise archive. Docs/tooling only.
 - **v0.2.159–168 — gateway-travel chain + Nostr read foundation.** Read-only NIP-01 relay-read foundation → leaderboard/profile/gateway-destination read proofs → consent-gate foundation → leaderboard submit + gateway travel-confirm intents → consent UX view-model → dry-run handoff plan → first same-origin travel executor (injected transport). All PURE & INERT; never navigates/signs/publishes/writes network.
 - **v0.2.153–158 — infra/handoff tooling + update-check source.** Bundle-size baseline `[13]`, doc-consistency guard `[14]`, AI-handoff status snapshot (`npm run handoff:status`); GitHub release-check source + in-game update-status panel (host-only injected fetcher, no auto-update).
 - **v0.2.147–152 — proof-surface pipeline.** Pure spec layer → spec↔registry cross-check → anchor→transform contract → first display-only in-world mesh pass → parent binding → promotion/regression GATE (regression check `[12]`). All inert; no click/raycast/navigation.

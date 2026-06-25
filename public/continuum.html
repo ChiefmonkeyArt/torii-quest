@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Continuum · v0.2.173-alpha</title>
+<title>Torii Continuum · v0.2.174-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -85,10 +85,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Continuum <span class="v">v0.2.173-alpha</span></h1>
+    <h1>Torii Continuum <span class="v">v0.2.174-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T02:45:11.795Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T07:19:33.842Z</span></div>
   </header>
   <main>
     <section>
@@ -99,19 +99,20 @@
     <section>
       <h2>At a glance</h2>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.173-alpha (build truth; live trails — manual deploy)</span></div>
-        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">797+ passing / 59+ files (profiles: test:fast ~5, test:foundation ~16)</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.174-alpha (build truth; live trails — manual deploy)</span></div>
+        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">812+ passing / 60+ files (profiles: test:fast ~5, test:foundation ~17)</span></div>
         <div class="metric"><span class="metric-label">Regression check</span><span class="metric-value">14 / 14 GREEN</span></div>
         <div class="metric"><span class="metric-label">Bundle (advisory)</span><span class="metric-value">~2.9 MB raw / ~1018 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Gates</span><span class="metric-value">SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced</span></div>
-        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.173 test-profile system (fast / foundation / release)</span></div>
+        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.174 dashboard data automation (derive lists from progress.md/todo.md)</span></div>
         <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">1 human · 3 clankers</span></div>
+        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><span class="metric-value">12 completed task markers (todo.md) · 12 next-12 · 11 archive clusters</span></div>
       </div>
       <div class="totals">
         <div class="tot"><span class="tot-v" data-k="tasksAhead">12</span><span class="tot-l">tasks ahead</span></div>
         <div class="tot"><span class="tot-v" data-k="activeTasks">3</span><span class="tot-l">active</span></div>
-        <div class="tot"><span class="tot-v" data-k="completedLast24h">4</span><span class="tot-l">done (24h)</span></div>
-        <div class="tot"><span class="tot-v" data-k="archivedClusters">7</span><span class="tot-l">archive clusters</span></div>
+        <div class="tot"><span class="tot-v" data-k="completedLast24h">5</span><span class="tot-l">done (24h)</span></div>
+        <div class="tot"><span class="tot-v" data-k="archivedClusters">11</span><span class="tot-l">archive clusters</span></div>
         <div class="tot"><span class="tot-v" data-k="trackCount">6</span><span class="tot-l">tracks</span></div>
         <div class="tot"><span class="tot-v" data-k="milestones">0 / 5</span><span class="tot-l">milestones</span></div>
       </div>
@@ -198,7 +199,7 @@
       <div>
         <h3>NOW · Active</h3>
         <ul class="bullets">
-        <li>v0.2.173 — test-profile system for faster agent loops: npm run test:fast (~5 files) / test:foundation (~16 files) for inner loops; test:release runs the FULL suite + check/build/bundle/handoff before any deploy/publish.</li>
+        <li>v0.2.174 — dashboard data automation (tools/continuumParse.mjs + tools/build-continuum.mjs): the continuum page now DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric from progress.md + todo.md at build time, falling back to the curated continuumData.js defaults (with parser-gap reporting) on any miss. CSP unchanged; page stays fully static/read-only.</li>
         <li>ARS-4 — finish folding reload/pointer-lock into the guarded FSM.</li>
         <li>ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.</li>
         </ul>
@@ -206,22 +207,27 @@
       <div>
         <h3>LATER · Archive</h3>
         <ul class="bullets">
-        <li>v0.2.164–167 — gateway travel chain foundation: relay-read proof → travel confirm/intent → consent UX view-model → dry-run handoff plan (all PURE &amp; INERT).</li>
-        <li>v0.2.159–163 — read-only Nostr foundation: relay-read + leaderboard/profile reads + consent-gate foundation + leaderboard submit intent.</li>
-        <li>v0.2.147–158 — proof-surface pipeline + update-check source/panel: spec layer → cross-check → anchor→transform contract → first in-world mesh pass → promotion/regression gate; GitHub release-check source + update-status panel.</li>
-        <li>v0.2.138–146 — MVP loop made visible + docs symmetry: pivot to the 15-hour PoC route; four inert title-screen preview cards; self-hosting guide + debug index + diff checklist.</li>
-        <li>v0.2.134–137 — lean-MVP foundation: Gateway Protocol draft + travelIntent; product display; leaderboard helpers; registry; view shells; hardening + shellReport.</li>
-        <li>v0.2.120–133 — SDK + components + test harness: Vitest; event bus + FSM slices; ToriiDebug; pure physics/raycast/combat seams; SDK entrypoint + stability tiers; component contract; first reference component; real GAMEOVER edge.</li>
-        <li>v0.2.100–119 — reconciliation &amp; game-feel + decoupling: source reconciled by concern; physics SDK seams; regression batches; CSP + avatar-URL hardening; globals moved onto the event bus / module registries.</li>
+        <li>v0.2.169 — progress-dashboard rewrite (this file). Compact bars/percentages/badges/totals, 24h struck-through completions, concise archive. Docs/tooling only.</li>
+        <li>v0.2.159–168 — gateway-travel chain + Nostr read foundation. Read-only NIP-01 relay-read foundation → leaderboard/profile/gateway-destination read proofs → consent-gate foundation → leaderboard submit + gateway travel-confirm intents → consent UX view-model → dry-run handoff plan → first same-origin travel executor (injected transport). All PURE &amp; INERT; never navigates/signs/publishes/writes network.</li>
+        <li>v0.2.153–158 — infra/handoff tooling + update-check source. Bundle-size baseline [13], doc-consistency guard [14], AI-handoff status snapshot (npm run handoff:status); GitHub release-check source + in-game update-status panel (host-only injected fetcher, no auto-update).</li>
+        <li>v0.2.147–152 — proof-surface pipeline. Pure spec layer → spec↔registry cross-check → anchor→transform contract → first display-only in-world mesh pass → parent binding → promotion/regression GATE (regression check [12]). All inert; no click/raycast/navigation.</li>
+        <li>v0.2.144–146 — docs + review symmetry. VPS_INSTALL.md self-hosting guide; SDK_DEBUG_INDEX.md + shells.summary(); shells.diff() preview→live promotion checklist.</li>
+        <li>v0.2.138–143 — MVP loop made visible. Pivot to the 15-hour PoC route; four inert title-screen preview cards (gateway/product/leaderboard/update) + MVP-loop header; LEAN-5 update-check architecture. Rendered via textContent only.</li>
+        <li>v0.2.134–137 — lean-MVP foundation. Gateway Protocol draft + travelIntent; CMP-13 product display; LB-1 leaderboard helpers; CMP-7 registry; gateway/portal/panel view shells; HARD-1..4 hardening + shellReport.</li>
+        <li>v0.2.131–133 — SDK + components. src/sdk/index.js entrypoint + stability tiers; component contract + manifest spec; first reference component (toriiGateway); ARS-3 raycast migration; real GAMEOVER edge.</li>
+        <li>v0.2.120–130 — foundation &amp; test harness. Vitest added; event bus + FSM slices; ToriiDebug snapshot/report; pure physics/raycast/combat seams; HANDOFF.md.</li>
+        <li>v0.2.114–119 — decoupling. Player/combat math extracted; foliage/mirror/bot-hit globals moved onto the event bus / module registries.</li>
+        <li>v0.2.100–113 — reconciliation &amp; game-feel (2026-06-23). Source reconciled by concern; physics SDK seams; regression batch (hit-reg, head-zone, reload, barrel→crosshair aim); CSP + avatar-URL hardening.</li>
         </ul>
       </div>
       <div>
         <h3>DONE · Last 24h</h3>
         <ul>
-        <li class="done">v0.2.173 — TEST-PROFILE system for faster agent loops: npm run test:fast (~5 core files) + test:foundation (~16 pure/guard files) for inner loops, test:release = FULL suite + check/build/bundle/handoff (release gate unchanged). Explicit curated lists (tools/testProfiles.mjs, no git-diff heuristics) validated against disk + a timing footer. +11 tests.</li>
-        <li class="done">v0.2.172 — Continuum dashboard CSP HARDENING: strict Content-Security-Policy meta on the generated page (script-src self + sha256 of the one packaged refresh script, NO unsafe-inline script; style-src self unsafe-inline for the data-driven bars; connect-src self for the same-origin JSON refresh). Resolves the prior inline-script WARN; page stays fully static/read-only.</li>
-        <li class="done">v0.2.171 — Torii Continuum project-oversight DASHBOARD: a thin static page (public/continuum.html) generated from a curated, node-safe progress.md data model (engine/dashboard/continuumData.js) — bars/rings/totals, Now/Next/Later, next-12, struck completed-24h, archive; docs/tooling only, no gameplay change.</li>
-        <li class="done">v0.2.170 — same-origin host TRANSPORT adapter (engine/gateway/hostTransport.js): the injectable seam the v0.2.168 executor drives; recording host by default, createBrowserHostTransport runtime seam not yet wired. +21 tests.</li>
+        <li class="done">v0.2.174 — dashboard data automation: a pure tools/continuumParse.mjs parses progress.md + todo.md at build time so the continuum page DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric; buildContinuumModel(overrides) merges them over the curated fallback with parser-gap reporting; CSP unchanged, page stays fully static/read-only. +15 tests.</li>
+        <li class="done">v0.2.173 — test-profile system for faster agent loops (tools/testProfiles.mjs PURE registry + tools/test-profile.mjs CLI): npm run test:fast (5 core files — state/events/classifier/aim/snapshot) + test:foundation (16 pure/guard files) for inner loops, test:release = FULL suite + check/build/bundle/handoff (release gate unchanged). Explicit curated lists (no git-diff heuristics) validated against disk (fast ⊆ foundation, no stale entries) + a timing footer so savings are visible. Agents iterate on fast/foundation; every deploy/publish/push still runs test:release. +11 tests.</li>
+        <li class="done">v0.2.172 — Continuum dashboard CSP hardening: strict Content-Security-Policy &lt;meta&gt; on the generated public/continuum.html — script-src &#39;self&#39; + the sha256 of the one packaged refresh script (NO &#39;unsafe-inline&#39; script), style-src &#39;self&#39; &#39;unsafe-inline&#39; (data-driven track bars), connect-src &#39;self&#39; (same-origin JSON refresh), default-src &#39;self&#39; with object-src/base-uri/form-action/frame-ancestors locked to &#39;none&#39;. Script body + hash kept in sync by a node:crypto test (cannot drift). Resolves the prior inline-script WARN; page stays fully static/read-only. +7 tests.</li>
+        <li class="done">v0.2.171 — Torii Continuum project-oversight dashboard: a thin static page (public/continuum.html) generated from a curated, node-safe progress.md data model (engine/dashboard/continuumData.js) — CSS bars + SVG donut rings + totals strip, Now/Next/Later, next-12, struck completed-24h, archive, seed contributors/clankers metric, source-of-truth footer. Regenerated from packaged data each build (build:continuum); a same-origin-only refresh script re-reads continuum-data.json (no external URL/eval/timers). Safe relative link added to the title screen. Docs/tooling only, no gameplay change. +22 tests.</li>
+        <li class="done">v0.2.170 — same-origin host transport adapter (engine/gateway/hostTransport.js): the injectable seam the v0.2.168 executor drives — createHostTransport/createRecordingHost (default-safe in-memory) + createBrowserHostTransport runtime seam (pushState/replaceState only, not yet wired); safeRoutePath re-validated, back-home rollback, browser APIs behind DI; null host → executor no-op. +21 tests.</li>
         </ul>
       </div>
     </section>
@@ -267,6 +273,7 @@
         <li>progress.md remains the visual execution DASHBOARD source document — this page is curated from it.</li>
     </ul>
     Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:continuum</b>.
+    Dashboard lists generated from <b>progress.md + todo.md</b> at build time — parsed: next12 (12), activeNow (3), completed24h (5), archive (11); no parser gaps.
   </footer>
   <script>
   // Best-effort refresh from the packaged SAME-ORIGIN data file. No external URL,

@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.175-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.176-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -250,6 +250,18 @@ inputs (profile/test-file counts, parser gaps, version, doc-sync). Each metric c
 number is obvious; GENERATED = profile sizes/parser gaps/version/doc-sync, LAST-KNOWN = total
 tests/timings/bundle/last-green gate. Server-rendered escaped text, NO new `<script>` — CSP hash
 unchanged. `continuumDataJSON` carries `health`.
+
+**Milestones (v0.2.176):** a PURE `buildMilestoneModel(input)` + frozen `SEED_MILESTONES` drive a
+**Milestones** `<section>`. The 15-hour MVP route is the ONE true ACTIVE milestone — its
+`leanRoute` slices ARE its tasks, folded into DERIVED counts (`total`/`done`/`active`/`pending`
+from each slice's `state`) + a `donePct` and a directional `progressPct` (`_average` of per-slice
+`progress`, labelled an estimate, never conflated with tasks-done) — shown as an ACTIVE-pill card
+with a % bar + bullet-list counts, alongside clearly-labelled `SEED_MILESTONES` future cards so the
+"total milestones" figure stays HONEST (1 active + N seed). `buildContinuumModel` attaches
+`milestones`; `continuumDataJSON` carries it. Grouped card values now render as `<ul class="mini">`
+bullet lists via `_cardValueHtml` (` · `-joined → bullets; user preference over dense prose).
+Server-rendered escaped text, NO new `<script>` — CSP hash unchanged. Layout follow-up:
+**DASHBOARD-LAYOUT-1**.
 
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`

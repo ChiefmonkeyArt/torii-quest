@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.175-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.176-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -99,7 +99,13 @@ Breaking one should fail CI/the check, not ship.
   surface an **Engineering health** section on the page — profile/test-file
   counts, parser gaps, version + doc-sync GENERATED at build, total tests /
   timings / bundle baseline / last-green gate LABELLED last-known via provenance
-  chips. No new `<script>`; CSP hash unchanged)
+  chips. No new `<script>`; CSP hash unchanged; v0.2.176 added a pure
+  `buildMilestoneModel(input)` + `SEED_MILESTONES` that surface a **Milestones**
+  section — the 15-hour MVP route as the ONE ACTIVE milestone (leanRoute slices ARE
+  its tasks, folded into DERIVED total/done/active/pending + a directional % bar)
+  plus clearly-labelled SEED future milestones, and grouped card values now render
+  as bullet lists via `_cardValueHtml`. No new `<script>`; CSP hash unchanged.
+  Layout follow-up tracked as **DASHBOARD-LAYOUT-1**)
   (all experimental). **`SDK_DEBUG_INDEX.md`** (v0.2.145) is the compact
   discoverability map over this surface + the `ToriiDebug.shells` reports for AI
   handoffs / FOSS devs.

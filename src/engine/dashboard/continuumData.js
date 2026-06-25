@@ -31,7 +31,7 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.175-alpha';
+export const CONTINUUM_VERSION = 'v0.2.176-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -113,6 +113,65 @@ const CURATED_HEALTH = buildHealthModel({
   docsInSync: true,
 });
 
+// SEED_MILESTONES (v0.2.176) — clearly-labelled FUTURE milestones. These are NOT real,
+// tracked task sets; they are a seed roadmap so the dashboard can show "total milestones"
+// HONESTLY (one real ACTIVE milestone + N SEED/future) without pretending the future ones
+// have real task counts. Future parser hook: derive these from strategy.md. Pure data.
+export const SEED_MILESTONES = Object.freeze([
+  { id: 'M-RELAY', name: 'Live relay I/O + event signing',
+    note: 'Gated by SEC-1/2/3 — explicit consent, handoff verification, and URL validation must clear before any wire write or live navigation.' },
+  { id: 'M-WORLD', name: 'Open-world NAP-to-NAP federation',
+    note: 'Real in-world portals plus a formalised NAP zone registry, beyond the inert travel preview.' },
+  { id: 'M-MARKET', name: 'Component / Plebeian market economy',
+    note: 'A CMP component marketplace and real Plebeian.Market listings over the read-only product-panel shells.' },
+]);
+
+// buildMilestoneModel(input) — PURE, browser-safe (v0.2.176). Folds the 15-hour MVP route
+// (the ONE true active milestone — its leanRoute slices ARE its tasks) into task counts +
+// a directional % complete, and lists the clearly-labelled SEED future milestones so a
+// "total milestones" figure is honest (1 active + N seed). No fs/network/THREE/DOM. Returns
+// a small model the renderer turns into a progress card + seed cards. `tasks.done/active/
+// pending` are DERIVED from each slice's `state`; `donePct` is done/total; `progressPct` is
+// the directional mean of the per-slice `progress` estimates (the same number as the PoC
+// ring), labelled as an estimate on the page so it is never mistaken for tasks-done.
+export function buildMilestoneModel(input = {}) {
+  const {
+    leanRoute = CONTINUUM.leanRoute,
+    seed = SEED_MILESTONES,
+    name = '15-hour proof-of-concept route',
+    blurb = 'The one true ACTIVE milestone — the freedom-tech loop: gateway/NAP-to-NAP ' +
+      'travel → Plebeian/Nostr product panel → leaderboard → torii.quest update-check.',
+  } = input || {};
+  const tasks = Array.isArray(leanRoute) ? leanRoute : [];
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.state === 'done').length;
+  const active = tasks.filter((t) => t.state === 'in-progress').length;
+  const pending = tasks.filter((t) => t.state === 'pending').length;
+  const donePct = total ? Math.round((done / total) * 100) : 0;
+  const progressPct = _average(tasks.map((t) => clampPct(t.progress) || 0));
+  const activeMilestone = {
+    id: 'MVP-15H', kind: 'active', name, blurb,
+    tasks: { total, done, active, pending },
+    donePct, progressPct,
+    // Bullet-ready breakdown (user preference: bullet lists, not comma-separated prose).
+    counts: [
+      `${total} tasks total`,
+      `${done} done`,
+      `${active} active`,
+      `${pending} pending`,
+    ],
+  };
+  const seedList = (Array.isArray(seed) ? seed : []).map((s) => ({ ...s, kind: 'seed' }));
+  return {
+    active: activeMilestone,
+    seed: seedList,
+    counts: { total: 1 + seedList.length, active: 1, seed: seedList.length, done: 0 },
+    note: 'One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from ' +
+      'the route states); the rest are SEED/future milestones — labelled as such, not ' +
+      'pretending to carry real task counts yet. Future hook: derive seed milestones from strategy.md.',
+  };
+}
+
 // CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
 // kept as the single source of that text so its CSP hash can never silently drift.
 // It is STATIC (no model interpolation), so its sha256 is stable across deploys: a
@@ -174,12 +233,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.175-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.176-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: '821 passing / 60 files (profiles: test:fast ~5, test:foundation ~17)' },
     { label: 'Regression check', value: '14 / 14 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.175 engineering health metrics (build-time, static, read-only)' },
+    { label: 'Active slice', value: 'v0.2.176 milestone + layout pass (build-time, static, read-only)' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -213,7 +272,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.175 — engineering health metrics: a build-time, static, read-only "Engineering health" section on /continuum.html surfaces the efficiency loop (measure · profile · standardise · automate · modularise · document) — profile/test counts, parser gaps, doc-sync, bundle baseline, last-green gate — GENERATED where deterministic, LAST-KNOWN where captured from the gate.',
+    'v0.2.176 — milestone + layout pass: an explicit Milestones section on /continuum.html shows the 15-hour MVP route as the one ACTIVE milestone (DERIVED task counts total/done/active/pending + a directional % complete progress bar) plus clearly-labelled SEED future milestones; grouped card values now render as bullet lists, not dense comma-separated prose.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -244,10 +303,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.176 — MILESTONE + LAYOUT pass: an explicit Milestones section surfaces the 15-hour MVP route as the one ACTIVE milestone — pure buildMilestoneModel() folds the leanRoute slices into DERIVED task counts (total/done/active/pending) + a directional % progress bar — alongside clearly-labelled SEED future milestones (1 active + N seed). Grouped card values now render as bullet lists, not dense comma/dot-separated prose. CSP/refresh-script unchanged. +tests.',
     'v0.2.175 — ENGINEERING HEALTH metrics: a new build-time, static, read-only "Engineering health" section on /continuum.html (cards + rings) — profile/test-file counts, parser-gap count, doc-sync + version GENERATED at build; total tests, timings, bundle baseline, last-green gate LABELLED last-known. Pure buildHealthModel() runs at module load (curated fallback) AND in build-continuum (measured override). CSP/refresh-script unchanged. +tests.',
     'v0.2.174 — dashboard DATA AUTOMATION: pure tools/continuumParse.mjs parses progress.md + todo.md at build time so the continuum page DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric; buildContinuumModel(overrides) merges them over the curated fallback (safe fallback + parser-gap reporting on any miss). CSP unchanged. +tests.',
     'v0.2.173 — TEST-PROFILE system for faster agent loops: npm run test:fast (~5 core files) + test:foundation (~16 pure/guard files) for inner loops, test:release = FULL suite + check/build/bundle/handoff (release gate unchanged). Explicit curated lists (tools/testProfiles.mjs, no git-diff heuristics) validated against disk + a timing footer. +11 tests.',
-    'v0.2.172 — Continuum dashboard CSP HARDENING: strict Content-Security-Policy meta on the generated page (script-src self + sha256 of the one packaged refresh script, NO unsafe-inline script; style-src self unsafe-inline for the data-driven bars; connect-src self for the same-origin JSON refresh). Resolves the prior inline-script WARN; page stays fully static/read-only.',
   ],
 
   // Archive clusters, newest first.
@@ -353,6 +412,7 @@ export function buildContinuumModel(overrides = {}) {
     generatedAt: base.generatedAt || null,
     tracks: (base.tracks || []).map((t) => ({ ...t, bar: barCells(t.percent) })),
     totals: computeTotals(base),
+    milestones: base.milestones || buildMilestoneModel({ leanRoute: base.leanRoute }),
     taskTotals,
     derived,
   };
@@ -370,6 +430,7 @@ export function continuumDataJSON(model = buildContinuumModel()) {
     taskTotals: model.taskTotals || null,
     derived: model.derived || null,
     health: model.health || null,
+    milestones: model.milestones || null,
   };
 }
 
@@ -377,9 +438,23 @@ export function continuumDataJSON(model = buildContinuumModel()) {
 
 const _li = (items) => items.map((x) => `        <li>${escapeHtml(x)}</li>`).join('\n');
 
+// _cardValueHtml(value) — render a metric/health card value (v0.2.176). User preference:
+// grouped data should be a BULLET LIST, not one dense comma/dot-separated line. A value
+// joined with ' · ' of 2+ parts becomes a compact <ul class="mini"> bullet list; a single
+// part stays a plain value span. Each part is HTML-escaped; the <ul>/<li>/<span> markup is
+// our own static markup. No new script; the CSP/refresh-script hash is untouched. Pure.
+function _cardValueHtml(value) {
+  const raw = String(value == null ? '' : value);
+  const parts = raw.split(' · ').map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return `<ul class="mini">${parts.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`;
+  }
+  return `<span class="metric-value">${escapeHtml(raw)}</span>`;
+}
+
 function _metricRows(metrics) {
   return metrics.map((m) =>
-    `        <div class="metric"><span class="metric-label">${escapeHtml(m.label)}</span><span class="metric-value">${escapeHtml(m.value)}</span></div>`
+    `        <div class="metric"><span class="metric-label">${escapeHtml(m.label)}</span>${_cardValueHtml(m.value)}</div>`
   ).join('\n');
 }
 
@@ -454,8 +529,55 @@ function _healthChip(kind) {
 
 function _healthCards(metrics) {
   return metrics.map((mtc) =>
-    `        <div class="metric"><span class="metric-label">${escapeHtml(mtc.label)} ${_healthChip(mtc.kind)}</span><span class="metric-value">${escapeHtml(mtc.value)}</span></div>`
+    `        <div class="metric"><span class="metric-label">${escapeHtml(mtc.label)} ${_healthChip(mtc.kind)}</span>${_cardValueHtml(mtc.value)}</div>`
   ).join('\n');
+}
+
+// _milestoneCard(ms) — the ACTIVE milestone progress card (v0.2.176): name + ACTIVE pill,
+// blurb, a directional %-complete progress bar with a "tasks done" sub, and a bullet list
+// of the DERIVED task-state counts (total/done/active/pending). Server-rendered + escaped.
+function _milestoneCard(ms) {
+  const pct = clampPct(ms.progressPct) || 0;
+  const counts = (ms.counts || []).map((c) => `          <li>${escapeHtml(c)}</li>`).join('\n');
+  return `      <div class="ms ms-active">
+        <div class="ms-head"><span class="ms-name">${escapeHtml(ms.name)}</span><span class="pill ms-pill-active">ACTIVE</span></div>
+        <div class="ms-blurb">${escapeHtml(ms.blurb)}</div>
+        <div class="ms-meta"><span class="ms-pct">${pct}% complete <span class="ms-sub">(directional estimate)</span></span><span class="ms-sub">${escapeHtml(ms.tasks.done)} / ${escapeHtml(ms.tasks.total)} tasks done</span></div>
+        <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <ul class="mini ms-counts">
+${counts}
+        </ul>
+      </div>`;
+}
+
+// _seedMilestoneCards(seed) — the SEED/future milestones, each with a clear SEED chip so
+// they are never mistaken for real tracked task sets. Server-rendered + escaped.
+function _seedMilestoneCards(seed) {
+  return (seed || []).map((s) =>
+    `      <div class="ms ms-seed">
+        <div class="ms-head"><span class="ms-name">${escapeHtml(s.name)}</span><span class="seed">SEED · future</span></div>
+        <div class="ms-blurb">${escapeHtml(s.note)}</div>
+      </div>`
+  ).join('\n');
+}
+
+// _milestonesSection(ms) — the Milestones section (v0.2.176): an honest total
+// (1 active + N seed), the active milestone progress card, the seed/future cards, and a
+// provenance note. Empty string when absent so a legacy model omits the section. Pure.
+function _milestonesSection(ms) {
+  if (!ms || !ms.active) return '';
+  const c = ms.counts || {};
+  const note = ms.note ? `      <div class="focus">${escapeHtml(ms.note)}</div>` : '';
+  return `
+    <section>
+      <h2>Milestones</h2>
+      <div class="ms-totals">Total milestones: <b>${escapeHtml(c.total)}</b> — <b>${escapeHtml(c.active)}</b> active, <b>${escapeHtml(c.seed)}</b> seed/future <span class="seed">SEED · not yet tracked</span></div>
+${_milestoneCard(ms.active)}
+      <div class="ms-grid">
+${_seedMilestoneCards(ms.seed)}
+      </div>
+${note}
+    </section>`;
 }
 
 // _healthSection(health) — the Engineering-health section (v0.2.175): provenance-chipped
@@ -492,13 +614,13 @@ export function renderContinuumPage(model = buildContinuumModel()) {
     : '';
   const tt = m.taskTotals;
   const derivedRow = tt
-    ? `        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><span class="metric-value">${escapeHtml(
+    ? `        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span>${_cardValueHtml(
         [
           tt.todoCompletedMarkers != null ? `${tt.todoCompletedMarkers} completed task markers (todo.md)` : null,
           t.tasksAhead != null ? `${t.tasksAhead} next-12` : null,
           t.archivedClusters != null ? `${t.archivedClusters} archive clusters` : null,
         ].filter(Boolean).join(' · ')
-      )}</span></div>`
+      )}</div>`
     : '';
   const derivedNote = m.derived && Array.isArray(m.derived.parsed)
     ? `    Dashboard lists generated from <b>${escapeHtml((m.derived.sources || []).join(' + ') || 'project docs')}</b> at build time — parsed: ${escapeHtml(m.derived.parsed.join(', ') || 'none')}${m.derived.gaps && m.derived.gaps.length ? `; fell back to curated for: ${escapeHtml(String(m.derived.gaps.length))} section(s)` : '; no parser gaps'}.`
@@ -548,6 +670,23 @@ export function renderContinuumPage(model = buildContinuumModel()) {
   .hk{font-size:9px;border:1px solid;border-radius:4px;padding:0 4px;letter-spacing:1px;}
   .hk-gen{color:var(--accent);border-color:var(--accent);}
   .hk-lk{color:var(--muted);border-color:var(--muted);}
+  ul.mini{list-style:none;margin:2px 0 0;padding:0;}
+  ul.mini li{position:relative;padding:1px 0 1px 14px;color:var(--ink);font-size:13px;}
+  ul.mini li::before{content:"▹";position:absolute;left:0;color:var(--accent);}
+  .ms{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .ms-active{border-left:3px solid var(--accent);}
+  .ms-seed{border-left:3px solid var(--gold);opacity:.92;}
+  .ms-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ms-name{letter-spacing:1px;color:var(--ink);}
+  .ms-pill-active{color:var(--accent);border-color:var(--accent);}
+  .ms-blurb{color:var(--muted);font-size:12px;margin:6px 0 8px;}
+  .ms-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;}
+  .ms-pct{color:var(--accent);}
+  .ms-sub{color:var(--muted);font-size:11px;}
+  .ms-counts{margin-top:8px;}
+  .ms-totals{color:var(--muted);margin-bottom:12px;}
+  .ms-totals b{color:var(--ink);}
+  .ms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
   .totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px;}
   .tot{text-align:center;background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:12px 6px;}
   .tot-v{display:block;font-size:24px;color:var(--accent);}
@@ -622,6 +761,7 @@ ${_totalsStrip(t)}
 ${_rings(t)}
       </div>
     </section>
+${_milestonesSection(m.milestones)}
 ${_healthSection(m.health)}
 
     <section>

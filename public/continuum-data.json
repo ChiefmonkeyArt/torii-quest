@@ -1,10 +1,10 @@
 {
-  "version": "v0.2.175-alpha",
-  "generatedAt": "2026-06-25T07:40:17.372Z",
+  "version": "v0.2.176-alpha",
+  "generatedAt": "2026-06-25T07:58:55.445Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 4,
+    "activeTasks": 5,
     "completedLast24h": 6,
     "archivedClusters": 11,
     "trackCount": 6,
@@ -25,14 +25,14 @@
     "isDerived": true,
     "todoCompletedMarkers": 12,
     "next12": 12,
-    "activeNow": 4,
+    "activeNow": 5,
     "completed24h": 6,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (4)",
+      "activeNow (5)",
       "completed24h (6)",
       "archive (11)"
     ],
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.175-alpha"
+        "value": "v0.2.176-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "14 / 14 regression checks GREEN · last green v0.2.175-alpha"
+        "value": "14 / 14 regression checks GREEN · last green v0.2.176-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -103,5 +103,54 @@
         "sub": "17/60 files"
       }
     ]
+  },
+  "milestones": {
+    "active": {
+      "id": "MVP-15H",
+      "kind": "active",
+      "name": "15-hour proof-of-concept route",
+      "blurb": "The one true ACTIVE milestone — the freedom-tech loop: gateway/NAP-to-NAP travel → Plebeian/Nostr product panel → leaderboard → torii.quest update-check.",
+      "tasks": {
+        "total": 5,
+        "done": 0,
+        "active": 4,
+        "pending": 1
+      },
+      "donePct": 0,
+      "progressPct": 46,
+      "counts": [
+        "5 tasks total",
+        "0 done",
+        "4 active",
+        "1 pending"
+      ]
+    },
+    "seed": [
+      {
+        "id": "M-RELAY",
+        "name": "Live relay I/O + event signing",
+        "note": "Gated by SEC-1/2/3 — explicit consent, handoff verification, and URL validation must clear before any wire write or live navigation.",
+        "kind": "seed"
+      },
+      {
+        "id": "M-WORLD",
+        "name": "Open-world NAP-to-NAP federation",
+        "note": "Real in-world portals plus a formalised NAP zone registry, beyond the inert travel preview.",
+        "kind": "seed"
+      },
+      {
+        "id": "M-MARKET",
+        "name": "Component / Plebeian market economy",
+        "note": "A CMP component marketplace and real Plebeian.Market listings over the read-only product-panel shells.",
+        "kind": "seed"
+      }
+    ],
+    "counts": {
+      "total": 4,
+      "active": 1,
+      "seed": 3,
+      "done": 0
+    },
+    "note": "One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from the route states); the rest are SEED/future milestones — labelled as such, not pretending to carry real task counts yet. Future hook: derive seed milestones from strategy.md."
   }
 }

@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.175-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.176-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.175-alpha** (build truth; live trails — manual maintainer deploy) |
+| Source version | **v0.2.176-alpha** (build truth; live trails — manual maintainer deploy) |
 | Tests | **821 passing / 60 files** (profiles: `test:fast` ~5 files, `test:foundation` ~17 files) |
 | Regression check | **14 / 14 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |
-| Active slice | v0.2.175 engineering health metrics (build-time, static, read-only Continuum section) |
+| Active slice | v0.2.176 milestone + layout pass (Continuum Milestones section + bullet-list cards; build-time, static, read-only) |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 
@@ -55,6 +55,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 ## Active now
 
+- 🔄 **v0.2.176 — milestone + layout pass** (`buildMilestoneModel` + `SEED_MILESTONES` in `continuumData.js`): a build-time, static, read-only **Milestones** section on `/continuum.html` surfaces the 15-hour MVP route as the one true **ACTIVE** milestone — the leanRoute slices ARE its tasks, folded into DERIVED counts (5 total / 0 done / 4 active / 1 pending) + a directional **46% complete** progress bar — alongside clearly-labelled **SEED** future milestones (honest total: 1 active + 3 seed, never pretending the seeds carry real task counts). Grouped card values (health, docs-derived) now render as bullet lists via `_cardValueHtml`, not dense `·`-separated prose. No new `<script>`; CSP/refresh-script hash unchanged. Follow-up: **DASHBOARD-LAYOUT-1** (design dashboard layout/formatting better).
 - 🔄 **v0.2.175 — engineering health metrics** (`buildHealthModel` in `continuumData.js` + `tools/build-continuum.mjs`): a build-time, static, read-only **Engineering health** section on `/continuum.html` surfaces the efficiency loop (**measure · profile · standardise · automate · modularise · document**) — profile/test-file counts, parser-gap count, version + doc-sync GENERATED at build; total tests, profile timings, bundle baseline, last-green gate LABELLED last-known. CSP/refresh-script hash unchanged; page stays fully static/read-only.
 - 🔄 **v0.2.174 — dashboard data automation** (`tools/continuumParse.mjs` + `tools/build-continuum.mjs`): the continuum page now DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric from `progress.md` + `todo.md` at build time, falling back to the curated `continuumData.js` defaults (with parser-gap reporting) on any miss. CSP unchanged; page stays fully static/read-only.
 - 🔄 **ARS-4** — finish folding reload/pointer-lock into the guarded FSM.

@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Continuum · v0.2.175-alpha</title>
+<title>Torii Continuum · v0.2.176-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -39,6 +39,23 @@
   .hk{font-size:9px;border:1px solid;border-radius:4px;padding:0 4px;letter-spacing:1px;}
   .hk-gen{color:var(--accent);border-color:var(--accent);}
   .hk-lk{color:var(--muted);border-color:var(--muted);}
+  ul.mini{list-style:none;margin:2px 0 0;padding:0;}
+  ul.mini li{position:relative;padding:1px 0 1px 14px;color:var(--ink);font-size:13px;}
+  ul.mini li::before{content:"▹";position:absolute;left:0;color:var(--accent);}
+  .ms{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:12px 14px;margin-bottom:10px;}
+  .ms-active{border-left:3px solid var(--accent);}
+  .ms-seed{border-left:3px solid var(--gold);opacity:.92;}
+  .ms-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ms-name{letter-spacing:1px;color:var(--ink);}
+  .ms-pill-active{color:var(--accent);border-color:var(--accent);}
+  .ms-blurb{color:var(--muted);font-size:12px;margin:6px 0 8px;}
+  .ms-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;}
+  .ms-pct{color:var(--accent);}
+  .ms-sub{color:var(--muted);font-size:11px;}
+  .ms-counts{margin-top:8px;}
+  .ms-totals{color:var(--muted);margin-bottom:12px;}
+  .ms-totals b{color:var(--ink);}
+  .ms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;}
   .totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-top:12px;}
   .tot{text-align:center;background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:12px 6px;}
   .tot-v{display:block;font-size:24px;color:var(--accent);}
@@ -88,10 +105,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Continuum <span class="v">v0.2.175-alpha</span></h1>
+    <h1>Torii Continuum <span class="v">v0.2.176-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T07:40:17.372Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T07:58:55.445Z</span></div>
   </header>
   <main>
     <section>
@@ -102,18 +119,18 @@
     <section>
       <h2>At a glance</h2>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.175-alpha (build truth; live trails — manual deploy)</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.176-alpha (build truth; live trails — manual deploy)</span></div>
         <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">821 passing / 60 files (profiles: test:fast ~5, test:foundation ~17)</span></div>
         <div class="metric"><span class="metric-label">Regression check</span><span class="metric-value">14 / 14 GREEN</span></div>
         <div class="metric"><span class="metric-label">Bundle (advisory)</span><span class="metric-value">~2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
-        <div class="metric"><span class="metric-label">Gates</span><span class="metric-value">SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced</span></div>
-        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.175 engineering health metrics (build-time, static, read-only)</span></div>
+        <div class="metric"><span class="metric-label">Gates</span><ul class="mini"><li>SEC-1 / SEC-2 / SEC-3 intact</li><li>godMode false</li><li>continuum CSP enforced</li></ul></div>
+        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.176 milestone + layout pass (build-time, static, read-only)</span></div>
         <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">1 human · 3 clankers</span></div>
-        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><span class="metric-value">12 completed task markers (todo.md) · 12 next-12 · 11 archive clusters</span></div>
+        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><ul class="mini"><li>12 completed task markers (todo.md)</li><li>12 next-12</li><li>11 archive clusters</li></ul></div>
       </div>
       <div class="totals">
         <div class="tot"><span class="tot-v" data-k="tasksAhead">12</span><span class="tot-l">tasks ahead</span></div>
-        <div class="tot"><span class="tot-v" data-k="activeTasks">4</span><span class="tot-l">active</span></div>
+        <div class="tot"><span class="tot-v" data-k="activeTasks">5</span><span class="tot-l">active</span></div>
         <div class="tot"><span class="tot-v" data-k="completedLast24h">6</span><span class="tot-l">done (24h)</span></div>
         <div class="tot"><span class="tot-v" data-k="archivedClusters">11</span><span class="tot-l">archive clusters</span></div>
         <div class="tot"><span class="tot-v" data-k="trackCount">6</span><span class="tot-l">tracks</span></div>
@@ -151,16 +168,48 @@
     </section>
 
     <section>
+      <h2>Milestones</h2>
+      <div class="ms-totals">Total milestones: <b>4</b> — <b>1</b> active, <b>3</b> seed/future <span class="seed">SEED · not yet tracked</span></div>
+      <div class="ms ms-active">
+        <div class="ms-head"><span class="ms-name">15-hour proof-of-concept route</span><span class="pill ms-pill-active">ACTIVE</span></div>
+        <div class="ms-blurb">The one true ACTIVE milestone — the freedom-tech loop: gateway/NAP-to-NAP travel → Plebeian/Nostr product panel → leaderboard → torii.quest update-check.</div>
+        <div class="ms-meta"><span class="ms-pct">46% complete <span class="ms-sub">(directional estimate)</span></span><span class="ms-sub">0 / 5 tasks done</span></div>
+        <div class="bar"><div class="bar-fill" style="width:46%"></div></div>
+        <ul class="mini ms-counts">
+          <li>5 tasks total</li>
+          <li>0 done</li>
+          <li>4 active</li>
+          <li>1 pending</li>
+        </ul>
+      </div>
+      <div class="ms-grid">
+      <div class="ms ms-seed">
+        <div class="ms-head"><span class="ms-name">Live relay I/O + event signing</span><span class="seed">SEED · future</span></div>
+        <div class="ms-blurb">Gated by SEC-1/2/3 — explicit consent, handoff verification, and URL validation must clear before any wire write or live navigation.</div>
+      </div>
+      <div class="ms ms-seed">
+        <div class="ms-head"><span class="ms-name">Open-world NAP-to-NAP federation</span><span class="seed">SEED · future</span></div>
+        <div class="ms-blurb">Real in-world portals plus a formalised NAP zone registry, beyond the inert travel preview.</div>
+      </div>
+      <div class="ms ms-seed">
+        <div class="ms-head"><span class="ms-name">Component / Plebeian market economy</span><span class="seed">SEED · future</span></div>
+        <div class="ms-blurb">A CMP component marketplace and real Plebeian.Market listings over the read-only product-panel shells.</div>
+      </div>
+      </div>
+      <div class="focus">One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from the route states); the rest are SEED/future milestones — labelled as such, not pretending to carry real task counts yet. Future hook: derive seed milestones from strategy.md.</div>
+    </section>
+
+    <section>
       <h2>Engineering health</h2>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.175-alpha</span></div>
-        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">fast 5 · foundation 17 · full 60</span></div>
+        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.176-alpha</span></div>
+        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 17</li><li>full 60</li></ul></div>
         <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">821 passing</span></div>
-        <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">fast ~1s · foundation ~6s · full suite ~41s</span></div>
+        <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>fast ~1s</li><li>foundation ~6s</li><li>full suite ~41s</li></ul></div>
         <div class="metric"><span class="metric-label">Bundle baseline <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
-        <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">0 · dashboard lists fully derived</span></div>
-        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">14 / 14 regression checks GREEN · last green v0.2.175-alpha</span></div>
-        <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">progress.md · todo.md · strategy.md carry this version</span></div>
+        <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>0</li><li>dashboard lists fully derived</li></ul></div>
+        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>14 / 14 regression checks GREEN</li><li>last green v0.2.176-alpha</li></ul></div>
+        <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>progress.md</li><li>todo.md</li><li>strategy.md carry this version</li></ul></div>
       </div>
       <div class="rings">
         <figure class="donut">
@@ -246,6 +295,7 @@
       <div>
         <h3>NOW · Active</h3>
         <ul class="bullets">
+        <li>v0.2.176 — milestone + layout pass (buildMilestoneModel + SEED_MILESTONES in continuumData.js): a build-time, static, read-only Milestones section on /continuum.html surfaces the 15-hour MVP route as the one true ACTIVE milestone — the leanRoute slices ARE its tasks, folded into DERIVED counts (5 total / 0 done / 4 active / 1 pending) + a directional 46% complete progress bar — alongside clearly-labelled SEED future milestones (honest total: 1 active + 3 seed, never pretending the seeds carry real task counts). Grouped card values (health, docs-derived) now render as bullet lists via _cardValueHtml, not dense ·-separated prose. No new &lt;script&gt;; CSP/refresh-script hash unchanged. Follow-up: DASHBOARD-LAYOUT-1 (design dashboard layout/formatting better).</li>
         <li>v0.2.175 — engineering health metrics (buildHealthModel in continuumData.js + tools/build-continuum.mjs): a build-time, static, read-only Engineering health section on /continuum.html surfaces the efficiency loop (measure · profile · standardise · automate · modularise · document) — profile/test-file counts, parser-gap count, version + doc-sync GENERATED at build; total tests, profile timings, bundle baseline, last-green gate LABELLED last-known. CSP/refresh-script hash unchanged; page stays fully static/read-only.</li>
         <li>v0.2.174 — dashboard data automation (tools/continuumParse.mjs + tools/build-continuum.mjs): the continuum page now DERIVES its next-12 / active-now / completed-24h / archive lists + a docs-derived task-count metric from progress.md + todo.md at build time, falling back to the curated continuumData.js defaults (with parser-gap reporting) on any miss. CSP unchanged; page stays fully static/read-only.</li>
         <li>ARS-4 — finish folding reload/pointer-lock into the guarded FSM.</li>
@@ -322,7 +372,7 @@
         <li>progress.md remains the visual execution DASHBOARD source document — this page is curated from it.</li>
     </ul>
     Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:continuum</b>.
-    Dashboard lists generated from <b>progress.md + todo.md</b> at build time — parsed: next12 (12), activeNow (4), completed24h (6), archive (11); no parser gaps.
+    Dashboard lists generated from <b>progress.md + todo.md</b> at build time — parsed: next12 (12), activeNow (5), completed24h (6), archive (11); no parser gaps.
   </footer>
   <script>
   // Best-effort refresh from the packaged SAME-ORIGIN data file. No external URL,

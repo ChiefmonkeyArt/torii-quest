@@ -41,7 +41,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '1045 passing',
+  totalTests: '1052 passing',
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '15 / 15',
@@ -452,7 +452,7 @@ export const CONTINUUM = Object.freeze({
   // "At a glance" metrics.
   metrics: [
     { label: 'Source version', value: 'v0.2.190-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '1045 passing / 69 files (profiles: test:fast ~5, test:foundation ~25)' },
+    { label: 'Tests', value: '1052 passing / 69 files (profiles: test:fast ~5, test:foundation ~25)' },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },

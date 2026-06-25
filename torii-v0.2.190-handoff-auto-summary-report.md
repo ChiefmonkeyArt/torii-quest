@@ -111,3 +111,39 @@ completed slices), `tests/continuum-dashboard.test.js` (version pins).
   `CODE_INDEX.md`, `SDK_DEBUG_INDEX.md`.
 
 **Commit:** `8b03f4c` — _v0.2.190-alpha: add handoff auto-summary tooling_ (local-only; not pushed)
+
+---
+
+## Follow-up: security-review WARN-3 fix (low)
+
+**Finding (WARN-3, new/low):** the `--write` path in `tools/handoff-summary.mjs`
+accepted an arbitrary absolute path with no repo-boundary assertion. Developer-tool
+only, but flagged to remove the warning.
+
+**Fix (tooling-only, tiny):**
+- Added a PURE, unit-tested resolver `resolveHandoffWritePath(raw, root)` (+
+  `DEFAULT_WRITE_FILENAME`) to `tools/handoffSummary.mjs`. It confines the `--write`
+  target to INSIDE the repo using deterministic `node:path` string math (no fs):
+  rejects an **absolute path** (`absolute-path-not-allowed`), any **`..` escape** or
+  resolving to the repo root itself (`outside-repo`), and a missing root (`no-root`);
+  an empty/blank path falls back to the in-repo `handoff-summary.md`. Never throws.
+- `tools/handoff-summary.mjs` now routes `--write` through the resolver and **refuses**
+  an unsafe target (stderr message + exit 2) instead of writing it. Default no-write
+  behaviour is unchanged; a safe in-repo relative path (incl. a subdirectory) still works.
+- Tests: `tests/handoff-summary.test.js` gained a `resolveHandoffWritePath` block
+  (+7) covering default, allowed in-repo/subdir, rejected absolute, rejected `..`
+  escapes, rejected repo-root, garbled root, and never-throws-on-hostile-input.
+
+**Verified:**
+- `npx vitest run tests/handoff-summary.test.js` → 20 passed (was 13).
+- CLI: `--write=/tmp/evil.md` → refused, exit 2, file NOT created; `--write=../escape.md`
+  → refused, exit 2, file NOT created; `--write=tmp-brief.md` → written inside repo;
+  default (no flag) → no file written.
+- `npm run test:release` → **ALL GREEN**, `Test Files 69 passed (69)`, `Tests 1052
+  passed (1052)`; continuum regenerated (XSS guard grep = 0).
+- Dashboard/docs test count bumped 1045 → **1052** (`continuumData.js`, `progress.md`);
+  still 69 files (no new test file).
+
+**No gameplay/runtime/physics/Nostr/portal code touched.**
+
+**Follow-up commit:** _(local-only; appended below)_

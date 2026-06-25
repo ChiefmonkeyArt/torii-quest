@@ -14,17 +14,19 @@
 //   --markdown/--md  markdown brief on stdout
 //   --write[=path]   ALSO write the markdown brief to a file (default handoff-summary.md).
 //                    This is the ONLY thing that writes — without --write the tool is read-only.
+//                    The path is CONFINED to inside the repo (resolveHandoffWritePath): an
+//                    absolute path or a `..` escape is rejected (WARN-3, v0.2.190).
 //
 // NO network, NO secrets, NO install, NO build, and NO writes unless --write is given. git is
 // best-effort (falls back to null). Always exits 0 — this is a VISIBILITY snapshot, not a gate.
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { join, isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gatherReleaseReadiness } from './release-readiness.mjs';
 import {
   buildHandoffSummary, formatHandoffSummary, formatHandoffSummaryMarkdown,
-  HANDOFF_SUMMARY_LIVE_URL,
+  resolveHandoffWritePath, HANDOFF_SUMMARY_LIVE_URL,
 } from './handoffSummary.mjs';
 
 const ROOT = process.cwd();
@@ -49,15 +51,18 @@ function gitCommit() {
   } catch { return null; }
 }
 
-// Parse --write / --write=path → { write: boolean, path: string }. Default file is
-// handoff-summary.md at the repo root. An explicit relative path is resolved against ROOT.
+// Parse --write / --write=path → { write, path?, error? }. Default file is handoff-summary.md.
+// The target is CONFINED to inside the repo via the pure resolveHandoffWritePath: an absolute
+// path or a `..` escape is REJECTED (WARN-3, v0.2.190) so a developer-tool write can't clobber
+// an arbitrary path outside the repo. Without --write the tool stays read-only.
 function writeTarget(argv) {
   const arg = argv.find((a) => a === '--write' || a.startsWith('--write='));
   if (!arg) return { write: false, path: null };
   const eq = arg.indexOf('=');
-  const raw = eq >= 0 ? arg.slice(eq + 1) : 'handoff-summary.md';
-  const path = isAbsolute(raw) ? raw : join(ROOT, raw);
-  return { write: true, path };
+  const raw = eq >= 0 ? arg.slice(eq + 1) : '';
+  const resolved = resolveHandoffWritePath(raw, ROOT);
+  if (!resolved.ok) return { write: true, path: null, error: resolved.error };
+  return { write: true, path: resolved.path };
 }
 
 const invokedDirectly = (() => {
@@ -77,7 +82,11 @@ if (invokedDirectly) {
     generatedAt: new Date().toISOString(),
   });
 
-  const { write, path } = writeTarget(argv);
+  const { write, path, error } = writeTarget(argv);
+  if (write && !path) {
+    process.stderr.write(`handoff-summary: refusing --write (${error}); the target must be inside the repo (no absolute path, no '..').\n`);
+    process.exit(2);
+  }
   if (write) {
     writeFileSync(path, formatHandoffSummaryMarkdown(summary), 'utf8');
     process.stderr.write(`handoff-summary: wrote ${path}\n`);

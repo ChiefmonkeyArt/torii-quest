@@ -9,7 +9,9 @@
 // (tools/handoff-summary.mjs) does the fs/git I/O — it runs gatherReleaseReadiness() and reads
 // config/package/git — and hands plain inputs to these helpers, so the assembly/formatting is
 // unit-testable (tests/handoff-summary.test.js). It consumes the EXISTING release-readiness
-// summary rather than re-implementing any check.
+// summary rather than re-implementing any check. (node:path is deterministic string math — no
+// I/O — so the --write target resolver stays in this pure layer and is unit-tested.)
+import { isAbsolute, resolve, relative, sep } from 'node:path';
 
 // The live instance (a Perplexity Space). Display text for the handoff, NOT a fetched URL.
 export const HANDOFF_SUMMARY_LIVE_URL = 'https://torii-quest.pplx.app';
@@ -48,6 +50,28 @@ export const DEFAULT_NEXT_SAFE_TASK =
   'Continue safe no-blocker infrastructure/tooling/docs (extend handoff/readiness/dashboard ' +
   'visibility). Do NOT touch gameplay/portal/physics/shooting/controls or live Nostr writes — ' +
   'those stay gated behind SEC-1/2/3.';
+
+// Default in-repo filename for the opt-in --write markdown brief.
+export const DEFAULT_WRITE_FILENAME = 'handoff-summary.md';
+
+// resolveHandoffWritePath(raw, root) → { ok, path?, error? }. Confines the --write target to
+// INSIDE `root` (the repo). Security boundary (WARN-3, v0.2.190): a developer-tool write must
+// not be able to clobber an arbitrary absolute path or escape the repo via `..`. Rejects:
+//   - a non-string/empty root            → error 'no-root'
+//   - an absolute path                   → error 'absolute-path-not-allowed'
+//   - a relative path that escapes root  → error 'outside-repo' (incl. resolving to root itself)
+// Pure string math (no fs); never throws. An empty/blank raw falls back to DEFAULT_WRITE_FILENAME.
+export function resolveHandoffWritePath(raw, root) {
+  if (typeof root !== 'string' || !root) return { ok: false, error: 'no-root' };
+  const rel = (typeof raw === 'string' && raw.trim()) ? raw.trim() : DEFAULT_WRITE_FILENAME;
+  if (isAbsolute(rel)) return { ok: false, error: 'absolute-path-not-allowed' };
+  const abs = resolve(root, rel);
+  const within = relative(root, abs);
+  if (within === '' || within === '..' || within.startsWith(`..${sep}`) || isAbsolute(within)) {
+    return { ok: false, error: 'outside-repo' };
+  }
+  return { ok: true, path: abs };
+}
 
 // buildHandoffSummary(inputs) → a plain, JSON-serialisable handoff brief. All inputs are plain
 // data supplied by the CLI:

@@ -3,10 +3,13 @@
 // formatters, and degraded/missing-input cases. No fs/git — every input is plain data, fully
 // node-deterministic (generatedAt is omitted so the shape is reproducible).
 import { describe, it, expect } from 'vitest';
+import { resolve, sep } from 'node:path';
 import {
   HANDOFF_SUMMARY_BADGE, HANDOFF_SUMMARY_SCHEMA, HANDOFF_SUMMARY_SCHEMA_VERSION,
   HANDOFF_SUMMARY_LIVE_URL, VERIFY_COMMANDS, KEY_CONSTRAINTS, DEFAULT_NEXT_SAFE_TASK,
+  DEFAULT_WRITE_FILENAME,
   buildHandoffSummary, formatHandoffSummary, formatHandoffSummaryMarkdown,
+  resolveHandoffWritePath,
 } from '../tools/handoffSummary.mjs';
 
 const V = 'v0.2.190-alpha';
@@ -161,5 +164,50 @@ describe('formatHandoffSummaryMarkdown — markdown', () => {
 
   it('is safe on no summary', () => {
     expect(formatHandoffSummaryMarkdown(null)).toContain('_(no summary)_');
+  });
+});
+
+describe('resolveHandoffWritePath — --write repo-boundary (WARN-3)', () => {
+  const ROOT = sep === '\\' ? 'C:\\repo' : '/repo';
+
+  it('defaults to the in-repo handoff-summary.md when no path is given', () => {
+    for (const raw of ['', '   ', undefined, null]) {
+      const r = resolveHandoffWritePath(raw, ROOT);
+      expect(r.ok).toBe(true);
+      expect(r.path).toBe(resolve(ROOT, DEFAULT_WRITE_FILENAME));
+    }
+  });
+
+  it('allows a safe relative path inside the repo (incl. a subdirectory)', () => {
+    expect(resolveHandoffWritePath('brief.md', ROOT)).toEqual({ ok: true, path: resolve(ROOT, 'brief.md') });
+    expect(resolveHandoffWritePath('docs/handoff.md', ROOT)).toEqual({ ok: true, path: resolve(ROOT, 'docs/handoff.md') });
+    expect(resolveHandoffWritePath('./a/b/c.md', ROOT)).toEqual({ ok: true, path: resolve(ROOT, 'a/b/c.md') });
+  });
+
+  it('rejects an absolute path (no clobbering arbitrary files outside the repo)', () => {
+    const abs = sep === '\\' ? 'C:\\etc\\evil.md' : '/etc/evil.md';
+    expect(resolveHandoffWritePath(abs, ROOT)).toEqual({ ok: false, error: 'absolute-path-not-allowed' });
+  });
+
+  it('rejects a relative path that escapes the repo via ..', () => {
+    expect(resolveHandoffWritePath('../escape.md', ROOT).ok).toBe(false);
+    expect(resolveHandoffWritePath('../../etc/passwd', ROOT).error).toBe('outside-repo');
+    expect(resolveHandoffWritePath('docs/../../escape.md', ROOT).error).toBe('outside-repo');
+  });
+
+  it('rejects resolving to the repo root itself (a dir, not a file)', () => {
+    expect(resolveHandoffWritePath('.', ROOT)).toEqual({ ok: false, error: 'outside-repo' });
+  });
+
+  it('rejects a missing/garbled root rather than guessing', () => {
+    for (const bad of ['', null, undefined, 42, {}]) {
+      expect(resolveHandoffWritePath('brief.md', bad)).toEqual({ ok: false, error: 'no-root' });
+    }
+  });
+
+  it('never throws on hostile input', () => {
+    for (const raw of [42, {}, [], '\0', 'a b.md']) {
+      expect(() => resolveHandoffWritePath(raw, ROOT)).not.toThrow();
+    }
   });
 });

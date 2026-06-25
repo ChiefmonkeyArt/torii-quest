@@ -1,11 +1,11 @@
 {
-  "version": "v0.2.190-alpha",
-  "generatedAt": "2026-06-25T17:22:09.426Z",
+  "version": "v0.2.191-alpha",
+  "generatedAt": "2026-06-25T17:42:51.693Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
     "activeTasks": 3,
-    "completedLast24h": 21,
+    "completedLast24h": 22,
     "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
@@ -26,13 +26,13 @@
     "todoCompletedMarkers": 12,
     "next12": 12,
     "activeNow": null,
-    "completed24h": 21,
+    "completed24h": 22,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "completed24h (21)",
+      "completed24h (22)",
       "archive (11)"
     ],
     "gaps": [
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.190-alpha"
+        "value": "v0.2.191-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 69"
+        "value": "fast 5 · foundation 25 · full 70"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1052 passing"
+        "value": "1077 passing"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.190-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.191-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 36,
         "label": "Foundation coverage",
-        "sub": "25/69 files"
+        "sub": "25/70 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.190-alpha",
-    "gitCommit": "9a1b89b",
+    "version": "v0.2.191-alpha",
+    "gitCommit": "350ede2",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.190-alpha / pkg 0.2.190-alpha"
+        "detail": "config v0.2.191-alpha / pkg 0.2.191-alpha"
       },
       {
         "key": "tests",

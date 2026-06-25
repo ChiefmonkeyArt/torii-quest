@@ -421,6 +421,20 @@ linked by signed spatial events, with **no central router**.
   WIRED in `main.js` (composition root ONLY): `buildPortalMesh(scene,…)` once + `tickPortalMesh(dt)` in the loop.
   Read-only at `ToriiDebug.shells.portalMeshPlan(opts?)` / `ToriiDebug.shells.portalMesh()`. SDK `portalMeshPlan`
   (experimental).
+- `src/engine/gateway/zoneLabel.js` (v0.2.184) — the pure portal/zone state-CLARITY **label helpers** that tell
+  the player WHERE the `portalTrigger` portal goes and WHAT they entered after a hop, WITHOUT changing the
+  navigation-safety model. `portalPromptLabel({slug,route,title,key})` builds a target-aware proximity prompt
+  ("Press F to travel to Plebeian Market Bazaar"), falling back to the generic "Press F to travel" when no target
+  is known; `enteredZoneLabel(input,{prefix})` builds the concise post-hop notice ("Entered: …"), returning `''`
+  for an unknown/empty target. Both DERIVE their human text from the safe slug via `zoneRoute.humanizeZoneSlug`
+  (alnum by construction); any free-form/hostile string is run through an internal allowlist sanitiser
+  (`[A-Za-z0-9 -]` only, length-capped to 80) so NO markup/dangerous token can survive even though the HUD sink
+  is `textContent`. WIRED in `main.js` (composition root ONLY): the `portalTrigger` `promptText` is the
+  target-aware label, and the KeyF handler shows `showZoneNotice(enteredZoneLabel(rep.zoneId))` ONLY when the
+  `gatewayPortalActivation` `confirm()` report returns `navigated:true` with a string `zoneId` (a pushState hop
+  does NOT fire popstate, so the existing `_applyZoneRoute()` never refreshed the notice). DISPLAY-ONLY + INERT —
+  no network/relay/sign/publish/external nav; the three gates are unchanged (proximity ARMS, KeyF confirms,
+  same-origin `/zone/` only). Read-only at `ToriiDebug.shells.zoneLabel(opts?)`. SDK `zoneLabel` (experimental).
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will inject the live app/browser
   window into `gatewayActivation`/`gatewayPortalActivation` (above): it will hand a
   `createBrowserHostTransport(window)` transport (or the host router) + a same-origin route allowlist to

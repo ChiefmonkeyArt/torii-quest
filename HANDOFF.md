@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.183-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.184-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -139,6 +139,21 @@ Breaking one should fail CI/the check, not ship.
   DISPLAY-ONLY + INERT: no collider/raycast/input, no nav/relay/sign/publish — the safety
   model is unchanged. debug-shells `portalMeshPlan` (plan report) + `portalMesh` (render
   state));
+  v0.2.184 added `zoneLabel` (pure portal/zone CLARITY label helpers wired at the `main.js`
+  composition root — they make the portal target/state clearer to the player without
+  touching the navigation-safety model. `portalPromptLabel({slug|route|title,key})` builds a
+  target-aware proximity prompt ("Press F to travel to Plebeian Market Bazaar") with a
+  generic "Press F to travel" fallback; `enteredZoneLabel(input,{prefix})` builds the
+  concise post-hop notice ("Entered: …"), `''` for unknown. Both DERIVE human text from the
+  safe slug via the v0.2.182 `humanizeZoneSlug` (alnum by construction); any free-form/
+  hostile string is run through an internal allowlist sanitiser (`[A-Za-z0-9 -]`, capped at
+  80) so no markup/dangerous token survives even though the HUD sink is `textContent`. In
+  `main.js` the trigger's `promptText` is the target-aware label, and the KeyF handler shows
+  the entered-notice ONLY when the v0.2.180 `confirm()` report returns navigated:true with a
+  string zoneId (a pushState hop does NOT fire popstate, so the existing route-applier never
+  refreshed the notice). DISPLAY-ONLY + INERT: no network/relay/sign/publish/external nav —
+  the safety model is unchanged. debug-shell `zoneLabel(opts?)` with a `safe` flag proving
+  hostile input is stripped);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, zoneLabelReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -323,6 +323,12 @@ export function installToriiDebug(refs) {
       // The marker has NO collider/raycast/input — it changes nothing about the
       // safety model (proximity arms, KeyF confirms, same-origin /zone/ only).
       portalMesh() { return portalMeshRenderState(); },
+      // v0.2.184 — PURE portal-prompt + entered-zone display labels: the in-range
+      // prompt names the target zone ("Press F to travel to Plebeian Market Bazaar")
+      // and the entered notice names the zone ("Entered: ..."). Labels are safe alnum
+      // strings (hostile input sanitised); display-only, no DOM/nav/network. This is
+      // pure polish — it changes nothing about the safety model.
+      zoneLabel(opts) { return zoneLabelReport(opts); },
       // v0.2.151 — scene-graph PARENT BINDING for the proof-surface boards: groups
       // the live render plan's panels by their `parent` hint, mapping each to the
       // live scene-node name + the per-parent display-only group name the mesh

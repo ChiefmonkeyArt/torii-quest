@@ -30,6 +30,7 @@ import { activatePortalHandoff, createGatewayPortalBoundary, DEMO_PORTAL_CONTEXT
 import { createPortalTrigger, PORTAL_PROMPT_TEXT } from '../gateway/portalTrigger.js';
 import { parseZoneRoute, describeZoneRoute, ZONE_ROUTE_BADGE, DEMO_ZONE_ROUTE } from '../gateway/zoneRoute.js';
 import { buildPortalMeshPlan, describePortalMeshPlan, PORTAL_MESH_BADGE, DEMO_PORTAL_MESH_OPTS } from '../gateway/portalMeshPlan.js';
+import { portalPromptLabel, enteredZoneLabel, ZONE_LABEL_BADGE, DEMO_ZONE_LABEL_OPTS } from '../gateway/zoneLabel.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -787,6 +788,37 @@ export function portalMeshPlanReport(opts = DEMO_PORTAL_MESH_OPTS) {
     published: plan.published,
     actionable: plan.actionable,
     reasons: plan.reasons,
+  };
+}
+
+// zoneLabelReport(opts) → the PURE portal-prompt + entered-zone display labels
+// (v0.2.184). Shows the in-range prompt naming the target zone, the generic fallback
+// when no zone is known, and the concise entered-zone notice — plus a `safe` flag
+// proving the labels carry no markup / dangerous token (hostile input is sanitised).
+// Plain strings — NO DOM/nav/network.
+export function zoneLabelReport(opts = DEMO_ZONE_LABEL_OPTS) {
+  const o = (opts && typeof opts === 'object' && !Array.isArray(opts)) ? opts : DEMO_ZONE_LABEL_OPTS;
+  const prompt = portalPromptLabel(o);
+  const promptGeneric = portalPromptLabel({});
+  const entered = enteredZoneLabel(o.slug || o.route || o.title || '');
+  const hostile = enteredZoneLabel('<img src=x onerror=alert(1)>');
+  const all = [prompt, promptGeneric, entered, hostile].join(' ');
+  const safe = !/[<>"'`]/.test(all) && !/javascript:|data:|on\w+=/i.test(all);
+  return {
+    title: 'ZONE LABEL',
+    badge: ZONE_LABEL_BADGE,
+    prompt,
+    promptGeneric,
+    entered,
+    hostileSanitized: hostile, // a hostile string is stripped to safe alnum/space/hyphen
+    safe,
+    navigated: false,
+    performed: false,
+    external: false,
+    signed: false,
+    published: false,
+    network: false,
+    actionable: false,
   };
 }
 

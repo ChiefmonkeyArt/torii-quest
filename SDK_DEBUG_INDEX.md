@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.183-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.184-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -45,7 +45,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
-`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `zoneRoute`, `portalMeshPlan`, `updateCheck`,
+`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `zoneRoute`, `portalMeshPlan`, `zoneLabel`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
@@ -324,6 +324,25 @@ reuses on teardown. WIRED in `main.js` (composition root ONLY): `buildPortalMesh
 ARMS, KeyF confirms, same-origin `/zone/` only. Reachable read-only via `ToriiDebug.shells.portalMeshPlan(...)` /
 `ToriiDebug.shells.portalMesh()` / `portalMeshPlanReport(...)`.
 
+`zoneLabel` (GATEWAY / NAP-zone clarity, v0.2.184) is the pure portal/zone state-CLARITY label pair — it tells
+the player WHERE the [[portalTrigger]] portal goes and WHAT they entered after a hop, without touching the
+navigation-safety model. `ZONE_LABEL_VERSION`=1; `ZONE_LABEL_BADGE`='ZONE LABEL · DISPLAY-ONLY · INERT';
+`DEFAULT_PORTAL_KEY`='F'; `DEFAULT_ENTERED_PREFIX`='Entered'; `DEMO_ZONE_LABEL_OPTS`={slug:'plebeian-market-bazaar',
+key:'F'}. `portalPromptLabel({slug,route,title,key})` builds a target-aware proximity prompt ("Press F to travel
+to Plebeian Market Bazaar"), falling back to the generic "Press F to travel" when no target is known;
+`enteredZoneLabel(input,{prefix})` builds the concise post-hop notice ("Entered: Plebeian Market Bazaar"),
+returning `''` for an unknown/empty target. Both DERIVE their human text from the safe slug via the [[zoneRoute]]
+`humanizeZoneSlug` (alnum by construction); the internal `_titleFrom` strips the `ZONE_ROUTE_PREFIX` and, for any
+non-slug/free-form/hostile string, runs an allowlist sanitiser `_safeTitle` (`[A-Za-z0-9 -]` only, collapse
+whitespace, cap 80) so NO markup/dangerous token survives even though the HUD sink is `textContent`. WIRED in
+`main.js` (composition root ONLY): the [[portalTrigger]] `promptText` is `portalPromptLabel({slug:'plebeian-market-
+bazaar'})`, and the KeyF handler shows `showZoneNotice(enteredZoneLabel(rep.zoneId))` ONLY when the [[gatewayPortalActivation]]
+`confirm()` report returns `navigated:true` with a string `zoneId` (a pushState hop does NOT fire popstate, so the
+existing `_applyZoneRoute()` never refreshed the notice). DISPLAY-ONLY + INERT — no network/relay/sign/publish/
+external nav; the safety model is unchanged (proximity ARMS, KeyF confirms, same-origin `/zone/` only). Pure/node-
+safe — NO module-scope `window`/THREE/DOM; never throws. Reachable read-only via `ToriiDebug.shells.zoneLabel(opts?)`
+/ `zoneLabelReport(opts?)`, which return label previews + a `safe` flag proving hostile input is stripped.
+
 `continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Continuum
 project-oversight DASHBOARD data + renderer — the FIRST slice of a broader oversight surface.
 `CONTINUUM` holds the curated `progress.md` snapshot (metrics, a clearly-flagged SEED
@@ -453,6 +472,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.zoneRoute(path?)` | **v0.2.182** ZONE ROUTE report over `DEMO_ZONE_ROUTE` — `{title:'ZONE ROUTE',badge:'ZONE ROUTE · SAME-ORIGIN · INERT',sample,home:{kind:'home',ok:true},valid:{kind:'zone',ok,slug,zoneId,route,title,notice},rejects:{traversal,percent,protocolRelative,scheme,subPath,malformedSlug,emptySlug}(all 'invalid'),summary,navigated:false,performed:false,network:false,external:false,signed:false,published:false,inMemory:true,errors}` (parses/classifies a same-origin path home/zone/invalid and labels every hostile path INVALID; pure URL interpretation, NEVER navigates/fetches; safety flags pinned) |
 | `shells.portalMeshPlan(opts?)` | **v0.2.183** PORTAL MESH PLAN report over `DEMO_PORTAL_MESH_OPTS` — `{title:'PORTAL MESH PLAN',badge:'PORTAL MESH · DISPLAY-ONLY · INERT',ok,anchor,range,ringRadius,ringMatchesRange,count,parts:[{id,kind,role,spin,pulse}],allPartsInert,summary,rendered,navigated:false,performed:false,external:false,signed:false,published:false,actionable:false,reasons}` (pure render-plan for the visible in-world portal marker at the trigger position; outer-ring `ringRadius`===trigger `range`; every part + plan pinned inert; DISPLAY-ONLY, changes nothing in the safety model) |
 | `shells.portalMesh()` | **v0.2.183** PORTAL MESH render-state from the browser adapter `portalMesh.js` — frozen `{rendered,count,ok,badge,reasons,anchor?,ringRadius?}` snapshot (build-once behind `_built`, allocation-free scalar tick, dispose/reuse on teardown); inert display, no nav/sign/publish surface (in node/test with no live build it reports `{rendered:false,reasons:['not-built']}`) |
+| `shells.zoneLabel(opts?)` | **v0.2.184** ZONE LABEL report over `DEMO_ZONE_LABEL_OPTS` — `{title:'ZONE LABEL',badge:'ZONE LABEL · DISPLAY-ONLY · INERT',prompt,promptGeneric,entered,hostileSanitized,safe,navigated:false,performed:false,external:false,signed:false,published:false,network:false,actionable:false}` (target-aware proximity prompt + post-hop entered notice; both derived from the safe slug via `humanizeZoneSlug`, free-form/hostile input stripped to an `[A-Za-z0-9 -]` allowlist; the `safe` flag proves no markup/dangerous token survives; DISPLAY-ONLY, never navigates/signs/publishes) |
 | `shells.updatePreview(r?,o?)` | LEAN-5 preview block — `{title,badge,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source,lines,readOnly:true,actionable:false}` |
 | `shells.updateStatus(p?,o?)` | **v0.2.158** LEAN-5 in-game UPDATE-STATUS panel — `{title,badge,surface,step,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source:{status,kind,candidates,errors},sourceUrl,lines,readOnly:true,actionable:false}` (defaults to local sample feed) |
 | `shells.mvpLoop(o?)` | loop header block — `{title,badge,flow,note,version,steps,lines,readOnly:true,actionable:false}` |

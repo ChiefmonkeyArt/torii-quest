@@ -1,11 +1,11 @@
 {
-  "version": "v0.2.183-alpha",
-  "generatedAt": "2026-06-25T11:15:53.613Z",
+  "version": "v0.2.184-alpha",
+  "generatedAt": "2026-06-25T11:36:50.349Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 12,
-    "completedLast24h": 13,
+    "activeTasks": 13,
+    "completedLast24h": 15,
     "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
@@ -25,15 +25,15 @@
     "isDerived": true,
     "todoCompletedMarkers": 12,
     "next12": 12,
-    "activeNow": 12,
-    "completed24h": 13,
+    "activeNow": 13,
+    "completed24h": 15,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (12)",
-      "completed24h (13)",
+      "activeNow (13)",
+      "completed24h (15)",
       "archive (11)"
     ],
     "gaps": [],
@@ -48,17 +48,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.183-alpha"
+        "value": "v0.2.184-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 22 · full 65"
+        "value": "fast 5 · foundation 23 · full 66"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "958 passing"
+        "value": "973 passing"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "14 / 14 regression checks GREEN · last green v0.2.183-alpha"
+        "value": "14 / 14 regression checks GREEN · last green v0.2.184-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -98,9 +98,9 @@
         "sub": "14 / 14"
       },
       {
-        "pct": 34,
+        "pct": 35,
         "label": "Foundation coverage",
-        "sub": "22/65 files"
+        "sub": "23/66 files"
       }
     ]
   },

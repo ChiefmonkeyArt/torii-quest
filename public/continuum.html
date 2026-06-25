@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Continuum · v0.2.183-alpha</title>
+<title>Torii Continuum · v0.2.184-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -112,10 +112,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Continuum <span class="v">v0.2.183-alpha</span></h1>
+    <h1>Torii Continuum <span class="v">v0.2.184-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T11:15:53.613Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T11:36:50.349Z</span></div>
   </header>
   <main>
     <section>
@@ -161,19 +161,19 @@
       <div class="h2row"><h2>At a glance</h2> <span class="count">6</span></div>
       <div class="lead">Build truth: source version, test/gate status, and the headline progress rings.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.183-alpha (build truth; live trails — manual deploy)</span></div>
-        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">958 passing / 65 files (profiles: test:fast ~5, test:foundation ~22)</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.184-alpha (build truth; live trails — manual deploy)</span></div>
+        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">973 passing / 66 files (profiles: test:fast ~5, test:foundation ~23)</span></div>
         <div class="metric"><span class="metric-label">Regression check</span><span class="metric-value">14 / 14 GREEN</span></div>
         <div class="metric"><span class="metric-label">Bundle (advisory)</span><span class="metric-value">~2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Gates</span><ul class="mini"><li>SEC-1 / SEC-2 / SEC-3 intact</li><li>godMode false</li><li>continuum CSP enforced</li></ul></div>
-        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.183 LEAN-2 in-world GATEWAY PORTAL marker — a pure render plan (portalMeshPlan.js) + a browser-only THREE adapter (portalMesh.js) that draws a small, inert visual landmark at the v0.2.181 trigger position so a player can SEE the travel point. The outer ring radius EQUALS the proximity range. DISPLAY-ONLY: no collider, no raycast/input, no nav/relay/sign/publish; the safety model is unchanged (proximity arms, KeyF confirms, same-origin /zone/ only). Meshes built ONCE; the tick mutates only scalars (no per-frame allocation). +18 tests</span></div>
+        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.184 LEAN-2 portal/zone CLARITY — pure display-label helpers (zoneLabel.js) name the target zone in the in-range prompt (&quot;Press F to travel to Plebeian Market Bazaar&quot;) and announce the entered zone after a successful KeyF hop (&quot;Entered: ...&quot;). Labels are safe alnum strings (hostile input sanitised); HUD sink is textContent only. Pure polish: proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only. +15 tests</span></div>
         <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">1 human · 3 clankers</span></div>
         <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><ul class="mini"><li>12 completed task markers (todo.md)</li><li>12 next-12</li><li>11 archive clusters</li></ul></div>
       </div>
       <div class="totals">
         <div class="tot"><span class="tot-v" data-k="tasksAhead">12</span><span class="tot-l">tasks ahead</span></div>
-        <div class="tot"><span class="tot-v" data-k="activeTasks">12</span><span class="tot-l">active</span></div>
-        <div class="tot"><span class="tot-v" data-k="completedLast24h">13</span><span class="tot-l">done (24h)</span></div>
+        <div class="tot"><span class="tot-v" data-k="activeTasks">13</span><span class="tot-l">active</span></div>
+        <div class="tot"><span class="tot-v" data-k="completedLast24h">15</span><span class="tot-l">done (24h)</span></div>
         <div class="tot"><span class="tot-v" data-k="archivedClusters">11</span><span class="tot-l">archive clusters</span></div>
         <div class="tot"><span class="tot-v" data-k="trackCount">6</span><span class="tot-l">tracks</span></div>
         <div class="tot"><span class="tot-v" data-k="milestones">0 / 5</span><span class="tot-l">milestones</span></div>
@@ -213,13 +213,13 @@
       <div class="h2row"><h2>Engineering health</h2> <span class="count">8</span></div>
       <div class="lead">The efficiency loop in numbers — each card chipped GENERATED or LAST-KNOWN.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.183-alpha</span></div>
-        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 22</li><li>full 65</li></ul></div>
-        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">958 passing</span></div>
+        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.184-alpha</span></div>
+        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 23</li><li>full 66</li></ul></div>
+        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">973 passing</span></div>
         <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>fast ~1s</li><li>foundation ~6s</li><li>full suite ~41s</li></ul></div>
         <div class="metric"><span class="metric-label">Bundle baseline <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>0</li><li>dashboard lists fully derived</li></ul></div>
-        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>14 / 14 regression checks GREEN</li><li>last green v0.2.183-alpha</li></ul></div>
+        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>14 / 14 regression checks GREEN</li><li>last green v0.2.184-alpha</li></ul></div>
         <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>progress.md</li><li>todo.md</li><li>strategy.md carry this version</li></ul></div>
       </div>
       <div class="rings">
@@ -242,11 +242,11 @@
           <figcaption>Regression checks</figcaption>
         </figure>
         <figure class="donut">
-          <svg viewBox="0 0 120 120" role="img" aria-label="Foundation coverage 34 percent">
+          <svg viewBox="0 0 120 120" role="img" aria-label="Foundation coverage 35 percent">
             <circle class="donut-track" cx="60" cy="60" r="52"></circle>
-            <circle class="donut-val" cx="60" cy="60" r="52" stroke-dasharray="111.09 215.64" transform="rotate(-90 60 60)"></circle>
-            <text class="donut-num" x="60" y="58">34%</text>
-            <text class="donut-lbl" x="60" y="78">22/65 files</text>
+            <circle class="donut-val" cx="60" cy="60" r="52" stroke-dasharray="114.35 212.37" transform="rotate(-90 60 60)"></circle>
+            <text class="donut-num" x="60" y="58">35%</text>
+            <text class="donut-lbl" x="60" y="78">23/66 files</text>
           </svg>
           <figcaption>Foundation coverage</figcaption>
         </figure>
@@ -309,8 +309,9 @@
       <div class="lead">Active work, the archive of landed clusters, and what shipped in the last day.</div>
       <div class="cols">
         <div>
-          <h3>NOW · Active <span class="count">12</span></h3>
+          <h3>NOW · Active <span class="count">13</span></h3>
           <ul class="bullets">
+        <li>v0.2.184 — LEAN-2 portal/zone state CLARITY (engine/gateway/zoneLabel.js pure label helpers, wired at the main.js composition root): the surgical polish that tells a player WHERE the portal goes and WHAT they entered, without touching the navigation-safety model. portalPromptLabel({slug|route|title, key}) builds a target-aware proximity prompt (&quot;Press F to travel to Plebeian Market Bazaar&quot;), falling back to the generic &quot;Press F to travel&quot; when no target is known; enteredZoneLabel(input, {prefix}) builds the concise post-hop notice (&quot;Entered: Plebeian Market Bazaar&quot;), returning &#39;&#39; for an unknown/empty target. Both DERIVE their human text from the safe slug via the v0.2.182 humanizeZoneSlug (alnum by construction); any free-form/hostile string is run through an internal allowlist sanitiser ([A-Za-z0-9 -], length-capped) so no markup/dangerous token can survive even though the HUD sink is textContent. In main.js the trigger&#39;s promptText is the target-aware label, and the KeyF handler shows the entered-notice ONLY when the v0.2.180 confirm() report comes back navigated:true with a string zoneId (pushState does not fire popstate, so the existing route-applier never refreshed it). DISPLAY-ONLY + INERT: no network/relay/sign/publish/external nav/payments/auto-update/confirmation bypass — proximity still ARMS, KeyF still CONFIRMS, route stays same-origin /zone/ only. SDK zoneLabel (experimental) + read-only ToriiDebug.shells.zoneLabel(opts?) (label preview + a safe flag proving hostile input is stripped). +15 tests. Remaining (documented): the static-host SPA rewrite for /zone/* hard-refresh and the signed/relay-mediated SEC-2 tier stay outstanding/gated.</li>
         <li>v0.2.183 — LEAN-2 in-world GATEWAY PORTAL marker (engine/gateway/portalMeshPlan.js pure plan + engine/gateway/portalMesh.js browser adapter, built at the main.js composition root): the visible landmark that finally lets a player SEE the travel point the v0.2.181 trigger arms. buildPortalMeshPlan({position, range, title}) is PURE/node-safe — it turns the trigger geometry into a plain-data description of four inert marker parts (an outer ring whose radius EQUALS the proximity range, an inner accent ring, a faint translucent beam, and a slow-spinning core), every part + the plan pinning navigated/performed/external/signed/published false and readOnly:true/actionable:false. The browser-only adapter consumes an ok plan and a scene to build a small set of emissive MeshStandardMaterial meshes exactly once behind a _built guard; tickPortalMesh(dt) advances the idle animation by mutating only scalars (rotation.y, emissiveIntensity) so the no-allocation hot-path rule holds (no Vector3/Matrix4/geometry/material per frame); disposePortalMesh() frees the GPU resources for a clean teardown. DISPLAY-ONLY + INERT: no collider, no raycast/click/input, no navigation/relay/sign/publish — the safety model is unchanged (proximity ARMS, KeyF CONFIRMS, same-origin /zone/ only). SDK portalMeshPlan (experimental) + read-only ToriiDebug.shells.portalMeshPlan() (plan report) and ToriiDebug.shells.portalMesh() (render state). +18 tests. Remaining (documented): the static-host SPA rewrite for /zone/* hard-refresh and the signed/relay-mediated SEC-2 tier stay outstanding/gated.</li>
         <li>v0.2.182 — LEAN-2 pure SPA /zone/&lt;slug&gt; ROUTE PARSER (engine/gateway/zoneRoute.js, read at the main.js composition root): the safe client-side read of the same-origin URL state the v0.2.181 portal hop pushes, so a refresh/deep-link on /zone/* is no longer brittle. parseZoneRoute(path) runs the route through the v0.2.179-hardened safeRoutePath first (rejects dot-dot/percent/protocol-relative/js-scheme/data-scheme/markup/control/whitespace/over-length → INVALID), strips a trailing ?query/#hash, then classifies HOME (root / or any non-/zone/ same-origin path), ZONE (a strict slug — lowercase alnum words joined by single hyphens, ≤64 chars), or INVALID (sub-path /zone/a/b, malformed slug, hostile, non-string). A valid zone maps to an INERT display state (title/zoneId/route/notice); navigated/performed/external/signed/published/network are all pinned false — it interprets a URL, never acts. The module is pure/node-safe with no module-scope browser global; main.js reads the browser location pathname once on startup and on popstate, showing an inert HUD #zone-notice for a zone/invalid route and hiding it on home (showZoneNotice/hideZoneNotice, lazy opacity-crossfade, no setTimeout). Hard-refresh deep-link still needs a static-host SPA fallback (serve index.html for /zone/*) — DOCUMENTED in HANDOFF.md/GATEWAY_PROTOCOL.md, NOT faked in app code. SDK zoneRoute (experimental) + read-only ToriiDebug.shells.zoneRoute(). +28 tests. Remaining (documented): a dedicated portal MESH + the static-host SPA rewrite rule are the next steps; the signed/relay-mediated SEC-2 tier stays gated and not live.</li>
         <li>v0.2.181 — LEAN-2 in-world gateway PORTAL TRIGGER (engine/gateway/portalTrigger.js, wired at the main.js composition root): the surgical bridge that finally makes the v0.2.180 portal boundary ACT from gameplay, without a broad rewrite. A pure, node-safe createPortalTrigger({boundary, component, context, portalPos, range, onPrompt}) returns a per-frame tick(playerPos) that uses withinPortalRange (scalar squared-distance, no Vector3) to ARM the injected v0.2.180 boundary and raise a HUD prompt when the player nears the torii gate — both inert (no navigation; onPrompt fires only on range transitions). Leaving range cancel()s the staged portal; reset() clears a stale prompt on pause/leave. The ONLY navigating step is an explicit interact(grant) (host-bound to KeyF), which delegates to boundary.confirm() → the v0.2.178 confirmed:true → consent → scoped-allowlist gates → a same-origin /zone/&lt;slug&gt; hop. In main.js the real browser window is injected once into createGatewayPortalBoundary (composition root, never module scope); the allowlist is hard-scoped [&#39;/zone/&#39;]; external website URLs are never navigated. A bottom-centre HUD prompt (showPortalPrompt/hidePortalPrompt, lazy opacity-crossfade like the NAP pill, no setTimeout). SDK portalTrigger (experimental) + read-only ToriiDebug.shells.portalTrigger() over an in-memory recording host (proves far→no-arm, near→arm-inert, interact→confirmed hop). +18 tests. Remaining (documented): a dedicated portal MESH + an SPA route handler (so the /zone/&lt;slug&gt; URL resolves on refresh) are the next step; the signed/relay-mediated SEC-2 tier stays gated and not live.</li>
@@ -342,8 +343,10 @@
           </ul>
         </div>
         <div>
-          <h3>DONE · Last 24h <span class="count">13</span></h3>
+          <h3>DONE · Last 24h <span class="count">15</span></h3>
           <ul>
+        <li class="done">v0.2.184 — LEAN-2 portal/zone state CLARITY (engine/gateway/zoneLabel.js, wired at the main.js boundary): pure label helpers that tell the player WHERE the portal goes and WHAT they entered. portalPromptLabel() builds a target-aware proximity prompt (&quot;Press F to travel to Plebeian Market Bazaar&quot;) with a generic fallback; enteredZoneLabel() builds the post-hop notice (&quot;Entered: …&quot;), &#39;&#39; for unknown. Both DERIVE text from the safe slug via humanizeZoneSlug; free-form/hostile input is stripped to an [A-Za-z0-9 -] allowlist (length-capped), so no markup survives even though the HUD sink is textContent. The KeyF handler shows the notice ONLY on a navigated:true confirm report. DISPLAY-ONLY + INERT: no nav/relay/sign/publish/network — safety model unchanged (proximity arms, KeyF confirms, same-origin /zone/ only). SDK (experimental) + debug-shell exposure. +15 tests. Remaining: static-host SPA rewrite + SEC-2 tier.</li>
+        <li class="done">v0.2.183 — LEAN-2 in-world GATEWAY PORTAL marker (engine/gateway/portalMeshPlan.js pure plan + engine/gateway/portalMesh.js browser THREE adapter, built at the main.js boundary): the visible landmark that lets a player SEE the v0.2.181 travel point. buildPortalMeshPlan({position, range, title}) is PURE/node-safe — four inert marker parts (an outer ring whose radius EQUALS the proximity range, an inner accent ring, a faint translucent beam, a slow-spinning core), navigated/performed/external/signed/published pinned false + readOnly:true. The browser adapter builds emissive meshes ONCE behind a _built guard; tickPortalMesh(dt) mutates ONLY scalars (rotation.y, emissiveIntensity) so the no-allocation hot-path rule holds; disposePortalMesh() frees GPU resources. DISPLAY-ONLY + INERT: no collider/raycast/input/nav/relay/sign/publish — safety model unchanged. SDK (experimental) + debug-shell (plan + render state) exposure. +18 tests. Remaining: static-host SPA rewrite + SEC-2 tier.</li>
         <li class="done">v0.2.182 — LEAN-2 pure SPA /zone/&lt;slug&gt; ROUTE PARSER (engine/gateway/zoneRoute.js, read at the main.js boundary): the safe client-side READ of the same-origin URL the v0.2.181 portal hop pushes, so a refresh/deep-link on /zone/* is not brittle. parseZoneRoute() runs the route through safeRoutePath (rejects dot-dot/percent/protocol-relative/js-scheme/data-scheme/markup/control/over-length), strips ?query/#hash, then classifies HOME (root or non-/zone/) vs ZONE (strict slug: lowercase alnum + single hyphens, ≤64) vs INVALID (sub-path/malformed/hostile/non-string); a valid zone maps to an INERT display state (title + HUD notice). navigated/performed/external/signed/published/network all stay false. The browser location-path read + a popstate listener wired ONLY at the main.js composition root; module is pure/node-safe with no module-scope browser global. Hard-refresh deep-link still needs a static-host SPA fallback (serve index.html for /zone/*) — DOCUMENTED, not faked. SDK (experimental) + debug-shell exposure. +28 tests. Remaining: dedicated portal MESH + the static-host SPA rewrite rule.</li>
         <li class="done">v0.2.181 — LEAN-2 in-world gateway PORTAL TRIGGER (engine/gateway/portalTrigger.js, wired at the main.js boundary): a pure per-frame tick(playerPos) uses withinPortalRange (scalar, no Vector3) to ARM the v0.2.180 portal boundary + raise a HUD prompt near the torii gate — both inert (proximity never navigates). An explicit KeyF interact() is the ONLY navigating step → confirmed same-origin /zone hop over the real window injected once at the composition root (no module-scope window). Allowlist scoped [&#39;/zone/&#39;] (never [&#39;/&#39;]); external website URLs never navigate; external/world/network/sign/publish stay false; SEC-2 untouched. SDK (experimental) + debug-shell (recording host) exposure. +18 tests. Remaining: dedicated portal MESH + SPA route handler.</li>
         <li class="done">v0.2.180 — LEAN-2 in-world gateway PORTAL ACTIVATION seam (engine/gateway/gatewayPortalActivation.js): the pure bridge from a gateway component to the v0.2.178 confirmed same-origin hop. portalActivationInput() maps the internal target → a /zone/&lt;slug&gt; input and drops the external website (same-origin route only); sanitizePortalAllowlist() folds [&#39;/&#39;] → [&#39;/zone/&#39;] (never permit-all); createGatewayPortalBoundary() is an injected-transport arm → confirm controller (arming inert; only confirm() acts); withinPortalRange() is a scalar (no Vector3) proximity helper. No module-scope window; no external nav/world-reload/network/sign/publish; SEC-2 untouched. SDK (experimental) + debug-shell (recording host) exposure. +28 tests. Stopped at the safe seam — no in-world mesh trigger yet, so main.js is intentionally not auto-wired.</li>
@@ -405,7 +408,7 @@
         <li>progress.md remains the visual execution DASHBOARD source document — this page is curated from it.</li>
     </ul>
     Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:continuum</b>.
-    Dashboard lists generated from <b>progress.md + todo.md</b> at build time — parsed: next12 (12), activeNow (12), completed24h (13), archive (11); no parser gaps.
+    Dashboard lists generated from <b>progress.md + todo.md</b> at build time — parsed: next12 (12), activeNow (13), completed24h (15), archive (11); no parser gaps.
   </footer>
   <script>
   // Best-effort refresh from the packaged SAME-ORIGIN data file. No external URL,

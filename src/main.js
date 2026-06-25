@@ -23,6 +23,7 @@ import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActiv
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh } from './engine/gateway/portalMesh.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
+import { portalPromptLabel, enteredZoneLabel } from './engine/gateway/zoneLabel.js';
 import { scene } from './scene.js';
 import { nostrLogin } from './nostr.js';
 import { playShoot, playFootstep, playJumpLand } from './audio.js';
@@ -190,6 +191,9 @@ const _portalTrigger = createPortalTrigger({
   context: { title: 'Plebeian Market Bazaar', zoneType: 'shop', from: 'torii-quest' },
   portalPos: { x: ARENA_HALF, y: 0, z: 0 },
   range: 3,
+  // v0.2.184 — name the target zone in the in-range prompt so the player sees WHERE
+  // KeyF travels (display-only string; still arms-only, never navigates on proximity).
+  promptText: portalPromptLabel({ slug: 'plebeian-market-bazaar' }),
   onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
 });
 
@@ -437,7 +441,15 @@ document.addEventListener('keydown', e => {
 onKeyDown(code => {
   if (code !== 'KeyF') return;
   if (!isPlaying() || !_portalTrigger.isArmed()) return;
-  _portalTrigger.interact(true);
+  const rep = _portalTrigger.interact(true);
+  // v0.2.184 — after a successful same-origin /zone/ hop, surface a concise inert
+  // notice naming the entered zone. pushState does NOT fire popstate, so without this
+  // the zone-notice would not refresh until a reload. Display-only: textContent, no
+  // navigation, no load — the hop itself was already gated by interact()/confirm().
+  if (rep && rep.navigated === true && typeof rep.zoneId === 'string') {
+    const label = enteredZoneLabel(rep.zoneId);
+    if (label) showZoneNotice(label);
+  }
 });
 
 // Browser-forced pointer-lock loss (focus change, window switch) still pauses

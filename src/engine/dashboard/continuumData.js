@@ -31,7 +31,7 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.184-alpha';
+export const CONTINUUM_VERSION = 'v0.2.185-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -41,10 +41,10 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '973 passing',
-  timings: 'fast ~1s · foundation ~6s · full suite ~41s',
+  totalTests: '993 passing',
+  timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
-  regression: '14 / 14',
+  regression: '15 / 15',
   lastGreen: CONTINUUM_VERSION,
 });
 
@@ -233,12 +233,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.184-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '973 passing / 66 files (profiles: test:fast ~5, test:foundation ~23)' },
-    { label: 'Regression check', value: '14 / 14 GREEN' },
+    { label: 'Source version', value: 'v0.2.185-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '993 passing / 67 files (profiles: test:fast ~5, test:foundation ~24)' },
+    { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.184 LEAN-2 portal/zone CLARITY — pure display-label helpers (zoneLabel.js) name the target zone in the in-range prompt ("Press F to travel to Plebeian Market Bazaar") and announce the entered zone after a successful KeyF hop ("Entered: ..."). Labels are safe alnum strings (hostile input sanitised); HUD sink is textContent only. Pure polish: proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only. +15 tests' },
+    { label: 'Active slice', value: 'v0.2.185 deployment-readiness FOUNDATION — makes the outstanding torii.quest static-host requirement (serve index.html for /zone/* on cold hard-refresh/deep-link) operationally explicit and LOCALLY CHECKABLE. New pure helper (zoneFallbackReadiness.mjs) + read-only network-free CLI (npm run zones:check) + regression-check [15] verify the docs carry the SPA fallback and a built dist/ has index.html with no /zone/* file shadowing it. Docs-only/no-runtime: ZONE_FALLBACK_READINESS.md checklist + VPS_INSTALL §11; no server access/deploy/auto-update; navigation model unchanged. +20 tests' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -264,7 +264,7 @@ export const CONTINUUM = Object.freeze({
   // `progress` is a directional estimate used only for the aggregate PoC ring.
   leanRoute: [
     { id: 'LEAN-1', state: 'pending', progress: 20, slice: 'Torii.quest live (publish green source)', status: 'pending (manual smoke first)' },
-    { id: 'LEAN-2', state: 'in-progress', progress: 70, slice: 'Gateway / NAP-to-NAP travel', status: 'in-world PORTAL TRIGGER (181) + pure SPA /zone/<slug> ROUTE PARSER (182): proximity arms the injected boundary + prompt (inert), an explicit KeyF interact performs the confirmed same-origin hop, and the resulting /zone/ URL now has a safe client-side read (home/zone/invalid → inert HUD notice) so refresh/deep-link is not brittle; still needs a dedicated portal MESH + a static-host SPA fallback for hard-refresh deep links' },
+    { id: 'LEAN-2', state: 'in-progress', progress: 72, slice: 'Gateway / NAP-to-NAP travel', status: 'in-world PORTAL TRIGGER (181) + pure SPA /zone/<slug> ROUTE PARSER (182): proximity arms the injected boundary + prompt (inert), an explicit KeyF interact performs the confirmed same-origin hop, and the resulting /zone/ URL has a safe client-side read (home/zone/invalid → inert HUD notice). The static-host SPA fallback for hard-refresh deep links is now docs-explicit + locally checkable (v0.2.185 zones:check / regression [15]); still needs a dedicated portal MESH and the host fallback configured on torii.quest itself' },
     { id: 'LEAN-3', state: 'in-progress', progress: 45, slice: 'Plebeian/Nostr product panel', status: 'shells + visible preview; needs in-world mesh + real listing' },
     { id: 'LEAN-4', state: 'in-progress', progress: 40, slice: 'Leaderboard (Nostr signed events)', status: 'unsigned helpers + publisher adapter + view + relay-read proof; needs real signer (SEC-1) + relay read' },
     { id: 'LEAN-5', state: 'in-progress', progress: 55, slice: 'torii.quest GitHub update-check', status: 'helper + view-model + release source/status; needs read-only releases fetch + prompt mesh' },
@@ -272,7 +272,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.184 — LEAN-2 portal/zone CLARITY: pure display-label helpers (zoneLabel.js) make the portal target + entered zone legible. portalPromptLabel() names the destination in the in-range prompt ("Press F to travel to Plebeian Market Bazaar"); enteredZoneLabel() yields a concise notice ("Entered: Plebeian Market Bazaar") shown after a successful KeyF hop (pushState fires no popstate, so main.js surfaces it explicitly). Labels are safe Title-Case alnum strings — a slug/route resolves via humanizeZoneSlug, and free-form/hostile input is sanitised so no markup or dangerous token can survive; the HUD sink is textContent only. PURE POLISH: proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only — no network/relay/sign/publish/external nav added. SDK (experimental, zoneLabel) + debug-shell (label report) exposure. +15 tests.',
+    'v0.2.185 — deployment-readiness FOUNDATION (no runtime change): make the outstanding torii.quest/VPS static-host prerequisite for the gateway travel feature — serve index.html for any /zone/<slug> path on a COLD hard-refresh/deep-link — operationally explicit and LOCALLY checkable before publish. A new pure node-safe helper (tools/zoneFallbackReadiness.mjs) + a read-only, network-free CLI (npm run zones:check) + regression-check [15] verify the required docs (VPS_INSTALL.md/HANDOFF.md) describe the index.html SPA fallback and that a built dist/ has an index.html with NO static file under /zone/* that would shadow it. Ships docs + check only: ZONE_FALLBACK_READINESS.md checklist, VPS_INSTALL §11, UPDATE_CHECK pointer. NON-GOALS held: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime change (proximity arms, KeyF confirms, same-origin /zone/ only). +20 tests.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -303,10 +303,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.185 — deployment-readiness FOUNDATION (docs + local check, no runtime change): the outstanding torii.quest/VPS static-host requirement — serve index.html for /zone/* on a cold hard-refresh/deep-link — is now operationally explicit and LOCALLY checkable. Pure node-safe helper (tools/zoneFallbackReadiness.mjs) + read-only network-free CLI (npm run zones:check) + regression-check [15] verify VPS_INSTALL.md/HANDOFF.md describe the index.html SPA fallback and a built dist/ has index.html with no /zone/* file shadowing it. New ZONE_FALLBACK_READINESS.md checklist + VPS_INSTALL §11 + UPDATE_CHECK pointer. NON-GOALS: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime change. +20 tests.',
     'v0.2.184 — LEAN-2 portal/zone CLARITY (zoneLabel.js): pure display-label helpers name the portal target in the in-range prompt ("Press F to travel to Plebeian Market Bazaar") and announce the entered zone after a successful KeyF hop ("Entered: Plebeian Market Bazaar"). Labels are safe Title-Case alnum strings (slug/route via humanizeZoneSlug; free-form/hostile input sanitised — no markup/dangerous token survives); HUD sink is textContent only. PURE POLISH — proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only; no network/relay/sign/publish/external nav added. SDK (experimental) + debug-shell exposure. +15 tests.',
     'v0.2.183 — LEAN-2 in-world GATEWAY PORTAL marker: a pure render plan (portalMeshPlan.js) + a browser-only THREE adapter (portalMesh.js) draw a small, inert visual landmark at the v0.2.181 trigger position so a player can SEE the travel point. The outer ring radius EQUALS the proximity range (the visible boundary is exactly where the portal arms). DISPLAY-ONLY: no collider, no raycast/input, no nav/relay/sign/publish — the safety model is unchanged (proximity arms, KeyF confirms, same-origin /zone/ only). Meshes built ONCE; the per-frame tick mutates only scalars (no vector/matrix allocation). SDK (experimental) + debug-shell (plan report + render state) exposure. +18 tests.',
     'v0.2.182 — LEAN-2 pure SPA /zone/<slug> ROUTE PARSER (zoneRoute.js): the safe client-side READ of the same-origin URL the v0.2.181 portal hop pushes, so a refresh/deep-link on /zone/* is not brittle. parseZoneRoute() runs the route through safeRoutePath (rejects dot-dot/percent/protocol-relative/js-scheme/data-scheme/markup/control/whitespace/over-length), strips query/hash, then classifies HOME (root or non-/zone path) vs ZONE (strict slug: lowercase alnum joined by single hyphens, ≤64) vs INVALID (sub-path, malformed, hostile, non-string); a valid zone maps to an INERT display state (title + HUD notice text only). navigated/performed/external/signed/published/network ALL stay false — it interprets a URL, never acts. The browser location-path read + a popstate listener are wired ONLY at the main.js composition root; the module is pure/node-safe with NO module-scope window. Hard-refresh deep-link resolution still requires a static-host SPA fallback (serve index.html for /zone/*) — DOCUMENTED in HANDOFF.md/GATEWAY_PROTOCOL.md, not faked in app code. SDK (experimental) + debug-shell exposure. +28 tests.',
-    'v0.2.181 — LEAN-2 in-world gateway PORTAL TRIGGER (portalTrigger.js) wired at the main.js composition root: a pure per-frame tick(playerPos) uses withinPortalRange (scalar squared-distance, NO Vector3) to ARM the v0.2.180 portal boundary + raise a HUD prompt when the player nears the torii gate — both INERT. Proximity ALONE never navigates; an explicit KeyF interact() is the ONLY navigating step, confirming the same-origin /zone hop over the REAL browser window injected ONCE at the boundary (no module-scope window). Allowlist stays scoped [\'/zone/\'] (never [\'/\']); external website URLs never navigate; external/world/network/sign/publish stay false; SEC-2 untouched. SDK (experimental) + debug-shell (recording host) exposure. +18 tests.',
   ],
 
   // Archive clusters, newest first.

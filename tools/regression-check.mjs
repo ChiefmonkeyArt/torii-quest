@@ -1,4 +1,4 @@
-// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.184).
+// tools/regression-check.mjs — static smoke/regression guardrails (v0.2.185).
 // No external deps. Run with: node tools/regression-check.mjs  (or: npm run check)
 //
 // Catches the regressions the Strategy doc calls out, without needing a browser:
@@ -29,6 +29,11 @@
 //      ADVISORY warnings (never fail) for advisory-doc lag (SDK_DEBUG_INDEX/CODE_INDEX) and
 //      stale "live/published version: vX" contradiction lines. Pure helpers in
 //      tools/docConsistency.mjs (unit-tested); this block only reads the files.
+//  15. SPA /zone/* fallback readiness (v0.2.185) — FAILS if the required docs
+//      (VPS_INSTALL.md/HANDOFF.md) don't document the index.html SPA fallback for
+//      /zone/* deep-links, or (when dist/ exists) if the built route shape can't rely on
+//      it (no index.html, or a static file published under /zone/* that would shadow it).
+//      Pure helpers in tools/zoneFallbackReadiness.mjs (unit-tested); this block reads files.
 //
 // Exit code 0 = all green; non-zero = at least one FAIL.
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
@@ -36,7 +41,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.184-alpha';
+const EXPECTED_VERSION = 'v0.2.185-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -120,7 +125,7 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   const count = (html.match(new RegExp(EXPECTED_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
   if (count < 2) fail(`index.html has ${count} ${EXPECTED_VERSION} markers (expected >=2)`);
   else pass(`index.html has ${count} version markers`);
-  if (/v0\.2\.183-alpha/.test(html)) fail('index.html still references v0.2.183-alpha');
+  if (/v0\.2\.184-alpha/.test(html)) fail('index.html still references v0.2.184-alpha');
   // package.json `version` must be valid semver (no leading 'v'), so it carries
   // the EXPECTED_VERSION with the 'v' stripped. Ties package metadata to the
   // runtime VERSION so the two can't drift (security-review finding, v0.2.137).
@@ -325,6 +330,46 @@ console.log('[14] docs/status consistency guard (docConsistency)');
     else for (const e of r.errors) fail(e);
   } catch (e) {
     fail(`doc-consistency guard threw: ${e.message}`);
+  }
+}
+
+// 15. SPA /zone/* fallback readiness guard (v0.2.185) — keep the outstanding torii.quest/VPS
+// static-host requirement (serve index.html for /zone/* deep-links) DOCUMENTED + checkable.
+// HARD FAIL if a required doc (VPS_INSTALL.md/HANDOFF.md) doesn't describe the index.html
+// fallback, or (only when dist/ exists) if the built route shape can't rely on it. The pure
+// logic lives in zoneFallbackReadiness.mjs (node-safe, unit-tested); this block does fs reads.
+console.log('[15] SPA /zone/* fallback readiness (zoneFallbackReadiness)');
+{
+  try {
+    const { REQUIRED_FALLBACK_DOCS, checkZoneFallbackReadiness } = await import('./zoneFallbackReadiness.mjs');
+    const docs = {};
+    for (const name of REQUIRED_FALLBACK_DOCS) {
+      const p = join(ROOT, name);
+      if (existsSync(p)) docs[name] = readFileSync(p, 'utf8');
+    }
+    let dist = {};
+    const distDir = join(ROOT, 'dist');
+    if (existsSync(distDir)) {
+      const paths = [];
+      const walkDist = (dir) => {
+        for (const name of readdirSync(dir)) {
+          const p = join(dir, name);
+          if (statSync(p).isDirectory()) walkDist(p);
+          else paths.push(p.slice(distDir.length + 1).replace(/\\/g, '/'));
+        }
+      };
+      walkDist(distDir);
+      dist = { paths };
+    }
+    const r = checkZoneFallbackReadiness({ docs, dist });
+    for (const w of r.warnings) console.log(`  · advisory: ${w}`);
+    if (r.ok) {
+      pass(`docs document the /zone/* index.html fallback${r.dist.skipped ? ' (dist route-shape check skipped — no build)' : '; dist route shape relies on it'}`);
+    } else {
+      for (const e of r.errors) fail(e);
+    }
+  } catch (e) {
+    fail(`zone-fallback guard threw: ${e.message}`);
   }
 }
 

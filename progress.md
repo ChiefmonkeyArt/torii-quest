@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.184-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.185-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.184-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **973 passing / 66 files** (profiles: `test:fast` ~5 files, `test:foundation` ~23 files) |
-| Regression check | **14 / 14 GREEN** |
+| Source version | **v0.2.185-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **993 passing / 67 files** (profiles: `test:fast` ~5 files, `test:foundation` ~24 files) |
+| Regression check | **15 / 15 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |
-| Active slice | v0.2.184 LEAN-2 portal/zone CLARITY — pure label helpers (`engine/gateway/zoneLabel.js`) give the player a clearer target/state: a target-aware proximity prompt (`portalPromptLabel` → "Press F to travel to Plebeian Market Bazaar") and a concise inert notice after a successful KeyF hop (`enteredZoneLabel` → "Entered: …"). All text is derived from the safe slug via `humanizeZoneSlug`; free-form/hostile input is stripped to an alnum/space/hyphen allowlist. HUD sink stays `textContent` only. DISPLAY-ONLY: no nav/relay/sign/publish/network — the safety model is unchanged (proximity arms, KeyF confirms, same-origin `/zone/` only) |
+| Active slice | v0.2.185 deployment-readiness FOUNDATION — makes the outstanding torii.quest/VPS static-host requirement (serve `index.html` for `/zone/*` on a cold hard-refresh/deep-link) operationally explicit and LOCALLY checkable before publish. New pure helper (`tools/zoneFallbackReadiness.mjs`) + read-only, network-free CLI (`npm run zones:check`) + regression-check [15] verify the docs (`VPS_INSTALL.md`/`HANDOFF.md`) carry the SPA fallback and a built `dist/` has `index.html` with no `/zone/*` file shadowing it. Docs + check only (`ZONE_FALLBACK_READINESS.md` checklist, `VPS_INSTALL.md` §11, `UPDATE_CHECK.md` pointer): no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime change |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 

@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.184-alpha",
+  "version": "0.2.185-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "check": "node tools/regression-check.mjs",
     "bundle:report": "node tools/bundle-report.mjs",
     "handoff:status": "node tools/handoff-status.mjs",
+    "zones:check": "node tools/zone-fallback-check.mjs",
     "test": "vitest run",
     "test:fast": "node tools/test-profile.mjs fast",
     "test:foundation": "node tools/test-profile.mjs foundation",

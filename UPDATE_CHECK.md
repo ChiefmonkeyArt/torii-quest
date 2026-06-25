@@ -109,3 +109,7 @@ in-world prompt MESH/HUD remain deferred (below).
   See `VPS_INSTALL.md` for how a maintainer self-hosts at `torii.quest` and updates
   by hand from GitHub (§7), the rollback model (§8), and the deferred guarded
   "update button" architecture (§10).
+- Publish readiness for the gateway `/zone/<slug>` deep-links (the host-side SPA fallback
+  that must serve `index.html` for `/zone/*`) is tracked separately in
+  `ZONE_FALLBACK_READINESS.md` and locally checkable via `npm run zones:check` — a
+  read-only, network-free guard, independent of this update-check flow.

@@ -309,3 +309,31 @@ the safety boundary. Sketch only — **do not implement without explicit sign-of
 
 Until that design is reviewed and authorised, **updates stay 100% manual** and the
 app ships no update action.
+
+---
+
+## 11. SPA `/zone/*` fallback readiness (v0.2.185)
+
+The gateway travel feature pushes same-origin `/zone/<slug>` URLs (the v0.2.181 portal hop +
+the v0.2.182 client-side route parser). For an *in-app* hop this is fully handled. For a
+**cold hard-refresh / shared deep-link** to `/zone/<slug>` the static host must serve
+`index.html` for that unmatched path — otherwise the host 404s before any JS runs. Both
+serve blocks above already carry this directive:
+
+- **Caddy (§6a):** `try_files {path} /index.html`
+- **Nginx (§6b):** `try_files $uri $uri/ /index.html;`
+- **Static CDN / object storage:** set the SPA / 404 fallback document to `index.html`.
+
+Before publishing a new `dist/`, run the repo's local, read-only, network-free readiness
+check (no server needed):
+
+```bash
+npm run build && npm run zones:check
+```
+
+It FAILS if these docs stop describing the `/zone/*` → `index.html` fallback, if the built
+bundle has no `index.html`, or if a static file is published under `dist/zone/*` that would
+shadow the fallback. The same guard runs inside `npm run check` (regression-check [15]) and
+the release gate. The full pre-publish checklist + non-goals live in
+`ZONE_FALLBACK_READINESS.md`. Configuring the real host fallback remains a manual maintainer
+step — this repo touches no server.

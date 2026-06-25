@@ -52,6 +52,7 @@ const FOUNDATION = [
   'handoff-status.test.js',
   'bundle-sizes.test.js',
   'continuum-parse.test.js',
+  'zone-fallback-readiness.test.js',
 ];
 
 // Frozen registry of basename lists. `release` is intentionally NOT a file list — the

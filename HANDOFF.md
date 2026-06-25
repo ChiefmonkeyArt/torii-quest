@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.184-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.185-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -154,6 +154,18 @@ Breaking one should fail CI/the check, not ship.
   refreshed the notice). DISPLAY-ONLY + INERT: no network/relay/sign/publish/external nav —
   the safety model is unchanged. debug-shell `zoneLabel(opts?)` with a `safe` flag proving
   hostile input is stripped);
+  v0.2.185 added NO SDK namespace — it is a deployment-readiness FOUNDATION slice (docs +
+  a local check, no runtime change). The outstanding torii.quest/VPS static-host
+  prerequisite for the gateway travel feature — serve `index.html` for any `/zone/<slug>`
+  path on a COLD hard-refresh/deep-link (see §7) — is now operationally explicit and
+  LOCALLY checkable before publish. A pure node-safe helper (`tools/zoneFallbackReadiness.mjs`)
+  + a read-only, network-free CLI (`npm run zones:check`) + regression-check [15] verify the
+  required docs (`VPS_INSTALL.md`/`HANDOFF.md`) describe the `index.html` SPA fallback and
+  that a built `dist/` has an `index.html` with NO static file under `/zone/*` that would
+  shadow it. New `ZONE_FALLBACK_READINESS.md` checklist + `VPS_INSTALL.md` §11 + an
+  `UPDATE_CHECK.md` §4 pointer. NON-GOALS held: no server access/SSH/credentials, no
+  deploy/publish/upload, no auto-update, no navigation/runtime change (proximity arms, KeyF
+  confirms, same-origin `/zone/` only). Unit-tested by `tests/zone-fallback-readiness.test.js`);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
@@ -427,6 +439,14 @@ documented here, not faked in app code. Examples:
 Keep the existing CSP unchanged; the fallback only affects path routing. Until the
 rewrite is configured, `/zone/*` deep links 404 at the edge; same-origin in-app
 navigation (the v0.2.181 portal hop via `history.pushState`) is unaffected.
+
+Since **v0.2.185** this prerequisite is operationally explicit and LOCALLY checkable
+before publish: `npm run zones:check` (read-only, network-free; also regression-check
+[15]) verifies this doc + `VPS_INSTALL.md` describe the `index.html` SPA fallback and
+that a built `dist/` has an `index.html` with no static file under `/zone/*` shadowing
+it. The full pre-publish checklist + non-goals live in `ZONE_FALLBACK_READINESS.md`;
+the concrete server blocks are in `VPS_INSTALL.md` §6a/§6b/§11. Configuring the real
+host fallback remains a manual maintainer step — this repo touches no server.
 
 ## 8. Active issues / open edges
 

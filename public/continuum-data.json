@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.184-alpha",
-  "generatedAt": "2026-06-25T11:36:50.349Z",
+  "version": "v0.2.185-alpha",
+  "generatedAt": "2026-06-25T11:56:26.214Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,22 +48,22 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.184-alpha"
+        "value": "v0.2.185-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 23 · full 66"
+        "value": "fast 5 · foundation 24 · full 67"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "973 passing"
+        "value": "993 passing"
       },
       {
         "label": "Profile timings",
         "kind": "last-known",
-        "value": "fast ~1s · foundation ~6s · full suite ~41s"
+        "value": "fast ~1s · foundation ~6s · full suite ~44s"
       },
       {
         "label": "Bundle baseline",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "14 / 14 regression checks GREEN · last green v0.2.184-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.185-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -95,12 +95,12 @@
       {
         "pct": 100,
         "label": "Regression checks",
-        "sub": "14 / 14"
+        "sub": "15 / 15"
       },
       {
-        "pct": 35,
+        "pct": 36,
         "label": "Foundation coverage",
-        "sub": "23/66 files"
+        "sub": "24/67 files"
       }
     ]
   },

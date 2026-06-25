@@ -110,4 +110,4 @@ completed slices), `tests/continuum-dashboard.test.js` (version pins).
   `public/continuum-data.json`, `todo.md`, `progress.md`, `HANDOFF.md`,
   `CODE_INDEX.md`, `SDK_DEBUG_INDEX.md`.
 
-**Commit:** _(local-only; appended below)_
+**Commit:** `8b03f4c` — _v0.2.190-alpha: add handoff auto-summary tooling_ (local-only; not pushed)

@@ -248,8 +248,8 @@ Breaking one should fail CI/the check, not ship.
   notice, with NO live update and NO runtime network. A pure `buildReleaseMeta({version,commit,
   owner,repo,generatedAt})` in `tools/releaseMeta.mjs` shapes `{kind, schemaVersion, channel
   (derived from the version tag via `channelForVersion`), version, commit, documentation-only
-  GitHub source URLs (the real repo `ChiefmonkeyArt/torii-gate`; the legacy placeholder in
-  `RELEASE_SOURCE` in `src/engine/update/updateCheck.js` is corrected in a separate runtime slice), dist
+  GitHub source URLs (the real repo `ChiefmonkeyArt/torii-gate`; `RELEASE_SOURCE` in
+  `src/engine/update/updateCheck.js` was corrected to the same real repo in v0.2.193 — documentation-only, no I/O), dist
   artifact expectations (`DIST_SPEC`), `requiredFiles`/`requiredChecks`, and manual/no-auto-update
   consent + notice wording}`. `validateReleaseMeta(meta)` is the SAFETY FLOOR: it ERRORs (not
   warns) if `update.autoUpdate` or `update.actionable` is anything but `false`, machine-enforcing

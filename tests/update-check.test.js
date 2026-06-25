@@ -9,6 +9,18 @@ import {
 } from '../src/engine/update/updateCheck.js';
 import { VERSION } from '../src/config.js';
 
+describe('updateCheck — RELEASE_SOURCE', () => {
+  it('points at the real repo ChiefmonkeyArt/torii-gate (not the legacy placeholder)', () => {
+    expect(RELEASE_SOURCE.owner).toBe('ChiefmonkeyArt');
+    expect(RELEASE_SOURCE.repo).toBe('torii-gate');
+    expect(RELEASE_SOURCE.latestReleaseUrl).toBe(
+      'https://api.github.com/repos/ChiefmonkeyArt/torii-gate/releases/latest');
+    expect(RELEASE_SOURCE.releasesPageUrl).toBe(
+      'https://github.com/ChiefmonkeyArt/torii-gate/releases');
+    expect(`${RELEASE_SOURCE.owner}/${RELEASE_SOURCE.repo}`).not.toContain('torii-quest/torii-quest');
+  });
+});
+
 describe('updateCheck — compareVersions', () => {
   it('orders numeric cores', () => {
     expect(compareVersions('0.2.137', '0.2.138')).toBe(-1);

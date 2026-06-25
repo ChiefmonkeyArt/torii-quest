@@ -19,12 +19,14 @@ import { VERSION } from '../../config.js';
 
 // Where the latest-release data WOULD be fetched from (documentation only — this
 // module performs no I/O). The maintainer/host wires the actual read-only fetch.
+// Points at the real repo ChiefmonkeyArt/torii-gate (corrected in v0.2.193 from the
+// legacy torii-quest/torii-quest placeholder; kept in sync with releaseMeta DEFAULT_SOURCE).
 export const RELEASE_SOURCE = Object.freeze({
-  owner: 'torii-quest',
-  repo: 'torii-quest',
+  owner: 'ChiefmonkeyArt',
+  repo: 'torii-gate',
   // GitHub "latest release" REST endpoint shape — for documentation/reference.
-  latestReleaseUrl: 'https://api.github.com/repos/torii-quest/torii-quest/releases/latest',
-  releasesPageUrl: 'https://github.com/torii-quest/torii-quest/releases',
+  latestReleaseUrl: 'https://api.github.com/repos/ChiefmonkeyArt/torii-gate/releases/latest',
+  releasesPageUrl: 'https://github.com/ChiefmonkeyArt/torii-gate/releases',
 });
 
 // Update-check result statuses.

@@ -11,7 +11,7 @@
 | Metric | Value |
 |---|---|
 | Source version | **v0.2.193-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **1143 passing / 72 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
+| Tests | **1145 passing / 72 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **15 / 15 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |

@@ -32,8 +32,8 @@ export const UPDATE_CHANNELS = Object.freeze({
 
 // Where the latest-release data WOULD be fetched from — the real GitHub repo;
 // documentation only, nothing here fetches. (RELEASE_SOURCE in
-// src/engine/update/updateCheck.js still carries the legacy placeholder pending a
-// separate runtime slice.)
+// src/engine/update/updateCheck.js was corrected to the same real repo in v0.2.193 —
+// it is documentation-only too, performs no I/O.)
 export const DEFAULT_SOURCE = Object.freeze({
   owner: 'ChiefmonkeyArt',
   repo: 'torii-gate',

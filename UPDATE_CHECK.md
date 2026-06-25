@@ -131,7 +131,7 @@ Pure helpers in `tools/releaseMeta.mjs` (node-tested, no fs/network/THREE/DOM):
 | `RELEASE_META_BADGE` | `'RELEASE METADATA · LOCAL · READ-ONLY · NO AUTO-UPDATE'` | Makes the contract explicit on any surface that renders it. |
 | `METADATA_SCHEMA_VERSION` / `RELEASE_META_KIND` / `RELEASE_META_FILE` | `1` / `'torii-release-metadata'` / `'public/release-metadata.json'` | Schema/identity + the canonical in-repo output path. |
 | `UPDATE_CHANNELS` | `{ STABLE, ALPHA, BETA, RC, UNKNOWN }` | Frozen channel enum. |
-| `DEFAULT_SOURCE` / `DIST_SPEC` / `REQUIRED_FILES` / `REQUIRED_CHECKS` | frozen | Repo coordinates (the real `ChiefmonkeyArt/torii-gate`; `RELEASE_SOURCE` in `updateCheck.js` still carries the legacy placeholder pending a separate runtime slice), build/artifact expectations, the publish floor. |
+| `DEFAULT_SOURCE` / `DIST_SPEC` / `REQUIRED_FILES` / `REQUIRED_CHECKS` | frozen | Repo coordinates (the real `ChiefmonkeyArt/torii-gate`; `RELEASE_SOURCE` in `updateCheck.js` was corrected to the same real repo in v0.2.193 — it is documentation-only, no I/O), build/artifact expectations, the publish floor. |
 | `CONSENT_TEXT` / `UPDATE_NOTICE` | strings | Manual/no-auto-update wording carried IN the metadata. |
 | `channelForVersion(version)` | channel | Derives stable/alpha/beta/rc/unknown from the prerelease tag. |
 | `releaseUrlsFor(owner, repo)` | `{ latestReleaseUrl, releasesPageUrl }` | Documentation-only https GitHub endpoints. |

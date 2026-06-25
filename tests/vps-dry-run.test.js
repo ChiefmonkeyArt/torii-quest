@@ -24,7 +24,7 @@ no auto-update here; deploy by hand
 ## 8. Rollback
 re-point the symlink at the previous release
 ## 9. Security notes
-No service worker ships today.
+The app ships a service worker (sw.js); bump its CACHE_VERSION to cache-bust when precached assets change.
 try_files {path} /index.html for /zone/ paths
 `;
 const GOOD_UPDATE = `metadata points at ${REAL_REPO_SLUG}`;
@@ -179,12 +179,15 @@ describe('checkRollbackSafety', () => {
 });
 
 describe('checkServiceWorkerCaveat', () => {
-  it('passes when the service-worker stance is documented', () => {
+  it('passes when the service worker AND cache-busting are documented', () => {
     expect(checkServiceWorkerCaveat(GOOD_VPS).status).toBe('pass');
-    expect(checkServiceWorkerCaveat('we ship no service-worker').status).toBe('pass');
+    expect(checkServiceWorkerCaveat('ships a service worker (sw.js); bump CACHE_VERSION to cache-bust').status).toBe('pass');
   });
   it('fails when no service-worker mention exists', () => {
     expect(checkServiceWorkerCaveat('nothing about caching').status).toBe('fail');
+  });
+  it('fails when the service worker is mentioned but cache-busting is not', () => {
+    expect(checkServiceWorkerCaveat('we ship a service worker').status).toBe('fail');
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "version": "v0.2.193-alpha",
-  "generatedAt": "2026-06-25T18:43:43.140Z",
+  "generatedAt": "2026-06-25T19:01:14.862Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -59,7 +59,7 @@
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1143 passing"
+        "value": "1145 passing"
       },
       {
         "label": "Profile timings",
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.193-alpha",
-    "gitCommit": "09718da",
+    "gitCommit": "8a6bd87",
     "signals": [
       {
         "key": "versionSync",

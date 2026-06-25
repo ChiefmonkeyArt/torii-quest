@@ -283,14 +283,23 @@ Prune old releases manually once disk pressure warrants it — never the one
   tarballs (§8) and the web-server config (`/etc/caddy` or `/etc/nginx`) in a
   backup or config repo.
 - **HTTPS only** — both server options above redirect HTTP→HTTPS.
-- **No service worker (today).** The bundle ships **no service worker / PWA cache** —
-  there is no `sw.js`, no `navigator.serviceWorker.register`, and no Workbox. That is
-  *why* the atomic symlink-flip update model (§7/§8) is sufficient: a returning browser
-  re-fetches `index.html` (served `no-cache`) and the hashed Vite assets, so a flip takes
-  effect on the next load with **no client-side cache to bust**. If a service worker is ever
-  added, this assumption breaks — an SW could keep serving the old build after a flip — so
-  treat adding one as a deliberate, documented decision that must ship a cache-invalidation /
-  `skipWaiting` story alongside it. Until then, no SW is the safe default.
+- **Service worker — cache-busting / update hygiene.** The bundle **does ship a same-origin
+  service worker**: `public/sw.js` (copied to `dist/sw.js` at build) is registered from
+  `index.html` via `navigator.serviceWorker.register('/sw.js')`. Its strategy is **cache-first
+  for static assets** (`.glb`/`.webp`/`.jpg`/`.png`/`.woff2`/`.wasm`) and **network-first for
+  HTML/JS/CSS**, using `skipWaiting()` on install + `clients.claim()` on activate. Operator
+  implications for the atomic symlink-flip update model (§7/§8):
+  - **HTML/JS/CSS are network-first**, so a returning *online* browser picks up the flipped
+    build on its next load — the symlink flip is enough for the app shell and code.
+  - **Precached static assets persist** until `sw.js`'s `CACHE_VERSION` (today `'tq-v1'`,
+    yielding `CACHE_NAME = 'torii-quest-tq-v1'`) is bumped — the activate handler only deletes
+    caches whose name doesn't match the current `CACHE_NAME`. So **when a precached asset
+    changes** (a model/texture in `PRECACHE_ASSETS`, or the cached-asset policy), you **must
+    bump `CACHE_VERSION`** in `public/sw.js` and rebuild, or returning clients keep serving the
+    stale asset after a flip.
+  - This is the **cache-busting / update hygiene** an operator must account for: a symlink flip
+    alone does not invalidate the SW's static cache. Treat any change to the precache list or
+    the cached-asset extensions as requiring a coordinated `CACHE_VERSION` bump.
 
 ---
 
@@ -376,6 +385,12 @@ can bake live provenance into the *deployed* copy with:
 npm run release:meta -- --write --stamp   # adds the live git commit + ISO timestamp
 ```
 
+The in-repo `public/release-metadata.json` is therefore **intentionally unstamped** —
+`commit` and `generatedAt` are `null` so a plain `--write` is idempotent and never churns the
+tree. Stamping is a **deploy-time** action that mutates only the *deployed* copy, so the
+committed file staying null is the correct, expected state (the dry-run §13 reports this
+honestly rather than flagging it). Do not commit a stamped metadata file back into the repo.
+
 This is descriptive metadata only. `update.autoUpdate` and `update.actionable` are fixed
 `false`, and `validateReleaseMeta()` raises an ERROR (not a warning) if either is ever
 flipped — so the metadata can never become an update *trigger*. The guarded "update button"
@@ -397,11 +412,15 @@ npm run vps:dry-run  # the read-only readiness checklist (add `-- --json` for ma
 
 It checks: the required deploy docs are present; `dist/` (if built) carries `index.html` (and
 the copied `release-metadata.json`); `public/release-metadata.json` is present and **manual-only /
-non-actionable** (reusing `validateReleaseMeta()`); the metadata + `UPDATE_CHECK.md` point at the
+non-actionable** (reusing `validateReleaseMeta()`) — reporting honestly whether the in-repo copy is
+the **unstamped deterministic template** (commit/generatedAt null by design) or a **stamped** copy
+(`--write --stamp` at deploy, §12), PASSing either way; the metadata + `UPDATE_CHECK.md` point at the
 real repo `ChiefmonkeyArt/torii-gate`; the `/zone/*` SPA fallback is documented (§11); this file
 carries the build/manual-update/rollback/security sections; the `npm run build` / `npm run check`
 commands are documented; the rollback + manual/no-auto-update wording is present (§8/§9); the
-**service-worker stance** is documented (§9); and the live URL references are clear.
+**service-worker cache-busting / update hygiene** is documented (§9) — i.e. that the app ships
+`sw.js` and an operator must bump its `CACHE_VERSION` when precached assets change, not merely that a
+service worker exists; and the live URL references are clear.
 
 It exits non-zero only on a **blocking failure** (a missing doc/section, missing/placeholder
 metadata, or a built bundle with no `index.html`); warnings and the skipped-`dist/` row never

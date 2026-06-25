@@ -84,14 +84,21 @@ export function checkDistBundle(dist) {
   return check('dist-bundle', 'dist/ built with index.html', hasMeta ? PASS : WARN, note);
 }
 
-// release-metadata.json present + parseable.
+// release-metadata.json present + parseable. The in-repo copy is intentionally UNSTAMPED
+// (commit/generatedAt null) so re-running `npm run release:meta -- --write` never churns the
+// working tree; the DEPLOYED copy bakes provenance via `--write --stamp` at deploy time. Either
+// state PASSes — the detail just reports which one this is so the operator's expectation is honest.
 export function checkReleaseMetaPresent(releaseMeta) {
   if (!releaseMeta || typeof releaseMeta !== 'object' || Array.isArray(releaseMeta)) {
     return check('release-meta-present', 'release-metadata.json present + parseable', FAIL,
       'public/release-metadata.json missing or unparseable — run `npm run release:meta -- --write`');
   }
+  const stamped = hasText(releaseMeta.commit) && hasText(releaseMeta.generatedAt);
+  const stampNote = stamped
+    ? `stamped (commit ${releaseMeta.commit}, generatedAt ${releaseMeta.generatedAt})`
+    : 'unstamped in-repo template (commit/generatedAt null by design; deploy bakes provenance via `npm run release:meta -- --write --stamp`)';
   return check('release-meta-present', 'release-metadata.json present + parseable', PASS,
-    `version ${releaseMeta.version ?? '(unknown)'} / channel ${releaseMeta.channel ?? '(unknown)'}`);
+    `version ${releaseMeta.version ?? '(unknown)'} / channel ${releaseMeta.channel ?? '(unknown)'} — ${stampNote}`);
 }
 
 // release metadata enforces the manual/no-auto-update safety floor (reuses validateReleaseMeta).
@@ -190,16 +197,27 @@ export function checkRollbackSafety(vpsDoc) {
     'symlink rollback + manual/no-auto-update wording present');
 }
 
-// service-worker caveat documented. torii ships NO service worker, which is WHY the atomic
-// symlink-flip update model needs no client cache-busting — an operator must be told this so a
-// future SW addition is a conscious, documented decision.
+// service-worker cache-busting documented. torii DOES ship a same-origin service worker
+// (public/sw.js, registered from index.html: cache-first for static assets, network-first for
+// HTML/JS/CSS). So an atomic symlink-flip alone is NOT enough — precached static assets persist
+// on clients until sw.js's CACHE_VERSION is bumped. An operator must be told this, so the doc has
+// to spell out cache-busting / update hygiene, not merely mention "service worker" in passing.
+const SW_CACHE_TERMS = Object.freeze([
+  'cache-bust', 'cache bust', 'cache_version', 'cache version', 'cache-version', 'cache invalidation',
+]);
 export function checkServiceWorkerCaveat(vpsDoc) {
-  if (!containsCI(vpsDoc, 'service worker') && !containsCI(vpsDoc, 'service-worker')) {
-    return check('service-worker-caveat', 'service-worker stance documented', FAIL,
-      'VPS_INSTALL.md does not document the service-worker stance (the app ships none today)');
+  const mentionsSW = containsCI(vpsDoc, 'service worker') || containsCI(vpsDoc, 'service-worker');
+  if (!mentionsSW) {
+    return check('service-worker-cache-busting', 'service-worker cache-busting documented', FAIL,
+      'VPS_INSTALL.md does not document the service worker (the app ships public/sw.js, registered from index.html)');
   }
-  return check('service-worker-caveat', 'service-worker stance documented', PASS,
-    'service-worker stance documented (no SW today → symlink-flip needs no cache-bust)');
+  const mentionsCacheBust = SW_CACHE_TERMS.some((t) => containsCI(vpsDoc, t));
+  if (!mentionsCacheBust) {
+    return check('service-worker-cache-busting', 'service-worker cache-busting documented', FAIL,
+      'service worker mentioned but cache-busting / update hygiene is not documented (bump sw.js CACHE_VERSION when precached assets change)');
+  }
+  return check('service-worker-cache-busting', 'service-worker cache-busting documented', PASS,
+    'app ships sw.js — cache-busting / update hygiene documented (bump CACHE_VERSION when precached assets change)');
 }
 
 // live URL references are clear in the handoff docs.

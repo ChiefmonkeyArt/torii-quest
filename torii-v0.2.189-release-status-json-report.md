@@ -168,7 +168,7 @@ review. Docs/tooling/dashboard only — no gameplay/runtime/physics/Nostr change
 ## Commit
 
 - **Message (initial):** `v0.2.189-alpha: export release readiness as JSON` — `28a7cfb`
-- **Message (WARN follow-up):** `v0.2.189-alpha: fix security-review WARN findings (JSON banner docs + dashboard test count)` — _(appended below after commit)_
+- **Message (WARN follow-up):** `v0.2.189-alpha: fix security-review WARN findings (JSON banner docs + dashboard test count)` — `98ed579`
 
 Local commits only. Parent agent verifies, reviews, deploys, publishes, pushes, and
 uploads docs, then continues to the next safe task.

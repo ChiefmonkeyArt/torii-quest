@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.186-alpha",
-  "generatedAt": "2026-06-25T12:19:15.907Z",
+  "version": "v0.2.187-alpha",
+  "generatedAt": "2026-06-25T12:42:28.229Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,17 +48,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.186-alpha"
+        "value": "v0.2.187-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 24 · full 67"
+        "value": "fast 5 · foundation 25 · full 68"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1001 passing"
+        "value": "1016 passing"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.186-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.187-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -98,9 +98,9 @@
         "sub": "15 / 15"
       },
       {
-        "pct": 36,
+        "pct": 37,
         "label": "Foundation coverage",
-        "sub": "24/67 files"
+        "sub": "25/68 files"
       }
     ]
   },

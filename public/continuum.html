@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Continuum · v0.2.186-alpha</title>
+<title>Torii Continuum · v0.2.187-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -112,10 +112,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Continuum <span class="v">v0.2.186-alpha</span></h1>
+    <h1>Torii Continuum <span class="v">v0.2.187-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T12:19:15.907Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T12:42:28.229Z</span></div>
   </header>
   <main>
     <section>
@@ -161,12 +161,12 @@
       <div class="h2row"><h2>At a glance</h2> <span class="count">6</span></div>
       <div class="lead">Build truth: source version, test/gate status, and the headline progress rings.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.186-alpha (build truth; live trails — manual deploy)</span></div>
-        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">1001 passing / 67 files (profiles: test:fast ~5, test:foundation ~24)</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.187-alpha (build truth; live trails — manual deploy)</span></div>
+        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">1016 passing / 68 files (profiles: test:fast ~5, test:foundation ~25)</span></div>
         <div class="metric"><span class="metric-label">Regression check</span><span class="metric-value">15 / 15 GREEN</span></div>
         <div class="metric"><span class="metric-label">Bundle (advisory)</span><span class="metric-value">~2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Gates</span><ul class="mini"><li>SEC-1 / SEC-2 / SEC-3 intact</li><li>godMode false</li><li>continuum CSP enforced</li></ul></div>
-        <div class="metric"><span class="metric-label">Active slice</span><ul class="mini"><li>v0.2.186 deployment-readiness VISIBILITY — surfaces the v0.2.185 /zone/* static-host fallback verdict as a first-class Deployment-readiness section in the Torii Continuum dashboard (data + visible page). A new pure builder (buildReadinessModel) folds the read-only zoneFallbackReadiness result into honest READY / DOCS READY</li><li>BUILD CHECK PENDING / NOT READY / NOT CHECKED states with a per-check table; build-continuum.mjs feeds the real verdict at packaging time. Dashboard/tooling-only/no-runtime: reuses existing pill CSS, CSP/script-hash untouched; no server access/deploy/auto-update; navigation model unchanged.</li></ul></div>
+        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.187 release-readiness VISIBILITY — a new read-only local command (npm run release:status) aggregates the ship signals into ONE concise verdict for AI handoff: version sync, test-profile counts, the 15-check regression gate, the advisory bundle baseline, the /zone/* fallback verdict, docs/status consistency, and latest reports. Pure aggregator (releaseReadiness.mjs) + thin CLI (release-readiness.mjs) + 15 unit tests; foundation profile +1. Tooling/docs-only/no-runtime: no fs writes, no network, no gameplay/portal/physics/controls/Nostr change.</span></div>
         <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">1 human · 3 clankers</span></div>
         <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><ul class="mini"><li>12 completed task markers (todo.md)</li><li>12 next-12</li><li>11 archive clusters</li></ul></div>
       </div>
@@ -213,13 +213,13 @@
       <div class="h2row"><h2>Engineering health</h2> <span class="count">8</span></div>
       <div class="lead">The efficiency loop in numbers — each card chipped GENERATED or LAST-KNOWN.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.186-alpha</span></div>
-        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 24</li><li>full 67</li></ul></div>
-        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">1001 passing</span></div>
+        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.187-alpha</span></div>
+        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 25</li><li>full 68</li></ul></div>
+        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">1016 passing</span></div>
         <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>fast ~1s</li><li>foundation ~6s</li><li>full suite ~44s</li></ul></div>
         <div class="metric"><span class="metric-label">Bundle baseline <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>0</li><li>dashboard lists fully derived</li></ul></div>
-        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>15 / 15 regression checks GREEN</li><li>last green v0.2.186-alpha</li></ul></div>
+        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>15 / 15 regression checks GREEN</li><li>last green v0.2.187-alpha</li></ul></div>
         <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>progress.md</li><li>todo.md</li><li>strategy.md carry this version</li></ul></div>
       </div>
       <div class="rings">
@@ -242,11 +242,11 @@
           <figcaption>Regression checks</figcaption>
         </figure>
         <figure class="donut">
-          <svg viewBox="0 0 120 120" role="img" aria-label="Foundation coverage 36 percent">
+          <svg viewBox="0 0 120 120" role="img" aria-label="Foundation coverage 37 percent">
             <circle class="donut-track" cx="60" cy="60" r="52"></circle>
-            <circle class="donut-val" cx="60" cy="60" r="52" stroke-dasharray="117.62 209.10" transform="rotate(-90 60 60)"></circle>
-            <text class="donut-num" x="60" y="58">36%</text>
-            <text class="donut-lbl" x="60" y="78">24/67 files</text>
+            <circle class="donut-val" cx="60" cy="60" r="52" stroke-dasharray="120.89 205.84" transform="rotate(-90 60 60)"></circle>
+            <text class="donut-num" x="60" y="58">37%</text>
+            <text class="donut-lbl" x="60" y="78">25/68 files</text>
           </svg>
           <figcaption>Foundation coverage</figcaption>
         </figure>

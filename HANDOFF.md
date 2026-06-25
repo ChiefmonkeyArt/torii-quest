@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.186-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.187-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -338,6 +338,7 @@ npm run test:foundation  # ~16 files (fast + engine seams + SDK contract + guard
 npm run test:release     # build + FULL vitest + check + bundle:report + handoff:status — the release gate
 npm run preview  # serve the built dist/ (used for headless smoke)
 npm run bundle:report  # advisory built-bundle size baseline (raw+gzip; reads dist/)
+npm run release:status # one concise release-readiness verdict aggregating the local signals (v0.2.187; read-only, network-free, exits 0 — not a gate)
 ```
 
 **Test profiles (v0.2.173).** The `test:fast`/`test:foundation` profiles are explicit,
@@ -357,7 +358,12 @@ carry the current version or `npm run check` fails; its stale-live-version ADVIS
 quoted/changelog prose (v0.2.155) so it only flags plainly-stated status lines. For a
 one-glance snapshot of all of the above (VERSION/pkg sync, git commit, live URL, checks,
 core-doc presence, latest reports, bundle baseline) run `npm run handoff:status` (v0.2.156;
-visibility tool, network-free, always exits 0 — not a gate).
+visibility tool, network-free, always exits 0 — not a gate). For ONE concise release-readiness
+verdict that folds the ship signals together — version sync, test-profile counts, the
+regression-gate check count, the advisory bundle baseline, the `/zone/*` SPA-fallback verdict,
+docs/status consistency, and the latest reports, with an honest READY / NOT READY / INCOMPLETE
+status — run `npm run release:status` (v0.2.187; pure aggregator `tools/releaseReadiness.mjs` +
+read-only CLI, network-free, exits 0 — the authority stays `npm run check` / `npm run test:release`).
 
 Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` is
 created at module load in `scene.js`, so any module importing `scene.js`

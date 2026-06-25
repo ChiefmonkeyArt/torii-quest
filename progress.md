@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.186-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.187-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.186-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **1001 passing / 67 files** (profiles: `test:fast` ~5 files, `test:foundation` ~24 files) |
+| Source version | **v0.2.187-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **1016 passing / 68 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **15 / 15 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |
-| Active slice | v0.2.186 deployment-readiness VISIBILITY (dashboard/tooling only, no runtime change) — surfaces the v0.2.185 `/zone/*` static-host fallback verdict as a first-class **Deployment-readiness** section in the Torii Continuum (data model + visible page). New pure builder `buildReadinessModel` folds the read-only `checkZoneFallbackReadiness` result into honest states — READY / DOCS READY · BUILD CHECK PENDING / NOT READY / NOT CHECKED — with a per-check table (docs fallback, dist route shape, host fallback MANUAL, auto-update MANUAL); `build-continuum.mjs` feeds the real verdict at packaging time and falls back to a curated NOT-CHECKED model. Reuses existing pill CSS so the continuum CSP + script-hash stay untouched; `continuumDataJSON` now carries `readiness`. NON-GOALS held: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime/gameplay change. +8 tests |
+| Active slice | v0.2.187 release-readiness VISIBILITY (tooling/docs only, no runtime change) — a new read-only, local, network-free command (`npm run release:status`) aggregates the local ship signals into ONE concise verdict for AI handoff + rapid shipping: version sync, test-profile counts, the 15-check regression gate (read-only presence/count), the advisory bundle baseline, the `/zone/*` SPA-fallback verdict, docs/status consistency, and latest reports. Pure aggregator (`tools/releaseReadiness.mjs`: `buildReleaseReadiness`/`formatReleaseReadiness`) + thin CLI (`tools/release-readiness.mjs`) folding the existing pure checks; honest READY / NOT READY · blockers / INCOMPLETE verdict; bundle stays ADVISORY (never blocks). +15 unit tests; added to the foundation profile. NON-GOALS held: no fs writes, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change. |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 

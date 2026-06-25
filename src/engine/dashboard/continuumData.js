@@ -31,7 +31,7 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.186-alpha';
+export const CONTINUUM_VERSION = 'v0.2.187-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -41,7 +41,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '1001 passing',
+  totalTests: '1016 passing',
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '15 / 15',
@@ -313,12 +313,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.186-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '1001 passing / 67 files (profiles: test:fast ~5, test:foundation ~24)' },
+    { label: 'Source version', value: 'v0.2.187-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '1016 passing / 68 files (profiles: test:fast ~5, test:foundation ~25)' },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.186 deployment-readiness VISIBILITY — surfaces the v0.2.185 /zone/* static-host fallback verdict as a first-class Deployment-readiness section in the Torii Continuum dashboard (data + visible page). A new pure builder (buildReadinessModel) folds the read-only zoneFallbackReadiness result into honest READY / DOCS READY · BUILD CHECK PENDING / NOT READY / NOT CHECKED states with a per-check table; build-continuum.mjs feeds the real verdict at packaging time. Dashboard/tooling-only/no-runtime: reuses existing pill CSS, CSP/script-hash untouched; no server access/deploy/auto-update; navigation model unchanged.' },
+    { label: 'Active slice', value: 'v0.2.187 release-readiness VISIBILITY — a new read-only local command (npm run release:status) aggregates the ship signals into ONE concise verdict for AI handoff: version sync, test-profile counts, the 15-check regression gate, the advisory bundle baseline, the /zone/* fallback verdict, docs/status consistency, and latest reports. Pure aggregator (releaseReadiness.mjs) + thin CLI (release-readiness.mjs) + 15 unit tests; foundation profile +1. Tooling/docs-only/no-runtime: no fs writes, no network, no gameplay/portal/physics/controls/Nostr change.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -352,7 +352,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.186 — deployment-readiness VISIBILITY (dashboard/tooling only, no runtime change): surface the v0.2.185 /zone/* static-host fallback verdict as a first-class Deployment-readiness section in the Torii Continuum (data model + visible page). A new pure node-safe builder (buildReadinessModel) folds the read-only zoneFallbackReadiness result into honest states — READY / DOCS READY · BUILD CHECK PENDING / NOT READY / NOT CHECKED — with a per-check table (docs fallback, dist route shape, host fallback MANUAL, auto-update MANUAL); build-continuum.mjs feeds the real verdict at packaging time and falls back to a curated NOT-CHECKED model. Reuses existing pill CSS so the continuum CSP + script-hash are untouched; continuumDataJSON now carries readiness. NON-GOALS held: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime/gameplay change.',
+    'v0.2.187 — release-readiness VISIBILITY (tooling/docs only, no runtime change): a new read-only, local, network-free command (npm run release:status) aggregates the local ship signals into ONE concise verdict for AI handoff + rapid shipping — version sync, test-profile counts, the 15-check regression gate (presence/count, read-only), the advisory bundle baseline, the /zone/* SPA-fallback verdict, docs/status consistency, and the latest reports. Pure aggregator (tools/releaseReadiness.mjs: buildReleaseReadiness/formatReleaseReadiness) + thin CLI (tools/release-readiness.mjs) folding the existing pure checks; honest verdict (READY / NOT READY · blockers / INCOMPLETE · signals missing); bundle stays ADVISORY (never blocks). +15 unit tests; added to the foundation profile. NON-GOALS held: no fs writes, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -383,10 +383,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.187 — release-readiness VISIBILITY (tooling/docs only, no runtime change): a new read-only, local, network-free command (npm run release:status) aggregates the local ship signals into ONE concise verdict for AI handoff — version sync, test-profile counts, the 15-check regression gate (read-only presence/count), the advisory bundle baseline, the /zone/* SPA-fallback verdict, docs/status consistency, and latest reports. Pure aggregator (tools/releaseReadiness.mjs) + thin CLI (tools/release-readiness.mjs) folding the existing pure checks; bundle stays ADVISORY (never blocks); honest READY / NOT READY / INCOMPLETE verdict. +15 unit tests; foundation profile +1. NON-GOALS: no fs writes, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
     'v0.2.186 — deployment-readiness VISIBILITY (dashboard/tooling only, no runtime change): the v0.2.185 /zone/* static-host fallback verdict is now a first-class Deployment-readiness section in the Torii Continuum (data + visible page). New pure builder buildReadinessModel folds the read-only zoneFallbackReadiness result into honest READY / DOCS READY · BUILD CHECK PENDING / NOT READY / NOT CHECKED states with a per-check table (docs fallback, dist route shape, host fallback MANUAL, auto-update MANUAL); build-continuum.mjs feeds the real verdict at packaging time. Reuses existing pill CSS so the continuum CSP/script-hash are untouched; continuumDataJSON carries readiness. NON-GOALS: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime/gameplay change.',
     'v0.2.185 — deployment-readiness FOUNDATION (docs + local check, no runtime change): the outstanding torii.quest/VPS static-host requirement — serve index.html for /zone/* on a cold hard-refresh/deep-link — is now operationally explicit and LOCALLY checkable. Pure node-safe helper (tools/zoneFallbackReadiness.mjs) + read-only network-free CLI (npm run zones:check) + regression-check [15] verify VPS_INSTALL.md/HANDOFF.md describe the index.html SPA fallback and a built dist/ has index.html with no /zone/* file shadowing it. New ZONE_FALLBACK_READINESS.md checklist + VPS_INSTALL §11 + UPDATE_CHECK pointer. NON-GOALS: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime change. +20 tests.',
     'v0.2.184 — LEAN-2 portal/zone CLARITY (zoneLabel.js): pure display-label helpers name the portal target in the in-range prompt ("Press F to travel to Plebeian Market Bazaar") and announce the entered zone after a successful KeyF hop ("Entered: Plebeian Market Bazaar"). Labels are safe Title-Case alnum strings (slug/route via humanizeZoneSlug; free-form/hostile input sanitised — no markup/dangerous token survives); HUD sink is textContent only. PURE POLISH — proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only; no network/relay/sign/publish/external nav added. SDK (experimental) + debug-shell exposure. +15 tests.',
-    'v0.2.183 — LEAN-2 in-world GATEWAY PORTAL marker: a pure render plan (portalMeshPlan.js) + a browser-only THREE adapter (portalMesh.js) draw a small, inert visual landmark at the v0.2.181 trigger position so a player can SEE the travel point. The outer ring radius EQUALS the proximity range (the visible boundary is exactly where the portal arms). DISPLAY-ONLY: no collider, no raycast/input, no nav/relay/sign/publish — the safety model is unchanged (proximity arms, KeyF confirms, same-origin /zone/ only). Meshes built ONCE; the per-frame tick mutates only scalars (no vector/matrix allocation). SDK (experimental) + debug-shell (plan report + render state) exposure. +18 tests.',
   ],
 
   // Archive clusters, newest first.

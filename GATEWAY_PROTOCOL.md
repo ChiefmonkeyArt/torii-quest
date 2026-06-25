@@ -319,10 +319,24 @@ linked by signed spatial events, with **no central router**.
   via `transport.rollback(rollbackRoute)`. The report PINS `external:false`, `worldReloaded:false`,
   `signed:false`, `published:false`, `network:false` (and `navigated`/`performed` true ONLY when the
   injected navigate actually succeeded), so a tampered plan can never flip a safety flag.
-  `executeHandoffFor(input, grant, transport, opts)` folds `planHandoff`+`executeHandoff`. The
-  REAL host transport wiring (router/history adapter) is still a deferred step in `world/handoff.js`.
-- `src/world/handoff.js` — the (skeleton) host seam where a future build will act
-  on a validated intent (and consume the `handoffPlan.js` plan + `handoffExecute.js` executor above).
+  `executeHandoffFor(input, grant, transport, opts)` folds `planHandoff`+`executeHandoff`.
+- `src/engine/gateway/hostTransport.js` (v0.2.170) — the real same-site host **TRANSPORT
+  ADAPTER**: `createHostTransport(host, opts)` builds the `{ navigate, snapshot, rollback, log }`
+  object `executeHandoff(plan, transport)` consumes, with every browser primitive INJECTED via a
+  host (`pushState(route)` + optional `replaceState`/`getRoute`). `navigate`/`rollback`
+  re-validate the route with `safeRoutePath` (defense in depth) so an external URL,
+  protocol-relative `//host`, scheme, markup, or whitespace is REFUSED (returns `false`, nothing
+  reaches the host). `snapshot()` records the current route; `rollback(route)` restores
+  route→snapshot→`home` in ONE synchronous call (no timers) — the back-home escape.
+  `createRecordingHost()` is the DEFAULT-SAFE in-memory host (records `pushState`/`replaceState`
+  calls, performs no real navigation) used by the debug shell + tests; `createBrowserHostTransport(win)`
+  is the runtime SEAM that uses ONLY `history.pushState`/`replaceState` (same-origin, reversible,
+  NO reload/`location.href`/`window.open`) and is NOT wired into the live app yet. An unusable host
+  → `null`, so the executor safely no-ops. NO network/fetch/relay/signing/publishing. Read-only at
+  `ToriiDebug.shells.hostTransport()` (acts through the in-memory host). SDK `hostTransport` (experimental).
+- `src/world/handoff.js` — the (skeleton) host seam where a future build will act on a validated
+  intent: it will pass a `createBrowserHostTransport(window)` transport (above) to `handoffExecute`
+  so the v0.2.170 adapter performs the controlled same-origin hop. Live wiring remains deferred.
 
 Component is code. Protocol is agreement. This file is the agreement; the modules
 above are one implementation of it.

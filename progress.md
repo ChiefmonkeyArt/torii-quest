@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.169-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.170-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.169-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **736 passing / 56 files** |
+| Source version | **v0.2.170-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **757 passing / 57 files** |
 | Regression check | **14 / 14 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1017 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` |
-| Active slice | v0.2.169 graphical progress dashboard (docs/tooling) |
+| Active slice | v0.2.170 same-origin host transport adapter (gateway travel) |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 
@@ -46,7 +46,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 | # | Slice | Status |
 |---|-------|--------|
 | LEAN-1 | Torii.quest live (publish green source) | ⏳ pending (manual smoke first) |
-| LEAN-2 | Gateway / NAP-to-NAP travel | 🔄 chain proven: protocol+intent (134) → handoff/portal shells (135/136) → visible preview (139) → read (164) → confirm (165) → consent (162/166) → plan (167) → **executor (168)**. Needs `world/handoff.js` transport + portal mesh to ACT. |
+| LEAN-2 | Gateway / NAP-to-NAP travel | 🔄 chain proven: protocol+intent (134) → handoff/portal shells (135/136) → visible preview (139) → read (164) → confirm (165) → consent (162/166) → plan (167) → executor (168) → **host transport adapter (170)**. Needs `createBrowserHostTransport(window)` wired into `world/handoff.js` + portal mesh to ACT. |
 | LEAN-3 | Plebeian/Nostr product panel | 🔄 `productDisplay`/`productPanel`/`productPanelShell` + visible preview (140). Needs in-world mesh + real listing. |
 | LEAN-4 | Leaderboard (Nostr signed events) | 🔄 unsigned helpers + publisher adapter + view + visible preview (141) + relay-read proof (160). Needs real signer (SEC-1) + relay read. |
 | LEAN-5 | torii.quest GitHub update-check | 🔄 helper + view-model + docs + visible preview (142) + release source/status (157/158). Needs read-only releases fetch + prompt mesh. |
@@ -55,7 +55,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 ## Active now
 
-- 🔄 **v0.2.169 — graphical progress dashboard** (this file): compact bars/percentages/badges/totals, 24h struck-through completions, concise archive (docs/tooling only).
+- 🔄 **v0.2.170 — same-origin host transport adapter** (`engine/gateway/hostTransport.js`): the injectable seam the v0.2.168 executor drives; recording host by default, `createBrowserHostTransport(window)` runtime seam not yet wired.
 - 🔄 **ARS-4** — finish folding reload/pointer-lock into the guarded FSM.
 - 🔄 **ARS-6 / PROGRESS-1** — ongoing CODE_INDEX + living-docs upkeep.
 
@@ -63,7 +63,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 ## Next 12 tasks
 
-1. `world/handoff.js` real host transport (router/history adapter) so the v0.2.168 executor can ACT.
+1. Wire `createBrowserHostTransport(window)` (v0.2.170) into `world/handoff.js` (real router/history adapter + same-origin allowlist + CSP) so the v0.2.168 executor can ACT.
 2. Gateway portal mesh — actually move the player in-world on a confirmed hop.
 3. **SEC-2** handoff verification gate — cryptographic checks before acting on live relay travel intents.
 4. Real leaderboard signer/publisher + relay read (**SEC-1** explicit NIP-07 consent first).
@@ -97,6 +97,8 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 Struck-through items stay ~24h, then collapse into Archive. Newest first.
 
+- ~~**v0.2.170** — same-origin host **transport adapter** (`engine/gateway/hostTransport.js`): the injectable seam the v0.2.168 executor drives — `createHostTransport`/`createRecordingHost` (default-safe in-memory) + `createBrowserHostTransport` runtime seam (pushState/replaceState only, not yet wired); `safeRoutePath` re-validated, back-home rollback, browser APIs behind DI; null host → executor no-op. +21 tests.~~
+- ~~**v0.2.169** — graphical **progress dashboard** rewrite (this file): compact bars/percentages/badges/totals, 24h struck-through completions, concise archive. Docs/tooling only.~~
 - ~~**v0.2.168** — first SAME-ORIGIN travel **executor** (`engine/gateway/handoffExecute.js`): acts on a READY v0.2.167 plan ONLY via an injected `transport.navigate`, re-validates the route with `safeRoutePath`, single synchronous rollback, safety flags pinned; never touches `location`/`history`/`window.open`/network/sign/publish. +19 tests.~~
 - ~~**v0.2.167** — host travel handoff **seam** (`handoffPlan.js`): inert dry-run handoff/rollback PLAN over the v0.2.165 intent; same-origin route + https preview only, READY only under a matching grant. +21 tests.~~
 - ~~**v0.2.166** — consent UX **view-model** (`consentView.js`): inert prompt copy + preview rows for every gate action; no wired confirm/sign/publish. +27 tests.~~

@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -224,6 +224,15 @@ export function installToriiDebug(refs) {
       // executed; external:false/worldReloaded:false/signed:false/published:false/
       // network:false — never signs, publishes, reloads the world, or writes network.
       handoffExecute(input, grant, transport, opts) { return handoffExecuteReport(input, grant, transport, opts); },
+      // v0.2.170 — the real same-site host TRANSPORT ADAPTER (GATEWAY / NAP-zone
+      // handoff): runs the v0.2.168 executor through a REAL transport built over an
+      // IN-MEMORY recording host, so the safe same-origin route change is captured in
+      // memory (pushStateCalls) with NO live browser navigation. Shows navigate/
+      // snapshot/rollback behaviour + the host's recorded route. inMemory:true; the
+      // external targetUrl is never executed; external:false/worldReloaded:false/
+      // signed:false/published:false/network:false — never signs, publishes, reloads
+      // the world, writes the network, or navigates externally.
+      hostTransport(input, grant, opts) { return hostTransportReport(input, grant, opts); },
       // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
       // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
       // fetch, no auto-update, no install, no navigation (deterministic local sample).

@@ -54,6 +54,7 @@ export * as gatewayRead from '../engine/gateway/gatewayRead.js';
 export * as travelConfirm from '../engine/gateway/travelConfirm.js';
 export * as handoffPlan from '../engine/gateway/handoffPlan.js';
 export * as handoffExecute from '../engine/gateway/handoffExecute.js';
+export * as hostTransport from '../engine/gateway/hostTransport.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -170,6 +171,13 @@ export const SDK_SURFACE = Object.freeze({
   // worldReloaded:false/signed:false/published:false/network:false on every report; default
   // no-op without a transport, single rollback (no timers) on navigate failure.
   handoffExecute:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/handoffExecute.js' },
+  // Real same-site host TRANSPORT ADAPTER for gateway travel (GATEWAY / NAP-zone handoff,
+  // v0.2.170) — builds the `{ navigate, snapshot, rollback, log }` transport that
+  // handoffExecute consumes, with every browser primitive INJECTED via a host object.
+  // Same-origin route changes ONLY (re-validated with safeRoutePath); default in-memory
+  // recording host performs no real navigation; createBrowserHostTransport(win) is the
+  // History-pushState runtime seam (no reload/external nav). NO network/sign/publish/relay.
+  hostTransport:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/hostTransport.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

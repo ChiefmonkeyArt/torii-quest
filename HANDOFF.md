@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.169-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.170-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -87,7 +87,9 @@ Breaking one should fail CI/the check, not ship.
   and `leaderboardView`; v0.2.138 added `updateCheck`; v0.2.139 added
   `gatewayPreview`; v0.2.140 added `productPreview`; v0.2.141 added
   `leaderboardPreview`; v0.2.142 added `updatePreview`; v0.2.143 added `mvpLoop`;
-  v0.2.147 added `proofSurfaceSpecs` (pure in-world proof-mesh layout/spec data)
+  v0.2.147 added `proofSurfaceSpecs` (pure in-world proof-mesh layout/spec data);
+  v0.2.170 added `hostTransport` (the real same-site host transport adapter for
+  gateway travel — injected History-pushState host, same-origin only)
   (all experimental). **`SDK_DEBUG_INDEX.md`** (v0.2.145) is the compact
   discoverability map over this surface + the `ToriiDebug.shells` reports for AI
   handoffs / FOSS devs.
@@ -248,7 +250,7 @@ click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
 - `.snapshot()` — one JSON-serialisable object: version, phase, run state, player
   pos, combat last shot/hit/miss, physics+crate summary, tuning. Safe anytime.
 - `.combat.report()` / `.physics.report()` — focused JSON sub-reports.
-- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,updatePreview,mvpLoop,report,summary,diff,surfaceSpecs,surfaceSpecCheck,anchorTransforms,surfaceRender,surfaceBindings,surfaceGate}()` —
+- `.shells.{gateway,gatewayPreview,product,productPreview,leaderboard,leaderboardPreview,updatePreview,mvpLoop,handoffPlan,handoffExecute,hostTransport,report,summary,diff,surfaceSpecs,surfaceSpecCheck,anchorTransforms,surfaceRender,surfaceBindings,surfaceGate}()` —
   read-only reports over the VIEW shells + visible preview blocks (demo fixtures by
   default; pass overrides). No signer, no relay/publish, no navigation, no checkout,
   no fetch/auto-update
@@ -344,8 +346,13 @@ only; no server is touched). It aligns with the update-check safety boundary in
   preview VISIBLE (LEAN-2): `gatewayPreview` flattens the portal view into an inert
   title-screen card (`gatewayPreviewBlock`), rendered by `main.js` via `textContent`
   only and surfaced read-only at `ToriiDebug.shells.gatewayPreview()` — no
-  navigation/fetch/signing.** Next: act on a validated travel intent in
-  `world/handoff.js` + the
+  navigation/fetch/signing.** **v0.2.170 added the real same-site host TRANSPORT
+  ADAPTER (`hostTransport.js`): `createHostTransport(host)` builds the
+  `{navigate,snapshot,rollback,log}` object the v0.2.168 executor consumes, browser
+  primitives INJECTED via a host (History `pushState`); same-origin only, in-memory
+  recording host by default, `createBrowserHostTransport(window)` runtime seam not yet
+  wired.** Next: wire that transport into `world/handoff.js` to act on a validated
+  travel intent + the
   gateway's portal mesh (actually move the player), the real leaderboard
   signer/publisher + relay read, the in-world product panel mesh, and the
   loader's remote/Nostr-event path with signature/hash/capability enforcement.

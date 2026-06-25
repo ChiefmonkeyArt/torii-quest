@@ -24,6 +24,7 @@ import { readGateways, DEMO_GATEWAY_EVENTS } from '../gateway/gatewayRead.js';
 import { prepareTravelIntent, DEMO_TRAVEL_INPUT } from '../gateway/travelConfirm.js';
 import { planHandoff, DEMO_HANDOFF_INPUT } from '../gateway/handoffPlan.js';
 import { executeHandoff } from '../gateway/handoffExecute.js';
+import { createRecordingHost, createHostTransport, HOST_TRANSPORT_BADGE } from '../gateway/hostTransport.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -511,6 +512,48 @@ export function handoffExecuteReport(input = DEMO_HANDOFF_INPUT, grant = true, t
   };
 }
 
+// hostTransportReport(input, grant, opts) → the same-site host TRANSPORT ADAPTER
+// report (GATEWAY / NAP-zone handoff, v0.2.170). Builds a v0.2.167 READY plan and
+// runs the v0.2.168 executor through a REAL host transport — but the host is an
+// IN-MEMORY recording host (createRecordingHost), so the route change is captured in
+// memory and NO live browser navigation happens. Proves the transport hands the safe
+// same-origin route to the host (pushState), snapshots, and can roll back, while every
+// network/sign/publish/world/external flag stays false. Pass opts.hostContext to vary
+// the from/rollback route; opts.executeOpts is forwarded to the executor.
+export function hostTransportReport(input = DEMO_HANDOFF_INPUT, grant = true, opts = {}) {
+  const hostContext = opts && opts.hostContext ? opts.hostContext : { currentRoute: '/title', rollbackRoute: '/title' };
+  const host = createRecordingHost(hostContext.currentRoute);
+  const transport = createHostTransport(host, { home: hostContext.rollbackRoute });
+  const plan = planHandoff(input, grant, hostContext);
+  const r = executeHandoff(plan, transport, (opts && opts.executeOpts) || {});
+  return {
+    title: 'GATEWAY HOST TRANSPORT',
+    badge: r.badge,
+    transportBadge: HOST_TRANSPORT_BADGE,
+    action: r.action,
+    status: r.status,
+    ok: r.ok,
+    reason: r.reason,
+    targetRoute: r.targetRoute,
+    fromRoute: r.fromRoute,
+    rollbackRoute: r.rollbackRoute,
+    hostRoute: host.route,
+    pushStateCalls: host.calls.pushState,
+    replaceStateCalls: host.calls.replaceState,
+    rollback: r.rollback,
+    rolledBack: r.rolledBack,
+    navigated: r.navigated,
+    performed: r.performed,
+    inMemory: true,
+    external: r.external,
+    worldReloaded: r.worldReloaded,
+    signed: r.signed,
+    published: r.published,
+    network: r.network,
+    errors: r.errors,
+  };
+}
+
 // updatePreviewReport(release, opts) → the visible-but-inert torii.quest
 // update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
 // pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
@@ -601,6 +644,9 @@ export function buildShellReport(inputs = {}) {
     executeGrant = true,
     executeTransport = null,
     executeOpts = {},
+    hostTransportInput = DEMO_HANDOFF_INPUT,
+    hostTransportGrant = true,
+    hostTransportOpts = {},
     release = DEMO_RELEASE,
     updateFeed,
   } = inputs;
@@ -620,6 +666,7 @@ export function buildShellReport(inputs = {}) {
     gatewayTravel: gatewayTravelReport(travelInput, travelGrant),
     handoffPlan: handoffPlanReport(handoffInput, handoffGrant, handoffContext),
     handoffExecute: handoffExecuteReport(executeInput, executeGrant, executeTransport, executeOpts),
+    hostTransport: hostTransportReport(hostTransportInput, hostTransportGrant, hostTransportOpts),
     updatePreview: updatePreviewReport(release),
     updateStatus: updateStatusReport(updateFeed),
     mvpLoop: mvpLoopReport(),

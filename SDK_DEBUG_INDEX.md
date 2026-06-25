@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.169-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.170-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -42,7 +42,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
-`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `updateCheck`,
+`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
@@ -196,6 +196,29 @@ injected navigate actually succeeded. Default debug/SDK use injects NO transport
 no-op and never moves the live app. Exposes NO bare open/reload/goto/assign/href/pushState/replaceState/
 redirect/location/unload method.
 
+`hostTransport` (GATEWAY / NAP-zone handoff, v0.2.170) is the same-origin HOST TRANSPORT ADAPTER
+the v0.2.168 [[handoffExecute]] executor drives — the controlled, injectable seam between
+`executeHandoff` and a real router/history, scoped to same-origin route changes ONLY.
+`HOST_TRANSPORT_VERSION`=1; `HOST_TRANSPORT_BADGE`='TRANSPORT · SAME-ORIGIN · HISTORY-PUSHSTATE'.
+`isRouteHost(host)` accepts a bare callable OR an object exposing a `pushState` function.
+`createHostTransport(host,{home,onLog})` normalises the host into bound `push`/`replace`/`read`
+thunks (a bare fn → push/replace = the fn, read = null; an object → push from `pushState`, replace
+from `replaceState` with a push fallback, read from `getRoute` else null) and returns an
+executor-compatible `{navigate,snapshot,rollback,log}` — or `null` when there is no usable host, so
+`executeHandoff` safely NO-OPs (the "missing host no-op" contract). `navigate(route)` re-validates
+via `safeRoutePath` and pushes ONLY a safe same-origin path (external/protocol-relative/unsafe →
+logged reject + `false`); `snapshot()` reads+sanitises the current route (fallback `home`);
+`rollback(route?)` replaces to a safe target / the saved snapshot / home — `rollback()` with no
+argument is the back-home escape. `createRecordingHost(initialRoute='/')` is the DEFAULT-SAFE
+in-memory host (records `pushState`/`replaceState` calls in `host.calls`, never really navigates)
+used by the debug shell + tests. `createBrowserHostTransport(win,opts)` is the runtime SEAM:
+returns `null` without `win.history.pushState`, and otherwise builds the host using ONLY
+`win.history.pushState`/`replaceState` + `win.location.pathname+search` (NO reload/href/open) — it
+is provided but NOT yet wired into the live app. Browser APIs are fully isolated behind the injected
+host, so the module is pure/node-safe and never throws; it exposes NO bare browser-navigation method
+at module scope. Wiring `createBrowserHostTransport(window)` into `world/handoff.js` (real
+router/history adapter + same-origin allowlist + CSP) is the next deferred step.
+
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
 object, a `releases` array, or a manifest into an update verdict; the optional
@@ -263,6 +286,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.consentPrompt(o?)` | **v0.2.166** CONSENT UX VIEW-MODEL preview map — `{title:'CONSENT PROMPT PREVIEW',badge:'CONSENT · PREVIEW · NO ACTION',count,writeActions,allowedByDefault,rows:[{action,headline,actionLabel,cancelLabel,severity,requiresExplicitConsent,allowed,blocked,reason,reasonText,actionable:false}],readOnly:true,actionable:false,performed:false}` (the user-facing prompt copy a future confirm dialog WOULD draw for every action; blocked-by-default for writes, pass `{grants}` to preview allow; never confirms/signs/publishes/navigates) |
 | `shells.handoffPlan(input?,grant?,hostContext?)` | **v0.2.167** INERT host TRAVEL HANDOFF PLAN over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY HANDOFF PLAN',badge:'HANDOFF · DRY-RUN · NO NAVIGATION',action,status,ok,reason,targetZoneId,targetRoute,targetUrl,currentRoute,rollbackRoute,preflight,commands,summary,dryRun:true,navigated:false,worldReloaded:false,performed:false,signed:false,published:false,readOnly:true,errors}` (consumes a `gateway:travel` intent → dry-run handoff/rollback plan; READY only under a matching grant, blocked-by-default; sanitised route/url; future command names are STRINGS only; no navigation/world-reload/sign/publish/send/connect) |
 | `shells.handoffExecute(input?,grant?,transport?,opts?)` | **v0.2.168** TRAVEL EXECUTE report over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY TRAVEL EXECUTE',badge:'TRAVEL · SAME-ORIGIN · HOST-TRANSPORT',action,status,ok,reason,targetRoute,fromRoute,rollbackRoute,steps,rollback,rolledBack,navigated,performed,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (plans then runs the executor; with NO transport injected it is a dry-run NO-OP and never navigates the live app; pass a fake `{navigate,snapshot?,rollback?,log?}` to preview a same-origin route change; targetUrl/external never executed; safety flags pinned) |
+| `shells.hostTransport(input?,grant?,opts?)` | **v0.2.170** HOST TRANSPORT report over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY HOST TRANSPORT',badge,transportBadge,action,status,ok,reason,targetRoute,fromRoute,rollbackRoute,hostRoute,pushStateCalls,replaceStateCalls,rollback,rolledBack,navigated,performed,inMemory:true,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (plans then drives `executeHandoff` through an in-memory recording host — records `pushState`/`replaceState` calls, never navigates the live app; same-origin only, safety flags pinned) |
 | `shells.updatePreview(r?,o?)` | LEAN-5 preview block — `{title,badge,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source,lines,readOnly:true,actionable:false}` |
 | `shells.updateStatus(p?,o?)` | **v0.2.158** LEAN-5 in-game UPDATE-STATUS panel — `{title,badge,surface,step,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source:{status,kind,candidates,errors},sourceUrl,lines,readOnly:true,actionable:false}` (defaults to local sample feed) |
 | `shells.mvpLoop(o?)` | loop header block — `{title,badge,flow,note,version,steps,lines,readOnly:true,actionable:false}` |
@@ -582,6 +606,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `travelConfirm` | `tests/gateway-travel-confirm.test.js` |
 | `handoffPlan` | `tests/handoff-plan.test.js` |
 | `handoffExecute` | `tests/handoff-execute.test.js` |
+| `hostTransport` | `tests/host-transport.test.js` |
 | `mvpLoop` | `tests/mvp-loop.test.js` |
 | `ToriiDebug.shells.*` reports + `summary()` | `tests/shell-report.test.js` |
 | `proofSurfaceSpecs` / `shells.surfaceSpecs()` | `tests/proof-surface-specs.test.js` |

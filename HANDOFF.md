@@ -243,6 +243,7 @@ Breaking one should fail CI/the check, not ship.
   read-only/local/network-free and ALWAYS exits 0 — it is **ADVISORY**, deliberately NOT wired into
   `npm run check` (the HARD gate stays docConsistency [14]; the finer/higher-recall signals are
   surfaced, not enforced, so they never block safe dev). `tests/stale-docs.test.js` (+25).
+  Latest slice report: `torii-v0.2.191-stale-doc-detector-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

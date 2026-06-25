@@ -119,3 +119,32 @@ to keep the pinned length), `tests/continuum-dashboard.test.js` (version pins),
   `HANDOFF.md`, `CODE_INDEX.md`, `SDK_DEBUG_INDEX.md`.
 
 **Commit:** `7d747fe` — _v0.2.191-alpha: add stale doc detector_ (local-only; not pushed)
+
+---
+
+## Follow-up: security-review WARN-3 fix (low)
+
+**Finding (WARN-3, new/low):** `npm run docs:stale` correctly emitted `[latest-report-unlinked]`
+because this report's filename (`torii-v0.2.191-stale-doc-detector-report.md`) was not yet
+referenced in any continuity doc. The signal is advisory and non-gating, but parent prefers the
+local state clean before ship.
+
+**Fix (docs-only, tiny):**
+- Added the explicit report filename to `HANDOFF.md` (a continuity doc) as a "Latest slice
+  report:" line at the end of the v0.2.191 paragraph. `detectStaleDocs` checks whether the
+  newest report is referenced in ANY continuity doc (todo.md/progress.md/HANDOFF.md), so this
+  clears the `latest-report-unlinked` signal.
+
+**Lifecycle note:** the detector flags the current slice's report as unlinked until a continuity
+doc references it (or until a newer report supersedes it). Linking the report in HANDOFF.md is
+the intended way to clear it; the `report-version-lag` signal clears automatically once the
+newest report's filename carries the current version token (it did, on report creation).
+
+**Verified:**
+- `npm run docs:stale` → **✓ no drift detected** (clean).
+- `npm run test:release` → **ALL GREEN**, `Test Files 70 passed (70)`, `Tests 1077 passed
+  (1077)`; continuum regenerated (XSS guard grep = 0).
+
+**No gameplay/runtime/physics/Nostr/portal code touched.**
+
+**Follow-up commit:** _(local-only; not pushed — recorded below)_

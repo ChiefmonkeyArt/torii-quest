@@ -33,6 +33,7 @@ import { parseZoneRoute, describeZoneRoute, ZONE_ROUTE_BADGE, DEMO_ZONE_ROUTE } 
 import { buildPortalMeshPlan, describePortalMeshPlan, PORTAL_MESH_BADGE, DEMO_PORTAL_MESH_OPTS } from '../gateway/portalMeshPlan.js';
 import { portalPromptLabel, enteredZoneLabel, ZONE_LABEL_BADGE, DEMO_ZONE_LABEL_OPTS } from '../gateway/zoneLabel.js';
 import { runGatewayTravelSmoke } from '../gateway/travelSmoke.js';
+import { runUpdateFlowSmoke } from '../update/updateFlowSmoke.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -868,6 +869,30 @@ export function travelSmokeReport(opts = {}) {
   };
 }
 
+// updateFlowSmokeReport(opts) → the PURE update-flow SMOKE report (torii.quest /
+// VPS self-update path, v0.2.196). Folds the shipped update-check contracts
+// (current version read, release metadata shape, update-availability/up-to-date
+// classification, malformed→unknown degrade, manual-only/no-auto-update, the
+// metadata safety floor, no exec/install/fetch surface, confirmation-gated apply)
+// into ONE fail-fast read-only smoke verdict. Composes plain-data outputs of the
+// pure helpers only — it fetches/installs/applies NOTHING and every safety flag
+// stays false. A test can inject fixtures via opts to drive a deliberately-broken
+// flow and prove the harness catches it.
+export function updateFlowSmokeReport(opts = {}) {
+  const r = runUpdateFlowSmoke(opts);
+  return {
+    title: 'UPDATE FLOW SMOKE',
+    badge: r.badge,
+    ok: r.ok,
+    summary: r.summary,
+    signals: r.signals,
+    safety: r.safety,
+    reasons: r.reasons,
+    rendered: r.rendered,
+    actionable: r.actionable,
+  };
+}
+
 // updatePreviewReport(release, opts) → the visible-but-inert torii.quest
 // update-check PREVIEW block (LEAN-5) a title/HUD card would draw. Read-only;
 // pins actionable:false so the no-fetch/no-auto-update guarantee is explicit.
@@ -989,6 +1014,7 @@ export function buildShellReport(inputs = {}) {
     travelSmoke: travelSmokeReport(),
     updatePreview: updatePreviewReport(release),
     updateStatus: updateStatusReport(updateFeed),
+    updateFlowSmoke: updateFlowSmokeReport(),
     mvpLoop: mvpLoopReport(),
   };
 }

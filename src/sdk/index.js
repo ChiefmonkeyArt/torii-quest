@@ -67,6 +67,7 @@ export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
 export * as updateStatus from '../engine/update/updateStatus.js';
+export * as updateFlowSmoke from '../engine/update/updateFlowSmoke.js';
 export * as mvpLoop from '../engine/mvpLoop.js';
 export * as continuum from '../engine/dashboard/continuumData.js';
 export * as proofSurfaceSpecs from '../engine/world/proofSurfaceSpecs.js';
@@ -248,6 +249,10 @@ export const SDK_SURFACE = Object.freeze({
   // source + inert preview into one render-ready, display-only update-status view;
   // NO network, NO auto-update, NO action surface.
   updateStatus:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateStatus.js' },
+  // Update-flow smoke harness (v0.2.196) — folds the pure update-check / release
+  // metadata / consent contracts into one fail-fast read-only report; NO network,
+  // NO auto-update, NO shell/install/apply surface, never performs an update.
+  updateFlowSmoke: { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateFlowSmoke.js' },
   // MVP loop header — frames the four PoC preview cards as one Travel→Market→Score→Update loop (v0.2.143).
   mvpLoop:         { tier: STABILITY.EXPERIMENTAL, module: '../engine/mvpLoop.js' },
   // Torii Continuum project-oversight dashboard data + pure static-page renderer

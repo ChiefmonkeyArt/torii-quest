@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.195-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.196-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -46,7 +46,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
 `consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `zoneRoute`, `portalMeshPlan`, `zoneLabel`, `updateCheck`,
-`updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`, `nostrReadHealth`, `travelSmoke`.
+`updatePreview`, `githubReleaseSource`, `updateStatus`, `updateFlowSmoke`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`, `nostrReadHealth`, `travelSmoke`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
 foundation: `validateRelayUrl` (ws/wss only, no credentials),
@@ -111,6 +111,28 @@ component degrades to `ok:false` with concrete `reasons`, never throws). `format
 renders one stable text block. Composes ONLY the shipped pure gateway modules — surfaces NO
 navigate/open/sign/publish/connect method. Reachable read-only via
 `ToriiDebug.shells.travelSmoke(opts?)` / `travelSmokeReport(opts?)`.
+
+`updateFlowSmoke` (UPDATE / UPDATE-FLOW-SMOKE, v0.2.196) is the pure READ-ONLY/NO-AUTO-UPDATE
+smoke harness that proves the torii.quest / VPS self-update contracts hold WITHOUT a browser,
+shell, package manager, or network. Constants: `UPDATE_SMOKE_VERSION` (1), `UPDATE_SMOKE_BADGE`
+(`UPDATE FLOW SMOKE · READ-ONLY · NO AUTO-UPDATE`), `UPDATE_ACTION` (`update:apply`); frozen
+LOCAL fixtures `SAMPLE_NEWER_FEED` (newest `v0.2.999-alpha`), `SAMPLE_CURRENT_RELEASE` (tag =
+`VERSION` → up-to-date), `MALFORMED_PAYLOADS` (null / number / string / `{}` / draft / empty).
+`runUpdateFlowSmoke(opts?)` composes the shipped pure helpers (`selectLatestRelease`/
+`evaluateFromSource`/`evaluateUpdate`/`updateCheckView`/`updateStatusPanel`/`buildReleaseMeta`/
+`validateReleaseMeta`/`evaluateConsent`) through ten signals — current version read; release
+metadata shape parses; newer → update-available; same/older → up-to-date; malformed → unknown
+(no throw); status panel/view manual-only (`readOnly`/`actionable:false`/`MANUAL` badge); the
+release-metadata safety floor REJECTS a tampered `autoUpdate:true`; no
+fetch/install/exec/apply/spawn callable on any output; apply-update confirmation-gated (no grant
+→ blocked, a grant → allowed but `performed:false`); no auto action (every report pins
+`performed/actionable/autoUpdate/installed/executed/fetched/network/signed/published/navigated=false`)
+— folding into `{version,badge,ok,signals,summary,safety,reasons,rendered:false,actionable:false}`
+(a broken injected fixture degrades to `ok:false` with concrete `reasons`, never throws).
+`formatUpdateFlowSmoke` renders one stable text block. Composes ONLY the shipped pure update
+helpers — surfaces NO fetch/install/update/apply/exec/spawn/download/navigate method; NOT an
+updater (performs no real update). Reachable read-only via
+`ToriiDebug.shells.updateFlowSmoke(opts?)` / `updateFlowSmokeReport(opts?)`.
 
 `consentGate` (CONSENT-1 / SEC-1 precursor, v0.2.162) is the pure, inert consent
 boundary every future write/sign/publish/update/travel action must pass before it may
@@ -524,6 +546,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.profileRead(e?,o?)` | **v0.2.161** READ-ONLY identity/profile PROOF over a deterministic LOCAL sample — `{ok,filter,count,profiles,skipped,duplicates,signed:false,published:false,readOnly:true,errors}` (kind:0 parse→sanitise→newest-per-author; https-only inert URLs, no DOM/relay I/O) |
 | `shells.readHealth(o?)` | **v0.2.194** READ-ONLY Nostr READ-PATH HEALTH proof over a deterministic LOCAL sample — `{ok,badge,signals:[{key,label,status,detail}],summary:{total:6,ok,fail},readOnly:true,signed:false,published:false,errors}` (folds the six read-path signal checks: relay verbs CLOSE/REQ only, no EVENT/publish verb, profile+leaderboard read paths present, write paths consent-gated, SEC-1/2/3 future-gated; derives from the shipped pure read modules, no relay/socket/sign/publish/DOM I/O) |
 | `shells.travelSmoke(o?)` | **v0.2.195** READ-ONLY/DRY-RUN GATEWAY TRAVEL SMOKE harness — `{title:'GATEWAY TRAVEL SMOKE',badge,ok,summary,signals:[{key,label,status,detail}],safety,reasons,rendered:false,actionable:false}` (drives `createGatewayPortalBoundary({dryRun:true})` with no transport through ten travel-contract signals: trigger arms/proximity never navigates/explicit confirm/same-origin `/zone/<slug>`/scoped allowlist never `'/'`/`HOSTILE_ROUTES` all rejected/no external website/consent-gated/no auto travel; every report pins `navigated/performed/external/signed/published/network=false`; never navigates/signs/publishes) |
+| `shells.updateFlowSmoke(o?)` | **v0.2.196** READ-ONLY/NO-AUTO-UPDATE UPDATE FLOW SMOKE harness — `{title:'UPDATE FLOW SMOKE',badge,ok,summary,signals:[{key,label,status,detail}],safety,reasons,rendered:false,actionable:false}` (folds ten update-flow contract signals over frozen LOCAL fixtures: current-version read, release-metadata shape, update-available + up-to-date classification, malformed→unknown degrades safely, manual-only/no-auto-update, metadata safety floor rejects tampered autoUpdate/actionable, no fetch/install/exec surface, confirmation-gated `update:apply` consent, no auto-action; every report pins `performed/actionable/autoUpdate/installed/executed/fetched/network/signed/published/navigated=false`; NOT an updater — never fetches/installs/executes/updates) |
 | `shells.consentGate(o?)` | **v0.2.162** READ-ONLY CONSENT-GATE foundation map — `{title,badge,count,writeActions,allowedByDefault,actions:[{action,kind,write,signed,requiresConsent,danger,allowed,blocked,reason,performed:false,summary}],readOnly:true,performed:false}` (reads allowed, writes blocked until an explicit grant; pass `{grants}` to preview; never signs/publishes/acts) |
 | `shells.leaderboardSubmit(i?,g?)` | **v0.2.163** READ-ONLY leaderboard SUBMIT INTENT/PREVIEW over a deterministic sample — `{title,badge,action,ok,allowed,blocked,reason,kind,identity,tags,summary,signed:false,published:false,performed:false,readOnly:true,errors}` (inert UNSIGNED kind-30000 draft routed through the consent gate; BLOCKED with no grant, pass a grant to preview allow; never signs/publishes/sends/connects) |
 | `shells.gatewayRead(e?)` | **v0.2.164** READ-ONLY gateway DESTINATION-RECORD read proof over a deterministic LOCAL sample — `{title,badge,ok,count,duplicates,filter,gateways,skipped,navigated:false,signed:false,published:false,performed:false,readOnly:true,errors}` (kind-30078 `#t:torii-gateway` filter; extract→sanitise→newest-per-zone; https-only inert URLs + ws/wss relays, no navigation/DOM/relay I/O) |

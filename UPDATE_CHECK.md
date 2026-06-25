@@ -162,3 +162,42 @@ verifies that BOTH the metadata source AND this document reference the real repo
 `ChiefmonkeyArt/torii-gate` (not the legacy placeholder). It exits non-zero only on a blocking
 failure; it performs no deploy. The pure checklist logic lives in `tools/vpsDryRun.mjs`
 (unit-tested, `tests/vps-dry-run.test.js`).
+
+## 7. Update-flow smoke harness (v0.2.196)
+
+The pieces above each prove ONE leg of the update path. v0.2.196 adds a single
+**fail-fast smoke harness** that folds the whole read-only update flow into one report,
+so future VPS update work can pin the safety contracts in CI without re-deriving them.
+
+`src/engine/update/updateFlowSmoke.js` — PURE, node-safe (no THREE/Rapier/DOM/window/fs/
+child_process/network); never throws; renders and acts on nothing. It composes the
+already-pure helpers (`updateCheck`, `githubReleaseSource`, `releaseMeta`, the consent
+gate) over **frozen LOCAL fixtures** and asserts ten update-flow contract signals.
+
+| Export | Shape | Notes |
+|---|---|---|
+| `UPDATE_SMOKE_VERSION` / `UPDATE_SMOKE_BADGE` / `UPDATE_ACTION` | `1` / `'UPDATE FLOW SMOKE · READ-ONLY · NO AUTO-UPDATE'` / `'update:apply'` | Identity + the manual-only contract badge + the consent action name. |
+| `SAMPLE_NEWER_FEED` / `SAMPLE_CURRENT_RELEASE` / `MALFORMED_PAYLOADS` | frozen fixtures | Deterministic LOCAL data: a two-entry newer feed (newest `v0.2.999-alpha`), a release tagged at the running `VERSION` (up-to-date), and a set of malformed payloads (`null`, `42`, `'not-a-release'`, `{}`, a draft, `[]`). Never reach the wire. |
+| `runUpdateFlowSmoke(opts?)` | `{ version, badge, ok, signals:[{key,label,status,detail}], summary:{total,ok,fail}, safety:{…all false}, reasons, rendered:false, actionable:false }` | Folds the ten signals; fixtures are injectable via `opts.newerFeed`/`opts.currentRelease`/`opts.malformed`. Never throws. |
+| `formatUpdateFlowSmoke(result)` | text block | Terminal summary (badge / verdict / `ok/total`); safe on null. |
+
+The ten signals (sorted keys): `confirmation-gated`, `current-version-read`,
+`manual-only-no-auto-update`, `metadata-safety-floor`, `no-auto-action`,
+`no-exec-install-surface`, `release-metadata-shape`, `unknown-degrades-safely`,
+`up-to-date-classified`, `update-available-classified`. Together they prove: the
+current version is read from runtime `VERSION`; release metadata has the expected
+shape; a newer feed classifies as update-available and a same-version release as
+up-to-date; malformed payloads degrade to `UNKNOWN` without throwing; the flow is
+manual-only with no auto-update; the metadata safety floor REJECTS any tampered
+`update.autoUpdate`/`update.actionable`; no fetch/install/exec surface is exposed;
+`update:apply` is consent-gated (no grant ⇒ blocked, never performed); and no auto
+action fires. Every report pins the safety flags — `performed`, `actionable`,
+`autoUpdate`, `installed`, `executed`, `fetched`, `network`, `signed`, `published`,
+`navigated` — all `false`.
+
+Surfaced on the SDK as `updateFlowSmoke` (tier: experimental) and read-only at
+`ToriiDebug.shells.updateFlowSmoke()`. Covered by `tests/update-flow-smoke.test.js`
+(17 deterministic tests). This is **NOT an updater** — it never fetches, installs,
+executes, or updates anything; it only pins the §4 safety boundary as executable
+contracts so the deferred host fetch + the manual deploy in `VPS_INSTALL.md` §7 can
+be built against a stable, audited shape.

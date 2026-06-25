@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.195-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.196-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -312,7 +312,29 @@ Breaking one should fail CI/the check, not ship.
   (`ToriiDebug.shells.travelSmoke` / `travelSmokeReport()` folded into `buildShellReport`).
   `tests/gateway-travel-smoke.test.js` (+12). No gameplay/physics/shooter/Rapier change; no Nostr
   signing/publishing/live network write; `godMode` stays false.
-  Latest slice report: `torii-v0.2.195-gateway-travel-smoke-report.md`.
+  **v0.2.196** added an UPDATE FLOW SMOKE harness — a pure, node-safe read-only smoke harness
+  (`src/engine/update/updateFlowSmoke.js`) that folds the shipped torii.quest / VPS self-update
+  contracts into ONE fail-fast report so future self-update work can be regression-checked locally
+  without a browser, shell, package manager, or network. `runUpdateFlowSmoke(opts?)` →
+  `{version,badge,ok,signals,summary,safety,reasons,rendered:false,actionable:false}` over TEN
+  signals: current version read; release metadata shape parses; a strictly-newer release →
+  update-available; a same/older release → up-to-date; every `MALFORMED_PAYLOADS` entry (null /
+  number / string / `{}` / draft / empty list) degrades to UNKNOWN without throwing; the status
+  panel/view are manual-only (`readOnly:true`, `actionable:false`, `MANUAL` badge); the release-
+  metadata safety floor REJECTS a tampered `autoUpdate:true` (reuses `validateReleaseMeta`); none of
+  the read-only outputs expose a `fetch`/`install`/`update`/`apply`/`exec`/`spawn`/`run`/`download`/
+  `write`/`navigate`/`sign`/`publish`/`deploy` CALLABLE; apply-update is confirmation-gated
+  (`evaluateConsent('update:apply', …)` — no grant → blocked/`CONSENT_REQUIRED`, a grant → allowed/
+  `CONSENT_GRANTED` but STILL `performed:false`); no auto action (every report pins `performed/
+  actionable/autoUpdate/installed/executed/fetched/network/signed/published/navigated=false`, read
+  path synchronous). It composes only the already-pure helpers over deterministic LOCAL fixtures —
+  it fetches/installs/applies NOTHING and never reaches the wire; every check is wrapped (malformed
+  input degrades to a fail, never throws). Surfaced via the SDK (`updateFlowSmoke`, EXPERIMENTAL),
+  the debug shell (`ToriiDebug.shells.updateFlowSmoke` / `updateFlowSmokeReport()` folded into
+  `buildShellReport`). `tests/update-flow-smoke.test.js` (+17). NOT an updater — performs no real
+  update; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write;
+  `godMode` stays false.
+  Latest slice report: `torii-v0.2.196-update-flow-smoke-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

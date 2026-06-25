@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, readHealthReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, zoneLabelReport, travelSmokeReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, readHealthReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, zoneLabelReport, travelSmokeReport, updateFlowSmokeReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -274,6 +274,13 @@ export function installToriiDebug(refs) {
       // dryRun:true + NO injected transport — navigates/performs/signs/publishes
       // NOTHING. Inject opts.component to drive a deliberately-broken flow.
       travelSmoke(opts) { return travelSmokeReport(opts); },
+      // v0.2.196 — the PURE update-flow SMOKE verdict (torii.quest / VPS self-update
+      // path): folds current-version-read, release-metadata-shape, update-availability/
+      // up-to-date classification, malformed→unknown degrade, manual-only/no-auto-update,
+      // the metadata safety floor, no exec/install/fetch surface, and confirmation-gated
+      // apply into one fail-fast report. Fetches/installs/applies NOTHING. Inject opts
+      // fixtures (newerFeed/currentRelease/malformed) to drive a deliberately-broken flow.
+      updateFlowSmoke(opts) { return updateFlowSmokeReport(opts); },
       // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
       // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
       // fetch, no auto-update, no install, no navigation (deterministic local sample).

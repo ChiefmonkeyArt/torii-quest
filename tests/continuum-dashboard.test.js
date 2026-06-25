@@ -22,7 +22,7 @@ import { VERSION } from '../src/config.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.195-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.196-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -106,7 +106,7 @@ describe('computeTotals', () => {
     expect(t.milestonesInProgress).toBe(4);
   });
   it('directional percentages match the curated data', () => {
-    expect(t.pocProgressPct).toBe(46);
+    expect(t.pocProgressPct).toBe(47);
     expect(t.buildProgressPct).toBe(74);
   });
 });
@@ -127,8 +127,8 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.195-alpha');
-    expect(round.totals.pocProgressPct).toBe(46);
+    expect(round.version).toBe('v0.2.196-alpha');
+    expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
 });
@@ -139,7 +139,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.195-alpha');
+    expect(html).toContain('v0.2.196-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -314,7 +314,7 @@ describe('milestones (v0.2.176)', () => {
     expect(ms.active.kind).toBe('active');
     expect(ms.active.tasks).toEqual({ total: 5, done: 0, active: 4, pending: 1 });
     expect(ms.active.donePct).toBe(0);
-    expect(ms.active.progressPct).toBe(46);
+    expect(ms.active.progressPct).toBe(47);
   });
 
   it('active-milestone counts are bullet-ready strings (user prefers bullet lists)', () => {
@@ -714,7 +714,7 @@ describe('Nostr read-path health panel (v0.2.194)', () => {
 
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.195-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.196-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });

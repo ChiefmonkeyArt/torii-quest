@@ -427,3 +427,30 @@ metadata, or a built bundle with no `index.html`); warnings and the skipped-`dis
 fail the run. It performs **no deploy** — configuring the real host stays the manual maintainer
 steps in §5–§8. The pure checklist logic lives in `tools/vpsDryRun.mjs`
 (unit-tested, `tests/vps-dry-run.test.js`); the CLI `tools/vps-dry-run.mjs` only reads + prints.
+
+## 14. Update-flow safety contracts (v0.2.196)
+
+The manual update story (§7), the rollback model (§8), the deferred guarded "update button"
+(§10), and the release metadata (§12) all rest on the same invariant: **a running instance may
+describe and display a newer release, but it never updates itself.** v0.2.196 pins that invariant
+as an executable smoke harness so the future VPS update work in §10 can be built against a stable,
+audited shape instead of re-deriving the safety boundary each time.
+
+`src/engine/update/updateFlowSmoke.js` (read-only at `ToriiDebug.shells.updateFlowSmoke()`, SDK
+`updateFlowSmoke`, covered by `tests/update-flow-smoke.test.js`) folds the whole read-only update
+path into ONE fail-fast report over frozen LOCAL fixtures — no SSH, network, install, or shell
+execution, ever. See `UPDATE_CHECK.md` §7 for the full shape. The ten signals assert exactly the
+contracts a maintainer relies on before any manual deploy:
+
+- **current version read** from runtime `VERSION`; **release metadata shape** is well-formed.
+- **update-available** vs **up-to-date** classification is correct; malformed payloads
+  **degrade to UNKNOWN** without throwing.
+- the flow is **manual-only / no auto-update**, and the metadata **safety floor rejects** any
+  tampered `update.autoUpdate`/`update.actionable`.
+- **no fetch/install/exec surface** is exposed; the `update:apply` action is **confirmation-gated**
+  through the consent gate (no grant ⇒ blocked, never performed); and **no auto action** fires.
+
+Every report pins `performed/actionable/autoUpdate/installed/executed/fetched/network/signed/
+published/navigated = false`. This is **NOT an updater** and performs no real update — it only makes
+the manual-deploy contracts in this document checkable in CI. Deploying a new release stays the
+manual maintainer step in §7; rollback stays §8.

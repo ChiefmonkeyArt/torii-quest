@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.180-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.181-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -105,6 +105,14 @@ Breaking one should fail CI/the check, not ship.
   Vector3), and `createGatewayPortalBoundary` is a one-shot arm→confirm controller
   that captures the injected window/transport ONCE and delegates to
   `activateGatewayHandoff`; external/world/sign/publish/network pinned false);
+  v0.2.181 added `portalTrigger` (the pure proximity→confirm controller wired at
+  the `main.js` composition root — a per-frame `tick(playerPos)` uses
+  `withinPortalRange` to ARM the v0.2.180 boundary + raise a HUD prompt near the
+  torii gate, both INERT; an explicit `interact(grant)` bound to KeyF is the ONLY
+  navigating step. `main.js` injects the REAL browser `window` ONCE into
+  `createGatewayPortalBoundary` here and nowhere at module scope; allowlist scoped
+  `['/zone/']`; external website URLs never navigate; debug-shell `portalTrigger`
+  over a recording host);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

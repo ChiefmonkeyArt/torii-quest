@@ -57,6 +57,7 @@ export * as handoffExecute from '../engine/gateway/handoffExecute.js';
 export * as hostTransport from '../engine/gateway/hostTransport.js';
 export * as gatewayActivation from '../engine/gateway/gatewayActivation.js';
 export * as gatewayPortalActivation from '../engine/gateway/gatewayPortalActivation.js';
+export * as portalTrigger from '../engine/gateway/portalTrigger.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -197,6 +198,11 @@ export const SDK_SURFACE = Object.freeze({
   // plus a scalar proximity helper. Injected transport only — NO module-scope window,
   // NO external nav/world-reload/network/sign/publish; SEC-2 signed tier untouched.
   gatewayPortalActivation: { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/gatewayPortalActivation.js' },
+  // In-world PROXIMITY → CONFIRM trigger (LEAN-2, v0.2.181) — ticks the player
+  // position to ARM/disarm the injected portal boundary + raise a prompt (both
+  // inert), and an explicit interact() that is the ONLY navigating step. Pure: the
+  // boundary (holding any injected window) is injected; NO module-scope window.
+  portalTrigger:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/portalTrigger.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

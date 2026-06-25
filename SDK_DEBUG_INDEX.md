@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.180-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.181-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -45,7 +45,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
-`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `updateCheck`,
+`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
@@ -266,6 +266,26 @@ bare navigation method). Reachable read-only via `ToriiDebug.shells.gatewayPorta
 Wiring an actual in-world portal MESH + proximity trigger that calls `arm`/`confirm` against a real injected
 browser host is the next deferred step.
 
+`portalTrigger` (GATEWAY / NAP-zone portal proximity, v0.2.181) is the pure PROXIMITY→CONFIRM controller that
+finally wires an in-world portal position to the [[gatewayPortalActivation]] `createGatewayPortalBoundary` —
+proximity ARMS/PREVIEWS but NEVER navigates; only an explicit player interaction (KeyF) confirms.
+`PORTAL_TRIGGER_VERSION`=1; `PORTAL_PROMPT_TEXT`='Press F to travel'.
+`createPortalTrigger({boundary,component,context,portalPos,range=3,onPrompt,promptText})` returns
+`{tick(playerPos),interact(grant=true),isArmed(),inRange(),promptShown(),reset(),portalPos(),range()}`. `tick`
+uses the v0.2.180 `withinPortalRange` scalar compare (NO `Vector3` allocation); on ENTERING range it calls
+`boundary.arm(component,context)` + emits the prompt, on LEAVING it calls `boundary.cancel()` + hides the prompt
+— state changes ONLY on transitions, returning `{inRange,armed,changed}`. `interact(grant)` acts ONLY when the
+boundary is `armed()`, delegating to `boundary.confirm(grant)` (so all three v0.2.178 gates + the `['/zone/']`
+allowlist still apply), clears the prompt, and returns the activation report or `null`. `reset()` cancels +
+clears the prompt. Pure/node-safe — exposes NO bare navigate/open/reload/goto/assign/href/pushState method; NO
+window/THREE/DOM (the boundary, which captured the injected window ONCE at construction, is injected); never
+throws. WIRED in `main.js` (composition root ONLY): the trigger's `tick` runs in `update()` while `isPlaying()`
+(else `reset()`), with a KeyF `onKeyDown` handler calling `interact(true)`; `hud.js` `showPortalPrompt`/
+`hidePortalPrompt` render a lazy `#portal-prompt` div (opacity crossfade, no `setTimeout`). Reachable read-only
+via `ToriiDebug.shells.portalTrigger(...)` / `portalTriggerReport(...)`, which drive a `createRecordingHost`
+boundary so the debug path NEVER live-navigates. A dedicated portal MESH + SPA `/zone/<slug>` route handler
+(so a hard refresh resolves the zone) is the next deferred infra step.
+
 `continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Continuum
 project-oversight DASHBOARD data + renderer — the FIRST slice of a broader oversight surface.
 `CONTINUUM` holds the curated `progress.md` snapshot (metrics, a clearly-flagged SEED
@@ -391,6 +411,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.hostTransport(input?,grant?,opts?)` | **v0.2.170** HOST TRANSPORT report over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY HOST TRANSPORT',badge,transportBadge,action,status,ok,reason,targetRoute,fromRoute,rollbackRoute,hostRoute,pushStateCalls,replaceStateCalls,rollback,rolledBack,navigated,performed,inMemory:true,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (plans then drives `executeHandoff` through an in-memory recording host — records `pushState`/`replaceState` calls, never navigates the live app; same-origin only, safety flags pinned) |
 | `shells.gatewayActivation(input?,grant?,opts?)` | **v0.2.178** GATEWAY ACTIVATION report over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY ACTIVATION',badge,action,status,ok,confirmed,live,reason,transportKind,targetRoute,fromRoute,rollbackRoute,hostRoute,pushStateCalls,inMemory:true,navigated,performed,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (drives the LIVE-WIRE `activateGatewayHandoff` through an in-memory recording host — defaults `confirmed:true` + a `/zone/` route allowlist, records `pushState`, NEVER navigates the live browser; pass `{confirmed:false}` to see the unconfirmed no-op; same-origin only, safety flags pinned) |
 | `shells.gatewayPortalActivation(component?,context?,grant?,opts?)` | **v0.2.180** GATEWAY PORTAL ACTIVATION report over the demo gateway component + `DEMO_PORTAL_CONTEXT` — `{title:'GATEWAY PORTAL ACTIVATION',badge,action,status,ok,confirmed,live,reason,transportKind,zoneId,targetRoute,fromRoute,rollbackRoute,routeAllowlist,hostRoute,pushStateCalls,inMemory,navigated,performed,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (bridges an in-world gateway component to `activateGatewayHandoff` through an in-memory recording host — defaults `confirmed:true` + the `['/zone/']` allowlist, maps the component's `target`→`zoneId`, DROPS any external `website`, records `pushState`, NEVER navigates the live browser; pass `{confirmed:false}` for the unconfirmed no-op; same-origin only, safety flags pinned) |
+| `shells.portalTrigger(component?,context?,opts?)` | **v0.2.181** GATEWAY PORTAL TRIGGER report driving a `createRecordingHost` boundary through a far→near approach (+ optional `{interact:true}`) — `{title:'GATEWAY PORTAL TRIGGER',badge,promptText,farInRange,nearInRange,armedAfterApproach,pushStateAfterArm,promptLog,interacted,status,navigated,confirmed,live,zoneId,targetRoute,routeAllowlist,pushStateCalls,inMemory:true,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (proves proximity ALONE arms+previews but records NO `pushState`; only an explicit `interact` confirms → records the `/zone/<slug>` `pushState`; NEVER navigates the live browser; same-origin only, safety flags pinned) |
 | `shells.updatePreview(r?,o?)` | LEAN-5 preview block — `{title,badge,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source,lines,readOnly:true,actionable:false}` |
 | `shells.updateStatus(p?,o?)` | **v0.2.158** LEAN-5 in-game UPDATE-STATUS panel — `{title,badge,surface,step,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source:{status,kind,candidates,errors},sourceUrl,lines,readOnly:true,actionable:false}` (defaults to local sample feed) |
 | `shells.mvpLoop(o?)` | loop header block — `{title,badge,flow,note,version,steps,lines,readOnly:true,actionable:false}` |

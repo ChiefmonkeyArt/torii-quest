@@ -17,8 +17,10 @@ import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynami
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode } from './hud.js';
+import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt } from './hud.js';
 import { ARENA_HALF, WALL_H, NAP_X } from './config.js';
+import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
+import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { nostrLogin } from './nostr.js';
 import { playShoot, playFootstep, playJumpLand } from './audio.js';
 import { initPlayerStats } from './playerStats.js';
@@ -155,6 +157,38 @@ function renderGatewayPreview() {
   }));
 }
 renderGatewayPreview();
+
+// ── Live in-world GATEWAY PORTAL trigger (v0.2.181) ────────────────────────────
+// THE composition-root boundary: this is the ONE place a REAL browser `window` is
+// injected into the v0.2.180 portal-activation seam. The boundary captures it once;
+// the pure portalTrigger never touches a global window. Proximity (the per-frame
+// tick in update()) only ARMS the inert boundary + raises the HUD prompt — it never
+// navigates. A real same-origin `/zone/…` hop happens ONLY on the explicit KeyF
+// interact below, which clears all three v0.2.178 gates (confirmed===true → consent
+// → scoped allowlist). External website URLs are dropped by portalActivationInput;
+// the allowlist is hard-scoped to ['/zone/'] (never ['/']).
+const _portalGateway = createToriiGateway({
+  target: 'plebeian-market-bazaar',
+  relay: 'wss://relay.example.com',
+  position: { x: ARENA_HALF, y: 0, z: 0 },
+});
+const _portalBoundary = createGatewayPortalBoundary({
+  window,                         // ← the ONLY browser-window injection point
+  routeAllowlist: ['/zone/'],     // scoped same-origin prefix; never permit-all
+  hostContext: {
+    currentRoute: window.location?.pathname || '/',
+    rollbackRoute: window.location?.pathname || '/',
+  },
+  home: '/',
+});
+const _portalTrigger = createPortalTrigger({
+  boundary: _portalBoundary,
+  component: _portalGateway,
+  context: { title: 'Plebeian Market Bazaar', zoneType: 'shop', from: 'torii-quest' },
+  portalPos: { x: ARENA_HALF, y: 0, z: 0 },
+  range: 3,
+  onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
+});
 
 // Plebeian/Nostr product/market PREVIEW (LEAN-3, v0.2.140) — render the inert,
 // read-only title-screen product card ONCE from the pure productPreview block.
@@ -360,6 +394,17 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
+// KeyF — the EXPLICIT portal interact (v0.2.181). The ONLY thing that confirms a
+// hop: acts only while playing AND the boundary is armed (player in range). A safe
+// no-op otherwise. Proximity alone never navigates; this is the deliberate, auditable
+// confirmation step. Uses a dedicated key (KeyF) so it never collides with movement
+// or KeyE/Space jump.
+onKeyDown(code => {
+  if (code !== 'KeyF') return;
+  if (!isPlaying() || !_portalTrigger.isArmed()) return;
+  _portalTrigger.interact(true);
+});
+
 // Browser-forced pointer-lock loss (focus change, window switch) still pauses
 // the running game so the player isn't stuck spinning in the background.
 onPointerLockLost(() => {
@@ -490,6 +535,11 @@ function update(dt, frame) {
   tickNapNpc(dt);
   _isShooting = false; // reset after 1 frame
   setNapMode(playerObj.position.x > NAP_X);
+  // Portal proximity (v0.2.181) — INERT: arms/disarms the boundary + toggles the
+  // prompt only. Never navigates; the explicit KeyF interact does. Only while
+  // playing; reset() clears a stale prompt when leaving the arena (pause/home).
+  if (isPlaying()) _portalTrigger.tick(playerObj.position);
+  else _portalTrigger.reset();
   tickHUD(dt);
   tickAtmosphere(dt);
   tickMirror(dt);

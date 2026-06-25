@@ -26,7 +26,8 @@ import { planHandoff, DEMO_HANDOFF_INPUT } from '../gateway/handoffPlan.js';
 import { executeHandoff } from '../gateway/handoffExecute.js';
 import { createRecordingHost, createHostTransport, HOST_TRANSPORT_BADGE } from '../gateway/hostTransport.js';
 import { activateGatewayHandoff, DEMO_ACTIVATION_OPTS } from '../gateway/gatewayActivation.js';
-import { activatePortalHandoff, DEMO_PORTAL_CONTEXT } from '../gateway/gatewayPortalActivation.js';
+import { activatePortalHandoff, createGatewayPortalBoundary, DEMO_PORTAL_CONTEXT } from '../gateway/gatewayPortalActivation.js';
+import { createPortalTrigger, PORTAL_PROMPT_TEXT } from '../gateway/portalTrigger.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -661,6 +662,61 @@ export function gatewayPortalActivationReport(component = DEMO_GATEWAY, context 
     published: r.published,
     network: r.network,
     errors: r.errors,
+  };
+}
+
+// portalTriggerReport(component, context, opts) → the in-world PROXIMITY → CONFIRM
+// trigger report (GATEWAY / NAP-zone handoff, v0.2.181). Drives the pure portalTrigger
+// over an IN-MEMORY recording-host boundary so the debug shell can prove the full
+// flow without any real browser navigation: a far tick does NOT arm; a near tick ARMS
+// (inert, no pushState); an explicit interact() performs the CONFIRMED same-origin hop.
+// By default it simulates approach → interact; pass `opts.interact:false` to show the
+// armed-but-not-confirmed (no navigation) state. Every external/world/network/sign/
+// publish flag stays false.
+export function portalTriggerReport(component = DEMO_GATEWAY, context = DEMO_PORTAL_CONTEXT, opts = {}) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const doInteract = o.interact === undefined ? true : o.interact === true;
+  const portalPos = (o.portalPos && typeof o.portalPos === 'object') ? o.portalPos : { x: 20, y: 0, z: 0 };
+  const range = Number(o.range) > 0 ? Number(o.range) : 3;
+  const host = createRecordingHost('/');
+  const boundary = createGatewayPortalBoundary({ host, routeAllowlist: ['/zone/'] });
+  const promptLog = [];
+  const trigger = createPortalTrigger({
+    boundary, component, context, portalPos, range,
+    onPrompt: (show, text) => promptLog.push({ show, text }),
+  });
+  // Far → no arm. Near → arm (inert). Then optionally the explicit interact (the
+  // ONLY navigating step).
+  const farTick = trigger.tick({ x: portalPos.x + range + 50, y: portalPos.y, z: portalPos.z });
+  const nearTick = trigger.tick({ x: portalPos.x, y: portalPos.y, z: portalPos.z });
+  const armedAfterApproach = trigger.isArmed();
+  const pushStateAfterArm = [...host.calls.pushState]; // proves arming is inert
+  const rep = doInteract ? trigger.interact(true) : null;
+  return {
+    title: 'GATEWAY PORTAL TRIGGER',
+    badge: rep ? rep.badge : null,
+    promptText: PORTAL_PROMPT_TEXT,
+    farInRange: farTick.inRange,
+    nearInRange: nearTick.inRange,
+    armedAfterApproach,
+    pushStateAfterArm,           // [] — proximity NEVER navigates
+    promptLog,
+    interacted: doInteract,
+    status: rep ? rep.status : null,
+    navigated: rep ? rep.navigated : false,
+    confirmed: rep ? rep.confirmed : false,
+    live: rep ? rep.live : false,
+    zoneId: rep ? rep.zoneId : null,
+    targetRoute: rep ? rep.targetRoute : null,
+    routeAllowlist: boundary.routeAllowlist(),
+    pushStateCalls: host.calls.pushState,
+    inMemory: true,
+    external: rep ? rep.external : false,
+    worldReloaded: rep ? rep.worldReloaded : false,
+    signed: rep ? rep.signed : false,
+    published: rep ? rep.published : false,
+    network: rep ? rep.network : false,
+    errors: rep ? rep.errors : [],
   };
 }
 

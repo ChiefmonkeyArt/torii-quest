@@ -126,6 +126,52 @@ export function setNapMode(on) {
   _napDom().style.opacity = on ? '1' : '0';
 }
 
+// ── Gateway portal prompt ───────────────────────────────────────
+// Created lazily (like the NAP indicator) so we don't need to edit index.html.
+// A soft pill near the bottom-centre reading the interact hint (e.g.
+// "Press F to travel"). Crossfades in/out via CSS opacity; pure display — it
+// never reads input or navigates. Driven by the v0.2.181 portal trigger.
+let _portalEl = null;
+let _portalOn = false;
+function _portalDom() {
+  if (_portalEl) return _portalEl;
+  _portalEl = document.createElement('div');
+  _portalEl.id = 'portal-prompt';
+  Object.assign(_portalEl.style, {
+    position:      'fixed',
+    bottom:        '90px',
+    left:          '50%',
+    transform:     'translateX(-50%)',
+    padding:       '9px 24px',
+    background:    'linear-gradient(90deg, rgba(76,201,240,0.32), rgba(139,92,246,0.32))',
+    border:        '1px solid rgba(200,232,255,0.55)',
+    borderRadius:  '999px',
+    color:         '#e8f4ff',
+    fontFamily:    'monospace',
+    fontSize:      '14px',
+    letterSpacing: '1px',
+    fontWeight:    'bold',
+    textShadow:    '0 0 8px rgba(200,232,255,0.7)',
+    boxShadow:     '0 0 22px rgba(76,201,240,0.4)',
+    pointerEvents: 'none',
+    opacity:       '0',
+    transition:    'opacity 0.3s ease',
+    zIndex:        '50',
+  });
+  document.body.appendChild(_portalEl);
+  return _portalEl;
+}
+export function showPortalPrompt(text = 'Press F to travel') {
+  const el = _portalDom();
+  el.textContent = text;
+  if (!_portalOn) { _portalOn = true; el.style.opacity = '1'; }
+}
+export function hidePortalPrompt() {
+  if (!_portalOn) return;
+  _portalOn = false;
+  _portalDom().style.opacity = '0';
+}
+
 // Minimap
 const _mm = $('minimap')?.getContext('2d');
 const MM  = 110;

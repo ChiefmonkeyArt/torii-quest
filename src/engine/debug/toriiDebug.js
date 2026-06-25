@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -249,6 +249,11 @@ export function installToriiDebug(refs) {
       // IN-MEMORY recording host. Arming is inert; only a confirmed hop acts. Same
       // safety pins as gatewayActivation — external/world/network/sign/publish false.
       gatewayPortalActivation(component, context, grant, opts) { return gatewayPortalActivationReport(component, context, grant, opts); },
+      // v0.2.181 — the in-world PROXIMITY → CONFIRM trigger over an IN-MEMORY
+      // recording-host boundary: far tick does NOT arm; near tick ARMS (inert); an
+      // explicit interact() performs the CONFIRMED same-origin hop. Proximity never
+      // navigates. Same safety pins — external/world/network/sign/publish false.
+      portalTrigger(component, context, opts) { return portalTriggerReport(component, context, opts); },
       // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
       // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
       // fetch, no auto-update, no install, no navigation (deterministic local sample).

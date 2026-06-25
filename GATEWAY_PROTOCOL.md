@@ -369,13 +369,29 @@ linked by signed spatial events, with **no central router**.
   external navigation. The signed/relay-mediated tier still gates behind SEC-2 and is NOT live. Read-only at
   `ToriiDebug.shells.gatewayPortalActivation()` (acts through an in-memory recording host). SDK
   `gatewayPortalActivation` (experimental).
+- `src/engine/gateway/portalTrigger.js` (v0.2.181) — the **proximity→confirm controller** that wires an
+  in-world portal POSITION to a `createGatewayPortalBoundary` (above). `createPortalTrigger({boundary, component,
+  context, portalPos, range, onPrompt})` returns `{tick(playerPos), interact(grant), isArmed, inRange,
+  promptShown, reset, ...}`. `tick` uses the v0.2.180 `withinPortalRange` scalar compare (no `Vector3`
+  allocation) and, ONLY on a range TRANSITION, calls `boundary.arm(component, context)` + shows the prompt on
+  entry or `boundary.cancel()` + hides it on exit — proximity ALONE arms/previews but NEVER navigates. Only an
+  explicit player `interact(grant)` (KeyF), and ONLY while `armed()`, delegates to `boundary.confirm(grant)`, so
+  all three gates above + the `['/zone/']` allowlist still apply. Pure/node-safe — no `window`/THREE/DOM (the
+  boundary, which captured the injected window once at construction, is injected); exposes NO bare
+  navigate/open/reload/goto/assign/href/pushState method; never throws. WIRED in `main.js` (composition root
+  ONLY): `tick` runs in `update()` while playing (else `reset()`), a KeyF handler calls `interact(true)`, and
+  `hud.js` `showPortalPrompt`/`hidePortalPrompt` render the inert `#portal-prompt` div. Read-only at
+  `ToriiDebug.shells.portalTrigger()` (drives a recording-host boundary, never live-navigates). SDK
+  `portalTrigger` (experimental). A dedicated portal MESH + SPA `/zone/<slug>` route handler (hard-refresh
+  resolution) remains the next deferred infra step.
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will inject the live app/browser
   window into `gatewayActivation`/`gatewayPortalActivation` (above): it will hand a
   `createBrowserHostTransport(window)` transport (or the host router) + a same-origin route allowlist to
   `activateGatewayHandoff` / a `createGatewayPortalBoundary` so a confirmed in-world hop performs the controlled
-  same-origin navigation. The activation + portal-boundary seams now exist and are wired in-memory; the
-  remaining deferred step is injecting the REAL host window + the in-world portal mesh proximity trigger that
-  calls `arm`/`confirm`.
+  same-origin navigation. The activation + portal-boundary seams now exist and the v0.2.181 `portalTrigger`
+  wires a real injected browser host + proximity/KeyF confirm at the `main.js` composition root; the remaining
+  deferred step is a dedicated portal MESH + an SPA `/zone/<slug>` route handler so a hard refresh resolves the
+  target zone.
 
 Component is code. Protocol is agreement. This file is the agreement; the modules
 above are one implementation of it.

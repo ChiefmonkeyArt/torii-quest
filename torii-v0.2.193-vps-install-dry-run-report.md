@@ -108,6 +108,8 @@ real update execution; no actual VPS / SSH / DNS action; no deploy/publish/push.
 
 ## 6. Follow-up: security-review WARN fixes (same v0.2.193 slice)
 
+> **Follow-up commit:** `82dc6fe` (local only — not pushed/published).
+
 A post-slice security review raised three non-blocking WARNs. All three are resolved here
 (docs / tooling / metadata, plus one constant-only runtime change). Still local-only,
 read-only, network-free; no gameplay/physics/Nostr/portal/update-execution change.

@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.200-alpha",
+  "version": "0.2.201-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "handoff:status": "node tools/handoff-status.mjs",
     "handoff:summary": "node tools/handoff-summary.mjs",
     "handoff:agent": "node tools/agent-handoff.mjs",
+    "rc:gate": "node tools/mvp-rc-gate.mjs",
     "zones:check": "node tools/zone-fallback-check.mjs",
     "vps:dry-run": "node tools/vps-dry-run.mjs",
     "docs:stale": "node tools/stale-docs.mjs",

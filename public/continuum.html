@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Continuum · v0.2.200-alpha</title>
+<title>Torii Continuum · v0.2.201-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -112,10 +112,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Continuum <span class="v">v0.2.200-alpha</span></h1>
+    <h1>Torii Continuum <span class="v">v0.2.201-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T22:00:47.901Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-25T22:25:33.126Z</span></div>
   </header>
   <main>
     <section>
@@ -131,7 +131,7 @@
       <table>
         <thead><tr><th>Signal</th><th>State</th><th>Detail</th></tr></thead>
         <tbody>
-        <tr><td>Version sync</td><td><span class="pill pill-no-blocker">ok</span></td><td>config v0.2.200-alpha / pkg 0.2.200-alpha</td></tr>
+        <tr><td>Version sync</td><td><span class="pill pill-no-blocker">ok</span></td><td>config v0.2.201-alpha / pkg 0.2.201-alpha</td></tr>
         <tr><td>Test profiles</td><td><span class="pill pill-no-blocker">ok</span></td><td>fast 5 · foundation 25 file(s)</td></tr>
         <tr><td>Regression gate</td><td><span class="pill pill-no-blocker">ok</span></td><td>15 / 15 checks</td></tr>
         <tr><td>Bundle baseline</td><td><span class="pill pill-manual">advisory</span></td><td>advisory — over limit: rapier-DE6a0vmv.js</td></tr>
@@ -139,7 +139,7 @@
         <tr><td>Docs consistency</td><td><span class="pill pill-no-blocker">ok</span></td><td>continuity docs carry current version</td></tr>
         </tbody>
       </table>
-      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.200-alpha</b> @ 511f31c. Full gate: <b>npm run test:release</b>.</div>
+      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.201-alpha</b> @ 81fafc5. Full gate: <b>npm run test:release</b>.</div>
     </section>
 
     <section>
@@ -179,12 +179,12 @@
       <div class="h2row"><h2>At a glance</h2> <span class="count">6</span></div>
       <div class="lead">Build truth: source version, test/gate status, and the headline progress rings.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.200-alpha (build truth; live trails — manual deploy)</span></div>
-        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">1246 passing / 78 files (profiles: test:fast ~5, test:foundation ~25)</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.201-alpha (build truth; live trails — manual deploy)</span></div>
+        <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">1260 passing / 79 files (profiles: test:fast ~5, test:foundation ~25)</span></div>
         <div class="metric"><span class="metric-label">Regression check</span><span class="metric-value">15 / 15 GREEN</span></div>
         <div class="metric"><span class="metric-label">Bundle (advisory)</span><span class="metric-value">~2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Gates</span><ul class="mini"><li>SEC-1 / SEC-2 / SEC-3 intact</li><li>godMode false</li><li>continuum CSP enforced</li></ul></div>
-        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.200 DASHBOARD METRIC FRESHNESS CLEANUP (infra/dashboard data-quality only, no runtime change) — resolves the recurring stale LAST-KNOWN test-count flagged in security reviews (HEALTH_LASTKNOWN.totalTests was a second hand-maintained copy stuck at &quot;1180 passing&quot; while the suite had moved on). A single curated source of truth (CURRENT_TEST_STATUS) + a testCountLabel() helper now feed BOTH displayed surfaces — the &quot;at a glance&quot; Tests metric AND the engineering-health Total tests metric — so they can no longer drift apart. New unit tests assert the curated FILE count equals the real on-disk test-file count (forcing a bump when files change), that both labels derive from the one source, and that the dashboard capture agrees with the MVP-rollup capture (mvpReadiness.DEFAULT_TEST_STATUS). NON-GOALS held: read-only data cleanup; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; godMode stays false.</span></div>
+        <div class="metric"><span class="metric-label">Active slice</span><span class="metric-value">v0.2.201 MVP RELEASE-CANDIDATE GATE (infra/tooling only, no runtime change) — a pure/local gate (tools/mvpRcGate.mjs + CLI tools/mvp-rc-gate.mjs, npm run rc:gate) that answers ONE question: is this build ready to be called an MVP proof-of-concept RELEASE CANDIDATE? It COMPOSES the existing readiness verdicts — the MVP readiness rollup (9 live + injected signals) and the release-readiness summary (version sync, test profiles, regression gate, bundle advisory, /zone/* fallback, docs consistency) — into one concise READY / NEAR / BLOCKED verdict + a blended percentage + the blocking reasons + the next one or two safe tasks. It creates NO release: no git tag, no GitHub release, no deploy, no publish, no upload — read-only oversight that PREVIEWS npm run test:release. +14 unit tests. NON-GOALS held: read-only; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; godMode stays false.</span></div>
         <div class="metric"><span class="metric-label">Contributors <span class="seed">SEED · not live</span></span><span class="metric-value">1 human · 3 clankers</span></div>
         <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span><ul class="mini"><li>12 completed task markers (todo.md)</li><li>12 next-12</li><li>11 archive clusters</li></ul></div>
       </div>
@@ -231,13 +231,13 @@
       <div class="h2row"><h2>Engineering health</h2> <span class="count">8</span></div>
       <div class="lead">The efficiency loop in numbers — each card chipped GENERATED or LAST-KNOWN.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.200-alpha</span></div>
-        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 25</li><li>full 78</li></ul></div>
-        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">1246 passing / 78 files</span></div>
+        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.201-alpha</span></div>
+        <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 25</li><li>full 79</li></ul></div>
+        <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">1260 passing / 79 files</span></div>
         <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>fast ~1s</li><li>foundation ~6s</li><li>full suite ~44s</li></ul></div>
         <div class="metric"><span class="metric-label">Bundle baseline <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>1</li><li>curated fallback used</li></ul></div>
-        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>15 / 15 regression checks GREEN</li><li>last green v0.2.200-alpha</li></ul></div>
+        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>15 / 15 regression checks GREEN</li><li>last green v0.2.201-alpha</li></ul></div>
         <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>progress.md</li><li>todo.md</li><li>strategy.md carry this version</li></ul></div>
       </div>
       <div class="rings">
@@ -264,7 +264,7 @@
             <circle class="donut-track" cx="60" cy="60" r="52"></circle>
             <circle class="donut-val" cx="60" cy="60" r="52" stroke-dasharray="104.55 222.17" transform="rotate(-90 60 60)"></circle>
             <text class="donut-num" x="60" y="58">32%</text>
-            <text class="donut-lbl" x="60" y="78">25/78 files</text>
+            <text class="donut-lbl" x="60" y="78">25/79 files</text>
           </svg>
           <figcaption>Foundation coverage</figcaption>
         </figure>
@@ -361,7 +361,7 @@
         <div>
           <h3>NOW · Active <span class="count">3</span></h3>
           <ul class="bullets">
-        <li>v0.2.200 — DASHBOARD METRIC FRESHNESS CLEANUP (infra/dashboard data-quality only, no runtime change): resolves the recurring stale LAST-KNOWN test-count flagged in security reviews — HEALTH_LASTKNOWN.totalTests was a SECOND hand-maintained copy stuck at &quot;1180 passing&quot; while the &quot;at a glance&quot; Tests metric had moved on, so the page disagreed with itself and the MVP percentage could be read off a stale number. A single curated source of truth (CURRENT_TEST_STATUS) + a testCountLabel() helper now feed BOTH displayed surfaces, so they can no longer drift apart. New unit tests assert the curated FILE count equals the real on-disk test-file count (an added/removed test file now FAILS the suite until the constant is bumped), that both labels derive from the one source, and that the dashboard capture agrees with the MVP-rollup capture (mvpReadiness.DEFAULT_TEST_STATUS). NON-GOALS held: read-only data cleanup; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; godMode stays false.</li>
+        <li>v0.2.201 — MVP RELEASE-CANDIDATE GATE (infra/tooling only, no runtime change): a pure/local gate (tools/mvpRcGate.mjs + CLI tools/mvp-rc-gate.mjs, npm run rc:gate) that answers whether this build is ready to be called an MVP proof-of-concept RELEASE CANDIDATE. It COMPOSES the already-computed readiness verdicts — the MVP readiness rollup (9 live + injected signals) + the release-readiness summary (version sync, test profiles, regression gate, bundle advisory, /zone/* fallback, docs consistency) — into ONE concise READY / NEAR / BLOCKED verdict with a blended percentage, the blocking reasons, and the next one or two safe tasks. A single short MVP signal is a NEAR; a failing required release signal (or two+ MVP misses) is BLOCKED; both fully green with nothing unchecked is READY. It re-derives no check and creates NO release: no git tag, no GitHub release, no deploy, no publish, no upload, no network — read-only oversight that PREVIEWS npm run test:release. +14 unit tests. NON-GOALS held: read-only; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; godMode stays false.</li>
         <li>ARS-4 — finish folding reload/pointer-lock into the guarded FSM.</li>
         <li>ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.</li>
           </ul>

@@ -7,7 +7,7 @@ modularise · document**) is visible at a glance.
 **Type:** docs/tooling only — no gameplay change, no runtime behaviour change, no new
 network/script surface.
 **Status:** GREEN. 821 tests / 60 files, 14/14 regression checks, build clean.
-Committed LOCALLY only (no push/deploy/publish).
+Committed LOCALLY only (no push/deploy/publish). **Commit:** `3cc4fd2` (branch `v0.2.175`).
 
 ---
 

@@ -56,7 +56,13 @@ const DEFAULT_ROUTE = '/';
 const ROUTE_MAX_LEN = 256;
 const SLUG_MAX_LEN = 64;
 // Control chars (C0 + DEL) + chars that could break out of a path fragment.
-const UNSAFE_ROUTE = /[\x00-\x1f\x7f<>"'`\\\s]/;
+// `%` is rejected too: percent-encoding can smuggle a traversal/scheme past the
+// raw-char checks (e.g. `%2e%2e` = `..`), and an internally-built same-site route
+// never needs it — so any `%` is treated as hostile (SEC route-hardening v0.2.179).
+const UNSAFE_ROUTE = /[\x00-\x1f\x7f<>"'`\\\s%]/;
+// Path traversal — any `..` segment could climb out of an allowlisted prefix
+// (e.g. `/zone/../admin`). Rejected outright (SEC route-hardening v0.2.179).
+const TRAVERSAL_ROUTE = /\.\./;
 // A zone-id slug keeps only url-safe chars; everything else becomes a separator.
 const SLUG_STRIP = /[^a-z0-9]+/g;
 const SLUG_TRIM = /^-+|-+$/g;
@@ -64,13 +70,16 @@ const SLUG_TRIM = /^-+|-+$/g;
 // safeRoutePath(raw) → a safe SAME-ORIGIN path fragment, or null. Pure, never
 // throws. Accepts ONLY a string starting with a single `/` (rejects `//` protocol-
 // relative, absolute schemes, `javascript:`/`data:`, whitespace, control chars,
-// markup, backslashes) within a length cap. The leading-slash rule means an
-// attacker can never smuggle a scheme through the injected current route.
+// markup, backslashes, any `%` percent-encoding, and any `..` traversal segment)
+// within a length cap. The leading-slash rule means an attacker can never smuggle
+// a scheme through the injected current route; the `%`/`..` rejections close
+// percent-encoded + dot-dot climb-out attempts (SEC route-hardening v0.2.179).
 export function safeRoutePath(raw) {
   if (typeof raw !== 'string') return null;
   if (raw.length === 0 || raw.length > ROUTE_MAX_LEN) return null;
   if (raw[0] !== '/' || raw[1] === '/') return null;
   if (UNSAFE_ROUTE.test(raw)) return null;
+  if (TRAVERSAL_ROUTE.test(raw)) return null;
   return raw;
 }
 

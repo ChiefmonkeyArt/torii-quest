@@ -101,15 +101,25 @@ export function resolveHostTransport(source, opts = {}) {
   return { transport: null, kind: TRANSPORT_KIND.NONE };
 }
 
-// _routeAllowed(route, allowlist) → true when `route` is permitted. With no
-// allowlist (null/empty) any safe same-origin route is allowed (safeRoutePath
-// already constrains it). With an allowlist, the route must start with one of its
-// (safe) path prefixes. Pure, never throws.
+// Minimum meaningful allowlist-prefix length. A 1-char prefix like `'/'` matches
+// EVERY same-origin route, making the allowlist trivially permissive — so such
+// prefixes are NOT honoured. Callers must use meaningful prefixes like `'/zone/'`
+// (SEC route-hardening v0.2.179).
+const MIN_ALLOWLIST_PREFIX_LEN = 2;
+
+// _routeAllowed(route, allowlist) → true when `route` is permitted. With NO
+// allowlist supplied (null/non-array/empty) any safe same-origin route is allowed
+// (safeRoutePath already constrains it). With a NON-EMPTY allowlist, the route must
+// start with one of its meaningful (length >= MIN_ALLOWLIST_PREFIX_LEN) path
+// prefixes. Trivially-permissive prefixes like `'/'` are IGNORED, so a caller that
+// supplies ONLY such prefixes (e.g. `['/']`) gets a fail-CLOSED result: no route is
+// allowed, rather than silently allowing everything. Pure, never throws.
 function _routeAllowed(route, allowlist) {
   if (!Array.isArray(allowlist) || allowlist.length === 0) return true;
   if (typeof route !== 'string') return false;
   for (const prefix of allowlist) {
-    if (typeof prefix === 'string' && prefix !== '' && route.startsWith(prefix)) return true;
+    if (typeof prefix === 'string' && prefix.length >= MIN_ALLOWLIST_PREFIX_LEN
+      && route.startsWith(prefix)) return true;
   }
   return false;
 }

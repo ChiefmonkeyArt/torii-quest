@@ -38,6 +38,19 @@ describe('safeRoutePath', () => {
       expect(safeRoutePath(bad)).toBeNull();
     }
   });
+  it('rejects dot-dot traversal segments (SEC route-hardening v0.2.179)', () => {
+    for (const bad of ['/zone/../admin', '/..', '/../etc', '/zone/..', '/a/../../b']) {
+      expect(safeRoutePath(bad)).toBeNull();
+    }
+  });
+  it('rejects any percent-encoding (SEC route-hardening v0.2.179)', () => {
+    for (const bad of ['/zone/%2e%2e/admin', '/zone/%2fadmin', '/%00', '/a%20b']) {
+      expect(safeRoutePath(bad)).toBeNull();
+    }
+  });
+  it('still accepts a plain safe /zone/foo route after hardening', () => {
+    expect(safeRoutePath('/zone/foo')).toBe('/zone/foo');
+  });
 });
 
 describe('handoffRouteFor + handoffUrlFor', () => {

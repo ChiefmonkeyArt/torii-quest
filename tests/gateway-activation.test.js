@@ -182,6 +182,26 @@ describe('route restrictions', () => {
     expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
   });
 
+  it('a trivially-permissive ["/"] allowlist does NOT allow an arbitrary route (SEC v0.2.179)', () => {
+    const host = createRecordingHost('/');
+    const r = activateGatewayHandoff(INPUT, true, {
+      confirmed: true, host, routeAllowlist: ['/'],
+    });
+    expect(r.status).toBe(ACTIVATION_STATUS.BLOCKED);
+    expect(r.reason).toBe('route-not-allowed');
+    expect(r.navigated).toBe(false);
+    expect(host.calls.pushState).toEqual([]);
+  });
+
+  it('a meaningful ["/zone/"] allowlist still allows /zone/foo (SEC v0.2.179)', () => {
+    const host = createRecordingHost('/');
+    const r = activateGatewayHandoff(INPUT, true, {
+      confirmed: true, host, routeAllowlist: ['/zone/'],
+    });
+    expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
+    expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
+  });
+
   it('an injected transport handed an unsafe route refuses it (defense in depth)', () => {
     // The transport itself re-validates with safeRoutePath, so even a hostile
     // transport caller cannot smuggle an external/scheme route through.

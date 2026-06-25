@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.178-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.179-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,12 +10,12 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.178-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **861 passing / 61 files** (profiles: `test:fast` ~5 files, `test:foundation` ~18 files) |
+| Source version | **v0.2.179-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **866 passing / 61 files** (profiles: `test:fast` ~5 files, `test:foundation` ~18 files) |
 | Regression check | **14 / 14 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · continuum CSP enforced |
-| Active slice | v0.2.178 LEAN-2 gateway handoff activation — confirmed same-origin host-transport live-wire (`gatewayActivation.js`; double-gated, build-time/pure, no live navigation) |
+| Active slice | v0.2.179 LEAN-2 gateway route hardening — `safeRoutePath` rejects dot-dot/percent; activation allowlist ignores trivially-permissive prefixes (security-review follow-up; pure, no live navigation) |
 
 Legend: `█` done · `░` remaining · ✅ landed · 🔄 in progress · ⏳ pending · 🚫 blocked · 🟢 no-blocker
 
@@ -55,6 +55,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 ## Active now
 
+- 🔄 **v0.2.179 — LEAN-2 gateway route hardening** (`safeRoutePath` in `engine/gateway/handoffPlan.js` + `_routeAllowed` in `engine/gateway/gatewayActivation.js`): a focused security-review follow-up before any live gateway wiring. `safeRoutePath` now additionally rejects any `..` dot-dot traversal segment AND any `%` percent-encoding — closing `/zone/../admin` + `/zone/%2e%2e/admin` climb-out attempts (the current surface is closed because `targetRoute` is built internally by `handoffRouteFor`/`_zoneSlug`, which only emit `[a-z0-9-]`, so `/zone/foo` still passes; this is defense in depth before portal wiring). The activation `routeAllowlist` now ignores trivially-permissive prefixes shorter than 2 chars, so a `['/']` allowlist fails **closed** (matches nothing) rather than silently allowing every same-origin route; meaningful prefixes like `['/zone/']` are unaffected. Pure/node-safe, never navigates; godMode stays false. +5 tests.
 - 🔄 **v0.2.178 — LEAN-2 gateway handoff activation** (`engine/gateway/gatewayActivation.js`): the confirmed same-origin host transport is now **live-wired** into the v0.2.168 executor. `resolveHostTransport(source)` turns an injected transport / a window (`history.pushState`) / a recording host into a usable transport **without navigating**, and `activateGatewayHandoff(input,grant,opts)` only resolves + drives it after three ordered gates — a literal `confirmed:true`, the consent-gated dry-run plan being `ok`, and an optional same-origin route allowlist — so any preview/render/unconfirmed path can never navigate. A failed navigate rolls back to the rollback route (back-home); `external`/`worldReloaded`/`signed`/`published`/`network` stay `false`. Reachable read-only via `ToriiDebug.shells.gatewayActivation()` over an in-memory recording host. +25 tests.
 - 🔄 **v0.2.177 — dashboard layout/readability pass** (DASHBOARD-LAYOUT-1; `renderContinuumPage` in `continuumData.js`): a visual-hierarchy + scannability pass on `/continuum.html` — the ACTIVE-milestone headline is **promoted above At-a-glance**; every section gains a one-line **lead caption** + a `_h2(title,count)` heading row with an item-count chip; the Now/Archive/Done columns reflow on a **responsive auto-fit grid** (no hard 3→1 jump) and show live counts; spacing/typography tightened (wider main, more section separation, subtle card hover). DERIVED/GENERATED/LAST-KNOWN/SEED chips stay visible. No new `<script>`/asset; CSP/refresh-script hash unchanged. A larger visual redesign remains a future follow-up.
 - 🔄 **v0.2.176 — milestone + layout pass** (`buildMilestoneModel` + `SEED_MILESTONES` in `continuumData.js`): a build-time, static, read-only **Milestones** section on `/continuum.html` surfaces the 15-hour MVP route as the one true **ACTIVE** milestone — the leanRoute slices ARE its tasks, folded into DERIVED counts (5 total / 0 done / 4 active / 1 pending) + a directional **46% complete** progress bar — alongside clearly-labelled **SEED** future milestones (honest total: 1 active + 3 seed, never pretending the seeds carry real task counts). Grouped card values (health, docs-derived) now render as bullet lists via `_cardValueHtml`, not dense `·`-separated prose. No new `<script>`; CSP/refresh-script hash unchanged. Follow-up: **DASHBOARD-LAYOUT-1** (design dashboard layout/formatting better).
@@ -101,6 +102,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 
 Struck-through items stay ~24h, then collapse into Archive. Newest first.
 
+- ~~**v0.2.179** — **LEAN-2 gateway ROUTE HARDENING** (security-review follow-up): `safeRoutePath` now also rejects any `..` dot-dot traversal segment and any `%` percent-encoding (closing `/zone/../admin` + `/zone/%2e%2e/admin` climb-outs — internal `/zone/<slug>` routes never need either); the activation `routeAllowlist` ignores prefixes shorter than 2 chars so a `['/']` allowlist fails CLOSED (matches nothing) rather than allowing every same-origin route, while `['/zone/']` still allows `/zone/foo`. Pure/node-safe, never navigates; godMode false. +5 tests.~~
 - ~~**v0.2.178** — **LEAN-2 gateway handoff ACTIVATION** (`engine/gateway/gatewayActivation.js`): live-wired the confirmed same-origin host transport into the v0.2.168 executor. `resolveHostTransport()` picks an injected / browser-window (History pushState) / recording-host transport WITHOUT navigating; `activateGatewayHandoff()` double-gates on a literal `confirmed:true` AND the consent-gated dry-run plan AND an optional same-origin route allowlist before resolving any transport — so preview/render/unconfirmed paths can never navigate. Rollback/back-home reachable; `external`/`worldReloaded`/`signed`/`published`/`network` all stay false. SDK (experimental) + debug-shell (in-memory recording host) exposure. +25 tests.~~
 - ~~**v0.2.177** — **dashboard layout/readability pass** (DASHBOARD-LAYOUT-1): visual-hierarchy + scannability pass on `/continuum.html` — the ACTIVE-milestone headline promoted above At-a-glance, one-line lead captions + live item counts per section, the Now/Archive/Done columns reflow on a responsive auto-fit grid, spacing/typography tightened. DERIVED/GENERATED/LAST-KNOWN/SEED chips stay visible. No new `<script>`/asset; CSP/refresh-script hash unchanged. +tests.~~
 - ~~**v0.2.176** — **milestone + layout pass**: an explicit Milestones section surfaces the 15-hour MVP route as the one ACTIVE milestone (pure `buildMilestoneModel()` folds the leanRoute slices into DERIVED counts + a directional % bar) alongside clearly-labelled SEED future milestones; grouped card values render as bullet lists. CSP/refresh-script unchanged. +tests.~~

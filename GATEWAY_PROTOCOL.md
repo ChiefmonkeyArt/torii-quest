@@ -347,7 +347,12 @@ linked by signed spatial events, with **no central router**.
   scope. This realises the spec's "explicit, confirmed travel intent → controlled same-origin hop"
   requirement for the local/same-site tier (the signed/relay-mediated tier still gates behind SEC-2).
   Read-only at `ToriiDebug.shells.gatewayActivation()` (acts through an in-memory recording host, never
-  live-navigates). SDK `gatewayActivation` (experimental).
+  live-navigates). SDK `gatewayActivation` (experimental). **v0.2.179 route hardening** (security-review
+  follow-up): `safeRoutePath` now also rejects any `..` dot-dot traversal segment and any `%`
+  percent-encoding (closing `/zone/../admin` + `/zone/%2e%2e/admin` climb-out attempts — internally-built
+  `/zone/<slug>` routes never need either), and the activation `routeAllowlist` ignores trivially-permissive
+  prefixes shorter than 2 chars so a `['/']` allowlist fails CLOSED (matches nothing) rather than silently
+  allowing every same-origin route; meaningful prefixes such as `['/zone/']` are unaffected.
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will inject the live app/browser
   window into `gatewayActivation` (above): it will hand a `createBrowserHostTransport(window)` transport (or
   the host router) + a same-origin route allowlist to `activateGatewayHandoff` so a confirmed in-world hop

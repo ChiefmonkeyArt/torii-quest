@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.198-alpha",
-  "generatedAt": "2026-06-25T21:19:14.794Z",
+  "version": "v0.2.199-alpha",
+  "generatedAt": "2026-06-25T21:40:22.312Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,12 +49,12 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.198-alpha"
+        "value": "v0.2.199-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 77"
+        "value": "fast 5 · foundation 25 · full 78"
       },
       {
         "label": "Total tests",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.198-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.199-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 32,
         "label": "Foundation coverage",
-        "sub": "25/77 files"
+        "sub": "25/78 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.198-alpha",
-    "gitCommit": "ddf0acd",
+    "version": "v0.2.199-alpha",
+    "gitCommit": "86a5d3a",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.198-alpha / pkg 0.2.198-alpha"
+        "detail": "config v0.2.199-alpha / pkg 0.2.199-alpha"
       },
       {
         "key": "tests",

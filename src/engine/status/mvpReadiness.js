@@ -52,8 +52,8 @@ const SAFETY_FLAGS = Object.freeze([
 // fixture so the module stays pure. A build/CLI step can pass the live numbers via
 // opts.tests; the dashboard already tracks the same count.
 export const DEFAULT_TEST_STATUS = Object.freeze({
-  passing: 1228,
-  files: 77,
+  passing: 1241,
+  files: 78,
   profile: 'full',
   ok: true,
 });

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.198-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.199-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -377,7 +377,27 @@ Breaking one should fail CI/the check, not ship.
   `mvpReadinessReport()` folded into `buildShellReport`). `tests/mvp-readiness-rollup.test.js` (+14).
   Read-only — serves/deploys/fetches/writes NOTHING; no gameplay/physics/shooter/Rapier change; no
   Nostr signing/publishing/live network write; `godMode` stays false.
-  Latest slice report: `torii-v0.2.198-mvp-readiness-rollup-report.md`.
+  **v0.2.199** added an AGENT HANDOFF READINESS EXPORT — a pure, node-safe export
+  (`tools/agentHandoff.mjs` + thin CLI `tools/agent-handoff.mjs`, `npm run handoff:agent`) that folds
+  the EXISTING local status signals a NEXT agent — including non-Perplexity tools (DeepSeek /
+  Perplexica / Routstr-style handoffs) — needs to continue the safe MVP pipeline WITHOUT reading the
+  whole repo: version, live URL, gate verdict, regression + test-profile counts, latest reports, the
+  standing hard constraints, the next SAFE task, the pure smoke-harness inventory, and the v0.2.198
+  MVP-readiness rollup (pct + status). `buildAgentHandoff({handoffSummary,mvpReadiness,smokeHarnesses,
+  generatedAt})` COMPOSES the existing `buildHandoffSummary()` brief + `runMvpReadiness()` rollup
+  rather than re-deriving either, adding ONLY the frozen `SMOKE_HARNESSES` inventory (readHealth /
+  gatewayTravelSmoke / updateFlowSmoke / hostRouteSmoke / mvpReadiness → SDK namespace + debug shell +
+  live status pulled from the rollup signals) and the readiness pct/status the base summary lacked;
+  null/garbled inputs degrade to honest UNKNOWNs and never throw. `formatAgentHandoff()` /
+  `formatAgentHandoffMarkdown()` render stable text/markdown (null-safe). The thin CLI runs
+  `gatherReleaseReadiness` + `runMvpReadiness` and supports text / `--json` (schema
+  `torii.agent-handoff` v1) / `--markdown`; READ-ONLY/local/no-network and never writes unless an
+  explicit `--write[=path]` is given — that emits `HANDOFF.generated.md` (default), confined inside the
+  repo via the SHARED `resolveHandoffWritePath` (absolute path / `..` escape rejected) and NEVER
+  touching this curated `HANDOFF.md`. `tests/agent-handoff.test.js` (+13). Read-only except the
+  explicit `--write` output; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/
+  live network write; `godMode` stays false.
+  Latest slice report: `torii-v0.2.199-agent-handoff-readiness-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

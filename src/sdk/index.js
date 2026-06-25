@@ -58,6 +58,7 @@ export * as hostTransport from '../engine/gateway/hostTransport.js';
 export * as gatewayActivation from '../engine/gateway/gatewayActivation.js';
 export * as gatewayPortalActivation from '../engine/gateway/gatewayPortalActivation.js';
 export * as portalTrigger from '../engine/gateway/portalTrigger.js';
+export * as zoneRoute from '../engine/gateway/zoneRoute.js';
 export * as updateCheck from '../engine/update/updateCheck.js';
 export * as updatePreview from '../engine/update/updatePreview.js';
 export * as githubReleaseSource from '../engine/update/githubReleaseSource.js';
@@ -203,6 +204,10 @@ export const SDK_SURFACE = Object.freeze({
   // inert), and an explicit interact() that is the ONLY navigating step. Pure: the
   // boundary (holding any injected window) is injected; NO module-scope window.
   portalTrigger:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/portalTrigger.js' },
+  // pure SPA `/zone/<slug>` route parser/resolver (v0.2.182) — classifies a
+  // same-origin path as home/zone/invalid, validates the slug strictly, and maps a
+  // valid zone to an INERT display state. NO network/relay/nav; same-origin only.
+  zoneRoute:       { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/zoneRoute.js' },
   // torii.quest GitHub release/update-check helpers (LEAN-5, v0.2.138) — pure
   // compare + inert view-model; NO network fetch, NO auto-update.
   updateCheck:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateCheck.js' },

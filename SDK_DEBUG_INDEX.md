@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.181-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.182-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -45,7 +45,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `productDisplay`, `productPanel`, `productPanelShell`, `productPreview`,
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
-`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `updateCheck`,
+`consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `zoneRoute`, `updateCheck`,
 `updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
@@ -286,6 +286,26 @@ via `ToriiDebug.shells.portalTrigger(...)` / `portalTriggerReport(...)`, which d
 boundary so the debug path NEVER live-navigates. A dedicated portal MESH + SPA `/zone/<slug>` route handler
 (so a hard refresh resolves the zone) is the next deferred infra step.
 
+`zoneRoute` (GATEWAY / NAP-zone, v0.2.182) is the pure SPA `/zone/<slug>` route parser/resolver — the safe
+client-side READ of the same-origin URL state the [[portalTrigger]] hop pushes, so a refresh/deep-link on
+`/zone/*` is not brittle. `ZONE_ROUTE_VERSION`=1; `ZONE_ROUTE_BADGE`='ZONE ROUTE · SAME-ORIGIN · INERT';
+`ZONE_ROUTE_PREFIX`='/zone/'; `ZONE_SLUG_MAX_LEN`=64; `ZONE_ROUTE_KIND`={HOME,ZONE,INVALID};
+`DEMO_ZONE_ROUTE`='/zone/plebeian-market-bazaar'. `isValidZoneSlug(slug)` (strict: lowercase alnum words joined
+by single hyphens, ≤64, no lead/trail/double hyphen), `humanizeZoneSlug(slug)` (Title Case or ''),
+`zoneRouteFor(slug)` (`/zone/<slug>` or `null`), `parseZoneRoute(path)` and `describeZoneRoute(path)`.
+`parseZoneRoute` runs the route through the v0.2.179-hardened [[handoffPlan]] `safeRoutePath` FIRST (non-string/
+empty/over-length/dot-dot/percent/protocol-relative/`javascript:`/`data:`/markup/control/whitespace → INVALID),
+strips a trailing `?query`/`#hash`, then classifies HOME (root `/` or any non-`/zone/` same-origin path), ZONE
+(valid slug), or INVALID (sub-path `/zone/a/b`, malformed slug, hostile); a valid zone returns an INERT display
+state `{kind,ok,slug,zoneId,route,title,notice}`. `navigated`/`performed`/`external`/`signed`/`published`/
+`network` ALL pinned false — it interprets a URL, never acts. Pure/node-safe — NO module-scope `window`/THREE/DOM,
+exposes NO navigate/open/reload/goto/assign/href/pushState method; never throws. WIRED in `main.js` (composition
+root ONLY): reads `window.location.pathname` once on startup + on `popstate`, calling `hud.js`
+`showZoneNotice`/`hideZoneNotice` (lazy `#zone-notice` div, opacity crossfade, no `setTimeout`). Reachable
+read-only via `ToriiDebug.shells.zoneRoute(...)` / `zoneRouteReport(...)`. **Hard-refresh deep-link resolution
+needs a static-host SPA fallback (serve `index.html` for `/zone/*`) — see HANDOFF.md §7 / GATEWAY_PROTOCOL.md;
+documented, NOT faked in app code.**
+
 `continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Continuum
 project-oversight DASHBOARD data + renderer — the FIRST slice of a broader oversight surface.
 `CONTINUUM` holds the curated `progress.md` snapshot (metrics, a clearly-flagged SEED
@@ -412,6 +432,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.gatewayActivation(input?,grant?,opts?)` | **v0.2.178** GATEWAY ACTIVATION report over `DEMO_HANDOFF_INPUT` — `{title:'GATEWAY ACTIVATION',badge,action,status,ok,confirmed,live,reason,transportKind,targetRoute,fromRoute,rollbackRoute,hostRoute,pushStateCalls,inMemory:true,navigated,performed,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (drives the LIVE-WIRE `activateGatewayHandoff` through an in-memory recording host — defaults `confirmed:true` + a `/zone/` route allowlist, records `pushState`, NEVER navigates the live browser; pass `{confirmed:false}` to see the unconfirmed no-op; same-origin only, safety flags pinned) |
 | `shells.gatewayPortalActivation(component?,context?,grant?,opts?)` | **v0.2.180** GATEWAY PORTAL ACTIVATION report over the demo gateway component + `DEMO_PORTAL_CONTEXT` — `{title:'GATEWAY PORTAL ACTIVATION',badge,action,status,ok,confirmed,live,reason,transportKind,zoneId,targetRoute,fromRoute,rollbackRoute,routeAllowlist,hostRoute,pushStateCalls,inMemory,navigated,performed,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (bridges an in-world gateway component to `activateGatewayHandoff` through an in-memory recording host — defaults `confirmed:true` + the `['/zone/']` allowlist, maps the component's `target`→`zoneId`, DROPS any external `website`, records `pushState`, NEVER navigates the live browser; pass `{confirmed:false}` for the unconfirmed no-op; same-origin only, safety flags pinned) |
 | `shells.portalTrigger(component?,context?,opts?)` | **v0.2.181** GATEWAY PORTAL TRIGGER report driving a `createRecordingHost` boundary through a far→near approach (+ optional `{interact:true}`) — `{title:'GATEWAY PORTAL TRIGGER',badge,promptText,farInRange,nearInRange,armedAfterApproach,pushStateAfterArm,promptLog,interacted,status,navigated,confirmed,live,zoneId,targetRoute,routeAllowlist,pushStateCalls,inMemory:true,external:false,worldReloaded:false,signed:false,published:false,network:false,errors}` (proves proximity ALONE arms+previews but records NO `pushState`; only an explicit `interact` confirms → records the `/zone/<slug>` `pushState`; NEVER navigates the live browser; same-origin only, safety flags pinned) |
+| `shells.zoneRoute(path?)` | **v0.2.182** ZONE ROUTE report over `DEMO_ZONE_ROUTE` — `{title:'ZONE ROUTE',badge:'ZONE ROUTE · SAME-ORIGIN · INERT',sample,home:{kind:'home',ok:true},valid:{kind:'zone',ok,slug,zoneId,route,title,notice},rejects:{traversal,percent,protocolRelative,scheme,subPath,malformedSlug,emptySlug}(all 'invalid'),summary,navigated:false,performed:false,network:false,external:false,signed:false,published:false,inMemory:true,errors}` (parses/classifies a same-origin path home/zone/invalid and labels every hostile path INVALID; pure URL interpretation, NEVER navigates/fetches; safety flags pinned) |
 | `shells.updatePreview(r?,o?)` | LEAN-5 preview block — `{title,badge,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source,lines,readOnly:true,actionable:false}` |
 | `shells.updateStatus(p?,o?)` | **v0.2.158** LEAN-5 in-game UPDATE-STATUS panel — `{title,badge,surface,step,status,statusLabel,currentVersion,latestVersion,updateAvailable,prompt,source:{status,kind,candidates,errors},sourceUrl,lines,readOnly:true,actionable:false}` (defaults to local sample feed) |
 | `shells.mvpLoop(o?)` | loop header block — `{title,badge,flow,note,version,steps,lines,readOnly:true,actionable:false}` |

@@ -382,16 +382,38 @@ linked by signed spatial events, with **no central router**.
   ONLY): `tick` runs in `update()` while playing (else `reset()`), a KeyF handler calls `interact(true)`, and
   `hud.js` `showPortalPrompt`/`hidePortalPrompt` render the inert `#portal-prompt` div. Read-only at
   `ToriiDebug.shells.portalTrigger()` (drives a recording-host boundary, never live-navigates). SDK
-  `portalTrigger` (experimental). A dedicated portal MESH + SPA `/zone/<slug>` route handler (hard-refresh
-  resolution) remains the next deferred infra step.
+  `portalTrigger` (experimental). A dedicated portal MESH remains the next deferred infra step (the SPA
+  `/zone/<slug>` route handler landed v0.2.182, below).
+- `src/engine/gateway/zoneRoute.js` (v0.2.182) — the pure **SPA `/zone/<slug>` route parser/handler** that
+  gives the same-origin gateway URL state a safe client-side interpretation so it does not become brittle
+  after a hard refresh or popstate navigation. `parseZoneRoute(path)` runs the `safeRoutePath` security gate
+  FIRST (rejecting non-string, empty, >256 chars, scheme/protocol-relative `//`, control/markup/backslash/
+  whitespace/`%` percent, and `..` traversal — §8 boundary rules), strips any `?query`/`#hash`, then classifies
+  the path into `ZONE_ROUTE_KIND` `HOME` (`/`), `ZONE` (`/zone/<slug>` with a STRICT `isValidZoneSlug` —
+  lowercase alphanumerics + single internal hyphens, ≤64 chars), or `INVALID` (everything else), mapping a
+  valid slug to INERT local zone intent/display via `humanizeZoneSlug`/`describeZoneRoute`. It pins
+  `navigated:false`/`performed:false`/`external:false`/`signed:false`/`published:false`/`network:false` —
+  it NEVER fetches the network, loads relay data, navigates, or reads `window.location` at module scope (the
+  path is injected). `zoneRouteFor(slug)` builds a same-origin `/zone/<slug>` route string. WIRED in `main.js`
+  (composition root ONLY): `_applyZoneRoute()` reads the injected `window.location.pathname` on startup and on
+  `popstate`, routing a valid `/zone/<slug>` into inert local zone state / a safe placeholder notice and
+  leaving an invalid or unknown path on the safe HOME default — no network, no auto-travel. Read-only at
+  `ToriiDebug.shells.zoneRoute(path?)`. SDK `zoneRoute` (experimental).
+  > **Static-host hard-refresh fallback (REQUIRED, outside repo code).** A client-side parser cannot, by
+  > itself, make `https://host/zone/<slug>` resolve on a *cold* hard refresh — the static host must serve
+  > `index.html` for unknown deep-link paths so the SPA boots and `_applyZoneRoute()` can interpret the path.
+  > This is a hosting config, not app code, and is documented honestly rather than faked: Nginx
+  > `try_files $uri $uri/ /index.html;`, Caddy `try_files {path} /index.html`, or a CDN 404→`/index.html`
+  > rewrite (see `HANDOFF.md` §7). Without it a hard refresh on a deep link 404s before any JS runs.
 - `src/world/handoff.js` — the (skeleton) host seam where a future build will inject the live app/browser
   window into `gatewayActivation`/`gatewayPortalActivation` (above): it will hand a
   `createBrowserHostTransport(window)` transport (or the host router) + a same-origin route allowlist to
   `activateGatewayHandoff` / a `createGatewayPortalBoundary` so a confirmed in-world hop performs the controlled
   same-origin navigation. The activation + portal-boundary seams now exist and the v0.2.181 `portalTrigger`
-  wires a real injected browser host + proximity/KeyF confirm at the `main.js` composition root; the remaining
-  deferred step is a dedicated portal MESH + an SPA `/zone/<slug>` route handler so a hard refresh resolves the
-  target zone.
+  wires a real injected browser host + proximity/KeyF confirm at the `main.js` composition root; the SPA
+  `/zone/<slug>` route handler landed v0.2.182 (`zoneRoute.js`, above) so a hard refresh / popstate resolves the
+  target zone into inert local state (given the static-host fallback). A dedicated portal MESH remains the
+  next deferred step.
 
 Component is code. Protocol is agreement. This file is the agreement; the modules
 above are one implementation of it.

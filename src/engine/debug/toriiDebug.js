@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -254,6 +254,10 @@ export function installToriiDebug(refs) {
       // explicit interact() performs the CONFIRMED same-origin hop. Proximity never
       // navigates. Same safety pins — external/world/network/sign/publish false.
       portalTrigger(component, context, opts) { return portalTriggerReport(component, context, opts); },
+      // v0.2.182 — the inert SPA /zone/<slug> route resolution: a valid zone maps to
+      // an inert display state; traversal/percent/protocol-relative/malformed paths
+      // are rejected as 'invalid'. Same-origin only; NO navigation/network.
+      zoneRoute(path) { return zoneRouteReport(path); },
       // v0.2.142 — the visible-but-inert torii.quest update-check PREVIEW block
       // (LEAN-5) the title/HUD card draws. Read-only; actionable:false — no network
       // fetch, no auto-update, no install, no navigation (deterministic local sample).

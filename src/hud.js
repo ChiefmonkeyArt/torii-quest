@@ -172,6 +172,52 @@ export function hidePortalPrompt() {
   _portalDom().style.opacity = '0';
 }
 
+// Zone-route notice (v0.2.182) — an inert top banner shown when the app loads on a
+// same-origin `/zone/<slug>` deep-link/refresh. Display-only: textContent (never
+// innerHTML), pointerEvents none, opacity crossfade (no setTimeout). It announces
+// the resolved zone (or an invalid-link notice) and never navigates or loads.
+let _zoneEl = null;
+let _zoneOn = false;
+function _zoneDom() {
+  if (_zoneEl) return _zoneEl;
+  _zoneEl = document.createElement('div');
+  _zoneEl.id = 'zone-notice';
+  Object.assign(_zoneEl.style, {
+    position:      'fixed',
+    top:           '14px',
+    left:          '50%',
+    transform:     'translateX(-50%)',
+    maxWidth:      '90vw',
+    padding:       '8px 20px',
+    background:    'linear-gradient(90deg, rgba(76,201,240,0.30), rgba(139,92,246,0.30))',
+    border:        '1px solid rgba(200,232,255,0.5)',
+    borderRadius:  '12px',
+    color:         '#e8f4ff',
+    fontFamily:    'monospace',
+    fontSize:      '13px',
+    lineHeight:    '1.4',
+    textAlign:     'center',
+    textShadow:    '0 0 8px rgba(200,232,255,0.6)',
+    boxShadow:     '0 0 20px rgba(76,201,240,0.35)',
+    pointerEvents: 'none',
+    opacity:       '0',
+    transition:    'opacity 0.3s ease',
+    zIndex:        '60',
+  });
+  document.body.appendChild(_zoneEl);
+  return _zoneEl;
+}
+export function showZoneNotice(text) {
+  const el = _zoneDom();
+  el.textContent = typeof text === 'string' ? text : ''; // textContent only — never parsed as markup
+  if (!_zoneOn) { _zoneOn = true; el.style.opacity = '1'; }
+}
+export function hideZoneNotice() {
+  if (!_zoneOn) return;
+  _zoneOn = false;
+  _zoneDom().style.opacity = '0';
+}
+
 // Minimap
 const _mm = $('minimap')?.getContext('2d');
 const MM  = 110;

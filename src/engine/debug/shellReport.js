@@ -28,6 +28,7 @@ import { createRecordingHost, createHostTransport, HOST_TRANSPORT_BADGE } from '
 import { activateGatewayHandoff, DEMO_ACTIVATION_OPTS } from '../gateway/gatewayActivation.js';
 import { activatePortalHandoff, createGatewayPortalBoundary, DEMO_PORTAL_CONTEXT } from '../gateway/gatewayPortalActivation.js';
 import { createPortalTrigger, PORTAL_PROMPT_TEXT } from '../gateway/portalTrigger.js';
+import { parseZoneRoute, describeZoneRoute, ZONE_ROUTE_BADGE, DEMO_ZONE_ROUTE } from '../gateway/zoneRoute.js';
 import { updatePreviewBlock } from '../update/updatePreview.js';
 import { updateStatusPanel } from '../update/updateStatus.js';
 import { mvpLoopSummary } from '../mvpLoop.js';
@@ -717,6 +718,42 @@ export function portalTriggerReport(component = DEMO_GATEWAY, context = DEMO_POR
     published: rep ? rep.published : false,
     network: rep ? rep.network : false,
     errors: rep ? rep.errors : [],
+  };
+}
+
+// zoneRouteReport(path) → the inert SPA `/zone/<slug>` route resolution (v0.2.182).
+// Parses the given path plus a battery of hostile/edge paths so a handoff can SEE
+// that a valid zone resolves to an inert display state while traversal/percent/
+// protocol-relative/malformed paths are rejected as 'invalid' — all with NO
+// navigation/network. Read-only by construction.
+export function zoneRouteReport(path = DEMO_ZONE_ROUTE) {
+  const home = parseZoneRoute('/');
+  const valid = parseZoneRoute(path);
+  return {
+    title: 'ZONE ROUTE',
+    badge: ZONE_ROUTE_BADGE,
+    sample: path,
+    home: { kind: home.kind, ok: home.ok },
+    valid: { kind: valid.kind, ok: valid.ok, slug: valid.slug, zoneId: valid.zoneId, route: valid.route, title: valid.title, notice: valid.notice },
+    // Each of these MUST classify as 'invalid' (proves the same-origin hardening).
+    rejects: {
+      traversal:        parseZoneRoute('/zone/../admin').kind,
+      percent:          parseZoneRoute('/zone/%2e%2e').kind,
+      protocolRelative: parseZoneRoute('//evil.example.com').kind,
+      scheme:           parseZoneRoute('javascript:alert(1)').kind,
+      subPath:          parseZoneRoute('/zone/a/b').kind,
+      malformedSlug:    parseZoneRoute('/zone/Bad Slug!').kind,
+      emptySlug:        parseZoneRoute('/zone/').kind,
+    },
+    summary: describeZoneRoute(path),
+    navigated: valid.navigated,
+    performed: valid.performed,
+    network: valid.network,
+    external: valid.external,
+    signed: valid.signed,
+    published: valid.published,
+    inMemory: true,
+    errors: valid.errors,
   };
 }
 

@@ -45,6 +45,7 @@ const FOUNDATION = [
   'gateway-activation.test.js',
   'gateway-portal-activation.test.js',
   'portal-trigger.test.js',
+  'zone-route.test.js',
   'doc-consistency.test.js',
   'handoff-status.test.js',
   'bundle-sizes.test.js',

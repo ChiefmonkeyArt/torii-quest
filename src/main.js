@@ -17,10 +17,11 @@ import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynami
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt } from './hud.js';
+import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showZoneNotice, hideZoneNotice } from './hud.js';
 import { ARENA_HALF, WALL_H, NAP_X } from './config.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
+import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { nostrLogin } from './nostr.js';
 import { playShoot, playFootstep, playJumpLand } from './audio.js';
 import { initPlayerStats } from './playerStats.js';
@@ -189,6 +190,25 @@ const _portalTrigger = createPortalTrigger({
   range: 3,
   onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
 });
+
+// ── SPA /zone/<slug> route resolution (v0.2.182) ──────────────────────────────
+// Give the same-origin URL the portal trigger pushes a safe client-side meaning on
+// hard-refresh / deep-link / back-forward. The PURE parser (zoneRoute.js) classifies
+// window.location.pathname; the app only shows an INERT notice — it loads no zone
+// scene, fetches nothing, and never navigates. A valid `/zone/<slug>` shows the
+// resolved title + placeholder; an invalid/unsafe path shows a staying-home notice;
+// the bare home route clears it. NOTE: a hard refresh only reaches this code if the
+// static host serves index.html for `/zone/*` (SPA fallback — see HANDOFF.md); when
+// it does, this is the resolution.
+function _applyZoneRoute() {
+  const r = parseZoneRoute(window.location?.pathname || '/');
+  if (r.kind === ZONE_ROUTE_KIND.HOME) hideZoneNotice();
+  else showZoneNotice(r.notice);
+  return r;
+}
+_applyZoneRoute();
+// Back/forward between pushed zone states + home re-resolves the notice (inert).
+window.addEventListener('popstate', _applyZoneRoute);
 
 // Plebeian/Nostr product/market PREVIEW (LEAN-3, v0.2.140) — render the inert,
 // read-only title-screen product card ONCE from the pure productPreview block.

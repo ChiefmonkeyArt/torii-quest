@@ -31,7 +31,7 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.181-alpha';
+export const CONTINUUM_VERSION = 'v0.2.182-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -41,7 +41,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '912 passing',
+  totalTests: '940 passing',
   timings: 'fast ~1s · foundation ~6s · full suite ~41s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '14 / 14',
@@ -233,12 +233,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.181-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '912 passing / 63 files (profiles: test:fast ~5, test:foundation ~20)' },
+    { label: 'Source version', value: 'v0.2.182-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '940 passing / 64 files (profiles: test:fast ~5, test:foundation ~21)' },
     { label: 'Regression check', value: '14 / 14 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.181 LEAN-2 in-world gateway PORTAL TRIGGER — proximity tick arms the injected portal boundary + raises a prompt (both inert); an explicit KeyF interact is the ONLY navigating step (confirmed same-origin /zone hop). Window injected only at the main.js boundary; allowlist scoped [/zone/] (never [/])' },
+    { label: 'Active slice', value: 'v0.2.182 LEAN-2 pure SPA /zone/<slug> ROUTE PARSER (zoneRoute.js) — classifies a same-origin path as home/zone/invalid, validates the slug strictly, and maps a valid zone to an INERT display state (HUD notice). safeRoutePath gate rejects dot-dot/percent/protocol-relative/scheme/markup/over-length; window read + popstate wired ONLY at the main.js boundary. NO network/relay/nav/sign/publish. Hard-refresh deep-link needs static-host SPA fallback (serve index.html for /zone/*) — documented, not faked' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -264,7 +264,7 @@ export const CONTINUUM = Object.freeze({
   // `progress` is a directional estimate used only for the aggregate PoC ring.
   leanRoute: [
     { id: 'LEAN-1', state: 'pending', progress: 20, slice: 'Torii.quest live (publish green source)', status: 'pending (manual smoke first)' },
-    { id: 'LEAN-2', state: 'in-progress', progress: 70, slice: 'Gateway / NAP-to-NAP travel', status: 'in-world PORTAL TRIGGER now wired (181): proximity arms the injected boundary + prompt (inert); an explicit KeyF interact performs the confirmed same-origin hop over the real window injected at the main.js boundary; needs a dedicated portal MESH + SPA route handler for a full 3D landing' },
+    { id: 'LEAN-2', state: 'in-progress', progress: 70, slice: 'Gateway / NAP-to-NAP travel', status: 'in-world PORTAL TRIGGER (181) + pure SPA /zone/<slug> ROUTE PARSER (182): proximity arms the injected boundary + prompt (inert), an explicit KeyF interact performs the confirmed same-origin hop, and the resulting /zone/ URL now has a safe client-side read (home/zone/invalid → inert HUD notice) so refresh/deep-link is not brittle; still needs a dedicated portal MESH + a static-host SPA fallback for hard-refresh deep links' },
     { id: 'LEAN-3', state: 'in-progress', progress: 45, slice: 'Plebeian/Nostr product panel', status: 'shells + visible preview; needs in-world mesh + real listing' },
     { id: 'LEAN-4', state: 'in-progress', progress: 40, slice: 'Leaderboard (Nostr signed events)', status: 'unsigned helpers + publisher adapter + view + relay-read proof; needs real signer (SEC-1) + relay read' },
     { id: 'LEAN-5', state: 'in-progress', progress: 55, slice: 'torii.quest GitHub update-check', status: 'helper + view-model + release source/status; needs read-only releases fetch + prompt mesh' },
@@ -272,7 +272,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.181 — LEAN-2 in-world gateway PORTAL TRIGGER (portalTrigger.js) wired at the main.js boundary: a pure per-frame tick(playerPos) uses withinPortalRange (scalar, no Vector3) to ARM the v0.2.180 portal boundary + raise a HUD prompt when the player nears the torii gate — both INERT (no navigation). An explicit KeyF interact() is the ONLY navigating step: it confirms and performs the same-origin /zone hop over the REAL browser window, which is injected ONCE at the composition root and nowhere at module scope. Allowlist stays scoped [\'/zone/\'] (never [\'/\']); external website URLs are never navigated. SDK + debug-shell (recording host) exposure. +18 tests.',
+    'v0.2.182 — LEAN-2 pure SPA /zone/<slug> ROUTE PARSER (zoneRoute.js): the safe client-side READ of the same-origin URL state the v0.2.181 portal hop pushes, so a refresh/deep-link on /zone/* is no longer brittle. parseZoneRoute() runs the route through safeRoutePath (rejects dot-dot/percent/protocol-relative/scheme/markup/control/over-length), strips query/hash, and classifies HOME (root/non-/zone) vs ZONE (strict lowercase-alnum-hyphen slug ≤64) vs INVALID (sub-path/malformed/hostile); a valid zone maps to an INERT display state (title + HUD notice). navigated/performed/external/signed/published/network all stay FALSE. The browser location-path read + popstate are wired ONLY at the main.js composition root; the module has NO module-scope window. Hard-refresh deep-link still needs a static-host SPA fallback (serve index.html for /zone/*) — DOCUMENTED, not faked. SDK (experimental) + debug-shell exposure. +28 tests.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -303,10 +303,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.182 — LEAN-2 pure SPA /zone/<slug> ROUTE PARSER (zoneRoute.js): the safe client-side READ of the same-origin URL the v0.2.181 portal hop pushes, so a refresh/deep-link on /zone/* is not brittle. parseZoneRoute() runs the route through safeRoutePath (rejects dot-dot/percent/protocol-relative/js-scheme/data-scheme/markup/control/whitespace/over-length), strips query/hash, then classifies HOME (root or non-/zone path) vs ZONE (strict slug: lowercase alnum joined by single hyphens, ≤64) vs INVALID (sub-path, malformed, hostile, non-string); a valid zone maps to an INERT display state (title + HUD notice text only). navigated/performed/external/signed/published/network ALL stay false — it interprets a URL, never acts. The browser location-path read + a popstate listener are wired ONLY at the main.js composition root; the module is pure/node-safe with NO module-scope window. Hard-refresh deep-link resolution still requires a static-host SPA fallback (serve index.html for /zone/*) — DOCUMENTED in HANDOFF.md/GATEWAY_PROTOCOL.md, not faked in app code. SDK (experimental) + debug-shell exposure. +28 tests.',
     'v0.2.181 — LEAN-2 in-world gateway PORTAL TRIGGER (portalTrigger.js) wired at the main.js composition root: a pure per-frame tick(playerPos) uses withinPortalRange (scalar squared-distance, NO Vector3) to ARM the v0.2.180 portal boundary + raise a HUD prompt when the player nears the torii gate — both INERT. Proximity ALONE never navigates; an explicit KeyF interact() is the ONLY navigating step, confirming the same-origin /zone hop over the REAL browser window injected ONCE at the boundary (no module-scope window). Allowlist stays scoped [\'/zone/\'] (never [\'/\']); external website URLs never navigate; external/world/network/sign/publish stay false; SEC-2 untouched. SDK (experimental) + debug-shell (recording host) exposure. +18 tests.',
     'v0.2.180 — LEAN-2 in-world gateway PORTAL ACTIVATION seam (gatewayPortalActivation.js): bridges a gateway COMPONENT to the v0.2.178 confirmed same-origin hop. portalActivationInput() maps a gateway\'s internal target → a /zone/<slug> activation input (external website DROPPED — same-origin route only); sanitizePortalAllowlist() folds a trivially-permissive [\'/\'] to the scoped default [\'/zone/\'] (never permit-all); createGatewayPortalBoundary() is an injected-transport ARM → CONFIRM controller (arming is INERT; only confirm() resolves the transport + acts); withinPortalRange() is a scalar (no Vector3) proximity helper. No module-scope window; no external nav/world-reload/network/sign/publish; SEC-2 untouched. SDK (experimental) + debug-shell (recording host) exposure. +28 tests.',
     'v0.2.179 — LEAN-2 gateway ROUTE HARDENING (security-review follow-up before any live gateway wiring): safeRoutePath now also rejects any dot-dot (..) traversal segment and any percent (%) encoding — closing /zone/../admin + /zone/%2e%2e/admin climb-out attempts (internally-built /zone/<slug> routes never need either) — and _routeAllowed ignores allowlist prefixes shorter than 2 chars so a [\'/\'] allowlist fails CLOSED (matches nothing) rather than allowing every same-origin route; meaningful prefixes such as [\'/zone/\'] still allow /zone/foo. Pure/node-safe, never navigates. +5 tests.',
-    'v0.2.178 — LEAN-2 gateway handoff ACTIVATION (gatewayActivation.js): live-wired the confirmed same-origin host transport into the v0.2.168 executor. resolveHostTransport() picks an injected transport / a browser History-pushState transport from a window / a recording host; activateGatewayHandoff() double-gates on a literal confirmed:true AND the consent-gated dry-run plan AND an optional same-origin route allowlist before resolving any transport — so preview/render/unconfirmed paths can never navigate. Rollback/back-home reachable; external/world/sign/publish/network all stay false. SDK (experimental tier) + debug-shell (in-memory recording host) exposure. +tests.',
   ],
 
   // Archive clusters, newest first.

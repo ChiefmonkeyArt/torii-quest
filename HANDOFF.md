@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.181-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.182-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -113,6 +113,20 @@ Breaking one should fail CI/the check, not ship.
   `createGatewayPortalBoundary` here and nowhere at module scope; allowlist scoped
   `['/zone/']`; external website URLs never navigate; debug-shell `portalTrigger`
   over a recording host);
+  v0.2.182 added `zoneRoute` (the pure SPA `/zone/<slug>` route parser — the safe
+  client-side READ of the same-origin URL the v0.2.181 hop pushes. `parseZoneRoute`
+  runs the route through the v0.2.179-hardened `safeRoutePath`, strips `?query`/
+  `#hash`, then classifies HOME / ZONE (strict lowercase-alnum-hyphen slug ≤64) /
+  INVALID (sub-path/malformed/hostile); a valid zone maps to an INERT display state
+  (title + HUD notice). navigated/performed/external/signed/published/network all
+  pinned false. NO module-scope `window`: `main.js` reads `window.location.pathname`
+  once on startup + on `popstate` and shows/hides an inert `#zone-notice` HUD banner.
+  **Hard-refresh deep-link resolution is NOT solvable in app code alone — it needs a
+  static-host SPA fallback: configure the host to serve `index.html` for any `/zone/*`
+  path (SPA rewrite / try_files / 404→index.html). Until that rewrite is in place a
+  cold hit on `/zone/<slug>` 404s at the CDN before any JS runs; once index.html IS
+  served, `zoneRoute` resolves the URL into the inert notice. This is documented, NOT
+  faked in code.** debug-shell `zoneRoute`);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
@@ -370,6 +384,22 @@ symlink-based rollback, and the security posture (no auto-update, no shell
 endpoint, least-privilege deploy user) — see `VPS_INSTALL.md` (v0.2.144, docs
 only; no server is touched). It aligns with the update-check safety boundary in
 `UPDATE_CHECK.md` §4.
+
+**SPA `/zone/<slug>` deep-link rewrite (v0.2.182 — REQUIRED for hard-refresh to
+work).** The app is a single-page app served from one `index.html`. The v0.2.182
+`zoneRoute` parser gives the `/zone/<slug>` URL a safe client-side interpretation,
+but it can only run AFTER `index.html` + the JS bundle have been served. On a cold
+hard-refresh / shared deep-link to `/zone/<slug>` a static host will try to serve a
+file at that path, 404, and never load the app. The fix is a host-level SPA fallback
+that serves `index.html` for any unmatched path (the app then reads the URL and shows
+the inert zone notice). This is a hosting-config requirement OUTSIDE the repo — it is
+documented here, not faked in app code. Examples:
+- **Nginx:** `location / { try_files $uri $uri/ /index.html; }`
+- **Caddy:** `try_files {path} /index.html` (or the `file_server` + `rewrite` pair).
+- **Static CDN / object storage:** set the SPA/404 fallback document to `index.html`.
+Keep the existing CSP unchanged; the fallback only affects path routing. Until the
+rewrite is configured, `/zone/*` deep links 404 at the edge; same-origin in-app
+navigation (the v0.2.181 portal hop via `history.pushState`) is unaffected.
 
 ## 8. Active issues / open edges
 

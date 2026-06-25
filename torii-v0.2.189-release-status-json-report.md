@@ -42,9 +42,10 @@ tooling rather than reimplementing it: a new pure function wraps the existing
 - **No source mutation.** `signals` is deep-cloned (`JSON.parse(JSON.stringify(...))`);
   `blockers` / `unknowns` / `latestReports` are sliced.
 - **Clean stdout.** `node tools/release-readiness.mjs --json` writes pure parseable JSON
-  to stdout. (Under `npm run`, npm's banner goes to **stderr** in npm v7+, so
-  `npm run --silent release:status:json` or invoking the node script directly yields
-  clean JSON.)
+  to stdout — this is the **canonical machine invocation**. Note that a plain
+  `npm run release:status:json` prepends npm's lifecycle banner **to stdout** (verified
+  on this npm), which would contaminate the JSON; scripted consumers must use
+  `npm run --silent release:status:json` (or call the node script directly).
 
 ### Envelope shape
 
@@ -138,10 +139,36 @@ New JSON tests: **22 pass** in release-readiness.test.js (15 prior + 7 new).
 
 ---
 
+## Security-review follow-up — WARN fixes
+
+A follow-up commit on v0.2.189-alpha resolves the two WARN findings from the security
+review. Docs/tooling/dashboard only — no gameplay/runtime/physics/Nostr change.
+
+- **WARN-1 — inaccurate "npm banner goes to stderr" claim.** Verified empirically that on
+  this npm a plain `npm run release:status:json` prepends the lifecycle banner **to
+  stdout** (`JSON.parse` of the raw stdout fails), so the JSON *is* contaminated under
+  plain `npm run`. The banner is emitted by npm *before* the script runs, so it cannot be
+  suppressed from inside the script reliably across package-manager versions. Corrected
+  every claim to state the truth and document the safe invocations:
+  - **canonical machine call:** `node tools/release-readiness.mjs --json` (pure JSON);
+  - **scripted npm:** `npm run --silent release:status:json` (verified `JSON.parse` OK).
+
+  Fixed in: `HANDOFF.md` (×2), `progress.md` (×3), `todo.md`, `CODE_INDEX.md`,
+  `SDK_DEBUG_INDEX.md`, `src/engine/dashboard/continuumData.js` (Active-slice + activeNow
+  + completed24h copy → regenerates `public/continuum.html` + `public/continuum-data.json`),
+  and this report.
+- **WARN-2 — stale dashboard test count.** `HEALTH_LASTKNOWN.totalTests` bumped
+  `1025 passing` → `1032 passing` in `src/engine/dashboard/continuumData.js`; the
+  "Total tests" LAST-KNOWN metric on the continuum page regenerates to match (the
+  `byLabel['Total tests']` test pins it to `HEALTH_LASTKNOWN.totalTests`, so they stay
+  consistent).
+
+---
+
 ## Commit
 
-- **Message:** `v0.2.189-alpha: export release readiness as JSON`
-- **Hash:** _(appended below after commit)_
+- **Message (initial):** `v0.2.189-alpha: export release readiness as JSON` — `28a7cfb`
+- **Message (WARN follow-up):** `v0.2.189-alpha: fix security-review WARN findings (JSON banner docs + dashboard test count)` — _(appended below after commit)_
 
-Local commit only. Parent agent verifies, reviews, deploys, publishes, pushes, and
+Local commits only. Parent agent verifies, reviews, deploys, publishes, pushes, and
 uploads docs, then continues to the next safe task.

@@ -210,7 +210,10 @@ Breaking one should fail CI/the check, not ship.
   is the ONLY non-deterministic field (optional + isolated, omit → `null` for tests; the CLI
   passes a real ISO stamp); a garbled summary degrades to `status:'unknown'`/`error:'no-summary'`,
   never throws/mutates. The default human block + the `realpathSync` run-guard are unchanged, and
-  stdout under the flag is pure parseable JSON (the npm banner goes to stderr). Read-only/local/
+  stdout under the flag is pure parseable JSON. Canonical machine invocation is
+  `node tools/release-readiness.mjs --json`; for scripted `npm run` use
+  `npm run --silent release:status:json`, since a plain `npm run` prepends an npm lifecycle
+  banner to stdout that would otherwise contaminate the JSON. Read-only/local/
   no-network; `tests/release-readiness.test.js` (+7).
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
@@ -368,7 +371,7 @@ npm run test:release     # build + FULL vitest + check + bundle:report + handoff
 npm run preview  # serve the built dist/ (used for headless smoke)
 npm run bundle:report  # advisory built-bundle size baseline (raw+gzip; reads dist/)
 npm run release:status # one concise release-readiness verdict aggregating the local signals (v0.2.187; read-only, network-free, exits 0 — not a gate; v0.2.188 exposes `gatherReleaseReadiness(root)` so the Continuum Ship-readiness section folds the SAME verdict)
-npm run release:status:json # the SAME verdict as a machine-readable JSON envelope on stdout (v0.2.189; or: node tools/release-readiness.mjs --json) for dashboard/handoff/updater/agent consumption — read-only, network-free, exits 0; pure JSON (npm banner → stderr)
+npm run release:status:json # the SAME verdict as a machine-readable JSON envelope on stdout (v0.2.189; or: node tools/release-readiness.mjs --json) for dashboard/handoff/updater/agent consumption — read-only, network-free, exits 0; `node tools/release-readiness.mjs --json` is pure JSON, plain `npm run` prepends a lifecycle banner to stdout so scripted consumers use `npm run --silent release:status:json`
 ```
 
 **Test profiles (v0.2.173).** The `test:fast`/`test:foundation` profiles are explicit,

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.193-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.194-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -62,6 +62,7 @@ Breaking one should fail CI/the check, not ship.
 | `index.html` | `#version-label` (~407) and `#ver` (~537) |
 | `tools/regression-check.mjs` | header comment (line 1), `EXPECTED_VERSION` (~26), stale-version guard regex (~110 — flag the PREVIOUS version) |
 | `package.json` | `"version"` — VALID SEMVER, so the `EXPECTED_VERSION` with the leading `v` STRIPPED (e.g. `0.2.137-alpha`). Regression-check [5] asserts it matches. |
+| `src/engine/dashboard/continuumData.js` | `CONTINUUM_VERSION` — pinned to `config.js` `VERSION` by `continuum-dashboard.test.js`; also the `metrics` "Source version" + "Tests" rows (test count) |
 | `progress.md` / `todo.md` / `strategy.md` | "Current version" lines |
 
 ## 4. Source of truth
@@ -275,7 +276,25 @@ Breaking one should fail CI/the check, not ship.
   prints text by default with `--json`, and exits non-zero ONLY on a blocking FAIL — it is NOT
   wired into `npm run check` (standalone operator tool). Documented in `VPS_INSTALL.md` §13 + the
   §9 service-worker caveat. `tests/vps-dry-run.test.js` (+43).
-  Latest slice report: `torii-v0.2.193-vps-install-dry-run-report.md`.
+  **v0.2.194** added a NOSTR READ-PATH HEALTH model — a pure, node-safe read-only health model
+  (`src/engine/nostr/readHealth.js`) that folds the shipped read-path proofs into ONE report an
+  operator / dashboard / AI handoff can inspect to confirm the Nostr surface is still READ-ONLY at
+  the MVP stage and every live-write path stays gated behind explicit consent. `runReadHealth({
+  profileEvents,scoreEvents})` → `{ok,badge,signals,summary,readOnly:true,signed:false,
+  published:false,errors}` over SIX signals: relay read model present (read-only `{read}` adapter,
+  no publish/sign/send/connect/close); no `EVENT` publish verb in the relay read path
+  (`RELAY_READ_VERBS`=`['REQ','CLOSE']`); kind:0 profile read path; kind-30000 leaderboard read
+  path; write paths consent-gated (reads allowed / writes blocked without a grant); SEC-1/SEC-2/
+  SEC-3 still future-gated. It EXERCISES only the already-pure read helpers over deterministic
+  LOCAL sample events + reads the consent registry — NO relay I/O, NO WebSocket, NO signing, NO
+  publishing, NO NIP-07, NO key handling, NO network; every signal pins `signed:false`/
+  `published:false`/`readOnly:true` and degrades safely on null/empty input. Surfaced via the SDK
+  (`nostrReadHealth`, EXPERIMENTAL), the debug shell (`ToriiDebug.shells.readHealth` /
+  `readHealthReport()` in `shellReport.js`), and a new **Nostr read-path health** Torii Continuum
+  panel (`buildReadHealthModel` in `continuumData.js` maps each signal onto the existing pill
+  vocabulary → the continuum CSP/script-hash are untouched). `tests/nostr-read-health.test.js`
+  (+16) + 7 dashboard-panel tests.
+  Latest slice report: `torii-v0.2.194-nostr-read-health-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

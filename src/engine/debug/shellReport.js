@@ -17,6 +17,7 @@ import { rankScores } from '../nostr/leaderboardView.js';
 import { leaderboardPreviewBlock } from '../nostr/leaderboardPreview.js';
 import { readLeaderboardEvents } from '../nostr/leaderboardRelayRead.js';
 import { readProfiles } from '../nostr/profileRead.js';
+import { runReadHealth } from '../nostr/readHealth.js';
 import { CONSENT_ACTIONS, evaluateConsent, summariseConsent } from '../consent/consentGate.js';
 import { consentPromptRows } from '../consent/consentView.js';
 import { prepareSubmitIntent, DEMO_SUBMIT_INPUT } from '../leaderboard/submitIntent.js';
@@ -298,6 +299,28 @@ export function profileReadReport(events = DEMO_PROFILE_EVENTS, opts = {}) {
     profiles: r.profiles,
     skipped: r.skipped.length,
     duplicates: r.duplicates,
+    signed: r.signed,
+    published: r.published,
+    readOnly: r.readOnly,
+    errors: r.errors,
+  };
+}
+
+// readHealthReport(input) → the READ-ONLY Nostr read-path HEALTH map (NOSTR-READ,
+// v0.2.194). Folds the shipped relayRead/profileRead/leaderboardRelayRead proofs +
+// the consent gate into one health report over deterministic LOCAL sample events:
+// six signals (relay read model, no-EVENT verb, profile read, leaderboard read,
+// write paths gated, SEC-1/2/3 future-gated). Proves the Nostr surface is still
+// READ-ONLY at the MVP stage with the write path consent-gated. Pins
+// signed/published false + readOnly true; NO relay I/O, no signing, no publishing.
+export function readHealthReport(input = {}) {
+  const r = runReadHealth(input);
+  return {
+    title: 'NOSTR READ-PATH HEALTH',
+    badge: r.badge,
+    ok: r.ok,
+    summary: r.summary,
+    signals: r.signals,
     signed: r.signed,
     published: r.published,
     readOnly: r.readOnly,
@@ -930,6 +953,7 @@ export function buildShellReport(inputs = {}) {
     leaderboardPreview: leaderboardPreviewReport(scores),
     leaderboardRelayRead: leaderboardRelayReadReport(relayScoreEvents),
     profileRead: profileReadReport(profileEvents),
+    readHealth: readHealthReport(),
     consentGate: consentGateReport(consentGrants ? { grants: consentGrants } : {}),
     consentPrompt: consentPromptReport(consentGrants ? { grants: consentGrants } : {}),
     leaderboardSubmit: leaderboardSubmitReport(submitInput, submitGrant),

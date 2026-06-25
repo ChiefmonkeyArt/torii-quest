@@ -31,7 +31,9 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.193-alpha';
+import { runReadHealth } from '../nostr/readHealth.js';
+
+export const CONTINUUM_VERSION = 'v0.2.194-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -41,7 +43,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '1145 passing',
+  totalTests: '1168 passing',
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '15 / 15',
@@ -390,6 +392,45 @@ export function buildShipModel(input = {}) {
 // build-continuum.mjs re-runs buildShipModel with the freshly gathered live verdict.
 const CURATED_SHIP = buildShipModel();
 
+// READHEALTH_BADGE (v0.2.194) — the badge shown on the Nostr read-path health panel.
+export const READHEALTH_BADGE = 'NOSTR READ-PATH · READ-ONLY';
+
+// buildReadHealthModel(input) — PURE, node-safe builder for the Nostr read-path HEALTH
+// panel (v0.2.194). Folds the pure read-only health model (engine/nostr/readHealth.js)
+// — which only EXERCISES the already-pure read helpers over deterministic LOCAL sample
+// events and reads the consent registry — into a render-ready panel. It performs NO relay
+// I/O, NO signing, NO publishing, NO key handling, NO network: it surfaces, as static
+// local metadata, that every Nostr path is READ-ONLY at the MVP stage and that the
+// live-write tier (NIP-07 signer + relay publish, SEC-1) stays consent-gated + deferred.
+// Each signal maps onto the existing pill vocabulary (ok→no-blocker, fail→gated) so the
+// renderer needs NO new CSS and NO new script → the CSP/refresh-script hash is untouched.
+// Never throws on null/degraded input (runReadHealth is itself inert + safe).
+export function buildReadHealthModel(input) {
+  const r = runReadHealth(input);
+  const signals = r.signals.map((s) => ({
+    label: s.label,
+    state: s.status,
+    detail: s.detail,
+    pill: s.status === 'ok' ? 'no-blocker' : 'gated',
+  }));
+  return {
+    badge: READHEALTH_BADGE,
+    statusLabel: r.ok ? 'READ-ONLY OK' : 'ATTENTION',
+    ok: r.ok,
+    signals,
+    summary: r.summary,
+    signed: r.signed,
+    published: r.published,
+    readOnly: r.readOnly,
+    note: 'Nostr surface is read-only at the MVP stage; the live-write path (NIP-07 signer + relay publish, SEC-1) stays consent-gated and deferred.',
+  };
+}
+
+// The curated fallback read-health model — built at module load from the deterministic
+// LOCAL samples so renderContinuumPage() with NO overrides (tests + the no-JS fallback)
+// shows an honest all-green READ-ONLY panel. No relay/network is ever touched.
+const CURATED_READHEALTH = buildReadHealthModel();
+
 // CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
 // kept as the single source of that text so its CSP hash can never silently drift.
 // It is STATIC (no model interpolation), so its sha256 is stable across deploys: a
@@ -451,12 +492,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.193-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '1145 passing / 72 files (profiles: test:fast ~5, test:foundation ~25)' },
+    { label: 'Source version', value: 'v0.2.194-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '1168 passing / 73 files (profiles: test:fast ~5, test:foundation ~25)' },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.193 VPS INSTALL DRY-RUN (tooling/docs only, no runtime change) — a local, read-only readiness checklist an operator runs BEFORE deploying torii.quest to a VPS/static host, with NO SSH, network, DNS, or server change. Pure runVpsDryRun() folds 11 checks: required deploy docs present; dist/ (if built) carries index.html (+ the copied release-metadata.json); public/release-metadata.json present and manual-only/non-actionable (reuses validateReleaseMeta()); metadata + UPDATE_CHECK.md point at the real repo ChiefmonkeyArt/torii-gate; /zone/* SPA fallback documented (reuses fallbackEvidence()); VPS_INSTALL.md build/manual-update/rollback/security sections; build/verify commands documented; rollback + manual/no-auto-update wording; service-worker stance documented; live URL references clear. Thin CLI npm run vps:dry-run (text default; --json); exits non-zero only on a blocking FAIL (warn/skip never fail). Local/read-only/network-free. +43 unit tests. NON-GOALS held: no deploy, no SSH/DNS/server change, no gameplay/portal/physics/shooting/controls or live Nostr write change.' },
+    { label: 'Active slice', value: 'v0.2.194 NOSTR READ-PATH HEALTH (tooling/dashboard only, no runtime change) — a pure, node-safe read-only health model (engine/nostr/readHealth.js) that folds the shipped read-path proofs (relay read model, no-EVENT publish verb, kind:0 profile read, kind-30000 leaderboard read, write-paths consent-gated, SEC-1/2/3 future-gated) into ONE report an operator/dashboard/AI handoff can inspect to confirm the Nostr surface is still READ-ONLY at the MVP stage and every live-write path stays gated behind explicit consent. It EXERCISES only the already-pure read helpers over deterministic LOCAL sample events + reads the consent registry — NO relay I/O, NO WebSocket, NO signing, NO publishing, NO NIP-07, NO key handling, NO network. Surfaced via the SDK (nostrReadHealth, experimental), the debug shell (ToriiDebug.shells.readHealth), and this Continuum panel. Every signal pins signed:false/published:false/readOnly:true. +16 unit tests. NON-GOALS held: no live Nostr writes/signing/EVENT publishing/relay network/user-key handling; no gameplay/portal/physics/shooting/controls change.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -474,7 +515,7 @@ export const CONTINUUM = Object.freeze({
     { name: 'Combat / Game-feel', percent: 100, done: '30 / 30', status: '1 open edge (travel-time lead on moving targets)' },
     { name: 'Rapier / Physics', percent: 100, done: '5 / ~5 seams', status: 'ARS-3 raycast migration complete' },
     { name: 'SDK / API', percent: 86, done: '18 / ~21', status: 'player boundary lift + BotAgent runtime remain' },
-    { name: 'Nostr / Open-world', percent: 15, done: '0 / 5+', status: 'read-paths + consent gate + travel chain proven; relays/signing deferred' },
+    { name: 'Nostr / Open-world', percent: 15, done: '0 / 5+', status: 'read-paths + consent gate + travel chain + read-path health model proven; relays/signing deferred' },
     { name: 'Deployment / VPS', percent: null, done: '—', status: 'source clean; live behind (manual deploy)' },
   ],
 
@@ -633,6 +674,7 @@ export function buildContinuumModel(overrides = {}) {
     milestones: base.milestones || buildMilestoneModel({ leanRoute: base.leanRoute }),
     readiness: base.readiness || CURATED_READINESS,
     ship: base.ship || CURATED_SHIP,
+    readHealth: base.readHealth || CURATED_READHEALTH,
     taskTotals,
     derived,
   };
@@ -653,6 +695,7 @@ export function continuumDataJSON(model = buildContinuumModel()) {
     milestones: model.milestones || null,
     readiness: model.readiness || null,
     ship: model.ship || null,
+    readHealth: model.readHealth || null,
   };
 }
 
@@ -908,6 +951,34 @@ ${blockers}${unknowns}${verdictLine}
     </section>`;
 }
 
+// _readHealthSection(readHealth) — the Nostr read-path HEALTH section (v0.2.194): an overall
+// READ-ONLY verdict pill + badge, the read-only invariants (signed/published/readOnly), and a
+// per-signal table (signal / state / detail) reusing the existing pill vocabulary + risk-table
+// markup. Empty string when absent so an override-free legacy model omits it. Server-rendered +
+// escaped; no new script, no new data-k key → CSP/refresh-script hash untouched. Pure.
+function _readHealthSection(readHealth) {
+  if (!readHealth || !Array.isArray(readHealth.signals) || !readHealth.signals.length) return '';
+  const pillState = readHealth.ok ? 'no-blocker' : 'gated';
+  const rows = readHealth.signals.map((s) =>
+    `        <tr><td>${escapeHtml(s.label)}</td><td><span class="pill pill-${escapeHtml(s.pill)}">${escapeHtml(s.state)}</span></td><td>${escapeHtml(s.detail || '')}</td></tr>`
+  ).join('\n');
+  const sum = readHealth.summary || { total: 0, ok: 0, fail: 0 };
+  const invariants = `      <div class="focus"><b>Read-only invariants:</b> signed:${escapeHtml(String(readHealth.signed))} · published:${escapeHtml(String(readHealth.published))} · readOnly:${escapeHtml(String(readHealth.readOnly))} — ${escapeHtml(sum.ok)}/${escapeHtml(sum.total)} signals ok.</div>`;
+  const note = readHealth.note ? `      <div class="focus">${escapeHtml(readHealth.note)}</div>` : '';
+  return `
+    <section>
+      <div class="h2row"><h2>Nostr read-path health</h2> <span class="pill pill-${pillState}">${escapeHtml(readHealth.statusLabel)}</span> <span class="badge">${escapeHtml(readHealth.badge)}</span></div>
+      <div class="lead">Static, local proof that every Nostr path is read-only at the MVP stage and the live-write tier stays consent-gated — derived from the pure read helpers, no relay call.</div>
+      <table>
+        <thead><tr><th>Signal</th><th>State</th><th>Detail</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+${invariants}${note}
+    </section>`;
+}
+
 // renderContinuumPage(model) — full self-contained static HTML document string.
 // Dark Torii/nostrich/cyberpunk feel via inline CSS only; CSS bars + SVG rings.
 // The page renders fully WITHOUT JavaScript. A tiny, optional, same-origin-only
@@ -1081,6 +1152,7 @@ ${_rings(t)}
     </section>
 ${_healthSection(m.health)}
 ${_readinessSection(m.readiness)}
+${_readHealthSection(m.readHealth)}
 
     <section>
       ${_h2('Track overview', m.tracks.length)}

@@ -47,6 +47,7 @@ export * as leaderboardPreview from '../engine/nostr/leaderboardPreview.js';
 export * as relayRead from '../engine/nostr/relayRead.js';
 export * as leaderboardRelayRead from '../engine/nostr/leaderboardRelayRead.js';
 export * as profileRead from '../engine/nostr/profileRead.js';
+export * as nostrReadHealth from '../engine/nostr/readHealth.js';
 export * as consentGate from '../engine/consent/consentGate.js';
 export * as consentView from '../engine/consent/consentView.js';
 export * as submitIntent from '../engine/leaderboard/submitIntent.js';
@@ -138,6 +139,13 @@ export const SDK_SURFACE = Object.freeze({
   // kind:0 profile filter, parses + sanitises (https-only URLs) metadata into a display-only
   // identity view-model, selects the newest profile per author; NO signing/publishing/socket/DOM.
   profileRead:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/profileRead.js' },
+  // READ-ONLY Nostr read-path HEALTH model (NOSTR-READ, v0.2.194) — folds the shipped
+  // relayRead/profileRead/leaderboardRelayRead proofs + the consent gate into one
+  // read-only health report (six signals: relay read model, no-EVENT verb, profile
+  // read, leaderboard read, write paths gated, SEC-1/2/3 future-gated) over
+  // deterministic LOCAL sample events; NO network/relay/sign/publish — readOnly:true,
+  // signed:false, published:false pinned on every report.
+  nostrReadHealth: { tier: STABILITY.EXPERIMENTAL, module: '../engine/nostr/readHealth.js' },
   // Explicit, auditable CONSENT-GATE foundation (CONSENT-1, v0.2.162) — pure
   // build/validate/summarise/evaluate over a known-action registry; read-only
   // actions always allowed, write/sign/publish/update/travel actions blocked unless

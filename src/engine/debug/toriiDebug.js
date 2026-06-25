@@ -38,7 +38,7 @@ import * as handoff from '../../world/handoff.js';
 import * as presence from '../../identity/presence.js';
 import { buildSnapshot, buildCombatReport, buildPhysicsReport } from './snapshot.js';
 import { raycastService } from '../physics/raycastService.js';
-import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, zoneLabelReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
+import { gatewayReport, gatewayPreviewReport, productReport, productPreviewReport, leaderboardReport, leaderboardPreviewReport, leaderboardRelayReadReport, profileReadReport, readHealthReport, consentGateReport, consentPromptReport, leaderboardSubmitReport, gatewayReadReport, gatewayTravelReport, handoffPlanReport, handoffExecuteReport, hostTransportReport, gatewayActivationReport, gatewayPortalActivationReport, portalTriggerReport, zoneRouteReport, portalMeshPlanReport, zoneLabelReport, updatePreviewReport, updateStatusReport, mvpLoopReport, buildShellReport, shellsSummary, shellsDiff } from './shellReport.js';
 import { proofSurfaceLayout } from '../world/proofSurfaceSpecs.js';
 import { checkProofSurfaceSpecs } from './proofSurfaceCheck.js';
 import { resolveAllAnchors } from '../world/anchorTransforms.js';
@@ -178,6 +178,14 @@ export function installToriiDebug(refs) {
       // view-model. Read-only; signed:false, published:false — no relay I/O, no
       // signing, no publishing, no auto-connect, no DOM <img src> assignment.
       profileRead(events, opts) { return profileReadReport(events, opts); },
+      // v0.2.194 — the READ-ONLY Nostr read-path HEALTH map (NOSTR-READ): folds the
+      // shipped relayRead/profileRead/leaderboardRelayRead proofs + the consent gate
+      // into one health report over deterministic LOCAL sample events (six signals:
+      // relay read model, no-EVENT verb, profile read, leaderboard read, write paths
+      // gated, SEC-1/2/3 future-gated). Proves the Nostr surface is still READ-ONLY at
+      // the MVP stage with the live-write path consent-gated. signed:false/
+      // published:false/readOnly:true — no relay I/O, no signing, no publishing.
+      readHealth(input) { return readHealthReport(input); },
       // v0.2.162 — the READ-ONLY CONSENT-GATE foundation map (CONSENT-1): walks the
       // known-action registry showing each action's write/sign/danger facts + its
       // default (no-grant) decision, proving reads are allowed while write/sign/

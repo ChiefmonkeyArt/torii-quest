@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.193-alpha",
-  "generatedAt": "2026-06-25T19:01:14.862Z",
+  "version": "v0.2.194-alpha",
+  "generatedAt": "2026-06-25T19:35:46.962Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.193-alpha"
+        "value": "v0.2.194-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 72"
+        "value": "fast 5 · foundation 25 · full 73"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1145 passing"
+        "value": "1168 passing"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.193-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.194-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -99,9 +99,9 @@
         "sub": "15 / 15"
       },
       {
-        "pct": 35,
+        "pct": 34,
         "label": "Foundation coverage",
-        "sub": "25/72 files"
+        "sub": "25/73 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.193-alpha",
-    "gitCommit": "8a6bd87",
+    "version": "v0.2.194-alpha",
+    "gitCommit": "48e3127",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.193-alpha / pkg 0.2.193-alpha"
+        "detail": "config v0.2.194-alpha / pkg 0.2.194-alpha"
       },
       {
         "key": "tests",
@@ -246,5 +246,57 @@
       "kind": "infra"
     },
     "note": "The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority."
+  },
+  "readHealth": {
+    "badge": "NOSTR READ-PATH · READ-ONLY",
+    "statusLabel": "READ-ONLY OK",
+    "ok": true,
+    "signals": [
+      {
+        "label": "relay read model present",
+        "state": "ok",
+        "detail": "read-only adapter exposes read() only; no publish/sign/send/connect/close",
+        "pill": "no-blocker"
+      },
+      {
+        "label": "no EVENT publish verb in relay read path",
+        "state": "ok",
+        "detail": "read verbs are [REQ, CLOSE] — no EVENT publish frame",
+        "pill": "no-blocker"
+      },
+      {
+        "label": "profile read path present",
+        "state": "ok",
+        "detail": "kind:0 READ→sanitise proven (1 profile); signed:false published:false",
+        "pill": "no-blocker"
+      },
+      {
+        "label": "leaderboard read path present",
+        "state": "ok",
+        "detail": "kind-30000 READ→rank proven (1 row); signed:false published:false",
+        "pill": "no-blocker"
+      },
+      {
+        "label": "write paths disabled / consent gated",
+        "state": "ok",
+        "detail": "3 read action(s) allowed; 5 write action(s) blocked without explicit consent",
+        "pill": "no-blocker"
+      },
+      {
+        "label": "SEC-1 / SEC-2 / SEC-3 still future-gated",
+        "state": "ok",
+        "detail": "SEC-1 signer/publish write path deferred; 3 signed write action(s) gated",
+        "pill": "no-blocker"
+      }
+    ],
+    "summary": {
+      "total": 6,
+      "ok": 6,
+      "fail": 0
+    },
+    "signed": false,
+    "published": false,
+    "readOnly": true,
+    "note": "Nostr surface is read-only at the MVP stage; the live-write path (NIP-07 signer + relay publish, SEC-1) stays consent-gated and deferred."
   }
 }

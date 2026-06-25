@@ -13,6 +13,7 @@ import {
   SEED_MILESTONES, buildMilestoneModel,
   READINESS_BADGE, buildReadinessModel,
   SHIP_BADGE, SHIP_LASTKNOWN, SHIP_NEXT_SAFE_TASK, buildShipModel,
+  READHEALTH_BADGE, buildReadHealthModel,
   escapeHtml, clampPct, barCells, ringDash,
   computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
 } from '../src/engine/dashboard/continuumData.js';
@@ -21,7 +22,7 @@ import { VERSION } from '../src/config.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.193-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.194-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -126,7 +127,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.193-alpha');
+    expect(round.version).toBe('v0.2.194-alpha');
     expect(round.totals.pocProgressPct).toBe(46);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -138,7 +139,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.193-alpha');
+    expect(html).toContain('v0.2.194-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -644,9 +645,76 @@ describe('layout / readability pass (v0.2.177)', () => {
   });
 });
 
+describe('Nostr read-path health panel (v0.2.194)', () => {
+  it('buildReadHealthModel folds the read-only health model into a render-ready panel', () => {
+    const rh = buildReadHealthModel();
+    expect(rh.badge).toBe(READHEALTH_BADGE);
+    expect(rh.ok).toBe(true);
+    expect(rh.statusLabel).toBe('READ-ONLY OK');
+    expect(rh.summary.total).toBe(6);
+    expect(rh.summary.fail).toBe(0);
+    expect(Array.isArray(rh.signals)).toBe(true);
+    expect(rh.signals).toHaveLength(6);
+  });
+
+  it('pins the read-only invariants and maps ok signals to the no-blocker pill', () => {
+    const rh = buildReadHealthModel();
+    expect(rh.signed).toBe(false);
+    expect(rh.published).toBe(false);
+    expect(rh.readOnly).toBe(true);
+    expect(rh.signals.every((s) => s.pill === 'no-blocker')).toBe(true);
+  });
+
+  it('a broken read path surfaces an ATTENTION verdict + a gated pill (still inert)', () => {
+    const rh = buildReadHealthModel({ profileEvents: [], scoreEvents: [] });
+    expect(rh.ok).toBe(false);
+    expect(rh.statusLabel).toBe('ATTENTION');
+    expect(rh.summary.fail).toBeGreaterThan(0);
+    expect(rh.signals.some((s) => s.pill === 'gated')).toBe(true);
+    // The read-only invariants stay pinned even on a degraded model.
+    expect(rh.signed).toBe(false);
+    expect(rh.published).toBe(false);
+    expect(rh.readOnly).toBe(true);
+  });
+
+  it('every signal pill uses only the existing pill vocabulary (no new CSS)', () => {
+    const allowed = new Set(['no-blocker', 'gated', 'manual', 'deferred', 'open-edge']);
+    for (const s of buildReadHealthModel().signals) expect(allowed.has(s.pill)).toBe(true);
+    for (const s of buildReadHealthModel({ profileEvents: [] }).signals) expect(allowed.has(s.pill)).toBe(true);
+  });
+
+  it('continuumDataJSON carries the read-health model', () => {
+    const j = continuumDataJSON();
+    expect(j.readHealth).toBeTruthy();
+    expect(typeof j.readHealth.statusLabel).toBe('string');
+    expect(Array.isArray(j.readHealth.signals)).toBe(true);
+  });
+
+  it('renderContinuumPage shows the Nostr read-path health section + badge + invariants', () => {
+    const html = renderContinuumPage();
+    expect(html).toContain('Nostr read-path health');
+    expect(html).toContain(READHEALTH_BADGE);
+    expect(html).toContain('READ-ONLY OK');
+    expect(html).toContain('Read-only invariants:');
+    expect(html).toContain('pill pill-');
+  });
+
+  it('SAFETY: the read-health section injects no unsafe token + no new script (CSP hash intact)', () => {
+    const html = renderContinuumPage();
+    for (const bad of ['javascript:', 'window.location', 'location.href', 'eval(', 'window.open']) {
+      expect(html).not.toContain(bad);
+    }
+    expect((html.match(/<script/g) || []).length).toBe(1);
+    const m = html.match(/<script>([\s\S]*?)<\/script>/);
+    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
+    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+  });
+});
+
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.193-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.194-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });

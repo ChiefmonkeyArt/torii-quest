@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.193-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.194-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -46,7 +46,7 @@ frozen `SDK_SURFACE` map; `surfacesByTier(tier)` lists names at a tier.
 `travelIntent`, `gatewayHandoff`, `gatewayPortal`, `gatewayPreview`, `leaderboard`,
 `leaderboardPublisher`, `leaderboardView`, `leaderboardPreview`, `relayRead`, `leaderboardRelayRead`, `profileRead`,
 `consentGate`, `consentView`, `submitIntent`, `gatewayRead`, `travelConfirm`, `handoffPlan`, `handoffExecute`, `hostTransport`, `gatewayActivation`, `gatewayPortalActivation`, `portalTrigger`, `zoneRoute`, `portalMeshPlan`, `zoneLabel`, `updateCheck`,
-`updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`.
+`updatePreview`, `githubReleaseSource`, `updateStatus`, `mvpLoop`, `proofSurfaceSpecs`, `anchorTransforms`, `nostrReadHealth`.
 
 `relayRead` (NOSTR-READ, v0.2.159) is the pure READ-ONLY Nostr relay adapter
 foundation: `validateRelayUrl` (ws/wss only, no credentials),
@@ -78,6 +78,20 @@ nip05/lud16/website + shortPubkey, displayName fallback display_name→name→sh
 sample, normalises→validates→extracts→selects-newest into a read-only
 `{ok,filter,count,profiles,skipped,duplicates,signed:false,published:false,readOnly:true,errors}`
 report. NEVER signs/publishes/opens-a-socket/auto-connects/throws on event data.
+
+`nostrReadHealth` (NOSTR-READ / HEALTH, v0.2.194) is the pure READ-ONLY health model that
+proves the Nostr surface is read-only at the MVP stage and the live-write path stays
+deferred. Constants: `READ_HEALTH_BADGE` (`NOSTR READ-PATH · READ-ONLY · NO WRITE/SIGN/PUBLISH`),
+`PUBLISH_VERB` (`EVENT`), `FUTURE_GATED_TIERS` (`SEC-1`/`SEC-2`/`SEC-3`), plus deterministic
+LOCAL `SAMPLE_PROFILE_EVENTS`/`SAMPLE_SCORE_EVENTS`. Six pure signal checks
+(`checkRelayReadModel` — RELAY_READ_VERBS are CLOSE/REQ only, no EVENT/publish builder;
+`checkNoPublishVerb`; `checkProfileReadPath`; `checkLeaderboardReadPath`; `checkWritePathsGated`
+— consentGate write tier `requiresConsent:true`; `checkFutureGatedTiers` — SEC-1/2/3 still
+future-gated) fold into `runReadHealth({profileEvents,scoreEvents})→{ok,badge,signals,summary:{total:6,ok,fail},readOnly:true,signed:false,published:false,errors}`;
+`formatReadHealth` renders one stable text block. Derives all signals from the shipped pure
+read modules — NO relay/socket/sign/publish/DOM/network/key handling; never throws on
+null/empty input. Surfaced in the Torii Continuum dashboard as a read-only status panel
+(`buildReadHealthModel` in `continuumData.js`) and in `ToriiDebug.shells.readHealth`.
 
 `consentGate` (CONSENT-1 / SEC-1 precursor, v0.2.162) is the pure, inert consent
 boundary every future write/sign/publish/update/travel action must pass before it may
@@ -489,6 +503,7 @@ publish, or navigation. Pass overrides to inspect your own data.
 | `shells.leaderboardPreview(s?,o?)` | LEAN-4 preview block — `{title,mode,modeLabel,badge,signed:false,published:false,signer,count,shown,skipped,proof,rows,lines,readOnly:true,actionable:false}` |
 | `shells.leaderboardRelayRead(e?,o?)` | **v0.2.160** READ-ONLY leaderboard relay-read PROOF over a deterministic LOCAL sample — `{ok,filter,count,rows,skipped,duplicates,signed:false,published:false,readOnly:true,errors}` (extract→dedupe→rank; no relay I/O) |
 | `shells.profileRead(e?,o?)` | **v0.2.161** READ-ONLY identity/profile PROOF over a deterministic LOCAL sample — `{ok,filter,count,profiles,skipped,duplicates,signed:false,published:false,readOnly:true,errors}` (kind:0 parse→sanitise→newest-per-author; https-only inert URLs, no DOM/relay I/O) |
+| `shells.readHealth(o?)` | **v0.2.194** READ-ONLY Nostr READ-PATH HEALTH proof over a deterministic LOCAL sample — `{ok,badge,signals:[{key,label,status,detail}],summary:{total:6,ok,fail},readOnly:true,signed:false,published:false,errors}` (folds the six read-path signal checks: relay verbs CLOSE/REQ only, no EVENT/publish verb, profile+leaderboard read paths present, write paths consent-gated, SEC-1/2/3 future-gated; derives from the shipped pure read modules, no relay/socket/sign/publish/DOM I/O) |
 | `shells.consentGate(o?)` | **v0.2.162** READ-ONLY CONSENT-GATE foundation map — `{title,badge,count,writeActions,allowedByDefault,actions:[{action,kind,write,signed,requiresConsent,danger,allowed,blocked,reason,performed:false,summary}],readOnly:true,performed:false}` (reads allowed, writes blocked until an explicit grant; pass `{grants}` to preview; never signs/publishes/acts) |
 | `shells.leaderboardSubmit(i?,g?)` | **v0.2.163** READ-ONLY leaderboard SUBMIT INTENT/PREVIEW over a deterministic sample — `{title,badge,action,ok,allowed,blocked,reason,kind,identity,tags,summary,signed:false,published:false,performed:false,readOnly:true,errors}` (inert UNSIGNED kind-30000 draft routed through the consent gate; BLOCKED with no grant, pass a grant to preview allow; never signs/publishes/sends/connects) |
 | `shells.gatewayRead(e?)` | **v0.2.164** READ-ONLY gateway DESTINATION-RECORD read proof over a deterministic LOCAL sample — `{title,badge,ok,count,duplicates,filter,gateways,skipped,navigated:false,signed:false,published:false,performed:false,readOnly:true,errors}` (kind-30078 `#t:torii-gateway` filter; extract→sanitise→newest-per-zone; https-only inert URLs + ws/wss relays, no navigation/DOM/relay I/O) |
@@ -816,6 +831,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `relayRead` | `tests/relay-read.test.js` |
 | `leaderboardRelayRead` | `tests/leaderboard-relay-read.test.js` |
 | `profileRead` | `tests/profile-read.test.js` |
+| `nostrReadHealth` | `tests/nostr-read-health.test.js` |
 | `consentGate` | `tests/consent-gate.test.js` |
 | `consentView` | `tests/consent-view.test.js` |
 | `submitIntent` | `tests/leaderboard-submit-intent.test.js` |

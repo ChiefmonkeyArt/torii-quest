@@ -5,7 +5,7 @@ Continuum oversight dashboard's list sections + a task-count metric from the pro
 docs (`progress.md` + `todo.md`) at BUILD time, with a safe curated fallback.
 **Type:** docs/tooling only — no gameplay change, no runtime/bundle behaviour change.
 **Status:** GREEN. 812 tests / 60 files, 14/14 regression checks, build clean.
-Committed LOCALLY only (no push/deploy/publish).
+Committed LOCALLY only (no push/deploy/publish). **Commit:** `13cd157` (branch `v0.2.174`).
 
 ---
 

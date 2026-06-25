@@ -12,6 +12,7 @@ import {
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
   READINESS_BADGE, buildReadinessModel,
+  SHIP_BADGE, SHIP_LASTKNOWN, SHIP_NEXT_SAFE_TASK, buildShipModel,
   escapeHtml, clampPct, barCells, ringDash,
   computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
 } from '../src/engine/dashboard/continuumData.js';
@@ -20,7 +21,7 @@ import { VERSION } from '../src/config.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.187-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.188-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -125,7 +126,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.187-alpha');
+    expect(round.version).toBe('v0.2.188-alpha');
     expect(round.totals.pocProgressPct).toBe(46);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -137,7 +138,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.187-alpha');
+    expect(html).toContain('v0.2.188-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -472,6 +473,128 @@ describe('deployment readiness (v0.2.186)', () => {
   });
 });
 
+describe('ship readiness & next task (v0.2.188)', () => {
+  it('degrades to an honest LAST-KNOWN model with no input (never throws)', () => {
+    const s = buildShipModel();
+    expect(s.kind).toBe('last-known');
+    expect(s.badge).toBe(SHIP_BADGE);
+    expect(s.status).toBe('ready');
+    expect(s.statusLabel).toBe('READY');
+    expect(s.ready).toBe(true);
+    expect(Array.isArray(s.signals)).toBe(true);
+    expect(s.signals).toHaveLength(SHIP_LASTKNOWN.signals.length);
+    expect(s.nextTask.title).toBe(SHIP_NEXT_SAFE_TASK.title);
+    expect(s.blockers).toEqual([]);
+    expect(s.unknowns).toEqual([]);
+  });
+
+  it('folds a LIVE release-readiness summary (kind generated, passthrough verdict)', () => {
+    const summary = {
+      status: 'ready', statusLabel: 'READY', ready: true,
+      version: 'v9.9.9-test', gitCommit: 'abc1234',
+      gateCommand: 'npm run test:release',
+      blockers: [], unknowns: [],
+      signals: {
+        versionSync: { state: 'ok', configVersion: 'v9.9.9-test', packageVersion: '9.9.9-test' },
+        tests: { state: 'ok', fast: 5, foundation: 25 },
+        regression: { state: 'ok', count: 15, expected: 15 },
+        bundle: { state: 'advisory', overLimit: ['rapier'] },
+        zoneFallback: { state: 'ok', ok: true, distSkipped: false },
+        docs: { state: 'ok', ok: true },
+      },
+    };
+    const s = buildShipModel({ readiness: summary });
+    expect(s.kind).toBe('generated');
+    expect(s.status).toBe('ready');
+    expect(s.version).toBe('v9.9.9-test');
+    expect(s.gitCommit).toBe('abc1234');
+    expect(s.signals.map((r) => r.key)).toEqual(
+      ['versionSync', 'tests', 'regression', 'bundle', 'zoneFallback', 'docs']);
+  });
+
+  it('a NOT-READY summary surfaces blockers and a gated pill', () => {
+    const summary = {
+      status: 'not-ready', statusLabel: 'NOT READY', ready: false,
+      version: 'v9.9.9-test', blockers: ['regression gate failed'], unknowns: [],
+      signals: { regression: { state: 'blocked', count: 14, expected: 15 } },
+    };
+    const s = buildShipModel({ readiness: summary });
+    expect(s.ready).toBe(false);
+    expect(s.blockers).toEqual(['regression gate failed']);
+    expect(s.signals[0].pill).toBe('gated');
+  });
+
+  it('an INCOMPLETE summary surfaces unknowns', () => {
+    const summary = {
+      status: 'incomplete', statusLabel: 'INCOMPLETE · SIGNALS MISSING', ready: false,
+      version: 'v9.9.9-test', blockers: [], unknowns: ['tests'],
+      signals: { tests: { state: 'unknown' } },
+    };
+    const s = buildShipModel({ readiness: summary });
+    expect(s.unknowns).toEqual(['tests']);
+    expect(s.signals[0].pill).toBe('deferred');
+  });
+
+  it('accepts a nextTask override', () => {
+    const s = buildShipModel({ nextTask: { title: 'Do the thing', why: 'because', kind: 'docs' } });
+    expect(s.nextTask.title).toBe('Do the thing');
+    expect(s.nextTask.kind).toBe('docs');
+  });
+
+  it('every signal pill uses only the existing pill vocabulary (no new CSS)', () => {
+    const allowed = new Set(['no-blocker', 'gated', 'manual', 'deferred', 'open-edge']);
+    const summary = {
+      status: 'ready', statusLabel: 'READY', ready: true, version: 'v', blockers: [], unknowns: [],
+      signals: {
+        versionSync: { state: 'ok' }, tests: { state: 'ok' }, regression: { state: 'ok' },
+        bundle: { state: 'advisory' }, zoneFallback: { state: 'skipped' }, docs: { state: 'unknown' },
+      },
+    };
+    for (const r of buildShipModel({ readiness: summary }).signals) expect(allowed.has(r.pill)).toBe(true);
+    for (const r of buildShipModel().signals) expect(allowed.has(r.pill)).toBe(true);
+  });
+
+  it('continuumDataJSON carries the ship model', () => {
+    const j = continuumDataJSON();
+    expect(j.ship).toBeTruthy();
+    expect(typeof j.ship.statusLabel).toBe('string');
+    expect(Array.isArray(j.ship.signals)).toBe(true);
+  });
+
+  it('renderContinuumPage shows the Ship-readiness section + next safe task + badge', () => {
+    const html = renderContinuumPage();
+    expect(html).toContain('Ship readiness');
+    expect(html).toContain(SHIP_BADGE);
+    expect(html).toContain('Next safe task');
+    expect(html).toContain('pill pill-');
+  });
+
+  it('SAFETY: a tag-injecting readiness summary is escaped + no new script + hash intact', () => {
+    const hostile = {
+      status: 'not-ready', statusLabel: 'NOT READY', ready: false,
+      version: 'v9<img src=x>', gitCommit: 'abc"><b>',
+      blockers: ['<script>alert(1)</script>'], unknowns: ['<iframe>'],
+      signals: { docs: { state: 'blocked', ok: false, errors: ['<svg/onload=1>'] } },
+    };
+    const html = renderContinuumPage(buildContinuumModel({
+      ship: buildShipModel({ readiness: hostile, nextTask: { title: '<b>x</b>', why: '<img src=y>' } }),
+    }));
+    // The section's own static markup must introduce NONE of the banned tokens.
+    for (const bad of ['javascript:', 'window.location', 'location.href', 'eval(', 'window.open']) {
+      expect(html).not.toContain(bad);
+    }
+    // Tag-injection from data is neutralised — no raw injected element survives.
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<img src=x>');
+    expect(html).not.toContain('<svg/onload=1>');
+    // Still exactly one inline script and the CSP hash is unchanged.
+    expect((html.match(/<script/g) || []).length).toBe(1);
+    const m = html.match(/<script>([\s\S]*?)<\/script>/);
+    const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
+    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+  });
+});
+
 describe('layout / readability pass (v0.2.177)', () => {
   const html = renderContinuumPage();
 
@@ -523,7 +646,7 @@ describe('layout / readability pass (v0.2.177)', () => {
 
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.187-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.188-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });

@@ -1,6 +1,6 @@
 # Torii Quest — SDK & Debug Surface Index
 
-> **Status:** discoverability index (v0.2.187-alpha). A one-page map of the public
+> **Status:** discoverability index (v0.2.188-alpha). A one-page map of the public
 > SDK namespaces, the four MVP proof surfaces, and the read-only `ToriiDebug.shells`
 > reports — for AI handoffs and FOSS contributors. **Everything listed here is pure
 > and inert:** no network, no signing/publishing, no auto-update, and no navigation —
@@ -413,6 +413,22 @@ authoritative dist check) and feeds the real verdict; with no override a curated
 ships. `continuumDataJSON` carries `readiness`. Server-rendered escaped text, NO new `<script>`/
 `data-k` → CSP hash unchanged. `tests/continuum-dashboard.test.js` (+8).
 
+**Ship readiness (v0.2.188):** `continuumData.js` `buildShipModel(input={})` folds the v0.2.187
+read-only release-readiness verdict (passed in as `input.readiness` — the module does NO fs/git/
+network) into a render-ready ship model: live signals → `kind:'generated'`, else it degrades to the
+frozen `SHIP_LASTKNOWN` baseline (`kind:'last-known'`); accepts an `input.nextTask` override
+(default `SHIP_NEXT_SAFE_TASK`) and NEVER throws. `SHIP_BADGE` = 'SHIP READINESS · LAST GATE ·
+READ-ONLY'; `SHIP_STATUS_COMMAND` = 'npm run release:status'; `SHIP_SIGNAL_PILL` maps a signal
+status to the existing pill vocabulary (ok→`no-blocker`, blocked→`gated`, advisory→`manual`,
+skipped/unknown→`deferred`). `_shipSection` (status pill + `_healthChip(ship.kind)` + **Next safe
+task** block + six-row signal table + blockers/unknowns/verdict lines, all escaped) sits after
+Active focus, before Milestones; NO new CSS. `buildContinuumModel` attaches `ship` (falling back to
+`CURATED_SHIP = buildShipModel()`); `continuumDataJSON` carries `ship`. `tools/release-readiness.mjs`
+now EXPORTS `gatherReleaseReadiness(root=process.cwd())` (fs/git helpers are closures over `root`,
+behind a `realpathSync` run-guard so the `release:status` CLI is unchanged) and
+`tools/build-continuum.mjs` feeds that SAME verdict into `buildShipModel` at packaging time. NO new
+`<script>`/`data-k` → CSP hash unchanged. `tests/continuum-dashboard.test.js` (+10).
+
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
 object, a `releases` array, or a manifest into an update verdict; the optional
@@ -821,7 +837,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `tools/bundleSizes.mjs` (bundle-size advisory, regression check [13] / `npm run bundle:report`) | `tests/bundle-sizes.test.js` |
 | `tools/docConsistency.mjs` (docs/status consistency guard, regression check [14]) | `tests/doc-consistency.test.js` |
 | `tools/handoffStatus.mjs` (AI-handoff status snapshot, `npm run handoff:status`) | `tests/handoff-status.test.js` |
-| `tools/releaseReadiness.mjs` (PURE release-readiness aggregator, v0.2.187) + `tools/release-readiness.mjs` CLI (`npm run release:status`) — one concise ship verdict folding version sync / test-profile counts / regression-gate count / bundle advisory / `/zone/*` fallback / docs consistency / latest reports | `tests/release-readiness.test.js` |
+| `tools/releaseReadiness.mjs` (PURE release-readiness aggregator, v0.2.187) + `tools/release-readiness.mjs` CLI (`npm run release:status`) — one concise ship verdict folding version sync / test-profile counts / regression-gate count / bundle advisory / `/zone/*` fallback / docs consistency / latest reports. **v0.2.188:** the CLI now exports `gatherReleaseReadiness(root)` (fs/git helpers as closures, `realpathSync` run-guard — CLI output unchanged) so `tools/build-continuum.mjs` reuses the SAME verdict for the Continuum **Ship readiness** section via `buildShipModel` | `tests/release-readiness.test.js` |
 | `tools/testProfiles.mjs` (PURE test-profile registry, v0.2.173) + `tools/test-profile.mjs` CLI (`npm run test:fast` ~5 files / `test:foundation` ~16 files) | `tests/test-profiles.test.js` |
 
 Run all with `npm test` (Vitest, node env). `npm run check` separately guards the

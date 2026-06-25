@@ -14,12 +14,14 @@ import {
   buildContinuumModel,
   buildHealthModel,
   buildReadinessModel,
+  buildShipModel,
   HEALTH_LASTKNOWN,
   renderContinuumPage,
   continuumDataJSON,
 } from '../src/engine/dashboard/continuumData.js';
 import { deriveContinuumData } from './continuumParse.mjs';
 import { REQUIRED_FALLBACK_DOCS, checkZoneFallbackReadiness } from './zoneFallbackReadiness.mjs';
+import { gatherReleaseReadiness } from './release-readiness.mjs';
 import { PROFILES } from './testProfiles.mjs';
 import { VERSION } from '../src/config.js';
 
@@ -92,10 +94,24 @@ const zoneFallback = checkZoneFallbackReadiness({
 });
 const readiness = buildReadinessModel({ zoneFallback });
 
+// Ship readiness (v0.2.188) — fold the LIVE release-readiness verdict (the same signals
+// `npm run release:status` shows: version sync, test profiles, the regression gate, advisory
+// bundle, /zone/* fallback, docs consistency) into the dashboard's ship-readiness section so
+// project oversight shows the last gate posture + the next safe task at a glance. The gather
+// is read-only/network-free (git is best-effort); on any failure we degrade to the curated
+// LAST-KNOWN snapshot rather than break the build.
+let ship;
+try {
+  ship = buildShipModel({ readiness: gatherReleaseReadiness(ROOT) });
+} catch (e) {
+  ship = buildShipModel(); // honest LAST-KNOWN fallback
+  console.log(`[continuum] ship readiness: live gather unavailable (${e.message}) — using last-known`);
+}
+
 // Stamp the packaged build time so the page can show when the data was packaged.
 const generatedAt = new Date().toISOString();
 const model = {
-  ...buildContinuumModel({ ...overrides, health, readiness, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
+  ...buildContinuumModel({ ...overrides, health, readiness, ship, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
   generatedAt,
 };
 
@@ -111,3 +127,4 @@ console.log(`[continuum] parser gaps (kept curated): ${gaps.length ? gaps.length
 for (const g of gaps) console.log(`[continuum]   gap: ${g}`);
 console.log(`[continuum] health: profiles fast ${PROFILES.fast.length}/foundation ${PROFILES.foundation.length}, full ${countTestFiles()} files, docs ${docsInSync ? 'in sync' : 'DRIFT'}`);
 console.log(`[continuum] readiness: ${readiness.statusLabel} (zone-fallback ${zoneFallback.ok ? 'ok' : 'FAIL'}; dist ${distPaths ? 'checked' : 'skipped — no build yet'})`);
+console.log(`[continuum] ship readiness: ${ship.statusLabel} (${ship.kind})${ship.blockers && ship.blockers.length ? ` blockers: ${ship.blockers.join(', ')}` : ''}`);

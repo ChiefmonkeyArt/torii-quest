@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.187-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.188-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -183,6 +183,24 @@ Breaking one should fail CI/the check, not ship.
   `<script>`/`data-k` key → the v0.2.172 refresh-script sha256 + CSP/XSS guard stay intact;
   no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no nav/runtime/
   gameplay change. Unit-tested by `tests/continuum-dashboard.test.js`);
+  v0.2.188 added a **Ship readiness** section (dashboard/tooling only, no runtime change) — a
+  pure `buildShipModel({readiness,nextTask})` (auto-exported under the existing `continuum`
+  namespace via `export *`, alongside `SHIP_BADGE`/`SHIP_LASTKNOWN`/`SHIP_NEXT_SAFE_TASK`)
+  folds the EXISTING `releaseReadiness.buildReleaseReadiness` summary (version sync, test
+  profiles, the 15-check regression gate, advisory bundle, `/zone/*` fallback, docs
+  consistency) into a render-ready model — an overall status pill, a six-row per-signal table
+  (reusing the existing pill vocabulary so `_shipSection` adds NO new CSS), and a highlighted
+  NEXT SAFE task (a no-runtime-risk infra/docs slice, DISTINCT from the SEC-gated `next12[0]`).
+  `kind` is GENERATED (live verdict folded this build) or LAST-KNOWN (curated `SHIP_LASTKNOWN`
+  fallback) via the engineering-health provenance chip; it never throws. To feed the LIVE
+  verdict without duplicating fs/git I/O, `tools/release-readiness.mjs` was refactored to
+  export a reusable `gatherReleaseReadiness(root)` (the `npm run release:status` CLI behaviour
+  is unchanged via a `realpathSync` run-guard), and `tools/build-continuum.mjs` folds its
+  result through `buildShipModel` at packaging time (degrading to last-known on any error).
+  `continuumDataJSON` now carries `ship`. Server-rendered escaped text, NO new `<script>`/
+  `data-k` key → the v0.2.172 refresh-script sha256 + CSP/XSS guard stay intact; no network,
+  no deploy/publish, no gameplay/portal/physics/controls/Nostr change. Unit-tested by
+  `tests/continuum-dashboard.test.js` (+10);
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
@@ -338,7 +356,7 @@ npm run test:foundation  # ~16 files (fast + engine seams + SDK contract + guard
 npm run test:release     # build + FULL vitest + check + bundle:report + handoff:status — the release gate
 npm run preview  # serve the built dist/ (used for headless smoke)
 npm run bundle:report  # advisory built-bundle size baseline (raw+gzip; reads dist/)
-npm run release:status # one concise release-readiness verdict aggregating the local signals (v0.2.187; read-only, network-free, exits 0 — not a gate)
+npm run release:status # one concise release-readiness verdict aggregating the local signals (v0.2.187; read-only, network-free, exits 0 — not a gate; v0.2.188 exposes `gatherReleaseReadiness(root)` so the Continuum Ship-readiness section folds the SAME verdict)
 ```
 
 **Test profiles (v0.2.173).** The `test:fast`/`test:foundation` profiles are explicit,

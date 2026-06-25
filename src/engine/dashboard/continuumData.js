@@ -31,7 +31,7 @@
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
-export const CONTINUUM_VERSION = 'v0.2.187-alpha';
+export const CONTINUUM_VERSION = 'v0.2.188-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // HEALTH_LASTKNOWN (v0.2.175) — the engineering-health values that are NOT cheaply
@@ -41,7 +41,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // number is obvious rather than silently wrong. The deterministic fields (profile file
 // counts, parser gaps, version, doc-sync) are GENERATED at build time and override these.
 export const HEALTH_LASTKNOWN = Object.freeze({
-  totalTests: '1016 passing',
+  totalTests: '1025 passing',
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '15 / 15',
@@ -252,6 +252,144 @@ export function buildReadinessModel(input = {}) {
 // The build-time generator re-runs buildReadinessModel with the freshly measured verdict.
 const CURATED_READINESS = buildReadinessModel();
 
+// SHIP_BADGE (v0.2.188) — names the ship-readiness section as read-only oversight of the
+// LAST local release gate, never a deploy/publish action.
+export const SHIP_BADGE = 'SHIP READINESS · LAST GATE · READ-ONLY';
+
+// The read-only, local command whose verdict this section mirrors.
+export const SHIP_STATUS_COMMAND = 'npm run release:status';
+
+// SHIP_NEXT_SAFE_TASK (v0.2.188) — the recommended NEXT SAFE task to pick up. Deliberately
+// DISTINCT from next12[0] (which is SEC-gated live-relay/runtime work): "safe" here means a
+// no-runtime-risk infra/docs/tooling slice that needs no deploy, matching the current
+// cadence — so a handoff sees the next move that can ship without unlocking a gate.
+// buildShipModel accepts an override. Pure data.
+export const SHIP_NEXT_SAFE_TASK = Object.freeze({
+  title: 'Continue the read-only oversight loop — next safe infra/dashboard slice',
+  why: 'Keep shipping no-runtime-risk tooling/docs that make AI handoff faster and the gate '
+    + 'harder to get wrong (e.g. package the release:status verdict as a build artifact, or '
+    + 'add a docs-freshness signal). SEC-gated live-relay / world-hop work stays parked behind '
+    + 'SEC-1/2/3 and a manual deploy — not a safe pick yet.',
+  kind: 'infra',
+});
+
+// Map a release-readiness SIGNAL_STATE (ok/blocked/advisory/skipped/unknown) onto the
+// dashboard's EXISTING pill vocabulary so the renderer needs no new CSS.
+const SHIP_SIGNAL_PILL = Object.freeze({
+  ok: 'no-blocker', blocked: 'gated', advisory: 'manual', skipped: 'deferred', unknown: 'deferred',
+});
+
+// SHIP_LASTKNOWN (v0.2.188) — the last green `npm run release:status` verdict, captured by
+// hand and clearly LABELLED last-known on the page, so a stale snapshot is obvious rather
+// than silently wrong. The build-time generator (build-continuum.mjs) overrides this with the
+// LIVE verdict folded from tools/releaseReadiness.buildReleaseReadiness at packaging time.
+export const SHIP_LASTKNOWN = Object.freeze({
+  status: 'ready',
+  statusLabel: 'READY',
+  version: CONTINUUM_VERSION,
+  signals: Object.freeze([
+    { key: 'versionSync', label: 'Version sync', state: 'ok', detail: 'config + package.json agree' },
+    { key: 'tests', label: 'Test profiles', state: 'ok', detail: 'fast 5 · foundation 25 file(s)' },
+    { key: 'regression', label: 'Regression gate', state: 'ok', detail: '15 / 15 checks' },
+    { key: 'bundle', label: 'Bundle baseline', state: 'advisory', detail: 'advisory — rapier chunk over limit (tracked)' },
+    { key: 'zoneFallback', label: '/zone/* fallback', state: 'ok', detail: 'docs + dist ok' },
+    { key: 'docs', label: 'Docs consistency', state: 'ok', detail: 'continuity docs carry current version' },
+  ].map((s) => Object.freeze(s))),
+});
+
+// _shipSignalRows(signals) — turn a release-readiness summary's `signals` object into an
+// ordered, render-ready row list (label + state + pill + one-line detail). Pure; null-safe.
+function _shipSignalRows(signals) {
+  if (!signals || typeof signals !== 'object') return [];
+  const rows = [];
+  const push = (key, label, sig, detail) => {
+    if (!sig || typeof sig !== 'object' || typeof sig.state !== 'string') return;
+    rows.push({ key, label, state: sig.state, pill: SHIP_SIGNAL_PILL[sig.state] || 'deferred', detail: detail || '' });
+  };
+  const vs = signals.versionSync;
+  push('versionSync', 'Version sync', vs, vs && `config ${vs.configVersion ?? '?'} / pkg ${vs.packageVersion ?? '?'}`);
+  const t = signals.tests;
+  push('tests', 'Test profiles', t, t && `fast ${t.fast} · foundation ${t.foundation} file(s)`);
+  const r = signals.regression;
+  push('regression', 'Regression gate', r, r && `${r.count ?? '?'} / ${r.expected ?? '?'} checks`);
+  const b = signals.bundle;
+  push('bundle', 'Bundle baseline', b, b && (Array.isArray(b.overLimit) && b.overLimit.length
+    ? `advisory — over limit: ${b.overLimit.join(', ')}` : b.state === 'skipped' ? 'no dist/ — build then bundle:report' : 'within advisory limit'));
+  const z = signals.zoneFallback;
+  push('zoneFallback', '/zone/* fallback', z, z && (z.ok
+    ? (z.distSkipped ? 'docs ok · dist check pending' : 'docs + dist ok')
+    : ((Array.isArray(z.errors) && z.errors.join('; ')) || 'not checked')));
+  const d = signals.docs;
+  push('docs', 'Docs consistency', d, d && (d.ok
+    ? 'continuity docs carry current version'
+    : ((Array.isArray(d.errors) && d.errors.join('; ')) || 'not checked')));
+  return rows;
+}
+
+// buildShipModel(input) — PURE, browser-safe builder (v0.2.188). Folds a release-readiness
+// summary (the plain output of tools/releaseReadiness.buildReleaseReadiness, supplied by
+// build-continuum.mjs at packaging time) into a render-ready model so the dashboard surfaces
+// the LAST release-readiness verdict AND the NEXT SAFE task at a glance:
+//   { badge, statusCommand, gateCommand, kind, status, statusLabel, ready, version,
+//     gitCommit, signals[], blockers[], unknowns[], nextTask, note }.
+// `kind` is 'generated' (a live summary was supplied this build) or 'last-known' (the curated
+// SHIP_LASTKNOWN fallback). With no summary it degrades to the honest last-known snapshot and
+// NEVER throws. NO fs/network/THREE/DOM — it only reuses the existing pill vocabulary (no new
+// CSS) and adds NO script (the continuum CSP/script-hash stay intact). INFORMATIONAL only: it
+// never runs the gate, deploys, publishes, or contacts a server.
+export function buildShipModel(input = {}) {
+  const rd = input && typeof input === 'object' ? input.readiness : null;
+  const hasLive = rd && typeof rd === 'object' && rd.signals && typeof rd.signals === 'object';
+  const src = (input && input.nextTask) || SHIP_NEXT_SAFE_TASK;
+  const nextTask = { title: src.title, why: src.why, kind: src.kind || 'infra' };
+  const note = 'The last local release-readiness verdict (run: ' + SHIP_STATUS_COMMAND + ') plus the '
+    + 'recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a '
+    + 'deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green '
+    + 'gate) when not regenerated this build. The regression gate stays the authority.';
+
+  if (hasLive) {
+    return {
+      badge: SHIP_BADGE,
+      statusCommand: SHIP_STATUS_COMMAND,
+      gateCommand: rd.gateCommand || 'npm run test:release',
+      kind: 'generated',
+      status: rd.status || 'unknown',
+      statusLabel: rd.statusLabel || 'NOT CHECKED',
+      ready: !!rd.ready,
+      version: rd.version || null,
+      gitCommit: rd.gitCommit || null,
+      signals: _shipSignalRows(rd.signals),
+      blockers: Array.isArray(rd.blockers) ? rd.blockers.slice() : [],
+      unknowns: Array.isArray(rd.unknowns) ? rd.unknowns.slice() : [],
+      nextTask,
+      note,
+    };
+  }
+
+  const lk = SHIP_LASTKNOWN;
+  return {
+    badge: SHIP_BADGE,
+    statusCommand: SHIP_STATUS_COMMAND,
+    gateCommand: 'npm run test:release',
+    kind: 'last-known',
+    status: lk.status,
+    statusLabel: lk.statusLabel,
+    ready: lk.status === 'ready',
+    version: lk.version,
+    gitCommit: null,
+    signals: lk.signals.map((s) => ({ key: s.key, label: s.label, state: s.state, pill: SHIP_SIGNAL_PILL[s.state] || 'deferred', detail: s.detail })),
+    blockers: [],
+    unknowns: [],
+    nextTask,
+    note,
+  };
+}
+
+// The curated fallback ship model — built at module load so renderContinuumPage() with NO
+// overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN ship-readiness section.
+// build-continuum.mjs re-runs buildShipModel with the freshly gathered live verdict.
+const CURATED_SHIP = buildShipModel();
+
 // CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
 // kept as the single source of that text so its CSP hash can never silently drift.
 // It is STATIC (no model interpolation), so its sha256 is stable across deploys: a
@@ -313,12 +451,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.187-alpha (build truth; live trails — manual deploy)' },
-    { label: 'Tests', value: '1016 passing / 68 files (profiles: test:fast ~5, test:foundation ~25)' },
+    { label: 'Source version', value: 'v0.2.188-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Tests', value: '1025 passing / 68 files (profiles: test:fast ~5, test:foundation ~25)' },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.187 release-readiness VISIBILITY — a new read-only local command (npm run release:status) aggregates the ship signals into ONE concise verdict for AI handoff: version sync, test-profile counts, the 15-check regression gate, the advisory bundle baseline, the /zone/* fallback verdict, docs/status consistency, and latest reports. Pure aggregator (releaseReadiness.mjs) + thin CLI (release-readiness.mjs) + 15 unit tests; foundation profile +1. Tooling/docs-only/no-runtime: no fs writes, no network, no gameplay/portal/physics/controls/Nostr change.' },
+    { label: 'Active slice', value: 'v0.2.188 dashboard SHIP-READINESS + NEXT-SAFE-TASK — the Torii Continuum now surfaces the last release-readiness verdict (npm run release:status, folded via buildShipModel from the existing releaseReadiness model) and the recommended next SAFE task as a first-class section: a status pill, the six ship signals (version sync, test profiles, regression gate, advisory bundle, /zone/* fallback, docs consistency), and the next no-runtime-risk slice to pick up. build-continuum feeds the LIVE verdict at packaging time (GENERATED), with an honest LAST-KNOWN fallback. Pure builder + tests; reuses existing pill CSS so the continuum CSP/script-hash are untouched. Dashboard/docs-only/no-runtime: no fs writes from the game, no network, no gameplay/portal/physics/controls/Nostr change.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -352,7 +490,7 @@ export const CONTINUUM = Object.freeze({
 
   // Now / Next / Later.
   activeNow: [
-    'v0.2.187 — release-readiness VISIBILITY (tooling/docs only, no runtime change): a new read-only, local, network-free command (npm run release:status) aggregates the local ship signals into ONE concise verdict for AI handoff + rapid shipping — version sync, test-profile counts, the 15-check regression gate (presence/count, read-only), the advisory bundle baseline, the /zone/* SPA-fallback verdict, docs/status consistency, and the latest reports. Pure aggregator (tools/releaseReadiness.mjs: buildReleaseReadiness/formatReleaseReadiness) + thin CLI (tools/release-readiness.mjs) folding the existing pure checks; honest verdict (READY / NOT READY · blockers / INCOMPLETE · signals missing); bundle stays ADVISORY (never blocks). +15 unit tests; added to the foundation profile. NON-GOALS held: no fs writes, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
+    'v0.2.188 — dashboard SHIP-READINESS + NEXT-SAFE-TASK (dashboard/docs only, no runtime change): the Torii Continuum surfaces the LAST release-readiness verdict (npm run release:status) and the recommended NEXT SAFE task as a first-class section. New pure builder buildShipModel folds the existing releaseReadiness summary (version sync, test profiles, the 15-check regression gate, advisory bundle, /zone/* fallback, docs consistency) into a status pill + per-signal table + next-safe-task highlight; build-continuum.mjs feeds the LIVE verdict at packaging time (GENERATED) with an honest LAST-KNOWN fallback. release-readiness.mjs refactored to export a reusable gatherReleaseReadiness() (CLI behaviour unchanged via a run-guard). Reuses existing pill CSS so the continuum CSP/script-hash are untouched. NON-GOALS held: no fs writes from the game, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
     'ARS-4 — finish folding reload/pointer-lock into the guarded FSM.',
     'ARS-6 / PROGRESS-1 — ongoing CODE_INDEX + living-docs upkeep.',
   ],
@@ -383,10 +521,10 @@ export const CONTINUUM = Object.freeze({
 
   // Completed last 24h — shown struck through, newest first.
   completed24h: [
+    'v0.2.188 — dashboard SHIP-READINESS + NEXT-SAFE-TASK (dashboard/docs only, no runtime change): the Torii Continuum now surfaces the LAST release-readiness verdict (npm run release:status) and the recommended NEXT SAFE task as a first-class section. New pure builder buildShipModel folds the existing releaseReadiness summary (version sync, test profiles, the 15-check regression gate, advisory bundle, /zone/* fallback, docs consistency) into a status pill + per-signal table + next-safe-task highlight; build-continuum.mjs feeds the LIVE verdict at packaging time (GENERATED) with an honest LAST-KNOWN fallback. release-readiness.mjs refactored to export gatherReleaseReadiness() (CLI behaviour unchanged via a run-guard). Reuses existing pill CSS so the continuum CSP/script-hash are untouched; continuumDataJSON carries ship. NON-GOALS: no fs writes from the game, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
     'v0.2.187 — release-readiness VISIBILITY (tooling/docs only, no runtime change): a new read-only, local, network-free command (npm run release:status) aggregates the local ship signals into ONE concise verdict for AI handoff — version sync, test-profile counts, the 15-check regression gate (read-only presence/count), the advisory bundle baseline, the /zone/* SPA-fallback verdict, docs/status consistency, and latest reports. Pure aggregator (tools/releaseReadiness.mjs) + thin CLI (tools/release-readiness.mjs) folding the existing pure checks; bundle stays ADVISORY (never blocks); honest READY / NOT READY / INCOMPLETE verdict. +15 unit tests; foundation profile +1. NON-GOALS: no fs writes, no network, no deploy/publish, no gameplay/portal/physics/controls/Nostr change.',
     'v0.2.186 — deployment-readiness VISIBILITY (dashboard/tooling only, no runtime change): the v0.2.185 /zone/* static-host fallback verdict is now a first-class Deployment-readiness section in the Torii Continuum (data + visible page). New pure builder buildReadinessModel folds the read-only zoneFallbackReadiness result into honest READY / DOCS READY · BUILD CHECK PENDING / NOT READY / NOT CHECKED states with a per-check table (docs fallback, dist route shape, host fallback MANUAL, auto-update MANUAL); build-continuum.mjs feeds the real verdict at packaging time. Reuses existing pill CSS so the continuum CSP/script-hash are untouched; continuumDataJSON carries readiness. NON-GOALS: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime/gameplay change.',
     'v0.2.185 — deployment-readiness FOUNDATION (docs + local check, no runtime change): the outstanding torii.quest/VPS static-host requirement — serve index.html for /zone/* on a cold hard-refresh/deep-link — is now operationally explicit and LOCALLY checkable. Pure node-safe helper (tools/zoneFallbackReadiness.mjs) + read-only network-free CLI (npm run zones:check) + regression-check [15] verify VPS_INSTALL.md/HANDOFF.md describe the index.html SPA fallback and a built dist/ has index.html with no /zone/* file shadowing it. New ZONE_FALLBACK_READINESS.md checklist + VPS_INSTALL §11 + UPDATE_CHECK pointer. NON-GOALS: no server access/SSH/credentials, no deploy/publish/upload, no auto-update, no navigation/runtime change. +20 tests.',
-    'v0.2.184 — LEAN-2 portal/zone CLARITY (zoneLabel.js): pure display-label helpers name the portal target in the in-range prompt ("Press F to travel to Plebeian Market Bazaar") and announce the entered zone after a successful KeyF hop ("Entered: Plebeian Market Bazaar"). Labels are safe Title-Case alnum strings (slug/route via humanizeZoneSlug; free-form/hostile input sanitised — no markup/dangerous token survives); HUD sink is textContent only. PURE POLISH — proximity still only arms, KeyF still confirms, route stays same-origin /zone/ only; no network/relay/sign/publish/external nav added. SDK (experimental) + debug-shell exposure. +15 tests.',
   ],
 
   // Archive clusters, newest first.
@@ -494,6 +632,7 @@ export function buildContinuumModel(overrides = {}) {
     totals: computeTotals(base),
     milestones: base.milestones || buildMilestoneModel({ leanRoute: base.leanRoute }),
     readiness: base.readiness || CURATED_READINESS,
+    ship: base.ship || CURATED_SHIP,
     taskTotals,
     derived,
   };
@@ -513,6 +652,7 @@ export function continuumDataJSON(model = buildContinuumModel()) {
     health: model.health || null,
     milestones: model.milestones || null,
     readiness: model.readiness || null,
+    ship: model.ship || null,
   };
 }
 
@@ -729,6 +869,45 @@ ${errs}${warns}${note}
     </section>`;
 }
 
+// _shipSection(ship) — the Ship-readiness section (v0.2.188): an overall verdict pill +
+// provenance chip + badge, the recommended NEXT SAFE task highlighted, and a per-signal
+// table (signal / state / detail) reusing the existing pill vocabulary + risk-table markup.
+// Empty string when absent so an override-free legacy model omits it. Server-rendered +
+// escaped; no new script, no new data-k key → CSP/refresh-script hash untouched. Pure.
+function _shipSection(ship) {
+  if (!ship || !Array.isArray(ship.signals) || !ship.signals.length) return '';
+  // Map the overall ship status onto the existing pill classes (no new CSS): ready→no-blocker,
+  // not-ready/blocked→gated, incomplete→manual, anything else→deferred.
+  const pillState = ship.status === 'ready' ? 'no-blocker'
+    : (ship.status === 'not-ready' || ship.status === 'blocked') ? 'gated'
+    : ship.status === 'incomplete' ? 'manual'
+    : 'deferred';
+  const rows = ship.signals.map((s) =>
+    `        <tr><td>${escapeHtml(s.label)}</td><td><span class="pill pill-${escapeHtml(s.pill)}">${escapeHtml(s.state)}</span></td><td>${escapeHtml(s.detail || '')}</td></tr>`
+  ).join('\n');
+  const blockers = (ship.blockers || []).length
+    ? `      <div class="focus"><b>Blockers:</b> ${escapeHtml(ship.blockers.join(', '))}</div>` : '';
+  const unknowns = (ship.unknowns || []).length
+    ? `      <div class="focus"><b>Not checked this pass:</b> ${escapeHtml(ship.unknowns.join(', '))}</div>` : '';
+  const nt = ship.nextTask || {};
+  const nextTask = nt.title
+    ? `      <div class="focus"><b>Next safe task ▸</b> ${escapeHtml(nt.title)}${nt.why ? `<div class="ms-sub">${escapeHtml(nt.why)}</div>` : ''}</div>` : '';
+  const verdictLine = `      <div class="focus">${escapeHtml(ship.note)} Verdict for <b>${escapeHtml(ship.version || '?')}</b>${ship.gitCommit ? ` @ ${escapeHtml(ship.gitCommit)}` : ''}. Full gate: <b>${escapeHtml(ship.gateCommand)}</b>.</div>`;
+  return `
+    <section>
+      <div class="h2row"><h2>Ship readiness</h2> <span class="pill pill-${pillState}">${escapeHtml(ship.statusLabel)}</span> ${_healthChip(ship.kind)} <span class="badge">${escapeHtml(ship.badge)}</span></div>
+      <div class="lead">The last local release-readiness verdict (${escapeHtml(ship.statusCommand)}) and the next safe task to pick up — read-only; the gate stays the authority.</div>
+${nextTask}
+      <table>
+        <thead><tr><th>Signal</th><th>State</th><th>Detail</th></tr></thead>
+        <tbody>
+${rows}
+        </tbody>
+      </table>
+${blockers}${unknowns}${verdictLine}
+    </section>`;
+}
+
 // renderContinuumPage(model) — full self-contained static HTML document string.
 // Dark Torii/nostrich/cyberpunk feel via inline CSS only; CSS bars + SVG rings.
 // The page renders fully WITHOUT JavaScript. A tiny, optional, same-origin-only
@@ -882,6 +1061,7 @@ export function renderContinuumPage(model = buildContinuumModel()) {
       <div class="lead">What the project is pointed at right now — read this first.</div>
       <div class="focus">${escapeHtml(m.focus)}</div>
     </section>
+${_shipSection(m.ship)}
 ${_milestonesSection(m.milestones)}
 
     <section>

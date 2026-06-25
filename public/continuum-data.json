@@ -1,11 +1,11 @@
 {
-  "version": "v0.2.187-alpha",
-  "generatedAt": "2026-06-25T12:42:28.229Z",
+  "version": "v0.2.188-alpha",
+  "generatedAt": "2026-06-25T15:55:21.181Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 14,
-    "completedLast24h": 17,
+    "activeTasks": 15,
+    "completedLast24h": 19,
     "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
@@ -25,15 +25,15 @@
     "isDerived": true,
     "todoCompletedMarkers": 12,
     "next12": 12,
-    "activeNow": 14,
-    "completed24h": 17,
+    "activeNow": 15,
+    "completed24h": 19,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (14)",
-      "completed24h (17)",
+      "activeNow (15)",
+      "completed24h (19)",
       "archive (11)"
     ],
     "gaps": [],
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.187-alpha"
+        "value": "v0.2.188-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -58,7 +58,7 @@
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1016 passing"
+        "value": "1025 passing"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.187-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.188-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -182,5 +182,68 @@
     "errors": [],
     "warnings": [],
     "note": "Static-host deployment readiness for the gateway /zone/* travel feature. The repo-side prerequisites (docs describe the index.html SPA fallback; a built dist/ has index.html with no /zone/* file shadowing it) are verified LOCALLY by npm run zones:check / regression-check [15]. Configuring the real host fallback and deploying stay MANUAL maintainer steps — this surface only INFORMS."
+  },
+  "ship": {
+    "badge": "SHIP READINESS · LAST GATE · READ-ONLY",
+    "statusCommand": "npm run release:status",
+    "gateCommand": "npm run test:release",
+    "kind": "generated",
+    "status": "ready",
+    "statusLabel": "READY",
+    "ready": true,
+    "version": "v0.2.188-alpha",
+    "gitCommit": "4e23aff",
+    "signals": [
+      {
+        "key": "versionSync",
+        "label": "Version sync",
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "config v0.2.188-alpha / pkg 0.2.188-alpha"
+      },
+      {
+        "key": "tests",
+        "label": "Test profiles",
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "fast 5 · foundation 25 file(s)"
+      },
+      {
+        "key": "regression",
+        "label": "Regression gate",
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "15 / 15 checks"
+      },
+      {
+        "key": "bundle",
+        "label": "Bundle baseline",
+        "state": "advisory",
+        "pill": "manual",
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
+      },
+      {
+        "key": "zoneFallback",
+        "label": "/zone/* fallback",
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "docs + dist ok"
+      },
+      {
+        "key": "docs",
+        "label": "Docs consistency",
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "continuity docs carry current version"
+      }
+    ],
+    "blockers": [],
+    "unknowns": [],
+    "nextTask": {
+      "title": "Continue the read-only oversight loop — next safe infra/dashboard slice",
+      "why": "Keep shipping no-runtime-risk tooling/docs that make AI handoff faster and the gate harder to get wrong (e.g. package the release:status verdict as a build artifact, or add a docs-freshness signal). SEC-gated live-relay / world-hop work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.",
+      "kind": "infra"
+    },
+    "note": "The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority."
   }
 }

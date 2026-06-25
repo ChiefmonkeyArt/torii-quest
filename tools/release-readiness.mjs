@@ -11,144 +11,164 @@
 // NO network, NO secrets, NO install, NO build, NO writes — it only READS local files and
 // asks git for the short commit (best-effort). Always exits 0: this is a VISIBILITY snapshot,
 // not a gate. The authoritative gate stays `npm run check` / `npm run test:release`.
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+//
+// gatherReleaseReadiness(root) is exported (v0.2.188) so other build-time tooling — e.g.
+// build-continuum.mjs, which surfaces the verdict on the Torii Continuum dashboard — can fold
+// the SAME live signals without duplicating the fs/git gathering. The CLI behaviour is
+// unchanged: when this file is run directly it still prints the formatted block and exits 0.
+import { readFileSync, readdirSync, existsSync, statSync, realpathSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildReleaseReadiness, formatReleaseReadiness } from './releaseReadiness.mjs';
 import { summarizeBundle, DEFAULT_WARN_LIMIT } from './bundleSizes.mjs';
 import { checkZoneFallbackReadiness, REQUIRED_FALLBACK_DOCS } from './zoneFallbackReadiness.mjs';
 import { checkDocConsistency, CONTINUITY_DOCS, ADVISORY_DOCS } from './docConsistency.mjs';
 import { TESTS_DIR } from './testProfiles.mjs';
 
-const ROOT = process.cwd();
-const DIST = join(ROOT, 'dist');
-const ASSETS = join(DIST, 'assets');
+// gatherReleaseReadiness(root) — do the local, read-only fs/git I/O and fold the existing
+// pure checks into a buildReleaseReadiness() summary. NO network/writes; git is best-effort
+// (never throws). Pure-ish: same inputs → same output (modulo the git commit + on-disk state).
+export function gatherReleaseReadiness(root = process.cwd()) {
+  const DIST = join(root, 'dist');
+  const ASSETS = join(DIST, 'assets');
 
-function readSafe(rel) {
-  try { return readFileSync(join(ROOT, rel), 'utf8'); } catch { return null; }
-}
-
-function configVersion() {
-  const m = (readSafe('src/config.js') || '').match(/VERSION\s*=\s*['"]([^'"]+)['"]/);
-  return m ? m[1] : null;
-}
-
-function packageVersion() {
-  try { return JSON.parse(readSafe('package.json') || '{}').version || null; } catch { return null; }
-}
-
-function gitCommit() {
-  try {
-    return execSync('git rev-parse --short HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString().trim() || null;
-  } catch { return null; }
-}
-
-// All existing test files as `tests/<file>` paths (for validateProfiles — stale-entry guard).
-function existingTests() {
-  try {
-    return readdirSync(join(ROOT, TESTS_DIR))
-      .filter((n) => n.endsWith('.test.js'))
-      .map((n) => `${TESTS_DIR}/${n}`);
-  } catch { return []; }
-}
-
-// Read-only count of the [N] checks in regression-check.mjs (the gate's presence + size).
-function regressionCount() {
-  const src = readSafe('tools/regression-check.mjs');
-  if (typeof src !== 'string') return null;
-  const m = src.match(/console\.log\(['"`]\[\d+\]/g);
-  return m ? m.length : null;
-}
-
-function latestReports(limit = 4) {
-  try {
-    return readdirSync(ROOT)
-      .filter((n) => /^torii-.*report\.md$/.test(n))
-      .map((n) => ({ n, mt: statSync(join(ROOT, n)).mtimeMs }))
-      .sort((a, b) => b.mt - a.mt)
-      .slice(0, limit)
-      .map((e) => e.n);
-  } catch { return []; }
-}
-
-// Recursively list dist/ paths relative to dist/ (forward slashes); null when no build.
-function distPaths() {
-  if (!existsSync(DIST)) return null;
-  const out = [];
-  const walk = (dir) => {
-    for (const name of readdirSync(dir)) {
-      const p = join(dir, name);
-      const st = statSync(p);
-      if (st.isDirectory()) walk(p);
-      else out.push(relative(DIST, p).replace(/\\/g, '/'));
-    }
+  const readSafe = (rel) => {
+    try { return readFileSync(join(root, rel), 'utf8'); } catch { return null; }
   };
-  walk(DIST);
-  return out;
-}
 
-function bundleSummary() {
-  if (!existsSync(DIST)) return null;
-  const entries = [];
-  if (existsSync(ASSETS)) {
-    for (const name of readdirSync(ASSETS)) {
-      if (!name.endsWith('.js')) continue;
-      const p = join(ASSETS, name);
-      if (!statSync(p).isFile()) continue;
-      const buf = readFileSync(p);
-      let gzip = null; try { gzip = gzipSync(buf).length; } catch { gzip = null; }
-      entries.push({ name, bytes: buf.length, gzip });
+  const configVersion = () => {
+    const m = (readSafe('src/config.js') || '').match(/VERSION\s*=\s*['"]([^'"]+)['"]/);
+    return m ? m[1] : null;
+  };
+
+  const packageVersion = () => {
+    try { return JSON.parse(readSafe('package.json') || '{}').version || null; } catch { return null; }
+  };
+
+  const gitCommit = () => {
+    try {
+      return execSync('git rev-parse --short HEAD', { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString().trim() || null;
+    } catch { return null; }
+  };
+
+  // All existing test files as `tests/<file>` paths (for validateProfiles — stale-entry guard).
+  const existingTests = () => {
+    try {
+      return readdirSync(join(root, TESTS_DIR))
+        .filter((n) => n.endsWith('.test.js'))
+        .map((n) => `${TESTS_DIR}/${n}`);
+    } catch { return []; }
+  };
+
+  // Read-only count of the [N] checks in regression-check.mjs (the gate's presence + size).
+  const regressionCount = () => {
+    const src = readSafe('tools/regression-check.mjs');
+    if (typeof src !== 'string') return null;
+    const m = src.match(/console\.log\(['"`]\[\d+\]/g);
+    return m ? m.length : null;
+  };
+
+  const latestReports = (limit = 4) => {
+    try {
+      return readdirSync(root)
+        .filter((n) => /^torii-.*report\.md$/.test(n))
+        .map((n) => ({ n, mt: statSync(join(root, n)).mtimeMs }))
+        .sort((a, b) => b.mt - a.mt)
+        .slice(0, limit)
+        .map((e) => e.n);
+    } catch { return []; }
+  };
+
+  // Recursively list dist/ paths relative to dist/ (forward slashes); null when no build.
+  const distPaths = () => {
+    if (!existsSync(DIST)) return null;
+    const out = [];
+    const walk = (dir) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name);
+        const st = statSync(p);
+        if (st.isDirectory()) walk(p);
+        else out.push(relative(DIST, p).replace(/\\/g, '/'));
+      }
+    };
+    walk(DIST);
+    return out;
+  };
+
+  const bundleSummary = () => {
+    if (!existsSync(DIST)) return null;
+    const entries = [];
+    if (existsSync(ASSETS)) {
+      for (const name of readdirSync(ASSETS)) {
+        if (!name.endsWith('.js')) continue;
+        const p = join(ASSETS, name);
+        if (!statSync(p).isFile()) continue;
+        const buf = readFileSync(p);
+        let gzip = null; try { gzip = gzipSync(buf).length; } catch { gzip = null; }
+        entries.push({ name, bytes: buf.length, gzip });
+      }
     }
-  }
-  const htmlPath = join(DIST, 'index.html');
-  if (existsSync(htmlPath)) {
-    const buf = readFileSync(htmlPath);
-    let gzip = null; try { gzip = gzipSync(buf).length; } catch { gzip = null; }
-    entries.push({ name: 'index.html', bytes: buf.length, gzip });
-  }
-  return summarizeBundle(entries, { warnLimit: DEFAULT_WARN_LIMIT });
+    const htmlPath = join(DIST, 'index.html');
+    if (existsSync(htmlPath)) {
+      const buf = readFileSync(htmlPath);
+      let gzip = null; try { gzip = gzipSync(buf).length; } catch { gzip = null; }
+      entries.push({ name: 'index.html', bytes: buf.length, gzip });
+    }
+    return summarizeBundle(entries, { warnLimit: DEFAULT_WARN_LIMIT });
+  };
+
+  // Zone /zone/* fallback verdict from the required docs + the built route shape.
+  const zoneFallbackVerdict = () => {
+    const docs = {};
+    for (const name of REQUIRED_FALLBACK_DOCS) {
+      const text = readSafe(name);
+      if (typeof text === 'string') docs[name] = text;
+    }
+    const paths = distPaths();
+    return checkZoneFallbackReadiness({ docs, dist: paths ? { paths } : {} });
+  };
+
+  // Docs/status consistency verdict for the current VERSION.
+  const docConsistencyVerdict = (version) => {
+    const files = {};
+    const present = {};
+    for (const name of [...CONTINUITY_DOCS, ...ADVISORY_DOCS]) {
+      const text = readSafe(name);
+      present[name] = typeof text === 'string';
+      if (typeof text === 'string') files[name] = text;
+    }
+    return checkDocConsistency({ version, files, present });
+  };
+
+  const version = configVersion();
+  return buildReleaseReadiness({
+    version,
+    packageVersion: packageVersion(),
+    gitCommit: gitCommit(),
+    existingTests: existingTests(),
+    regression: { count: regressionCount() },
+    bundle: bundleSummary(),
+    zoneFallback: zoneFallbackVerdict(),
+    docs: docConsistencyVerdict(version),
+    latestReports: latestReports(),
+  });
 }
 
-// Zone /zone/* fallback verdict from the required docs + the built route shape.
-function zoneFallbackVerdict() {
-  const docs = {};
-  for (const name of REQUIRED_FALLBACK_DOCS) {
-    const text = readSafe(name);
-    if (typeof text === 'string') docs[name] = text;
-  }
-  const paths = distPaths();
-  return checkZoneFallbackReadiness({ docs, dist: paths ? { paths } : {} });
+// CLI run-guard — print the formatted block + exit 0 ONLY when this file is the entry point
+// (npm run release:status / node tools/release-readiness.mjs). Imported by another tool, it
+// stays silent and side-effect-free (it just exposes gatherReleaseReadiness).
+const invokedDirectly = (() => {
+  try { return !!process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); }
+  catch { return false; }
+})();
+
+if (invokedDirectly) {
+  const summary = gatherReleaseReadiness(process.cwd());
+  console.log('');
+  console.log(formatReleaseReadiness(summary));
+  console.log('');
+  process.exit(0);
 }
-
-// Docs/status consistency verdict for the current VERSION.
-function docConsistencyVerdict(version) {
-  const files = {};
-  const present = {};
-  for (const name of [...CONTINUITY_DOCS, ...ADVISORY_DOCS]) {
-    const text = readSafe(name);
-    present[name] = typeof text === 'string';
-    if (typeof text === 'string') files[name] = text;
-  }
-  return checkDocConsistency({ version, files, present });
-}
-
-const version = configVersion();
-const summary = buildReleaseReadiness({
-  version,
-  packageVersion: packageVersion(),
-  gitCommit: gitCommit(),
-  existingTests: existingTests(),
-  regression: { count: regressionCount() },
-  bundle: bundleSummary(),
-  zoneFallback: zoneFallbackVerdict(),
-  docs: docConsistencyVerdict(version),
-  latestReports: latestReports(),
-});
-
-console.log('');
-console.log(formatReleaseReadiness(summary));
-console.log('');
-
-process.exit(0);

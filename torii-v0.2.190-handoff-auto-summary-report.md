@@ -146,4 +146,4 @@ only, but flagged to remove the warning.
 
 **No gameplay/runtime/physics/Nostr/portal code touched.**
 
-**Follow-up commit:** _(local-only; appended below)_
+**Follow-up commit:** `6002313` — _v0.2.190-alpha: confine handoff-summary --write to the repo (WARN-3)_ (local-only; not pushed)

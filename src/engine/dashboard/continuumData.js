@@ -33,7 +33,7 @@
 
 import { runReadHealth } from '../nostr/readHealth.js';
 
-export const CONTINUUM_VERSION = 'v0.2.214-alpha';
+export const CONTINUUM_VERSION = 'v0.2.215-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -48,7 +48,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1388,
+  passing: 1396,
   files: 86,
   fastProfile: 5,
   foundationProfile: 25,
@@ -579,6 +579,131 @@ export function buildRcStatusModel(input = {}) {
 // build-continuum.mjs re-runs buildRcStatusModel with the freshly gathered artifact presence.
 const CURATED_RCSTATUS = buildRcStatusModel();
 
+// MANUALVALIDATION_BADGE (v0.2.215) — names the manual-validation / playtest-readiness oversight
+// card as a local, read-only summary that the LOCAL automated gates are green but the MANUAL
+// (live-browser) MVP playtest + explicit user approval are still pending. It is never a release.
+export const MANUALVALIDATION_BADGE = 'MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY';
+
+// MANUALVALIDATION_LASTKNOWN (v0.2.215) — curated fallback playtest-readiness posture, captured by
+// hand and clearly LABELLED last-known on the page so a stale snapshot is obvious rather than
+// silently wrong. The build-time generator (build-continuum.mjs) overrides this with the LIVE
+// playtest-checklist section/item counts + blocker/major/minor severity tallies (from
+// tools/playtestChecklist.mjs), the on-disk presence of the checklist + results-template docs, the
+// count of highest-level manual live-browser validation areas, and the already-gathered last
+// local gate verdict — so the card tracks the real manual-validation backlog each deploy.
+export const MANUALVALIDATION_LASTKNOWN = Object.freeze({
+  sections: 13,
+  items: 17,
+  blocker: 4,
+  major: 5,
+  minor: 8,
+  validationAreas: 7,
+  checklistDocPresent: true,
+  resultsTemplatePresent: true,
+  gateStatusLabel: 'READY',
+  areas: [
+    'Launch / title screen',
+    'Shooter loop',
+    'Movement / footsteps',
+    'Aim / hit feedback / headshots / body shots',
+    'Reload feel',
+    'Gun / reflection / mirror sanity',
+    'Continuum dashboard + release/update prompt + Nostr read + gateway shell',
+  ],
+});
+
+// buildManualValidationModel(input) — PURE, browser-safe builder (v0.2.215). Folds the LOCAL
+// manual-validation / MVP-playtest readiness posture into a render-ready card so project oversight
+// sees, at a glance, the one thing the automated gates can NOT prove: that a human still has to run
+// the live-browser playtest and explicitly approve. It clearly SEPARATES "local automated gates
+// ready" from "user manual test still pending", and lists the highest-level manual validation
+// AREAS (counts + a short list) WITHOUT flooding the dashboard with all checklist items. Inputs are
+// plain data the generator gathers cheaply (checklist section/item/severity counts + doc-presence
+// booleans + the already-gathered last gate verdict) — NO fs/network/THREE/DOM/child_process here,
+// and it imports NO tools/ module so the browser bundle stays clean. With no input it degrades to
+// the honest LAST-KNOWN snapshot and NEVER throws. It reuses the existing pill vocabulary + .metric
+// markup (no new CSS/script) → the continuum CSP/refresh-script hash stay intact. INFORMATIONAL
+// only: it releases/tags/publishes/deploys NOTHING — manual playtest + explicit approval REQUIRED.
+export function buildManualValidationModel(input = {}) {
+  const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
+  const lk = MANUALVALIDATION_LASTKNOWN;
+  const live = !!(Number.isInteger(i.sections) || Number.isInteger(i.items) || i.gateStatusLabel
+    || typeof i.checklistDocPresent === 'boolean' || typeof i.resultsTemplatePresent === 'boolean');
+
+  const _int = (x, d) => (Number.isInteger(x) && x >= 0 ? x : d);
+  const _bool = (x, d) => (typeof x === 'boolean' ? x : d);
+  const _str = (x, d) => (typeof x === 'string' && x.trim() ? x.trim() : d);
+
+  const sections = _int(i.sections, lk.sections);
+  const items = _int(i.items, lk.items);
+  const blocker = _int(i.blocker, lk.blocker);
+  const major = _int(i.major, lk.major);
+  const minor = _int(i.minor, lk.minor);
+  const validationAreas = _int(i.validationAreas, lk.validationAreas);
+  const checklistDocPresent = _bool(i.checklistDocPresent, lk.checklistDocPresent);
+  const resultsTemplatePresent = _bool(i.resultsTemplatePresent, lk.resultsTemplatePresent);
+  const gateStatusLabel = _str(i.gateStatusLabel, lk.gateStatusLabel);
+  const areas = (Array.isArray(i.areas) && i.areas.length
+    && i.areas.every((a) => typeof a === 'string' && a.trim()))
+    ? i.areas.map((a) => a.trim())
+    : lk.areas;
+
+  // Coarse, honest band that SEPARATES the automated posture from the manual posture. Both
+  // playtest docs present + the last local gate READY → the automated gates are green and the
+  // ONLY thing outstanding is the human live-browser playtest + explicit approval. A missing
+  // checklist/results-template doc → the manual-validation scaffolding itself is incomplete. Any
+  // non-READY gate → manual validation is still outstanding behind a not-yet-green local gate.
+  const docsReady = checklistDocPresent && resultsTemplatePresent;
+  const gateReady = /^READY/i.test(gateStatusLabel);
+  let band; let bandLabel; let bandPill;
+  if (!docsReady) {
+    band = 'docs-incomplete'; bandLabel = 'PLAYTEST DOCS INCOMPLETE'; bandPill = 'gated';
+  } else if (gateReady) {
+    band = 'gates-green'; bandLabel = 'LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING'; bandPill = 'manual';
+  } else {
+    band = 'manual-outstanding'; bandLabel = 'MANUAL VALIDATION OUTSTANDING'; bandPill = 'manual';
+  }
+
+  const metrics = [
+    { label: 'Local automated gates', value: gateReady ? `${gateStatusLabel} · 15/15 local checks green` : gateStatusLabel },
+    { label: 'Manual playtest', value: 'PENDING · live-browser run + explicit user approval required' },
+    { label: 'Playtest checklist', value: `${sections} sections · ${items} items` },
+    { label: 'Severity coverage', value: `${blocker} blocker · ${major} major · ${minor} minor` },
+    { label: 'Playtest docs', value: `checklist ${checklistDocPresent ? 'present' : 'MISSING'} · results template ${resultsTemplatePresent ? 'present' : 'MISSING'}` },
+    { label: 'Manual validation areas', value: areas.join(' · ') },
+  ];
+
+  return {
+    badge: MANUALVALIDATION_BADGE,
+    kind: live ? 'generated' : 'last-known',
+    band,
+    statusLabel: bandLabel,
+    pill: bandPill,
+    sections,
+    items,
+    blocker,
+    major,
+    minor,
+    validationAreas,
+    checklistDocPresent,
+    resultsTemplatePresent,
+    gateStatusLabel,
+    areas,
+    metrics,
+    note: 'Manual-validation / MVP-playtest readiness — the one thing the local automated gates can '
+      + 'NOT prove. Local checks are green, but a human must still run the live-browser playtest '
+      + '(see the highest-level areas above) and explicitly approve before any release. GENERATED at '
+      + 'packaging time from the playtest-checklist section/item/severity counts + on-disk doc '
+      + 'presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys '
+      + 'NOTHING (run: npm run playtest:checklist / npm run playtest:results to refresh the docs).',
+  };
+}
+
+// The curated fallback manual-validation model — built at module load so renderContinuumPage() with
+// NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN playtest-readiness section.
+// build-continuum.mjs re-runs buildManualValidationModel with the freshly gathered checklist counts.
+const CURATED_MANUALVALIDATION = buildManualValidationModel();
+
 // CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
 // kept as the single source of that text so its CSP hash can never silently drift.
 // It is STATIC (no model interpolation), so its sha256 is stable across deploys: a
@@ -640,12 +765,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.214-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.215-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.214 CONTINUUM RC / RELEASE-MANIFEST STATUS CARD (dashboard/docs/tooling only, no runtime change) — the Continuum oversight dashboard now surfaces a read-only RC / RELEASE-MANIFEST status section just below Ship readiness, folding the release-candidate artifact posture into one band: current version, the release-artifact MANIFEST verdict (required/optional present), RC package-doc coverage, the curated test count + profile summary, how many MANUAL live-browser validation checks are still outstanding, and the last local release-gate verdict. The new pure buildRcStatusModel() DERIVES this from existing helpers/constants (release-manifest REQUIRED/OPTIONAL refs + RC_SNAPSHOT doc refs/manual-validation list, stat-ed on disk by build-continuum.mjs) rather than duplicating gate logic; it reuses the existing .metric/.pill markup so the continuum CSP/refresh-script hash are untouched, and honestly shows ARTIFACTS INCOMPLETE if any required artifact/RC doc is missing. +7 unit tests (tests/continuum-dashboard.test.js). Prior — v0.2.213 shell-less release tooling report discovery. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Active slice', value: 'v0.2.215 CONTINUUM MANUAL-VALIDATION / MVP-PLAYTEST READINESS CARD (dashboard/docs/tooling only, no runtime change) — the Continuum oversight dashboard now surfaces a read-only MANUAL VALIDATION section just below the RC / release-manifest card that CLEARLY SEPARATES what is no-blocker (the local automated gates, green) from what still needs manual input (the live-browser MVP playtest + explicit user approval). It folds the playtest-checklist section/item counts + blocker/major/minor severity tallies, the on-disk presence of the checklist + results-template docs, and the highest-level manual validation areas into one band (LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING / PLAYTEST DOCS INCOMPLETE / MANUAL VALIDATION OUTSTANDING). The new pure buildManualValidationModel() DERIVES this from existing helpers/constants (PLAYTEST_CHECKLIST_SECTIONS/playtestItemCount/PLAYTEST_SEVERITIES + the two playtest docs stat-ed on disk by build-continuum.mjs) rather than duplicating gate logic; it reuses the existing .metric/.pill markup so the continuum CSP/refresh-script hash are untouched. +8 unit tests (tests/continuum-dashboard.test.js). Prior — v0.2.214 RC / release-manifest status card. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the
@@ -823,6 +948,7 @@ export function buildContinuumModel(overrides = {}) {
     readiness: base.readiness || CURATED_READINESS,
     ship: base.ship || CURATED_SHIP,
     rcStatus: base.rcStatus || CURATED_RCSTATUS,
+    manualValidation: base.manualValidation || CURATED_MANUALVALIDATION,
     readHealth: base.readHealth || CURATED_READHEALTH,
     taskTotals,
     derived,
@@ -845,6 +971,7 @@ export function continuumDataJSON(model = buildContinuumModel()) {
     readiness: model.readiness || null,
     ship: model.ship || null,
     rcStatus: model.rcStatus || null,
+    manualValidation: model.manualValidation || null,
     readHealth: model.readHealth || null,
   };
 }
@@ -1151,6 +1278,29 @@ ${note}
     </section>`;
 }
 
+// _manualValidationSection(mv) — the manual-validation / MVP-playtest readiness section (v0.2.215):
+// an overall band pill + provenance chip + badge, a small grid of metric cards that SEPARATE the
+// green local automated gates from the still-PENDING human live-browser playtest (checklist
+// section/item/severity counts, doc presence, and the highest-level validation areas), and a
+// read-only note. Empty string when absent so an override-free legacy model omits it. Server-
+// rendered + escaped; reuses the .metric/.pill markup → no new script, no new data-k key, the
+// CSP/refresh-script hash stay intact. Pure.
+function _manualValidationSection(mv) {
+  if (!mv || !Array.isArray(mv.metrics) || !mv.metrics.length) return '';
+  const allowed = new Set(['no-blocker', 'gated', 'manual', 'deferred', 'open-edge']);
+  const pillState = allowed.has(mv.pill) ? mv.pill : 'manual';
+  const note = mv.note ? `      <div class="focus">${escapeHtml(mv.note)}</div>` : '';
+  return `
+    <section>
+      <div class="h2row"><h2>Manual validation</h2> <span class="pill pill-${pillState}">${escapeHtml(mv.statusLabel)}</span> ${_healthChip(mv.kind)} <span class="badge">${escapeHtml(mv.badge)}</span></div>
+      <div class="lead">Local automated gates are green, but the MVP playtest is a human, live-browser task. This separates what is no-blocker (local gates) from what still needs manual input (the playtest + explicit approval). Read-only.</div>
+      <div class="grid">
+${_metricRows(mv.metrics)}
+      </div>
+${note}
+    </section>`;
+}
+
 // renderContinuumPage(model) — full self-contained static HTML document string.
 // Dark Torii/nostrich/cyberpunk feel via inline CSS only; CSS bars + SVG rings.
 // The page renders fully WITHOUT JavaScript. A tiny, optional, same-origin-only
@@ -1306,6 +1456,7 @@ export function renderContinuumPage(model = buildContinuumModel()) {
     </section>
 ${_shipSection(m.ship)}
 ${_rcStatusSection(m.rcStatus)}
+${_manualValidationSection(m.manualValidation)}
 ${_milestonesSection(m.milestones)}
 
     <section>

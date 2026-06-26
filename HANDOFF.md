@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.214-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.215-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -520,6 +520,30 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.215** CONTINUUM MANUAL-VALIDATION / MVP-PLAYTEST READINESS CARD — a dashboard/docs/tooling
+  slice (no runtime change). The Torii Continuum oversight dashboard now surfaces a read-only
+  **Manual validation** section just below the RC / release-manifest card that CLEARLY SEPARATES what
+  is no-blocker (the LOCAL automated gates, green) from what still needs manual input (the live-
+  browser MVP playtest + explicit user approval). It folds the playtest-checklist section/item counts
+  + blocker/major/minor severity tallies, the on-disk presence of the checklist + results-template
+  docs, and the highest-level manual validation areas into one band. A new PURE, browser-safe
+  `buildManualValidationModel(input?)` in `src/engine/dashboard/continuumData.js` DERIVES this from
+  existing helpers/constants — `PLAYTEST_CHECKLIST_SECTIONS`/`playtestItemCount()`/`PLAYTEST_SEVERITIES`
+  (from `tools/playtestChecklist.mjs`) + the two playtest docs stat-ed on disk (cheap file-presence
+  only — no crypto/git/network) by `tools/build-continuum.mjs` and folded in via
+  `buildContinuumModel({manualValidation})` — rather than duplicating gate logic; with no input it
+  degrades to an honest `MANUALVALIDATION_LASTKNOWN` fallback (`kind:'last-known'`) and never throws.
+  Band: checklist/results-template doc missing → PLAYTEST DOCS INCOMPLETE; docs present + gate READY →
+  LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING; else MANUAL VALIDATION OUTSTANDING. Reuses
+  the existing `.metric`/`.pill` markup so the continuum CSP + inline refresh-script hash are
+  untouched; every value HTML-escaped. `tests/continuum-dashboard.test.js` (+8; suite now 1396/86):
+  last-known model, live generated band separating automated vs manual, PLAYTEST DOCS INCOMPLETE on a
+  missing doc, MANUAL VALIDATION OUTSTANDING on a non-green gate, pill vocabulary, `continuumDataJSON`
+  carries `manualValidation`, render shows the section, hostile-input escape + script-hash intact.
+  DASHBOARD/DOCS/TOOLING-ONLY — no generator output-shape break; no runtime/gameplay/physics/shooter/
+  Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/
+  self-update; `godMode` stays false; no new `setTimeout`/`Vector3`/`Matrix4`.
+  Latest slice report: `torii-v0.2.215-manual-validation-dashboard-report.md`.
   **v0.2.214** CONTINUUM RC / RELEASE-MANIFEST STATUS CARD — a dashboard/docs/tooling slice (no
   runtime change). The Torii Continuum oversight dashboard now surfaces a read-only **RC / release
   manifest** section just below Ship readiness, folding the local release-candidate artifact posture

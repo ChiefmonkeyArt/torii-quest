@@ -18,6 +18,7 @@ import {
   READINESS_BADGE, buildReadinessModel,
   SHIP_BADGE, SHIP_LASTKNOWN, SHIP_NEXT_SAFE_TASK, buildShipModel,
   RCSTATUS_BADGE, RCSTATUS_LASTKNOWN, buildRcStatusModel,
+  MANUALVALIDATION_BADGE, MANUALVALIDATION_LASTKNOWN, buildManualValidationModel,
   READHEALTH_BADGE, buildReadHealthModel,
   escapeHtml, clampPct, barCells, ringDash,
   computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
@@ -28,7 +29,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.214-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.215-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -133,7 +134,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.214-alpha');
+    expect(round.version).toBe('v0.2.215-alpha');
     expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -145,7 +146,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.214-alpha');
+    expect(html).toContain('v0.2.215-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -699,6 +700,98 @@ describe('RC / release-manifest status (v0.2.214)', () => {
   });
 });
 
+describe('manual validation / MVP-playtest readiness (v0.2.215)', () => {
+  it('degrades to an honest LAST-KNOWN model with no input (never throws)', () => {
+    const mv = buildManualValidationModel();
+    expect(mv.kind).toBe('last-known');
+    expect(mv.badge).toBe(MANUALVALIDATION_BADGE);
+    expect(mv.sections).toBe(MANUALVALIDATION_LASTKNOWN.sections);
+    expect(mv.items).toBe(MANUALVALIDATION_LASTKNOWN.items);
+    expect(Array.isArray(mv.metrics)).toBe(true);
+    expect(mv.metrics.length).toBe(6);
+    // Docs present + a READY last gate → local gates green, manual playtest still pending.
+    expect(mv.band).toBe('gates-green');
+    expect(mv.pill).toBe('manual');
+    expect(mv.statusLabel).toMatch(/MANUAL PLAYTEST \+ APPROVAL PENDING/);
+  });
+
+  it('folds LIVE checklist counts into a generated band that SEPARATES automated vs manual', () => {
+    const mv = buildManualValidationModel({
+      sections: 13, items: 17, blocker: 4, major: 5, minor: 8,
+      validationAreas: 7, checklistDocPresent: true, resultsTemplatePresent: true,
+      gateStatusLabel: 'READY',
+    });
+    expect(mv.kind).toBe('generated');
+    expect(mv.band).toBe('gates-green');
+    const byLabel = Object.fromEntries(mv.metrics.map((m) => [m.label, m.value]));
+    // Local automated gates report GREEN, but the manual playtest is explicitly PENDING.
+    expect(byLabel['Local automated gates']).toMatch(/READY/);
+    expect(byLabel['Manual playtest']).toMatch(/PENDING/);
+    expect(byLabel['Manual playtest']).toMatch(/approval required/i);
+    expect(byLabel['Playtest checklist']).toBe('13 sections · 17 items');
+    expect(byLabel['Severity coverage']).toBe('4 blocker · 5 major · 8 minor');
+  });
+
+  it('reports PLAYTEST DOCS INCOMPLETE when the checklist or results-template doc is missing', () => {
+    const noChecklist = buildManualValidationModel({ checklistDocPresent: false, resultsTemplatePresent: true, gateStatusLabel: 'READY' });
+    expect(noChecklist.band).toBe('docs-incomplete');
+    expect(noChecklist.pill).toBe('gated');
+    expect(noChecklist.statusLabel).toBe('PLAYTEST DOCS INCOMPLETE');
+    const noTemplate = buildManualValidationModel({ checklistDocPresent: true, resultsTemplatePresent: false, gateStatusLabel: 'READY' });
+    expect(noTemplate.band).toBe('docs-incomplete');
+  });
+
+  it('reports MANUAL VALIDATION OUTSTANDING when docs ready but the local gate is not green', () => {
+    const mv = buildManualValidationModel({ checklistDocPresent: true, resultsTemplatePresent: true, gateStatusLabel: 'NEAR' });
+    expect(mv.band).toBe('manual-outstanding');
+    expect(mv.pill).toBe('manual');
+    expect(mv.statusLabel).toBe('MANUAL VALIDATION OUTSTANDING');
+  });
+
+  it('the band pill uses only the existing pill vocabulary (no new CSS)', () => {
+    const allowed = new Set(['no-blocker', 'gated', 'manual', 'deferred', 'open-edge']);
+    for (const input of [undefined,
+      { checklistDocPresent: true, resultsTemplatePresent: true, gateStatusLabel: 'READY' },
+      { checklistDocPresent: true, resultsTemplatePresent: true, gateStatusLabel: 'NEAR' },
+      { checklistDocPresent: false, resultsTemplatePresent: true, gateStatusLabel: 'READY' }]) {
+      expect(allowed.has(buildManualValidationModel(input).pill)).toBe(true);
+    }
+  });
+
+  it('continuumDataJSON carries the manualValidation model', () => {
+    const j = continuumDataJSON();
+    expect(j.manualValidation).toBeTruthy();
+    expect(typeof j.manualValidation.statusLabel).toBe('string');
+    expect(Array.isArray(j.manualValidation.metrics)).toBe(true);
+  });
+
+  it('renderContinuumPage shows the manual-validation section + badge + band pill', () => {
+    const html = renderContinuumPage();
+    expect(html).toContain('Manual validation');
+    expect(html).toContain(MANUALVALIDATION_BADGE);
+    expect(html).toContain('Local automated gates');
+    expect(html).toContain('Manual playtest');
+    expect(html).toContain('Playtest checklist');
+  });
+
+  it('SAFETY: a tag-injecting manualValidation is escaped + no new script + hash intact', () => {
+    const hostile = buildManualValidationModel({
+      gateStatusLabel: 'READY<script>alert(1)</script>',
+      checklistDocPresent: true, resultsTemplatePresent: true,
+      areas: ['<img src=x onerror=alert(1)>', '</section><script>evil()</script>'],
+    });
+    const html = renderContinuumPage(buildContinuumModel({ manualValidation: hostile }));
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<script>evil()</script>');
+    expect(html).not.toContain('<img src=x');
+    expect((html.match(/<script/g) || []).length).toBe(1);
+    const m = html.match(/<script>([\s\S]*?)<\/script>/);
+    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
+    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+  });
+});
+
 describe('layout / readability pass (v0.2.177)', () => {
   const html = renderContinuumPage();
 
@@ -859,7 +952,7 @@ describe('test-count freshness (v0.2.200 — single source of truth)', () => {
 
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.214-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.215-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });

@@ -16,6 +16,7 @@ import {
   buildReadinessModel,
   buildShipModel,
   buildRcStatusModel,
+  buildManualValidationModel,
   CURRENT_TEST_STATUS,
   testCountLabel,
   HEALTH_LASTKNOWN,
@@ -27,6 +28,12 @@ import { REQUIRED_FALLBACK_DOCS, checkZoneFallbackReadiness } from './zoneFallba
 import { gatherReleaseReadiness } from './release-readiness.mjs';
 import { RELEASE_MANIFEST_REQUIRED, RELEASE_MANIFEST_OPTIONAL } from './releaseManifest.mjs';
 import { RC_SNAPSHOT_DOC_REFS, RC_SNAPSHOT_MANUAL_VALIDATION } from './rcSnapshot.mjs';
+import {
+  PLAYTEST_CHECKLIST_SECTIONS,
+  PLAYTEST_SEVERITIES,
+  PLAYTEST_CHECKLIST_WRITE_FILENAME,
+  playtestItemCount,
+} from './playtestChecklist.mjs';
 import { PROFILES } from './testProfiles.mjs';
 import { VERSION } from '../src/config.js';
 
@@ -147,10 +154,39 @@ try {
   console.log(`[continuum] rc status: live gather unavailable (${e.message}) — using last-known`);
 }
 
+// Manual-validation / MVP-playtest readiness (v0.2.215) — surface the one thing the LOCAL
+// automated gates can NOT prove: that a human must still run the live-browser MVP playtest and
+// explicitly approve. DERIVED (not re-gated) from existing helpers/constants: the playtest-
+// checklist section/item counts + severity tallies (tools/playtestChecklist.mjs), the on-disk
+// presence of the checklist + results-template docs, the highest-level manual validation areas
+// (the RC-snapshot live-browser steps), and the already-gathered last local gate verdict. Cheap
+// file-presence only — no crypto, no git, no network — and it reuses the frozen lists so it can
+// never drift from the playtest-checklist CLI. On any failure we degrade to the curated card.
+let manualValidation;
+try {
+  const sectionList = PLAYTEST_CHECKLIST_SECTIONS;
+  const allItems = sectionList.flatMap((s) => s.items || []);
+  const sevCount = (sev) => allItems.filter((it) => it.severity === sev).length;
+  manualValidation = buildManualValidationModel({
+    sections: sectionList.length,
+    items: playtestItemCount(),
+    blocker: sevCount('blocker'),
+    major: sevCount('major'),
+    minor: sevCount('minor'),
+    validationAreas: RC_SNAPSHOT_MANUAL_VALIDATION.length,
+    checklistDocPresent: existsSync(join(ROOT, PLAYTEST_CHECKLIST_WRITE_FILENAME)),
+    resultsTemplatePresent: existsSync(join(ROOT, 'MVP_PLAYTEST_RESULTS_TEMPLATE.md')),
+    gateStatusLabel: ship.statusLabel,
+  });
+} catch (e) {
+  manualValidation = buildManualValidationModel(); // honest LAST-KNOWN fallback
+  console.log(`[continuum] manual validation: live gather unavailable (${e.message}) — using last-known`);
+}
+
 // Stamp the packaged build time so the page can show when the data was packaged.
 const generatedAt = new Date().toISOString();
 const model = {
-  ...buildContinuumModel({ ...overrides, health, readiness, ship, rcStatus, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
+  ...buildContinuumModel({ ...overrides, health, readiness, ship, rcStatus, manualValidation, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
   generatedAt,
 };
 
@@ -168,3 +204,4 @@ console.log(`[continuum] health: profiles fast ${PROFILES.fast.length}/foundatio
 console.log(`[continuum] readiness: ${readiness.statusLabel} (zone-fallback ${zoneFallback.ok ? 'ok' : 'FAIL'}; dist ${distPaths ? 'checked' : 'skipped — no build yet'})`);
 console.log(`[continuum] ship readiness: ${ship.statusLabel} (${ship.kind})${ship.blockers && ship.blockers.length ? ` blockers: ${ship.blockers.join(', ')}` : ''}`);
 console.log(`[continuum] rc status: ${rcStatus.statusLabel} (${rcStatus.kind}) · manifest ${rcStatus.manifestStatus} ${rcStatus.manifestRequiredPresent}/${rcStatus.manifestRequired} req · rc-docs ${rcStatus.rcDocsPresent}/${rcStatus.rcDocsTotal}`);
+console.log(`[continuum] manual validation: ${manualValidation.statusLabel} (${manualValidation.kind}) · checklist ${manualValidation.sections} sections/${manualValidation.items} items · ${manualValidation.blocker}/${manualValidation.major}/${manualValidation.minor} b/M/m · areas ${manualValidation.validationAreas}`);

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.206-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.207-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -493,7 +493,34 @@ Breaking one should fail CI/the check, not ship.
   `tests/release-package.test.js` (+12; suite now 1316/83). INDEX ONLY — no GitHub release, no git
   tag, no announcement, no network/server, no deploy/publish; no gameplay/physics/shooter/Rapier
   change; no Nostr signing/publishing/live network write; `godMode` stays false.
-  Latest slice report: `torii-v0.2.206-mvp-release-package-report.md`.
+  **v0.2.207** added a GITHUB MVP RELEASE DRY-RUN — a pure, node-safe LOCAL dry-run
+  (`tools/githubReleaseDryRun.mjs` + thin CLI `tools/github-release-dry-run.mjs`,
+  `npm run release:dry-run`) that validates the prerequisites for a FUTURE GitHub MVP proof
+  release WITHOUT creating it. It folds a frozen 9-item prerequisite set (version marker,
+  version↔package sync, clean working tree, pushed commit, release-notes draft present, release
+  package present, RC gate ready, public live URL, no autoUpdate/actionable release metadata) +
+  3 known advisories into `{schema:'torii.github-release-dry-run'/v1, badge, title, dryRun:true,
+  version, packageVersion, gitCommit, status('ready'/'near'/'blocked'), statusLabel, ready,
+  prerequisites[] (each {key,label,gating,state∈ok/blocked/pending/unknown,detail}), missing[],
+  advisories[], approvalGate, approvalRequired:true, futureCommands[] (git tag / git push / gh
+  release — each note demands approval), safety (tagged/released/pushed/published/deployed/
+  announced/served/navigated/wrote/network all false), rendered:false, actionable:false}`. Verdict:
+  a gating prereq `blocked` → BLOCKED; a gating `unknown` or a soft-pending (expected dirty tree /
+  unpushed HEAD before the parent pushes) → NEAR; else READY — even READY reads "(pending manual
+  approval)" because the manual-approval gate is a standing always-shown requirement, never scored.
+  The thin CLI stamps version (`configVersion()`) + package version + best-effort short commit +
+  read-only git (`git status --porcelain`; `git rev-parse HEAD` vs `@{u}` — NO fetch) + the SHARED
+  live URL + the release-metadata autoUpdate/actionable read; it builds with `gateReady:null` (the
+  RC gate is deliberately NOT run, holding gate-ready at `unknown`→NEAR rather than over-claiming);
+  modes text / `--json` (schema `torii.github-release-dry-run` v1) / `--markdown`; READ-ONLY except
+  an opt-in bounded in-repo `--write[=path]` (default `GITHUB_RELEASE_DRY_RUN.md`, confined via the
+  SHARED `resolveHandoffWritePath` — absolute / `..` rejected); always exits 0 (rejected `--write`
+  path → exit 2). `tests/github-release-dry-run.test.js` (+16; suite now 1332/84). DRY-RUN ONLY —
+  runs NO `git tag`, NO `git push`, NO `gh release`, NO deploy/publish/announce, reaches NO network/
+  server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
+  user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
+  write; `godMode` stays false.
+  Latest slice report: `torii-v0.2.207-github-release-dry-run-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
@@ -655,6 +682,7 @@ npm run handoff:summary # ONE concise AI-handoff brief for the next agent/model 
 npm run docs:stale # ADVISORY stale-doc detector (v0.2.191): catches docs/status/version drift earlier/clearer than docConsistency — version-HEADER drift per continuity doc, a doc that never mentions the current version, a newest report nobody links, a newest report lagging the current version, disagreeing test counts across continuity docs. Low false positives (HEADER-only matching + quoted-span stripping). Text default; --json; read-only/local/network-free; ALWAYS exits 0 — NOT in `npm run check` (the hard gate stays docConsistency [14])
 npm run release:meta # GitHub release/update METADATA for the FUTURE torii.quest/VPS update-checker (v0.2.192): shapes {kind, schemaVersion, channel (from version tag), version, commit, doc-only GitHub source URLs, dist artifact expectations, requiredFiles/requiredChecks, manual/no-auto-update consent+notice}. validateReleaseMeta ERRORs if update.autoUpdate/actionable is not false (no-auto-update safety floor). Text default; --json; --write the DETERMINISTIC public/release-metadata.json (re-runs never churn); --stamp bakes live commit/time for a deploy step. Read-only by default, writes only the in-repo safe path under --write; ALWAYS exits 0. NO live update execution, NO runtime network
 npm run vps:dry-run # LOCAL VPS/static-host install DRY-RUN readiness checklist (v0.2.193): an operator runs it BEFORE deploying torii.quest — NO SSH/network/DNS/server change. Pure runVpsDryRun() reuses validateReleaseMeta() + fallbackEvidence() and folds 11 checks (required deploy docs; dist/ index.html + copied release-metadata.json; metadata present + manual-only; real repo ChiefmonkeyArt/torii-gate; /zone/* fallback; VPS_INSTALL.md sections; build/verify commands; rollback + manual wording; service-worker stance; live URLs). Text default; --json; read-only/local/network-free; exits non-zero ONLY on a blocking FAIL (warn/skip never fail). NOT in `npm run check` (standalone operator tool)
+npm run release:dry-run # LOCAL GitHub MVP release DRY-RUN checklist (v0.2.207): validates the prerequisites for a FUTURE GitHub MVP proof release WITHOUT creating it. Folds a frozen 9-item prerequisite set (version marker, version↔package sync, clean working tree, pushed commit, release-notes draft present, release package present, RC gate ready, public live URL, no autoUpdate/actionable release metadata) + 3 advisories into status READY/NEAR/BLOCKED. CLI does read-only git only (git status --porcelain; git rev-parse HEAD vs @{u} — NO fetch); builds with gateReady:null. Text default; --json (schema torii.github-release-dry-run v1); --markdown; opt-in in-repo --write[=path] (default GITHUB_RELEASE_DRY_RUN.md). Runs NO git tag / git push / gh release / deploy / publish / network; suggested future commands are TEXT ONLY, each demanding explicit user approval; ALWAYS exits 0 (rejected --write path → exit 2)
 ```
 
 **Test profiles (v0.2.173).** The `test:fast`/`test:foundation` profiles are explicit,

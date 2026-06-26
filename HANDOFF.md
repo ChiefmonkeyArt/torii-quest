@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.223-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.224-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -523,6 +523,28 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.224** MVP PLAYTEST NOTE CAPTURE — a docs/tooling slice (no runtime change) that makes it
+  easy to turn the user's rough manual-test notes into the canonical `MVP_PLAYTEST_RESULTS.md` later
+  WITHOUT guessing or implying approval. New PURE, node-safe `tools/playtestNoteCapture.mjs`
+  (`explainPlaytestCapture(text)`/`formatPlaytestCaptureExplain` + frozen
+  `PLAYTEST_NOTE_CAPTURE_SCHEMA`='torii.playtest-note-capture'/v1, `_BADGE` carrying 'READ-ONLY' +
+  'NOT AN APPROVAL', `CAPTURE_FOLLOWUP_FIELDS`) WRAPS the canonical
+  `parsePlaytestResults`/`summarizePlaytestResults` parser + `summarizePlaytestForState` state model
+  (single source of truth — no second vocabulary) and layers per-item FIELD-completeness on top: it
+  explains which meta fields (build/commit/liveUrl/tester/date/environment/overall) and per-item
+  fields are still blank, classifies each item PASS/FAIL/N-A/blank, and for any FAIL flags the
+  follow-up fields a tester still owes (`severity`+`nextAction`; media optional) so notes map cleanly
+  to pass/fail/blocker/attention. `approvalImplied` is HARD-pinned **false** in EVERY branch — capture
+  is necessary but NEVER sufficient. Thin STRICTLY READ-ONLY CLI `tools/playtest-capture.mjs`
+  (`npm run playtest:capture`; text / `--json` / `--file=` confined in-repo, NO `--write` at all) —
+  so the no-clobber `MVP_PLAYTEST_RESULTS.md` is structurally untouchable. New how-to doc
+  `PLAYTEST_NOTE_CAPTURE.md` (one-minute loop + note→result mapping + severity + status-derivation +
+  an explicit "this is never an approval" section). `tests/playtest-note-capture.test.js` (+11; suite
+  1471/89 → 1482/90). DOCS/TOOLING-ONLY — strictly read-only; **status STAYS not-run/pending — no
+  results fabricated, no MVP approval granted in this slice**; no runtime/gameplay/physics/shooter/
+  Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/
+  release/self-update; `godMode` stays false; no new `setTimeout`/`Vector3`/`Matrix4`. Latest slice
+  report: `torii-v0.2.224-playtest-note-capture-report.md`.
   **v0.2.223** MVP PLAYTEST RESULTS ON THE CONTINUUM DASHBOARD — a docs/dashboard/tooling slice (no
   runtime change) surfacing the v0.2.222 playtest-results state VISIBLY on the Continuum dashboard so
   the page shows whether the actual MVP playtest has been RECORDED, not only that approval is pending.

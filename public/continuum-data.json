@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.223-alpha",
-  "generatedAt": "2026-06-26T09:54:56.002Z",
+  "version": "v0.2.224-alpha",
+  "generatedAt": "2026-06-26T10:19:34.141Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,17 +48,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.223-alpha"
+        "value": "v0.2.224-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 89"
+        "value": "fast 5 · foundation 25 · full 90"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1471 passing / 89 files"
+        "value": "1482 passing / 90 files"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.223-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.224-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -100,7 +100,7 @@
       {
         "pct": 28,
         "label": "Foundation coverage",
-        "sub": "25/89 files"
+        "sub": "25/90 files"
       }
     ]
   },
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.223-alpha",
-    "gitCommit": "4dfe4c7",
+    "version": "v0.2.224-alpha",
+    "gitCommit": "54e16d5",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.223-alpha / pkg 0.2.223-alpha"
+        "detail": "config v0.2.224-alpha / pkg 0.2.224-alpha"
       },
       {
         "key": "tests",
@@ -252,7 +252,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.223-alpha",
+    "version": "v0.2.224-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -260,14 +260,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "1471 passing / 89 files",
+    "testLabel": "1482 passing / 90 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.223-alpha"
+        "value": "v0.2.224-alpha"
       },
       {
         "label": "Release manifest",
@@ -279,7 +279,7 @@
       },
       {
         "label": "Tests",
-        "value": "1471 passing / 89 files"
+        "value": "1482 passing / 90 files"
       },
       {
         "label": "Test profiles",
@@ -399,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.223-alpha",
+    "version": "v0.2.224-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -409,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.223-alpha"
+        "value": "v0.2.224-alpha"
       },
       {
         "label": "Approved by",

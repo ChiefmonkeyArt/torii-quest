@@ -1,11 +1,11 @@
 # Torii Quest — MVP Release Package — Release Package Index
 
 > MVP RELEASE PACKAGE INDEX · LOCAL · READ-ONLY
-> generated: 2026-06-26T09:53:16.503Z
+> generated: 2026-06-26T10:17:49.288Z
 
-- **Version:** v0.2.223-alpha @ 4dfe4c7 (source)
+- **Version:** v0.2.224-alpha @ 54e16d5 (source)
 - **Live:** https://torii-quest.pplx.app
-- **Tests:** 1471 passing / 89 files
+- **Tests:** 1482 passing / 90 files
 
 ## Package files
 
@@ -33,12 +33,12 @@
 
 ## Recent reports
 
-- `torii-v0.2.218-package-private-report.md`
 - `torii-v0.2.219-service-worker-cache-hygiene-report.md`
 - `torii-v0.2.220-mvp-approval-state-report.md`
 - `torii-v0.2.221-mvp-approval-dashboard-report.md`
 - `torii-v0.2.222-playtest-results-intake-report.md`
 - `torii-v0.2.223-playtest-results-dashboard-report.md`
+- `torii-v0.2.224-playtest-note-capture-report.md`
 
 ## Known non-blocking advisories
 

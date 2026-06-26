@@ -1,10 +1,10 @@
 # Torii Quest — MVP RC Snapshot — RC Freeze-Candidate Snapshot
 
 > MVP RC SNAPSHOT · FREEZE CANDIDATE · LOCAL · READ-ONLY
-> generated: 2026-06-26T09:53:24.107Z
+> generated: 2026-06-26T10:17:54.179Z
 
 - **Status:** FREEZE-CANDIDATE
-- **Version:** v0.2.223-alpha @ 4dfe4c7 (source)
+- **Version:** v0.2.224-alpha @ 54e16d5 (source)
 - **Live (manual deploy):** https://torii-quest.pplx.app
 - **Version consistency:** ok
 
@@ -16,7 +16,7 @@
 ## MVP readiness
 
 - **Readiness:** 100% · READY (9/9 signals)
-- **Tests:** 1471 passing / 89 files (full)
+- **Tests:** 1482 passing / 90 files (full)
 - **Regression:** 15 / 15 checks
 
 ## GitHub release dry-run
@@ -68,12 +68,12 @@ _All git/release/deploy steps below are gated on explicit user approval and NONE
 
 ## Recent reports
 
-- `torii-v0.2.218-package-private-report.md`
 - `torii-v0.2.219-service-worker-cache-hygiene-report.md`
 - `torii-v0.2.220-mvp-approval-state-report.md`
 - `torii-v0.2.221-mvp-approval-dashboard-report.md`
 - `torii-v0.2.222-playtest-results-intake-report.md`
 - `torii-v0.2.223-playtest-results-dashboard-report.md`
+- `torii-v0.2.224-playtest-note-capture-report.md`
 
 ---
 

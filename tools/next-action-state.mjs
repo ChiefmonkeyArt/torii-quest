@@ -45,6 +45,7 @@ import { runMvpReadiness } from '../src/engine/status/mvpReadiness.js';
 import { buildApprovalState, MVP_APPROVAL_FILE, MVP_APPROVAL_STATUSES } from './mvpApproval.mjs';
 import { parsePlaytestResults, summarizePlaytestResults } from './playtestResults.mjs';
 import { PLAYTEST_RESULTS_STATE_FILE } from './playtestResultsState.mjs';
+import { buildLiveSmokeState, LIVE_SMOKE_FILE, LIVE_SMOKE_RESULTS } from './liveSmokeState.mjs';
 
 const ROOT = process.cwd();
 
@@ -115,6 +116,23 @@ function gatherPlaytestResults() {
   return summarizePlaytestResults(parsePlaytestResults(text));
 }
 
+// Load the committed live-smoke state (re-shaped through buildLiveSmokeState so a hand-edited file
+// is normalised), or the default UNKNOWN record if the artifact is missing/garbled. Read-only here
+// — this tool never records a smoke; it only FOLDS the record into the export.
+function gatherLiveSmoke() {
+  const raw = readSafe(LIVE_SMOKE_FILE);
+  if (raw) {
+    try {
+      const p = JSON.parse(raw);
+      return buildLiveSmokeState({
+        result: p.result, version: p.version, commit: p.commit, liveUrl: p.liveUrl,
+        smokedAt: p.smokedAt, smokedBy: p.smokedBy, checks: p.checks, notes: p.notes,
+      });
+    } catch { /* fall through */ }
+  }
+  return buildLiveSmokeState({ result: LIVE_SMOKE_RESULTS.UNKNOWN, version: configVersion() });
+}
+
 // docs pointers: the curated core docs that exist on disk + the generated handoff artifact.
 function gatherDocs() {
   const out = [];
@@ -165,6 +183,7 @@ if (invokedDirectly) {
     docs: gatherDocs(),
     mvpApproval: gatherMvpApproval(),
     playtestResults: gatherPlaytestResults(),
+    liveSmoke: gatherLiveSmoke(),
     generatedAt: new Date().toISOString(),
   });
 

@@ -33,7 +33,7 @@
 
 import { runReadHealth } from '../nostr/readHealth.js';
 
-export const CONTINUUM_VERSION = 'v0.2.230-alpha';
+export const CONTINUUM_VERSION = 'v0.2.231-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -48,8 +48,8 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1514,
-  files: 92,
+  passing: 1531,
+  files: 93,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -1097,12 +1097,13 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.230-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.231-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.230 ENTRY-FLOW RUNTIME FIX (bundle-independent inline bootstrap) — despite the v0.2.228/229 source fixes, the LIVE site was STILL a complete silent no-op on BOTH title buttons (ENTER ARENA and LOGIN WITH NOSTR): the static version label rendered but every button was dead. Root cause: those buttons are wired ONLY by the module bundle /assets/index-<hash>.js, so if that bundle 404s (stale SW shell pinning an old hash) OR throws at module-eval (e.g. WebGL/renderer init failing in a headless cloud browser) BEFORE the handlers bind, no listener attaches and the page only LOOKS alive. The earlier source-level immediate-feedback fixes cannot help because the module never runs. Fix: an attribute-less inline IIFE in index.html (verbatim-preserved by Vite; CSP sha256 recomputed) binds click handlers to #btn-enter and #btn-nostr-centre INDEPENDENT of the bundle — ENTER shows a visible "Engine still loading…" line, LOGIN shows the full "NIP-07 extension not found" no-provider fallback (or "Login still loading…") — so neither button is ever a silent no-op even when the bundle is dead. main.js sets window.__toriiEnterReady / __toriiLoginReady = true AFTER its real handlers bind; the inline handlers return early once a flag is set, so the module owns the click when alive (no double-handling). textContent only (no innerHTML), no timers, nothing loops. Extends tests/entry-flow-smoke.test.js (+5 tests → 1509→1514 / 92 files, no new file): inline script binds both buttons (≥2 click bindings); no-provider fallback; readiness flags exist; main.js sets flags after binding; textContent not innerHTML. Prior — v0.2.229 entry-status visibility fix; v0.2.228 ENTER-ARENA no-op fix (#entry-status + showEntryStatus); v0.2.227 entry-flow smoke harness; v0.2.226 service-worker stale app-shell fix. NON-GOALS held: no gameplay/physics/shooter/Rapier logic change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Live smoke', value: 'v0.2.230-alpha PASS (3/3 checks) — version visible; ENTER ARENA + LOGIN WITH NOSTR give immediate visible feedback, no silent no-op. Recorded in LIVE_SMOKE_STATE.json; does not imply MVP approval.' },
+    { label: 'Active slice', value: 'v0.2.231 LIVE-SMOKE STATUS SLICE (status/dashboard/docs-only, no runtime change) — surfaces the latest LIVE cloud-browser smoke of the DEPLOYED site in the existing oversight system, the one posture local gates (npm run test:release) can never prove. New state-artifact triple mirroring [[mvp-approval-state]]: a PURE node-safe module (tools/liveSmokeState.mjs — build/validate/format/summarize, schema torii.live-smoke-state) with a pass-requires-evidence safety floor (a "pass" verdict is a validator ERROR unless ≥1 check, every check passing, plus a concrete version marker + smokedAt), a thin read-only CLI (tools/live-smoke-state.mjs, npm run smoke:state, flag-gated --write confined in-repo), and a committed LIVE_SMOKE_STATE.json recording the v0.2.230-alpha cloud smoke (3/3 checks: version label visible; ENTER ARENA shows "Engine still loading…"; LOGIN WITH NOSTR shows "NIP-07 extension not found" — no silent no-op). The record is FOLDED into the next-action state (tools/nextActionState.mjs → liveSmoke summary, REQUIRED_KEYS + both formatters) and shown as a "Live smoke" row on the Continuum dashboard. impliesApproval is pinned false everywhere: a green smoke is NOT MVP approval (that stays [[mvp-approval-state]]). The recorded smoke version LEGITIMATELY LAGS the build version (a smoke can only observe a deployed build), so the freshness guard asserts recorded ≤ config VERSION, never leads. New tests/live-smoke-state.test.js (+16) and extended tests/next-action-state.test.js cover the floor, the summary fold, and a non-staleness guard on the committed artifact → 1514→1531 / 92→93 files. Prior — v0.2.230 entry-flow runtime fix (bundle-independent inline bootstrap so neither title button is a silent no-op even when the module bundle is dead); v0.2.229 entry-status visibility fix; v0.2.228 ENTER-ARENA no-op fix; v0.2.227 entry-flow smoke harness. NON-GOALS held: status/dashboard/docs only; no gameplay/physics/shooter/Rapier logic change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

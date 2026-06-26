@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-06-26T17:39:45.579Z",
+  "generatedAt": "2026-06-26T18:05:01.448Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.230-alpha",
-  "packageVersion": "0.2.230-alpha",
-  "gitCommit": "6f18fc0",
+  "version": "v0.2.231-alpha",
+  "packageVersion": "0.2.231-alpha",
+  "gitCommit": "a86d7d7",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -22,8 +22,8 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 1514,
-    "files": 92
+    "passing": 1531,
+    "files": 93
   },
   "manualBlocker": {
     "pending": true,
@@ -35,7 +35,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.230-alpha"
+    "version": "v0.2.231-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -56,6 +56,16 @@
       "other": 0
     },
     "fails": []
+  },
+  "liveSmoke": {
+    "result": "pass",
+    "pass": true,
+    "version": "v0.2.230-alpha",
+    "smokedAt": "2026-06-26",
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "impliesApproval": false
   },
   "nextSafeTask": {
     "title": "Continue the read-only oversight loop — next safe infra/dashboard/tooling slice",
@@ -83,10 +93,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
+    "torii-v0.2.230-entry-flow-runtime-fix-report.md",
     "torii-v0.2.229-entry-status-visibility-fix-report.md",
     "torii-v0.2.228-enter-arena-noop-fix-report.md",
-    "torii-v0.2.227-entry-flow-smoke-harness-report.md",
-    "torii-v0.2.226-entry-flow-button-fix-report.md"
+    "torii-v0.2.227-entry-flow-smoke-harness-report.md"
   ],
   "safety": {
     "deploy": false,

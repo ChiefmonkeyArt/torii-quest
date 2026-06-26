@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.230-alpha",
+  "version": "0.2.231-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -29,6 +29,7 @@
     "docs:stale": "node tools/stale-docs.mjs",
     "release:meta": "node tools/release-meta.mjs",
     "approval:state": "node tools/mvp-approval-state.mjs",
+    "smoke:state": "node tools/live-smoke-state.mjs",
     "release:status": "node tools/release-readiness.mjs",
     "release:status:json": "node tools/release-readiness.mjs --json",
     "test": "vitest run",

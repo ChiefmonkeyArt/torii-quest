@@ -1,0 +1,46 @@
+{
+  "kind": "torii.live-smoke-state",
+  "schemaVersion": 1,
+  "badge": "LIVE SMOKE STATE · LOCAL · READ-ONLY · OBSERVED ON THE DEPLOYED SITE",
+  "generatedAt": null,
+  "result": "pass",
+  "version": "v0.2.230-alpha",
+  "commit": "a86d7d7",
+  "liveUrl": "https://torii-quest.pplx.app",
+  "smokedAt": "2026-06-26",
+  "smokedBy": "parent-agent cloud-browser smoke",
+  "checks": [
+    {
+      "id": "version-visible",
+      "label": "Version label renders on the live title screen",
+      "expected": "v0.2.230-alpha visible",
+      "observed": "v0.2.230-alpha visible",
+      "outcome": "pass"
+    },
+    {
+      "id": "enter-arena-feedback",
+      "label": "ENTER ARENA gives immediate visible feedback (no silent no-op)",
+      "expected": "visible status on click",
+      "observed": "Engine still loading - reload the page if this persists.",
+      "outcome": "pass"
+    },
+    {
+      "id": "login-nostr-fallback",
+      "label": "LOGIN WITH NOSTR shows the no-provider fallback (no silent no-op)",
+      "expected": "visible NIP-07 message when no provider",
+      "observed": "NIP-07 extension not found",
+      "outcome": "pass"
+    }
+  ],
+  "notes": "v0.2.230 bundle-independent inline bootstrap confirmed on the deployed site: both title buttons surface visible feedback even when the module bundle is unavailable. Read-only oversight; does not imply MVP approval (see MVP_APPROVAL_STATE.json).",
+  "safety": {
+    "deploy": false,
+    "publish": false,
+    "push": false,
+    "tag": false,
+    "networkWrite": false,
+    "nostrWrite": false,
+    "godMode": false,
+    "impliesApproval": false
+  }
+}

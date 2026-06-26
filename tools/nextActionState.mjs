@@ -21,6 +21,7 @@
 import { sourceCommitLabel } from './commitStamp.mjs';
 import { summarizeApprovalForState } from './mvpApproval.mjs';
 import { summarizePlaytestForState } from './playtestResultsState.mjs';
+import { summarizeLiveSmokeForState } from './liveSmokeState.mjs';
 
 // Badge naming the export as read-only oversight, never a deploy/publish/upload action.
 export const NEXT_ACTION_STATE_BADGE = 'NEXT-ACTION STATE · LOCAL · READ-ONLY';
@@ -56,7 +57,7 @@ function _bool(x) { return x === true; }
 //                     reproducible tests; the CLI passes a real stamp at print time.
 export function buildNextActionState({
   agentHandoff = null, manualValidation = null, testStatus = null,
-  docs = null, mvpApproval = null, playtestResults = null, generatedAt = null,
+  docs = null, mvpApproval = null, playtestResults = null, liveSmoke = null, generatedAt = null,
 } = {}) {
   const stamp = _str(generatedAt);
   const ah = agentHandoff && typeof agentHandoff === 'object' && !Array.isArray(agentHandoff)
@@ -117,6 +118,10 @@ export function buildNextActionState({
     // MVP_PLAYTEST_RESULTS.md (not-run / incomplete / attention / complete) + counts. `approvalImplied`
     // is pinned false: a recorded playtest is necessary but NOT sufficient for approval.
     playtestResults: summarizePlaytestForState(playtestResults),
+    // Live smoke — the latest cloud-browser smoke of the DEPLOYED site (the posture local gates can
+    // never prove). Folded from LIVE_SMOKE_STATE.json so the next agent sees whether production was
+    // actually observed green. `impliesApproval` is pinned false: a green smoke is not MVP approval.
+    liveSmoke: summarizeLiveSmokeForState(liveSmoke),
     nextSafeTask: {
       title: _str(task.title),
       why: _str(task.why),
@@ -140,7 +145,7 @@ export function buildNextActionState({
 export const NEXT_ACTION_STATE_REQUIRED_KEYS = Object.freeze([
   'schema', 'schemaVersion', 'badge', 'version', 'gitCommit', 'liveUrl',
   'release', 'readiness', 'tests', 'manualBlocker', 'mvpApproval', 'playtestResults',
-  'nextSafeTask', 'docs', 'reports', 'safety',
+  'liveSmoke', 'nextSafeTask', 'docs', 'reports', 'safety',
 ]);
 
 // formatNextActionState(state) → a concise multi-line text block for the terminal. Pure.
@@ -171,6 +176,8 @@ export function formatNextActionState(state) {
   L.push(`MVP approval: ${ap.approved ? 'APPROVED' : (ap.status || 'unknown')}${ap.approvedBy ? ` by ${ap.approvedBy}` : ''}${ap.approvedAt ? ` @ ${ap.approvedAt}` : ''}`);
   const pr = state.playtestResults || {};
   L.push(`MVP playtest: ${pr.status || 'unknown'} (pending ${pr.pending ? 'yes' : 'no'}; implies approval: no)`);
+  const ls = state.liveSmoke || {};
+  L.push(`live smoke: ${ls.result || 'unknown'}${ls.pass ? ' ✓' : ''}${ls.version ? ` @ ${ls.version}` : ''} (${ls.passed ?? '?'}/${ls.checks ?? '?'} checks; implies approval: no)`);
   L.push('');
   L.push(`next safe task: ${t.title ?? '(none)'}`);
   if (t.why) L.push(`  why: ${t.why}`);
@@ -212,6 +219,8 @@ export function formatNextActionStateMarkdown(state) {
   L.push(`- **MVP approval:** ${ap.approved ? 'APPROVED' : (ap.status || 'unknown')}${ap.approvedBy ? ` by ${ap.approvedBy}` : ''}${ap.approvedAt ? ` @ ${ap.approvedAt}` : ''}`);
   const pr = state.playtestResults || {};
   L.push(`- **MVP playtest:** ${pr.status || 'unknown'} (pending ${pr.pending ? 'yes' : 'no'}; implies approval: no)`);
+  const ls = state.liveSmoke || {};
+  L.push(`- **Live smoke (deployed):** ${ls.result || 'unknown'}${ls.pass ? ' (PASS)' : ''}${ls.version ? ` @ ${ls.version}` : ''} — ${ls.passed ?? '?'}/${ls.checks ?? '?'} checks (implies approval: no)`);
   L.push('');
   L.push('## Next safe task');
   L.push('');

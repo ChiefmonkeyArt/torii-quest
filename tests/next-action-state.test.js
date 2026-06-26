@@ -157,6 +157,25 @@ describe('buildNextActionState — assembly', () => {
     expect(s.playtestResults.approvalImplied).toBe(false);
   });
 
+  it('folds the live-smoke state and pins impliesApproval false', () => {
+    const unknown = buildNextActionState({ agentHandoff: handoff(), liveSmoke: null });
+    expect(unknown.liveSmoke).toMatchObject({ result: 'unknown', pass: false, impliesApproval: false });
+
+    const smoke = {
+      kind: 'torii.live-smoke-state', schemaVersion: 1, result: 'pass',
+      version: 'v0.2.230-alpha', smokedAt: '2026-06-26',
+      checks: [
+        { id: 'a', label: 'A', expected: 'x', observed: 'x', outcome: 'pass' },
+        { id: 'b', label: 'B', expected: 'y', observed: 'y', outcome: 'pass' },
+      ],
+    };
+    const green = buildNextActionState({ agentHandoff: handoff(), liveSmoke: smoke });
+    expect(green.liveSmoke).toMatchObject({
+      result: 'pass', pass: true, version: 'v0.2.230-alpha', smokedAt: '2026-06-26',
+      checks: 2, passed: 2, failed: 0, impliesApproval: false,
+    });
+  });
+
   it('pins the standing safety posture all-false (read-only oversight, godMode false)', () => {
     const s = buildNextActionState({ agentHandoff: handoff() });
     expect(s.safety).toEqual({

@@ -125,3 +125,63 @@ describe('entry-flow visibility — immediate feedback + clean a11y tree (v0.2.2
     expect(catchPart).toMatch(/showEntryStatus\(/);
   });
 });
+
+// v0.2.230: even with the v0.2.228/229 source fixes, the LIVE site was STILL a complete
+// silent no-op on both buttons — the symptom of the module bundle never binding its
+// handlers at all (a stale SW shell 404'ing the hashed bundle, OR a top-level throw such
+// as WebGL/renderer init failing in a headless cloud browser, which aborts main.js before
+// the listeners attach). The static version label renders either way, so the page looks
+// alive while every button is dead. These contracts freeze a bundle-INDEPENDENT inline
+// bootstrap in index.html that wires both buttons regardless of the module, plus the
+// readiness flags the module sets so the inline path stands down once the real handlers
+// are bound. The inline script is attribute-less; sw-app-shell.test.js separately proves
+// the CSP sha256 still matches it.
+describe('entry-flow runtime proof — inline bundle-independent bootstrap (v0.2.230 regression)', () => {
+  // The last attribute-less <script> is the inline bootstrap + SW registration.
+  function inlineScript() {
+    const re = /<script>([\s\S]*?)<\/script>/g;
+    let m, last = null;
+    while ((m = re.exec(HTML)) !== null) last = m[1];
+    return last || '';
+  }
+
+  it('the inline script binds a click handler to BOTH entry buttons (works even if the bundle is dead)', () => {
+    const s = inlineScript();
+    expect(s).toMatch(/getElementById\(\s*['"]btn-enter['"]\s*\)/);
+    expect(s).toMatch(/getElementById\(\s*['"]btn-nostr-centre['"]\s*\)/);
+    // Two inline click bindings (ENTER + LOGIN), independent of the module bundle.
+    expect((s.match(/addEventListener\(\s*['"]click['"]/g) || []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('the inline LOGIN fallback surfaces the no-provider case visibly (no window.nostr)', () => {
+    const s = inlineScript();
+    expect(s).toMatch(/window\.nostr/);
+    expect(s).toMatch(/NIP-07 extension not found/);
+  });
+
+  it('the inline handlers stand down once the module sets its readiness flags (no double-handling)', () => {
+    const s = inlineScript();
+    expect(s).toMatch(/window\.__toriiEnterReady/);
+    expect(s).toMatch(/window\.__toriiLoginReady/);
+  });
+
+  it('main.js sets the readiness flags AFTER binding the real handlers', () => {
+    // Each flag must be assigned true, and only after its addEventListener call.
+    expect(MAIN).toMatch(/window\.__toriiEnterReady\s*=\s*true/);
+    expect(MAIN).toMatch(/window\.__toriiLoginReady\s*=\s*true/);
+    const enterBind = MAIN.indexOf("elEnterBtn?.addEventListener('click'");
+    const enterFlag = MAIN.indexOf('window.__toriiEnterReady = true');
+    expect(enterBind).toBeGreaterThanOrEqual(0);
+    expect(enterFlag).toBeGreaterThan(enterBind);
+    const loginBind = MAIN.indexOf("elNostrCentreBtn?.addEventListener('click'");
+    const loginFlag = MAIN.indexOf('window.__toriiLoginReady = true');
+    expect(loginBind).toBeGreaterThanOrEqual(0);
+    expect(loginFlag).toBeGreaterThan(loginBind);
+  });
+
+  it('the inline bootstrap uses textContent, never innerHTML (no injection surface)', () => {
+    const s = inlineScript();
+    expect(s).toMatch(/textContent/);
+    expect(s).not.toMatch(/innerHTML/);
+  });
+});

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.229-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.230-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -523,6 +523,27 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.230** ENTRY-FLOW RUNTIME FIX (bundle-independent inline bootstrap; no gameplay change) — closes
+  the residual live MVP-blocker after v0.2.228/229: despite the source-level fixes, the LIVE site was STILL
+  a complete silent no-op on BOTH title buttons — the static version label rendered but ENTER ARENA and
+  LOGIN WITH NOSTR were dead. ROOT CAUSE: both buttons are wired ONLY by the module bundle
+  `/assets/index-<hash>.js`; if it 404s (stale SW shell pinning an old hash) OR throws at module-eval (e.g.
+  WebGL/renderer init failing in a headless cloud browser) BEFORE the handlers bind, no listener attaches —
+  the page LOOKS alive while every button is inert, and the v0.2.228/229 source fixes can't help because the
+  module never runs. FIX (surgical): an attribute-less inline IIFE in `index.html` (verbatim-preserved by
+  Vite; CSP sha256 recomputed to `sha256-DZGng6oSY8eSKoAlumOJO8sutYAKBcjeE4vN1FkRLBA=`) binds click handlers
+  to `#btn-enter`/`#btn-nostr-centre` INDEPENDENT of the bundle — ENTER shows `Engine still loading…`, LOGIN
+  shows the full `NIP-07 extension not found` no-provider fallback (or `Login still loading…`) — so neither
+  button is ever a silent no-op even with a dead bundle. `src/main.js` sets `window.__toriiEnterReady`/
+  `__toriiLoginReady = true` AFTER its real handlers bind; the inline handlers `return` early once the flag
+  is set (module owns the click when alive — no double-handling). `textContent` only (no `innerHTML`), no
+  timers, nothing loops. Extends `tests/entry-flow-smoke.test.js` (+5; suite 1509/92 → 1514/92, no new
+  file): inline binds both buttons, no-provider fallback, readiness flags exist, `main.js` sets flags after
+  binding, `textContent` not `innerHTML`. BUGFIX — entry-flow only; **status STAYS not-run/pending — no MVP
+  approval granted in this slice** (parent agent handles security review/deploy/publish/push/upload + live
+  smoke); no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write beyond
+  the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; `godMode` stays false; no new
+  `setTimeout`/`Vector3`/`Matrix4`. Latest slice report: `torii-v0.2.230-entry-flow-runtime-fix-report.md`.
   **v0.2.229** ENTRY-STATUS VISIBILITY FIX (surgical entry-flow follow-up; no gameplay change) — after
   v0.2.228 shipped `#entry-status`, a cloud/no-extension smoke STILL saw no visible ENTER/LOGIN feedback
   AND reported `YOU DIED`/`Respawning...` text in the **accessibility tree** on the TITLE screen (before

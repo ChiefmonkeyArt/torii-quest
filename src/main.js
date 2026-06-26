@@ -422,6 +422,11 @@ elEnterBtn?.addEventListener('click', async () => {
   requestLock(renderer.domElement);
   emit(EV.HUD_UPDATE);
 });
+// v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is now
+// bound, so it stands down and lets the module own the click. If the module bundle
+// 404s or throws at eval before reaching here, this flag stays falsy and the inline
+// listener gives visible feedback instead of a silent no-op (the live MVP blocker).
+window.__toriiEnterReady = true;
 
 // Nostr login (left panel + centre panel buttons share same handler)
 async function _doNostrLogin() {
@@ -444,6 +449,10 @@ async function _doNostrLogin() {
   }
 }
 elNostrCentreBtn?.addEventListener('click', _doNostrLogin);
+// v0.2.230: signal the index.html inline fallback that the REAL LOGIN handler is bound
+// (see window.__toriiEnterReady). Until set, the inline path surfaces the no-provider
+// case visibly so a dead bundle is never a silent no-op.
+window.__toriiLoginReady = true;
 
 // ESC is the universal override — toggles the pause modal in BOTH directions
 // regardless of pointer-lock state, and runs in the capture phase so nothing

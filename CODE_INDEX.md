@@ -3,7 +3,7 @@
 > Lightweight developer/agent index. Keep this practical and update it as systems are touched.
 > Purpose: help future debugging, SDK extraction, FOSS contribution, and AI handoff speed.
 
-Current version: `v0.2.229-alpha`  
+Current version: `v0.2.230-alpha`  
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)  
 **Active focus: 15-hour proof-of-concept route** — shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest GitHub update-check). Retrospective polish after PoC validation. See `strategy.md` → "15-Hour Proof-of-Concept Route".
 
@@ -142,6 +142,7 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 | Buttons inert / login + enter-arena do nothing on live | `public/sw.js` PRECACHE_ASSETS (must NOT precache HTML shell `'/'` — pins stale hashed bundle), index.html SW-registration controllerchange self-heal |
 | ENTER ARENA / LOGIN click registers but no visible response | `src/main.js` `showEntryStatus()` + `#entry-status` in index.html (v0.2.228: feedback must NOT write to the non-existent `#nostr-status`); ENTER bootstrap fully inside the `try` so a Rapier/WASM failure shows a message + re-enables the button instead of a silent no-op / stuck `LOADING PHYSICS…` (v0.2.229: ENTER also shows an IMMEDIATE `Entering arena…` line BEFORE the await, so a STALLED/never-settling WASM bootstrap is still visible; `_doNostrLogin()` await is try/catch-guarded so a throw can't leave `Connecting…` stuck) |
 | `YOU DIED` / `Respawning...` shows in the accessibility tree on the TITLE screen | `#death-msg` is ALWAYS in the DOM (opacity:0 until `.show`); v0.2.229 made it `aria-hidden="true"` by default and `src/hud.js` flips `aria-hidden` in lockstep with the `.show` class (false on PLAYER_KILLED, true on PLAYER_RESPAWN) so AT/smoke only see it during an actual death |
+| BOTH title buttons are a complete silent no-op on the LIVE site (version label still renders) | the buttons are wired ONLY by the module bundle `/assets/index-<hash>.js`; if it 404s (stale SW shell) OR throws at module-eval (e.g. headless WebGL/renderer init) before the handlers bind, no listener attaches and the source-level fixes never run. v0.2.230 adds a bundle-INDEPENDENT inline IIFE in index.html (attribute-less `<script>`, CSP sha256 recomputed) that binds both `#btn-enter`/`#btn-nostr-centre` and shows visible feedback (+ the `NIP-07 extension not found` no-provider fallback); `src/main.js` sets `window.__toriiEnterReady`/`__toriiLoginReady` after binding so the inline handlers stand down once the real module owns the click. `tests/entry-flow-smoke.test.js` freezes it |
 
 ---
 

@@ -1,9 +1,9 @@
 # Torii Quest — MVP Proof-of-Concept — Release Notes (DRAFT)
 
 > MVP PROOF RELEASE NOTES · DRAFT · LOCAL · READ-ONLY
-> generated: 2026-06-26T17:17:34.649Z
+> generated: 2026-06-26T17:39:48.095Z
 
-- **Version:** v0.2.229-alpha @ 1fbe551 (source)
+- **Version:** v0.2.230-alpha @ 6f18fc0 (source)
 - **Live:** https://torii-quest.pplx.app
 - **Release candidate:** YES (READY, 100%)
 - **MVP readiness:** 100% · READY
@@ -56,10 +56,10 @@
 
 ## Recent reports
 
+- torii-v0.2.229-entry-status-visibility-fix-report.md
 - torii-v0.2.228-enter-arena-noop-fix-report.md
 - torii-v0.2.227-entry-flow-smoke-harness-report.md
 - torii-v0.2.226-entry-flow-button-fix-report.md
-- torii-v0.2.225-playtest-capture-path-hardening-report.md
 
 ---
 

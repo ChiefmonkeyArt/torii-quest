@@ -1,7 +1,7 @@
 # Torii Quest — MVP Manual Playtest Results
 
 > MVP PLAYTEST RESULTS INTAKE · LOCAL · READ-ONLY
-> generated: 2026-06-26T00:39:55.521Z
+> generated: 2026-06-26T02:41:55.229Z
 
 - **Items:** 17 across 13 sections
 - **Result values:** PASS / FAIL / N/A
@@ -18,8 +18,8 @@
 
 | Field | Value |
 | --- | --- |
-| Build / version | v0.2.204-alpha |
-| Commit | af4e256 |
+| Build / version | v0.2.210-alpha |
+| Commit | be5eea5 |
 | Live URL | https://torii-quest.pplx.app |
 | Tester |  |
 | Date |  |
@@ -30,7 +30,7 @@
 
 ### [ ] LAUNCH-1 — Title screen loads and shows the current version  _(blocker)_
 
-_Expected:_ The title screen appears with the game name and a version label matching the build (e.g. v0.2.203-alpha); no console errors block the screen.
+_Expected:_ The title screen appears with the game name and a version label matching the build (the current vX.Y.Z-alpha marker); no console errors block the screen.
 
 | Field | Value |
 | --- | --- |

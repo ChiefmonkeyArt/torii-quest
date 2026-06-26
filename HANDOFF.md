@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.209-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.210-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -520,6 +520,26 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.210** MVP RC SNAPSHOT / FREEZE-CANDIDATE SUMMARY — a pure tooling/docs slice (no runtime
+  change). A new local, read-only RC snapshot (`tools/rcSnapshot.mjs` pure assembler + thin CLI
+  `tools/rc-snapshot.mjs`, `npm run rc:snapshot`) COMPOSES the already-pure local verdicts —
+  `buildMvpRcGate()` + `runMvpReadiness()` + `buildGithubReleaseDryRunModel()` +
+  `gatherReleaseReadiness()` + the curated test counts + a present/missing map of every RC package
+  doc — into ONE freeze-candidate document (`MVP_RC_SNAPSHOT.md`), re-deriving no check.
+  `buildRcSnapshotModel(inputs)` bands FREEZE-CANDIDATE (RC gate is a candidate AND the dry-run is not
+  blocked) / NEAR / BLOCKED, surfaces what STILL needs manual user validation and what cutting a real
+  GitHub release/tag would require, and flags version drift across the folded sources
+  (`rcSnapshotVersionConsistency`). `formatRcSnapshot()`/`formatRcSnapshotMarkdown()` render text/
+  markdown (null-safe). The thin CLI does the fs/git I/O (read-only `git rev-parse`/`status --porcelain`,
+  no fetch), modes text / `--json` / `--markdown`; READ-ONLY except an opt-in bounded in-repo
+  `--write[=path]` (default `MVP_RC_SNAPSHOT.md`, confined via the SHARED `resolveHandoffWritePath` —
+  absolute / `..` rejected); always exits 0 (rejected `--write` → exit 2) — VISIBILITY, not a gate (the
+  authority stays `npm run test:release`). `tests/rc-snapshot.test.js` (+19; suite now 1358/85; asserts
+  every referenced RC doc exists on disk so the list cannot silently rot). SNAPSHOT ONLY — no GitHub
+  release, no git tag, no push, no deploy/publish/announce, no network/server; no gameplay/physics/
+  shooter/Rapier change; no Nostr signing/publishing/live network write; `godMode` stays false; no new
+  `setTimeout`/`Vector3`/`Matrix4`.
+  Latest slice report: `torii-v0.2.210-mvp-rc-snapshot-report.md`.
   **v0.2.209** GENERATED COMMIT-STAMP CLARITY — a pure tooling/docs fix (no runtime change). The
   tracked generated artifacts (`HANDOFF.generated.md`, `MVP_RELEASE_PACKAGE.md`,
   `MVP_PLAYTEST_CHECKLIST.md`, `RELEASE_NOTES_DRAFT.md`, `GITHUB_RELEASE_DRY_RUN.md`) are written

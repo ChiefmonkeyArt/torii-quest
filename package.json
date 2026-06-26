@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.209-alpha",
+  "version": "0.2.210-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "handoff:summary": "node tools/handoff-summary.mjs",
     "handoff:agent": "node tools/agent-handoff.mjs",
     "rc:gate": "node tools/mvp-rc-gate.mjs",
+    "rc:snapshot": "node tools/rc-snapshot.mjs",
     "release:notes": "node tools/release-notes.mjs",
     "release:package": "node tools/release-package.mjs",
     "release:dry-run": "node tools/github-release-dry-run.mjs",

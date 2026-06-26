@@ -33,7 +33,7 @@
 
 import { runReadHealth } from '../nostr/readHealth.js';
 
-export const CONTINUUM_VERSION = 'v0.2.209-alpha';
+export const CONTINUUM_VERSION = 'v0.2.210-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -48,8 +48,8 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1339,
-  files: 84,
+  passing: 1358,
+  files: 85,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -522,12 +522,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.209-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.210-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.209 GENERATED COMMIT-STAMP CLARITY (docs/tooling only, no runtime change) — generated artifacts (HANDOFF.generated.md, MVP_RELEASE_PACKAGE.md, MVP_PLAYTEST_CHECKLIST.md, RELEASE_NOTES_DRAFT.md, GITHUB_RELEASE_DRY_RUN.md) are written BEFORE their own commit, so the commit they carried looked stale/misleading (it is the source commit — repo HEAD at generation, the parent of the file own commit). Added a shared pure helper (tools/commitStamp.mjs: sourceCommitLabel / sourceCommitInline / SOURCE_COMMIT_NOTE) and wired all five generators plus the handoff-summary brief to render the commit with explicit non-misleading wording ("@ <hash> (source)" inline, "Source commit: <hash> (source commit at generation — precedes this file own commit)" as a field). +5 unit tests (tests/agent-handoff.test.js) lock the wording. Prior — v0.2.208 progress parser gap cleanup. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Active slice', value: 'v0.2.210 MVP RC SNAPSHOT / FREEZE-CANDIDATE SUMMARY (docs/tooling only, no runtime change) — a new local, read-only RC snapshot (tools/rcSnapshot.mjs pure assembler + tools/rc-snapshot.mjs CLI, npm run rc:snapshot) COMPOSES the already-pure local verdicts (buildMvpRcGate + runMvpReadiness + buildGithubReleaseDryRunModel + gatherReleaseReadiness + the curated test counts + a present/missing map of every RC package doc) into ONE freeze-candidate document (MVP_RC_SNAPSHOT.md via --write, confined in-repo). It bands FREEZE-CANDIDATE / NEAR / BLOCKED, lists what still needs manual user validation and what cutting a real GitHub release/tag would require, and re-derives no check. +19 unit tests (tests/rc-snapshot.test.js) lock assembly/verdict/formatting and assert every referenced RC doc exists on disk so the doc list cannot silently rot. Prior — v0.2.209 generated commit-stamp clarity. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

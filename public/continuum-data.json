@@ -1,10 +1,10 @@
 {
-  "version": "v0.2.209-alpha",
-  "generatedAt": "2026-06-26T02:21:45.167Z",
+  "version": "v0.2.210-alpha",
+  "generatedAt": "2026-06-26T02:43:19.267Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 36,
+    "activeTasks": 37,
     "completedLast24h": 27,
     "archivedClusters": 11,
     "trackCount": 6,
@@ -25,14 +25,14 @@
     "isDerived": true,
     "todoCompletedMarkers": 12,
     "next12": 12,
-    "activeNow": 36,
+    "activeNow": 37,
     "completed24h": 27,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (36)",
+      "activeNow (37)",
       "completed24h (27)",
       "archive (11)"
     ],
@@ -48,17 +48,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.209-alpha"
+        "value": "v0.2.210-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 84"
+        "value": "fast 5 · foundation 25 · full 85"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1339 passing / 84 files"
+        "value": "1358 passing / 85 files"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.209-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.210-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -98,9 +98,9 @@
         "sub": "15 / 15"
       },
       {
-        "pct": 30,
+        "pct": 29,
         "label": "Foundation coverage",
-        "sub": "25/84 files"
+        "sub": "25/85 files"
       }
     ]
   },
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.209-alpha",
-    "gitCommit": "0d43251",
+    "version": "v0.2.210-alpha",
+    "gitCommit": "be5eea5",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.209-alpha / pkg 0.2.209-alpha"
+        "detail": "config v0.2.210-alpha / pkg 0.2.210-alpha"
       },
       {
         "key": "tests",

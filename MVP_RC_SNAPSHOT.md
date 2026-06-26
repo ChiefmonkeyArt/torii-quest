@@ -1,10 +1,10 @@
 # Torii Quest — MVP RC Snapshot — RC Freeze-Candidate Snapshot
 
 > MVP RC SNAPSHOT · FREEZE CANDIDATE · LOCAL · READ-ONLY
-> generated: 2026-06-26T15:47:30.456Z
+> generated: 2026-06-26T16:03:14.899Z
 
 - **Status:** FREEZE-CANDIDATE
-- **Version:** v0.2.227-alpha @ ce10aa1 (source)
+- **Version:** v0.2.228-alpha @ 2a20ee0 (source)
 - **Live (manual deploy):** https://torii-quest.pplx.app
 - **Version consistency:** ok
 
@@ -16,7 +16,7 @@
 ## MVP readiness
 
 - **Readiness:** 100% · READY (9/9 signals)
-- **Tests:** 1501 passing / 92 files (full)
+- **Tests:** 1505 passing / 92 files (full)
 - **Regression:** 15 / 15 checks
 
 ## GitHub release dry-run

@@ -3,7 +3,7 @@
 > Lightweight developer/agent index. Keep this practical and update it as systems are touched.
 > Purpose: help future debugging, SDK extraction, FOSS contribution, and AI handoff speed.
 
-Current version: `v0.2.227-alpha`  
+Current version: `v0.2.228-alpha`  
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)  
 **Active focus: 15-hour proof-of-concept route** — shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest GitHub update-check). Retrospective polish after PoC validation. See `strategy.md` → "15-Hour Proof-of-Concept Route".
 
@@ -140,6 +140,7 @@ Do not abstract imaginary systems. Index proven systems and extract boundaries f
 | NAP NPC stuck or mesh splitting | NPC placement, scale, skin/material setup, animation root |
 | Live site shows old behaviour | version label, service worker cache, dist version markers |
 | Buttons inert / login + enter-arena do nothing on live | `public/sw.js` PRECACHE_ASSETS (must NOT precache HTML shell `'/'` — pins stale hashed bundle), index.html SW-registration controllerchange self-heal |
+| ENTER ARENA / LOGIN click registers but no visible response | `src/main.js` `showEntryStatus()` + `#entry-status` in index.html (v0.2.228: feedback must NOT write to the non-existent `#nostr-status`); ENTER bootstrap fully inside the `try` so a Rapier/WASM failure shows a message + re-enables the button instead of a silent no-op / stuck `LOADING PHYSICS…` |
 
 ---
 

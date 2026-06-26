@@ -50,3 +50,37 @@ describe('entry-flow smoke — title-screen buttons exist and are bound (regress
     expect(MAIN).toMatch(/if\s*\(\s*!isTitle\(\)\s*\)\s*return/);
   });
 });
+
+// v0.2.228: the v0.2.226 SW fix made the buttons reachable, but a cloud/no-extension
+// smoke still showed silent no-ops: (a) login feedback was written to #nostr-status,
+// an element that never existed in index.html, so it was dropped; (b) the ENTER catch
+// only console.error'd and reset the button, and the model-load steps lived OUTSIDE the
+// try (a throw there froze the button on "LOADING PHYSICS…"). These contracts freeze the
+// "no silent no-op" guarantee: a visible status line exists, and both buttons write to it.
+describe('entry-flow no-silent-noop — visible feedback on every click (v0.2.228 regression)', () => {
+  it('index.html declares the visible #entry-status feedback line', () => {
+    expect(HTML).toMatch(/id="entry-status"/);
+  });
+
+  it('main.js routes feedback through the real #entry-status element (not the dead #nostr-status)', () => {
+    expect(MAIN).toMatch(/getElementById\(\s*['"]entry-status['"]\s*\)/);
+    // The old null target must be gone — writing to it was the silent-login bug.
+    expect(MAIN).not.toMatch(/getElementById\(\s*['"]nostr-status['"]\s*\)/);
+  });
+
+  it('the ENTER catch surfaces a user-facing message AND re-enables the button (no silent reset)', () => {
+    // Grab the ENTER click handler body up to the LOGIN handler that follows it.
+    const block = MAIN.slice(
+      MAIN.indexOf("elEnterBtn?.addEventListener('click'"),
+      MAIN.indexOf('_doNostrLogin'),
+    );
+    expect(block).toMatch(/catch\s*\(/);
+    expect(block).toMatch(/showEntryStatus\(/);          // visible message, not just console.error
+    expect(block).toMatch(/elEnterBtn\.disabled\s*=\s*false/); // button recovers for a retry
+  });
+
+  it('the LOGIN handler shows its result on the visible status line', () => {
+    const block = MAIN.slice(MAIN.indexOf('async function _doNostrLogin'));
+    expect(block).toMatch(/showEntryStatus\(\s*result\s*\)/);
+  });
+});

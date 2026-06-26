@@ -33,7 +33,7 @@
 
 import { runReadHealth } from '../nostr/readHealth.js';
 
-export const CONTINUUM_VERSION = 'v0.2.227-alpha';
+export const CONTINUUM_VERSION = 'v0.2.228-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -48,7 +48,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1501,
+  passing: 1505,
   files: 92,
   fastProfile: 5,
   foundationProfile: 25,
@@ -1097,12 +1097,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.227-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.228-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.227 ENTRY-FLOW SMOKE HARNESS (docs/test only; no gameplay change) — hardens against a recurrence of the v0.2.226 dead-button blocker by making inert LOGIN / ENTER ARENA buttons impossible to miss. Adds tests/entry-flow-smoke.test.js (+7 tests, +1 file → 1494→1501 / 91→92): a pure file-read contract asserting both title-screen entry buttons exist in index.html (#btn-enter, #btn-nostr-centre) AND are resolved via getElementById + click-bound in main.js, and that the ENTER handler is gated to the title screen — so a silent id rename/typo on either side fails CI instead of shipping a button that renders but does nothing. Complements tests/sw-app-shell.test.js (the service-worker side). Also adds an Entry-Flow Live Smoke checklist (run FIRST after every deploy) to CODE_INDEX.md and the manual-validation docs: console has no /assets 404, both buttons respond, active SW cache name matches the version label, the SW cache holds no HTML shell, and a second visit self-heals. Prior — v0.2.226 entry-flow button fix (service-worker stale app-shell precache; dropped \'/\' from PRECACHE_ASSETS + loop-guarded controllerchange reload); v0.2.225 playtest-capture --file= path hardening; v0.2.224 MVP playtest note capture. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Active slice', value: 'v0.2.228 ENTER-ARENA NO-OP FIX (surgical entry-flow bug fix) — closes the remaining live MVP blocker after v0.2.226/227: in a cloud/no-extension browser the title screen loaded and JS ran, but ENTER ARENA and LOGIN WITH NOSTR clicks gave no visible response. Root cause: two silent no-op paths. (1) LOGIN feedback was written to #nostr-status, an element that never existed in index.html, so the result string ("NIP-07 extension not found") was dropped. (2) The ENTER handler\'s catch only console.error\'d before resetting the button, and the model-load steps (loadPlayerModel/loadFirstPersonBody/buildNapNpc) lived OUTSIDE the try — so a Rapier/WASM init throw left the button stuck on "LOADING PHYSICS…" with no message. Fix adds a visible #entry-status line to index.html and a showEntryStatus() helper in main.js; the full ENTER bootstrap now runs inside the try and any failure shows "Arena failed to load — reload and try again" while re-enabling the button for a retry; LOGIN routes its result to the same visible line. Anonymous entry is preserved (login is never required to ENTER). Extends tests/entry-flow-smoke.test.js (+4 tests → 1501→1505 / 92 files, no new file): #entry-status exists, feedback routes through it (not the dead #nostr-status), the ENTER catch surfaces a message + re-enables the button, and LOGIN shows its result. Prior — v0.2.227 entry-flow smoke harness (static binding tests + live checklist); v0.2.226 entry-flow button fix (service-worker stale app-shell precache). NON-GOALS held: no gameplay/physics/shooter/Rapier logic change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

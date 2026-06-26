@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.227-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.228-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -523,6 +523,28 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.228** ENTER-ARENA NO-OP FIX (surgical entry-flow bugfix; no gameplay change) — closes the
+  remaining live MVP-blocker after v0.2.226/227: a cloud-browser smoke showed the title screen loaded
+  and JS ran, but **ENTER ARENA** gave no visible transition and **LOGIN WITH NOSTR** registered with no
+  visible response. ROOT CAUSE — two SILENT no-op paths in `src/main.js`: (1) login feedback was written
+  to `#nostr-status`, an element that NEVER existed in `index.html`, so `nostrLogin()`'s result string
+  (`'NIP-07 extension not found'`) was dropped to a null element; (2) the ENTER click handler's `catch`
+  only `console.error`'d before resetting the button, AND the post-init bootstrap
+  (`loadPlayerModel`/`loadFirstPersonBody`/`buildNapNpc`) lived OUTSIDE the `try`, so a Rapier/WASM init
+  throw in a headless/cloud browser left the button stuck on `LOADING PHYSICS…` with no message. FIX
+  (surgical, two files): `index.html` adds a visible `#entry-status` line (role=status, aria-live=polite,
+  hidden until set) below the entry buttons (markup-only → CSP script-hash untouched); `src/main.js`
+  adds a `showEntryStatus()` helper, moves the FULL ENTER bootstrap inside the `try`, surfaces `⚠ Arena
+  failed to load — please reload the page and try again.` + re-enables the button on ANY failure, clears
+  the line on success, and routes the LOGIN result to the same visible line. **Anonymous entry preserved**
+  — login is never required to ENTER. Extends `tests/entry-flow-smoke.test.js` (+4; suite 1501/92 →
+  1505/92, no new file): `#entry-status` exists, feedback routes through it (not the dead `#nostr-status`),
+  the ENTER catch surfaces a message AND re-enables the button, LOGIN shows its result. BUGFIX —
+  entry-flow only; **status STAYS not-run/pending — no MVP approval granted in this slice** (parent agent
+  handles security review/deploy/publish/push/upload + live smoke); no gameplay/physics/shooter/Rapier
+  change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no
+  network/deploy/publish/tag/release/self-update; `godMode` stays false; no new
+  `setTimeout`/`Vector3`/`Matrix4`. Latest slice report: `torii-v0.2.228-enter-arena-noop-fix-report.md`.
   **v0.2.227** ENTRY-FLOW SMOKE HARNESS (docs/test only; no gameplay change) — hardens against a
   recurrence of the v0.2.226 dead-button MVP blocker by making inert title-screen buttons impossible to
   miss, in CI and on manual deploy. New `tests/entry-flow-smoke.test.js` (+7; suite 1494/91 → 1501/92)

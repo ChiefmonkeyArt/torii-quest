@@ -337,7 +337,16 @@ document.querySelectorAll('.char-btn').forEach(btn => {
 const elNostrCentreBtn = document.getElementById('btn-nostr-centre');
 const elResumeBtn= document.getElementById('btn-resume');
 const elHomeBtn  = document.getElementById('btn-home');
-const elNostrTxt = document.getElementById('nostr-status');
+// v0.2.228: #nostr-status never existed in index.html, so login feedback was
+// written to a null element and silently dropped (cloud/no-extension clicks
+// looked like dead buttons). Both entry buttons now surface state through the
+// real, visible #entry-status line via showEntryStatus().
+const elEntryStatus = document.getElementById('entry-status');
+function showEntryStatus(msg) {
+  if (!elEntryStatus) return;
+  elEntryStatus.textContent = msg || '';
+  elEntryStatus.style.display = msg ? 'block' : 'none';
+}
 
 // Canvas click → re-engage pointer lock when playing
 renderer.domElement.addEventListener('click', () => {
@@ -363,25 +372,31 @@ elEnterBtn?.addEventListener('click', async () => {
   if (!_arenaBootstrapped) {
     elEnterBtn.textContent = 'LOADING PHYSICS…';
     elEnterBtn.disabled = true;
+    showEntryStatus('');
     try {
       await initPhysics();
       buildArenaColliders();
       buildDynamicCrates();
       const handle = spawnPlayerBody();
       setPlayerBody(handle);
+      // Load Chiefmonkey player model — attaches to playerObj (camera parent).
+      // Once only: re-attaching on every entry would stack duplicate viewmodels.
+      // v0.2.228: these were OUTSIDE the try, so a throw here left the button
+      // stuck on "LOADING PHYSICS…" forever. Now any bootstrap failure resets
+      // the button and shows a user-facing message instead of a silent no-op.
+      loadPlayerModel(playerObj);
+      loadFirstPersonBody(playerObj);
+      buildNapNpc();
     } catch (e) {
-      console.error('Physics init failed:', e);
+      console.error('Arena bootstrap failed:', e);
       elEnterBtn.textContent = 'ENTER ARENA';
       elEnterBtn.disabled = false;
+      showEntryStatus('⚠ Arena failed to load — please reload the page and try again.');
       return;
     }
-    // Load Chiefmonkey player model — attaches to playerObj (camera parent).
-    // Once only: re-attaching on every entry would stack duplicate viewmodels.
-    loadPlayerModel(playerObj);
-    loadFirstPersonBody(playerObj);
-    buildNapNpc();
     _arenaBootstrapped = true;
   }
+  showEntryStatus('');
 
   // Fresh run on EVERY entry: reset HP/ammo/score/reload state (resetRun) and
   // move the player back to the canonical SW spawn corner (the world/colliders
@@ -403,8 +418,13 @@ elEnterBtn?.addEventListener('click', async () => {
 
 // Nostr login (left panel + centre panel buttons share same handler)
 async function _doNostrLogin() {
+  // v0.2.228: surface the result on the visible #entry-status line. Anonymous
+  // entry is by design — login is never required to ENTER ARENA — so when no
+  // NIP-07 signer exists this just shows "NIP-07 extension not found" rather
+  // than failing silently. No network/write beyond the existing NIP-07 read.
+  showEntryStatus('Connecting…');
   const result = await nostrLogin();
-  if (elNostrTxt) elNostrTxt.textContent = result;
+  showEntryStatus(result);
 }
 elNostrCentreBtn?.addEventListener('click', _doNostrLogin);
 

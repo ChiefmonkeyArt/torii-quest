@@ -33,7 +33,7 @@
 
 import { runReadHealth } from '../nostr/readHealth.js';
 
-export const CONTINUUM_VERSION = 'v0.2.221-alpha';
+export const CONTINUUM_VERSION = 'v0.2.222-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -48,8 +48,8 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1450,
-  files: 88,
+  passing: 1463,
+  files: 89,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -957,12 +957,12 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.221-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.222-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
-    { label: 'Active slice', value: 'v0.2.221 MVP APPROVAL ON THE DASHBOARD (docs/dashboard/tooling only, no runtime/gameplay change) — surfaces the MVP-approval gate as its OWN compact, impossible-to-miss Continuum section derived from MVP_APPROVAL_STATE.json (the v0.2.220 record). The card shows status PENDING, the version, no approver, and the clear next step: the user must run the live-browser MVP playtest and explicitly say "MVP approved". A pure browser-safe builder (buildMvpApprovalModel) renders it; build-continuum.mjs reads the on-disk record (re-shaped via the strict summarizeApprovalForState floor) so it can never render as approved from a partial record. Status stays PENDING — this slice approves nothing. Adds 7 dashboard tests (suite 1443→1450 / 88 files). Prior — v0.2.220 MVP_APPROVAL_STATE.json placeholder + approval:state CLI; v0.2.219 service-worker cache-version hygiene + guard; v0.2.218 package.json privacy hygiene + guard. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Active slice', value: 'v0.2.222 MVP PLAYTEST RESULTS INTAKE (docs/tooling/dashboard only, no runtime/gameplay change) — adds a source-controlled, hand-edited MVP_PLAYTEST_RESULTS.md recording file (17 items / 13 sections, all blank → reads not-run) so manual playtest outcomes have ONE clean home instead of scattered notes, plus a pure summary model (summarizePlaytestForState → not-run / incomplete / attention / complete / unknown) folded into NEXT_ACTION_STATE so a next agent can see whether the playtest was RECORDED. A new playtest:status CLI summarises the file read-only (no-clobber --write seeds a blank record). The state is HARD-pinned to never imply approval (approvalImplied false in every branch) — a recorded playtest is necessary but NOT sufficient. Status stays PENDING/not-run — this slice records and approves nothing. Adds 13 tests (suite 1450→1463 / 89 files). Prior — v0.2.221 MVP approval on the dashboard; v0.2.220 MVP_APPROVAL_STATE.json placeholder + approval:state CLI; v0.2.219 service-worker cache-version hygiene. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

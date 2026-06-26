@@ -1,9 +1,9 @@
 # Torii Quest — MVP Manual Playtest Acceptance Checklist
 
 > MVP MANUAL PLAYTEST CHECKLIST · LOCAL · READ-ONLY
-> generated: 2026-06-26T09:03:33.730Z
+> generated: 2026-06-26T09:30:53.401Z
 
-- **Version:** v0.2.221-alpha @ f78a2bc (source)
+- **Version:** v0.2.222-alpha @ 8fc41e8 (source)
 - **Live:** https://torii-quest.pplx.app
 - **Items:** 17 across 13 sections
 - **Severities:** blocker / major / minor

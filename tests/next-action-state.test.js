@@ -137,6 +137,26 @@ describe('buildNextActionState — assembly', () => {
     expect(s.mvpApproval).toEqual({ status: 'unknown', approved: false, approvedBy: null, approvedAt: null, version: null });
   });
 
+  it('folds the MVP playtest results into the state and pins approvalImplied false', () => {
+    const notRun = buildNextActionState({ agentHandoff: handoff(), playtestResults: null });
+    expect(notRun.playtestResults.status).toBe('unknown');
+    expect(notRun.playtestResults.approvalImplied).toBe(false);
+
+    const summary = { schema: 'torii.playtest-results-summary', total: 2, counts: { total: 2, pass: 0, fail: 0, na: 0, blank: 2, other: 0 }, fails: [], verdict: 'EMPTY' };
+    const blank = buildNextActionState({ agentHandoff: handoff(), playtestResults: summary });
+    expect(blank.playtestResults.status).toBe('not-run');
+    expect(blank.playtestResults.pending).toBe(true);
+    expect(blank.playtestResults.approvalImplied).toBe(false);
+  });
+
+  it('a fully complete playtest still never implies approval', () => {
+    const summary = { schema: 'torii.playtest-results-summary', total: 2, counts: { total: 2, pass: 1, fail: 0, na: 1, blank: 0, other: 0 }, fails: [], verdict: 'COMPLETE' };
+    const s = buildNextActionState({ agentHandoff: handoff(), playtestResults: summary });
+    expect(s.playtestResults.status).toBe('complete');
+    expect(s.playtestResults.complete).toBe(true);
+    expect(s.playtestResults.approvalImplied).toBe(false);
+  });
+
   it('pins the standing safety posture all-false (read-only oversight, godMode false)', () => {
     const s = buildNextActionState({ agentHandoff: handoff() });
     expect(s.safety).toEqual({
@@ -174,6 +194,8 @@ describe('next-action-state — formatters', () => {
     expect(txt).toContain('release: READY');
     expect(txt).toContain('1417 passing / 87 files');
     expect(txt).toContain('manual blocker: PENDING');
+    expect(txt).toContain('MVP playtest:');
+    expect(txt).toContain('implies approval: no');
     expect(txt).toContain('Next infra slice');
     expect(txt).toContain(V);
   });

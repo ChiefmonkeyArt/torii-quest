@@ -43,6 +43,8 @@ import { RC_SNAPSHOT_MANUAL_VALIDATION } from './rcSnapshot.mjs';
 import { buildManualValidationModel, CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
 import { runMvpReadiness } from '../src/engine/status/mvpReadiness.js';
 import { buildApprovalState, MVP_APPROVAL_FILE, MVP_APPROVAL_STATUSES } from './mvpApproval.mjs';
+import { parsePlaytestResults, summarizePlaytestResults } from './playtestResults.mjs';
+import { PLAYTEST_RESULTS_STATE_FILE } from './playtestResultsState.mjs';
 
 const ROOT = process.cwd();
 
@@ -104,6 +106,15 @@ function gatherMvpApproval() {
   return buildApprovalState({ status: MVP_APPROVAL_STATUSES.PENDING, version: configVersion() });
 }
 
+// Load + summarise the canonical MVP_PLAYTEST_RESULTS.md so the export shows whether the human
+// playtest has actually been recorded. Missing file → null (folds to status 'unknown'); a blank
+// committed record folds to 'not-run'. Read-only; this tool never records results or approves.
+function gatherPlaytestResults() {
+  const text = readSafe(PLAYTEST_RESULTS_STATE_FILE);
+  if (text == null) return null;
+  return summarizePlaytestResults(parsePlaytestResults(text));
+}
+
 // docs pointers: the curated core docs that exist on disk + the generated handoff artifact.
 function gatherDocs() {
   const out = [];
@@ -153,6 +164,7 @@ if (invokedDirectly) {
     testStatus: { passing: CURRENT_TEST_STATUS.passing, files: CURRENT_TEST_STATUS.files },
     docs: gatherDocs(),
     mvpApproval: gatherMvpApproval(),
+    playtestResults: gatherPlaytestResults(),
     generatedAt: new Date().toISOString(),
   });
 

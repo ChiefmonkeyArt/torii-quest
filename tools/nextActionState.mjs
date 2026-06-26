@@ -20,6 +20,7 @@
 
 import { sourceCommitLabel } from './commitStamp.mjs';
 import { summarizeApprovalForState } from './mvpApproval.mjs';
+import { summarizePlaytestForState } from './playtestResultsState.mjs';
 
 // Badge naming the export as read-only oversight, never a deploy/publish/upload action.
 export const NEXT_ACTION_STATE_BADGE = 'NEXT-ACTION STATE · LOCAL · READ-ONLY';
@@ -47,11 +48,15 @@ function _bool(x) { return x === true; }
 //   docs              string[] of docs pointers a next agent should read (defaults to [])
 //   mvpApproval       a MVP_APPROVAL_STATE.json record (buildApprovalState shape), or null →
 //                     status 'unknown'. Folded so a future approval flips ONE state source.
+//   playtestResults   raw results markdown OR a summarizePlaytestResults() summary for the canonical
+//                     MVP_PLAYTEST_RESULTS.md, or null → status 'unknown'. Folded via
+//                     summarizePlaytestForState so the next agent can see whether the human playtest
+//                     has actually been RECORDED — and it can never imply approval.
 //   generatedAt       OPTIONAL ISO stamp — the ONLY non-deterministic field; omit (null) for
 //                     reproducible tests; the CLI passes a real stamp at print time.
 export function buildNextActionState({
   agentHandoff = null, manualValidation = null, testStatus = null,
-  docs = null, mvpApproval = null, generatedAt = null,
+  docs = null, mvpApproval = null, playtestResults = null, generatedAt = null,
 } = {}) {
   const stamp = _str(generatedAt);
   const ah = agentHandoff && typeof agentHandoff === 'object' && !Array.isArray(agentHandoff)
@@ -108,6 +113,10 @@ export function buildNextActionState({
     // live-browser MVP. Folded from MVP_APPROVAL_STATE.json so a future approval flips one state
     // source, not scattered docs. `approved` is strict (invalid/partial "approved" → false).
     mvpApproval: summarizeApprovalForState(mvpApproval),
+    // MVP playtest results — whether the human playtest has actually been RECORDED in the canonical
+    // MVP_PLAYTEST_RESULTS.md (not-run / incomplete / attention / complete) + counts. `approvalImplied`
+    // is pinned false: a recorded playtest is necessary but NOT sufficient for approval.
+    playtestResults: summarizePlaytestForState(playtestResults),
     nextSafeTask: {
       title: _str(task.title),
       why: _str(task.why),
@@ -130,7 +139,8 @@ export function buildNextActionState({
 // present, regardless of how degraded the inputs are. buildNextActionState never omits these.
 export const NEXT_ACTION_STATE_REQUIRED_KEYS = Object.freeze([
   'schema', 'schemaVersion', 'badge', 'version', 'gitCommit', 'liveUrl',
-  'release', 'readiness', 'tests', 'manualBlocker', 'mvpApproval', 'nextSafeTask', 'docs', 'reports', 'safety',
+  'release', 'readiness', 'tests', 'manualBlocker', 'mvpApproval', 'playtestResults',
+  'nextSafeTask', 'docs', 'reports', 'safety',
 ]);
 
 // formatNextActionState(state) → a concise multi-line text block for the terminal. Pure.
@@ -159,6 +169,8 @@ export function formatNextActionState(state) {
   L.push(`manual blocker: ${pendingStr}${mb.statusLabel ? ` (${mb.statusLabel})` : ''}`);
   const ap = state.mvpApproval || {};
   L.push(`MVP approval: ${ap.approved ? 'APPROVED' : (ap.status || 'unknown')}${ap.approvedBy ? ` by ${ap.approvedBy}` : ''}${ap.approvedAt ? ` @ ${ap.approvedAt}` : ''}`);
+  const pr = state.playtestResults || {};
+  L.push(`MVP playtest: ${pr.status || 'unknown'} (pending ${pr.pending ? 'yes' : 'no'}; implies approval: no)`);
   L.push('');
   L.push(`next safe task: ${t.title ?? '(none)'}`);
   if (t.why) L.push(`  why: ${t.why}`);
@@ -198,6 +210,8 @@ export function formatNextActionStateMarkdown(state) {
   L.push(`- **Manual blocker:** ${pendingStr}${mb.statusLabel ? ` — ${mb.statusLabel}` : ''}`);
   const ap = state.mvpApproval || {};
   L.push(`- **MVP approval:** ${ap.approved ? 'APPROVED' : (ap.status || 'unknown')}${ap.approvedBy ? ` by ${ap.approvedBy}` : ''}${ap.approvedAt ? ` @ ${ap.approvedAt}` : ''}`);
+  const pr = state.playtestResults || {};
+  L.push(`- **MVP playtest:** ${pr.status || 'unknown'} (pending ${pr.pending ? 'yes' : 'no'}; implies approval: no)`);
   L.push('');
   L.push('## Next safe task');
   L.push('');

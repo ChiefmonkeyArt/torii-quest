@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.205-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.206-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -475,7 +475,25 @@ Breaking one should fail CI/the check, not ship.
   (suite count unchanged at 1304/82; the existing `tests/playtest-checklist.test.js` only asserts
   `expected` is a non-empty string, so the wording is free to change). No gameplay/physics/shooter/
   Rapier change; no Nostr signing/publishing/live network write; `godMode` stays false.
-  Latest slice report: `torii-v0.2.205-playtest-doc-warning-cleanup-report.md`.
+  **v0.2.206** added an MVP RELEASE PACKAGE INDEX — a pure, node-safe index generator
+  (`tools/releasePackage.mjs` + thin CLI `tools/release-package.mjs`, `npm run release:package`)
+  producing a single discoverability artifact (`MVP_RELEASE_PACKAGE.md`) so humans and future
+  agents can find every relevant MVP-proof file fast. The frozen `RELEASE_PACKAGE_ENTRIES` index
+  (10 entries grouped by category) points at `RELEASE_NOTES_DRAFT.md`, `MVP_PLAYTEST_CHECKLIST.md`,
+  `MVP_PLAYTEST_RESULTS_TEMPLATE.md`, `HANDOFF.generated.md`, `HANDOFF.md`, `progress.md`, `todo.md`,
+  `UPDATE_CHECK.md`, `VPS_INSTALL.md`, `ZONE_FALLBACK_READINESS.md`, and folds in version/commit, the
+  curated test-count, the live URL, the known advisories, and the recommended next safe action.
+  `buildReleasePackageModel(...)` is pure (the `present` map is INJECTED by the CLI so the helper
+  stays fs-free); `formatReleasePackage()`/`formatReleasePackageMarkdown()` render text/markdown
+  grouped by category with a present/missing/unknown mark per file (null-safe). The thin CLI stat-s
+  each indexed file and lists recent `torii-v*-report.md`; modes text / `--json` (schema
+  `torii.release-package` v1) / `--markdown`; READ-ONLY except an opt-in bounded in-repo
+  `--write[=path]` (default `MVP_RELEASE_PACKAGE.md`, confined via the SHARED `resolveHandoffWritePath`
+  — absolute / `..` rejected); always exits 0 (rejected `--write` path → exit 2).
+  `tests/release-package.test.js` (+12; suite now 1316/83). INDEX ONLY — no GitHub release, no git
+  tag, no announcement, no network/server, no deploy/publish; no gameplay/physics/shooter/Rapier
+  change; no Nostr signing/publishing/live network write; `godMode` stays false.
+  Latest slice report: `torii-v0.2.206-mvp-release-package-report.md`.
   v0.2.171 added `continuum` (the Torii Continuum project-oversight dashboard
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc

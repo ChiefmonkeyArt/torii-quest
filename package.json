@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.205-alpha",
+  "version": "0.2.206-alpha",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "handoff:agent": "node tools/agent-handoff.mjs",
     "rc:gate": "node tools/mvp-rc-gate.mjs",
     "release:notes": "node tools/release-notes.mjs",
+    "release:package": "node tools/release-package.mjs",
     "playtest:checklist": "node tools/playtest-checklist.mjs",
     "playtest:results": "node tools/playtest-results.mjs",
     "zones:check": "node tools/zone-fallback-check.mjs",

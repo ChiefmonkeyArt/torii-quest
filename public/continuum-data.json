@@ -1,11 +1,11 @@
 {
-  "version": "v0.2.205-alpha",
-  "generatedAt": "2026-06-26T00:57:20.894Z",
+  "version": "v0.2.206-alpha",
+  "generatedAt": "2026-06-26T01:16:44.518Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
     "activeTasks": 3,
-    "completedLast24h": 24,
+    "completedLast24h": 4,
     "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
@@ -26,17 +26,17 @@
     "todoCompletedMarkers": 12,
     "next12": 12,
     "activeNow": null,
-    "completed24h": 24,
+    "completed24h": null,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "completed24h (24)",
       "archive (11)"
     ],
     "gaps": [
-      "activeNow: no usable items parsed from progress.md — kept curated default"
+      "activeNow: no usable items parsed from progress.md — kept curated default",
+      "completed24h: no usable items parsed from progress.md — kept curated default"
     ],
     "sources": [
       "progress.md",
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.205-alpha"
+        "value": "v0.2.206-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 82"
+        "value": "fast 5 · foundation 25 · full 83"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1304 passing / 82 files"
+        "value": "1316 passing / 83 files"
       },
       {
         "label": "Profile timings",
@@ -74,12 +74,12 @@
       {
         "label": "Parser gaps",
         "kind": "generated",
-        "value": "1 · curated fallback used"
+        "value": "2 · curated fallback used"
       },
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.205-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.206-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 30,
         "label": "Foundation coverage",
-        "sub": "25/82 files"
+        "sub": "25/83 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.205-alpha",
-    "gitCommit": "455d9de",
+    "version": "v0.2.206-alpha",
+    "gitCommit": "d45f1d2",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.205-alpha / pkg 0.2.205-alpha"
+        "detail": "config v0.2.206-alpha / pkg 0.2.206-alpha"
       },
       {
         "key": "tests",

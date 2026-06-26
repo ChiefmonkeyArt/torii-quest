@@ -41,7 +41,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.205-alpha';
+const EXPECTED_VERSION = 'v0.2.206-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -125,7 +125,7 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   const count = (html.match(new RegExp(EXPECTED_VERSION.replace(/\./g, '\\.'), 'g')) || []).length;
   if (count < 2) fail(`index.html has ${count} ${EXPECTED_VERSION} markers (expected >=2)`);
   else pass(`index.html has ${count} version markers`);
-  if (/v0\.2\.204-alpha/.test(html)) fail('index.html still references v0.2.204-alpha');
+  if (/v0\.2\.205-alpha/.test(html)) fail('index.html still references v0.2.205-alpha');
   // package.json `version` must be valid semver (no leading 'v'), so it carries
   // the EXPECTED_VERSION with the 'v' stripped. Ties package metadata to the
   // runtime VERSION so the two can't drift (security-review finding, v0.2.137).

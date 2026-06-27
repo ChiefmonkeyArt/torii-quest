@@ -70,6 +70,7 @@ export * as updateStatus from '../engine/update/updateStatus.js';
 export * as updateFlowSmoke from '../engine/update/updateFlowSmoke.js';
 export * as hostRouteSmoke from '../engine/host/hostRouteSmoke.js';
 export * as mvpReadiness from '../engine/status/mvpReadiness.js';
+export * as handoffControlPanel from '../engine/status/handoffControlPanel.js';
 export * as mvpLoop from '../engine/mvpLoop.js';
 export * as continuum from '../engine/dashboard/continuumData.js';
 export * as proofSurfaceSpecs from '../engine/world/proofSurfaceSpecs.js';
@@ -266,6 +267,11 @@ export const SDK_SURFACE = Object.freeze({
   // read-only rollup with an MVP percentage/status + next safe task; NO deploy,
   // NO network, never acts.
   mvpReadiness:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/status/mvpReadiness.js' },
+  // Handoff / release control panel (v0.2.233) — pure single-source-of-truth for the one-glance
+  // project pickup posture (version + live URLs, entry/dashboard smoke evidence, the manual
+  // blocker, next safe task, do-not list, non-religious operating principles). GREEN-REQUIRES-
+  // EVIDENCE. READ-ONLY: approves/deploys/publishes NOTHING.
+  handoffControlPanel: { tier: STABILITY.EXPERIMENTAL, module: '../engine/status/handoffControlPanel.js' },
   // MVP loop header — frames the four PoC preview cards as one Travel→Market→Score→Update loop (v0.2.143).
   mvpLoop:         { tier: STABILITY.EXPERIMENTAL, module: '../engine/mvpLoop.js' },
   // Torii Continuum project-oversight dashboard data + pure static-page renderer

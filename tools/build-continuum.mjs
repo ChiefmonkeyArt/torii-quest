@@ -34,6 +34,9 @@ import { RELEASE_MANIFEST_REQUIRED, RELEASE_MANIFEST_OPTIONAL } from './releaseM
 import { RC_SNAPSHOT_DOC_REFS, RC_SNAPSHOT_MANUAL_VALIDATION } from './rcSnapshot.mjs';
 import { buildApprovalState, summarizeApprovalForState, MVP_APPROVAL_FILE } from './mvpApproval.mjs';
 import { summarizePlaytestForState, PLAYTEST_RESULTS_STATE_FILE } from './playtestResultsState.mjs';
+import { buildLiveSmokeState, LIVE_SMOKE_FILE, LIVE_SMOKE_RESULTS, summarizeLiveSmokeForState } from './liveSmokeState.mjs';
+import { buildDashboardSmokeState, DASHBOARD_SMOKE_FILE, DASHBOARD_SMOKE_RESULTS, summarizeDashboardSmokeForState } from './dashboardSmokeState.mjs';
+import { buildHandoffControlPanel, buildHandoffControlPanelCard, HANDOFF_LIVE_URL, HANDOFF_DASHBOARD_URL } from '../src/engine/status/handoffControlPanel.js';
 import {
   PLAYTEST_CHECKLIST_SECTIONS,
   PLAYTEST_SEVERITIES,
@@ -259,10 +262,47 @@ try {
   console.log(`[continuum] playtest results: live gather unavailable (${e.message}) — using last-known`);
 }
 
+// Handoff / release control panel (v0.2.233) — the ONE read-only surface a fresh agent or human reads
+// first to pick up the project safely. Built from the SAME pure module the next-action-state CLI uses
+// (src/engine/status/handoffControlPanel.js), folding already-gathered signals: the committed app-entry
+// + oversight-dashboard cloud smokes (LIVE_SMOKE_STATE.json / DASHBOARD_SMOKE_STATE.json, re-shaped so a
+// hand-edited file is normalised), the manual-validation card's blocker pill, the MVP-approval posture,
+// and the curated next safe task. GREEN-REQUIRES-EVIDENCE + non-religious-ethics floors live in the pure
+// module. Cheap file reads only — no crypto, no git, no network. On any failure we degrade to the curated
+// LAST-KNOWN card baked into continuumData.js.
+let handoffPanel;
+try {
+  const liveSmokeRaw = readDocSafe(LIVE_SMOKE_FILE);
+  const dashSmokeRaw = readDocSafe(DASHBOARD_SMOKE_FILE);
+  const parse = (raw) => { try { return raw ? JSON.parse(raw) : null; } catch { return null; } };
+  const ls = parse(liveSmokeRaw);
+  const ds = parse(dashSmokeRaw);
+  const liveSmokeState = ls
+    ? buildLiveSmokeState({ result: ls.result, version: ls.version, commit: ls.commit, liveUrl: ls.liveUrl, smokedAt: ls.smokedAt, smokedBy: ls.smokedBy, checks: ls.checks, notes: ls.notes })
+    : buildLiveSmokeState({ result: LIVE_SMOKE_RESULTS.UNKNOWN, version: VERSION });
+  const dashSmokeState = ds
+    ? buildDashboardSmokeState({ result: ds.result, version: ds.version, commit: ds.commit, dashboardUrl: ds.dashboardUrl, surface: ds.surface, smokedAt: ds.smokedAt, smokedBy: ds.smokedBy, checks: ds.checks, notes: ds.notes })
+    : buildDashboardSmokeState({ result: DASHBOARD_SMOKE_RESULTS.UNKNOWN, version: VERSION });
+  const panel = buildHandoffControlPanel({
+    version: VERSION,
+    liveUrl: HANDOFF_LIVE_URL,
+    dashboardUrl: HANDOFF_DASHBOARD_URL,
+    entrySmoke: summarizeLiveSmokeForState(liveSmokeState),
+    dashboardSmoke: summarizeDashboardSmokeForState(dashSmokeState),
+    manualBlocker: { pending: manualValidation.pill !== 'no-blocker', statusLabel: manualValidation.statusLabel, pill: manualValidation.pill },
+    mvpApproval: { approved: mvpApproval.approved === true, status: mvpApproval.status },
+    nextSafeTask: SHIP_NEXT_SAFE_TASK,
+  });
+  handoffPanel = buildHandoffControlPanelCard(panel);
+} catch (e) {
+  handoffPanel = undefined; // fall back to the curated CURATED_HANDOFF_PANEL in continuumData.js
+  console.log(`[continuum] handoff panel: live gather unavailable (${e.message}) — using last-known`);
+}
+
 // Stamp the packaged build time so the page can show when the data was packaged.
 const generatedAt = new Date().toISOString();
 const model = {
-  ...buildContinuumModel({ ...overrides, health, readiness, ship, rcStatus, manualValidation, noBlockerQueue, mvpApproval, playtestResults, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
+  ...buildContinuumModel({ ...overrides, health, readiness, ship, rcStatus, manualValidation, noBlockerQueue, mvpApproval, playtestResults, handoffPanel, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
   generatedAt,
 };
 
@@ -283,4 +323,5 @@ console.log(`[continuum] rc status: ${rcStatus.statusLabel} (${rcStatus.kind}) �
 console.log(`[continuum] manual validation: ${manualValidation.statusLabel} (${manualValidation.kind}) · checklist ${manualValidation.sections} sections/${manualValidation.items} items · ${manualValidation.blocker}/${manualValidation.major}/${manualValidation.minor} b/M/m · areas ${manualValidation.validationAreas}`);
 console.log(`[continuum] no-blocker queue: ${noBlockerQueue.statusLabel} (${noBlockerQueue.kind}) · active ${noBlockerQueue.activeNow} · next ${noBlockerQueue.nextUp} · archive ${noBlockerQueue.archiveClusters} · done24h ${noBlockerQueue.completed24h} · manualPending ${noBlockerQueue.manualPending}`);
 console.log(`[continuum] mvp approval: ${mvpApproval.statusLabel} (${mvpApproval.kind}) · status ${mvpApproval.status} · approved ${mvpApproval.approved} · version ${mvpApproval.version}`);
+console.log(`[continuum] handoff panel: ${model.handoffPanel.statusLabel} (${model.handoffPanel.kind}) · green ${model.handoffPanel.green} · pill ${model.handoffPanel.pill}`);
 console.log(`[continuum] playtest results: ${playtestResults.statusLabel} (${playtestResults.kind}) · status ${playtestResults.status} · recorded ${playtestResults.ran} · ${playtestResults.counts.pass}/${playtestResults.counts.fail}/${playtestResults.counts.blank} p/f/b of ${playtestResults.total} · implies approval ${playtestResults.approvalImplied}`);

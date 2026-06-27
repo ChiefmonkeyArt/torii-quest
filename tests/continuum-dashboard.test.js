@@ -32,7 +32,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.232-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.233-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -137,7 +137,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.232-alpha');
+    expect(round.version).toBe('v0.2.233-alpha');
     expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -149,7 +149,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.232-alpha');
+    expect(html).toContain('v0.2.233-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -1247,10 +1247,73 @@ describe('test-count freshness (v0.2.200 — single source of truth)', () => {
   });
 });
 
+describe('handoff / release control panel section (v0.2.233)', () => {
+  it('renders the curated handoff panel section with version, live URLs, and principles', () => {
+    const html = renderContinuumPage();
+    expect(html).toContain('Handoff / release control panel');
+    expect(html).toContain('torii-quest.pplx.app');
+    expect(html).toContain('continuum.html');
+    // The curated panel is a complete (green) surface with the blocker still pending.
+    expect(html).toContain('HANDOFF READY');
+    // At least one of the practical, non-religious operating principles is surfaced.
+    expect(html).toContain('Self-sovereignty');
+  });
+
+  it('the rendered ethics copy contains NO religious language', () => {
+    const html = renderContinuumPage();
+    // The panel's ethics copy must read as a practical engineering compass, not doctrine.
+    const denied = ['sacred', 'holy', 'worship', 'prayer', 'divine', 'scripture', 'doctrine', 'gospel', 'salvation'];
+    for (const term of denied) {
+      expect(new RegExp(`\\b${term}\\b`, 'i').test(html)).toBe(false);
+    }
+  });
+
+  it('escapes injected handoff-panel content and keeps exactly one inline script + the CSP hash', () => {
+    const evilPanel = buildContinuumModel({
+      handoffPanel: {
+        badge: 'B<script>alert(1)</script>',
+        kind: 'generated',
+        band: 'ready-pending',
+        statusLabel: 'HANDOFF<script>evil()</script>',
+        pill: 'manual',
+        green: true,
+        metrics: [{ label: 'X</section><script>x()</script>', value: '<img src=x onerror=alert(1)>' }],
+        note: 'n<script>boom()</script>',
+      },
+    });
+    const html = renderContinuumPage(evilPanel);
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('<script>evil()</script>');
+    expect(html).not.toContain('<script>x()</script>');
+    expect(html).not.toContain('<script>boom()</script>');
+    expect((html.match(/<script/g) || []).length).toBe(1);
+    const m = html.match(/<script>([\s\S]*?)<\/script>/);
+    expect(m).toBeTruthy();
+    const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
+    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+  });
+
+  it('the panel pill stays within the allowed vocabulary', () => {
+    const html = renderContinuumPage();
+    const allowed = ['pill-no-blocker', 'pill-gated', 'pill-manual', 'pill-deferred', 'pill-open-edge'];
+    // The handoff panel's pill class must be one of the known classes (no stray class injected).
+    const section = html.slice(html.indexOf('Handoff / release control panel'));
+    const pillMatch = section.match(/class="pill (pill-[a-z-]+)"/);
+    expect(pillMatch).toBeTruthy();
+    expect(allowed).toContain(pillMatch[1]);
+  });
+});
+
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.232-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.233-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
+  });
+
+  it('re-exports the handoff control-panel module at the experimental tier', () => {
+    expect(typeof SDK.handoffControlPanel.buildHandoffControlPanel).toBe('function');
+    expect(typeof SDK.handoffControlPanel.isHandoffPanelGreen).toBe('function');
+    expect(SDK.SDK_SURFACE.handoffControlPanel.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });
 });

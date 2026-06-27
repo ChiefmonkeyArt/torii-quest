@@ -14,6 +14,7 @@ import {
 } from '../tools/nextActionState.mjs';
 import { VERSION } from '../src/config.js';
 import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
+import { buildHandoffControlPanel } from '../src/engine/status/handoffControlPanel.js';
 
 const V = 'v0.2.217-alpha';
 const PKG = '0.2.217-alpha';
@@ -194,6 +195,27 @@ describe('buildNextActionState — assembly', () => {
     expect(green.dashboardSmoke).toMatchObject({
       result: 'pass', pass: true, version: 'v0.2.231-alpha', surface: 'continuum.html',
       smokedAt: '2026-06-26', checks: 2, passed: 2, failed: 0,
+      impliesApproval: false, impliesPlaytestComplete: false,
+    });
+  });
+
+  it('folds the handoff control panel and pins approval + playtest-complete false', () => {
+    const unknown = buildNextActionState({ agentHandoff: handoff(), handoffControlPanel: null });
+    expect(unknown.controlPanel).toMatchObject({
+      green: false, impliesApproval: false, impliesPlaytestComplete: false,
+    });
+
+    const panel = buildHandoffControlPanel({
+      version: VERSION,
+      entrySmoke: { result: 'pass', pass: true, version: 'v0.2.230-alpha', checks: 3, passed: 3, failed: 0 },
+      dashboardSmoke: { result: 'pass', pass: true, version: 'v0.2.231-alpha', checks: 4, passed: 4, failed: 0 },
+      manualBlocker: { pending: true, statusLabel: 'pending', pill: 'manual' },
+      mvpApproval: { approved: false, status: 'pending' },
+      nextSafeTask: { title: 'safe slice', why: 'x', kind: 'infra' },
+    });
+    const green = buildNextActionState({ agentHandoff: handoff(), handoffControlPanel: panel });
+    expect(green.controlPanel).toMatchObject({
+      green: true, version: VERSION, manualBlockerPending: true, ethicsNonReligious: true,
       impliesApproval: false, impliesPlaytestComplete: false,
     });
   });

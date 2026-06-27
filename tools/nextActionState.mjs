@@ -23,6 +23,7 @@ import { summarizeApprovalForState } from './mvpApproval.mjs';
 import { summarizePlaytestForState } from './playtestResultsState.mjs';
 import { summarizeLiveSmokeForState } from './liveSmokeState.mjs';
 import { summarizeDashboardSmokeForState } from './dashboardSmokeState.mjs';
+import { summarizeHandoffControlPanelForState } from '../src/engine/status/handoffControlPanel.js';
 
 // Badge naming the export as read-only oversight, never a deploy/publish/upload action.
 export const NEXT_ACTION_STATE_BADGE = 'NEXT-ACTION STATE · LOCAL · READ-ONLY';
@@ -59,7 +60,7 @@ function _bool(x) { return x === true; }
 export function buildNextActionState({
   agentHandoff = null, manualValidation = null, testStatus = null,
   docs = null, mvpApproval = null, playtestResults = null, liveSmoke = null,
-  dashboardSmoke = null, generatedAt = null,
+  dashboardSmoke = null, handoffControlPanel = null, generatedAt = null,
 } = {}) {
   const stamp = _str(generatedAt);
   const ah = agentHandoff && typeof agentHandoff === 'object' && !Array.isArray(agentHandoff)
@@ -130,6 +131,11 @@ export function buildNextActionState({
     // whether the oversight surface itself was observed live. `impliesApproval` and
     // `impliesPlaytestComplete` are pinned false: a green dashboard smoke is neither.
     dashboardSmoke: summarizeDashboardSmokeForState(dashboardSmoke),
+    // Handoff control panel — the one-glance pickup posture, folded from the SAME pure module the
+    // Continuum dashboard renders ([[handoff-control-panel]]). `green` is true ONLY when the panel
+    // carries a current version, both live URLs, passing entry- + dashboard-smoke evidence, an
+    // explicit manual-blocker boolean, and non-religious ethics copy. green ≠ MVP approved.
+    controlPanel: summarizeHandoffControlPanelForState(handoffControlPanel),
     nextSafeTask: {
       title: _str(task.title),
       why: _str(task.why),
@@ -153,7 +159,7 @@ export function buildNextActionState({
 export const NEXT_ACTION_STATE_REQUIRED_KEYS = Object.freeze([
   'schema', 'schemaVersion', 'badge', 'version', 'gitCommit', 'liveUrl',
   'release', 'readiness', 'tests', 'manualBlocker', 'mvpApproval', 'playtestResults',
-  'liveSmoke', 'dashboardSmoke', 'nextSafeTask', 'docs', 'reports', 'safety',
+  'liveSmoke', 'dashboardSmoke', 'controlPanel', 'nextSafeTask', 'docs', 'reports', 'safety',
 ]);
 
 // formatNextActionState(state) → a concise multi-line text block for the terminal. Pure.
@@ -188,6 +194,8 @@ export function formatNextActionState(state) {
   L.push(`live smoke: ${ls.result || 'unknown'}${ls.pass ? ' ✓' : ''}${ls.version ? ` @ ${ls.version}` : ''} (${ls.passed ?? '?'}/${ls.checks ?? '?'} checks; implies approval: no)`);
   const ds = state.dashboardSmoke || {};
   L.push(`dashboard smoke: ${ds.result || 'unknown'}${ds.pass ? ' ✓' : ''}${ds.version ? ` @ ${ds.version}` : ''}${ds.surface ? ` (${ds.surface})` : ''} (${ds.passed ?? '?'}/${ds.checks ?? '?'} checks; implies approval: no)`);
+  const cp = state.controlPanel || {};
+  L.push(`handoff panel: ${cp.green ? 'COMPLETE ✓' : 'incomplete'} (version ${cp.version || '?'}; blocker ${cp.manualBlockerPending === true ? 'PENDING' : (cp.manualBlockerPending === false ? 'clear' : 'unknown')}; ethics non-religious: ${cp.ethicsNonReligious ? 'yes' : 'no'}; implies approval: no)`);
   L.push('');
   L.push(`next safe task: ${t.title ?? '(none)'}`);
   if (t.why) L.push(`  why: ${t.why}`);
@@ -233,6 +241,8 @@ export function formatNextActionStateMarkdown(state) {
   L.push(`- **Live smoke (deployed):** ${ls.result || 'unknown'}${ls.pass ? ' (PASS)' : ''}${ls.version ? ` @ ${ls.version}` : ''} — ${ls.passed ?? '?'}/${ls.checks ?? '?'} checks (implies approval: no)`);
   const ds = state.dashboardSmoke || {};
   L.push(`- **Dashboard smoke (deployed):** ${ds.result || 'unknown'}${ds.pass ? ' (PASS)' : ''}${ds.version ? ` @ ${ds.version}` : ''}${ds.surface ? ` — ${ds.surface}` : ''} — ${ds.passed ?? '?'}/${ds.checks ?? '?'} checks (implies approval: no)`);
+  const cp = state.controlPanel || {};
+  L.push(`- **Handoff control panel:** ${cp.green ? 'COMPLETE' : 'incomplete'} — version ${cp.version || '?'}; manual blocker ${cp.manualBlockerPending === true ? 'PENDING' : (cp.manualBlockerPending === false ? 'clear' : 'unknown')}; ethics non-religious: ${cp.ethicsNonReligious ? 'yes' : 'no'} (implies approval: no)`);
   L.push('');
   L.push('## Next safe task');
   L.push('');

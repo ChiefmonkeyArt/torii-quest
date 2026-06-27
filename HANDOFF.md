@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.232-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.233-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -525,6 +525,34 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.233** HANDOFF / RELEASE CONTROL PANEL (status/dashboard/docs-only, no runtime change) — consolidates
+  the project pickup posture into ONE read-only surface at the top of `/continuum.html` so a fresh AI agent
+  (Claude / GPT / DeepSeek) or human can, in a single glance, see: the current live version + the game URL
+  (torii-quest.pplx.app) and dashboard URL (torii-quest.pplx.app/continuum.html), the latest app-entry cloud
+  smoke (v0.2.230-alpha PASS 3/3) and oversight-dashboard cloud smoke (v0.2.231-alpha PASS 4/4), the one
+  manual blocker (the human must run the live-browser MVP playtest + explicitly approve), the next safe
+  no-blocker task, the exact actions NOT to take without user input, and the project's practical
+  **NON-RELIGIOUS** operating principles (self-sovereignty, consent, privacy by default, user-owned npub,
+  open protocols, FOSS, Bitcoin/Nostr/ecash alignment, local circular economics, no dark patterns, no
+  surveillance, no lock-in, reversible user-controlled actions, truthful status reporting). New PURE
+  browser-safe single-source-of-truth module `src/engine/status/handoffControlPanel.js`
+  (build/validate/isGreen/summarize + a dashboard card builder + a word-boundary religious-language guard)
+  consumed by BOTH the page (`continuumData.js`) and the next-action state (`tools/nextActionState.mjs` +
+  CLI + `tools/build-continuum.mjs`), so the "is the handoff surface complete?" logic can never drift
+  between the page and the CLI. GREEN-REQUIRES-EVIDENCE floor: the panel can never read complete without a
+  current version marker, both live URLs, PASSING entry- AND dashboard-smoke evidence (≥1 check, all
+  passing, a version marker), an EXPLICIT manual-blocker boolean (truthful status — never "unknown"), AND
+  non-religious ethics copy (any flagged term is a validator ERROR; the brand vocabulary torii/gate/shrine/⛩
+  and the bare godMode flag are intentionally NOT guarded). GREEN means the handoff SURFACE is complete +
+  trustworthy — NOT that the MVP is approved: `impliesApproval` AND `impliesPlaytestComplete` stay pinned
+  **false** everywhere. The two former at-a-glance "Live smoke" / "Dashboard smoke" rows are consolidated
+  into this one panel (no duplicate noisy sections). New `tests/handoff-control-panel.test.js` + extended
+  `tests/continuum-dashboard.test.js` and `tests/next-action-state.test.js` (suite 1548/94 → 1574/95).
+  TOOLING/STATUS/DOCS-ONLY — **status STAYS not-run/pending — no results fabricated, no MVP approval granted
+  this slice** (parent agent handles security review/deploy/publish/push/upload + live smoke + playtest); no
+  gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write beyond the existing
+  NIP-07 read; no network/deploy/publish/tag/release/self-update; `godMode` stays false; no new
+  `setTimeout`/`Vector3`/`Matrix4`. Latest slice report: `torii-v0.2.233-handoff-release-control-report.md`.
   **v0.2.232** DASHBOARD-SMOKE STATUS SLICE (status/dashboard/docs-only, no runtime change) — surfaces the
   latest LIVE cloud-browser smoke of the DEPLOYED Continuum DASHBOARD (`/continuum.html`) alongside the
   app-entry live smoke, in the existing oversight system. New 4th state-artifact triple mirroring

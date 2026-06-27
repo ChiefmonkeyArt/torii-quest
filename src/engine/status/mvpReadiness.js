@@ -54,8 +54,8 @@ const SAFETY_FLAGS = Object.freeze([
 // (continuumData.js) — a unit test (tests/continuum-dashboard.test.js, v0.2.200) asserts
 // the two captures agree, so this count can't quietly drift from the dashboard's.
 export const DEFAULT_TEST_STATUS = Object.freeze({
-  passing: 1548,
-  files: 94,
+  passing: 1574,
+  files: 95,
   profile: 'full',
   ok: true,
 });

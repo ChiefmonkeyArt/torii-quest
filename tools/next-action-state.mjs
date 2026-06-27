@@ -45,8 +45,10 @@ import { runMvpReadiness } from '../src/engine/status/mvpReadiness.js';
 import { buildApprovalState, MVP_APPROVAL_FILE, MVP_APPROVAL_STATUSES } from './mvpApproval.mjs';
 import { parsePlaytestResults, summarizePlaytestResults } from './playtestResults.mjs';
 import { PLAYTEST_RESULTS_STATE_FILE } from './playtestResultsState.mjs';
-import { buildLiveSmokeState, LIVE_SMOKE_FILE, LIVE_SMOKE_RESULTS } from './liveSmokeState.mjs';
-import { buildDashboardSmokeState, DASHBOARD_SMOKE_FILE, DASHBOARD_SMOKE_RESULTS } from './dashboardSmokeState.mjs';
+import { buildLiveSmokeState, LIVE_SMOKE_FILE, LIVE_SMOKE_RESULTS, summarizeLiveSmokeForState } from './liveSmokeState.mjs';
+import { buildDashboardSmokeState, DASHBOARD_SMOKE_FILE, DASHBOARD_SMOKE_RESULTS, summarizeDashboardSmokeForState } from './dashboardSmokeState.mjs';
+import { SHIP_NEXT_SAFE_TASK } from '../src/engine/dashboard/continuumData.js';
+import { buildHandoffControlPanel, HANDOFF_LIVE_URL, HANDOFF_DASHBOARD_URL } from '../src/engine/status/handoffControlPanel.js';
 
 const ROOT = process.cwd();
 
@@ -193,16 +195,40 @@ if (invokedDirectly) {
 
   const agentHandoff = buildAgentHandoff({ handoffSummary: summary, mvpReadiness: mvp, generatedAt: null });
   const manualValidation = gatherManualValidation(agentHandoff.gate.statusLabel);
+  const mvpApproval = gatherMvpApproval();
+  const liveSmoke = gatherLiveSmoke();
+  const dashboardSmoke = gatherDashboardSmoke();
+
+  // Build the handoff control panel from the SAME pure module the Continuum dashboard renders, so
+  // the one-glance pickup posture folded here can never drift from the page. Read-only: it folds
+  // already-gathered signals (smoke summaries, the manual-validation card, the next safe task).
+  const handoffControlPanel = buildHandoffControlPanel({
+    version: configVersion(),
+    liveUrl: HANDOFF_LIVE_URL,
+    dashboardUrl: HANDOFF_DASHBOARD_URL,
+    entrySmoke: summarizeLiveSmokeForState(liveSmoke),
+    dashboardSmoke: summarizeDashboardSmokeForState(dashboardSmoke),
+    manualBlocker: {
+      pending: manualValidation ? manualValidation.pill !== 'no-blocker' : null,
+      statusLabel: manualValidation ? manualValidation.statusLabel : null,
+      pill: manualValidation ? manualValidation.pill : null,
+    },
+    mvpApproval: mvpApproval
+      ? { approved: mvpApproval.approved === true, status: mvpApproval.status }
+      : null,
+    nextSafeTask: SHIP_NEXT_SAFE_TASK,
+  });
 
   const state = buildNextActionState({
     agentHandoff,
     manualValidation,
     testStatus: { passing: CURRENT_TEST_STATUS.passing, files: CURRENT_TEST_STATUS.files },
     docs: gatherDocs(),
-    mvpApproval: gatherMvpApproval(),
+    mvpApproval,
     playtestResults: gatherPlaytestResults(),
-    liveSmoke: gatherLiveSmoke(),
-    dashboardSmoke: gatherDashboardSmoke(),
+    liveSmoke,
+    dashboardSmoke,
+    handoffControlPanel,
     generatedAt: new Date().toISOString(),
   });
 

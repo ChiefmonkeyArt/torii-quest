@@ -8,7 +8,8 @@
 //   4. the one manual blocker (the human must run the live-browser MVP playtest + approve)
 //   5. the next SAFE no-blocker task an agent can pick up with no user input
 //   6. the exact actions NOT to take without explicit user input (HANDOFF_DO_NOT)
-//   7. the project's practical, NON-RELIGIOUS operating principles (PROJECT_PRINCIPLES)
+//   7. the standing workflow invariants — e.g. do NOT cancel a useful in-progress job (WORKFLOW_INVARIANTS)
+//   8. the project's practical, NON-RELIGIOUS operating principles (PROJECT_PRINCIPLES)
 //
 // SINGLE SOURCE OF TRUTH: this module is consumed by BOTH the static Continuum dashboard
 // (src/engine/dashboard/continuumData.js → a card) AND the node next-action state
@@ -66,6 +67,19 @@ export const HANDOFF_DO_NOT = Object.freeze([
   'Do NOT mark the MVP approved — only the user can, after running the live-browser playtest.',
   'Do NOT enable godMode or any debug capability in shipped runtime — godMode stays false.',
   'Do NOT add network calls, auto-update, or external redirects to the oversight surfaces.',
+]);
+
+// WORKFLOW_INVARIANTS — standing process rules a picking-up agent follows REGARDLESS of the task,
+// surfaced on the handoff panel so they can't be missed (v0.2.237). The first entry is the
+// do-not-cancel-useful-jobs rule; the rest are its explicit exceptions. Cancelling a useful
+// in-progress job wastes compute time and money and forces the work to be redone, so the default is
+// to FINISH it, then handle the next request. nostrich.
+export const WORKFLOW_INVARIANTS = Object.freeze([
+  'Do NOT cancel a useful in-progress job halfway through — finish it first, THEN process the user\'s next request. Cancelling useful work wastes compute time and money.',
+  'Exception — explicit cancel: the user explicitly asks to cancel or abandon the job.',
+  'Exception — immediate conflict: the running job conflicts with an immediate user request (e.g. it would clash with edits the new request needs now).',
+  'Exception — safely resumable: the work can be safely resumed later from where it left off, so stopping loses nothing.',
+  'Exception — stale/hung & already shipped: the job is stale or hung AND its output has already been committed, shipped, pushed, synced, and smoke-tested — stopping it only avoids further waste.',
 ]);
 
 // ETHICS_NOTE — a one-paragraph framing of the principles above for a fresh agent. Practical
@@ -142,7 +156,7 @@ export function buildHandoffControlPanel({
   version = null, liveUrl = HANDOFF_LIVE_URL, dashboardUrl = HANDOFF_DASHBOARD_URL,
   entrySmoke = null, dashboardSmoke = null, manualBlocker = null, mvpApproval = null,
   nextSafeTask = null, principles = PROJECT_PRINCIPLES, doNot = HANDOFF_DO_NOT,
-  ethicsNote = ETHICS_NOTE, generatedAt = null,
+  workflowInvariants = WORKFLOW_INVARIANTS, ethicsNote = ETHICS_NOTE, generatedAt = null,
 } = {}) {
   const mb = manualBlocker && typeof manualBlocker === 'object' && !Array.isArray(manualBlocker)
     ? manualBlocker : null;
@@ -157,6 +171,8 @@ export function buildHandoffControlPanel({
 
   const principlesArr = _arr(principles).length ? _arr(principles) : Array.from(PROJECT_PRINCIPLES);
   const doNotArr = _arr(doNot).length ? _arr(doNot) : Array.from(HANDOFF_DO_NOT);
+  const workflowArr = _arr(workflowInvariants).length
+    ? _arr(workflowInvariants) : Array.from(WORKFLOW_INVARIANTS);
   const note = _str(ethicsNote) || ETHICS_NOTE;
 
   return {
@@ -183,6 +199,7 @@ export function buildHandoffControlPanel({
     },
     principles: principlesArr,
     doNot: doNotArr,
+    workflowInvariants: workflowArr,
     ethicsNote: note,
     // Standing safety posture — this panel is read-only oversight; it NEVER triggers a deploy/
     // publish/push/tag/network/Nostr write, never implies MVP approval, never implies the human
@@ -241,6 +258,9 @@ export function validateHandoffControlPanel(panel) {
 
   // 7. do-not list + principles present, and the ethics copy must be NON-RELIGIOUS.
   if (!Array.isArray(panel.doNot) || panel.doNot.length === 0) add('the do-not list is required');
+  if (!Array.isArray(panel.workflowInvariants) || panel.workflowInvariants.length === 0) {
+    add('the workflow invariants (incl. the do-not-cancel-useful-jobs rule) are required');
+  }
   if (!Array.isArray(panel.principles) || panel.principles.length === 0) {
     add('the project principles are required');
   } else {
@@ -275,7 +295,8 @@ export function isHandoffPanelGreen(panel) {
 // present, however degraded the inputs. buildHandoffControlPanel never omits these.
 export const HANDOFF_CONTROL_PANEL_REQUIRED_KEYS = Object.freeze([
   'badge', 'version', 'liveUrl', 'dashboardUrl', 'entrySmoke', 'dashboardSmoke',
-  'manualBlocker', 'mvpApproval', 'nextSafeTask', 'principles', 'doNot', 'ethicsNote', 'safety',
+  'manualBlocker', 'mvpApproval', 'nextSafeTask', 'principles', 'doNot', 'workflowInvariants',
+  'ethicsNote', 'safety',
 ]);
 
 // summarizeHandoffControlPanelForState(panel) → the compact block folded into the machine-readable
@@ -295,6 +316,7 @@ export function summarizeHandoffControlPanelForState(panel) {
     dashboardSmoke: { result: ds.result, pass: ds.pass, version: ds.version },
     manualBlockerPending: typeof mb.pending === 'boolean' ? mb.pending : null,
     nextSafeTask: p && p.nextSafeTask ? (_str(p.nextSafeTask.title) || null) : null,
+    workflowInvariants: p && Array.isArray(p.workflowInvariants) ? p.workflowInvariants.length : 0,
     principles: p && Array.isArray(p.principles) ? p.principles.length : 0,
     ethicsNonReligious: p ? !containsReligiousLanguage(
       [p.ethicsNote || '', ...(Array.isArray(p.principles) ? p.principles : [])].join('\n')) : false,
@@ -347,6 +369,7 @@ export function buildHandoffControlPanelCard(panel = null) {
     { label: 'MVP approval', value: p.mvpApproval && p.mvpApproval.approved ? 'APPROVED' : 'PENDING (explicit user OK required)' },
     { label: 'Next safe task', value: task.title || '(none)' },
     { label: 'Do NOT (without user OK)', value: (p.doNot || []).join(' · ') },
+    { label: 'Workflow invariants', value: (p.workflowInvariants || []).join(' · ') },
     { label: 'Operating principles', value: (p.principles || []).join(' · ') },
     { label: 'Ethics', value: p.ethicsNote || '' },
   ];
@@ -363,7 +386,8 @@ export function buildHandoffControlPanelCard(panel = null) {
       + 'reads first to pick up the project safely: current version + live URLs, the latest app-entry '
       + 'and oversight-dashboard cloud smokes, the one manual blocker (the human must run the live-'
       + 'browser MVP playtest and explicitly approve), the next safe no-blocker task, the exact '
-      + 'actions NOT to take without user input, and the project\'s practical non-religious operating '
+      + 'actions NOT to take without user input, the standing workflow invariants (e.g. finish a useful '
+      + 'in-progress job rather than cancelling it), and the project\'s practical non-religious operating '
       + 'principles. GREEN means this surface is COMPLETE + trustworthy, NOT that the MVP is approved: '
       + 'a smoke pass is not approval, a dashboard pass is not a completed human playtest, and no live '
       + 'Nostr write is ever implied. It approves/releases/deploys/publishes NOTHING.',

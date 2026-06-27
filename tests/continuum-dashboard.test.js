@@ -32,7 +32,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.236-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.237-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -137,7 +137,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.236-alpha');
+    expect(round.version).toBe('v0.2.237-alpha');
     expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -149,7 +149,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.236-alpha');
+    expect(html).toContain('v0.2.237-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -1259,6 +1259,16 @@ describe('handoff / release control panel section (v0.2.233)', () => {
     expect(html).toContain('Self-sovereignty');
   });
 
+  it('surfaces the Workflow invariants metric (the do-not-cancel-useful-jobs rule) in the panel section', () => {
+    const html = renderContinuumPage();
+    const section = html.slice(html.indexOf('Handoff / release control panel'));
+    expect(section).toContain('Workflow invariants');
+    // The rule text must be visible to a future agent/human reading the dashboard.
+    expect(section.toLowerCase()).toContain('cancel a useful in-progress job');
+    // …and it must not be mistaken for approval/deploy authorisation.
+    expect(html).toContain('HANDOFF READY'); // still surface-complete, not MVP-approved
+  });
+
   it('the rendered ethics copy contains NO religious language', () => {
     const html = renderContinuumPage();
     // The panel's ethics copy must read as a practical engineering compass, not doctrine.
@@ -1448,7 +1458,7 @@ describe('Playtest verdict section (v0.2.235)', () => {
 
 describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier', () => {
-    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.236-alpha');
+    expect(SDK.continuum.CONTINUUM_VERSION).toBe('v0.2.237-alpha');
     expect(typeof SDK.continuum.renderContinuumPage).toBe('function');
     expect(SDK.SDK_SURFACE.continuum.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
   });

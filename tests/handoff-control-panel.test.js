@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   HANDOFF_LIVE_URL, HANDOFF_DASHBOARD_URL, HANDOFF_CONTROL_PANEL_BADGE,
-  PROJECT_PRINCIPLES, HANDOFF_DO_NOT, ETHICS_NOTE, RELIGIOUS_DENYLIST,
+  PROJECT_PRINCIPLES, HANDOFF_DO_NOT, WORKFLOW_INVARIANTS, ETHICS_NOTE, RELIGIOUS_DENYLIST,
   findReligiousLanguage, containsReligiousLanguage,
   buildHandoffControlPanel, validateHandoffControlPanel, isHandoffPanelGreen,
   HANDOFF_CONTROL_PANEL_REQUIRED_KEYS, summarizeHandoffControlPanelForState,
@@ -110,6 +110,60 @@ describe('green-requires-evidence floor', () => {
   it('a missing next safe task blocks green', () => {
     const panel = buildHandoffControlPanel(greenInput({ nextSafeTask: null }));
     expect(isHandoffPanelGreen(panel)).toBe(false);
+  });
+});
+
+describe('workflow invariants (do-not-cancel-useful-jobs rule)', () => {
+  it('exports a frozen WORKFLOW_INVARIANTS with the rule + its four exceptions', () => {
+    expect(Array.isArray(WORKFLOW_INVARIANTS)).toBe(true);
+    expect(Object.isFrozen(WORKFLOW_INVARIANTS)).toBe(true);
+    expect(WORKFLOW_INVARIANTS.length).toBeGreaterThanOrEqual(5);
+    // first entry = the rule itself
+    expect(WORKFLOW_INVARIANTS[0]).toMatch(/cancel a useful in-progress job/i);
+    expect(WORKFLOW_INVARIANTS[0]).toMatch(/finish it first/i);
+    // the four documented exceptions
+    const blob = WORKFLOW_INVARIANTS.join('\n');
+    expect(blob).toMatch(/explicit/i);            // explicit user cancel
+    expect(blob).toMatch(/conflict/i);            // immediate conflict
+    expect(blob).toMatch(/resum/i);               // safely resumable
+    expect(blob).toMatch(/stale|hung/i);          // stale/hung & already shipped
+    expect(blob).toMatch(/shipped|pushed|synced|smoke/i);
+  });
+
+  it('a built panel carries the workflow invariants by default', () => {
+    const panel = buildHandoffControlPanel();
+    expect(HANDOFF_CONTROL_PANEL_REQUIRED_KEYS).toContain('workflowInvariants');
+    expect(panel.workflowInvariants).toEqual(Array.from(WORKFLOW_INVARIANTS));
+  });
+
+  it('the builder folds the curated invariants back in when handed an empty array (surface never empty)', () => {
+    const panel = buildHandoffControlPanel(greenInput({ workflowInvariants: [] }));
+    expect(panel.workflowInvariants.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('a panel object that genuinely carries NO workflow invariants is a validator ERROR', () => {
+    const green = buildHandoffControlPanel(greenInput());
+    const v = validateHandoffControlPanel({ ...green, workflowInvariants: [] });
+    expect(v.ok).toBe(false);
+    expect(v.errors.join(' ')).toMatch(/workflow invariant/i);
+  });
+
+  it('the summary folds the invariant count and never implies approval', () => {
+    const s = summarizeHandoffControlPanelForState(buildHandoffControlPanel(greenInput()));
+    expect(s.workflowInvariants).toBe(WORKFLOW_INVARIANTS.length);
+    expect(s.impliesApproval).toBe(false);
+    expect(s.impliesPlaytestComplete).toBe(false);
+  });
+
+  it('the dashboard card surfaces a Workflow invariants metric', () => {
+    const card = buildHandoffControlPanelCard(buildHandoffControlPanel(greenInput()));
+    const metric = (card.metrics || []).find((m) => /workflow invariant/i.test(m.label || ''));
+    expect(metric).toBeTruthy();
+    expect(metric.value).toMatch(/cancel a useful in-progress job/i);
+  });
+
+  it('the curated invariants contain NO religious language', () => {
+    expect(containsReligiousLanguage(WORKFLOW_INVARIANTS.join('\n'))).toBe(false);
   });
 });
 

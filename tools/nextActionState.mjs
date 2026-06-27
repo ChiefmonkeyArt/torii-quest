@@ -23,7 +23,7 @@ import { summarizeApprovalForState } from './mvpApproval.mjs';
 import { summarizePlaytestForState } from './playtestResultsState.mjs';
 import { summarizeLiveSmokeForState } from './liveSmokeState.mjs';
 import { summarizeDashboardSmokeForState } from './dashboardSmokeState.mjs';
-import { summarizeHandoffControlPanelForState } from '../src/engine/status/handoffControlPanel.js';
+import { summarizeHandoffControlPanelForState, WORKFLOW_INVARIANTS } from '../src/engine/status/handoffControlPanel.js';
 import { summarizeMvpApprovalGateForState } from '../src/engine/status/mvpApprovalGate.js';
 import { summarizePlaytestVerdictForState } from '../src/engine/status/playtestVerdict.js';
 
@@ -62,7 +62,8 @@ function _bool(x) { return x === true; }
 export function buildNextActionState({
   agentHandoff = null, manualValidation = null, testStatus = null,
   docs = null, mvpApproval = null, playtestResults = null, playtestVerdict = null, liveSmoke = null,
-  dashboardSmoke = null, handoffControlPanel = null, mvpGate = null, generatedAt = null,
+  dashboardSmoke = null, handoffControlPanel = null, mvpGate = null,
+  workflowInvariants = WORKFLOW_INVARIANTS, generatedAt = null,
 } = {}) {
   const stamp = _str(generatedAt);
   const ah = agentHandoff && typeof agentHandoff === 'object' && !Array.isArray(agentHandoff)
@@ -147,6 +148,15 @@ export function buildNextActionState({
     // ([[mvp-approval-gate]]). `approved` is true ONLY when the approval record carries an explicit
     // human OK; green confidence signals never flip it. impliesApproval is pinned false.
     mvpGate: summarizeMvpApprovalGateForState(mvpGate),
+    // Standing workflow invariants — process rules a future agent/human must honour regardless of
+    // release state. The first entry is the do-not-cancel-useful-jobs rule; the rest are its
+    // explicit exceptions (explicit user cancel, immediate conflict, safely resumable, stale/hung &
+    // already shipped). Carried verbatim from the SAME pure module the dashboard renders
+    // ([[handoff-control-panel]]) so the rule text never drifts between page, CLI, and JSON. These
+    // are workflow guidance ONLY: they imply no approval, deployment, or runtime behaviour change.
+    workflowInvariants: Array.isArray(workflowInvariants)
+      ? workflowInvariants.filter((s) => _str(s)).map((s) => s.trim())
+      : Array.from(WORKFLOW_INVARIANTS),
     nextSafeTask: {
       title: _str(task.title),
       why: _str(task.why),
@@ -170,7 +180,8 @@ export function buildNextActionState({
 export const NEXT_ACTION_STATE_REQUIRED_KEYS = Object.freeze([
   'schema', 'schemaVersion', 'badge', 'version', 'gitCommit', 'liveUrl',
   'release', 'readiness', 'tests', 'manualBlocker', 'mvpApproval', 'playtestResults', 'playtestVerdict',
-  'liveSmoke', 'dashboardSmoke', 'controlPanel', 'mvpGate', 'nextSafeTask', 'docs', 'reports', 'safety',
+  'liveSmoke', 'dashboardSmoke', 'controlPanel', 'mvpGate', 'workflowInvariants',
+  'nextSafeTask', 'docs', 'reports', 'safety',
 ]);
 
 // formatNextActionState(state) → a concise multi-line text block for the terminal. Pure.
@@ -211,6 +222,11 @@ export function formatNextActionState(state) {
   L.push(`handoff panel: ${cp.green ? 'COMPLETE ✓' : 'incomplete'} (version ${cp.version || '?'}; blocker ${cp.manualBlockerPending === true ? 'PENDING' : (cp.manualBlockerPending === false ? 'clear' : 'unknown')}; ethics non-religious: ${cp.ethicsNonReligious ? 'yes' : 'no'}; implies approval: no)`);
   const mg = state.mvpGate || {};
   L.push(`MVP approval gate: ${mg.approved ? 'APPROVED' : (mg.verdict || 'unknown')} (confidence ${mg.confidenceGreen ? 'green' : 'incomplete'}; needs explicit human OK; implies approval: no)`);
+  const wi = Array.isArray(state.workflowInvariants) ? state.workflowInvariants : [];
+  L.push('');
+  L.push(`workflow invariants (${wi.length}; guidance only — implies approval/deploy: no):`);
+  if (wi.length) { for (const inv of wi) L.push(`  • ${inv}`); }
+  else L.push('  (none)');
   L.push('');
   L.push(`next safe task: ${t.title ?? '(none)'}`);
   if (t.why) L.push(`  why: ${t.why}`);
@@ -260,6 +276,14 @@ export function formatNextActionStateMarkdown(state) {
   L.push(`- **Handoff control panel:** ${cp.green ? 'COMPLETE' : 'incomplete'} — version ${cp.version || '?'}; manual blocker ${cp.manualBlockerPending === true ? 'PENDING' : (cp.manualBlockerPending === false ? 'clear' : 'unknown')}; ethics non-religious: ${cp.ethicsNonReligious ? 'yes' : 'no'} (implies approval: no)`);
   const mg = state.mvpGate || {};
   L.push(`- **MVP approval gate:** ${mg.approved ? 'APPROVED' : (mg.verdict || 'unknown')} — confidence ${mg.confidenceGreen ? 'green' : 'incomplete'}; needs an explicit human OK (implies approval: no)`);
+  L.push('');
+  const wi = Array.isArray(state.workflowInvariants) ? state.workflowInvariants : [];
+  L.push('## Workflow invariants');
+  L.push('');
+  L.push('_Process guidance only — implies no approval, deployment, or runtime change._');
+  L.push('');
+  if (wi.length) { for (const inv of wi) L.push(`- ${inv}`); }
+  else L.push('_(none)_');
   L.push('');
   L.push('## Next safe task');
   L.push('');

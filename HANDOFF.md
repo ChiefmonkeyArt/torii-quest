@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.236-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.237-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -525,6 +525,24 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.237** WORKFLOW-INVARIANT SLICE (status/dashboard/docs-only, no runtime change) — records a standing
+  process rule so future agents/humans honour it: **do NOT cancel a useful in-progress job halfway through —
+  finish it first, THEN process the next request** (cancelling useful work wastes compute time and money), with
+  four explicit exceptions (the user explicitly cancels; the job conflicts with an immediate user request; the
+  work can be safely resumed later; OR the job is stale/hung AND its output is already committed/shipped/pushed/
+  synced/smoke-tested). Added as a frozen `WORKFLOW_INVARIANTS` export on the SAME single-source-of-truth module
+  the dashboard + CLI already render (`src/engine/status/handoffControlPanel.js`), folded through the panel
+  builder/validator (a panel with no invariants is now a validator ERROR), the `HANDOFF_CONTROL_PANEL_REQUIRED_KEYS`,
+  the `summarizeHandoffControlPanelForState` count, and a new **Workflow invariants** card metric — so it surfaces
+  on `/continuum.html` automatically via the generic escaped metric render (CSP/refresh hash untouched). Carried
+  verbatim into `NEXT_ACTION_STATE.json` as a top-level `workflowInvariants` array (+ REQUIRED key + both CLI
+  formatters) so the rule text never drifts between page, CLI, and JSON. New/extended tests in
+  `tests/handoff-control-panel.test.js`, `tests/continuum-dashboard.test.js`, `tests/next-action-state.test.js`.
+  DOCS/STATUS-ONLY — the rule is workflow guidance ONLY: it implies NO approval, deployment, or runtime change;
+  every safety flag stays pinned false; MVP approval stays pending. No gameplay/physics/shooter/Rapier change; no
+  Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/
+  release/self-update; `godMode` stays false; no new `setTimeout`/`Vector3`/`Matrix4`. Latest slice report:
+  `torii-v0.2.237-useful-job-cancellation-rule-report.md`.
   **v0.2.233** HANDOFF / RELEASE CONTROL PANEL (status/dashboard/docs-only, no runtime change) — consolidates
   the project pickup posture into ONE read-only surface at the top of `/continuum.html` so a fresh AI agent
   (Claude / GPT / DeepSeek) or human can, in a single glance, see: the current live version + the game URL

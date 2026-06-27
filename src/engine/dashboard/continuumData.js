@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const CONTINUUM_VERSION = 'v0.2.236-alpha';
+export const CONTINUUM_VERSION = 'v0.2.237-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,7 +51,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1629,
+  passing: 1640,
   files: 98,
   fastProfile: 5,
   foundationProfile: 25,
@@ -1147,13 +1147,13 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.236-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.237-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
     { label: 'Smoke (entry + dashboard)', value: 'Both cloud smokes consolidated into the Handoff / release control panel at the top of this page — app-entry v0.2.230-alpha PASS 3/3, oversight-dashboard v0.2.231-alpha PASS 4/4. A smoke pass does not imply MVP approval or a completed human playtest.' },
-    { label: 'Active slice', value: 'v0.2.235 MVP PLAYTEST VERDICT CAPTURE LOOP (status/dashboard/docs-only, no runtime change) — adds ONE terse one-line verdict capture, right after the playtest-results card on this page, so Chiefmonkey can report the live-browser result in a single line: "Verdict: MVP OK" (no blockers found) or "Verdict: blockers: a, b, c". Complements (does not replace) the verbose 17-item intake (MVP_PLAYTEST_RESULTS.md). New PURE browser-safe single-source-of-truth module (src/engine/status/playtestVerdict.js — parsePlaytestVerdict/summarizePlaytestVerdictForState/buildPlaytestVerdictCard) consumed by BOTH this page (continuumData.js) and the next-action state (tools/nextActionState.mjs + tools/next-action-state.mjs CLI) plus a read-only CLI (tools/playtest-verdict.mjs, npm run playtest:verdict), so the verdict vocabulary can never drift between the page and the CLI. The capture artifact MVP_PLAYTEST_VERDICT.md ships BLANK → reads as pending. APPROVAL-REQUIRES-EXPLICIT-OK floor preserved: a verdict of "MVP OK" means the tester found NO blockers — it is NECESSARY but NOT SUFFICIENT for approval; approvalImplied is pinned false in every branch and the safety block is all-false. Every reported blocker stays VISIBLE here (open-edge pill) and in NEXT_ACTION_STATE.json so it can be triaged before approval. The explicit human OK in MVP_APPROVAL_STATE.json remains the separate, deliberate gate this verdict can never stand in for. New tests/playtest-verdict.test.js + extended tests/continuum-dashboard.test.js and tests/next-action-state.test.js cover parse/state/card, blockers-stay-visible, the CSP-hash intactness, and the never-implies-approval invariant. Prior — v0.2.234 MVP approval gate; v0.2.233 handoff / release control panel; v0.2.232 dashboard-smoke status slice; v0.2.231 live-smoke status slice; v0.2.230 entry-flow runtime fix. NON-GOALS held: status/dashboard/docs only; no gameplay/physics/shooter/Rapier logic change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
+    { label: 'Active slice', value: 'v0.2.237 WORKFLOW-INVARIANT SLICE (status/dashboard/docs-only, no runtime change) — records a standing process rule so future agents/humans honour it: do NOT cancel a useful in-progress job halfway through — finish it first, THEN process the next request (cancelling useful work wastes compute time and money), with four explicit exceptions: the user explicitly cancels; the job conflicts with an immediate user request; the work can be safely resumed later; OR the job is stale/hung AND its output is already committed/shipped/pushed/synced/smoke-tested. Added as a frozen WORKFLOW_INVARIANTS export on the SAME single-source-of-truth module this page + the CLI already render (src/engine/status/handoffControlPanel.js), folded through the panel builder/validator (a panel with no invariants is now a validator ERROR), HANDOFF_CONTROL_PANEL_REQUIRED_KEYS, the summarizeHandoffControlPanelForState count, and a new Workflow invariants card metric — so it surfaces on /continuum.html automatically via the generic escaped metric render (CSP/refresh hash untouched). Carried verbatim into NEXT_ACTION_STATE.json as a top-level workflowInvariants array (+ REQUIRED key + both CLI formatters) so the rule text never drifts between page, CLI, and JSON. New/extended tests in tests/handoff-control-panel.test.js, tests/continuum-dashboard.test.js, tests/next-action-state.test.js. The rule is workflow guidance ONLY: it implies NO approval, deployment, or runtime change; every safety flag stays pinned false; MVP approval stays pending. Prior — v0.2.236 nostr-login runtime fix; v0.2.235 MVP playtest verdict capture loop; v0.2.234 MVP approval gate; v0.2.233 handoff / release control panel; v0.2.232 dashboard-smoke status slice; v0.2.231 live-smoke status slice. NON-GOALS held: status/dashboard/docs only; no gameplay/physics/shooter/Rapier logic change; no Nostr signing/publishing/live network write beyond the existing NIP-07 read; no network/deploy/publish/tag/release/self-update; godMode stays false; no new timers or hot-path Vector3/Matrix4 allocations.' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

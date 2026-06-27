@@ -1,17 +1,19 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-06-27T08:30:48.628Z",
+  "generatedAt": "2026-06-27T11:23:45.855Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.236-alpha",
-  "packageVersion": "0.2.236-alpha",
-  "gitCommit": "243441e",
+  "version": "v0.2.237-alpha",
+  "packageVersion": "0.2.237-alpha",
+  "gitCommit": "37c6472",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
-    "ready": true,
-    "gateStatus": "READY",
+    "ready": false,
+    "gateStatus": "NOT READY",
     "gateCommand": "npm run test:release",
-    "blockers": [],
+    "blockers": [
+      "docs"
+    ],
     "regression": {
       "count": 15,
       "expected": 15
@@ -22,12 +24,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 1629,
+    "passing": 1640,
     "files": 98
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
+    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -35,7 +37,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.236-alpha"
+    "version": "v0.2.237-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -102,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.236-alpha",
+    "version": "v0.2.237-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/continuum.html",
     "entrySmoke": {
@@ -117,17 +119,18 @@
     },
     "manualBlockerPending": true,
     "nextSafeTask": "Continue the read-only oversight loop — next safe infra/dashboard slice",
+    "workflowInvariants": 5,
     "principles": 11,
     "ethicsNonReligious": true,
     "impliesApproval": false,
     "impliesPlaytestComplete": false
   },
   "mvpGate": {
-    "verdict": "awaiting-approval",
+    "verdict": "signals-incomplete",
     "approved": false,
-    "confidenceGreen": true,
+    "confidenceGreen": false,
     "confidenceSignals": {
-      "releaseReady": true,
+      "releaseReady": false,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true
@@ -137,6 +140,13 @@
     "impliesApproval": false,
     "impliesPlaytestComplete": false
   },
+  "workflowInvariants": [
+    "Do NOT cancel a useful in-progress job halfway through — finish it first, THEN process the user's next request. Cancelling useful work wastes compute time and money.",
+    "Exception — explicit cancel: the user explicitly asks to cancel or abandon the job.",
+    "Exception — immediate conflict: the running job conflicts with an immediate user request (e.g. it would clash with edits the new request needs now).",
+    "Exception — safely resumable: the work can be safely resumed later from where it left off, so stopping loses nothing.",
+    "Exception — stale/hung & already shipped: the job is stale or hung AND its output has already been committed, shipped, pushed, synced, and smoke-tested — stopping it only avoids further waste."
+  ],
   "nextSafeTask": {
     "title": "Continue the read-only oversight loop — next safe infra/dashboard/tooling slice",
     "why": "Keep shipping no-runtime-risk tooling/docs that make the MVP proof easier to read and the gate harder to get wrong. SEC-gated live-relay / world-hop / shooting work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.",
@@ -163,10 +173,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
+    "torii-v0.2.236-nostr-login-runtime-fix-report.md",
     "torii-v0.2.235-playtest-result-capture-loop-report.md",
     "torii-v0.2.234-mvp-approval-gate-report.md",
-    "torii-v0.2.233-handoff-release-control-report.md",
-    "torii-v0.2.232-dashboard-smoke-status-report.md"
+    "torii-v0.2.233-handoff-release-control-report.md"
   ],
   "safety": {
     "deploy": false,

@@ -14,7 +14,7 @@ import {
 } from '../tools/nextActionState.mjs';
 import { VERSION } from '../src/config.js';
 import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
-import { buildHandoffControlPanel } from '../src/engine/status/handoffControlPanel.js';
+import { buildHandoffControlPanel, WORKFLOW_INVARIANTS } from '../src/engine/status/handoffControlPanel.js';
 import { buildMvpApprovalGate } from '../src/engine/status/mvpApprovalGate.js';
 
 const V = 'v0.2.217-alpha';
@@ -273,6 +273,25 @@ describe('buildNextActionState — assembly', () => {
     expect(NEXT_ACTION_STATE_REQUIRED_KEYS).toContain('mvpGate');
   });
 
+  it('carries the workflow invariants verbatim (the do-not-cancel-useful-jobs rule + exceptions)', () => {
+    const s = buildNextActionState({ agentHandoff: handoff() });
+    expect(Array.isArray(s.workflowInvariants)).toBe(true);
+    expect(s.workflowInvariants).toEqual(Array.from(WORKFLOW_INVARIANTS));
+    expect(s.workflowInvariants[0]).toMatch(/cancel a useful in-progress job/i);
+    // the rule is workflow guidance ONLY — it must never flip the standing safety posture.
+    expect(s.safety.deploy).toBe(false);
+    expect(s.safety.publish).toBe(false);
+  });
+
+  it('includes workflowInvariants in the required-keys list', () => {
+    expect(NEXT_ACTION_STATE_REQUIRED_KEYS).toContain('workflowInvariants');
+  });
+
+  it('honours a caller-supplied workflowInvariants array (trimmed, non-empty only)', () => {
+    const s = buildNextActionState({ agentHandoff: handoff(), workflowInvariants: ['  finish the job  ', '', '   '] });
+    expect(s.workflowInvariants).toEqual(['finish the job']);
+  });
+
   it('pins the standing safety posture all-false (read-only oversight, godMode false)', () => {
     const s = buildNextActionState({ agentHandoff: handoff() });
     expect(s.safety).toEqual({
@@ -315,6 +334,8 @@ describe('next-action-state — formatters', () => {
     expect(txt).toContain('implies approval: no');
     expect(txt).toContain('Next infra slice');
     expect(txt).toContain(V);
+    expect(txt).toMatch(/workflow invariants \(\d+; guidance only/);
+    expect(txt).toMatch(/cancel a useful in-progress job/i);
   });
 
   it('renders a markdown export mirroring the JSON state', () => {
@@ -325,6 +346,8 @@ describe('next-action-state — formatters', () => {
     expect(md).toContain('**Source commit:**');
     expect(md).toContain('## Next safe task');
     expect(md).toContain('## Docs pointers');
+    expect(md).toContain('## Workflow invariants');
+    expect(md).toMatch(/implies no approval, deployment, or runtime change/i);
   });
 
   it('formatters are null-safe', () => {

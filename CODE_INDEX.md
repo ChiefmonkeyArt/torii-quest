@@ -3,7 +3,7 @@
 > Lightweight developer/agent index. Keep this practical and update it as systems are touched.
 > Purpose: help future debugging, SDK extraction, FOSS contribution, and AI handoff speed.
 
-Current version: `v0.2.239-alpha`  
+Current version: `v0.2.240-alpha`  
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)  
 **Active focus: 15-hour proof-of-concept route** — shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest GitHub update-check). Retrospective polish after PoC validation. See `strategy.md` → "15-Hour Proof-of-Concept Route".
 

@@ -8,7 +8,7 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.239-alpha';
+const CACHE_VERSION = 'tq-v0.2.240-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
 // Static assets to precache on install — ONLY immutable binary assets whose URL never
@@ -34,10 +34,26 @@ const PRECACHE_ASSETS = [
 ];
 
 // ── Install — precache all static assets ─────────────────────────────────────
+// nostrich: precache each asset INDEPENDENTLY rather than via cache.addAll().
+// addAll() is ATOMIC — a single un-fetchable entry rejects the WHOLE install, so
+// self.skipWaiting() never runs and the new SW never activates. A wedged upgrade
+// then leaves a STALE controlling SW serving a bundle/wasm pair that can mismatch
+// the freshly-deployed shell, which surfaces as ENTER ARENA failing (Rapier WASM
+// fetch fails → bootstrap catch → back to menu). That is exactly how the v0.2.239
+// travel-gateway GLB (a large, possibly-not-yet-propagated asset) took down entry
+// on the live deploy. Per-asset add keeps the SW resilient: one bad decorative
+// asset can never block install/activation — it is simply skipped and served from
+// network on demand by cacheFirst().
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(PRECACHE_ASSETS))
+      .then(cache => Promise.all(
+        PRECACHE_ASSETS.map(asset =>
+          cache.add(asset).catch(err => {
+            console.warn('[sw] precache skipped (non-fatal):', asset, err);
+          })
+        )
+      ))
       .then(() => self.skipWaiting()) // activate immediately, don't wait for tabs to close
   );
 });

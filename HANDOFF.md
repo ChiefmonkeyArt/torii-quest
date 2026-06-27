@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.239-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.240-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -525,6 +525,24 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.240** TRAVEL-GATEWAY ENTRY REPAIR (game slice) — restores live **ENTER ARENA** after v0.2.239. ROOT
+  CAUSE: `sw.js` precached the new large `/torii-gateway-experience.glb` through the ATOMIC `cache.addAll()`, so a
+  single not-yet-propagated asset on a fresh deploy rejected the WHOLE service-worker install — `self.skipWaiting()`
+  never ran, the upgrade wedged, and a stale controlling SW served a bundle/wasm pair that mismatched the freshly
+  deployed shell; ENTER ARENA then failed in `initPhysics()` (Rapier WASM fetch) → bootstrap `catch` → back to the
+  menu (brief spinner, silent no-op). FIX: `sw.js` now precaches each asset INDEPENDENTLY (per-asset
+  `cache.add().catch()`), so one bad/decorative asset can never block install/activation — it is skipped and served
+  from network on demand. `arena.js` `_buildTravelGateway()` is hardened to be strictly fail-soft: the turquoise
+  procedural fallback is shown immediately and swapped to the real model ONLY after a fully successful load+process;
+  any loader-init / load / process failure keeps the fallback, logs a specific error, and sets
+  `window.__toriiTravelGatewayFailed` so smoke harnesses can assert the fallback path. The decorative travel gateway
+  never blocks boot or entry; the portal trigger/rings/diamond/detection/prompt stay anchored at `TRAVEL_GATE_X`.
+  New `tests/travel-gateway-entry-repair.test.js` locks the SW per-asset (non-atomic) precache, the fail-soft GLB
+  load path, and the persistent `TRAVEL_GATE_X` anchoring. Preserves the v0.2.238 fail-closed loop + boot-order fix
+  and the v0.2.236 NIP-07 login decoupling. Gameplay slice — no physics/shooter/Rapier balance change; no Nostr
+  signing/publishing/live network write beyond the existing NIP-07 read; no new timers; no new hot-path
+  `Vector3`/`Matrix4`; debug tools ship unconditionally; `godMode` stays false; no deploy/publish/push (parent agent
+  handles those). Latest slice report: `torii-v0.2.240-travel-gateway-entry-repair-report.md`.
   **v0.2.239** TRAVEL-GATEWAY PLACEMENT (game slice) — adds the uploaded `torii-gateway-experience.glb` as the
   actual metaverse TRAVEL portal and moves the whole travel experience to the FAR side of the NAP zone, while the
   original `torii-gate.glb` stays at `NAP_X` as a PURE entrance marker (no travel). NEW constant `TRAVEL_GATE_X`

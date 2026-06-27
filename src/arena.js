@@ -232,40 +232,67 @@ function _buildTravelGateway() {
   const gl = new THREE.PointLight(C_TURQ, 3, 12);
   gl.position.set(TRAVEL_GATE_X - 1, 4, 0); scene.add(gl);
 
-  const draco = new DRACOLoader();
-  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
-  const loader = new GLTFLoader();
-  loader.setDRACOLoader(draco);
-  loader.load('/torii-gateway-experience.glb', gltf => {
-    scene.remove(fallback);
-    const gate = gltf.scene;
+  // nostrich: the travel gateway GLB is DECORATIVE and OPTIONAL. It loads async,
+  // long after boot, and must NEVER block arena entry. The turquoise procedural
+  // fallback above is added to the scene IMMEDIATELY and is only swapped out on a
+  // fully successful load+process — so any failure (Draco decoder unreachable,
+  // 404, malformed GLB, processing throw) leaves the visible fallback in place and
+  // surfaces a specific loggable error, while ENTER ARENA proceeds untouched.
+  const markGatewayFallback = (reason, err) => {
+    console.error('[arena] travel-gateway GLB unavailable — using procedural fallback:', reason, err || '');
+    if (typeof window !== 'undefined') {
+      window.__toriiTravelGatewayFailed = true;
+      window.__toriiTravelGatewayFailReason = reason;
+    }
+  };
+  let draco;
+  try {
+    draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load('/torii-gateway-experience.glb', gltf => {
+      try {
+        const gate = gltf.scene;
 
-    // Scale to an imposing portal — a touch taller than the entrance gate so the
-    // far-side destination reads as the bigger landmark. Uniform scale preserves
-    // the GLB aspect ratio.
-    const box = new THREE.Box3().setFromObject(gate);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const targetH = WALL_H * 1.6;
-    const s = targetH / (size.y || 1);
-    gate.scale.setScalar(s);
+        // Scale to an imposing portal — a touch taller than the entrance gate so
+        // the far-side destination reads as the bigger landmark. Uniform scale
+        // preserves the GLB aspect ratio.
+        const box = new THREE.Box3().setFromObject(gate);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const targetH = WALL_H * 1.6;
+        const s = targetH / (size.y || 1);
+        gate.scale.setScalar(s);
 
-    // Centre on the far-side travel plane, feet on the floor, front facing the
-    // approaching player (who walks east from the entrance).
-    box.setFromObject(gate);
-    gate.position.set(TRAVEL_GATE_X, -box.min.y, 0);
-    gate.rotation.y = Math.PI;
+        // Centre on the far-side travel plane, feet on the floor, front facing the
+        // approaching player (who walks east from the entrance).
+        box.setFromObject(gate);
+        gate.position.set(TRAVEL_GATE_X, -box.min.y, 0);
+        gate.rotation.y = Math.PI;
 
-    gate.traverse(o => {
-      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+        gate.traverse(o => {
+          if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+        });
+        gate.name = 'travel-gateway';
+        // Swap fallback → real model ONLY after processing succeeds, so a throw
+        // above never leaves the scene with neither model.
+        scene.remove(fallback);
+        scene.add(gate);
+      } catch (e) {
+        markGatewayFallback('process-error', e); // fallback already in scene
+      } finally {
+        draco.dispose();
+      }
+    }, undefined, err => {
+      markGatewayFallback('load-error', err);
+      draco.dispose();
     });
-    gate.name = 'travel-gateway';
-    scene.add(gate);
-    draco.dispose();
-  }, undefined, err => {
-    console.warn('[arena] torii-gateway-experience.glb failed, using fallback:', err);
-    draco.dispose();
-  });
+  } catch (e) {
+    // Loader construction itself failed — fallback is already shown.
+    markGatewayFallback('loader-init-error', e);
+    if (draco) draco.dispose();
+  }
 }
 
 // ── Wall texture — async, deferred 1 rAF ──────────────────────────────────────

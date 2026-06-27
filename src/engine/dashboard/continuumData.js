@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const CONTINUUM_VERSION = 'v0.2.239-alpha';
+export const CONTINUUM_VERSION = 'v0.2.240-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,8 +51,8 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1660,
-  files: 100,
+  passing: 1670,
+  files: 101,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -1147,13 +1147,13 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.239-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.240-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
     { label: 'Smoke (entry + dashboard)', value: 'Both cloud smokes consolidated into the Handoff / release control panel at the top of this page — app-entry v0.2.230-alpha PASS 3/3, oversight-dashboard v0.2.231-alpha PASS 4/4. A smoke pass does not imply MVP approval or a completed human playtest.' },
-    { label: 'Active slice', value: 'v0.2.239 TRAVEL-GATEWAY PLACEMENT (game slice) — adds the uploaded torii-gateway-experience.glb as the actual metaverse TRAVEL portal and moves the whole travel experience to the FAR side of the NAP zone. The original torii-gate.glb stays at NAP_X as a PURE entrance marker (no travel). NEW far-side constant TRAVEL_GATE_X (ARENA_HALF + 20 = 40, strictly between NAP_X=20 and NAP_FAR_X=45; the portal ring radius 3 keeps clear of the floor edge). arena.js gains _buildTravelGateway() loading /torii-gateway-experience.glb at TRAVEL_GATE_X (DRACOLoader, procedural fallback, named travel-gateway, imposing WALL_H*1.6 scale, front facing the approaching player). main.js re-anchors the portal trigger + gateway component portalPos from ARENA_HALF to TRAVEL_GATE_X, so the proximity detection, the two ground rings, the spinning diamond, the beam and the "Press F to travel" prompt/KeyF interact all arm at the far gateway — the portal mesh is built from _portalTrigger.portalPos() so the visuals follow automatically. ASSET: the 3,803,216-byte upload was Draco-compressed in-repo via gltf-pipeline to 705,696 bytes (~81% smaller) and shipped at public/torii-gateway-experience.glb (also precached by sw.js). New tests/travel-gateway-placement.test.js locks the asset presence + SW precache, the far-side placement constant bounds, the arena GLB load/name, and the main.js travel anchoring (no portal pinned at ARENA_HALF). Preserves the v0.2.238 fail-closed loop + boot-order fix and the v0.2.236 NIP-07 login decoupling. Prior — v0.2.238 ENTER-ARENA reset-crash fix; v0.2.237 workflow-invariant slice; v0.2.236 nostr-login runtime fix; v0.2.235 MVP playtest verdict capture loop; v0.2.234 MVP approval gate. HARD CONSTRAINTS held: godMode false; no new timers (loop uses rAF only); no new hot-path Vector3/Matrix4; nostrich comments; Chiefmonkey exact; debug tools ship unconditionally; non-religious ethics guard + useful-job invariant intact; no Nostr writes/signing beyond the existing login/read; no deploy/publish/push (parent handles those).' },
+    { label: 'Active slice', value: 'v0.2.240 TRAVEL-GATEWAY ENTRY REPAIR (game slice) — restores live ENTER ARENA after v0.2.239. ROOT CAUSE: sw.js precached the new large /torii-gateway-experience.glb via the ATOMIC cache.addAll(), so a single not-yet-propagated asset on a fresh deploy rejected the whole SW install, self.skipWaiting() never ran, the upgrade wedged, and a stale controlling SW served a bundle/wasm pair that mismatched the new shell — ENTER ARENA then failed in initPhysics() (Rapier WASM) and fell back to the menu. FIX: sw.js now precaches each asset INDEPENDENTLY (per-asset cache.add().catch()), so one bad/decorative asset can never block install/activation. arena.js _buildTravelGateway() is hardened to be strictly fail-soft: the turquoise procedural fallback is shown immediately and swapped to the real model ONLY after a fully successful load+process; any loader-init/load/process failure keeps the fallback, logs a specific error, and sets window.__toriiTravelGatewayFailed so smoke harnesses can assert the fallback path — the decorative gateway never blocks boot or entry. The travel portal trigger/rings/diamond/detection/prompt stay anchored at TRAVEL_GATE_X. Preserves the v0.2.238 fail-closed loop + boot-order fix and the v0.2.236 NIP-07 login decoupling. Prior — v0.2.239 travel-gateway placement; v0.2.238 ENTER-ARENA reset-crash fix; v0.2.237 workflow-invariant slice; v0.2.236 nostr-login runtime fix; v0.2.235 MVP playtest verdict capture loop. HARD CONSTRAINTS held: godMode false; no new timers (loop uses rAF only); no new hot-path Vector3/Matrix4; nostrich comments; Chiefmonkey exact; debug tools ship unconditionally; non-religious ethics guard + useful-job invariant intact; no Nostr writes/signing beyond the existing login/read; no deploy/publish/push (parent handles those).' },
   ],
 
   // Engineering-health model (v0.2.175) — the efficiency/oversight loop surfaced on the

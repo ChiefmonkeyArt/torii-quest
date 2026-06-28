@@ -117,8 +117,8 @@ describe('interact() is the ONLY navigating step', () => {
     expect(rep.status).toBe(ACTIVATION_STATUS.NAVIGATED);
     expect(rep.navigated).toBe(true);
     expect(rep.zoneId).toBe('plebeian-market-bazaar');
-    expect(rep.targetRoute).toBe('/zone/plebeian-market-bazaar');
-    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(rep.targetRoute).toBe('/zone/plebeian-market-bazaar/');
+    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
     // The prompt is cleared after a confirmed hop.
     expect(trigger.promptShown()).toBe(false);
     expect(prompts[prompts.length - 1]).toEqual({ show: false, text: '' });
@@ -157,7 +157,7 @@ describe('allowlist stays scoped to ["/zone/"] (never permit-all)', () => {
     trigger.tick({ x: 21, y: 0, z: 0 });
     const rep = trigger.interact(true);
     expect(rep.routeAllowlist).toEqual(['/zone/']);
-    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
   });
 });
 
@@ -219,7 +219,7 @@ describe('SDK + debug exposure', () => {
     expect(rep.live).toBe(false);             // recording host, not a real browser
     expect(rep.inMemory).toBe(true);
     expect(rep.routeAllowlist).toEqual(['/zone/']);
-    expect(rep.pushStateCalls).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(rep.pushStateCalls).toEqual(['/zone/plebeian-market-bazaar/']);
     expect(rep.external).toBe(false);
     expect(rep.network).toBe(false);
   });

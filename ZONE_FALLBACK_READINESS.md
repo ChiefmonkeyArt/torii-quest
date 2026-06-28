@@ -1,27 +1,31 @@
 # torii.quest `/zone/*` SPA Fallback — Deployment Readiness Checklist
 
-> **Status:** documentation + a pure local CHECK only (v0.2.242-alpha). **No code in this
+> **Status:** documentation + a pure local CHECK only (v0.2.243-alpha). **No code in this
 > repo touches a server, performs a deploy, or changes app runtime behaviour.** This page
 > makes the one outstanding hosting prerequisite for the gateway travel feature —
 > *serve `index.html` for any `/zone/<slug>` path* — explicit and locally checkable BEFORE a
 > maintainer publishes the static `dist/` bundle to `torii.quest` (or any static host).
 >
-> **v0.2.242 update — exact-path extensionless shell.** The live host
-> (`torii-quest.pplx.app`) serves by EXACT path with NO SPA rewrite, NO backend, AND NO
-> directory-index resolution, so a host-level `try_files … /index.html` rule (§2) is NOT
-> available there — AND the v0.2.241 nested `dist/zone/<slug>/index.html` shell did NOT work,
-> because the host never maps the extensionless `/zone/<slug>` URL to a nested `index.html`
-> (the direct-open URL still 404'd in live smoke). The build now ships a **byte-identical
-> extensionless static shell** at the EXACT path `dist/zone/<slug>` (no `/index.html`, no
-> trailing slash) for every `DEPLOYABLE_ZONE_SLUGS` entry (see §7), so a cold hard-refresh /
-> deep-link of the no-trailing-slash in-app zone route loads the real app shell on an
-> exact-path host. NOTE: a regular file `dist/zone/<slug>` and a directory
-> `dist/zone/<slug>/` cannot coexist under one name on a filesystem, so the exact-path file
-> REPLACES the v0.2.241 directory-index form — they are mutually exclusive, not "both". These
-> verified shells are an intentional, allowed exception to the "nothing shadows the fallback"
-> rule below — the guard distinguishes a byte-identical `/zone/<slug>` shell from a rogue
-> `/zone/*` file. RESIDUAL RISK: an extensionless file's served Content-Type is
-> host-dependent and unverifiable locally — confirm via a live re-smoke after publish.
+> **v0.2.243 update — trailing-slash directory-index shell (renderable).** The live host
+> (`torii-quest.pplx.app`) serves by EXACT path with NO SPA rewrite and NO backend, so a
+> host-level `try_files … /index.html` rule (§2) is NOT available there. The v0.2.242
+> EXTENSIONLESS file `dist/zone/<slug>` made the exact no-slash URL return bytes, but the host
+> infers Content-Type from file EXTENSION, so it served the extensionless file as
+> `application/octet-stream` — a real browser DOWNLOADED it (Playwright: "Download is
+> starting") instead of rendering. The host DOES, however, do **directory-index resolution**
+> for a TRAILING-SLASH URL (the same resolution that serves root `/` from `index.html`). So
+> v0.2.243 ships a **byte-identical directory-index shell** at `dist/zone/<slug>/index.html`
+> for every `DEPLOYABLE_ZONE_SLUGS` entry (see §7): the canonical trailing-slash route
+> `/zone/<slug>/` resolves to that nested `.html` file and is served as renderable
+> `text/html`. The canonical generated + navigated route is now the trailing-slash form
+> (`zoneRouteFor` / `handoffRouteFor`), and the parser accepts BOTH `/zone/<slug>` and
+> `/zone/<slug>/` (normalising to the canonical trailing slash). NOTE: a file
+> `dist/zone/<slug>` and a directory `dist/zone/<slug>/` cannot coexist under one name, so the
+> directory-index shell REPLACES the v0.2.242 extensionless file. These verified shells are an
+> intentional, allowed exception to the "nothing shadows the fallback" rule below — the guard
+> distinguishes a byte-identical `/zone/<slug>/index.html` shell from a rogue `/zone/*` file.
+> RESIDUAL RISK: a COLD no-slash `/zone/<slug>` hit (no trailing slash) still depends on host
+> default behaviour and is unverifiable locally — confirm via a live re-smoke after publish.
 >
 > See also: `HANDOFF.md` §7 (the SPA-rewrite note), `VPS_INSTALL.md` §6a/§6b/§11 (the
 > concrete Caddy/Nginx config), `GATEWAY_PROTOCOL.md`, and `UPDATE_CHECK.md` §4 (the
@@ -47,11 +51,11 @@ There are two ways to satisfy the cold hit, and the repo now ships BOTH where ap
 
 1. **Host-level SPA fallback** (`try_files … /index.html`) on a host that supports rewrites
    (self-hosted Caddy/Nginx, §2). Preferred when available.
-2. **Static per-zone shells** (v0.2.242) for an exact-path host with no rewrite capability
+2. **Static per-zone shells** (v0.2.243) for an exact-path host with no rewrite capability
    (the live `torii-quest.pplx.app`). The build copies `dist/index.html` byte-for-byte to the
-   EXTENSIONLESS exact path `dist/zone/<slug>` (no `/index.html`, no trailing slash) for every
-   `DEPLOYABLE_ZONE_SLUGS` entry, so the exact no-trailing-slash URL resolves to the real
-   shell on a host that does no directory-index resolution. `dist/index.html` uses
+   directory-index file `dist/zone/<slug>/index.html` for every `DEPLOYABLE_ZONE_SLUGS` entry,
+   so the canonical trailing-slash URL `/zone/<slug>/` resolves to that nested `.html` file via
+   directory-index resolution and is served as renderable `text/html`. `dist/index.html` uses
    root-absolute asset URLs (`/assets/…`), so the shell at a sub-path loads the same bundle.
    See §7.
 
@@ -87,8 +91,8 @@ access; the automated parts are a single local command (§4).
       serve. *(checked: `npm run zones:check` after `npm run build`)*
 - [ ] **Nothing shadows the fallback (except verified shells).** No static file is published
       under `dist/zone/*` EXCEPT the byte-identical per-zone shells the build generates at the
-      extensionless exact path `dist/zone/<slug>` for each `DEPLOYABLE_ZONE_SLUGS` entry. A
-      verified shell (path matches `/zone/<slug>` AND content is byte-identical to
+      directory-index path `dist/zone/<slug>/index.html` for each `DEPLOYABLE_ZONE_SLUGS` entry.
+      A verified shell (path matches `/zone/<slug>/index.html` AND content is byte-identical to
       `dist/index.html`) is ALLOWED; any other `/zone/*` file still fails the guard.
       *(checked: `npm run zones:check`)*
 - [ ] **Host fallback configured.** The chosen host (Caddy/Nginx/CDN) serves `index.html`
@@ -117,8 +121,9 @@ It exits non-zero (FAIL) when:
    SPA fallback, or
 2. a built `dist/` has no `index.html`, or
 3. a static file is published under `dist/zone/*` that would shadow the fallback — EXCEPT a
-   verified byte-identical per-zone shell (the extensionless `dist/zone/<slug>` equal to
-   `dist/index.html`), which is the v0.2.242 exact-path static-host workaround and is allowed.
+   verified byte-identical per-zone directory-index shell (`dist/zone/<slug>/index.html` equal
+   to `dist/index.html`), which is the v0.2.243 trailing-slash directory-index static-host
+   workaround and is allowed.
 
 The same checks run inside `npm run check` (regression-check **[15]**), so the release gate
 (`npm run test:release`) enforces them too. The pure logic is in
@@ -136,12 +141,13 @@ The same checks run inside `npm run check` (regression-check **[15]**), so the r
 - **No runtime/navigation change.** The gateway safety model is untouched — proximity ARMs,
   KeyF CONFIRMs, the route stays same-origin `/zone/` only, allowlist hard-scoped
   `['/zone/']`. This document changes nothing the app does at runtime.
-- **No backend / server runtime.** The v0.2.242 fix is a BUILD-TIME static-shell copy, not a
+- **No backend / server runtime.** The v0.2.243 fix is a BUILD-TIME static-shell copy, not a
   server. It adds no API, no route handler, and no live process; it only writes extra
-  byte-identical app-shell files into `dist/` so an exact-path host resolves the cold
-  deep-link without a rewrite rule. (Before v0.2.241 this section read "no client-side
-  workaround" — the static-shell approach is a build/static-file workaround, not app code
-  serving its own 404, so that constraint is preserved in spirit.)
+  byte-identical app-shell files into `dist/` (at the directory-index path
+  `dist/zone/<slug>/index.html`) so an exact-path host resolves the canonical trailing-slash
+  deep-link via directory-index resolution, without a rewrite rule. (Before v0.2.241 this
+  section read "no client-side workaround" — the static-shell approach is a build/static-file
+  workaround, not app code serving its own 404, so that constraint is preserved in spirit.)
 
 ---
 
@@ -172,57 +178,60 @@ contract narrative lives in `VPS_INSTALL.md` §15.
 
 ---
 
-## 7. Static per-zone shells (v0.2.242) — the exact-path-host workaround
+## 7. Static per-zone shells (v0.2.243) — the trailing-slash directory-index workaround
 
-The live host `torii-quest.pplx.app` serves by EXACT path with NO SPA rewrite, NO backend,
-AND NO directory-index resolution: a cold hard-refresh / direct open of
-`/zone/plebeian-market-bazaar` returned a JSON 404
-(`{"detail":"No static asset at /zone/plebeian-market-bazaar …"}`) because no file existed at
-that exact path. Since the host cannot be configured to rewrite (§2 is unavailable there), the
-fix is to make the exact path a real file.
+The live host `torii-quest.pplx.app` serves by EXACT path with NO SPA rewrite and NO backend.
+v0.2.242 made the exact no-slash URL `/zone/<slug>` a real file by writing an EXTENSIONLESS
+shell at `dist/zone/<slug>`. That removed the JSON 404, but the host infers `Content-Type` from
+the file EXTENSION, so the extensionless file was served as `application/octet-stream`: a real
+browser DOWNLOADED it (Playwright reported "Download is starting") instead of rendering it. So
+v0.2.242 was not sufficient for a real-browser hard refresh.
 
-**Why v0.2.241's nested shell was not enough.** v0.2.241 wrote
-`dist/zone/<slug>/index.html`. That works on a host that maps `/zone/<slug>` → directory →
-`index.html`, but `torii-quest.pplx.app` does NO directory-index resolution: the
-no-trailing-slash URL `/zone/<slug>` matched no file and still 404'd in live smoke. v0.2.242
-writes the shell at the EXACT extensionless path instead.
+**Why the directory-index form renders.** The host DOES perform directory-index resolution for
+a TRAILING-SLASH URL — the same resolution that already serves the root `/` from
+`dist/index.html`. So v0.2.243 writes the shell at `dist/zone/<slug>/index.html`: the canonical
+trailing-slash route `/zone/<slug>/` resolves to that nested `.html` file, the host infers
+`text/html` from the `.html` extension, and the browser RENDERS it. The canonical generated +
+navigated route is therefore the trailing-slash form, and the parser accepts BOTH `/zone/<slug>`
+and `/zone/<slug>/` (normalising its output to the canonical trailing slash).
 
-**The build generates a byte-identical extensionless shell.** `npm run build` runs
+**The build generates a byte-identical directory-index shell.** `npm run build` runs
 `node tools/generate-zone-shells.mjs` after `vite build`; it reads the freshly built
-`dist/index.html` and writes a byte-identical copy to the extensionless file `dist/zone/<slug>`
-(no `/index.html`, no trailing slash) for every `DEPLOYABLE_ZONE_SLUGS` entry (currently
-`plebeian-market-bazaar`). Because `dist/index.html` references its bundle with root-absolute
-URLs (`/assets/…`), the shell at the sub-path loads the same JS/CSS; the app boots,
-`_applyZoneRoute()` reads `window.location.pathname`, parses the slug, and shows the inert zone
-notice — identical to an in-app portal hop.
+`dist/index.html` and writes a byte-identical copy to `dist/zone/<slug>/index.html` for every
+`DEPLOYABLE_ZONE_SLUGS` entry (currently `plebeian-market-bazaar`). Because `dist/index.html`
+references its bundle with root-absolute URLs (`/assets/…`), the shell at the sub-path loads the
+same JS/CSS; the app boots, `_applyZoneRoute()` reads `window.location.pathname`, parses the
+slug, and shows the inert zone notice — identical to an in-app portal hop.
 
 **File-vs-directory note.** A regular file `dist/zone/<slug>` and a directory
-`dist/zone/<slug>/` cannot coexist under one name on a filesystem, so the v0.2.242 exact-path
-file REPLACES the v0.2.241 directory-index form — they are mutually exclusive. The generator
-writes the file form; the guard/tests assert the file exists and that NO directory-index shell
-is left behind.
+`dist/zone/<slug>/` cannot coexist under one name on a filesystem, so the v0.2.243
+directory-index shell REPLACES the v0.2.242 extensionless file — they are mutually exclusive.
+The generator writes the directory-index form; the guard/tests assert
+`dist/zone/<slug>/index.html` exists and that NO bare extensionless file is left behind.
 
-**Residual risk.** An extensionless file's served `Content-Type` is host-dependent and cannot
-be verified locally (the local fs only proves the bytes are correct). If the host serves
-`dist/zone/<slug>` as anything other than `text/html`, the browser will not boot the shell —
-confirm via a live re-smoke of the direct URL after publish.
+**Residual risk.** A COLD no-slash hit `/zone/<slug>` (no trailing slash) still depends on host
+default behaviour and cannot be verified locally. The trailing-slash canonical route is the one
+the app generates and navigates to; the no-slash form remains harmless (the parser normalises it
+once the bundle loads) but its cold-hit `Content-Type` is host-dependent — confirm the canonical
+trailing-slash URL renders via a live re-smoke after publish.
 
 **Single source of truth + safety:**
 
 - `DEPLOYABLE_ZONE_SLUGS` (frozen, `src/engine/gateway/zoneRoute.js`) is the one list of slugs
-  that get a shell; every entry is a valid, parseable `/zone/<slug>` route.
+  that get a shell; every entry is a valid, parseable `/zone/<slug>/` route.
 - `tools/zoneShells.mjs` (pure) plans the shell paths: `zoneShellPathFor(slug)` →
-  `zone/<slug>` (or `null` for an invalid slug — never an unsafe path),
+  `zone/<slug>/index.html` (or `null` for an invalid slug — never an unsafe path),
   `planZoneShells(slugs)` de-dupes and flags invalid/duplicate slugs and never throws.
 - `tools/generate-zone-shells.mjs` is the only fs writer; it reads `dist/index.html` and
   writes into `dist/` only (exits 1 if no build is present).
 - The readiness guard (`tools/zoneFallbackReadiness.mjs` → `isVerifiedZoneShell`) ALLOWS a
-  shell ONLY when its path matches the extensionless `/zone/<slug>` AND its content is
-  byte-identical to `dist/index.html`; any non-identical or non-shell `/zone/*` file (including
-  the old `/zone/<slug>/index.html` directory-index form) still FAILS.
-- `tests/zone-hard-refresh.test.js` locks the slug list, the pure planner (no extension / no
-  trailing slash), and (when a build is present) that every planned shell exists as a real
-  file byte-identical to `dist/index.html` with NO directory-index shell left behind.
+  shell ONLY when its path matches `/zone/<slug>/index.html` AND its content is byte-identical
+  to `dist/index.html`; any non-identical or non-shell `/zone/*` file (including the old
+  v0.2.242 bare extensionless `/zone/<slug>` form) still FAILS.
+- `tests/zone-hard-refresh.test.js` locks the slug list, the pure planner (directory-index path
+  `/zone/<slug>/index.html` + canonical route `/zone/<slug>/`), and (when a build is present)
+  that every planned shell exists as a real file byte-identical to `dist/index.html` with NO
+  bare extensionless file left behind.
 
 To add a new deep-linkable zone, add its slug to `DEPLOYABLE_ZONE_SLUGS` and rebuild — the
 shell is generated automatically and the guard/tests cover it.

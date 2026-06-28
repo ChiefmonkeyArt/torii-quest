@@ -117,8 +117,8 @@ describe('confirmed same-origin hop', () => {
     expect(r.navigated).toBe(true);
     expect(r.performed).toBe(true);
     expect(r.confirmed).toBe(true);
-    expect(r.targetRoute).toBe('/zone/nap-garden');
-    expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
+    expect(r.targetRoute).toBe('/zone/nap-garden/');
+    expect(host.calls.pushState).toEqual(['/zone/nap-garden/']);
     expect(r.transportKind).toBe(TRANSPORT_KIND.HOST);
     expect(r.live).toBe(false); // a recording host is not the real browser path
   });
@@ -132,7 +132,7 @@ describe('confirmed same-origin hop', () => {
     expect(r.navigated).toBe(true);
     expect(r.live).toBe(true);
     expect(r.transportKind).toBe(TRANSPORT_KIND.BROWSER);
-    expect(win.calls.pushState).toEqual(['/zone/nap-garden']);
+    expect(win.calls.pushState).toEqual(['/zone/nap-garden/']);
   });
 
   it('SAFETY: a confirmed hop never flips world/network/sign/publish/external flags', () => {
@@ -179,7 +179,7 @@ describe('route restrictions', () => {
     const host = createRecordingHost('/');
     const r = activateGatewayHandoff(INPUT, true, { confirmed: true, host });
     expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
-    expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
+    expect(host.calls.pushState).toEqual(['/zone/nap-garden/']);
   });
 
   it('a trivially-permissive ["/"] allowlist does NOT allow an arbitrary route (SEC v0.2.179)', () => {
@@ -199,7 +199,7 @@ describe('route restrictions', () => {
       confirmed: true, host, routeAllowlist: ['/zone/'],
     });
     expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
-    expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
+    expect(host.calls.pushState).toEqual(['/zone/nap-garden/']);
   });
 
   it('an injected transport handed an unsafe route refuses it (defense in depth)', () => {
@@ -208,8 +208,8 @@ describe('route restrictions', () => {
     let seen = null;
     const transport = { navigate(route) { seen = route; return true; } };
     const r = activateGatewayHandoff(INPUT, true, { confirmed: true, transport });
-    expect(r.targetRoute).toBe('/zone/nap-garden'); // only a same-origin /path is ever produced
-    expect(seen).toBe('/zone/nap-garden');
+    expect(r.targetRoute).toBe('/zone/nap-garden/'); // only a same-origin /path is ever produced
+    expect(seen).toBe('/zone/nap-garden/');
   });
 });
 
@@ -275,7 +275,7 @@ describe('SDK + debug exposure', () => {
     expect(rep.confirmed).toBe(true);
     expect(rep.live).toBe(false); // recording host, not the real browser
     expect(rep.inMemory).toBe(true);
-    expect(rep.pushStateCalls).toEqual(['/zone/nap-garden']);
+    expect(rep.pushStateCalls).toEqual(['/zone/nap-garden/']);
     expect(rep.external).toBe(false);
     expect(rep.network).toBe(false);
   });

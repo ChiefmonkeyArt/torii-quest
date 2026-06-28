@@ -111,16 +111,16 @@ for (const name of REQUIRED_FALLBACK_DOCS) {
   if (typeof text === 'string') readinessDocs[name] = text;
 }
 const distPaths = distPathsAtPackaging();
-// Read index.html + any /zone/<slug> exact-path shell bodies so the guard can verify the
-// intentional v0.2.242 shells are byte-identical to index.html (not treated as fallback
-// shadows). Only the HTML entry + zone shells are read — not every asset.
+// Read index.html + any /zone/<slug>/index.html directory-index shell bodies so the guard
+// can verify the intentional v0.2.243 shells are byte-identical to index.html (not treated
+// as fallback shadows). Only the HTML entry + zone shells are read — not every asset.
 function distShellContents(paths) {
   if (!Array.isArray(paths)) return undefined;
   const distDir = join(ROOT, 'dist');
   const out = {};
   for (const rel of paths) {
     const norm = rel.replace(/\\/g, '/');
-    if (norm === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(norm)) {
+    if (norm === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*\/index\.html$/.test(norm)) {
       try { out[`/${norm}`] = readFileSync(join(distDir, norm), 'utf8'); } catch { /* skip unreadable */ }
     }
   }

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.242-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.243-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -525,6 +525,28 @@ Breaking one should fail CI/the check, not ship.
   server; the suggested future commands are TEXT ONLY, each carrying an explicit "do not run without
   user approval"; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network
   write; `godMode` stays false.
+  **v0.2.243** ZONE RENDERABLE-ROUTE REPAIR (game slice) — fixes the v0.2.242 follow-up: a live fetch saw the
+  HTML, but an interactive Playwright `page.goto` of `https://torii-quest.pplx.app/zone/plebeian-market-bazaar`
+  reported "Download is starting". ROOT CAUSE: the static host infers Content-Type from file EXTENSION, so the
+  v0.2.242 EXTENSIONLESS file `dist/zone/<slug>` was served as `application/octet-stream` — a real browser DOWNLOADS
+  it instead of rendering (curl saw the raw bytes; the browser respects the MIME). FIX (no backend): the canonical zone
+  route is now the TRAILING-SLASH `/zone/<slug>/`, served by the directory-index shell `dist/zone/<slug>/index.html`.
+  The host DOES resolve a trailing-slash URL onto its directory index (the same resolution that serves root `/`), and a
+  `.html` file is served as renderable `text/html`. `zoneRouteFor` + `handoffRouteFor` build the trailing-slash route;
+  the parser accepts BOTH `/zone/<slug>` and `/zone/<slug>/` (normalising route output to the canonical trailing slash)
+  so an in-app hop or a user typing the bare path still resolves client-side — only a COLD no-slash deep-link degrades.
+  The planner (`tools/zoneShells.mjs` `zoneShellPathFor` → `zone/<slug>/index.html`, `zoneShellRouteFor` →
+  `/zone/<slug>/`), generator, readiness guard (`zoneFallbackReadiness`, `npm run zones:check`, regression `[15]`), and
+  `build-continuum.mjs` are all reconciled to the directory-index `/zone/<slug>/index.html` shell. Updated
+  `tests/zone-hard-refresh.test.js` + `tests/zone-fallback-readiness.test.js` lock the `.html` path, the canonical
+  trailing-slash route, the built-dist directory-index file (byte-identical to index.html, no bare extensionless file left
+  behind), and the verified-shell allow/deny logic. RESIDUAL RISK: a COLD no-slash `/zone/<slug>` hit still depends on
+  host default behaviour — unverifiable locally; needs a parent live re-smoke after publish. Preserves the v0.2.240 SW
+  fail-soft precache (zone shells are HTML → network-first, no SW change), the v0.2.238 fail-closed loop, and the
+  v0.2.236 NIP-07 login decoupling; root entry flow + ENTER ARENA + ESC pause unchanged. Gameplay slice — no
+  physics/shooter/Rapier balance change; no Nostr signing/publishing/live network write; no new timers; no new
+  hot-path `Vector3`/`Matrix4`; debug tools ship unconditionally; `godMode` stays false; no deploy/publish/push
+  (parent agent handles those). Latest slice report: `torii-v0.2.243-zone-renderable-route-report.md`.
   **v0.2.242** ZONE DEEP-LINK EXACT-PATH REPAIR (game slice) — fixes the live v0.2.241 smoke failure: a direct
   open / hard-refresh of `https://torii-quest.pplx.app/zone/plebeian-market-bazaar` STILL returned the host JSON
   404 (`{"detail":"No static asset at /zone/plebeian-market-bazaar…"}`). ROOT CAUSE: v0.2.241 generated

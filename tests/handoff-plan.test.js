@@ -55,7 +55,7 @@ describe('safeRoutePath', () => {
 
 describe('handoffRouteFor + handoffUrlFor', () => {
   it('derives a slugged same-site route from the zone id', () => {
-    expect(handoffRouteFor({ zoneId: 'Nap Garden!!' })).toBe('/zone/nap-garden');
+    expect(handoffRouteFor({ zoneId: 'Nap Garden!!' })).toBe('/zone/nap-garden/');
     expect(handoffRouteFor({ zoneId: '' })).toBeNull();
     expect(handoffRouteFor(null)).toBeNull();
   });
@@ -75,7 +75,7 @@ describe('planHandoff — allowed intent (dry-run plan)', () => {
     expect(p.reason).toBe('handoff-ready');
     expect(p.consent.allowed).toBe(true);
     expect(p.targetZoneId).toBe('nap-garden');
-    expect(p.targetRoute).toBe('/zone/nap-garden');
+    expect(p.targetRoute).toBe('/zone/nap-garden/');
     expect(p.targetUrl).toBe('https://example.com/garden');
     expect(p.currentRoute).toBe('/arena');
     expect(p.rollbackRoute).toBe('/arena');
@@ -159,7 +159,7 @@ describe('route / url sanitisation', () => {
   it('never emits an unsafe target url (non-https website is dropped)', () => {
     const p = planHandoff({ destination: { zoneId: 'z', website: 'javascript:alert(1)' } }, true);
     expect(p.targetUrl).toBeNull();
-    expect(p.targetRoute).toBe('/zone/z');
+    expect(p.targetRoute).toBe('/zone/z/');
   });
   it('no rendered route/url string contains a scheme or markup', () => {
     const p = planHandoff(DEMO_HANDOFF_INPUT, true, { currentRoute: '/title' });

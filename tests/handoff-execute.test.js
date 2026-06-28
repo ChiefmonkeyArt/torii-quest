@@ -61,7 +61,7 @@ describe('refusals — no action attempted', () => {
     expect(r.reason).toBe('no-transport');
     expect(r.navigated).toBe(false);
     expect(r.performed).toBe(false);
-    expect(r.targetRoute).toBe('/zone/nap-garden');
+    expect(r.targetRoute).toBe('/zone/nap-garden/');
   });
 
   it('NO-OPs when opts.dryRun forces it, even WITH a transport', () => {
@@ -118,7 +118,7 @@ describe('ready plan executes through the injected transport', () => {
     expect(r.reason).toBe('navigated');
     expect(r.navigated).toBe(true);
     expect(r.performed).toBe(true);
-    expect(t.calls.navigate).toEqual(['/zone/nap-garden']);
+    expect(t.calls.navigate).toEqual(['/zone/nap-garden/']);
     expect(t.calls.snapshot).toBe(1);
     expect(r.fromRoute).toBe('/arena');
     expect(r.steps.some((s) => s.step === 'navigate' && s.ok)).toBe(true);
@@ -130,7 +130,7 @@ describe('ready plan executes through the injected transport', () => {
     expect(plan.targetUrl).toBe('https://example.com/garden'); // present as preview only
     executeHandoff(plan, t);
     // navigate only ever receives the same-origin path, never the https url
-    expect(t.calls.navigate).toEqual(['/zone/nap-garden']);
+    expect(t.calls.navigate).toEqual(['/zone/nap-garden/']);
     for (const route of t.calls.navigate) {
       expect(route.startsWith('/')).toBe(true);
       expect(route).not.toContain('https://');
@@ -141,7 +141,7 @@ describe('ready plan executes through the injected transport', () => {
     const t = fakeTransport();
     const r = executeHandoffFor({ destination: VALID_DEST }, true, t, { hostContext: { currentRoute: '/x' } });
     expect(r.status).toBe(EXECUTE_STATUS.DONE);
-    expect(t.calls.navigate).toEqual(['/zone/nap-garden']);
+    expect(t.calls.navigate).toEqual(['/zone/nap-garden/']);
     expect(r.fromRoute).toBe('/x');
   });
 });

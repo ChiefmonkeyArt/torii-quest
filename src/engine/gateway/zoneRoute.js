@@ -1,9 +1,18 @@
-// engine/gateway/zoneRoute.js — the pure SPA `/zone/<slug>` ROUTE PARSER + resolver
-// (GATEWAY / NAP-zone handoff, v0.2.182, LEAN-2 continuation). This is the safe
-// client-side INTERPRETATION of the same-origin gateway URL state the v0.2.181
-// portal trigger pushes (`history.pushState('/zone/<slug>')`): given a path, it
+// engine/gateway/zoneRoute.js — the pure SPA `/zone/<slug>/` ROUTE PARSER + resolver
+// (GATEWAY / NAP-zone handoff, v0.2.182; CANONICAL TRAILING SLASH since v0.2.243).
+// This is the safe client-side INTERPRETATION of the same-origin gateway URL state the
+// portal trigger pushes (`history.pushState('/zone/<slug>/')`): given a path, it
 // classifies it as HOME / a valid ZONE / INVALID, validates the slug strictly, and
 // maps a valid zone to an INERT local display state (title + placeholder notice).
+//
+// CANONICAL ROUTE = `/zone/<slug>/` (trailing slash, v0.2.243). On the exact-path
+// static host, the trailing-slash URL resolves to the directory-index shell
+// `dist/zone/<slug>/index.html` (a `.html` file served as `text/html`, so a real browser
+// RENDERS it). The v0.2.242 extensionless `dist/zone/<slug>` file served as
+// `application/octet-stream` and made the browser DOWNLOAD the page instead. The parser
+// still accepts the no-slash `/zone/<slug>` form too (it normalises to the canonical
+// trailing-slash `route`), so an in-app hop or a user typing the bare path still resolves
+// client-side once the bundle has loaded — only a COLD no-slash deep-link is degraded.
 //
 // It exists so a refresh / deep-link / back-forward on a `/zone/...` URL has a
 // deterministic, safe meaning in app code instead of being brittle. It LOADS
@@ -33,7 +42,7 @@ export const ZONE_ROUTE_VERSION = 1;
 export const ZONE_ROUTE_BADGE = 'ZONE ROUTE · SAME-ORIGIN · INERT';
 
 // The same-origin path prefix the portal trigger pushes. A zone route is exactly
-// `/zone/<slug>` — one segment after the prefix, nothing more.
+// `/zone/<slug>/` — one slug segment after the prefix, plus the canonical trailing slash.
 export const ZONE_ROUTE_PREFIX = '/zone/';
 
 // Max slug length (mirrors handoffPlan's SLUG_MAX_LEN so a route this parser accepts
@@ -68,10 +77,12 @@ export function humanizeZoneSlug(slug) {
   return slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
-// zoneRouteFor(slug) → the same-origin `/zone/<slug>` route for a valid slug, or
-// null. Pure — builds a string, navigates nothing.
+// zoneRouteFor(slug) → the CANONICAL same-origin `/zone/<slug>/` route (trailing
+// slash) for a valid slug, or null. The trailing slash makes the host resolve the
+// directory-index shell and serve it as renderable `text/html` (v0.2.243). Pure —
+// builds a string, navigates nothing.
 export function zoneRouteFor(slug) {
-  return isValidZoneSlug(slug) ? `${ZONE_ROUTE_PREFIX}${slug}` : null;
+  return isValidZoneSlug(slug) ? `${ZONE_ROUTE_PREFIX}${slug}/` : null;
 }
 
 // _result(fields) → a fully-shaped parse result with the inert invariants pinned
@@ -130,13 +141,17 @@ export function parseZoneRoute(path) {
   if (clean === '/' || !clean.startsWith(ZONE_ROUTE_PREFIX)) {
     return _result({ kind: ZONE_ROUTE_KIND.HOME, ok: true, route: clean });
   }
-  const slug = clean.slice(ZONE_ROUTE_PREFIX.length);
+  // Accept BOTH the canonical trailing-slash `/zone/<slug>/` and the bare
+  // no-slash `/zone/<slug>` form: strip exactly one trailing slash, then the
+  // remainder must be a single slug segment (no further slashes → no sub-path).
+  const rest = clean.slice(ZONE_ROUTE_PREFIX.length);
+  const slug = rest.endsWith('/') ? rest.slice(0, -1) : rest;
   if (slug.includes('/')) {
     return _result({
       kind: ZONE_ROUTE_KIND.INVALID,
       ok: false,
       notice: 'That zone link has an unexpected sub-path — staying in the arena.',
-      errors: ['zone route must be exactly /zone/<slug> with no sub-path'],
+      errors: ['zone route must be exactly /zone/<slug>/ with no sub-path'],
     });
   }
   if (!isValidZoneSlug(slug)) {
@@ -153,7 +168,7 @@ export function parseZoneRoute(path) {
     ok: true,
     slug,
     zoneId: slug,
-    route: `${ZONE_ROUTE_PREFIX}${slug}`,
+    route: `${ZONE_ROUTE_PREFIX}${slug}/`,
     title,
     notice: `Zone link: ${title}. ${ZONE_PLACEHOLDER}`,
   });
@@ -172,15 +187,16 @@ export function describeZoneRoute(path) {
 
 // DEMO_ZONE_ROUTE — deterministic sample path for the debug shell ONLY (the route
 // the v0.2.181 portal trigger pushes). Not used by gameplay.
-export const DEMO_ZONE_ROUTE = '/zone/plebeian-market-bazaar';
+export const DEMO_ZONE_ROUTE = '/zone/plebeian-market-bazaar/';
 
-// DEPLOYABLE_ZONE_SLUGS — the single source of truth for which `/zone/<slug>` deep
-// links get a pre-generated static shell at build time (v0.2.242). On an exact-path
-// static host with no SPA rewrite and no directory-index resolution (torii-quest.pplx.app
-// returns a JSON 404 for an unknown path), a hard-refresh / deep-link of the
-// no-trailing-slash `/zone/<slug>` 404s unless a real file lives at that EXACT path. The
-// build copies index.html to the extensionless file `dist/zone/<slug>` for each slug here;
-// the parser then resolves the slug client-side exactly as it does for an in-app portal
-// hop. Every entry MUST be a valid slug (isValidZoneSlug) — tools/zoneShells.mjs and the
-// build assert this.
+// DEPLOYABLE_ZONE_SLUGS — the single source of truth for which `/zone/<slug>/` deep
+// links get a pre-generated static shell at build time. On the exact-path static host
+// (torii-quest.pplx.app: no SPA rewrite; infers Content-Type from file extension), the
+// v0.2.242 EXTENSIONLESS file `dist/zone/<slug>` was served as `application/octet-stream`,
+// so a real browser DOWNLOADED it instead of rendering. v0.2.243 reinstates the
+// directory-index shell `dist/zone/<slug>/index.html`: the host resolves the canonical
+// trailing-slash URL `/zone/<slug>/` to that `.html` file and serves it as renderable
+// `text/html`. The parser then resolves the slug client-side exactly as for an in-app
+// portal hop. Every entry MUST be a valid slug (isValidZoneSlug) — tools/zoneShells.mjs
+// and the build assert this.
 export const DEPLOYABLE_ZONE_SLUGS = Object.freeze(['plebeian-market-bazaar']);

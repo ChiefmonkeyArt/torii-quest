@@ -1,18 +1,20 @@
-// tools/zoneShells.mjs — PURE, node-safe planner for the static `/zone/<slug>` SHELL
-// files (v0.2.242). On an exact-path static host with no SPA rewrite AND no directory-index
-// resolution (torii-quest.pplx.app returns a JSON 404 for an unknown path), a hard-refresh
-// / deep-link of `/zone/<slug>` 404s because no real file lives there. v0.2.241 wrote the
-// shell at `dist/zone/<slug>/index.html` (directory-index convention), but the host does
-// NOT map the extensionless `/zone/<slug>` URL onto that nested index.html, so the cold hit
-// still 404'd. v0.2.242 instead writes a byte-identical copy of index.html to the EXACT-PATH
-// file `dist/zone/<slug>` (no extension), the precise path the host's exact-path lookup
-// resolves for the no-trailing-slash URL. index.html uses root-absolute asset URLs
-// (`/assets/…`), so the shell loads the same bundle and the v0.2.182 parser resolves the
-// slug client-side — no backend, no rewrite engine needed.
+// tools/zoneShells.mjs — PURE, node-safe planner for the static `/zone/<slug>/` SHELL
+// files (v0.2.243). On the exact-path static host with no SPA rewrite (torii-quest.pplx.app
+// returns a JSON 404 for an unknown path) the host infers Content-Type from file extension.
+// v0.2.242 wrote the shell at the EXTENSIONLESS file `dist/zone/<slug>`; the host served it
+// as `application/octet-stream`, so a real browser DOWNLOADED it instead of rendering (the
+// Playwright smoke saw "Download is starting"). v0.2.243 reinstates the directory-index
+// shell `dist/zone/<slug>/index.html`: the host DOES resolve the canonical trailing-slash
+// URL `/zone/<slug>/` onto that nested index.html (the same directory-index resolution that
+// serves root `/`), and a `.html` file is served as renderable `text/html`. index.html uses
+// root-absolute asset URLs (`/assets/…`), so the shell loads the same bundle and the
+// v0.2.182 parser resolves the slug client-side — no backend, no rewrite engine needed.
 //
 // NOTE: a file `dist/zone/<slug>` and a directory `dist/zone/<slug>/` cannot coexist under
-// one name, so the extensionless file REPLACES the v0.2.241 directory-index shell; it does
-// not sit alongside it. The exact no-trailing-slash URL is the one the smoke test requires.
+// one name, so the directory-index shell REPLACES the v0.2.242 extensionless file; it does
+// not sit alongside it. The canonical generated+navigated route is the trailing-slash form
+// `/zone/<slug>/`; a cold no-slash deep-link degrades to the host default (documented
+// residual) but still resolves client-side once the bundle has loaded.
 //
 // This module only PLANS the shell paths from a slug list; the fs writes live in
 // tools/generate-zone-shells.mjs (the impure CLI). Kept pure + deterministic so the path
@@ -23,18 +25,20 @@
 
 import { isValidZoneSlug, ZONE_ROUTE_PREFIX } from '../src/engine/gateway/zoneRoute.js';
 
-// zoneShellPathFor(slug) → the dist-relative EXACT-PATH shell file `zone/<slug>` (no
-// extension) for a valid slug, or null. PURE — builds a string, writes nothing.
+// zoneShellPathFor(slug) → the dist-relative directory-index shell file
+// `zone/<slug>/index.html` for a valid slug, or null. The `.html` extension is what makes
+// the host serve it as renderable `text/html`. PURE — builds a string, writes nothing.
 export function zoneShellPathFor(slug) {
   if (!isValidZoneSlug(slug)) return null;
-  return `zone/${slug}`;
+  return `zone/${slug}/index.html`;
 }
 
-// zoneShellRouteFor(slug) → the same-origin route a shell answers (`/zone/<slug>`), or
-// null. PURE — mirrors zoneRouteFor so the plan can be cross-checked against the parser.
+// zoneShellRouteFor(slug) → the canonical same-origin route a shell answers
+// (`/zone/<slug>/`, trailing slash), or null. PURE — mirrors zoneRouteFor so the plan can
+// be cross-checked against the parser.
 export function zoneShellRouteFor(slug) {
   if (!isValidZoneSlug(slug)) return null;
-  return `${ZONE_ROUTE_PREFIX}${slug}`;
+  return `${ZONE_ROUTE_PREFIX}${slug}/`;
 }
 
 // planZoneShells(slugs) → { ok, shells, errors }. PURE, never throws.

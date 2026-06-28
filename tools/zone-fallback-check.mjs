@@ -51,15 +51,15 @@ function distPaths() {
   return out;
 }
 
-// Read index.html + any /zone/<slug> exact-path shell bodies into a leading-slash
-// { path → content } map so the guard can verify intentional shells are byte-identical to
-// index.html (v0.2.242). Only the HTML entry + zone shells are read — not every asset.
+// Read index.html + any /zone/<slug>/index.html directory-index shell bodies into a
+// leading-slash { path → content } map so the guard can verify intentional shells are
+// byte-identical to index.html (v0.2.243). Only the HTML entry + zone shells are read.
 function shellContents(paths) {
   if (!Array.isArray(paths)) return undefined;
   const out = {};
   for (const rel of paths) {
     const norm = rel.replace(/\\/g, '/');
-    if (norm === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(norm)) {
+    if (norm === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*\/index\.html$/.test(norm)) {
       try { out[`/${norm}`] = readFileSync(join(DIST, norm), 'utf8'); } catch { /* skip unreadable */ }
     }
   }
@@ -85,7 +85,7 @@ if (result.dist.skipped) console.log('  · no dist/ — skipped (run npm run bui
 else if (result.dist.ok) {
   const shells = result.dist.shellPaths || [];
   console.log(shells.length
-    ? `  ✓ index.html present; ${shells.length} verified /zone/<slug> shell(s): ${shells.join(', ')}`
+    ? `  ✓ index.html present; ${shells.length} verified /zone/<slug>/ shell(s): ${shells.join(', ')}`
     : `  ✓ index.html present; no static file published under /zone/*`);
 }
 for (const e of result.dist.errors) console.error(`  ✗ ${e}`);

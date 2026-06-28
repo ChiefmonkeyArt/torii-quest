@@ -102,16 +102,17 @@ export function zonePathsInDist(paths = []) {
     .filter((f) => f !== '' && f.toLowerCase().startsWith(ZONE_ROUTE_PREFIX));
 }
 
-// A verified zone SHELL path: `/zone/<valid-slug>` (the EXACT-PATH, extensionless copy of
-// index.html the v0.2.242 build emits for each deployable slug — replacing the v0.2.241
-// `/zone/<slug>/index.html` directory-index form the host wouldn't resolve). The slug
-// grammar mirrors zoneRoute's ZONE_SLUG_RE so a shell this guard accepts is one the parser
-// resolves. Anything else under `/zone/*` (a `.html` sibling, a stray asset, a nested
-// sub-path) is NOT a shell and is treated as a fallback-shadowing file.
-const ZONE_SHELL_RE = /^\/zone\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// A verified zone SHELL path: `/zone/<valid-slug>/index.html` (the directory-index copy of
+// index.html the v0.2.243 build emits for each deployable slug — reinstating the renderable
+// `.html` form the host serves as text/html, replacing the v0.2.242 extensionless file that
+// browsers downloaded as octet-stream). The slug grammar mirrors zoneRoute's ZONE_SLUG_RE so
+// a shell this guard accepts is one the parser resolves. Anything else under `/zone/*` (a
+// bare extensionless sibling, a stray asset, a deeper sub-path) is NOT a shell and is
+// treated as a fallback-shadowing file.
+const ZONE_SHELL_RE = /^\/zone\/[a-z0-9]+(?:-[a-z0-9]+)*\/index\.html$/;
 
-// isVerifiedZoneShell(path, contents) → true iff `path` is a `/zone/<slug>` exact-path
-// shell AND `contents` carries it as byte-identical to the dist index.html. Without the
+// isVerifiedZoneShell(path, contents) → true iff `path` is a `/zone/<slug>/index.html`
+// directory-index shell AND `contents` carries it as byte-identical to the dist index.html. Without the
 // index.html body to compare against, NO zone path can be verified (so the guard stays
 // conservative and still flags it). PURE.
 function isVerifiedZoneShell(path, contents) {
@@ -128,9 +129,9 @@ function isVerifiedZoneShell(path, contents) {
 //   paths:    array of built file paths relative to dist/ (the CLI gathers them). When
 //             omitted/non-array the check is SKIPPED (ok:true) — e.g. no build yet.
 //   contents: OPTIONAL { normalizedPath → fileContent } map (leading-slash keys). When
-//             present it lets the guard recognise INTENTIONAL `/zone/<slug>` exact-path
-//             shells that are byte-identical to index.html (v0.2.242 static deep-link fix)
-//             and ALLOW them instead of flagging them as fallback shadows.
+//             present it lets the guard recognise INTENTIONAL `/zone/<slug>/index.html`
+//             directory-index shells that are byte-identical to index.html (v0.2.243 static
+//             deep-link fix) and ALLOW them instead of flagging them as fallback shadows.
 // HARD FAIL when a built bundle has no index.html (nothing to serve) or when a file is
 // published under `/zone/*` that is NOT a verified shell (it would shadow the fallback).
 export function checkDistRoutes({ paths, contents } = {}) {
@@ -152,7 +153,7 @@ export function checkDistRoutes({ paths, contents } = {}) {
       continue;
     }
     errors.push(`dist/ publishes a static file under ${ZONE_ROUTE_PREFIX}* (${z}) — it would SHADOW the SPA fallback`
-      + ` (a verified shell must be /zone/<slug> byte-identical to ${INDEX_DOC})`);
+      + ` (a verified shell must be /zone/<slug>/index.html byte-identical to ${INDEX_DOC})`);
   }
   return { ok: errors.length === 0, skipped: false, errors, warnings, indexHtml, zonePaths, shellPaths };
 }

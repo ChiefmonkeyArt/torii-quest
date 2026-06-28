@@ -91,11 +91,13 @@ function _zoneSlug(zoneId) {
 }
 
 // handoffRouteFor(destination) → the inert SAME-SITE route a host WOULD load for a
-// destination zone (`/zone/<slug>`), or null when the zone id yields no safe slug.
-// Pure — builds a string, navigates nothing.
+// destination zone (canonical trailing-slash `/zone/<slug>/`, v0.2.243), or null when
+// the zone id yields no safe slug. The trailing slash makes the static host resolve the
+// directory-index shell and serve it as renderable `text/html`. Pure — builds a string,
+// navigates nothing.
 export function handoffRouteFor(destination) {
   const slug = _zoneSlug(destination && destination.zoneId);
-  return slug ? `/zone/${slug}` : null;
+  return slug ? `/zone/${slug}/` : null;
 }
 
 // handoffUrlFor(destination) → the https-only external preview URL a host MIGHT

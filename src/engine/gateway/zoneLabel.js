@@ -49,7 +49,10 @@ function _safeTitle(s) {
 function _titleFrom(input) {
   if (typeof input !== 'string' || input === '') return '';
   let slug = input;
-  if (slug.startsWith(ZONE_ROUTE_PREFIX)) slug = slug.slice(ZONE_ROUTE_PREFIX.length);
+  if (slug.startsWith(ZONE_ROUTE_PREFIX)) {
+    slug = slug.slice(ZONE_ROUTE_PREFIX.length);
+    if (slug.endsWith('/')) slug = slug.slice(0, -1); // canonical `/zone/<slug>/` route
+  }
   if (isValidZoneSlug(slug)) return humanizeZoneSlug(slug);
   return _safeTitle(input);
 }

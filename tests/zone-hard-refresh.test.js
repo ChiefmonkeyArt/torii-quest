@@ -1,14 +1,14 @@
-// tests/zone-hard-refresh.test.js — the v0.2.242 static-shell deep-link fix. On an
-// exact-path static host with no SPA rewrite AND no directory-index resolution
-// (torii-quest.pplx.app returns a JSON 404 for an unknown path), a hard-refresh / deep-link
-// of the no-trailing-slash `/zone/<slug>` 404s unless a real file lives at that EXACT path.
-// v0.2.241 wrote the shell at `dist/zone/<slug>/index.html`, but the host never mapped the
-// extensionless URL onto that nested index.html, so the cold hit still 404'd. v0.2.242 writes
-// the shell to the exact-path file `dist/zone/<slug>` (no extension) instead — a file and a
-// directory of the same name cannot coexist, so this REPLACES the directory-index form.
-// These tests pin: the slug list is valid + parseable, the pure planner emits the exact-path
-// shape, and (when a build is present) every planned shell is the exact-path extensionless
-// file, byte-identical to dist/index.html, with no leftover directory-index shell.
+// tests/zone-hard-refresh.test.js — the v0.2.243 renderable zone deep-link fix. The
+// exact-path static host (torii-quest.pplx.app: no SPA rewrite) infers Content-Type from
+// file EXTENSION, so the v0.2.242 EXTENSIONLESS file `dist/zone/<slug>` was served as
+// application/octet-stream and a real browser DOWNLOADED it (Playwright: "Download is
+// starting") instead of rendering. v0.2.243 reinstates the directory-index shell
+// `dist/zone/<slug>/index.html`: the host resolves the canonical trailing-slash URL
+// `/zone/<slug>/` onto that nested `.html` file and serves it as renderable text/html.
+// These tests pin: the slug list is valid + parseable, the pure planner emits the
+// directory-index `.html` shape + canonical trailing-slash route, and (when a build is
+// present) every planned shell is the directory-index file, byte-identical to dist/index.html,
+// with no leftover bare extensionless file.
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,7 +25,7 @@ describe('DEPLOYABLE_ZONE_SLUGS', () => {
     expect(DEPLOYABLE_ZONE_SLUGS.length).toBeGreaterThan(0);
     for (const slug of DEPLOYABLE_ZONE_SLUGS) {
       expect(isValidZoneSlug(slug)).toBe(true);
-      const r = parseZoneRoute(`/zone/${slug}`);
+      const r = parseZoneRoute(`/zone/${slug}/`);
       expect(r.kind).toBe(ZONE_ROUTE_KIND.ZONE);
       expect(r.slug).toBe(slug);
     }
@@ -37,16 +37,17 @@ describe('DEPLOYABLE_ZONE_SLUGS', () => {
 });
 
 describe('zoneShellPathFor / zoneShellRouteFor', () => {
-  it('builds an exact-path (extensionless) shell path + matching route for a valid slug', () => {
-    expect(zoneShellPathFor('plebeian-market-bazaar')).toBe('zone/plebeian-market-bazaar');
-    expect(zoneShellRouteFor('plebeian-market-bazaar')).toBe('/zone/plebeian-market-bazaar');
+  it('builds a directory-index (.html) shell path + canonical trailing-slash route for a valid slug', () => {
+    expect(zoneShellPathFor('plebeian-market-bazaar')).toBe('zone/plebeian-market-bazaar/index.html');
+    expect(zoneShellRouteFor('plebeian-market-bazaar')).toBe('/zone/plebeian-market-bazaar/');
   });
 
-  it('shell path has no extension and no trailing slash (the host resolves the exact URL)', () => {
+  it('shell path ends in /index.html so the host serves it as renderable text/html', () => {
     const p = zoneShellPathFor('plebeian-market-bazaar');
-    expect(p.endsWith('/index.html')).toBe(false);
-    expect(p.endsWith('/')).toBe(false);
-    expect(`/${p}`).toBe(zoneShellRouteFor('plebeian-market-bazaar'));
+    expect(p.endsWith('/index.html')).toBe(true);
+    // The canonical route is the directory (trailing slash); the file is its index.html.
+    expect(zoneShellRouteFor('plebeian-market-bazaar')).toBe('/zone/plebeian-market-bazaar/');
+    expect(`/${p}`.replace(/index\.html$/, '')).toBe(zoneShellRouteFor('plebeian-market-bazaar'));
   });
 
   it('returns null for an invalid slug (never builds an unsafe path)', () => {
@@ -58,14 +59,14 @@ describe('zoneShellPathFor / zoneShellRouteFor', () => {
 });
 
 describe('planZoneShells', () => {
-  it('plans one exact-path shell per deployable slug', () => {
+  it('plans one directory-index shell per deployable slug', () => {
     const plan = planZoneShells(DEPLOYABLE_ZONE_SLUGS);
     expect(plan.ok).toBe(true);
     expect(plan.errors).toEqual([]);
     expect(plan.shells.length).toBe(DEPLOYABLE_ZONE_SLUGS.length);
     for (const s of plan.shells) {
-      expect(s.path).toBe(`zone/${s.slug}`);
-      expect(s.route).toBe(`/zone/${s.slug}`);
+      expect(s.path).toBe(`zone/${s.slug}/index.html`);
+      expect(s.route).toBe(`/zone/${s.slug}/`);
       expect(parseZoneRoute(s.route).kind).toBe(ZONE_ROUTE_KIND.ZONE);
     }
   });
@@ -85,26 +86,28 @@ describe('planZoneShells', () => {
 });
 
 describe('built dist/ shells (when a build is present)', () => {
-  it('emits a byte-identical exact-path shell file for every deployable slug', () => {
+  it('emits a byte-identical directory-index shell file for every deployable slug', () => {
     const indexPath = join(DIST, 'index.html');
     if (!existsSync(indexPath)) return; // no build in this run — covered by test:release
     const indexBody = readFileSync(indexPath, 'utf8');
     for (const slug of DEPLOYABLE_ZONE_SLUGS) {
-      const shellPath = join(DIST, 'zone', slug);
-      expect(existsSync(shellPath), `missing exact-path shell for /zone/${slug}`).toBe(true);
-      expect(statSync(shellPath).isFile(), `/zone/${slug} must be a file, not a directory`).toBe(true);
+      const shellPath = join(DIST, 'zone', slug, 'index.html');
+      expect(existsSync(shellPath), `missing directory-index shell for /zone/${slug}/`).toBe(true);
+      expect(statSync(shellPath).isFile(), `/zone/${slug}/index.html must be a file`).toBe(true);
       expect(readFileSync(shellPath, 'utf8')).toBe(indexBody);
     }
   });
 
-  it('does NOT leave a directory-index shell (a file and dir of one name cannot coexist)', () => {
+  it('does NOT leave a bare extensionless file (the v0.2.242 form browsers downloaded)', () => {
     const indexPath = join(DIST, 'index.html');
     if (!existsSync(indexPath)) return; // no build in this run — covered by test:release
     for (const slug of DEPLOYABLE_ZONE_SLUGS) {
-      // The v0.2.241 directory-index form would require dist/zone/<slug>/ to be a directory,
-      // which cannot coexist with the exact-path file dist/zone/<slug>. Assert it's absent so
-      // the exact-path fix is the single served artifact.
-      expect(existsSync(join(DIST, 'zone', slug, 'index.html'))).toBe(false);
+      // The v0.2.242 extensionless file dist/zone/<slug> served as octet-stream → download.
+      // The directory-index shell needs dist/zone/<slug>/ to be a directory, which cannot
+      // coexist with a file of the same name; assert the bare file is absent so the
+      // renderable .html is the single served artifact.
+      const bare = join(DIST, 'zone', slug);
+      expect(existsSync(bare) && statSync(bare).isFile()).toBe(false);
     }
   });
 });

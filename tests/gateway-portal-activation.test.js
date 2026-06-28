@@ -124,9 +124,9 @@ describe('activatePortalHandoff (one-shot)', () => {
     expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
     expect(r.navigated).toBe(true);
     expect(r.zoneId).toBe('plebeian-market-bazaar');
-    expect(r.targetRoute).toBe('/zone/plebeian-market-bazaar');
+    expect(r.targetRoute).toBe('/zone/plebeian-market-bazaar/');
     expect(r.transportKind).toBe(TRANSPORT_KIND.HOST);
-    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
   });
 
   it('a confirmed hop over an injected BROWSER window is "live"', () => {
@@ -135,7 +135,7 @@ describe('activatePortalHandoff (one-shot)', () => {
     expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
     expect(r.live).toBe(true);
     expect(r.transportKind).toBe(TRANSPORT_KIND.BROWSER);
-    expect(win.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(win.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
   });
 
   it('a ["/"] allowlist is folded to ["/zone/"] so the scoped hop STILL navigates', () => {
@@ -143,7 +143,7 @@ describe('activatePortalHandoff (one-shot)', () => {
     const r = activatePortalHandoff(GATEWAY, CTX, true, { confirmed: true, host, routeAllowlist: ['/'] });
     expect(r.routeAllowlist).toEqual(['/zone/']);
     expect(r.status).toBe(ACTIVATION_STATUS.NAVIGATED);
-    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
   });
 
   it('a missing grant blocks the hop (consent gate preserved)', () => {
@@ -203,7 +203,7 @@ describe('createGatewayPortalBoundary (arm → confirm)', () => {
     const rep = boundary.confirm(true);
     expect(rep.status).toBe(ACTIVATION_STATUS.NAVIGATED);
     expect(rep.navigated).toBe(true);
-    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(host.calls.pushState).toEqual(['/zone/plebeian-market-bazaar/']);
     expect(boundary.state()).toBe(PORTAL_STATE.NAVIGATED);
     expect(boundary.armed()).toBe(false);
   });
@@ -262,7 +262,7 @@ describe('SDK + debug exposure', () => {
     expect(rep.confirmed).toBe(true);
     expect(rep.live).toBe(false); // recording host, not the real browser
     expect(rep.inMemory).toBe(true);
-    expect(rep.pushStateCalls).toEqual(['/zone/plebeian-market-bazaar']);
+    expect(rep.pushStateCalls).toEqual(['/zone/plebeian-market-bazaar/']);
     expect(rep.external).toBe(false);
     expect(rep.network).toBe(false);
   });

@@ -1,11 +1,12 @@
-// tools/generate-zone-shells.mjs — emit static `/zone/<slug>` SHELL files into dist/
-// (v0.2.242). Run after `vite build` (wired into the npm `build` script; also runnable
+// tools/generate-zone-shells.mjs — emit static `/zone/<slug>/` SHELL files into dist/
+// (v0.2.243). Run after `vite build` (wired into the npm `build` script; also runnable
 // standalone as `npm run zones:shells`). For each slug in DEPLOYABLE_ZONE_SLUGS it writes
-// a byte-identical copy of dist/index.html to the EXACT-PATH file dist/zone/<slug> (no
-// extension), so an exact-path static host (no SPA rewrite, no directory-index resolution)
-// serves the app shell on a hard-refresh / deep-link of the no-trailing-slash `/zone/<slug>`
-// URL instead of returning a 404. dist/index.html uses root-absolute asset URLs
-// (`/assets/...`), so the shell loads the same bundle regardless of its path depth.
+// a byte-identical copy of dist/index.html to the directory-index file
+// dist/zone/<slug>/index.html, so the exact-path static host resolves the canonical
+// trailing-slash `/zone/<slug>/` URL onto that nested `.html` file and serves it as
+// renderable `text/html` (the v0.2.242 extensionless file served as octet-stream and made
+// browsers DOWNLOAD it). dist/index.html uses root-absolute asset URLs (`/assets/...`), so
+// the shell loads the same bundle regardless of its path depth.
 //
 // SAFE by construction: it only READS dist/index.html and WRITES under dist/zone/*. It
 // touches no source file, no server, no network, no secrets — it is a pure build artifact

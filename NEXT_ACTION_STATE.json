@@ -1,19 +1,18 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-06-28T02:53:20.680Z",
+  "generatedAt": "2026-06-28T08:21:44.297Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.242-alpha",
-  "packageVersion": "0.2.242-alpha",
-  "gitCommit": "3f9eda7",
+  "version": "v0.2.243-alpha",
+  "packageVersion": "0.2.243-alpha",
+  "gitCommit": "a447a6f",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": false,
     "gateStatus": "NOT READY",
     "gateCommand": "npm run test:release",
     "blockers": [
-      "zoneFallback",
-      "docs"
+      "zoneFallback"
     ],
     "regression": {
       "count": 15,
@@ -25,7 +24,7 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 1685,
+    "passing": 1688,
     "files": 102
   },
   "manualBlocker": {
@@ -38,7 +37,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.242-alpha"
+    "version": "v0.2.243-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -105,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.242-alpha",
+    "version": "v0.2.243-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/continuum.html",
     "entrySmoke": {
@@ -174,10 +173,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
+    "torii-v0.2.242-zone-exact-path-report.md",
     "torii-v0.2.241-zone-hard-refresh-report.md",
     "torii-v0.2.240-travel-gateway-entry-repair-report.md",
-    "torii-v0.2.239-travel-gateway-placement-report.md",
-    "torii-v0.2.238-enter-arena-reset-crash-fix-report.md"
+    "torii-v0.2.239-travel-gateway-placement-report.md"
   ],
   "safety": {
     "deploy": false,

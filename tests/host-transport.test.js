@@ -83,8 +83,8 @@ describe('same-origin navigation through an injected host', () => {
     expect(r.status).toBe(EXECUTE_STATUS.DONE);
     expect(r.navigated).toBe(true);
     expect(r.performed).toBe(true);
-    expect(host.calls.pushState).toEqual(['/zone/nap-garden']);
-    expect(host.route).toBe('/zone/nap-garden');
+    expect(host.calls.pushState).toEqual(['/zone/nap-garden/']);
+    expect(host.route).toBe('/zone/nap-garden/');
   });
 
   it('supports a bare callback host (treated as pushState)', () => {
@@ -180,7 +180,7 @@ describe('safety: no network/sign/publish/world/external', () => {
     const t = createHostTransport(host);
     executeHandoff(readyPlan(), t);
     // The only state changed is the host's own in-memory route/calls.
-    expect(host.route).toBe('/zone/nap-garden');
+    expect(host.route).toBe('/zone/nap-garden/');
     expect(Object.keys(host.calls)).toEqual(['pushState', 'replaceState']);
   });
 

@@ -44,7 +44,7 @@ import { execSync } from 'node:child_process';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.242-alpha';
+const EXPECTED_VERSION = 'v0.2.243-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -376,11 +376,11 @@ console.log('[15] SPA /zone/* fallback readiness (zoneFallbackReadiness)');
         }
       };
       walkDist(distDir);
-      // Gather index.html + /zone/<slug> exact-path shell bodies so the guard can
-      // recognise intentional byte-identical shells (v0.2.242) instead of flagging them.
+      // Gather index.html + /zone/<slug>/index.html directory-index shell bodies so the
+      // guard can recognise intentional byte-identical shells (v0.2.243) instead of flagging.
       const contents = {};
       for (const rel of paths) {
-        if (rel === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(rel)) {
+        if (rel === 'index.html' || /^zone\/[a-z0-9]+(?:-[a-z0-9]+)*\/index\.html$/.test(rel)) {
           try { contents[`/${rel}`] = readFileSync(join(distDir, rel), 'utf8'); } catch { /* skip */ }
         }
       }

@@ -6,14 +6,14 @@
   "result": "pass",
   "version": "v0.2.231-alpha",
   "commit": "aba849c",
-  "dashboardUrl": "https://torii-quest.pplx.app/continuum.html",
-  "surface": "continuum.html",
+  "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
+  "surface": "dashboard.html",
   "smokedAt": "2026-06-26",
   "smokedBy": "parent-agent cloud-browser smoke",
   "checks": [
     {
       "id": "page-loads",
-      "label": "continuum.html loads successfully in a cloud browser",
+      "label": "dashboard.html loads successfully in a cloud browser",
       "expected": "page renders, no fatal error",
       "observed": "page loaded successfully",
       "outcome": "pass"
@@ -40,7 +40,7 @@
       "outcome": "pass"
     }
   ],
-  "notes": "Deployed oversight dashboard (continuum.html) cloud-smoke confirmed: the page loads, renders Torii Continuum v0.2.231-alpha, and visibly surfaces the folded live-smoke evidence (v0.2.230-alpha PASS, 3/3, with ENTER ARENA + LOGIN WITH NOSTR entry-flow evidence) and the v0.2.231 active slice. No login/account actions performed. Read-only oversight; a green dashboard smoke is NOT MVP approval (see MVP_APPROVAL_STATE.json) and does NOT imply the human playtest is complete (see MVP_PLAYTEST_RESULTS.md).",
+  "notes": "Deployed oversight dashboard (dashboard.html) cloud-smoke confirmed: the page loads, renders Torii Continuum v0.2.231-alpha, and visibly surfaces the folded live-smoke evidence (v0.2.230-alpha PASS, 3/3, with ENTER ARENA + LOGIN WITH NOSTR entry-flow evidence) and the v0.2.231 active slice. No login/account actions performed. Read-only oversight; a green dashboard smoke is NOT MVP approval (see MVP_APPROVAL_STATE.json) and does NOT imply the human playtest is complete (see MVP_PLAYTEST_RESULTS.md).",
   "safety": {
     "deploy": false,
     "publish": false,

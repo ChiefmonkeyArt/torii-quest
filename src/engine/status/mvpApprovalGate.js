@@ -28,7 +28,7 @@
 
 // The two live URLs the gate names so a tester knows where to run the manual playtest.
 export const MVP_GATE_LIVE_URL = 'https://torii-quest.pplx.app';
-export const MVP_GATE_DASHBOARD_URL = 'https://torii-quest.pplx.app/continuum.html';
+export const MVP_GATE_DASHBOARD_URL = 'https://torii-quest.pplx.app/dashboard.html';
 
 export const MVP_APPROVAL_GATE_BADGE =
   'MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL';
@@ -46,7 +46,7 @@ export const MVP_PLAYTEST_FOCUS = Object.freeze([
   'Mirror / reflection: the mirror is coherent (no garble / recursion meltdown) and not a framerate sink.',
   'Crates: crates are solid under movement and fire and do not jitter, launch, or sink through the floor.',
   'NAP monkey: crossing the torii gate into the Non-Aggression zone disables the weapon and bots do not follow.',
-  'Dashboard clarity: continuum.html renders the version, test status, and active slice clearly and matches the build.',
+  'Dashboard clarity: dashboard.html renders the version, test status, and active slice clearly and matches the build.',
   'Subjective fun / feel: any game-feel blocker that makes the proof unconvincing, even if every automated check is green.',
 ]);
 

@@ -51,7 +51,7 @@ import { VERSION } from '../src/config.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
-const HTML_OUT = join(PUBLIC, 'continuum.html');
+const HTML_OUT = join(PUBLIC, 'dashboard.html');
 const JSON_OUT = join(PUBLIC, 'continuum-data.json');
 
 // Read the doc sources safely — a missing/unreadable doc degrades to '' and the parser

@@ -34,7 +34,7 @@
 
 // The live URLs. Plain text only — the dashboard renders them as text, never as a redirect.
 export const HANDOFF_LIVE_URL = 'https://torii-quest.pplx.app';
-export const HANDOFF_DASHBOARD_URL = 'https://torii-quest.pplx.app/continuum.html';
+export const HANDOFF_DASHBOARD_URL = 'https://torii-quest.pplx.app/dashboard.html';
 
 export const HANDOFF_CONTROL_PANEL_BADGE =
   'HANDOFF / RELEASE CONTROL PANEL · LOCAL · READ-ONLY · ONE-GLANCE PICKUP';

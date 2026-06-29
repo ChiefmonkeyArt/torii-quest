@@ -1253,7 +1253,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
     const html = renderContinuumPage();
     expect(html).toContain('Handoff / release control panel');
     expect(html).toContain('torii-quest.pplx.app');
-    expect(html).toContain('continuum.html');
+    expect(html).toContain('dashboard.html');
     // The curated panel is a complete (green) surface with the blocker still pending.
     expect(html).toContain('HANDOFF READY');
     // At least one of the practical, non-religious operating principles is surfaced.

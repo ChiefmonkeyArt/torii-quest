@@ -1,6 +1,6 @@
 {
   "version": "v0.2.244-alpha",
-  "generatedAt": "2026-06-29T18:15:21.329Z",
+  "generatedAt": "2026-06-29T18:40:23.651Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -155,8 +155,8 @@
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
-    "status": "docs-ready",
-    "statusLabel": "DOCS READY · BUILD CHECK PENDING",
+    "status": "ready",
+    "statusLabel": "READY",
     "checks": [
       {
         "item": "SPA /zone/* fallback documented",
@@ -165,8 +165,8 @@
       },
       {
         "item": "Built dist route shape",
-        "state": "deferred",
-        "note": "no dist/ this build — run npm run build then npm run zones:check"
+        "state": "no-blocker",
+        "note": "dist/index.html present; no static file under /zone/* shadows the fallback"
       },
       {
         "item": "Host SPA fallback configured",
@@ -192,7 +192,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.244-alpha",
-    "gitCommit": "695e761",
+    "gitCommit": "3cc5eff",
     "signals": [
       {
         "key": "versionSync",
@@ -218,16 +218,16 @@
       {
         "key": "bundle",
         "label": "Bundle baseline",
-        "state": "skipped",
-        "pill": "deferred",
-        "detail": "no dist/ — build then bundle:report"
+        "state": "advisory",
+        "pill": "manual",
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
       },
       {
         "key": "zoneFallback",
         "label": "/zone/* fallback",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "docs ok · dist check pending"
+        "detail": "docs + dist ok"
       },
       {
         "key": "docs",
@@ -465,7 +465,7 @@
       },
       {
         "label": "Manual playtest focus",
-        "value": "Entry flow: title screen loads, ENTER ARENA and LOGIN WITH NOSTR give visible feedback, pointer-lock engages. · Shooter feel: the core shoot → hit → respawn loop feels responsive and fair. · Hit registration / headshots: connecting shots register, and headshots vs body shots resolve as expected. · Bot behaviour: bots move, react, take damage, die, and respawn without freezing or stalling. · Movement / footsteps: WASD + jump are smooth, walls hold, and footstep feedback tracks motion. · Reload feel: reload triggers, feels snappy, and refills ammo to the magazine size. · Mirror / reflection: the mirror is coherent (no garble / recursion meltdown) and not a framerate sink. · Crates: crates are solid under movement and fire and do not jitter, launch, or sink through the floor. · NAP monkey: crossing the torii gate into the Non-Aggression zone disables the weapon and bots do not follow. · Dashboard clarity: continuum.html renders the version, test status, and active slice clearly and matches the build. · Subjective fun / feel: any game-feel blocker that makes the proof unconvincing, even if every automated check is green."
+        "value": "Entry flow: title screen loads, ENTER ARENA and LOGIN WITH NOSTR give visible feedback, pointer-lock engages. · Shooter feel: the core shoot → hit → respawn loop feels responsive and fair. · Hit registration / headshots: connecting shots register, and headshots vs body shots resolve as expected. · Bot behaviour: bots move, react, take damage, die, and respawn without freezing or stalling. · Movement / footsteps: WASD + jump are smooth, walls hold, and footstep feedback tracks motion. · Reload feel: reload triggers, feels snappy, and refills ammo to the magazine size. · Mirror / reflection: the mirror is coherent (no garble / recursion meltdown) and not a framerate sink. · Crates: crates are solid under movement and fire and do not jitter, launch, or sink through the floor. · NAP monkey: crossing the torii gate into the Non-Aggression zone disables the weapon and bots do not follow. · Dashboard clarity: dashboard.html renders the version, test status, and active slice clearly and matches the build. · Subjective fun / feel: any game-feel blocker that makes the proof unconvincing, even if every automated check is green."
       }
     ],
     "note": "MVP approval gate — the rubric that keeps automated green from being mistaken for human game-feel approval. The automated tests, the release gate, and the two cloud smokes are CONFIDENCE signals: green means the code and the deployed surfaces look healthy, NOT that the MVP is approved. Approval is a separate, explicit step: a human (Chiefmonkey / the user) runs the live-browser playtest — judging entry flow, shooter feel, hit registration / headshots, bot behaviour, movement, reload, mirror, crates, the NAP monkey, dashboard clarity, and overall fun / feel — and then says \"MVP approved\", which records the approver and timestamp in MVP_APPROVAL_STATE.json. A smoke pass is not approval and a dashboard pass is not a completed playtest. This card approves/releases/deploys/publishes NOTHING."
@@ -542,7 +542,7 @@
       },
       {
         "label": "Focus to judge",
-        "value": "Entry flow: title screen loads, ENTER ARENA and LOGIN WITH NOSTR give visible feedback, pointer-lock engages. · Shooter feel: the core shoot → hit → respawn loop feels responsive and fair. · Hit registration / headshots: connecting shots register, and headshots vs body shots resolve as expected. · Bot behaviour: bots move, react, take damage, die, and respawn without freezing or stalling. · Movement / footsteps: WASD + jump are smooth, walls hold, and footstep feedback tracks motion. · Reload feel: reload triggers, feels snappy, and refills ammo to the magazine size. · Mirror / reflection: the mirror is coherent (no garble / recursion meltdown) and not a framerate sink. · Crates: crates are solid under movement and fire and do not jitter, launch, or sink through the floor. · NAP monkey: crossing the torii gate into the Non-Aggression zone disables the weapon and bots do not follow. · Dashboard clarity: continuum.html renders the version, test status, and active slice clearly and matches the build. · Subjective fun / feel: any game-feel blocker that makes the proof unconvincing, even if every automated check is green."
+        "value": "Entry flow: title screen loads, ENTER ARENA and LOGIN WITH NOSTR give visible feedback, pointer-lock engages. · Shooter feel: the core shoot → hit → respawn loop feels responsive and fair. · Hit registration / headshots: connecting shots register, and headshots vs body shots resolve as expected. · Bot behaviour: bots move, react, take damage, die, and respawn without freezing or stalling. · Movement / footsteps: WASD + jump are smooth, walls hold, and footstep feedback tracks motion. · Reload feel: reload triggers, feels snappy, and refills ammo to the magazine size. · Mirror / reflection: the mirror is coherent (no garble / recursion meltdown) and not a framerate sink. · Crates: crates are solid under movement and fire and do not jitter, launch, or sink through the floor. · NAP monkey: crossing the torii gate into the Non-Aggression zone disables the weapon and bots do not follow. · Dashboard clarity: dashboard.html renders the version, test status, and active slice clearly and matches the build. · Subjective fun / feel: any game-feel blocker that makes the proof unconvincing, even if every automated check is green."
       },
       {
         "label": "Implies approval",
@@ -569,7 +569,7 @@
       },
       {
         "label": "Live dashboard",
-        "value": "https://torii-quest.pplx.app/continuum.html"
+        "value": "https://torii-quest.pplx.app/dashboard.html"
       },
       {
         "label": "Entry smoke",

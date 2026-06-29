@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-06-29T18:04:16.150Z",
+  "generatedAt": "2026-06-29T18:40:21.346Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
   "version": "v0.2.244-alpha",
   "packageVersion": "0.2.244-alpha",
-  "gitCommit": "9d6732f",
+  "gitCommit": "3cc5eff",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -92,7 +92,7 @@
     "result": "pass",
     "pass": true,
     "version": "v0.2.231-alpha",
-    "surface": "continuum.html",
+    "surface": "dashboard.html",
     "smokedAt": "2026-06-26",
     "checks": 4,
     "passed": 4,
@@ -104,7 +104,7 @@
     "green": true,
     "version": "v0.2.244-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
-    "dashboardUrl": "https://torii-quest.pplx.app/continuum.html",
+    "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
       "result": "pass",
       "pass": true,

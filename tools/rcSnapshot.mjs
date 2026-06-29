@@ -65,7 +65,7 @@ export const RC_SNAPSHOT_MANUAL_VALIDATION = Object.freeze([
   'Cross the torii gate into the NAP zone and confirm the weapon disables (peace) and bots do not follow across the gate.',
   'Open the read-only Nostr surfaces (read health / profile / leaderboard) and confirm they load with NO signing or publishing path exposed.',
   'Activate the gateway portal and confirm a travel-confirm shell appears (not a silent jump); confirm a malformed /zone/<slug> falls back safely.',
-  'Open /continuum.html and /release-metadata.json on the live build; confirm version + test counts match the title screen and the update prompt is read-only.',
+  'Open /dashboard.html and /release-metadata.json on the live build; confirm version + test counts match the title screen and the update prompt is read-only.',
   'Walk through MVP_PLAYTEST_CHECKLIST.md and record results in MVP_PLAYTEST_RESULTS_TEMPLATE.md — any open blocker stops MVP-proof sign-off.',
 ]);
 

@@ -249,7 +249,7 @@ export const PLAYTEST_CHECKLIST_SECTIONS = Object.freeze([
         id: 'CONT-1',
         title: 'Continuum dashboard renders and matches the build version',
         steps: Object.freeze([
-          'Open /continuum.html on the live build.',
+          'Open /dashboard.html on the live build.',
         ]),
         expected: 'The dashboard renders version, test status, active slices, and recent work; the version matches the title-screen build and the test counts read as current.',
         severity: 'minor',

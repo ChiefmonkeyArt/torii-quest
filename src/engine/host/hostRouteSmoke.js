@@ -57,7 +57,7 @@ export const HOST_ROUTE_SMOKE_BADGE = 'HOST ROUTE SMOKE · READ-ONLY · NO DEPLO
 // fixture, never fetches or serves them.
 export const REQUIRED_ASSETS = Object.freeze([
   'index.html',          // SPA entry + the /zone/* fallback document
-  'continuum.html',      // the oversight dashboard (static, same-origin)
+  'dashboard.html',       // the oversight dashboard (static, same-origin)
   'continuum-data.json', // the dashboard data the page reads (same-origin relative fetch)
   RELEASE_META_FILE.replace(/^public\//, ''), // 'release-metadata.json' at the web root
 ]);
@@ -86,7 +86,7 @@ export const SAMPLE_DIST_PATHS = Object.freeze([
   'assets/three-vendor-def456.js',
   'assets/rapier-ghi789.js',
   'assets/rolldown-runtime-jkl012.js',
-  'continuum.html',
+  'dashboard.html',
   'continuum-data.json',
   'release-metadata.json',
   'sw.js',
@@ -219,13 +219,13 @@ export function runHostRouteSmoke(opts = {}) {
   // 3. Dashboard asset present — the continuum dashboard page + its data JSON ship as
   // same-origin static assets.
   try {
-    const page = _hasAsset(distPaths, 'continuum.html');
+    const page = _hasAsset(distPaths, 'dashboard.html');
     const data = _hasAsset(distPaths, 'continuum-data.json');
     signals.push(_signal(
       'dashboard-asset-present',
       'Continuum dashboard asset present',
       page && data,
-      `continuum.html=${page}, continuum-data.json=${data}`,
+      `dashboard.html=${page}, continuum-data.json=${data}`,
     ));
   } catch (e) {
     signals.push(_signal('dashboard-asset-present', 'Continuum dashboard asset present', false, `threw: ${e.message}`));

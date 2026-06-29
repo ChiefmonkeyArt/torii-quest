@@ -63,8 +63,8 @@ describe('buildDashboardSmokeState — shape + coercion', () => {
   });
 
   it('keeps the surface field and pins the safety block all-false', () => {
-    const s = buildDashboardSmokeState({ result: 'pass', surface: 'continuum.html' });
-    expect(s.surface).toBe('continuum.html');
+    const s = buildDashboardSmokeState({ result: 'pass', surface: 'dashboard.html' });
+    expect(s.surface).toBe('dashboard.html');
     expect(s.safety).toEqual({
       deploy: false, publish: false, push: false, tag: false,
       networkWrite: false, nostrWrite: false, godMode: false,
@@ -120,11 +120,11 @@ describe('validateDashboardSmokeState — the pass-requires-evidence floor', () 
 describe('summarizeDashboardSmokeForState — folded block', () => {
   it('summarises counts and never implies approval or playtest-complete', () => {
     const s = buildDashboardSmokeState({
-      result: 'pass', version: 'v0.2.231-alpha', surface: 'continuum.html',
+      result: 'pass', version: 'v0.2.231-alpha', surface: 'dashboard.html',
       smokedAt: '2026-06-26', checks: passingChecks,
     });
     expect(summarizeDashboardSmokeForState(s)).toEqual({
-      result: 'pass', pass: true, version: 'v0.2.231-alpha', surface: 'continuum.html',
+      result: 'pass', pass: true, version: 'v0.2.231-alpha', surface: 'dashboard.html',
       smokedAt: '2026-06-26', checks: 2, passed: 2, failed: 0,
       impliesApproval: false, impliesPlaytestComplete: false,
     });
@@ -145,13 +145,13 @@ describe('summarizeDashboardSmokeForState — folded block', () => {
 describe('formatDashboardSmokeState — terminal block', () => {
   it('renders the badge, verdict, surface, and each check; safe on null', () => {
     const s = buildDashboardSmokeState({
-      result: 'pass', version: 'v0.2.231-alpha', surface: 'continuum.html',
+      result: 'pass', version: 'v0.2.231-alpha', surface: 'dashboard.html',
       smokedAt: '2026-06-26', checks: passingChecks,
     });
     const out = formatDashboardSmokeState(s);
     expect(out).toMatch(/dashboard smoke state/i);
     expect(out).toMatch(/✓ PASS/);
-    expect(out).toMatch(/continuum\.html/);
+    expect(out).toMatch(/dashboard\.html/);
     expect(out).toMatch(/checks:\s*2/);
     expect(formatDashboardSmokeState(null)).toMatch(/no state/);
   });

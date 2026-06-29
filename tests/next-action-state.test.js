@@ -207,7 +207,7 @@ describe('buildNextActionState — assembly', () => {
 
     const dash = {
       kind: 'torii.dashboard-smoke-state', schemaVersion: 1, result: 'pass',
-      version: 'v0.2.231-alpha', surface: 'continuum.html', smokedAt: '2026-06-26',
+      version: 'v0.2.231-alpha', surface: 'dashboard.html', smokedAt: '2026-06-26',
       checks: [
         { id: 'a', label: 'A', expected: 'x', observed: 'x', outcome: 'pass' },
         { id: 'b', label: 'B', expected: 'y', observed: 'y', outcome: 'pass' },
@@ -215,7 +215,7 @@ describe('buildNextActionState — assembly', () => {
     };
     const green = buildNextActionState({ agentHandoff: handoff(), dashboardSmoke: dash });
     expect(green.dashboardSmoke).toMatchObject({
-      result: 'pass', pass: true, version: 'v0.2.231-alpha', surface: 'continuum.html',
+      result: 'pass', pass: true, version: 'v0.2.231-alpha', surface: 'dashboard.html',
       smokedAt: '2026-06-26', checks: 2, passed: 2, failed: 0,
       impliesApproval: false, impliesPlaytestComplete: false,
     });

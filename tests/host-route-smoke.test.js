@@ -22,7 +22,7 @@ describe('constants', () => {
     expect(HOST_ROUTE_SMOKE_BADGE).toMatch(/READ-ONLY/);
     expect(HOST_ROUTE_SMOKE_BADGE).toMatch(/NO DEPLOY/);
     expect(REQUIRED_ASSETS).toContain('index.html');
-    expect(REQUIRED_ASSETS).toContain('continuum.html');
+    expect(REQUIRED_ASSETS).toContain('dashboard.html');
     expect(REQUIRED_ASSETS).toContain('release-metadata.json');
   });
   it('exposes frozen, deterministic local fixtures (never a server)', () => {
@@ -87,7 +87,7 @@ describe('runHostRouteSmoke', () => {
     const r = runHostRouteSmoke();
     const sig = r.signals.find((s) => s.key === 'dashboard-asset-present');
     expect(sig.status).toBe('ok');
-    expect(sig.detail).toMatch(/continuum\.html=true/);
+    expect(sig.detail).toMatch(/dashboard\.html=true/);
   });
 
   it('confirms release-metadata.json ships and is manual-only / non-actionable', () => {
@@ -125,7 +125,7 @@ describe('runHostRouteSmoke', () => {
   });
 
   it('surfaces ok:false (with reasons) when the built bundle has no index.html', () => {
-    const r = runHostRouteSmoke({ distPaths: ['assets/index-x.js', 'continuum.html'] });
+    const r = runHostRouteSmoke({ distPaths: ['assets/index-x.js', 'dashboard.html'] });
     expect(r.ok).toBe(false);
     expect(r.summary.fail).toBeGreaterThan(0);
     expect(r.reasons.some((x) => x.startsWith('root-index-present'))).toBe(true);

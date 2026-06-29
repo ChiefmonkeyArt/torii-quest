@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const CONTINUUM_VERSION = 'v0.2.251-alpha';
+export const CONTINUUM_VERSION = 'v0.2.252-alpha';
 export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,8 +51,8 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 1751,
-  files: 104,
+  passing: 1775,
+  files: 106,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -1147,7 +1147,7 @@ export const CONTINUUM = Object.freeze({
 
   // "At a glance" metrics.
   metrics: [
-    { label: 'Source version', value: 'v0.2.251-alpha (build truth; live trails — manual deploy)' },
+    { label: 'Source version', value: 'v0.2.252-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile}, test:foundation ~${CURRENT_TEST_STATUS.foundationProfile})` },
     { label: 'Regression check', value: '15 / 15 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },

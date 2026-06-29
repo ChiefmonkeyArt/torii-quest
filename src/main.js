@@ -44,6 +44,8 @@ import { VERSION, TUNING } from './config.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
+// v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
+import { createHandshakeController } from './engine/gateway/handshakeController.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
@@ -188,14 +190,131 @@ function _gatewayRows(...pairs) {
   return out;
 }
 
-// refreshOnlineWorlds() — read other worlds' presence from relays and render the
-// live list into the title-screen gateway card. Read-only: no sign, no publish,
-// no navigate. Degrades to a clean offline/empty state on any failure.
-async function refreshOnlineWorlds() {
+// v0.2.252 (P1): the live n2n handshake controller. Stateful but DOM-free — it
+// holds our outgoing travel request (traveller) + the latest incoming request
+// (host) + a verified armed accept, and exposes a view-model the card paints.
+// Transports are the same injected nostr.js fns; ourPubkey is empty until login.
+const _handshake = createHandshakeController({
+  request: fanoutReq, sign: signEvent, publish: fanoutPublish, relays: RELAYS, ourPubkey: '',
+});
+let _worldsCache = [];    // sanitised online worlds (from refreshOnlineWorlds)
+let _worldsScan = 'idle'; // 'idle' | 'scanning' | 'offline'
+let _handshakeFrame = 0;  // frame-throttled tick (no setTimeout in main.js)
+
+// renderGatewayCard() — the unified painter for the title-screen gateway card.
+// Merges the live presence scan (clickable worlds when logged in) with the
+// handshake state machine (pending / incoming / armed). The ONLY place the card
+// is painted; badge + rows come from the controller's view(). When idle + logged
+// in, the cached online-worlds list renders as clickable rows so the traveller
+// can send a signed travel request. All textContent — no innerHTML, no links.
+function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
   if (!body) return;
-  _setGatewayBadge(_GATEWAY_BADGE.scanning);
-  body.replaceChildren(..._gatewayRows(['SCAN', 'querying relays…']));
+  const v = _handshake.view();
+  _setGatewayBadge(v.badge);
+  // Handshake takes precedence when active (pending / incoming / armed).
+  if (v.mode !== 'scan') {
+    body.replaceChildren(..._gatewayRows(...v.rows));
+    _renderGatewayActions(body, v.actions);
+    return;
+  }
+  // Scan mode: presence list. Offline / scanning / empty degrade cleanly.
+  if (_worldsScan === 'offline') {
+    body.replaceChildren(..._gatewayRows(['SCAN', 'relays unreachable']));
+    _renderGatewayActions(body, []);
+    return;
+  }
+  if (_worldsScan === 'scanning' && !_worldsCache.length) {
+    body.replaceChildren(..._gatewayRows(['SCAN', 'querying relays…']));
+    _renderGatewayActions(body, []);
+    return;
+  }
+  if (!_worldsCache.length) {
+    const msg = state.nostrPubkey ? 'no other worlds online' : 'login to travel';
+    body.replaceChildren(..._gatewayRows(['SCAN', msg]));
+    _renderGatewayActions(body, []);
+    return;
+  }
+  // Worlds present: clickable rows when logged in, plain rows when not.
+  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  body.replaceChildren();
+  const head = document.createElement('div');
+  head.className = 'gw-row-label';
+  head.textContent = `WORLDS · ${_worldsCache.length}`;
+  const headV = document.createElement('div');
+  headV.className = 'gw-row-value';
+  headV.textContent = canTravel ? 'click to travel' : 'online';
+  body.append(head, headV);
+  for (const w of _worldsCache.slice(0, 6)) {
+    const label = w.title || w.shortPubkey || w.zoneId || 'world';
+    const row = document.createElement('div');
+    row.className = canTravel ? 'gw-world-row gw-world-clickable' : 'gw-world-row';
+    row.textContent = (canTravel ? '→ ' : '  ') + label;
+    if (canTravel) {
+      row.setAttribute('role', 'button');
+      row.setAttribute('tabindex', '0');
+      row.setAttribute('aria-label', `travel to ${label}`);
+      row.addEventListener('click', () => _gwTravel(w));
+      row.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwTravel(w); }
+      });
+    }
+    const type = document.createElement('div');
+    type.className = 'gw-row-value';
+    type.textContent = w.zoneType || 'world';
+    body.append(row, type);
+  }
+  _renderGatewayActions(body, []);
+}
+
+// _renderGatewayActions(body, actions) — append ACCEPT/DENY/JUMP buttons for the
+// current handshake view. createElement + addEventListener only (no innerHTML).
+function _renderGatewayActions(body, actions) {
+  if (!actions || !actions.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'gw-actions';
+  for (const a of actions) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'gw-btn';
+    if (a === 'accept') { btn.classList.add('gw-btn-accept'); btn.textContent = 'ACCEPT'; btn.addEventListener('click', () => _gwAccept()); }
+    else if (a === 'deny') { btn.classList.add('gw-btn-deny'); btn.textContent = 'DENY'; btn.addEventListener('click', () => _gwDeny()); }
+    else if (a === 'jump') { btn.classList.add('gw-btn-jump'); btn.textContent = 'JUMP'; btn.addEventListener('click', () => _gwJump()); }
+    else continue;
+    wrap.append(btn);
+  }
+  body.append(wrap);
+}
+
+// _gwTravel(world) — traveller: send a signed travel request to `world`.
+async function _gwTravel(world) {
+  await _handshake.requestTravel(world);
+  renderGatewayCard();
+}
+// _gwAccept() / _gwDeny() — host: respond to the latest incoming request.
+async function _gwAccept() {
+  await _handshake.respondIncoming(true, { spawn: 'https://quest-torii.pplx.app' });
+  renderGatewayCard();
+}
+async function _gwDeny() {
+  await _handshake.respondIncoming(false);
+  renderGatewayCard();
+}
+// _gwJump() — traveller: execute the armed hop (Phase 2 wires real navigation).
+function _gwJump() { _executeJump(); }
+
+// _executeJump() — Phase 2 target. The armed spawn URL is structurally verified
+// (SEC-2) but NOT yet trusted for navigation. SEC-3 (URL-object parse + scheme +
+// host allowlist) gates the real cross-host window navigation. Until then: clear
+// the armed state + re-render (intentionally inert — no navigation yet).
+function _executeJump() {
+  _handshake.clearArmed();
+  renderGatewayCard();
+}
+
+async function refreshOnlineWorlds() {
+  _worldsScan = 'scanning';
+  if (!_worldsCache.length) renderGatewayCard();
   const r = await fetchOnlineWorlds({
     request: fanoutReq,
     relays: RELAYS,
@@ -203,23 +322,14 @@ async function refreshOnlineWorlds() {
     timeoutMs: 5000,
   });
   if (!r.ok) {
-    _setGatewayBadge(_GATEWAY_BADGE.offline);
-    body.replaceChildren(..._gatewayRows(['SCAN', 'relays unreachable']));
+    _worldsScan = 'offline';
+    _worldsCache = [];
+    renderGatewayCard();
     return;
   }
-  if (!r.count) {
-    _setGatewayBadge(_GATEWAY_BADGE.empty);
-    body.replaceChildren(..._gatewayRows(['SCAN', 'no other worlds online']));
-    return;
-  }
-  _setGatewayBadge(_GATEWAY_BADGE.online(r.count));
-  const pairs = [['WORLDS', `${r.count} found`]];
-  for (const w of r.worlds.slice(0, 6)) {
-    const label = w.title || w.shortPubkey || w.zoneId || 'world';
-    const value = w.zoneType || 'world';
-    pairs.push([label, value]);
-  }
-  body.replaceChildren(..._gatewayRows(...pairs));
+  _worldsCache = r.worlds || [];
+  _worldsScan = 'idle';
+  renderGatewayCard();
 }
 
 // publishOurWorldPresence() — on NIP-07 login, advertise OUR world on the shared
@@ -252,13 +362,19 @@ async function publishOurWorldPresence() {
 
 function renderGatewayPreview() {
   // Initial skeleton; the live read-only relay scan fills it in async.
+  renderGatewayCard();
   refreshOnlineWorlds();
 }
 renderGatewayPreview();
 
-// On explicit NIP-07 login: advertise our world, then re-scan. Login is the only
-// trigger for the presence write path — never auto-publishes.
-on(EV.NOSTR_LOGIN, () => { publishOurWorldPresence(); });
+// On explicit NIP-07 login: arm the handshake controller with our identity, then
+// advertise our world + re-scan. Login is the only trigger for the presence write
+// path and the only point the handshake pubkey is set — never auto-publishes.
+on(EV.NOSTR_LOGIN, () => {
+  _handshake.setOurPubkey(state.nostrPubkey || '');
+  renderGatewayCard();
+  publishOurWorldPresence();
+});
 
 // ── Live in-world GATEWAY PORTAL trigger (v0.2.181) ────────────────────────────
 // THE composition-root boundary: this is the ONE place a REAL browser `window` is
@@ -728,6 +844,15 @@ function update(dt, frame) {
   // longer reaches through window._grassMat/_flowerMat).
   tickFoliage(dt);
   if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
+  // v0.2.252 (P1): poll the n2n handshake ~every 2s (120 frames @ ~60fps) for
+  // incoming travel requests + accept responses. Only while NOT playing — the
+  // gateway card lives on the title screen. No setTimeout in main.js (regression
+  // check [3]); throttle via the frame counter. tick() is re-entrant-safe +
+  // never throws into the loop; the .then just re-paints the card.
+  if (!isPlaying() && state.nostrPubkey && ++_handshakeFrame >= 120) {
+    _handshakeFrame = 0;
+    _handshake.tick().then(renderGatewayCard).catch(() => {});
+  }
   // Wrap render in try/catch — a Three.js crash must not kill the rAF loop
   try {
     renderFrame(isLive());

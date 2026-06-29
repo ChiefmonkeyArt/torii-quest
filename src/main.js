@@ -46,6 +46,9 @@ import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
+// v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL
+// becomes navigable. Pure: only validates + re-emits a safe https URL string.
+import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 
@@ -300,16 +303,32 @@ async function _gwDeny() {
   await _handshake.respondIncoming(false);
   renderGatewayCard();
 }
-// _gwJump() — traveller: execute the armed hop (Phase 2 wires real navigation).
+// _gwJump() — traveller: execute the armed hop (SEC-2 signed accept + SEC-3 URL hardening both gated inside).
 function _gwJump() { _executeJump(); }
 
-// _executeJump() — Phase 2 target. The armed spawn URL is structurally verified
-// (SEC-2) but NOT yet trusted for navigation. SEC-3 (URL-object parse + scheme +
-// host allowlist) gates the real cross-host window navigation. Until then: clear
-// the armed state + re-render (intentionally inert — no navigation yet).
+// _executeJump() — the n2n hop. Reachable ONLY after SEC-2 (a signed accept from
+// a host whose pubkey matches our pending request) armed the spawn. SEC-3 then
+// hardens the spawn URL (https + public host + no credentials) before the ONE
+// navigation site in the whole gateway flow touches window.location. The
+// traveller's hex pubkey rides along as ?torii-traveller= so the destination
+// host identifies the arrival. A failed SEC-3 gate refuses to navigate and
+// clears the armed state — the hop fails closed, never into an unsafe URL.
 function _executeJump() {
+  const snap = _handshake.snapshot();
+  const armed = snap && snap.armed;
+  if (!armed) { renderGatewayCard(); return; }
+  const spawn = armed.spawn || 'https://quest-torii.pplx.app';
+  const hardened = hardenSpawnUrl(spawn);
+  if (!hardened.ok) {
+    _handshake.clearArmed();
+    renderGatewayCard();
+    return;
+  }
+  const withTraveller = appendTraveller(hardened.url, state.nostrPubkey || '');
+  const target = withTraveller.ok ? withTraveller.url : hardened.url;
   _handshake.clearArmed();
-  renderGatewayCard();
+  // The single navigation site for the n2n hop. SEC-2 + SEC-3 both cleared above.
+  try { window.location.href = target; } catch (e) { renderGatewayCard(); }
 }
 
 async function refreshOnlineWorlds() {

@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "generatedAt": "2026-06-29T18:40:21.346Z",
   "badge": "NEXT-ACTION STATE \u00b7 LOCAL \u00b7 READ-ONLY",
-  "version": "v0.2.252-alpha",
-  "packageVersion": "0.2.252-alpha",
+  "version": "v0.2.253-alpha",
+  "packageVersion": "0.2.253-alpha",
   "gitCommit": "3cc5eff",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
@@ -22,8 +22,8 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 1775,
-    "files": 106
+    "passing": 1796,
+    "files": 107
   },
   "manualBlocker": {
     "pending": true,

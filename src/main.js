@@ -17,7 +17,10 @@ import './engine/ui/loginBootstrap.js';
 import { showZoneNotice, hideZoneNotice } from './hud.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
-import { productPreviewBlock } from './engine/components/productPreview.js';
+// v0.2.283 (M2): product surface promoted from read-only proof to a detail view
+// + one real interaction — a LOCAL save keyed to the viewer's Nostr identity.
+import { productDetailView } from './engine/components/productDetail.js';
+import { isProductSaved, toggleProductSaved, savedCountFor } from './engine/components/savedProducts.js';
 import { leaderboardPreviewBlock } from './engine/nostr/leaderboardPreview.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
@@ -350,27 +353,101 @@ _applyZoneRoute();
 window.addEventListener('popstate', _applyZoneRoute);
 window.addEventListener('hashchange', _applyZoneRoute);
 
-// ── Inert read-only title-screen proof cards (product / leaderboard / update) ───
-function renderProductPreview() {
-  const body = document.getElementById('product-preview-body');
-  if (!body) return;
-  const block = productPreviewBlock({
-    title: 'Sticker Gun Skin',
-    sellerNpub: 'npub1demo0seller0fixture0pleb0market0xxxxxxxxxxxxxxxxxxxx',
-    priceSats: 2100,
-    url: 'https://plebeian.market/listing/sticker-gun',
-    reward: 'Sticker Gun skin',
-  });
-  body.replaceChildren(...block.lines.flatMap(({ label, value }) => {
+// ── Title-screen proof cards (product / leaderboard / update) ───────────────────
+// The product card (M2, v0.2.283) is now interactive: it shows a DETAIL view of
+// the listing a traveller reaches through a gateway and offers ONE real action —
+// a LOCAL save keyed to the viewer's verified Nostr identity (the arriving npub
+// from the P2 gate, or a logged-in pubkey). Anon viewers see it read-only with a
+// connect prompt. The save is client-side only (savedProducts.js): NOT a relay
+// write, sign, or payment — so it needs no consent/sign gate. Marketplace checkout
+// stays out-of-band (readOnly preserved).
+const PRODUCT_FIXTURE = Object.freeze({
+  title: 'Sticker Gun Skin',
+  sellerNpub: 'npub1demo0seller0fixture0pleb0market0xxxxxxxxxxxxxxxxxxxx',
+  priceSats: 2100,
+  url: 'https://plebeian.market/listing/sticker-gun',
+  reward: 'Sticker Gun skin',
+  description: 'A bright Bitcoin-orange sticker wrap for your in-arena sidearm. '
+    + 'Cosmetic only — owning the listing hints the skin; no entitlement is granted here.',
+});
+
+let _productDetailOpen = false;
+
+function _drawRows(container, lines, labelCls, valueCls) {
+  container.replaceChildren(...lines.flatMap(({ label, value }) => {
     const l = document.createElement('div');
-    l.className = 'pp-row-label';
+    l.className = labelCls;
     l.textContent = label;
     const v = document.createElement('div');
-    v.className = 'pp-row-value';
+    v.className = valueCls;
     v.textContent = value;
     return [l, v];
   }));
 }
+
+function renderProductPreview() {
+  const body = document.getElementById('product-preview-body');
+  if (!body) return;
+  const viewer = HEX64.test(state.nostrPubkey || '') ? state.nostrPubkey : null;
+  const storage = (typeof window !== 'undefined' && window.localStorage) || null;
+  const saved = viewer ? isProductSaved(storage, viewer, PRODUCT_FIXTURE) : false;
+  const view = productDetailView(PRODUCT_FIXTURE, { viewer, saved });
+
+  // Summary rows (always visible): product / price / seller / marketplace link.
+  const summary = view.lines.filter((l) => l.label !== 'About');
+  _drawRows(body, summary, 'pp-row-label', 'pp-row-value');
+
+  // Detail region (expandable): the full About description when present.
+  const detail = document.getElementById('product-detail');
+  if (detail) {
+    const detailRows = view.lines.filter((l) => l.label === 'About' || l.label === 'Reward');
+    _drawRows(detail, detailRows.length ? detailRows : [{ label: 'About', value: '—' }],
+      'pp-row-label', 'pp-row-value');
+    detail.hidden = !_productDetailOpen;
+  }
+
+  // Save button reflects the interaction view-model (enabled only for an identity).
+  const saveBtn = document.getElementById('product-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = !view.interaction.enabled;
+    saveBtn.textContent = view.interaction.label;
+    saveBtn.setAttribute('aria-pressed', String(view.interaction.saved));
+  }
+  const statusEl = document.getElementById('product-save-status');
+  if (statusEl) {
+    if (!view.interaction.enabled) {
+      statusEl.textContent = view.interaction.hint;
+      statusEl.dataset.tone = 'muted';
+    } else {
+      const n = savedCountFor(storage, viewer);
+      statusEl.textContent = view.interaction.saved
+        ? `✓ saved · ${n} in your list` : (n ? `${n} saved in your list` : '');
+      statusEl.dataset.tone = view.interaction.saved ? 'ok' : '';
+    }
+  }
+}
+
+function _toggleProductSave() {
+  const viewer = HEX64.test(state.nostrPubkey || '') ? state.nostrPubkey : null;
+  if (!viewer) return; // anon: button is disabled, but fail closed anyway
+  const storage = (typeof window !== 'undefined' && window.localStorage) || null;
+  toggleProductSaved(storage, viewer, PRODUCT_FIXTURE, Date.now());
+  renderProductPreview();
+}
+
+(function wireProductCard() {
+  const detailsBtn = document.getElementById('product-details-btn');
+  if (detailsBtn) detailsBtn.addEventListener('click', () => {
+    _productDetailOpen = !_productDetailOpen;
+    detailsBtn.setAttribute('aria-expanded', String(_productDetailOpen));
+    detailsBtn.textContent = _productDetailOpen ? 'HIDE DETAILS' : 'VIEW DETAILS';
+    const detail = document.getElementById('product-detail');
+    if (detail) detail.hidden = !_productDetailOpen;
+  });
+  const saveBtn = document.getElementById('product-save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', _toggleProductSave);
+  on(EV.NOSTR_LOGIN, renderProductPreview);
+})();
 renderProductPreview();
 
 function renderLeaderboardPreview() {

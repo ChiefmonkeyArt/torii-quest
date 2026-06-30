@@ -36,6 +36,8 @@ export * as productDisplay from '../engine/components/productDisplay.js';
 export * as productPanel from '../engine/components/productPanel.js';
 export * as productPanelShell from '../engine/components/productPanelShell.js';
 export * as productPreview from '../engine/components/productPreview.js';
+export * as productDetail from '../engine/components/productDetail.js';
+export * as savedProducts from '../engine/components/savedProducts.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -119,6 +121,10 @@ export const SDK_SURFACE = Object.freeze({
   productPanelShell: { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productPanelShell.js' },
   // Plebeian/Nostr product/market visible PREVIEW block — inert title/HUD card (LEAN-3, v0.2.140).
   productPreview:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productPreview.js' },
+  // Interactive product DETAIL view-model — full listing + a local save action (M2, v0.2.283).
+  productDetail:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productDetail.js' },
+  // Client-side npub-keyed "saved products" store — local-only, no relay write (M2, v0.2.283).
+  savedProducts:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/savedProducts.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

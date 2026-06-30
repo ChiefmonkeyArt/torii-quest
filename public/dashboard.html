@@ -115,7 +115,7 @@
     <h1>Torii Continuum <span class="v">v0.2.265-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-30T15:41:05.122Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-06-30T15:55:19.053Z</span></div>
   </header>
   <main>
     <section>
@@ -154,12 +154,12 @@
         <tr><td>Version sync</td><td><span class="pill pill-no-blocker">ok</span></td><td>config v0.2.265-alpha / pkg 0.2.265-alpha</td></tr>
         <tr><td>Test profiles</td><td><span class="pill pill-no-blocker">ok</span></td><td>fast 5 · foundation 25 file(s)</td></tr>
         <tr><td>Regression gate</td><td><span class="pill pill-no-blocker">ok</span></td><td>15 / 15 checks</td></tr>
-        <tr><td>Bundle baseline</td><td><span class="pill pill-deferred">skipped</span></td><td>no dist/ — build then bundle:report</td></tr>
-        <tr><td>/zone/* fallback</td><td><span class="pill pill-no-blocker">ok</span></td><td>docs ok · dist check pending</td></tr>
+        <tr><td>Bundle baseline</td><td><span class="pill pill-manual">advisory</span></td><td>advisory — over limit: rapier-DE6a0vmv.js</td></tr>
+        <tr><td>/zone/* fallback</td><td><span class="pill pill-no-blocker">ok</span></td><td>docs + dist ok</td></tr>
         <tr><td>Docs consistency</td><td><span class="pill pill-no-blocker">ok</span></td><td>continuity docs carry current version</td></tr>
         </tbody>
       </table>
-      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.265-alpha</b> @ f3399b6. Full gate: <b>npm run test:release</b>.</div>
+      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.265-alpha</b> @ e541495. Full gate: <b>npm run test:release</b>.</div>
     </section>
 
     <section>
@@ -432,13 +432,13 @@
     </section>
 
     <section>
-      <div class="h2row"><h2>Deployment readiness</h2> <span class="pill pill-manual">DOCS READY · BUILD CHECK PENDING</span> <span class="badge">DEPLOY READINESS · STATIC HOST · READ-ONLY</span></div>
+      <div class="h2row"><h2>Deployment readiness</h2> <span class="pill pill-no-blocker">READY</span> <span class="badge">DEPLOY READINESS · STATIC HOST · READ-ONLY</span></div>
       <div class="lead">Static-host posture for the gateway /zone/* travel feature — repo-side prerequisites are checked locally; configuring the host + deploying stay manual.</div>
       <table>
         <thead><tr><th>Check</th><th>State</th><th>Note</th></tr></thead>
         <tbody>
         <tr><td>SPA /zone/* fallback documented</td><td><span class="pill pill-no-blocker">no-blocker</span></td><td>VPS_INSTALL.md + HANDOFF.md describe serving index.html for /zone/* deep-links</td></tr>
-        <tr><td>Built dist route shape</td><td><span class="pill pill-deferred">deferred</span></td><td>no dist/ this build — run npm run build then npm run zones:check</td></tr>
+        <tr><td>Built dist route shape</td><td><span class="pill pill-no-blocker">no-blocker</span></td><td>dist/index.html present; no static file under /zone/* shadows the fallback</td></tr>
         <tr><td>Host SPA fallback configured</td><td><span class="pill pill-manual">manual</span></td><td>serve index.html for unmatched paths on torii.quest — manual maintainer step, outside this repo</td></tr>
         <tr><td>Auto-update</td><td><span class="pill pill-manual">manual</span></td><td>none — the update-check is read-only and actionable:false; deploys stay a manual maintainer action</td></tr>
         </tbody>

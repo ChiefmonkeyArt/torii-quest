@@ -57,70 +57,58 @@ export function getTulipMat()  { return _tulipMat; } // v0.2.263
 
 // ── Instanced grass ───────────────────────────────────────────────────────────
 function _buildGrass() {
-  const BLADE_SEGS   = 9;    // v0.2.263: more segments → smoother curve (was 7)
-  const BLADE_H      = 0.42;
-  const BLADE_W      = 0.038;
-  const BLADES_PATCH = 28;   // v0.2.262: denser tufts (was 20)
-  const PATCH_RADIUS = 0.75;
-  const SPACING      = 1.05; // v0.2.262: tighter grid (was 1.3)
+  // v0.2.265: full blade rewrite — see the design notes above _buildGrass.
+  const BLADE_SEGS   = 8;    // v0.2.265: rows (3 verts each). V-fold needs fewer rows than the flat ribbon.
+  const BLADE_H      = 0.46; // v0.2.265: tuned — thinner blades read as a denser field.
+  const BLADE_W      = 0.014;// v0.2.265: much thinner (was 0.052) — the core fix for "square-like" blades.
+  const KEEL         = 0.008;// v0.2.265: V-channel fold depth (forward +Z). Gives the blade a crease + volume.
+  const BLADES_PATCH = 40;   // v0.2.265: more blades per patch to compensate for thinner width.
+  const PATCH_RADIUS = 0.78;
+  const SPACING      = 0.95; // v0.2.265: slightly tighter grid for density.
 
-  const VERTS_PER_BLADE = BLADE_SEGS * 2 + 1;
+  // 3 verts per row (left, keel, right) + one tip vertex. Rows use t = row/SEGS
+  // (never reaching 1) so the top row keeps a non-zero width — this avoids the
+  // degenerate zero-area triangles that produced NaN normals / black tip speckles.
+  const VERTS_PER_BLADE = BLADE_SEGS * 3 + 1;
   const positions = [], uvs = [], indices = [];
 
   for (let b = 0; b < BLADES_PATCH; b++) {
-    const angle  = (b / BLADES_PATCH) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
-    const r      = PATCH_RADIUS * Math.sqrt(0.05 + Math.random() * 0.95);
-    const bx     = Math.cos(angle) * r;
-    const bz     = Math.sin(angle) * r;
-    // v0.2.263: curved blade. The blade arcs over in a per-blade bend
-    // direction with a smoothstep ease (graceful curve, no kink), a subtle
-    // sideways S-curl, a faint mid-blade width bulge, and a keel dip across
-    // the width so it reads as a real blade — not a flat origami ribbon.
-    const bendDir = angle + (Math.random() - 0.5) * 1.2;
-    const bendAmt = 0.16 + Math.random() * 0.22;
-    const curl    = (Math.random() - 0.5) * 0.10;
-    const bendCx  = Math.cos(bendDir), bendCz = Math.sin(bendDir);
-    const perpX   = -bendCz, perpZ = bendCx;
-    const base    = b * VERTS_PER_BLADE;
-
-    for (let row = 0; row <= BLADE_SEGS - 1; row++) {
-      const t  = row / BLADE_SEGS;
-      const bt = t * t * (3 - 2 * t);          // smoothstep bend (graceful arc)
+    const base = b * VERTS_PER_BLADE;
+    for (let row = 0; row < BLADE_SEGS; row++) {
+      const t  = row / BLADE_SEGS;   // 0 at base .. (SEGS-1)/SEGS — never 1, avoids degenerate tip tris
       const y  = t * BLADE_H;
-      // centerline drifts along bend dir; S-curl bows sideways mid-blade
-      const sCurl = curl * Math.sin(t * Math.PI) * 4.0;
-      const cx = bx + bendCx * bendAmt * bt + perpX * sCurl;
-      const cz = bz + bendCz * bendAmt * bt + perpZ * sCurl;
-      // width: tapered with a faint mid bulge for a blade-like silhouette
-      const hw = BLADE_W * Math.pow(1.0 - t, 1.4) * (0.88 + 0.12 * Math.sin(t * 3.0));
-      // keel: edges dip slightly toward the tip so the spine reads as a ridge
-      const yEdge = y - 0.010 * t;
-      positions.push(
-        cx - perpX * hw, yEdge, cz - perpZ * hw,
-        cx + perpX * hw, yEdge, cz + perpZ * hw
-      );
-      uvs.push(0, t, 1, t);
+      // tight taper to a sharp point; keel fades out faster so the tip is clean.
+      const hw   = BLADE_W * Math.pow(1.0 - t, 1.8);
+      const keel = KEEL   * Math.pow(1.0 - t, 1.4);
+      positions.push(-hw, y, 0,    0, y, keel,    hw, y, 0);
+      uvs.push(0, t,  0.5, t,  1, t);
     }
-    const tipCx = bx + bendCx * bendAmt;       // bt = 1 → full drift
-    const tipCz = bz + bendCz * bendAmt;
-    positions.push(tipCx, BLADE_H, tipCz);
+    // Tip cap — a single apex vertex + two tris from the last row. Gives a clean
+    // sharp point instead of collapsing the last row to zero width (which made
+    // degenerate tris → NaN normals → black tip speckles).
+    positions.push(0, BLADE_H, 0);
     uvs.push(0.5, 1.0);
-
+    // Two faces per row pair: left face (left→keel) + right face (keel→right).
     for (let row = 0; row < BLADE_SEGS - 1; row++) {
-      const b0 = base + row * 2;
-      indices.push(b0, b0+2, b0+1,  b0+1, b0+2, b0+3);
+      const l0 = base + row * 3;
+      const k0 = l0 + 1, r0 = l0 + 2;
+      const l1 = l0 + 3, k1 = l0 + 4, r1 = l0 + 5;
+      indices.push(l0, k0, k1,  l0, k1, l1);   // left face
+      indices.push(k0, r0, r1,  k0, r1, k1);   // right face
     }
-    const lastLeft = base + (BLADE_SEGS - 1) * 2;
-    const lastRight = base + (BLADE_SEGS - 1) * 2 + 1;
-    const tipIdx   = base + VERTS_PER_BLADE - 1;
-    indices.push(lastLeft, tipIdx, lastRight);
+    // tip cap tris
+    const lr = base + (BLADE_SEGS - 1) * 3;
+    const kr = lr + 1, rr = lr + 2;
+    const tip = base + BLADE_SEGS * 3;
+    indices.push(lr, kr, tip);
+    indices.push(kr, rr, tip);
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
   geo.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uvs), 2));
   geo.setIndex(indices);
-  geo.computeVertexNormals();
+  geo.computeVertexNormals();   // bakes the V-channel fold normals
 
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -130,23 +118,68 @@ function _buildGrass() {
     vertexShader: /* glsl */`
       varying float vT;
       varying float vTint;   // per-blade colour tint (instanceColor.b)
+      varying float vDiff;   // twist-rotated fold-normal diffuse
       uniform float uTime;
       uniform vec2  uWindDir;
       void main() {
-        vT = clamp(position.y / ${BLADE_H.toFixed(4)}, 0.0, 1.0);
+        float h = ${BLADE_H.toFixed(4)};
+        float t = clamp(position.y / h, 0.0, 1.0);
+        vT = t;
         vTint = instanceColor.b;
-        float phase = instanceColor.r * 6.2832;
-        float speed = 0.15 + instanceColor.g * 0.28;
-        float sway  = sin(uTime * speed + phase) * 0.24 * vT * vT;
-        vec3 pos    = position;
-        pos.x += sway + uWindDir.x * 0.20 * vT * vT;
-        pos.z +=        uWindDir.y * 0.20 * vT * vT;
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+
+        vec3 p = position;
+
+        // (2) Quadratic Bezier spine — forward curl along the keel (+Z). Stronger curl
+        // base so blades visibly arch over rather than standing flat.
+        float curl = 0.18 + instanceColor.g * 0.22;
+        float bz   = 2.0 * (1.0 - t) * t * (curl * 0.55) + t * t * curl;
+        p.z += bz;
+        // graceful droop: tip falls slightly so the arch reads as a curve
+        p.y -= 0.06 * t * t;
+
+        // Per-blade twist around the spine (Y) — the fold turns along its length
+        // so the blade catches light variably instead of reading as one flat card.
+        float twist = (fract(instanceColor.r * 7.31) - 0.5) * 1.3;
+        float ang   = twist * t;
+        float ca = cos(ang), sa = sin(ang);
+        p.xz = vec2(ca * p.x - sa * p.z, sa * p.x + ca * p.z);
+        // rotate the baked fold normal by the same twist
+        vec3 nrm = vec3(ca * normal.x - sa * normal.z, normal.y, sa * normal.x + ca * normal.z);
+
+        // (3) Wind — world-space, patch-coherent.
+        vec3 wpos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+
+        // Traveling gust front: a sine sweeping across the field in the wind
+        // direction. Blades ahead of the front are calm, at the front they peak —
+        // this is what makes wind look like waves rolling over patches.
+        float along = dot(wpos, vec3(uWindDir.x, 0.0, uWindDir.y));
+        float front = sin(along * 0.30 - uTime * 1.6);
+        float gust  = smoothstep(-0.15, 0.85, front);
+
+        // Curl-noise-style organic variation (sum of offset sines) so the sway
+        // isn't uniform — neighbouring blades differ slightly within a patch.
+        float cn = ( sin(wpos.x * 0.70 + uTime * 0.80 + instanceColor.r * 6.2832)
+                  + cos(wpos.z * 0.60 + uTime * 0.60 - instanceColor.r * 6.2832)
+                  + sin((wpos.x + wpos.z) * 0.35 + uTime * 1.10) ) / 3.0;
+
+        float wind = 0.04 + gust * 0.22 + cn * 0.05;
+        float sway = wind * t * t;            // tip sways most, base stays put
+
+        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);  // global wind dir
+        wp.x  += cn * 0.03 * t;                                   // lateral flutter
+
+        // Lighting — twist-rotated fold normal vs a warm key light.
+        vec3 L = normalize(vec3(0.40, 0.85, 0.40));
+        vDiff = 0.40 + 0.60 * max(0.0, dot(normalize(nrm), L));
+
+        gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
     fragmentShader: /* glsl */`
       varying float vT;
       varying float vTint;
+      varying float vDiff;
       void main() {
         // Per-blade tint: lerp between a cool deep green and a warm yellow-green
         // so the field reads as varied growth, not a single flat colour.
@@ -161,7 +194,7 @@ function _buildGrass() {
           ? mix(rootCol, midCol, vT * 2.0)
           : mix(midCol,  tipCol, (vT - 0.5) * 2.0);
         float ao = smoothstep(0.0, 0.15, vT);
-        gl_FragColor = vec4(col * (0.6 + 0.4 * ao), 1.0);
+        gl_FragColor = vec4(col * (0.6 + 0.4 * ao) * vDiff, 1.0);
       }
     `,
     side: THREE.DoubleSide,
@@ -207,8 +240,11 @@ function _buildGrass() {
   }
   mesh.instanceMatrix.needsUpdate = true;
   mesh.instanceColor.needsUpdate  = true;
-  mesh.geometry.computeBoundingBox();
-  mesh.geometry.computeBoundingSphere();
+  // v0.2.265: fix instanced frustum culling. computeBoundingSphere() on the
+  // geometry only bounds a single blade at the origin, so the whole field was
+  // being culled when the camera wasn't aimed at the origin. InstancedMesh has
+  // its own computeBoundingSphere() that accounts for every instance matrix.
+  mesh.computeBoundingSphere();
   mesh.frustumCulled = true;
   scene.add(mesh);
   _grassMat = mat;
@@ -240,15 +276,16 @@ function _buildWildflowers() {
   }
 
   const R = PETAL_W, HR = HEAD_R * 2;
-  const CUP = 0.020; // v0.2.263: petals cup slightly (outer edge raised → less flat)
-  // v0.2.263: 5 petals (was 4) for a rounder, daisy-like head, slightly cupped.
-  [0, Math.PI/5, 2*Math.PI/5, 3*Math.PI/5, 4*Math.PI/5].forEach(a => {
+  const CUP = 0.030; // v0.2.263: petals cup more (outer edge raised → less flat card)
+  // v0.2.263: 7 outer petals (was 5) for a fuller, rounder, less angular head.
+  const OUTER = Array.from({length:7}, (_,k)=>k*2*Math.PI/7);
+  OUTER.forEach(a => {
     const c = Math.cos(a), s = Math.sin(a);
     addQuad(-R*c,STEM_H,-R*s, R*c,STEM_H,R*s, -R*c,STEM_H+HR+CUP,-R*s, R*c,STEM_H+HR+CUP,R*s);
   });
-  // v0.2.263: inner ring — 5 shorter petals offset 36°, fuller bloom + detail.
-  const Ri = R * 0.62, HRi = HR * 0.55, Y_OFF = HEAD_R * 0.15;
-  [1,3,5,7,9].forEach(k => { const a = k*Math.PI/5; const c = Math.cos(a), s = Math.sin(a);
+  // v0.2.263: inner ring — 7 shorter petals offset half a step, fuller bloom.
+  const Ri = R * 0.62, HRi = HR * 0.55, Y_OFF = HEAD_R * 0.18;
+  OUTER.forEach(a => { const a2 = a + Math.PI/7; const c = Math.cos(a2), s = Math.sin(a2);
     addQuad(-Ri*c,STEM_H+Y_OFF,-Ri*s, Ri*c,STEM_H+Y_OFF,Ri*s,
             -Ri*c,STEM_H+Y_OFF+HRi+CUP,-Ri*s, Ri*c,STEM_H+Y_OFF+HRi+CUP,Ri*s);
   });

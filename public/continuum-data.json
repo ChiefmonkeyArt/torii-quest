@@ -1,6 +1,6 @@
 {
   "version": "v0.2.265-alpha",
-  "generatedAt": "2026-06-30T15:41:05.122Z",
+  "generatedAt": "2026-06-30T15:55:19.053Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -155,8 +155,8 @@
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
-    "status": "docs-ready",
-    "statusLabel": "DOCS READY · BUILD CHECK PENDING",
+    "status": "ready",
+    "statusLabel": "READY",
     "checks": [
       {
         "item": "SPA /zone/* fallback documented",
@@ -165,8 +165,8 @@
       },
       {
         "item": "Built dist route shape",
-        "state": "deferred",
-        "note": "no dist/ this build — run npm run build then npm run zones:check"
+        "state": "no-blocker",
+        "note": "dist/index.html present; no static file under /zone/* shadows the fallback"
       },
       {
         "item": "Host SPA fallback configured",
@@ -192,7 +192,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.265-alpha",
-    "gitCommit": "f3399b6",
+    "gitCommit": "e541495",
     "signals": [
       {
         "key": "versionSync",
@@ -218,16 +218,16 @@
       {
         "key": "bundle",
         "label": "Bundle baseline",
-        "state": "skipped",
-        "pill": "deferred",
-        "detail": "no dist/ — build then bundle:report"
+        "state": "advisory",
+        "pill": "manual",
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
       },
       {
         "key": "zoneFallback",
         "label": "/zone/* fallback",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "docs ok · dist check pending"
+        "detail": "docs + dist ok"
       },
       {
         "key": "docs",

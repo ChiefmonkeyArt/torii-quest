@@ -138,6 +138,13 @@
     }
     #btn-enter:hover { box-shadow: 0 0 50px rgba(139,92,246,0.5); opacity: 1; }
 
+    /* v0.2.275: NAP-zone shortcut */
+    #btn-enter-nap {
+      width: 220px; padding: 11px; font-size: 11px; letter-spacing: 3px;
+      color: #dfe9d2;
+    }
+    #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(107,142,90,0.5); opacity: 1; }
+
     /* Login button in centre */
     #btn-nostr-centre {
       margin-top: 12px; width: 220px; font-size: 10px; letter-spacing: 2px;
@@ -478,6 +485,10 @@
         </div>
       </div>
       <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
+      <!-- v0.2.275: shortcut into the NAP zone far-left corner — skips the torii-gate
+           walk so the grass field is immediately visible. Same bootstrap as ENTER ARENA,
+           just sets a one-shot spawn override before enter(). -->
+      <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#2d5016,#3d5a2f);border:1px solid #6b8e5a;">ENTER NAP ZONE</button>
       <button class="btn" id="btn-enter">ENTER ARENA</button>
       <!-- Entry feedback line (v0.2.228). Both entry buttons write here so a
            cloud/no-extension click is never a silent no-op: ENTER ARENA surfaces
@@ -748,6 +759,13 @@
       // with a dead bundle. textContent only (via entryStatus); no secret/markup.
       if (!window.nostr) { entryStatus('NIP-07 extension not found'); return; }
       entryStatus('Login still loading - reload the page if this persists.');
+    });
+    // v0.2.275: NAP-zone shortcut shares the arena bootstrap, so it defers to the
+    // same __toriiEnterReady flag the module raises once the real handler is bound.
+    var napBtn = document.getElementById('btn-enter-nap');
+    if (napBtn) napBtn.addEventListener('click', function () {
+      if (window.__toriiEnterReady) return;
+      entryStatus('Engine still loading - reload the page if this persists.');
     });
   })();
 

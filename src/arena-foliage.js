@@ -294,6 +294,29 @@ function _buildGrass() {
   // its own computeBoundingSphere() that accounts for every instance matrix.
   mesh.computeBoundingSphere();
   mesh.frustumCulled = true;
+  // v0.2.275: sink the whole field 5cm so blade ROOTS sit below the floor
+  // surface (Y=-0.05). Blades are zero-thickness ribbons rooted flush with the
+  // floor (Y=0), so the bare floor stays visible through the gaps at ground
+  // level no matter how dense the field is. Burying the root line below the
+  // floor + the ground-cover plane below occludes that base gap — visible blade
+  // now starts at the surface, not on it.
+  mesh.position.y = -0.05;
+
+  // v0.2.275: ground-cover mat. Flat dark-green plane 5mm above the floor
+  // spanning the full NAP-zone grass footprint. Reads as mossy ground in the
+  // gaps between blades so the bare sage floor (0x96A78A) never shows through
+  // at the base. Pairs with the root sink above to fully hide the floor.
+  const gcX = NAP_GRASS_X0 + NAP_GRASS_W / 2;
+  const gcZ = NAP_GRASS_Z0 + NAP_GRASS_D / 2;
+  const groundCover = new THREE.Mesh(
+    new THREE.PlaneGeometry(NAP_GRASS_W, NAP_GRASS_D),
+    new THREE.MeshStandardMaterial({ color: 0x3d5a2f, roughness: 1.0 }),
+  );
+  groundCover.rotation.x = -Math.PI / 2;
+  groundCover.position.set(gcX, 0.005, gcZ);
+  groundCover.receiveShadow = true;
+  scene.add(groundCover);
+
   scene.add(mesh);
   _grassMat = mat;
   window._grassMat = mat; // DEPRECATED debug alias (v0.2.118) — internal code uses tickFoliage()/getGrassMat()
@@ -303,7 +326,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.274 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 windGust=0.34`;
+  const stamp = `[grass-build] v0.2.275 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

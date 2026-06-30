@@ -23,6 +23,14 @@ export const TRAVEL_GATE_X  = ARENA_HALF + 22; // 42 — far-side travel portal 
 // detection ring (radius 3 → x∈[39,45], z∈[13,19]) clear of the z=0 proof panel
 // and inside the floor edges (x≤45, z≤20). Entrance torii-gate at NAP_X untouched.
 export const TRAVEL_GATE_Z  = 16; // far-right NAP corner (player's right, +z)
+// v0.2.275: title-screen "ENTER NAP ZONE" button spawns the player straight into
+// the NAP zone's far-left corner (deep + south, clear of the travel portal at
+// (42,16) and the bonsai at (26,0)) so the grass field is immediately visible
+// without walking through the torii gate. Yaw = π/2 faces due west (-X) back
+// toward the gate — the whole grass field spreads out in front of the player.
+export const NAP_SPAWN_X   = NAP_FAR_X - 5;   // 40 — deep in NAP, 2u clear of the travel gate
+export const NAP_SPAWN_Z   = -(ARENA_HALF - 3); // -17 — south (player's left) corner
+export const NAP_SPAWN_YAW = Math.PI / 2;     // face west (-X) across the grass toward the gate
 // Clockwise (top-down) yaw delta applied to BOTH the procedural fallback and the
 // GLB gate so they stay in sync. Three.js +Y rotation is CCW from above, so
 // clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because

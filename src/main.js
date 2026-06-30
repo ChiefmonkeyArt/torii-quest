@@ -32,12 +32,14 @@ import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 import { readArrivingTraveller } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
+import { NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW } from './config.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
 const elTitle = document.getElementById('screen-title');
 const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
 const elEnterBtn = document.getElementById('btn-enter');
+const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
 
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
 // declaratively from the phase the FSM transitioned INTO. transition() stays the
@@ -440,6 +442,58 @@ document.querySelectorAll('.char-btn').forEach(btn => {
 let _arena = null;            // arenaRuntime API once imported
 let _arenaBootstrapped = false;
 
+// v0.2.275: the ENTER ARENA handler. Shared bootstrap lives in ensureArenaReady
+// below (hoisted, so callable here); on success it drops into the canonical SW
+// arena spawn. The NAP button reuses the same bootstrap + sets a spawn override.
+elEnterBtn?.addEventListener('click', async () => {
+  if (!isTitle()) return;
+  // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
+  // never a silent no-op (regression guard — tests assert a non-empty message here).
+  showEntryStatus('Entering arena…');
+  try {
+    await ensureArenaReady('LOADING ARENA…');
+  } catch { return; }
+  showEntryStatus('');
+  _arena.enter();
+});
+
+// v0.2.275: shared bootstrap for ENTER ARENA + ENTER NAP ZONE. Lazy-loads the
+// three-vendor chunk + Rapier ONCE, then returns the ready arena API. Both title
+// buttons call this before enter(); the NAP button additionally sets a one-shot
+// spawn override so the player drops straight into the NAP far-left corner.
+async function ensureArenaReady(loadingLabel) {
+  if (_arenaBootstrapped) return _arena;
+  elEnterBtn.textContent = loadingLabel;
+  elEnterBtn.disabled = true;
+  try {
+    if (!_arena) {
+      // ← THE deferred three-vendor load. Nothing the shell imports touches three.
+      const mod = await import('./arenaRuntime.js');
+      _arena = mod.createArenaRuntime({
+        showEntryStatus,
+        resetEnterButton,
+        getGatewayScreenState: () => ({
+          worlds: _worldsCache,
+          scanStatus: _worldsScan,
+          canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
+          onTravel: (w) => _gwTravel(w),
+        }),
+      });
+      _arena.boot();
+      if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+    }
+    await _arena.bootstrapPhysics();
+  } catch (e) {
+    console.error('Arena bootstrap failed:', e);
+    elEnterBtn.textContent = 'ENTER ARENA';
+    elEnterBtn.disabled = false;
+    showEntryStatus('⚠ Arena failed to load — please reload the page and try again.');
+    throw e;
+  }
+  _arenaBootstrapped = true;
+  return _arena;
+}
+
 function resetEnterButton() {
   if (elEnterBtn) {
     elEnterBtn.textContent = 'ENTER ARENA';
@@ -447,41 +501,18 @@ function resetEnterButton() {
   }
 }
 
-elEnterBtn?.addEventListener('click', async () => {
+// v0.2.275: ENTER NAP ZONE — same bootstrap, then a one-shot spawn override
+// drops the player into the NAP far-left corner (config: NAP_SPAWN_*) facing
+// west across the grass field, skipping the torii-gate walk.
+elNapBtn?.addEventListener('click', async () => {
   if (!isTitle()) return;
-
-  if (!_arenaBootstrapped) {
-    elEnterBtn.textContent = 'LOADING ARENA…';
-    elEnterBtn.disabled = true;
-    showEntryStatus('Entering arena…');
-    try {
-      if (!_arena) {
-        // ← THE deferred three-vendor load. Nothing the shell imports touches three.
-        const mod = await import('./arenaRuntime.js');
-        _arena = mod.createArenaRuntime({
-          showEntryStatus,
-          resetEnterButton,
-          getGatewayScreenState: () => ({
-            worlds: _worldsCache,
-            scanStatus: _worldsScan,
-            canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-            onTravel: (w) => _gwTravel(w),
-          }),
-        });
-        _arena.boot();
-        if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
-      }
-      await _arena.bootstrapPhysics();
-    } catch (e) {
-      console.error('Arena bootstrap failed:', e);
-      elEnterBtn.textContent = 'ENTER ARENA';
-      elEnterBtn.disabled = false;
-      showEntryStatus('⚠ Arena failed to load — please reload the page and try again.');
-      return;
-    }
-    _arenaBootstrapped = true;
-  }
+  // IMMEDIATE visible status (mirrors ENTER ARENA) before the async bootstrap.
+  showEntryStatus('Entering NAP zone…');
+  try {
+    await ensureArenaReady('LOADING NAP…');
+  } catch { return; }
   showEntryStatus('');
+  _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
 // v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is

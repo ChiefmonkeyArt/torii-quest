@@ -341,15 +341,26 @@ export function createArenaRuntime(hooks = {}) {
 
   // enter() — start a fresh run: reset HP/ammo/score (resetRun), move the player to
   // the canonical SW spawn corner, face NE into the arena, then TITLE → PLAYING.
+  // v0.2.275: an optional spawn override (set via setSpawnOverride) lets the
+  // title-screen "ENTER NAP ZONE" button drop the player straight into the NAP
+  // zone far-left corner instead of the SW arena corner. One-shot: consumed on use.
+  let _spawnOverride = null;
+  function setSpawnOverride(x, z, yaw) { _spawnOverride = { x, z, yaw }; }
   function enter() {
     resetRun();
-    setNextSpawn(SPAWN_X, SPAWN_Z, SPAWN_YAW);
+    if (_spawnOverride) {
+      setNextSpawn(_spawnOverride.x, _spawnOverride.z, _spawnOverride.yaw);
+      setYaw(_spawnOverride.yaw);
+      _spawnOverride = null; // one-shot
+    } else {
+      setNextSpawn(SPAWN_X, SPAWN_Z, SPAWN_YAW);
+      setYaw(SPAWN_YAW);
+    }
     resetPlayerPos();
-    setYaw(SPAWN_YAW);
     transition(GAME_EVENT.ENTER);
     requestLock(renderer.domElement);
     emit(EV.HUD_UPDATE);
   }
 
-  return { boot, bootstrapPhysics, enter };
+  return { boot, bootstrapPhysics, enter, setSpawnOverride };
 }

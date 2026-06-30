@@ -10,7 +10,7 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.268-alpha** (build truth; live trails — manual maintainer deploy) |
+| Source version | **v0.2.275-alpha** (build truth; live trails — manual maintainer deploy) |
 | Tests | **1843 passing / 122 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **16 / 16 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |

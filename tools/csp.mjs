@@ -23,7 +23,7 @@
 // the entry filename is pinned (assets/torii-entry.js) and the injected line is fixed.
 // regression-check recomputes this from dist/index.html and FAILS on any mismatch, so a
 // changed inline script can't slip past the policy.
-export const INLINE_SCRIPT_SHA256 = "sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg=";
+export const INLINE_SCRIPT_SHA256 = "sha256-434PYYX1c2Tr6+CPmiAm+CckYnPDnRO31MIet6VpKv4=";
 
 export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],

@@ -16,6 +16,21 @@ function _safeImageUrl(raw) {
   return u.protocol === 'https:' ? u.href : null;
 }
 
+// A nostrich profile's `name` is also attacker-controlled. Cap to a reasonable
+// display length and strip control characters so a hostile kind:0 can't blow
+// out the title bar / HUD with megabytes of text or NUL/newline tricks. v0.2.260
+// audit S5: pre-cap mitigates DOM bloat and avoids surprising layout overflows.
+const MAX_NOSTR_NAME_LEN = 64;
+function _safeName(raw) {
+  if (typeof raw !== 'string') return null;
+  // Strip C0/C1 control chars (incl. NUL, CR, LF, BEL) and trim whitespace.
+  const cleaned = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+  if (!cleaned) return null;
+  return cleaned.length > MAX_NOSTR_NAME_LEN
+    ? cleaned.slice(0, MAX_NOSTR_NAME_LEN)
+    : cleaned;
+}
+
 export async function nostrLogin() {
   if (!window.nostr) return 'NIP-07 extension not found';
   try {
@@ -32,31 +47,36 @@ export async function nostrLogin() {
   }
 }
 
-function _fetchProfile(pubkey) {
-  for (const url of RELAYS) {
-    try {
-      const ws = new WebSocket(url);
-      ws.onopen = () => {
-        ws.send(JSON.stringify(['REQ','prof',{ kinds:[0], authors:[pubkey], limit:1 }]));
-      };
-      ws.onmessage = ev => {
-        try {
-          const [type,,event] = JSON.parse(ev.data);
-          if (type !== 'EVENT') return;
-          const meta = JSON.parse(event.content);
-          if (meta.name)    { state.nostrName = meta.name; }
-          const safePic = _safeImageUrl(meta.picture);
-          if (safePic) { state.nostrAvatar = safePic; }
-          emit(EV.NOSTR_LOGIN, { pubkey, name: meta.name, avatar: safePic });
-          ws.close();
-          _updateTitleUI();
-        } catch(_){}
-      };
-      ws.onerror = () => ws.close();
-      setTimeout(() => ws.readyState === 1 && ws.close(), 5000);
-      break;
-    } catch(_){}
+// v0.2.260 audit S5: fan out the kind:0 profile lookup across every relay in
+// parallel via fanoutReq() and pick the freshest event (highest created_at).
+// The previous implementation only contacted RELAYS[0] (break after the first
+// successful WebSocket construction), so a single offline lead relay left the
+// player as "PUBKEY12" forever even though their profile was happily on the
+// other three. Sanitises name + picture through the existing safe-* helpers.
+async function _fetchProfile(pubkey) {
+  const { events } = await fanoutReq(
+    RELAYS,
+    [{ kinds: [0], authors: [pubkey], limit: 1 }],
+    { timeoutMs: 5000 },
+  );
+  if (!events.length) return;
+  // Pick the latest signed kind:0 across relays — replaceable events follow
+  // "latest created_at wins" semantics (NIP-01).
+  let latest = events[0];
+  for (const e of events) {
+    if (e && Number.isFinite(e.created_at) && e.created_at > (latest.created_at | 0)) {
+      latest = e;
+    }
   }
+  let meta;
+  try { meta = JSON.parse(latest.content); } catch { return; }
+  if (!meta || typeof meta !== 'object') return;
+  const safeName = _safeName(meta.name);
+  const safePic  = _safeImageUrl(meta.picture);
+  if (safeName) { state.nostrName = safeName; }
+  if (safePic)  { state.nostrAvatar = safePic; }
+  emit(EV.NOSTR_LOGIN, { pubkey, name: safeName, avatar: safePic });
+  _updateTitleUI();
 }
 
 function _updateTitleUI() {

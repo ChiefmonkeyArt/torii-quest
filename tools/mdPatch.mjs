@@ -1,14 +1,18 @@
-// tools/mdPatch.mjs — a small repo-local markdown patch tool (mdPatch-1).
+// tools/mdPatch.mjs — a small repo-local markdown patch tool (mdPatch-2).
 //
-// Lets an assistant (or a human) make SAFE, narrow edits to the two active
-// source-of-truth task docs without manual copy-editing and without arbitrary
-// file-write access:
+// Lets an assistant (or a human) make SAFE, narrow edits to the active
+// source-of-truth task/progress/handoff docs without manual copy-editing and
+// without arbitrary file-write access:
 //   - quest-todo.md       (Torii Quest active task source of truth)
 //   - continuum-todo.md   (Torii Continuum active task source of truth)
+//   - todo.md             (legacy active-task pointer / queue)
+//   - progress.md         (curated progress dashboard)
+//   - HANDOFF.md          (curated contributor/agent handoff — APPEND-ONLY)
 //
-// Allowed actions (ONLY these two mutate):
+// Allowed actions (only these mutate; per-file capability map below):
 //   - append a bullet under a heading       (`append`)
 //   - replace a named section's body        (`replace`)
+//   - append a timestamped live note        (`note`)
 //
 // Safety rules (enforced by construction):
 //   - REJECT any file that is not in the whitelist (basename match).
@@ -28,25 +32,37 @@
 // NEXT_ACTION_STATE.json, generated reports / release artifacts, and any other
 // file. Touching those needs a different, explicitly-approved tool.
 //
+// Per-file capability map (MD_PATCH_CAPABILITIES): HANDOFF.md is the curated
+// source of truth, so it is APPEND-ONLY (append / note / list) — `replace` is
+// rejected to stop a blind section-swap clobbering handoff content. The two
+// todos, todo.md, and progress.md allow append / replace / note / list.
+//
 // Pure transform helpers (resolveTarget / findSection / appendBulletUnderHeading /
-// replaceNamedSection / listHeadings) are exported and unit-tested by
-// tests/md-patch.test.js; the CLI entry at the bottom of this file does the
-// fs I/O (read → backup → write) behind `--dry-run` and exit codes.
+// replaceNamedSection / appendNote / listHeadings / capabilityFor) are exported
+// and unit-tested by tests/md-patch.test.js; the CLI entry at the bottom of this
+// file does the fs I/O (read → backup → write) behind `--dry-run` and exit codes.
 //
 // Run:  npm run md:patch -- <action> <file> ...
-//       node tools/mdPatch.mjs append  quest-todo.md "Active tasks" "a new bullet"
+//       node tools/mdPatch.mjs append  quest-todo.md "Active MVP tasks" "a new bullet"
 //       node tools/mdPatch.mjs replace quest-todo.md "Scope" --stdin < body.txt
+//       node tools/mdPatch.mjs note    progress.md "shipped v0.2.259 — md pipeline"
 //       node tools/mdPatch.mjs list   quest-todo.md
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative, isAbsolute, sep, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 // ── Schema / badge ───────────────────────────────────────────────────────────
-export const MD_PATCH_VERSION = 1;
+export const MD_PATCH_VERSION = 2;
 export const MD_PATCH_BADGE = 'MDPATCH · WHITELIST · SAME-REPO · NO-NETWORK';
 
 // The ONLY files this tool may edit (bare basenames; matched after normalisation).
-export const MD_PATCH_WHITELIST = Object.freeze(['quest-todo.md', 'continuum-todo.md']);
+export const MD_PATCH_WHITELIST = Object.freeze([
+  'quest-todo.md',
+  'continuum-todo.md',
+  'todo.md',
+  'progress.md',
+  'HANDOFF.md',
+]);
 
 // Files that must NEVER be editable by this tool (documented, not relied on for
 // safety — the whitelist is the enforcement; this list is for clarity/reporting).
@@ -54,6 +70,38 @@ export const MD_PATCH_READ_ONLY = Object.freeze([
   'NOSTR_ARENA_MASTER_TODO.md',
   'NEXT_ACTION_STATE.json',
 ]);
+
+// Per-file allowed actions. HANDOFF.md is the curated source of truth, so it is
+// APPEND-ONLY (no `replace`) — a blind section-swap there could clobber handoff
+// content. Every other whitelisted file allows the full set.
+const FULL = Object.freeze(['append', 'replace', 'note', 'list']);
+const APPEND_ONLY = Object.freeze(['append', 'note', 'list']);
+export const MD_PATCH_CAPABILITIES = Object.freeze({
+  'quest-todo.md': FULL,
+  'continuum-todo.md': FULL,
+  'todo.md': FULL,
+  'progress.md': FULL,
+  'HANDOFF.md': APPEND_ONLY,
+});
+
+// Default heading for the `note` action per file (the natural "on the fly" live
+// update target). Overridable via --heading on the CLI. Verified against the
+// real docs; if a heading is renamed, the note action reports heading-not-found.
+export const MD_PATCH_NOTE_HEADING = Object.freeze({
+  'quest-todo.md': 'Active MVP tasks',
+  'continuum-todo.md': 'Active tasks',
+  'todo.md': 'Source of truth (active task queues)',
+  'progress.md': 'Active now',
+  'HANDOFF.md': '8. Active issues / open edges',
+});
+
+// capabilityFor(file) → the frozen action list for that file, or [] if not
+// whitelisted. Pure; never throws.
+export function capabilityFor(file) {
+  if (typeof file !== 'string') return [];
+  const caps = MD_PATCH_CAPABILITIES[file.trim()];
+  return caps ? [...caps] : [];
+}
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -162,6 +210,35 @@ export function appendBulletUnderHeading(markdown, heading, bullet) {
   return { ok: true, markdown: lines.join('\n') };
 }
 
+// formatStamp(date) → "YYYY-MM-DD HH:MM UTC". Deterministic, no locale, Z-suffix-free.
+// Pure; never throws. Used by appendNote so a live note carries an audit stamp.
+export function formatStamp(date = new Date()) {
+  const d = date instanceof Date ? date : new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const y = d.getUTCFullYear();
+  const mo = p(d.getUTCMonth() + 1);
+  const da = p(d.getUTCDate());
+  const h = p(d.getUTCHours());
+  const mi = p(d.getUTCMinutes());
+  return `${y}-${mo}-${da} ${h}:${mi} UTC`;
+}
+
+// appendNote(markdown, heading, text, stamp?) → { ok, markdown?, error? }.
+//
+// Appends a timestamped live-note bullet `- [stamp] text` as the last content
+// line of the named section's body. Defaults `heading` to nothing (caller/CLI
+// resolves the per-file default); `stamp` defaults to formatStamp(now). The
+// bullet text is sanitized to one line. Delegates to appendBulletUnderHeading
+// so all byte-preservation / blank-line rules are inherited.
+export function appendNote(markdown, heading, text, stamp) {
+  if (typeof markdown !== 'string') return { ok: false, error: 'no-markdown' };
+  if (typeof heading !== 'string' || heading.trim() === '') return { ok: false, error: 'no-heading' };
+  const body = sanitizeBullet(text);
+  if (body === '') return { ok: false, error: 'empty-bullet' };
+  const s = (typeof stamp === 'string' && stamp.trim() !== '') ? stamp.trim() : formatStamp();
+  return appendBulletUnderHeading(markdown, heading, `[${s}] ${body}`);
+}
+
 // replaceNamedSection(markdown, section, body) → { ok, markdown?, error? }.
 //
 // Replaces the BODY of the named section (everything between the heading line
@@ -223,15 +300,27 @@ export function resolveTarget(root, filename) {
 
 // ── fs-backed apply (used by the CLI; safe to import in tests with a tmp root) ─
 
-// applyPatch({ root, file, action, heading, bullet, section, body, dryRun }) →
+// resolveCapability(file, action) → { ok, error? }. True if the action is
+// permitted for this whitelisted file. Pure; never throws.
+export function resolveCapability(file, action) {
+  const caps = capabilityFor(file);
+  if (!caps.length) return { ok: false, error: 'not-whitelisted' };
+  if (!caps.includes(action)) return { ok: false, error: 'action-not-permitted', action, allowed: caps };
+  return { ok: true };
+}
+
+// applyPatch({ root, file, action, heading, bullet, section, body, stamp, dryRun }) →
 //   { ok, path?, bakPath?, changed?, preview?, error? }.
 //
-// Resolves the target through resolveTarget, reads the current bytes, runs the
-// pure transform, and — unless dryRun — writes a `.bak` backup then the new
-// bytes. Never creates a file that does not already exist (no arbitrary writes).
-export function applyPatch({ root, file, action, heading, bullet, section, body, dryRun = false } = {}) {
+// Resolves the target through resolveTarget, checks the per-file capability,
+// reads the current bytes, runs the pure transform, and — unless dryRun — writes
+// a `.bak` backup then the new bytes. Never creates a file that does not already
+// exist (no arbitrary writes).
+export function applyPatch({ root, file, action, heading, bullet, section, body, stamp, dryRun = false } = {}) {
   const target = resolveTarget(root, file);
   if (!target.ok) return target;
+  const cap = resolveCapability(file, action);
+  if (!cap.ok) return { ...cap, path: target.path };
   if (!existsSync(target.path)) return { ok: false, error: 'file-not-found', path: target.path };
   let current;
   try {
@@ -245,6 +334,8 @@ export function applyPatch({ root, file, action, heading, bullet, section, body,
     result = appendBulletUnderHeading(current, heading, bullet);
   } else if (action === 'replace') {
     result = replaceNamedSection(current, section, body);
+  } else if (action === 'note') {
+    result = appendNote(current, heading, bullet, stamp);
   } else {
     return { ok: false, error: 'unknown-action', action, path: target.path };
   }
@@ -272,13 +363,14 @@ export function applyPatch({ root, file, action, heading, bullet, section, body,
 // ── CLI entry (guarded so importing the module for tests never runs it) ──────
 
 function parseArgs(argv) {
-  // Flags: --dry-run, --root <dir>, --stdin. Remainder are positional.
-  const out = { action: null, positional: [], dryRun: false, root: null, stdin: false };
+  // Flags: --dry-run, --root <dir>, --stdin, --heading <h>. Remainder are positional.
+  const out = { action: null, positional: [], dryRun: false, root: null, stdin: false, heading: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--dry-run') { out.dryRun = true; continue; }
     if (a === '--stdin') { out.stdin = true; continue; }
     if (a === '--root') { out.root = argv[++i]; continue; }
+    if (a === '--heading') { out.heading = argv[++i]; continue; }
     if (a === '--help' || a === '-h') { out.help = true; continue; }
     out.positional.push(a);
   }
@@ -286,19 +378,26 @@ function parseArgs(argv) {
   return out;
 }
 
-const HELP = `mdPatch — safe repo-local markdown patcher for quest-todo.md / continuum-todo.md
+const HELP = `mdPatch — safe repo-local markdown patcher (todos / progress / handoff)
 
 Usage:
   npm run md:patch -- append <file> <heading> <bullet...>   [--dry-run] [--root <dir>]
   npm run md:patch -- replace <file> <section> [<body...>]  [--dry-run] [--root <dir>] [--stdin]
+  npm run md:patch -- note   <file> <text...>  [--heading <h>] [--dry-run] [--root <dir>]
   npm run md:patch -- list   <file>                          [--root <dir>]
 
 Actions:
   append   add "- <bullet>" as the last content line under heading <heading>
   replace  replace the body of the named <section> with <body> (heading line kept)
+  note     add a timestamped live note "- [YYYY-MM-DD HH:MM UTC] <text>" under the
+           file's default heading (overridable with --heading <h>)
   list     (read-only) print every heading with its level
 
 Whitelist (only these may be edited): ${MD_PATCH_WHITELIST.join(', ')}
+Capabilities: HANDOFF.md is append-only (no replace); all others allow replace.
+Default note headings: quest-todo=Active MVP tasks · continuum-todo=Active tasks ·
+  todo=Source of truth (active task queues) · progress=Active now ·
+  HANDOFF=8. Active issues / open edges
 Safety: .bak backup before every edit · path-traversal rejected · no network · no
 arbitrary file writes. Replace body via --stdin for multiline content; \\n in a
 positional <body> is also unescaped to newlines.
@@ -348,6 +447,22 @@ async function main(argv) {
       return 1;
     }
     const r = applyPatch({ root, file, action: 'append', heading, bullet, dryRun: args.dryRun });
+    return report(r, args.dryRun);
+  }
+
+  if (args.action === 'note') {
+    const [file, ...textParts] = pos;
+    const text = textParts.join(' ');
+    if (!file || text === '') {
+      process.stderr.write('mdPatch: usage: note <file> <text...> [--heading <h>]\n');
+      return 1;
+    }
+    const heading = args.heading || MD_PATCH_NOTE_HEADING[file.trim()];
+    if (!heading) {
+      process.stderr.write(`mdPatch: no default note heading for ${file} — pass --heading <h>\n`);
+      return 1;
+    }
+    const r = applyPatch({ root, file, action: 'note', heading, bullet: text, dryRun: args.dryRun });
     return report(r, args.dryRun);
   }
 

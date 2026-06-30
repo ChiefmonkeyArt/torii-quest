@@ -12,5 +12,5 @@
 ### Active tasks
 
 - Keep Continuum as the separate oversight app and do not merge its task queue back into Quest.
-- Prepare Continuum to use the same safe assistant-editable .md pipeline as quest-todo.md so Continuum todo updates can be made without manual copy-editing.
+- Prepare Continuum to use the same safe assistant-editable .md pipeline as quest-todo.md so Continuum todo updates can be made without manual copy-editing. **BUILT v0.2.259** — `continuum-todo.md` is now in the `mdPatch` whitelist (full append/replace/note/list); `npm run md:patch -- note continuum-todo.md "..."` appends a timestamped note under "Active tasks".
 - Keep Continuum work read-only / mockup-first unless a live admin action is explicitly required and approved.

@@ -14,7 +14,7 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.258-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.259-alpha (see §3 for every place the version string lives)
 - **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
   Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
@@ -84,9 +84,13 @@ Breaking one should fail CI/the check, not ship.
   the Torii Continuum (oversight dashboard app) active task source of truth. **`todo.md`**
   is now a LEGACY POINTER (retained only because the continuity gate + Continuum parser
   read it for the version marker + historical struck completed-task markers). `NOSTR_ARENA_MASTER_TODO.md`
-  is archival history only. Both active task files are safely editable via **`npm run md:patch`**
-  (`tools/mdPatch.mjs`): whitelist-confined, `.bak` backup before every edit, no network,
-  no arbitrary file writes.
+  is archival history only. The active task files plus `todo.md`, `progress.md`,
+  and `HANDOFF.md` are all safely editable via **`npm run md:patch`**
+  (`tools/mdPatch.mjs`, mdPatch-2): whitelist-confined, per-file capability map
+  (`HANDOFF.md` is append-only — `replace` is rejected to protect the curated
+  handoff), `.bak` backup before every edit, no network, no arbitrary file
+  writes. The `note` action appends a timestamped live bullet under a per-file
+  default heading — `npm run md:patch -- note progress.md "shipped X"`.
 - **`strategy.md`** — vision + decision rules. **`progress.md`** — execution
   dashboard. **`todo.md`** — legacy pointer (see Task queue split above).
 - **`engine/`** — extracted, mostly-pure SDK seams (debug, physics, combat,
@@ -1616,6 +1620,8 @@ host fallback remains a manual maintainer step — this repo touches no server.
 - **SEC-3 (product URL validation):** before `productDisplay`/`productPanel` URLs are
   made clickable or fetched, replace the regex-only `https://` check with `URL`-object
   parsing (validate scheme + host). Regex alone is insufficient for untrusted input.
+
+- [2026-06-30 07:10 UTC] mdPatch v2 (v0.2.259) — whitelist expanded to quest-todo/continuum-todo/todo/progress/HANDOFF; per-file capability map (HANDOFF append-only, replace rejected); new 'note' action appends a timestamped live bullet under a per-file default heading
 
 ## 9. Next-job format
 

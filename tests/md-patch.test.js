@@ -8,12 +8,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   MD_PATCH_WHITELIST,
+  MD_PATCH_CAPABILITIES,
+  MD_PATCH_NOTE_HEADING,
   resolveTarget,
+  resolveCapability,
+  capabilityFor,
   findSection,
   headingLevel,
   headingText,
   appendBulletUnderHeading,
   replaceNamedSection,
+  appendNote,
+  formatStamp,
   listHeadings,
   applyPatch,
 } from '../tools/mdPatch.mjs';
@@ -21,6 +27,9 @@ import {
 let root;
 const QTODO = 'quest-todo.md';
 const CTODO = 'continuum-todo.md';
+const TODO = 'todo.md';
+const PROG = 'progress.md';
+const HAND = 'HANDOFF.md';
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'mdpatch-'));
@@ -86,9 +95,46 @@ describe('resolveTarget — whitelist + traversal boundary', () => {
     expect(resolveTarget(root, null).error).toBe('no-file');
     expect(resolveTarget(null, QTODO).error).toBe('no-root');
   });
-  it('whitelist is frozen and exactly the two task docs', () => {
+  it('whitelist is frozen and exactly the five editable docs', () => {
     expect(Object.isFrozen(MD_PATCH_WHITELIST)).toBe(true);
-    expect([...MD_PATCH_WHITELIST]).toEqual(['quest-todo.md', 'continuum-todo.md']);
+    expect([...MD_PATCH_WHITELIST]).toEqual([
+      'quest-todo.md',
+      'continuum-todo.md',
+      'todo.md',
+      'progress.md',
+      'HANDOFF.md',
+    ]);
+  });
+  it('accepts all five whitelisted basenames', () => {
+    for (const f of MD_PATCH_WHITELIST) {
+      expect(resolveTarget(root, f)).toEqual({ ok: true, path: join(root, f) });
+    }
+  });
+});
+
+describe('capabilities — per-file action map', () => {
+  it('HANDOFF.md is append-only (no replace)', () => {
+    expect(capabilityFor(HAND)).toEqual(['append', 'note', 'list']);
+    expect(resolveCapability(HAND, 'replace').error).toBe('action-not-permitted');
+    expect(resolveCapability(HAND, 'append').ok).toBe(true);
+    expect(resolveCapability(HAND, 'note').ok).toBe(true);
+    expect(resolveCapability(HAND, 'list').ok).toBe(true);
+  });
+  it('the todos / todo / progress allow the full action set', () => {
+    for (const f of [QTODO, CTODO, TODO, PROG]) {
+      expect(capabilityFor(f)).toEqual(['append', 'replace', 'note', 'list']);
+      expect(resolveCapability(f, 'replace').ok).toBe(true);
+    }
+  });
+  it('rejects an action for a non-whitelisted file', () => {
+    expect(resolveCapability('NOSTR_ARENA_MASTER_TODO.md', 'append').error).toBe('not-whitelisted');
+  });
+  it('every default note heading is a non-empty string', () => {
+    for (const f of MD_PATCH_WHITELIST) {
+      const h = MD_PATCH_NOTE_HEADING[f];
+      expect(typeof h).toBe('string');
+      expect(h.trim().length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -220,6 +266,56 @@ describe('replaceNamedSection', () => {
   });
 });
 
+describe('formatStamp', () => {
+  it('formats a Date as "YYYY-MM-DD HH:MM UTC"', () => {
+    const d = new Date(Date.UTC(2026, 5, 30, 8, 3));
+    expect(formatStamp(d)).toBe('2026-06-30 08:03 UTC');
+  });
+  it('pads single-digit fields', () => {
+    const d = new Date(Date.UTC(2026, 0, 1, 0, 5));
+    expect(formatStamp(d)).toBe('2026-01-01 00:05 UTC');
+  });
+  it('defaults to now when called with no arg', () => {
+    const s = formatStamp();
+    expect(s).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/);
+  });
+});
+
+describe('appendNote', () => {
+  it('appends a timestamped bullet under the named heading', () => {
+    const r = appendNote(FIXTURE, 'Active tasks', 'shipped v0.2.259', '2026-06-30 08:03 UTC');
+    expect(r.ok).toBe(true);
+    expect(r.markdown).toContain('- [2026-06-30 08:03 UTC] shipped v0.2.259');
+  });
+  it('defaults the stamp to now when omitted', () => {
+    const r = appendNote(FIXTURE, 'Active tasks', 'a live note');
+    expect(r.ok).toBe(true);
+    expect(r.markdown).toMatch(/- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\] a live note/);
+  });
+  it('honours an explicit empty stamp by falling back to now', () => {
+    const r = appendNote(FIXTURE, 'Active tasks', 'x', '   ');
+    expect(r.ok).toBe(true);
+    expect(r.markdown).toMatch(/- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC\] x/);
+  });
+  it('collapses multiline note text to one line', () => {
+    const r = appendNote(FIXTURE, 'Active tasks', 'a\nb\nc', '2026-06-30 08:03 UTC');
+    expect(r.ok).toBe(true);
+    expect(r.markdown).toContain('- [2026-06-30 08:03 UTC] a b c');
+  });
+  it('rejects empty text and unknown headings', () => {
+    expect(appendNote(FIXTURE, 'Active tasks', '   ', 's').error).toBe('empty-bullet');
+    expect(appendNote(FIXTURE, 'Nope', 'x', 's').error).toBe('heading-not-found');
+    expect(appendNote(FIXTURE, '', 'x', 's').error).toBe('no-heading');
+    expect(appendNote(null, 'Active tasks', 'x').error).toBe('no-markdown');
+  });
+  it('preserves every untouched line byte-for-byte', () => {
+    const r = appendNote(FIXTURE, 'Active tasks', 'note', '2026-06-30 08:03 UTC');
+    expect(r.ok).toBe(true);
+    const without = r.markdown.replace('\n- [2026-06-30 08:03 UTC] note\n', '\n');
+    expect(without).toBe(FIXTURE);
+  });
+});
+
 describe('listHeadings', () => {
   it('lists every ATX heading with level and line', () => {
     const hs = listHeadings(FIXTURE);
@@ -281,9 +377,48 @@ describe('applyPatch — fs boundary, backup, dry-run', () => {
     expect(r.error).toBe('file-not-found');
     expect(existsSync(join(root, CTODO))).toBe(false);
   });
-  it('rejects an unknown action', () => {
+  it('rejects a non-permitted action (caught by the capability map)', () => {
     const r = applyPatch({ root, file: QTODO, action: 'nuke', heading: 'Scope', bullet: 'x' });
     expect(r.ok).toBe(false);
-    expect(r.error).toBe('unknown-action');
+    expect(r.error).toBe('action-not-permitted');
+  });
+  it('note action writes a timestamped bullet under the heading + backup', () => {
+    const r = applyPatch({ root, file: QTODO, action: 'note', heading: 'Active tasks', bullet: 'shipped md pipeline', stamp: '2026-06-30 08:03 UTC' });
+    expect(r.ok).toBe(true);
+    expect(r.changed).toBe(true);
+    expect(existsSync(r.bakPath)).toBe(true);
+    expect(readFileSync(join(root, QTODO), 'utf8')).toContain('- [2026-06-30 08:03 UTC] shipped md pipeline');
+  });
+  it('note dry-run writes nothing and previews', () => {
+    const r = applyPatch({ root, file: QTODO, action: 'note', heading: 'Active tasks', bullet: 'x', stamp: '2026-06-30 08:03 UTC', dryRun: true });
+    expect(r.ok).toBe(true);
+    expect(r.dryRun).toBe(true);
+    expect(r.preview).toContain('- [2026-06-30 08:03 UTC] x');
+    expect(readFileSync(join(root, QTODO), 'utf8')).toBe(FIXTURE);
+  });
+});
+
+describe('applyPatch — HANDOFF.md append-only capability', () => {
+  const HAND_FIX = `# Torii Quest — Contributor / Agent Handoff
+
+## 8. Active issues / open edges
+
+- one open edge
+`;
+  beforeEach(() => writeTodo(HAND, HAND_FIX));
+
+  it('rejects replace on HANDOFF.md (append-only)', () => {
+    const r = applyPatch({ root, file: HAND, action: 'replace', section: '8. Active issues / open edges', body: 'NEW' });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('action-not-permitted');
+    expect(readFileSync(join(root, HAND), 'utf8')).toBe(HAND_FIX); // untouched
+  });
+  it('allows append + note on HANDOFF.md under the issues heading', () => {
+    const a = applyPatch({ root, file: HAND, action: 'append', heading: '8. Active issues / open edges', bullet: 'a second edge' });
+    expect(a.ok).toBe(true);
+    expect(readFileSync(join(root, HAND), 'utf8')).toContain('- a second edge');
+    const n = applyPatch({ root, file: HAND, action: 'note', heading: '8. Active issues / open edges', bullet: 'live note', stamp: '2026-06-30 08:03 UTC' });
+    expect(n.ok).toBe(true);
+    expect(readFileSync(join(root, HAND), 'utf8')).toContain('- [2026-06-30 08:03 UTC] live note');
   });
 });

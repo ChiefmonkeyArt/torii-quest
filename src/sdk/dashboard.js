@@ -23,7 +23,7 @@
 export * as continuum from '../engine/dashboard/continuumData.js';
 export * as hostRouteSmoke from '../engine/host/hostRouteSmoke.js';
 export * as updateFlowSmoke from '../engine/update/updateFlowSmoke.js';
-// handoffControlPanel (v0.2.292): the handoff/release control panel — a Continuum
+// handoffControlPanel (v0.2.293): the handoff/release control panel — a Continuum
 // project-oversight surface consumed ONLY by continuumData.js + build tools + tests,
 // never by a game-runtime entry. R1 originally left it on the runtime barrel; it lives
 // here now so the runtime chunk no longer carries it via the tree-shake-hostile re-export.

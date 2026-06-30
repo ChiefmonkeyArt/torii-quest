@@ -1,4 +1,4 @@
-// tests/portal-approach.test.js — locks the v0.2.292 PURE approach-affordance
+// tests/portal-approach.test.js — locks the v0.2.293 PURE approach-affordance
 // view-model (portalApproach.js): the idle → approaching → ready phase grading, the
 // normalised closeness `t`, the glow `intensity`, the phase-appropriate prompt, planar
 // (y-ignoring) distance, the ready==arm-range parity with the trigger, and graceful

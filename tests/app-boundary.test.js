@@ -1,5 +1,5 @@
 // tests/app-boundary.test.js — locks the Torii Quest (game) vs Torii Continuum
-// (project-oversight dashboard) app boundary (v0.2.292). The R-series cleanup (R1
+// (project-oversight dashboard) app boundary (v0.2.293). The R-series cleanup (R1
 // dashboard SDK split, R2 lazy-THREE, R4 barrel-leak audit) established that:
 //
 //   1. Continuum dashboard / project-oversight surfaces are BUILD-ONLY. They must be

@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.292-alpha",
-  "generatedAt": "2026-06-30T20:56:30.872Z",
+  "version": "v0.2.293-alpha",
+  "generatedAt": "2026-06-30T21:48:11.163Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.292-alpha"
+        "value": "v0.2.293-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.292-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.293-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.292-alpha",
-    "gitCommit": "644e634",
+    "version": "v0.2.293-alpha",
+    "gitCommit": "0410ce3",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.292-alpha / pkg 0.2.292-alpha"
+        "detail": "config v0.2.293-alpha / pkg 0.2.293-alpha"
       },
       {
         "key": "tests",
@@ -252,7 +252,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.292-alpha",
+    "version": "v0.2.293-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -267,7 +267,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.292-alpha"
+        "value": "v0.2.293-alpha"
       },
       {
         "label": "Release manifest",
@@ -399,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.292-alpha",
+    "version": "v0.2.293-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -409,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.292-alpha"
+        "value": "v0.2.293-alpha"
       },
       {
         "label": "Approved by",
@@ -561,7 +561,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.292-alpha"
+        "value": "v0.2.293-alpha"
       },
       {
         "label": "Live game",

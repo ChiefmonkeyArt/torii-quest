@@ -74,12 +74,12 @@ function _buildGrass() {
   // core, tapering to a 3-sided point. It occludes from every angle (no edge-on
   // vanishing) and never looks like a flat card. Cross-section radius is tiny so
   // each blade is a thin 3D needle, not a chunky prism.
-  const BLADE_SEGS = 8;     // v0.2.292: more rows for a smooth cone silhouette (was 6).
+  const BLADE_SEGS = 8;     // v0.2.293: more rows for a smooth cone silhouette (was 6).
   const BLADE_H    = 0.507; // 69% taller than original 0.30; 21% of blades get a further x1.21 Y.
-  const BLADE_R    = 0.003; // v0.2.292: genuinely THIN cone (~6mm across at base). 12mm still read
+  const BLADE_R    = 0.003; // v0.2.293: genuinely THIN cone (~6mm across at base). 12mm still read
                              // as fat; halving the radius makes each blade a fine needle that reads
                              // thin even up close. Tapers linearly to a sharp 3-sided point.
-  const TARGET_BLADES = 80000;  // v0.2.292: reduced from 250k so the field renders on headless /
+  const TARGET_BLADES = 80000;  // v0.2.293: reduced from 250k so the field renders on headless /
                                 // software-GPU machines (SwiftShader crashed at 250k instances). 80k
                                 // 3-sided cones still read as a full field at ~95/m² over the NAP zone.
   const CAND_SPACING  = 0.040;  // fine candidate grid; partial Fisher-Yates selects TARGET_BLADES.
@@ -95,7 +95,7 @@ function _buildGrass() {
   for (let j = 0; j < _rows; j++) {
     const hr = j / BLADE_SEGS;                 // 0..1
     const y  = hr * BLADE_H;
-    // v0.2.292: POINT-UP cone (REVERTED the v0.2.290 flip). Verified the arena instance
+    // v0.2.293: POINT-UP cone (REVERTED the v0.2.290 flip). Verified the arena instance
     // pipeline has NO reflection (instance determinant is positive = uniform positive
     // scale + rotation only), so blades render exactly as built. The flip was a mistake:
     // it made the cone point-DOWN (1 point on the floor, 3 in the air = wide flat top),
@@ -168,7 +168,7 @@ function _buildGrass() {
         float amp = 0.6 + vBright * 0.4;     // per-blade wind amplitude (demo pattern)
         // v0.2.272: gustier still — heavy gust coefficient so the rolling patch-to-patch
         // variation reads strongly; wind-bend also flops blades over (more ground cover).
-        float wind = 0.030 + gust * 0.14 + flut * 0.016;  // v0.2.292: gentler gust (was 0.34) so tips sway, not flop flat
+        float wind = 0.030 + gust * 0.14 + flut * 0.016;  // v0.2.293: gentler gust (was 0.34) so tips sway, not flop flat
         float sway = wind * heightPower * amp;
 
         // Apply bend in world space along the gust direction + perpendicular flutter.
@@ -209,11 +209,19 @@ function _buildGrass() {
       }
 
       void main() {
-        // 4-stage colour gradient (demo): dark root -> base -> mid -> tip.
-        vec3 rootCol = vec3(0.08, 0.22, 0.06);
-        vec3 baseCol = vec3(0.12, 0.35, 0.08);
-        vec3 midCol  = vec3(0.18, 0.55, 0.12);
-        vec3 tipCol  = vec3(0.25, 0.65, 0.15);
+        // v0.2.293: BRIGHT-BASE / SOFT-TIP gradient (INVERTED from the demo).
+        // The old dark-root/bright-tip gradient made the WIDE base vanish into
+        // the dark ground cover while only the narrow bright tip showed — so the
+        // whole field read as 'wide at top, narrow at bottom' (point-down) even
+        // though the cone geometry is point-up. Flipping the geometry never
+        // helped because the bright tip always dominated the visible mass.
+        // Brightening the base above the ground cover (0x3d5a2f ~= 0.24,0.35,0.18)
+        // makes the wide base the visible anchor at the floor, so the silhouette
+        // reads as a point-up cone: wide bright base -> narrow softer tip.
+        vec3 rootCol = vec3(0.27, 0.60, 0.15);  // BRIGHT wide base — lighter than ground cover
+        vec3 baseCol = vec3(0.24, 0.55, 0.14);
+        vec3 midCol  = vec3(0.21, 0.49, 0.13);
+        vec3 tipCol  = vec3(0.18, 0.43, 0.12);  // softer narrow tip (no bright top-heavy mass)
 
         // Per-blade brightness variation (0.8..1.2).
         float bright = 0.8 + vBright * 0.4;
@@ -352,7 +360,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.292 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} taper=(1-hr) cross=3-sided POINT-UP lean=0.06 sink=-0.05 groundCover=0x3d5a2f windGust=0.14 tall21pct=x1.21Y tip=up`;
+  const stamp = `[grass-build] v0.2.293 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} taper=(1-hr) cross=3-sided POINT-UP lean=0.06 sink=-0.05 groundCover=0x3d5a2f windGust=0.14 tall21pct=x1.21Y tip=up grad=BRIGHT-BASE/SOFT-TIP`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

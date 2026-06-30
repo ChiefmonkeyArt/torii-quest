@@ -1,5 +1,5 @@
 // engine/gateway/portalApproach.js — PURE, node-safe APPROACH-AFFORDANCE view-model
-// for the in-world GATEWAY PORTAL marker (v0.2.292). It grades the player's proximity
+// for the in-world GATEWAY PORTAL marker (v0.2.293). It grades the player's proximity
 // to a portal into three phases — idle → approaching → ready — and emits a normalised
 // closeness `t`, a glow `intensity` (the host hands this to `portalMesh.setPortalApproach`),
 // and a phase-appropriate prompt label. This promotes the binary in-range/out-of-range

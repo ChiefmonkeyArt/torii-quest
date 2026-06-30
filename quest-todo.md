@@ -66,6 +66,20 @@ Goal: promote selected proof surfaces into richer, more functional experiences a
 
 These are not Milestone 1 delivery tasks unless live promotion is explicitly being advanced, but they are also not ordinary backlog items to forget. Keep them visible as standing gates that must be cleared before the related live features are promoted.
 
+## Audit follow-ups (v0.2.259 optimization pass)
+
+Remaining items from the v0.2.259 code audit (`torii-quest-audit-v0.2.259.md`). Already landed in v0.2.260: E1 (vitest pool=threads, 28.7s→2.7s), GLB1+GLB2 (−66% assets, DRACOLoader), R3 (SW precache trim), S5 (relay fan-out), S2 (port hardening), repo hygiene. Landed in v0.2.261: **R1** (dashboard SDK split — app chunk −19.4% raw / −19.7% gzip).
+
+Each item is sized as a single thin slice. Keep them in priority order; pick one per session.
+
+- **S1 — schnorr verify in handoffVerify (~2h, security).** Replace structural-only SEC-2 with a real BIP-340 signature verification using `@noble/curves/secp256k1` (first runtime dependency). Adds a real crypto floor under the gateway handshake.
+- **R2 — lazy-load THREE behind ENTER ARENA (~1 day, perf).** Defer the three-vendor chunk (610 KB) until the arena is actually entered. Requires a game-loop refactor so the root shell + dashboard never import three transitively. Highest remaining bundle win.
+- **E2 — replace foundation profile with `vitest --changed origin/main` (~30 min, DX).** Drop the hard-coded foundation file list and let vitest pick the impacted suites from the diff. Keeps CI/local feedback tight as the suite grows.
+- **S4 — vendor Draco decoder under public/draco/ (~1h, security/CSP).** Drop the `gstatic.com` connect-src/script-src exception by serving the decoder from the same origin. Tightens CSP and removes the only third-party runtime dependency.
+- **S3 — move CSP from meta tag to HTTP header (~1h, security).** Add nonce + `strict-dynamic` so inline/stale script can never execute. Pairs with S4 to lock down the runtime origin policy.
+- **E3 — split the three biggest test files (~1h, DX).** `continuum-dashboard.test.js`, `next-action-state.test.js`, `md-patch.test.js` are now multi-hundred-test monoliths; split by section so failures localise and parallel pool scheduling stays efficient.
+- **R4 — audit other large barrel re-exports (~1h, perf).** Now that R1 is split, look for the next-heaviest leaks (`shellReport.js` ~52 KB — not currently in SDK barrel; check transitive importers) and any other dashboard/oversight strings reachable from runtime entry points.
+
 ## Milestone 3 — Post-MVP polish and redesign
 
 Goal: improve visual quality, readability, and feel once the MVP loop is already working.

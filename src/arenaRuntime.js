@@ -14,13 +14,13 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene } from './scene.js';
+import { renderer, renderFrame, scene, camera } from './scene.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, onPointerLockLost, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -247,6 +247,7 @@ export function createArenaRuntime(hooks = {}) {
 
     installToriiDebug({
       version: VERSION, bots, hitBot, playerObj, resetPlayerPos,
+      camera, setPitch,
       castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
       getLastShot, getLastMiss,
       getGrassMat, getFlowerMat, getMirror,

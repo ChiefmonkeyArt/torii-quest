@@ -33,7 +33,7 @@ describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier (dashboard barrel)', () => {
     // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.293-alpha');
+    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.294-alpha');
     expect(typeof DashboardSDK.continuum.renderContinuumPage).toBe('function');
     expect(DashboardSDK.DASHBOARD_SURFACE.continuum.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.
@@ -42,7 +42,7 @@ describe('SDK exposure', () => {
   });
 
   it('re-exports the handoff control-panel module at the experimental tier (dashboard barrel)', () => {
-    // R1 completed, v0.2.293: handoffControlPanel is a Continuum/build-only oversight surface
+    // R1 completed, v0.2.294: handoffControlPanel is a Continuum/build-only oversight surface
     // (no game-runtime importer), so it moved to the dashboard barrel and out of the runtime
     // SDK barrel — it no longer rides into the app chunk via the tree-shake-hostile re-export.
     expect(typeof DashboardSDK.handoffControlPanel.buildHandoffControlPanel).toBe('function');

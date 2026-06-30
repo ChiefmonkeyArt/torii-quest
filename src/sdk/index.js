@@ -79,7 +79,7 @@ export * as liveUpdateCheck from '../engine/update/liveUpdateCheck.js';
 // mvpReadiness stays on the runtime barrel — it has a runtime importer (shellReport.js
 // in the debug chain), unlike the dashboard-only surfaces above.
 export * as mvpReadiness from '../engine/status/mvpReadiness.js';
-// handoffControlPanel: moved to src/sdk/dashboard.js (R1 completed, v0.2.293) — a
+// handoffControlPanel: moved to src/sdk/dashboard.js (R1 completed, v0.2.294) — a
 // Continuum/build-only oversight surface with NO game-runtime importer (consumed only by
 // continuumData.js + build tools + tests). The tree-shake-hostile `export * as` re-export
 // here dragged it into the runtime app chunk; it lives on the dashboard barrel now.
@@ -248,7 +248,7 @@ export const SDK_SURFACE = Object.freeze({
   // ring radius === trigger range); NO THREE/DOM/render/nav. The browser-only
   // adapter (portalMesh.js) consumes it and builds inert meshes ONCE.
   portalMeshPlan:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/portalMeshPlan.js' },
-  // PURE approach-affordance view-model (v0.2.293) — grades player proximity into
+  // PURE approach-affordance view-model (v0.2.294) — grades player proximity into
   // idle/approaching/ready + a glow scalar the portal mesh adapter applies. INERT:
   // `ready` mirrors the trigger arm range; it never arms/confirms a hop itself.
   portalApproach:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/portalApproach.js' },
@@ -288,7 +288,7 @@ export const SDK_SURFACE = Object.freeze({
   // NO network, never acts.
   mvpReadiness:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/status/mvpReadiness.js' },
   // handoffControlPanel: moved to DASHBOARD_SURFACE in src/sdk/dashboard.js (R1 completed,
-  // v0.2.293) — Continuum/build-only oversight surface; no game-runtime importer.
+  // v0.2.294) — Continuum/build-only oversight surface; no game-runtime importer.
   // MVP loop header — frames the four PoC preview cards as one Travel→Market→Score→Update loop (v0.2.143).
   mvpLoop:         { tier: STABILITY.EXPERIMENTAL, module: '../engine/mvpLoop.js' },
   // continuum: moved to DASHBOARD_SURFACE in src/sdk/dashboard.js (R1, v0.2.261).

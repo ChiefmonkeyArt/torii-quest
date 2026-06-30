@@ -34,6 +34,7 @@ document.addEventListener('mousemove', e => {
 export function getYaw()   { return _yaw;   }
 export function getPitch() { return _pitch; }
 export function setYaw(y)  { _yaw = y;      }
+export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down for grass inspection
 
 // Mouse click
 const _clickCbs = [];

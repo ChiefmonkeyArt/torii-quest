@@ -51,6 +51,7 @@ import { proofSurfaceGate } from './proofSurfaceGate.js';
 export function installToriiDebug(refs) {
   const {
     version, bots, hitBot, playerObj, resetPlayerPos,
+    camera, setPitch,
     castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
     getLastShot, getLastMiss,
     getGrassMat, getFlowerMat, getMirror,
@@ -92,6 +93,8 @@ export function installToriiDebug(refs) {
     player: {
       get position() { return playerObj.position; },
       resetToArena() { resetPlayerPos(); },
+      get camera() { return camera || null; },
+      setPitch(p) { if (setPitch) setPitch(p); },
     },
 
     physics: {

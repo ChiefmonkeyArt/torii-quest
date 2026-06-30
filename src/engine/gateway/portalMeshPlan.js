@@ -18,7 +18,7 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v2 (v0.2.293):
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v2 (v0.2.294):
 // the marker is promoted from bare rings+beam into a recognisable TORII-GATE frame
 // (two pillars + a top kasagi lintel + a lower nuki crossbar) — the game's namesake —
 // and frame parts gain an `approach:true` flag so the host can drive a proximity glow.
@@ -141,7 +141,7 @@ export function buildPortalMeshPlan(opts = {}) {
       approach: false,
       ...INERT,
     },
-    // ── TORII-GATE FRAME (v0.2.293) — the namesake silhouette around the portal.
+    // ── TORII-GATE FRAME (v0.2.294) — the namesake silhouette around the portal.
     // The opening faces ±x (the approach axis); pillars sit on ±z. `approach:true`
     // lets the host brighten the frame as the player nears (scalar glow, no alloc).
     {

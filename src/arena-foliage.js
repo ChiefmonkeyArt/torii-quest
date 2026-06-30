@@ -326,7 +326,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.277 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34`;
+  const stamp = `[grass-build] v0.2.278 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

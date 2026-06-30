@@ -171,7 +171,7 @@ export const SDK_SURFACE = Object.freeze({
   // (`leaderboard:submit`). INERT: blocked without a matching grant; never
   // signs/publishes/sends/connects — performed:false on every report.
   submitIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/leaderboard/submitIntent.js' },
-  // LIVE leaderboard publish wiring (M2, v0.2.284) — promotes the relay write to a
+  // LIVE leaderboard publish wiring (M2, v0.2.285) — promotes the relay write to a
   // real NIP-07 sign + relay fan-out, but ONLY behind explicit consent AND the
   // SEC-1 publishGate verdict `crypto-verified`. Reuses nostr.js signEvent +
   // fanoutPublish as injected seams; the write goes THROUGH the gate, never around.
@@ -260,7 +260,7 @@ export const SDK_SURFACE = Object.freeze({
   // source + inert preview into one render-ready, display-only update-status view;
   // NO network, NO auto-update, NO action surface.
   updateStatus:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/updateStatus.js' },
-  // LIVE + cached update-check orchestration (M2, v0.2.284) — the title-card path:
+  // LIVE + cached update-check orchestration (M2, v0.2.285) — the title-card path:
   // a fresh localStorage probe short-circuits the network, else ONE read-only GET to
   // api.github.com via an injected fetcher; fails closed to UNABLE. NO auto-update.
   liveUpdateCheck: { tier: STABILITY.EXPERIMENTAL, module: '../engine/update/liveUpdateCheck.js' },

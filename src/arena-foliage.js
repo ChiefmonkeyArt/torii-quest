@@ -66,10 +66,11 @@ function _buildGrass() {
   // gust wind from v0.2.266 is retained on top — only the blade + colour pipeline
   // are ported from the demo.
   const BLADE_SEGS = 8;     // demo default: 8 height divisions (9 rows) — smooth, cheap.
-  const BLADE_H    = 0.507; // v0.2.284: 69% taller (0.30 × 1.69). 21% of blades get a further
+  const BLADE_H    = 0.507; // v0.2.281: 69% taller (0.30 × 1.69). 21% of blades get a further
                              // ×1.21 Y scale (TALL_FRAC) for natural height variation.
-  const BLADE_W    = 0.028; // v0.2.284: SLIMMER blade (was 0.055) — half the width so blades
-                             // read as fine strands, not fat ribbons. Pairs with reduced flare below.
+  const BLADE_W    = 0.020; // v0.2.285: genuinely THIN blade (was 0.028). Pairs with the smooth
+                             // taper below (no flared root) so blades read as fine round strands,
+                             // not flat angular cards. The ground-cover plane hides floor gaps now.
   const TARGET_BLADES = 500000; // v0.2.273: fill the gaps — 500k across the NAP zone (~570/m²).
   const CAND_SPACING  = 0.040;  // fine candidate grid (yields >500k over the NAP zone); a partial
                                 // Fisher–Yates then selects exactly TARGET_BLADES.
@@ -90,15 +91,15 @@ function _buildGrass() {
     const x = arr[ix];
     const y = arr[ix + 1];
     const hr = y / BLADE_H;            // height ratio 0..1
-    let taper;
-    if (hr < 0.15)     taper = 3.4 - (hr / 0.15) * 2.4;            // v0.2.284: SLIMMER flare (was 5.6 → 1.0) — root is 3.4× not 5.6×, no fat base
-    else if (hr < 0.3) taper = 1.0;                               // wide base
-    else if (hr < 0.7) taper = 1.0 - (hr - 0.3) * 1.5;           // gradual middle
-    else               taper = 0.4 - (hr - 0.7) * 1.0;           // v0.2.284: gentler tip (was ×1.3 → needle); softer point
-    taper = Math.max(0.05, taper);
-    // v0.2.284: collapse the top row to the centerline so the tip is a TRUE point.
-    // The two top vertices (left + right) both pinned to x=0 — the flat cap that
-    // max(0.05, ...) left is gone. Reads as a soft pointed tip, never flat-on-top.
+    // v0.2.285: SMOOTH single-curve taper, no flared root, no piecewise breakpoints.
+    // The old taper had a 5.6×/3.4× flared base + hard angular steps at hr=0.15/0.3/0.7
+    // — that read as a fat spade/square bottom and angular silhouette. Now: a gentle
+    // power curve from full width at the base to a point at the tip, continuous and
+    // round. The flare is gone entirely (the ground-cover plane + root sink hide the
+    // floor now, so a fat root is no longer needed to fill gaps).
+    let taper = Math.pow(1.0 - hr, 0.85);
+    taper = Math.max(0.0, taper);
+    // v0.2.281: collapse the top row to the centerline so the tip is a TRUE point.
     if (hr >= 0.999) taper = 0.0;
     arr[ix] = x * taper;
     arr[ix + 2] += hr * hr * 0.22;   // v0.2.272: stronger forward lean — tips flop over so each
@@ -275,7 +276,7 @@ function _buildGrass() {
       phase: Math.random(),
       speed: Math.random(),
       tint:  Math.random(),            // per-blade colour tint (cool→warm green)
-      tall:  Math.random() < 0.21,     // v0.2.284: 21% of blades get a further ×1.21 height
+      tall:  Math.random() < 0.21,     // v0.2.285: 21% of blades get a further ×1.21 height
     });
   }
 
@@ -287,7 +288,7 @@ function _buildGrass() {
     const p = patches[i];
     _pos.set(p.x, 0, p.z);
     _quat.setFromAxisAngle(_up, p.ry);
-    // v0.2.284: non-uniform scale — tall blades get ×1.21 on Y (a further 21% on top
+    // v0.2.285: non-uniform scale — tall blades get ×1.21 on Y (a further 21% on top
     // of the global +69%). XZ scale stays even so coverage/thinning is unchanged.
     const sy = p.s * (p.tall ? 1.21 : 1.0);
     _scl.set(p.s, sy, p.s);
@@ -335,7 +336,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.284 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=3.4 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34 tall21pct=×1.21Y tip=point`;
+  const stamp = `[grass-build] v0.2.285 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} taper=smooth(1-hr)^0.85 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34 tall21pct=×1.21Y tip=point noFlare`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

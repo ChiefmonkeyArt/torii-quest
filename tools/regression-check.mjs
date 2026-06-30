@@ -51,7 +51,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.284-alpha';
+const EXPECTED_VERSION = 'v0.2.285-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -476,7 +476,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     if (!existsSync(headersP)) fail('dist/_headers missing (vite CSP plugin did not run)');
     else {
       const body = readFileSync(headersP, 'utf8');
-      // v0.2.284: _headers now carries the sha recomputed from the emitted inline script
+      // v0.2.285: _headers now carries the sha recomputed from the emitted inline script
       // (which has a per-build cache-bust query), so it no longer equals the legacy
       // headersFileBody() constant. Validate it carries the required directives instead.
       const needHeaders = ["Content-Security-Policy", "object-src 'none'", "'strict-dynamic'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src'];
@@ -486,7 +486,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     }
 
     // Recompute the inline bootstrap sha from the BUILT html and verify dist/_headers
-    // carries THAT sha (self-consistency). v0.2.284: the inline import now carries a
+    // carries THAT sha (self-consistency). v0.2.285: the inline import now carries a
     // per-build ?v=<stamp> query, so the sha churns every build — comparing it to a
     // hardcoded constant would be wrong; instead we require _headers to match the emit.
     const inlineScripts = [...distHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);

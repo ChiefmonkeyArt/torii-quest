@@ -10,13 +10,13 @@ import { CSP_VALUE, headersFileBody, headersFileBodyForSha, cspValueForSha } fro
 // <script> tag — letting `strict-dynamic` cover the whole module graph; (2) writes
 // dist/_headers for the static host; (3) serves the same header from `vite preview`.
 //
-// v0.2.284: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
+// v0.2.285: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
 // Cloudflare's 4h edge cache can never serve a stale entry that points at a dead/old
 // chunk hash after a publish. Because that changes the inline-script text, the CSP sha is
 // recomputed from the EMITTED inline script at writeBundle time and written into
 // dist/_headers — so the policy always matches the shipped bootstrap.
 //
-// v0.2.284: the versioned query MUST also be injected into every chunk's back-reference
+// v0.2.285: the versioned query MUST also be injected into every chunk's back-reference
 // import of the entry (`from"./torii-entry.js"`). Without this the browser sees two
 // different module URLs for the same entry — `torii-entry.js?v=<stamp>` (from the inline
 // bootstrap, fresh) and `torii-entry.js` (from the chunk, CDN-stale) — fetches the stale
@@ -62,7 +62,7 @@ function cspHeaderPlugin() {
     writeBundle(options) {
       const dir = options.dir || join(process.cwd(), 'dist');
       const assetsDir = join(dir, 'assets');
-      // v0.2.284: rewrite every chunk's back-reference import of the pinned entry to the
+      // v0.2.285: rewrite every chunk's back-reference import of the pinned entry to the
       // SAME versioned URL the inline bootstrap uses, so the browser dedupes to one fresh
       // module fetch instead of hitting the CDN-stale un-versioned URL.
       if (existsSync(assetsDir)) {

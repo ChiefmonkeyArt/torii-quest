@@ -1,5 +1,5 @@
 // src/engine/update/liveUpdateCheck.js — LIVE, cached update-check orchestration
-// (M2, v0.2.284). Promotes the host-only GitHub fetch seam (githubReleaseSource
+// (M2, v0.2.285). Promotes the host-only GitHub fetch seam (githubReleaseSource
 // .fetchLatestRelease) from "wired in tests only" to the surface the title-screen
 // UPDATE card actually consumes, so an installed copy self-reports its TRUE standing
 // against the latest published release instead of a hard-coded local fixture.
@@ -48,7 +48,7 @@ function _core(version) {
 // versionDelta(current, latest) → { direction:'same'|'behind'|'ahead', count }. `count`
 // is the absolute distance on the most-significant differing core component (for this
 // project, whose releases share major.minor, that is the patch gap, e.g. v0.2.279 vs
-// v0.2.284 → behind by 4). `count` is null when only the prerelease tag differs. Pure.
+// v0.2.285 → behind by 4). `count` is null when only the prerelease tag differs. Pure.
 export function versionDelta(current, latest) {
   const cmp = compareVersions(current, latest);
   if (cmp === 0) return { direction: 'same', count: 0 };

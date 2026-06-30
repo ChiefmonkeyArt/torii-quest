@@ -1,4 +1,4 @@
-// engine/leaderboard/livePublish.js — LIVE leaderboard publish wiring (M2, v0.2.284).
+// engine/leaderboard/livePublish.js — LIVE leaderboard publish wiring (M2, v0.2.285).
 // Promotes the leaderboard relay write from deferred/preview to a REAL NIP-07
 // sign + relay fan-out, BUT only ever behind the existing gates: the player's
 // explicit consent AND the SEC-1 publishGate verdict `trust: 'crypto-verified'`.

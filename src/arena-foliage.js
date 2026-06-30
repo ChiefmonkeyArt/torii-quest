@@ -32,10 +32,12 @@ const _m4   = new THREE.Matrix4();
 // (regression check 10).
 let _grassMat  = null;
 let _flowerMat = null;
+let _tulipMat  = null; // v0.2.263: 2nd flower archetype (tulip cup)
 
 export function buildFoliage() {
   _buildGrass();
   _buildWildflowers();
+  _buildTulips(); // v0.2.263: 2nd flower archetype for shape variety
 }
 
 // Per-frame shader tick — advances the grass + flower uTime uniforms. Reads
@@ -44,16 +46,18 @@ export function buildFoliage() {
 export function tickFoliage(dt) {
   if (_grassMat)  _grassMat.uniforms.uTime.value  += dt;
   if (_flowerMat) _flowerMat.uniforms.uTime.value += dt;
+  if (_tulipMat)  _tulipMat.uniforms.uTime.value  += dt;
 }
 
 // Debug accessors — injected into ToriiDebug so the namespace can surface the
 // live materials without reaching through a global.
 export function getGrassMat()  { return _grassMat; }
 export function getFlowerMat() { return _flowerMat; }
+export function getTulipMat()  { return _tulipMat; } // v0.2.263
 
 // ── Instanced grass ───────────────────────────────────────────────────────────
 function _buildGrass() {
-  const BLADE_SEGS   = 7;
+  const BLADE_SEGS   = 9;    // v0.2.263: more segments → smoother curve (was 7)
   const BLADE_H      = 0.42;
   const BLADE_W      = 0.038;
   const BLADES_PATCH = 28;   // v0.2.262: denser tufts (was 20)
@@ -68,28 +72,38 @@ function _buildGrass() {
     const r      = PATCH_RADIUS * Math.sqrt(0.05 + Math.random() * 0.95);
     const bx     = Math.cos(angle) * r;
     const bz     = Math.sin(angle) * r;
-    const lean   = 0.10 + Math.random() * 0.20;
-    const leanDx = Math.cos(angle + (Math.random() - 0.5));
-    const leanDz = Math.sin(angle + (Math.random() - 0.5));
-    const perpX  = -leanDz;
-    const perpZ  =  leanDx;
-    const base   = b * VERTS_PER_BLADE;
+    // v0.2.263: curved blade. The blade arcs over in a per-blade bend
+    // direction with a smoothstep ease (graceful curve, no kink), a subtle
+    // sideways S-curl, a faint mid-blade width bulge, and a keel dip across
+    // the width so it reads as a real blade — not a flat origami ribbon.
+    const bendDir = angle + (Math.random() - 0.5) * 1.2;
+    const bendAmt = 0.16 + Math.random() * 0.22;
+    const curl    = (Math.random() - 0.5) * 0.10;
+    const bendCx  = Math.cos(bendDir), bendCz = Math.sin(bendDir);
+    const perpX   = -bendCz, perpZ = bendCx;
+    const base    = b * VERTS_PER_BLADE;
 
     for (let row = 0; row <= BLADE_SEGS - 1; row++) {
       const t  = row / BLADE_SEGS;
+      const bt = t * t * (3 - 2 * t);          // smoothstep bend (graceful arc)
       const y  = t * BLADE_H;
-      const hw = BLADE_W * Math.pow(1.0 - t, 1.6);
-      const lx = lean * t * t * leanDx;
-      const lz = lean * t * t * leanDz;
+      // centerline drifts along bend dir; S-curl bows sideways mid-blade
+      const sCurl = curl * Math.sin(t * Math.PI) * 4.0;
+      const cx = bx + bendCx * bendAmt * bt + perpX * sCurl;
+      const cz = bz + bendCz * bendAmt * bt + perpZ * sCurl;
+      // width: tapered with a faint mid bulge for a blade-like silhouette
+      const hw = BLADE_W * Math.pow(1.0 - t, 1.4) * (0.88 + 0.12 * Math.sin(t * 3.0));
+      // keel: edges dip slightly toward the tip so the spine reads as a ridge
+      const yEdge = y - 0.010 * t;
       positions.push(
-        bx + lx - perpX * hw, y, bz + lz - perpZ * hw,
-        bx + lx + perpX * hw, y, bz + lz + perpZ * hw
+        cx - perpX * hw, yEdge, cz - perpZ * hw,
+        cx + perpX * hw, yEdge, cz + perpZ * hw
       );
       uvs.push(0, t, 1, t);
     }
-    const tipLx = lean * leanDx;
-    const tipLz = lean * leanDz;
-    positions.push(bx + tipLx, BLADE_H, bz + tipLz);
+    const tipCx = bx + bendCx * bendAmt;       // bt = 1 → full drift
+    const tipCz = bz + bendCz * bendAmt;
+    positions.push(tipCx, BLADE_H, tipCz);
     uvs.push(0.5, 1.0);
 
     for (let row = 0; row < BLADE_SEGS - 1; row++) {
@@ -226,10 +240,17 @@ function _buildWildflowers() {
   }
 
   const R = PETAL_W, HR = HEAD_R * 2;
-  // v0.2.262: 5 petals (was 4) for a rounder, daisy-like head.
+  const CUP = 0.020; // v0.2.263: petals cup slightly (outer edge raised → less flat)
+  // v0.2.263: 5 petals (was 4) for a rounder, daisy-like head, slightly cupped.
   [0, Math.PI/5, 2*Math.PI/5, 3*Math.PI/5, 4*Math.PI/5].forEach(a => {
     const c = Math.cos(a), s = Math.sin(a);
-    addQuad(-R*c,STEM_H,-R*s, R*c,STEM_H,R*s, -R*c,STEM_H+HR,-R*s, R*c,STEM_H+HR,R*s);
+    addQuad(-R*c,STEM_H,-R*s, R*c,STEM_H,R*s, -R*c,STEM_H+HR+CUP,-R*s, R*c,STEM_H+HR+CUP,R*s);
+  });
+  // v0.2.263: inner ring — 5 shorter petals offset 36°, fuller bloom + detail.
+  const Ri = R * 0.62, HRi = HR * 0.55, Y_OFF = HEAD_R * 0.15;
+  [1,3,5,7,9].forEach(k => { const a = k*Math.PI/5; const c = Math.cos(a), s = Math.sin(a);
+    addQuad(-Ri*c,STEM_H+Y_OFF,-Ri*s, Ri*c,STEM_H+Y_OFF,Ri*s,
+            -Ri*c,STEM_H+Y_OFF+HRi+CUP,-Ri*s, Ri*c,STEM_H+Y_OFF+HRi+CUP,Ri*s);
   });
   addQuad(-SW,0,0, SW,0,0, -SW,STEM_H,0, SW,STEM_H,0);
   addQuad(0,0,-SW, 0,0,SW,  0,STEM_H,-SW, 0,STEM_H,SW);
@@ -318,4 +339,120 @@ function _buildWildflowers() {
   scene.add(mesh);
   _flowerMat = mat;
   window._flowerMat = mat; // DEPRECATED debug alias (v0.2.118) — internal code uses tickFoliage()/getFlowerMat()
+}
+
+// ── Instanced tulips (2nd flower archetype, v0.2.263) ──────────────────────────
+// A small open cup of 3 broad petals on a stem — a clearly different silhouette
+// from the daisy, so the NAP zone reads as a mixed wildflower field rather than
+// a single bloom type. Same footprint + tree exclusion as the daisy. One draw
+// call; wind sway via uTime (ticked in tickFoliage).
+function _buildTulips() {
+  const TULIP_COUNT = 70;
+  const STEM_H = 0.46;
+  const CUP_H  = 0.22;
+  const R0     = 0.05;   // base radius (cup mouth narrows at the bottom)
+  const R1     = 0.16;   // rim radius (cup opens outward)
+  const SW     = 0.035;
+  const PETAL_W = R1 * 0.92;
+
+  // Warm tulip palette — reds, oranges, yellows, pinks, white.
+  const PALETTES = [
+    [0.92,0.16,0.20],[0.98,0.55,0.10],[0.99,0.92,0.18],
+    [0.95,0.85,0.92],[0.85,0.20,0.55],[0.99,0.80,0.30],[1.0,1.0,1.0],
+  ];
+
+  const positions = [], uvs = [], indices = [];
+  function addQuad(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3) {
+    const b = positions.length / 3;
+    positions.push(x0,y0,z0,x1,y1,z1,x2,y2,z2,x3,y3,z3);
+    uvs.push(0,0,1,0,0,1,1,1);
+    indices.push(b,b+1,b+2,b+1,b+3,b+2);
+  }
+
+  const y0 = STEM_H, y1 = STEM_H + CUP_H;
+  // 3 broad petals at 120°, each a quad from the narrow base to the wider rim.
+  [0, 2*Math.PI/3, 4*Math.PI/3].forEach(a => {
+    const c = Math.cos(a), s = Math.sin(a);
+    const px = -s, pz = c;          // perpendicular to radial dir
+    const hw = PETAL_W * 0.5;
+    addQuad(
+      R0*c + px*(-hw), y0, R0*s + pz*(-hw),
+      R0*c + px*( hw), y0, R0*s + pz*( hw),
+      R1*c + px*(-hw), y1, R1*s + pz*(-hw),
+      R1*c + px*( hw), y1, R1*s + pz*( hw)
+    );
+  });
+  // Stem cross (2 thin quads) — same treatment as the daisy stem.
+  addQuad(-SW,0,0, SW,0,0, -SW,STEM_H,0, SW,STEM_H,0);
+  addQuad(0,0,-SW, 0,0,SW,  0,STEM_H,-SW, 0,STEM_H,SW);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+  geo.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uvs), 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+
+  const CUP_TOP = (STEM_H + CUP_H).toFixed(4);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0.0 } },
+    vertexShader: /* glsl */`
+      varying float vY;
+      varying vec3  vCol;
+      uniform float uTime;
+      void main() {
+        vY = position.y;
+        #ifdef USE_INSTANCING_COLOR
+          vCol = instanceColor;
+        #else
+          vCol = vec3(0.9, 0.2, 0.25);
+        #endif
+        float phase = float(gl_InstanceID) * 0.618;
+        float stem  = step(0.30, position.y / ${CUP_TOP});
+        float sway  = sin(uTime * 0.8 + phase) * 0.05 * stem;
+        vec3 pos = position;
+        pos.x += sway; pos.z += sway * 0.4;
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      varying float vY;
+      varying vec3  vCol;
+      void main() {
+        // Darker at the base, brightening toward the rim — reads as a cup.
+        float t = clamp(vY / ${CUP_TOP}, 0.0, 1.0);
+        vec3 col = mix(vCol * 0.55, vCol * (0.95 + 0.25 * t), t);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+
+  const TREE_X = NAP_X + 6;
+  const TREE_Z = 0;
+  const TREE_CLEAR_SQ = 1.5 * 1.5;
+  const mesh = new THREE.InstancedMesh(geo, mat, TULIP_COUNT);
+  const _col = new THREE.Color();
+  for (let i = 0; i < TULIP_COUNT; i++) {
+    let fx, fz;
+    for (let t = 0; t < 6; t++) {
+      fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
+      fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
+      const dx = fx - TREE_X, dz = fz - TREE_Z;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ) break;
+    }
+    const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+    _pos.set(fx, 0, fz);
+    _quat.setFromAxisAngle(_up, Math.random() * Math.PI * 2);
+    _scl.setScalar(0.7 + Math.random() * 0.9);  // v0.2.263: varied sizes
+    _m4.compose(_pos, _quat, _scl);
+    mesh.setMatrixAt(i, _m4);
+    mesh.setColorAt(i, _col.setRGB(pal[0], pal[1], pal[2]));
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.geometry.computeBoundingBox();
+  mesh.geometry.computeBoundingSphere();
+  mesh.frustumCulled = true;
+  scene.add(mesh);
+  _tulipMat = mat;
 }

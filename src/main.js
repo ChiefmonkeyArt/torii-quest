@@ -24,6 +24,7 @@ import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showZoneNotice, hideZoneNotice } from './hud.js';
+import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z } from './config.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
@@ -691,6 +692,15 @@ function _openPause() {
 
 document.addEventListener('keydown', e => {
   if (e.code !== 'Escape' || e.repeat) return;
+  // v0.2.263: if the gateway app screen is open, ESC closes it (and resumes)
+  // before the pause/resume cycle sees the key. Block default + stop other
+  // handlers — ESC is OURS while the screen is open.
+  if (isGatewayScreenOpen()) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    _closeGatewayScreen();
+    return;
+  }
   // Block default + stop other handlers — ESC is OURS while in-game.
   if (isPlaying()) {
     e.preventDefault();
@@ -703,24 +713,42 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
-// KeyF — the EXPLICIT portal interact (v0.2.181). The ONLY thing that confirms a
-// hop: acts only while playing AND the boundary is armed (player in range). A safe
-// no-op otherwise. Proximity alone never navigates; this is the deliberate, auditable
-// confirmation step. Uses a dedicated key (KeyF) so it never collides with movement
-// or KeyE/Space jump.
+// KeyF — the EXPLICIT gateway activation (v0.2.181, revised v0.2.263). Acts only
+// while playing AND the boundary is armed (player in range). Instead of an
+// immediate same-origin /zone/ hop, it opens the TORII GATEWAY app screen —
+// the surface a user experiences when using a torii gateway: a list of who is
+// online in their instance, with a travel affordance per world. The screen is a
+// mockup for now (preview npubs when the live scan is empty). A real travel
+// click within the screen still calls _gwTravel(world). Proximity alone never
+// opens it; this is the deliberate, auditable confirmation step.
 onKeyDown(code => {
   if (code !== 'KeyF') return;
   if (!isPlaying() || !_portalTrigger.isArmed()) return;
-  const rep = _portalTrigger.interact(true);
-  // v0.2.184 — after a successful same-origin /zone/ hop, surface a concise inert
-  // notice naming the entered zone. pushState does NOT fire popstate, so without this
-  // the zone-notice would not refresh until a reload. Display-only: textContent, no
-  // navigation, no load — the hop itself was already gated by interact()/confirm().
-  if (rep && rep.navigated === true && typeof rep.zoneId === 'string') {
-    const label = enteredZoneLabel(rep.zoneId);
-    if (label) showZoneNotice(label);
-  }
+  _openGatewayScreen();
 });
+
+// _openGatewayScreen() — pause the sim (PLAYING→PAUSED, releases pointer lock so
+// the mouse can click the list) and show the gateway app screen populated with
+// the current live online-worlds cache. Logged-in players can travel; otherwise
+// rows are read-only with a login hint. The screen is mockup-quality: when the
+// live scan is empty/offline it shows clearly-labeled PREVIEW worlds so the
+// gateway experience is demonstrable end-to-end.
+function _openGatewayScreen() {
+  if (isGatewayScreenOpen()) return;
+  if (!transition(GAME_EVENT.PAUSE)) return; // PLAYING → PAUSED
+  document.exitPointerLock?.(); // release the mouse so the player can click the list
+  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  openGatewayScreen({
+    worlds: _worldsCache,
+    scanStatus: _worldsScan,
+    canTravel,
+    onTravel: (w) => _gwTravel(w),
+    onClose: () => _resume(), // PAUSED → PLAYING (re-locks pointer)
+  });
+}
+function _closeGatewayScreen() {
+  closeGatewayScreen(); // triggers its onClose → _resume
+}
 
 // Browser-forced pointer-lock loss (focus change, window switch) still pauses
 // the running game so the player isn't stuck spinning in the background.

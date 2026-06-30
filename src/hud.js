@@ -160,34 +160,44 @@ function _portalDom() {
   _portalEl.id = 'portal-prompt';
   Object.assign(_portalEl.style, {
     position:      'fixed',
-    bottom:        '90px',
+    top:           '88px',            // v0.2.263: higher up, centred (was bottom:90px)
     left:          '50%',
     transform:     'translateX(-50%)',
-    padding:       '9px 24px',
-    background:    'linear-gradient(90deg, rgba(76,201,240,0.32), rgba(139,92,246,0.32))',
-    border:        '1px solid rgba(200,232,255,0.55)',
+    padding:       '11px 30px',
+    background:    'linear-gradient(90deg, rgba(76,201,240,0.80), rgba(139,92,246,0.80))',
+    border:        '1.5px solid rgba(220,242,255,0.92)',
     borderRadius:  '999px',
-    color:         '#e8f4ff',
+    color:         '#ffffff',
     fontFamily:    'monospace',
-    fontSize:      '14px',
-    letterSpacing: '1px',
+    fontSize:      '16px',
+    letterSpacing: '1.5px',
     fontWeight:    'bold',
-    textShadow:    '0 0 8px rgba(200,232,255,0.7)',
-    boxShadow:     '0 0 22px rgba(76,201,240,0.4)',
+    textShadow:    '0 0 12px rgba(255,255,255,0.95), 0 0 22px rgba(200,232,255,0.9), 0 1px 2px rgba(0,0,0,0.85)',
+    boxShadow:     '0 0 34px rgba(139,92,246,0.75), 0 0 18px rgba(76,201,240,0.7), 0 2px 8px rgba(0,0,0,0.5)',
     pointerEvents: 'none',
     opacity:       '0',
-    transition:    'opacity 0.3s ease',
+    transition:    'opacity 0.35s ease',
     zIndex:        '50',
   });
   document.body.appendChild(_portalEl);
   return _portalEl;
 }
+let _portalHideTimer = 0;
 export function showPortalPrompt(text = 'Press F to travel') {
   const el = _portalDom();
   el.textContent = text;
-  if (!_portalOn) { _portalOn = true; el.style.opacity = '1'; }
+  if (_portalHideTimer) clearTimeout(_portalHideTimer);
+  _portalOn = true;
+  el.style.opacity = '1';
+  // v0.2.263: announce the gateway prompt on entering range, then fade it after
+  // a couple of seconds so it doesn't linger. Re-entering range shows it again.
+  _portalHideTimer = setTimeout(() => {
+    _portalHideTimer = 0;
+    if (_portalOn) { _portalOn = false; el.style.opacity = '0'; }
+  }, NOTICE_AUTOHIDE_MS);
 }
 export function hidePortalPrompt() {
+  if (_portalHideTimer) { clearTimeout(_portalHideTimer); _portalHideTimer = 0; }
   if (!_portalOn) return;
   _portalOn = false;
   _portalDom().style.opacity = '0';
@@ -228,12 +238,25 @@ function _zoneDom() {
   document.body.appendChild(_zoneEl);
   return _zoneEl;
 }
+// Per-user-action banner auto-hide: zone notices + the portal prompt announce
+// something on a transition (zone link resolved, gateway entered, gateway in
+// range) and should NOT linger — they fade out after this many ms so the screen
+// stays clean. Re-triggering the same notice resets the timer and shows it again.
+const NOTICE_AUTOHIDE_MS = 2000;
+let _zoneHideTimer = 0;
 export function showZoneNotice(text) {
   const el = _zoneDom();
   el.textContent = typeof text === 'string' ? text : ''; // textContent only — never parsed as markup
-  if (!_zoneOn) { _zoneOn = true; el.style.opacity = '1'; }
+  if (_zoneHideTimer) clearTimeout(_zoneHideTimer);
+  _zoneOn = true;
+  el.style.opacity = '1';
+  _zoneHideTimer = setTimeout(() => {
+    _zoneHideTimer = 0;
+    if (_zoneOn) { _zoneOn = false; el.style.opacity = '0'; }
+  }, NOTICE_AUTOHIDE_MS);
 }
 export function hideZoneNotice() {
+  if (_zoneHideTimer) { clearTimeout(_zoneHideTimer); _zoneHideTimer = 0; }
   if (!_zoneOn) return;
   _zoneOn = false;
   _zoneDom().style.opacity = '0';

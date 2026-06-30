@@ -95,6 +95,11 @@ export function tickHUD(dt) {
 // Crossfades in/out via CSS opacity transition.
 let _napEl = null;
 let _napOn = false;
+let _napHideTimer = 0;
+// How long (ms) the "NAP ZONE — PEACE" pill stays visible on entry before it
+// auto-fades. It announces arrival without lingering on screen the whole time
+// you're in the zone. Re-entering (leave + come back) shows it again.
+const NAP_INDICATOR_AUTOHIDE_MS = 4000;
 function _napDom() {
   if (_napEl) return _napEl;
   _napEl = document.createElement('div');
@@ -127,7 +132,19 @@ function _napDom() {
 export function setNapMode(on) {
   if (on === _napOn) return;
   _napOn = on;
-  _napDom().style.opacity = on ? '1' : '0';
+  if (on) {
+    // Entered the NAP zone: show the pill, then auto-fade after a few seconds.
+    if (_napHideTimer) clearTimeout(_napHideTimer);
+    _napDom().style.opacity = '1';
+    _napHideTimer = setTimeout(() => {
+      _napHideTimer = 0;
+      if (_napOn) _napDom().style.opacity = '0'; // still in zone → fade out
+    }, NAP_INDICATOR_AUTOHIDE_MS);
+  } else {
+    // Left the zone: cancel any pending auto-hide and fade out now.
+    if (_napHideTimer) { clearTimeout(_napHideTimer); _napHideTimer = 0; }
+    _napDom().style.opacity = '0';
+  }
 }
 
 // ── Gateway portal prompt ───────────────────────────────────────

@@ -3,7 +3,7 @@
 > **This file is a LEGACY POINTER.** The active task queues have been split into
 > separate sources of truth. Do not plan new work from this file.
 
-Current version: `v0.2.261-alpha`
+Current version: `v0.2.262-alpha`
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 ## Source of truth (active task queues)

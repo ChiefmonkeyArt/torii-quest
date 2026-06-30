@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "generatedAt": "2026-06-30T08:43:46.992Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.261-alpha",
+  "version": "v0.2.262-alpha",
   "packageVersion": "0.2.260-alpha",
   "gitCommit": "893cf9c",
   "liveUrl": "https://torii-quest.pplx.app",
@@ -102,7 +102,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.261-alpha",
+    "version": "v0.2.262-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {

@@ -56,9 +56,9 @@ function _buildGrass() {
   const BLADE_SEGS   = 7;
   const BLADE_H      = 0.42;
   const BLADE_W      = 0.038;
-  const BLADES_PATCH = 20;
+  const BLADES_PATCH = 28;   // v0.2.262: denser tufts (was 20)
   const PATCH_RADIUS = 0.75;
-  const SPACING      = 1.3;
+  const SPACING      = 1.05; // v0.2.262: tighter grid (was 1.3)
 
   const VERTS_PER_BLADE = BLADE_SEGS * 2 + 1;
   const positions = [], uvs = [], indices = [];
@@ -115,10 +115,12 @@ function _buildGrass() {
     },
     vertexShader: /* glsl */`
       varying float vT;
+      varying float vTint;   // per-blade colour tint (instanceColor.b)
       uniform float uTime;
       uniform vec2  uWindDir;
       void main() {
         vT = clamp(position.y / ${BLADE_H.toFixed(4)}, 0.0, 1.0);
+        vTint = instanceColor.b;
         float phase = instanceColor.r * 6.2832;
         float speed = 0.15 + instanceColor.g * 0.28;
         float sway  = sin(uTime * speed + phase) * 0.24 * vT * vT;
@@ -130,10 +132,17 @@ function _buildGrass() {
     `,
     fragmentShader: /* glsl */`
       varying float vT;
+      varying float vTint;
       void main() {
+        // Per-blade tint: lerp between a cool deep green and a warm yellow-green
+        // so the field reads as varied growth, not a single flat colour.
         vec3 rootCol = vec3(0.01, 0.14, 0.02);
-        vec3 midCol  = vec3(0.09, 0.48, 0.07);
-        vec3 tipCol  = vec3(0.32, 0.92, 0.20);
+        vec3 midCool = vec3(0.09, 0.48, 0.07);
+        vec3 midWarm = vec3(0.22, 0.52, 0.05);
+        vec3 tipCool = vec3(0.32, 0.92, 0.20);
+        vec3 tipWarm = vec3(0.52, 0.88, 0.12);
+        vec3 midCol  = mix(midCool, midWarm, vTint);
+        vec3 tipCol  = mix(tipCool, tipWarm, vTint);
         vec3 col = vT < 0.5
           ? mix(rootCol, midCol, vT * 2.0)
           : mix(midCol,  tipCol, (vT - 0.5) * 2.0);
@@ -161,9 +170,10 @@ function _buildGrass() {
         x: jx,
         z: jz,
         ry: Math.random() * Math.PI * 2,
-        s:  0.7 + Math.random() * 0.6,
+        s:  0.65 + Math.random() * 0.75,  // v0.2.262: wider height/scale variance
         phase: Math.random(),
         speed: Math.random(),
+        tint:  Math.random(),            // per-blade colour tint (cool→warm green)
       });
     }
   }
@@ -179,7 +189,7 @@ function _buildGrass() {
     _scl.setScalar(p.s);
     _m4.compose(_pos, _quat, _scl);
     mesh.setMatrixAt(i, _m4);
-    mesh.instanceColor.setXYZ(i, p.phase, p.speed, 0);
+    mesh.instanceColor.setXYZ(i, p.phase, p.speed, p.tint);
   }
   mesh.instanceMatrix.needsUpdate = true;
   mesh.instanceColor.needsUpdate  = true;
@@ -193,15 +203,18 @@ function _buildGrass() {
 
 // ── Instanced wildflowers ─────────────────────────────────────────────────────
 function _buildWildflowers() {
-  const FLOWER_COUNT = 220;
+  const FLOWER_COUNT = 340;  // v0.2.262: more blooms (was 220)
   const STEM_H = 0.52;
   const HEAD_R = 0.16;
   const SW     = 0.035;
+  const PETAL_W = HEAD_R * 0.85;  // v0.2.262: slightly narrower petals (5 fit better than 4)
 
   const PALETTES = [
     [1.0,0.18,0.18],[1.0,0.55,0.08],[0.95,0.92,0.10],
     [0.18,0.82,0.28],[0.18,0.48,1.0],[0.82,0.18,0.92],
     [1.0,0.38,0.68],[1.0,1.0,1.0],[0.95,0.65,0.15],[0.35,0.95,0.85],
+    // v0.2.262: richer palette — lavender, deep violet, coral, sky
+    [0.62,0.45,0.92],[0.48,0.20,0.72],[1.0,0.42,0.32],[0.40,0.72,1.0],
   ];
 
   const positions = [], uvs = [], indices = [];
@@ -212,8 +225,9 @@ function _buildWildflowers() {
     indices.push(b,b+1,b+2,b+1,b+3,b+2);
   }
 
-  const R = HEAD_R, HR = HEAD_R * 2;
-  [0, Math.PI/4, Math.PI/2, (3*Math.PI)/4].forEach(a => {
+  const R = PETAL_W, HR = HEAD_R * 2;
+  // v0.2.262: 5 petals (was 4) for a rounder, daisy-like head.
+  [0, Math.PI/5, 2*Math.PI/5, 3*Math.PI/5, 4*Math.PI/5].forEach(a => {
     const c = Math.cos(a), s = Math.sin(a);
     addQuad(-R*c,STEM_H,-R*s, R*c,STEM_H,R*s, -R*c,STEM_H+HR,-R*s, R*c,STEM_H+HR,R*s);
   });
@@ -291,7 +305,7 @@ function _buildWildflowers() {
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);
     _quat.setFromAxisAngle(_up, Math.random() * Math.PI * 2);
-    _scl.setScalar(0.65 + Math.random() * 0.75);
+    _scl.setScalar(0.6 + Math.random() * 0.95);  // v0.2.262: wider scale variance
     _m4.compose(_pos, _quat, _scl);
     mesh.setMatrixAt(i, _m4);
     mesh.setColorAt(i, _col.setRGB(pal[0], pal[1], pal[2]));

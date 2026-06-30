@@ -34,7 +34,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.261-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.262-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -139,7 +139,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.261-alpha');
+    expect(round.version).toBe('v0.2.262-alpha');
     expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -151,7 +151,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.261-alpha');
+    expect(html).toContain('v0.2.262-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -1613,9 +1613,9 @@ describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
 describe('SDK exposure', () => {
 
   it('re-exports the continuum module at the experimental tier (dashboard barrel)', () => {
-    // R1, v0.2.261: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
+    // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.261-alpha');
+    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.262-alpha');
     expect(typeof DashboardSDK.continuum.renderContinuumPage).toBe('function');
     expect(DashboardSDK.DASHBOARD_SURFACE.continuum.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.

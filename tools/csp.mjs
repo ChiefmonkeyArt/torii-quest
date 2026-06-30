@@ -39,7 +39,7 @@ export const CSP_DIRECTIVES = [
 export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");
 
 // The exact dynamic-import line the build plugin appends to the trusted inline bootstrap.
-// v0.2.280: a per-build cache-bust query is appended so Cloudflare's edge cache (4h)
+// v0.2.281: a per-build cache-bust query is appended so Cloudflare's edge cache (4h)
 // can never serve a stale entry that points at a dead/old chunk hash after a publish.
 // The query is filled in by the plugin at build time; this constant is the dev fallback.
 export const ENTRY_IMPORT_LINE = "  import('/assets/torii-entry.js');";

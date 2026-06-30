@@ -10,7 +10,7 @@ import { CSP_VALUE, headersFileBody, headersFileBodyForSha, cspValueForSha } fro
 // <script> tag — letting `strict-dynamic` cover the whole module graph; (2) writes
 // dist/_headers for the static host; (3) serves the same header from `vite preview`.
 //
-// v0.2.280: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
+// v0.2.281: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
 // Cloudflare's 4h edge cache can never serve a stale entry that points at a dead/old
 // chunk hash after a publish. Because that changes the inline-script text, the CSP sha is
 // recomputed from the EMITTED inline script at writeBundle time and written into

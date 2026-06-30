@@ -66,7 +66,8 @@ function _buildGrass() {
   // gust wind from v0.2.266 is retained on top — only the blade + colour pipeline
   // are ported from the demo.
   const BLADE_SEGS = 8;     // demo default: 8 height divisions (9 rows) — smooth, cheap.
-  const BLADE_H    = 0.30;  // shorter + more upright (matches v0.2.266 scale).
+  const BLADE_H    = 0.507; // v0.2.281: 69% taller (0.30 × 1.69). 21% of blades get a further
+                             // ×1.21 Y scale (TALL_FRAC) for natural height variation.
   const BLADE_W    = 0.055; // v0.2.273: WIDER blade + flared base (see taper below) so each
                              // blade covers more ground at its root — hides the floor between blades.
   const TARGET_BLADES = 500000; // v0.2.273: fill the gaps — 500k across the NAP zone (~570/m²).
@@ -93,8 +94,12 @@ function _buildGrass() {
     if (hr < 0.15)     taper = 5.6 - (hr / 0.15) * 4.6;            // v0.2.274: FLARED BASE 4× (5.6 → 1.0) — fat root hides floor
     else if (hr < 0.3) taper = 1.0;                               // wide base
     else if (hr < 0.7) taper = 1.0 - (hr - 0.3) * 1.5;           // gradual middle
-    else               taper = 0.4 - (hr - 0.7) * 1.3;           // sharp tip
+    else               taper = 0.4 - (hr - 0.7) * 1.0;           // v0.2.281: gentler tip (was ×1.3 → needle); softer point
     taper = Math.max(0.05, taper);
+    // v0.2.281: collapse the top row to the centerline so the tip is a TRUE point.
+    // The two top vertices (left + right) both pinned to x=0 — the flat cap that
+    // max(0.05, ...) left is gone. Reads as a soft pointed tip, never flat-on-top.
+    if (hr >= 0.999) taper = 0.0;
     arr[ix] = x * taper;
     arr[ix + 2] += hr * hr * 0.22;   // v0.2.272: stronger forward lean — tips flop over so each
                                      // blade occludes ground ahead of its base (hides the floor).
@@ -270,6 +275,7 @@ function _buildGrass() {
       phase: Math.random(),
       speed: Math.random(),
       tint:  Math.random(),            // per-blade colour tint (cool→warm green)
+      tall:  Math.random() < 0.21,     // v0.2.281: 21% of blades get a further ×1.21 height
     });
   }
 
@@ -281,7 +287,10 @@ function _buildGrass() {
     const p = patches[i];
     _pos.set(p.x, 0, p.z);
     _quat.setFromAxisAngle(_up, p.ry);
-    _scl.setScalar(p.s);
+    // v0.2.281: non-uniform scale — tall blades get ×1.21 on Y (a further 21% on top
+    // of the global +69%). XZ scale stays even so coverage/thinning is unchanged.
+    const sy = p.s * (p.tall ? 1.21 : 1.0);
+    _scl.set(p.s, sy, p.s);
     _m4.compose(_pos, _quat, _scl);
     mesh.setMatrixAt(i, _m4);
     mesh.instanceColor.setXYZ(i, p.phase, p.speed, p.tint);
@@ -326,7 +335,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.280 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34`;
+  const stamp = `[grass-build] v0.2.281 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} flare=5.6 lean=0.22 sink=-0.05 groundCover=0x3d5a2f windGust=0.34 tall21pct=×1.21Y tip=point`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

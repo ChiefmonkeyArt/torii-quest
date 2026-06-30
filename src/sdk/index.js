@@ -170,7 +170,7 @@ export const SDK_SURFACE = Object.freeze({
   // (`leaderboard:submit`). INERT: blocked without a matching grant; never
   // signs/publishes/sends/connects — performed:false on every report.
   submitIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/leaderboard/submitIntent.js' },
-  // LIVE leaderboard publish wiring (M2, v0.2.280) — promotes the relay write to a
+  // LIVE leaderboard publish wiring (M2, v0.2.281) — promotes the relay write to a
   // real NIP-07 sign + relay fan-out, but ONLY behind explicit consent AND the
   // SEC-1 publishGate verdict `crypto-verified`. Reuses nostr.js signEvent +
   // fanoutPublish as injected seams; the write goes THROUGH the gate, never around.

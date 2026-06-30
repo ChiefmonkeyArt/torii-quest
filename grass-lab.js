@@ -67,7 +67,7 @@ geo.translate(0, BLADE_H / 2, 0);
     const y = arr[ix + 1];
     const hr = y / BLADE_H;
     let taper;
-    if (hr < 0.15)     taper = 1.4 - (hr / 0.15) * 0.4;   // v0.2.273: flared base
+    if (hr < 0.15)     taper = 5.6 - (hr / 0.15) * 4.6;   // v0.2.274: flared base 4×
     else if (hr < 0.3) taper = 1.0;
     else if (hr < 0.7) taper = 1.0 - (hr - 0.3) * 1.5;
     else               taper = 0.4 - (hr - 0.7) * 1.3;

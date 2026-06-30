@@ -90,7 +90,7 @@ function _buildGrass() {
     const y = arr[ix + 1];
     const hr = y / BLADE_H;            // height ratio 0..1
     let taper;
-    if (hr < 0.15)     taper = 1.4 - (hr / 0.15) * 0.4;            // v0.2.273: FLARED BASE (1.4 → 1.0)
+    if (hr < 0.15)     taper = 5.6 - (hr / 0.15) * 4.6;            // v0.2.274: FLARED BASE 4× (5.6 → 1.0) — fat root hides floor
     else if (hr < 0.3) taper = 1.0;                               // wide base
     else if (hr < 0.7) taper = 1.0 - (hr - 0.3) * 1.5;           // gradual middle
     else               taper = 0.4 - (hr - 0.7) * 1.3;           // sharp tip

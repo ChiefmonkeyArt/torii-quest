@@ -71,7 +71,9 @@ describe('urlHarden — hardenSpawnUrl reject path (credentials / private hosts)
   });
 
   it('rejects localhost by default', () => {
-    const r = hardenSpawnUrl('https://localhost:3000/');
+    // Default-port URL so this test isolates the private-host check (the
+    // separate :3000 port check is exercised in the port-enforcement block).
+    const r = hardenSpawnUrl('https://localhost/');
     expect(r.ok).toBe(false);
     expect(r.errors).toContain('private-host-rejected');
   });
@@ -89,7 +91,11 @@ describe('urlHarden — hardenSpawnUrl reject path (credentials / private hosts)
   });
 
   it('allows localhost when allowPrivate:true (dev opt-in)', () => {
-    const r = hardenSpawnUrl('https://localhost:3000/', { allowPrivate: true });
+    // Dev opt-in must also pass allowNonDefaultPort to use a typical dev port.
+    const r = hardenSpawnUrl('https://localhost:3000/', {
+      allowPrivate: true,
+      allowNonDefaultPort: true,
+    });
     expect(r.ok).toBe(true);
   });
 });
@@ -115,6 +121,33 @@ describe('urlHarden — hardenSpawnUrl allowlist', () => {
       allowHosts: ['quest-torii.pplx.app'],
     });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe('urlHarden — hardenSpawnUrl port enforcement (v0.2.260 S2)', () => {
+  it('rejects an https URL with an explicit non-443 port by default', () => {
+    const r = hardenSpawnUrl('https://example.com:8443/');
+    expect(r.ok).toBe(false);
+    expect(r.errors).toContain('non-default-port-rejected');
+  });
+
+  it('accepts the same host on the default port', () => {
+    const r = hardenSpawnUrl('https://example.com:443/');
+    expect(r.ok).toBe(true); // WHATWG URL normalises :443 away on https
+  });
+
+  it('allows a non-default port when allowNonDefaultPort:true (dev opt-in)', () => {
+    const r = hardenSpawnUrl('https://example.com:8443/', { allowNonDefaultPort: true });
+    expect(r.ok).toBe(true);
+    expect(r.url).toBe('https://example.com:8443/');
+  });
+
+  it('rejects an allowlisted host that uses a non-default port (host + port enforced independently)', () => {
+    const r = hardenSpawnUrl('https://quest-torii.pplx.app:8443/', {
+      allowHosts: ['quest-torii.pplx.app'],
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors).toContain('non-default-port-rejected');
   });
 });
 

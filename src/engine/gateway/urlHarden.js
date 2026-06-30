@@ -25,8 +25,12 @@ const _PRIVATE_HOST =
   /^(localhost$|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1$|fe80:|fc00:|fd)/i;
 
 // hardenSpawnUrl(raw, opts?) → { ok, url, errors }. Pure; never throws.
-//   opts.allowHosts   — string[]; if present, hostname must match one (case-insensitive)
-//   opts.allowPrivate — boolean; if true, private/loopback hosts are permitted (dev only)
+//   opts.allowHosts          — string[]; if present, hostname must match one (case-insensitive)
+//   opts.allowPrivate        — boolean; if true, private/loopback hosts are permitted (dev only)
+//   opts.allowNonDefaultPort — boolean; if true, allow https URLs with an explicit non-443 port.
+//                              Default false: an https://host:8443/ URL is rejected. This closes
+//                              the "redirect a traveller to a dev/admin server on a random port
+//                              of an otherwise-legit host" path (v0.2.260 audit S2).
 export function hardenSpawnUrl(raw, opts = {}) {
   const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
   const out = { ok: false, url: null, errors: [] };
@@ -37,6 +41,12 @@ export function hardenSpawnUrl(raw, opts = {}) {
   if (u.protocol !== 'https:') { out.errors.push('scheme-must-be-https'); return out; }
   if (!u.hostname) { out.errors.push('hostname-required'); return out; }
   if (u.username || u.password) { out.errors.push('no-credentials-in-url'); return out; }
+  // Default-port enforcement — the WHATWG URL parser normalises https://host:443/
+  // by clearing `u.port`, so any non-empty `u.port` here is an explicit non-443
+  // override. Opt back in with allowNonDefaultPort:true (e.g. for a dev peer).
+  if (u.port && o.allowNonDefaultPort !== true) {
+    out.errors.push('non-default-port-rejected'); return out;
+  }
   // Optional explicit allowlist — strict deployments list their peer hosts.
   const allow = Array.isArray(o.allowHosts)
     ? o.allowHosts.filter((h) => typeof h === 'string').map((h) => h.toLowerCase())

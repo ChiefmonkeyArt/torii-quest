@@ -2,9 +2,9 @@
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
   "generatedAt": "2026-06-30T16:31:08.291Z",
-  "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.268-alpha",
-  "packageVersion": "0.2.268-alpha",
+  "badge": "NEXT-ACTION STATE \u00b7 LOCAL \u00b7 READ-ONLY",
+  "version": "v0.2.269-alpha",
+  "packageVersion": "0.2.269-alpha",
   "gitCommit": "cc400dd",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
@@ -24,7 +24,7 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 1834,
+    "passing": 1843,
     "files": 122
   },
   "manualBlocker": {
@@ -37,7 +37,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.268-alpha"
+    "version": "v0.2.269-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -62,7 +62,7 @@
   "playtestVerdict": {
     "schema": "torii.playtest-verdict",
     "schemaVersion": 1,
-    "badge": "MVP PLAYTEST VERDICT · LOCAL · READ-ONLY · TESTER VERDICT ≠ MVP APPROVAL",
+    "badge": "MVP PLAYTEST VERDICT \u00b7 LOCAL \u00b7 READ-ONLY \u00b7 TESTER VERDICT \u2260 MVP APPROVAL",
     "verdict": "pending",
     "blockers": [],
     "blockerCount": 0,
@@ -104,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.268-alpha",
+    "version": "v0.2.269-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -118,7 +118,7 @@
       "version": "v0.2.231-alpha"
     },
     "manualBlockerPending": true,
-    "nextSafeTask": "Continue the read-only oversight loop — next safe infra/dashboard slice",
+    "nextSafeTask": "Continue the read-only oversight loop \u2014 next safe infra/dashboard slice",
     "workflowInvariants": 5,
     "principles": 11,
     "ethicsNonReligious": true,
@@ -141,15 +141,15 @@
     "impliesPlaytestComplete": false
   },
   "workflowInvariants": [
-    "Do NOT cancel a useful in-progress job halfway through — finish it first, THEN process the user's next request. Cancelling useful work wastes compute time and money.",
-    "Exception — explicit cancel: the user explicitly asks to cancel or abandon the job.",
-    "Exception — immediate conflict: the running job conflicts with an immediate user request (e.g. it would clash with edits the new request needs now).",
-    "Exception — safely resumable: the work can be safely resumed later from where it left off, so stopping loses nothing.",
-    "Exception — stale/hung & already shipped: the job is stale or hung AND its output has already been committed, shipped, pushed, synced, and smoke-tested — stopping it only avoids further waste."
+    "Do NOT cancel a useful in-progress job halfway through \u2014 finish it first, THEN process the user's next request. Cancelling useful work wastes compute time and money.",
+    "Exception \u2014 explicit cancel: the user explicitly asks to cancel or abandon the job.",
+    "Exception \u2014 immediate conflict: the running job conflicts with an immediate user request (e.g. it would clash with edits the new request needs now).",
+    "Exception \u2014 safely resumable: the work can be safely resumed later from where it left off, so stopping loses nothing.",
+    "Exception \u2014 stale/hung & already shipped: the job is stale or hung AND its output has already been committed, shipped, pushed, synced, and smoke-tested \u2014 stopping it only avoids further waste."
   ],
   "nextSafeTask": {
-    "title": "Continue the read-only oversight loop — next safe infra/dashboard/tooling slice",
-    "why": "Keep shipping no-runtime-risk tooling/docs that make the MVP proof easier to read and the gate harder to get wrong. SEC-gated live-relay / world-hop / shooting work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.",
+    "title": "Continue the read-only oversight loop \u2014 next safe infra/dashboard/tooling slice",
+    "why": "Keep shipping no-runtime-risk tooling/docs that make the MVP proof easier to read and the gate harder to get wrong. SEC-gated live-relay / world-hop / shooting work stays parked behind SEC-1/2/3 and a manual deploy \u2014 not a safe pick yet.",
     "kind": "infra"
   },
   "constraints": [

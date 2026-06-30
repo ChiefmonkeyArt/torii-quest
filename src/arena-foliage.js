@@ -57,58 +57,45 @@ export function getTulipMat()  { return _tulipMat; } // v0.2.263
 
 // ── Instanced grass ───────────────────────────────────────────────────────────
 function _buildGrass() {
-  // v0.2.266c: FLAT TAPERED RIBBON blade. The V-channel cross-section (3 verts/row)
-  // read as folded/creased/angular shards — its two angled faces per segment
-  // created visible crease lines and a jagged silhouette. A flat ribbon (2 verts/row)
-  // is the standard convincing-grass approach (cf. SimonDev): a smooth single-plane
-  // blade with a quadratic bend + taper. Per-blade Y rotation + density keep it from
-  // disappearing edge-on. Shorter, thinner, more upright than v0.2.265.
-  const BLADE_SEGS   = 20;   // v0.2.266c: smooth quadratic bend — more segments = smoother curve, less polygonal kink.
-  const BLADE_H      = 0.30; // v0.2.266: shorter + more upright (was 0.46).
-  const BLADE_W      = 0.014;// v0.2.266c: thin but visible — too-thin blades alias to noise at distance.
-  const BLADES_PATCH = 1;    // v0.2.265: single blade per instance — instances are scattered uniformly
-                             // across the NAP zone so the field covers the ground evenly instead of in clumps.
-  const PATCH_RADIUS = 0.78;
-  const SPACING      = 0.16; // v0.2.265: tight uniform grid (~39 blades/m²) for full even ground coverage.
+  // v0.2.267: FROM-SCRATCH BLADE based on the threejsdemos.com procedural grass
+  // demo (grass-controller.js). The flat-ribbon approach (v0.2.266c) still read
+  // as jagged shards in SwiftShader. The demo's proven recipe: a PlaneGeometry
+  // blade with a CPU piecewise taper (wide base → gradual middle → sharp tip) +
+  // a slight quadratic forward curve, driven by an InstancedMesh whose
+  // instanceColor carries (phase, brightness, hueShift). The organic multi-octave
+  // gust wind from v0.2.266 is retained on top — only the blade + colour pipeline
+  // are ported from the demo.
+  const BLADE_SEGS = 8;     // demo default: 8 height divisions (9 rows) — smooth, cheap.
+  const BLADE_H    = 0.30;  // shorter + more upright (matches v0.2.266 scale).
+  const BLADE_W    = 0.018; // thin but visible; per-blade taper widens the base.
+  const SPACING    = 0.12;  // denser field (~70 blades/m²) — user asked for "more of it".
 
-  // Flat ribbon: 2 verts per row (left, right) + one tip vertex. Rows use
-  // t = row/SEGS (never 1) so the top row keeps a non-zero width — avoids the
-  // degenerate zero-area triangles that produced NaN normals / black tip speckles.
-  const VERTS_PER_BLADE = BLADE_SEGS * 2 + 1;
-  const positions = [], uvs = [], indices = [];
+  // PlaneGeometry(width, height, 1, 8): 2 columns × 9 rows. Translate so the
+  // base sits at y=0 and the blade grows upward to y=BLADE_H.
+  const geo = new THREE.PlaneGeometry(BLADE_W, BLADE_H, 1, BLADE_SEGS);
+  geo.translate(0, BLADE_H / 2, 0);
 
-  for (let b = 0; b < BLADES_PATCH; b++) {
-    const base = b * VERTS_PER_BLADE;
-    for (let row = 0; row < BLADE_SEGS; row++) {
-      const t  = row / BLADE_SEGS;   // 0 at base .. (SEGS-1)/SEGS — never 1, avoids degenerate tip tris
-      const y  = t * BLADE_H;
-      // smooth taper to a sharp point.
-      const hw = BLADE_W * Math.pow(1.0 - t, 1.6);
-      positions.push(-hw, y, 0,    hw, y, 0);
-      uvs.push(0, t,  1, t);
-    }
-    // Tip cap — a single apex vertex + one tri from the last row.
-    positions.push(0, BLADE_H, 0);
-    uvs.push(0.5, 1.0);
-    // One quad (2 tris) per row pair — a single smooth plane, no crease line.
-    for (let row = 0; row < BLADE_SEGS - 1; row++) {
-      const l0 = base + row * 2;
-      const r0 = l0 + 1;
-      const l1 = l0 + 2, r1 = l0 + 3;
-      indices.push(l0, r0, r1,  l0, r1, l1);   // quad face
-    }
-    // tip cap tri (last row's 2 verts → tip)
-    const lr = base + (BLADE_SEGS - 1) * 2;
-    const rr = lr + 1;
-    const tip = base + BLADE_SEGS * 2;
-    indices.push(lr, rr, tip);
+  // CPU piecewise taper + curve (ported from the demo's math). Gives a natural
+  // blade silhouette instead of a flat rectangle: wide base, gradual middle
+  // taper, sharp tip, plus a tiny forward curl.
+  const posAttr = geo.attributes.position;
+  const arr = posAttr.array;
+  const vCount = arr.length / 3;
+  for (let i = 0; i < vCount; i++) {
+    const ix = i * 3;
+    const x = arr[ix];
+    const y = arr[ix + 1];
+    const hr = y / BLADE_H;            // height ratio 0..1
+    let taper;
+    if (hr < 0.3)      taper = 1.0;                       // wide base
+    else if (hr < 0.7) taper = 1.0 - (hr - 0.3) * 1.5;   // gradual middle
+    else               taper = 0.4 - (hr - 0.7) * 1.3;   // sharp tip
+    taper = Math.max(0.05, taper);
+    arr[ix] = x * taper;
+    arr[ix + 2] += hr * hr * 0.08;    // slight forward curve along +Z
   }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-  geo.setAttribute('uv',       new THREE.BufferAttribute(new Float32Array(uvs), 2));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();   // flat plane normal (0,0,1); per-blade facing comes from instance Y-rotation
+  posAttr.needsUpdate = true;
+  geo.computeVertexNormals();   // plane normal (0,0,1); per-blade facing comes from instance Y-rotation
 
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -116,95 +103,120 @@ function _buildGrass() {
       uWindDir: { value: { x: 0.707, y: 0.707 } },
     },
     vertexShader: /* glsl */`
-      varying float vT;
-      varying float vTint;   // per-blade colour tint (instanceColor.b)
-      varying vec3  vWn;     // world-space blade facing normal (two-sided lighting in frag)
+      varying float vT;       // height ratio 0..1
+      varying float vBright;  // per-blade brightness (instanceColor.g)
+      varying float vHue;     // per-blade hue shift (instanceColor.b)
+      varying vec3  vWn;      // world-space blade facing normal (two-sided lighting in frag)
       uniform float uTime;
       uniform vec2  uWindDir;
       void main() {
         float h = ${BLADE_H.toFixed(4)};
         float t = clamp(position.y / h, 0.0, 1.0);
         vT = t;
-        vTint = instanceColor.b;
+        vBright = instanceColor.g;
+        vHue = instanceColor.b;
 
         vec3 p = position;
 
-        // (2) Quadratic Bezier spine — a SMALL forward curl along the keel (+Z).
-        // v0.2.266: far less curl than v0.2.265 so blades stand mostly upright
-        // with only a gentle natural lean, instead of arching over ("folded").
-        float curl = 0.035 + instanceColor.g * 0.045;
-        float bz   = 2.0 * (1.0 - t) * t * (curl * 0.5) + t * t * curl;
-        p.z += bz;
-        // minimal droop — just enough that the tip reads as the end of a curve
-        p.y -= 0.018 * t * t;
-
-        // v0.2.266c: flat ribbon — normal is the plane facing (0,0,1). Per-blade
-        // facing variation comes from the CPU instance Y-rotation; the world normal
-        // is passed to the fragment shader which flips it for back faces (gl_FrontFacing
-        // is fragment-only).
-        vWn = mat3(modelMatrix * instanceMatrix) * normal;
-
-        // (3) Wind — world-space, patch-coherent but ORGANIC (v0.2.266).
-        // The old single traveling sine front made the whole field pulse in
-        // unison (regimented/clockwork). Now: a low-frequency multi-octave gust
-        // envelope built from incommensurate sines, each with a per-blade phase
-        // so neighbouring blades desync and patches rise independently — wind
-        // reads as rolling gusts over random patches, not a metronome.
+        // World-space instance origin for the patch-coherent gust field.
         vec3 wpos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-        float ph  = instanceColor.r * 6.2832;   // per-blade phase
+        float ph = instanceColor.r * 6.2832;   // per-blade phase
 
-        // Low-frequency gust envelope: slow in space + time, summed sines at
-        // incommensurate frequencies/directions → irregular patches of calm/peak.
+        // v0.2.266 ORGANIC WIND (retained): a low-frequency multi-octave gust
+        // envelope built from incommensurate sines, each per-blade phase-shifted,
+        // so neighbouring blades desync and patches rise independently - reads as
+        // rolling gusts, not a metronome. Layered on top of the demo blade.
         float g1 = sin(wpos.x * 0.21 + uTime * 0.70 + ph);
         float g2 = sin(wpos.z * 0.17 - uTime * 0.50 + ph * 1.7);
         float g3 = sin((wpos.x + wpos.z) * 0.11 + uTime * 0.30 + ph * 0.6);
         float gust = (g1 * 0.5 + g2 * 0.3 + g3 * 0.2) * 0.5 + 0.5;   // 0..1
         gust = smoothstep(0.25, 0.95, gust);
 
-        // High-frequency flutter: a different direction + faster tempo, also
-        // per-blade phase-shifted, so the tips shimmer independently.
+        // High-frequency flutter - independent tip shimmer, different direction/tempo.
         float flut = sin(wpos.x * 1.30 + wpos.z * 0.70 + uTime * 2.20 + ph * 3.1)
                    + cos(wpos.z * 1.10 - wpos.x * 0.50 + uTime * 1.70 - ph * 2.3);
 
+        // heightPower: tips bend most, base stays put (quadratic - from the demo).
+        float heightPower = t * t;
+        float amp = 0.6 + vBright * 0.4;     // per-blade wind amplitude (demo pattern)
         float wind = 0.016 + gust * 0.10 + flut * 0.009;
-        float sway = wind * t * t;            // tip sways most, base stays put
+        float sway = wind * heightPower * amp;
 
+        // Apply bend in world space along the gust direction + perpendicular flutter.
         vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
-        wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);   // gust dir
-        // lateral flutter perpendicular to wind dir so blades don't all lean one way
+        wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);
         wp.x += (-uWindDir.y) * flut * 0.009 * t;
         wp.z += ( uWindDir.x) * flut * 0.009 * t;
 
-        // Lighting moved to fragment shader (needs gl_FrontFacing, which is
-        // fragment-only). vWn carries the world-space facing normal.
+        // Vertical compression when bending (demo physics) - keeps arc length believable.
+        float totalBend = abs(sway) + abs(flut * 0.009 * t);
+        wp.y *= (1.0 - totalBend * 0.1 * heightPower);
+
+        // World facing normal for two-sided lighting in the fragment shader.
+        vWn = mat3(modelMatrix * instanceMatrix) * normal;
 
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
     fragmentShader: /* glsl */`
       varying float vT;
-      varying float vTint;
+      varying float vBright;
+      varying float vHue;
       varying vec3  vWn;
+
+      // HSV <-> RGB (from the demo) for per-blade hue/saturation variation.
+      vec3 hsv2rgb(vec3 c) {
+        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+      }
+      vec3 rgb2hsv(vec3 c) {
+        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+      }
+
       void main() {
-        // Per-blade tint: lerp between a cool deep green and a warm yellow-green
-        // so the field reads as varied growth, not a single flat colour.
-        vec3 rootCol = vec3(0.01, 0.14, 0.02);
-        vec3 midCool = vec3(0.09, 0.48, 0.07);
-        vec3 midWarm = vec3(0.22, 0.52, 0.05);
-        vec3 tipCool = vec3(0.32, 0.92, 0.20);
-        vec3 tipWarm = vec3(0.52, 0.88, 0.12);
-        vec3 midCol  = mix(midCool, midWarm, vTint);
-        vec3 tipCol  = mix(tipCool, tipWarm, vTint);
-        vec3 col = vT < 0.5
-          ? mix(rootCol, midCol, vT * 2.0)
-          : mix(midCol,  tipCol, (vT - 0.5) * 2.0);
-        float ao = smoothstep(0.0, 0.15, vT);
-        // Two-sided diffuse from the world facing normal (flip for back faces).
+        // 4-stage colour gradient (demo): dark root -> base -> mid -> tip.
+        vec3 rootCol = vec3(0.08, 0.22, 0.06);
+        vec3 baseCol = vec3(0.12, 0.35, 0.08);
+        vec3 midCol  = vec3(0.18, 0.55, 0.12);
+        vec3 tipCol  = vec3(0.25, 0.65, 0.15);
+
+        // Per-blade brightness variation (0.8..1.2).
+        float bright = 0.8 + vBright * 0.4;
+        rootCol *= bright; baseCol *= bright; midCol *= bright; tipCol *= bright;
+
+        vec3 col;
+        if (vT < 0.2)      col = mix(rootCol, baseCol, vT * 5.0);
+        else if (vT < 0.7) col = mix(baseCol, midCol,  (vT - 0.2) * 2.0);
+        else               col = mix(midCol,  tipCol,  (vT - 0.7) * 3.33);
+
+        // HSV hue shift (+/-5%, stays green) + saturation variation (demo).
+        vec3 hsv = rgb2hsv(col);
+        hsv.x += (vHue - 0.5) * 0.1;
+        hsv.x = fract(hsv.x);
+        hsv.y *= (0.85 + vBright * 0.3);
+        col = hsv2rgb(hsv);
+
+        // Two-sided diffuse from the world facing normal (flip for back faces)
+        // + subsurface back-light (demo) for translucency.
         vec3 wn = normalize(vWn);
         if (!gl_FrontFacing) wn = -wn;
-        vec3 L  = normalize(vec3(0.40, 0.85, 0.40));
-        float vDiff = 0.40 + 0.60 * max(0.0, dot(wn, L));
-        gl_FragColor = vec4(col * (0.6 + 0.4 * ao) * vDiff, 1.0);
+        vec3 L = normalize(vec3(1.0, 1.0, 0.5));
+        float NdotL = dot(wn, L);
+        float light = NdotL * 0.6 + 0.4;
+        light += max(0.0, -NdotL) * 0.3;
+        col *= light;
+
+        // Per-pixel micro-noise for natural variation (demo).
+        float noise = fract(sin(gl_FragCoord.x * 12.9898 + gl_FragCoord.y * 78.233) * 43758.5453);
+        col *= (0.95 + noise * 0.1);
+
+        gl_FragColor = vec4(col, 1.0);
       }
     `,
     side: THREE.DoubleSide,

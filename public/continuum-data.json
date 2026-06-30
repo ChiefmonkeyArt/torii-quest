@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.264-alpha",
-  "generatedAt": "2026-06-30T14:05:46.028Z",
+  "version": "v0.2.265-alpha",
+  "generatedAt": "2026-06-30T15:41:05.122Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.264-alpha"
+        "value": "v0.2.265-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "15 / 15 regression checks GREEN · last green v0.2.264-alpha"
+        "value": "15 / 15 regression checks GREEN · last green v0.2.265-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -155,8 +155,8 @@
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
-    "status": "ready",
-    "statusLabel": "READY",
+    "status": "docs-ready",
+    "statusLabel": "DOCS READY · BUILD CHECK PENDING",
     "checks": [
       {
         "item": "SPA /zone/* fallback documented",
@@ -165,8 +165,8 @@
       },
       {
         "item": "Built dist route shape",
-        "state": "no-blocker",
-        "note": "dist/index.html present; no static file under /zone/* shadows the fallback"
+        "state": "deferred",
+        "note": "no dist/ this build — run npm run build then npm run zones:check"
       },
       {
         "item": "Host SPA fallback configured",
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.264-alpha",
-    "gitCommit": "a1466bc",
+    "version": "v0.2.265-alpha",
+    "gitCommit": "f3399b6",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.264-alpha / pkg 0.2.264-alpha"
+        "detail": "config v0.2.265-alpha / pkg 0.2.265-alpha"
       },
       {
         "key": "tests",
@@ -218,16 +218,16 @@
       {
         "key": "bundle",
         "label": "Bundle baseline",
-        "state": "advisory",
-        "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
+        "state": "skipped",
+        "pill": "deferred",
+        "detail": "no dist/ — build then bundle:report"
       },
       {
         "key": "zoneFallback",
         "label": "/zone/* fallback",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "docs + dist ok"
+        "detail": "docs ok · dist check pending"
       },
       {
         "key": "docs",
@@ -252,7 +252,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.264-alpha",
+    "version": "v0.2.265-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -267,7 +267,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.264-alpha"
+        "value": "v0.2.265-alpha"
       },
       {
         "label": "Release manifest",
@@ -399,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.264-alpha",
+    "version": "v0.2.265-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -409,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.264-alpha"
+        "value": "v0.2.265-alpha"
       },
       {
         "label": "Approved by",
@@ -561,7 +561,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.264-alpha"
+        "value": "v0.2.265-alpha"
       },
       {
         "label": "Live game",

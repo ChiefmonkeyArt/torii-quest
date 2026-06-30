@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.264-alpha",
+  "version": "0.2.265-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -37,7 +37,8 @@
     "release:status:json": "node tools/release-readiness.mjs --json",
     "test": "vitest run",
     "test:fast": "node tools/test-profile.mjs fast",
-    "test:foundation": "node tools/test-profile.mjs foundation",
+    "test:foundation": "vitest run --changed origin/main --passWithNoTests",
+    "test:foundation:list": "node tools/test-profile.mjs foundation",
     "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run handoff:status"
   },
   "devDependencies": {

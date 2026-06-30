@@ -6,11 +6,17 @@
 // helpers). Deterministic + plain-data so the logic is unit-testable
 // (tests/test-profiles.test.js).
 //
-// Philosophy: agents touching engine seams want a sub-second signal, not the full ~786-test
+// Philosophy: agents touching engine seams want a sub-second signal, not the full ~1843-test
 // suite. The profiles are EXPLICIT curated lists (no git-diff heuristics) so they are stable
 // and handoff-friendly. `fast` is the tiny core that breaks first; `foundation` is the wider
 // pure-engine + tooling-guard + security-gate core. The FULL suite is still the release gate
 // (`npm run test:release`) — profiles speed up iteration, they never replace release safety.
+//
+// E2 (v0.2.265): `npm run test:foundation` no longer runs this curated `foundation` list — it
+// now runs `vitest run --changed origin/main --passWithNoTests`, i.e. only the tests affected
+// by the diff vs origin/main (vitest's related-graph semantics), so there is no manual list to
+// keep in sync for the PR inner loop. The curated `foundation` list below is still RUNNABLE via
+// `npm run test:foundation:list` and remains the source of the dashboard/handoff profile counts.
 
 // The glob the full suite (vitest) runs. Profiles are a strict subset of these files.
 export const ALL_TESTS_GLOB = 'tests/**/*.test.js';

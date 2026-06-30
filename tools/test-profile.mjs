@@ -4,9 +4,13 @@
 // timing footer so the savings vs. the full suite are obvious in logs.
 //
 // Usage:
-//   node tools/test-profile.mjs fast            # run the fast profile
-//   node tools/test-profile.mjs foundation      # run the foundation profile
+//   node tools/test-profile.mjs fast            # run the fast profile  (npm run test:fast)
+//   node tools/test-profile.mjs foundation      # run the curated foundation list (npm run test:foundation:list)
 //   node tools/test-profile.mjs fast --list      # print the resolved files, run nothing
+//
+// NOTE (E2, v0.2.265): `npm run test:foundation` no longer routes here — it now runs
+// `vitest run --changed origin/main --passWithNoTests` (change-detection, no curated list).
+// The curated foundation set is preserved as `npm run test:foundation:list` (this CLI).
 //
 // This only READS local files and spawns the local vitest binary — no network, no build, no
 // secrets. It is a developer convenience, NOT the release gate: every public deploy/publish

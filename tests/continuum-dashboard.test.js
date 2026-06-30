@@ -34,7 +34,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.264-alpha');
+    expect(CONTINUUM_VERSION).toBe('v0.2.265-alpha');
     expect(CONTINUUM_VERSION).toBe(VERSION);
     expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
@@ -139,7 +139,7 @@ describe('continuumDataJSON', () => {
   it('is JSON-serialisable and carries totals + the seed contributors', () => {
     const j = continuumDataJSON();
     const round = JSON.parse(JSON.stringify(j));
-    expect(round.version).toBe('v0.2.264-alpha');
+    expect(round.version).toBe('v0.2.265-alpha');
     expect(round.totals.pocProgressPct).toBe(47);
     expect(round.contributors.isSeed).toBe(true);
   });
@@ -151,7 +151,7 @@ describe('renderContinuumPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.264-alpha');
+    expect(html).toContain('v0.2.265-alpha');
     expect(html).toContain('Torii Continuum');
   });
 
@@ -1238,7 +1238,9 @@ describe('test-count freshness (v0.2.200 — single source of truth)', () => {
     const tests = CONTINUUM.metrics.find((m) => m.label === 'Tests');
     expect(tests.value).toContain(testCountLabel());
     expect(tests.value).toContain(`test:fast ~${CURRENT_TEST_STATUS.fastProfile}`);
-    expect(tests.value).toContain(`test:foundation ~${CURRENT_TEST_STATUS.foundationProfile}`);
+    expect(tests.value).toContain(`test:foundation:list ~${CURRENT_TEST_STATUS.foundationProfile}`);
+    // E2 (v0.2.265): test:foundation is now change-detection (vitest --changed), not the curated list.
+    expect(tests.value).toContain('test:foundation = vitest --changed origin/main');
   });
 
   it('the curated count agrees across both captures (dashboard vs MVP rollup)', () => {
@@ -1615,7 +1617,7 @@ describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier (dashboard barrel)', () => {
     // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.264-alpha');
+    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.265-alpha');
     expect(typeof DashboardSDK.continuum.renderContinuumPage).toBe('function');
     expect(DashboardSDK.DASHBOARD_SURFACE.continuum.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.

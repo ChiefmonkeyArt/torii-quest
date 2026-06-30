@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-06-30T08:43:46.992Z",
+  "generatedAt": "2026-06-30T15:40:58.879Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.264-alpha",
-  "packageVersion": "0.2.260-alpha",
-  "gitCommit": "893cf9c",
+  "version": "v0.2.265-alpha",
+  "packageVersion": "0.2.265-alpha",
+  "gitCommit": "f3399b6",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -35,7 +35,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.259-alpha"
+    "version": "v0.2.265-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -102,7 +102,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.264-alpha",
+    "version": "v0.2.265-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -171,10 +171,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
-    "torii-v0.2.233-handoff-release-control-report.md",
-    "torii-v0.2.234-mvp-approval-gate-report.md",
-    "torii-v0.2.235-playtest-result-capture-loop-report.md",
-    "torii-v0.2.236-nostr-login-runtime-fix-report.md"
+    "torii-v0.2.213-shellless-release-tooling-report.md",
+    "torii-v0.2.214-continuum-rc-status-report.md",
+    "torii-v0.2.215-manual-validation-dashboard-report.md",
+    "torii-v0.2.216-no-blocker-queue-dashboard-report.md"
   ],
   "safety": {
     "deploy": false,

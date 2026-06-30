@@ -60,9 +60,9 @@ Goal: promote selected proof surfaces into richer, more functional experiences a
 - Further player-boundary / FSM cleanup that is not directly required for the MVP.
 
 ### Standing security gates for live promotion
-- SEC-1 leaderboard publish gate — required before any live leaderboard signer / relay publish wiring.
-- SEC-2 handoff verification gate — required before any live relay-backed or signed handoff path is trusted.
-- SEC-3 product URL hardening gate — required before any product URL becomes clickable or fetched.
+- SEC-1 leaderboard publish gate — BUILT v0.2.257 (`src/engine/leaderboard/publishGate.js`): a pure, node-safe structural gate (signer match + event shape + score validity + abuse ceilings + consent + topic tag) wired opt-in into the publisher adapter so a relay write can never run ungated. Full BIP-340 sig verification is the next crypto layer. The live NIP-07 signer + relay publish PATH in main.js remains consent-gated + deferred — this gate is what must clear before that wiring is promoted.
+- SEC-2 handoff verification gate — BUILT v0.2.252 (`src/engine/gateway/handoffVerify.js`): structural accept-verification (host match + request reference + traveller addressing + https spawn) wired into the handshake controller.
+- SEC-3 product URL hardening gate — BUILT v0.2.253 (`src/engine/gateway/urlHarden.js`): scheme/host allowlist + private-host rejection + traveller-npub append, wired into `_executeJump` so no URL becomes navigable until it clears.
 
 These are not Milestone 1 delivery tasks unless live promotion is explicitly being advanced, but they are also not ordinary backlog items to forget. Keep them visible as standing gates that must be cleared before the related live features are promoted.
 

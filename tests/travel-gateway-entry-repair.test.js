@@ -22,7 +22,9 @@ import { TRAVEL_GATE_X } from '../src/config.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SW = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
 const ARENA = readFileSync(join(ROOT, 'src/arena.js'), 'utf8');
-const MAIN = readFileSync(join(ROOT, 'src/main.js'), 'utf8');
+// v0.2.264 (R2): the in-world portal trigger moved from main.js (now the three-free
+// shell) into arenaRuntime.js, dynamically imported on ENTER ARENA.
+const MAIN = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 
 describe('v0.2.240 — service worker precache is fail-soft (non-atomic)', () => {
   it('does NOT call the atomic cache.addAll(PRECACHE_ASSETS) that wedged the v0.2.239 install', () => {

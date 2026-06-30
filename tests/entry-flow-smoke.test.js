@@ -172,12 +172,15 @@ describe('entry-flow runtime proof — inline bundle-independent bootstrap (v0.2
 // deps), imported BEFORE scene.js and self-installing on import, so a LOADED bundle always wires
 // login regardless of the 3D boot. These contracts freeze that decoupling.
 describe('login decoupled from the 3D boot — loaded bundle never stuck in fallback (v0.2.236)', () => {
-  it('main.js imports loginBootstrap.js BEFORE ./scene.js (login wires before the WebGL renderer)', () => {
+  it('main.js wires loginBootstrap.js and NEVER statically imports ./scene.js (renderer deferred behind ENTER — v0.2.264 R2)', () => {
     const bootImport = MAIN.indexOf("'./engine/ui/loginBootstrap.js'");
-    const sceneImport = MAIN.indexOf("from './scene.js'");
     expect(bootImport).toBeGreaterThanOrEqual(0);
-    expect(sceneImport).toBeGreaterThanOrEqual(0);
-    expect(bootImport).toBeLessThan(sceneImport);
+    // R2: the WebGL renderer (scene.js) now lives in arenaRuntime.js, dynamically
+    // imported ONLY inside the ENTER handler. The shell must not statically import
+    // it — login (and the whole title screen) wires with zero three on first paint.
+    expect(MAIN).not.toMatch(/from\s+['"]\.\/scene\.js['"]/);
+    // The renderer is reachable only via the deferred arenaRuntime import.
+    expect(MAIN).toMatch(/import\(\s*['"]\.\/arenaRuntime\.js['"]\s*\)/);
   });
 
   it('loginBootstrap.js has NO THREE / scene / WebGL dependency (a 3D throw cannot kill login)', () => {

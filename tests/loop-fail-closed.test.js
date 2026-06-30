@@ -21,6 +21,10 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN = readFileSync(join(ROOT, 'src/main.js'), 'utf8');
+// v0.2.264 (R2): the three-dependent boot + render loop moved out of main.js (the
+// three-free shell) into arenaRuntime.js, which is dynamically imported only on
+// ENTER ARENA. The boot-order contract below now applies to arenaRuntime.js.
+const RUNTIME = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 
 // Drive the loop synchronously with a bounded rAF stub. Because loop.js (v0.2.238)
 // reschedules AFTER a healthy update, a synchronous stub walks frame-by-frame and
@@ -89,31 +93,33 @@ describe('loop.js fail-closed behaviour (v0.2.238)', () => {
   });
 });
 
-describe('main.js boot-order contract — loop starts last, after ENTER readiness (v0.2.238)', () => {
-  it('the render loop is started AFTER window.__toriiEnterReady is set (eval cannot abort the handler)', () => {
-    const enterFlag = MAIN.indexOf('window.__toriiEnterReady = true');
-    const startCall = MAIN.lastIndexOf('startLoop()');
-    expect(enterFlag).toBeGreaterThanOrEqual(0);
-    expect(startCall).toBeGreaterThan(enterFlag);
+describe('boot-order contract — loop starts last, behind the three-free shell (v0.2.238; relocated to arenaRuntime.js v0.2.264 R2)', () => {
+  it('the ENTER-ready flag is set synchronously in the three-free shell, and the render loop is NOT started there (deferred behind ENTER)', () => {
+    // R2: window.__toriiEnterReady is raised in main.js (the shell), which imports
+    // no three — so a 3D/WebGL throw can NEVER abort the ENTER handler binding.
+    // startLoop() lives in arenaRuntime.js now, only reached via the deferred
+    // import on ENTER — strictly AFTER the flag is already set on the title screen.
+    expect(MAIN).toMatch(/window\.__toriiEnterReady = true/);
+    expect(MAIN).not.toMatch(/startLoop\(\)/);
   });
 
   it('the render loop is started AFTER the _portalTrigger definition (no uninitialised read on frame 0)', () => {
-    const portalDef = MAIN.indexOf('const _portalTrigger');
-    const startCall = MAIN.lastIndexOf('startLoop()');
+    const portalDef = RUNTIME.indexOf('const _portalTrigger');
+    const startCall = RUNTIME.lastIndexOf('startLoop()');
     expect(portalDef).toBeGreaterThanOrEqual(0);
     expect(startCall).toBeGreaterThan(portalDef);
   });
 
   it('the boot block no longer starts the loop eagerly before the module-level state exists', () => {
-    // The eager start sat right after initTargetReticle(...). Assert it was moved out of there.
-    const bootSlice = MAIN.slice(MAIN.indexOf('initTargetReticle('), MAIN.indexOf('const _portalTrigger'));
-    // Match the actual CALL (terminating semicolon), not the prose "startLoop()" in the boot comment.
+    // The eager start once sat right after initTargetReticle(...). Assert the loop
+    // start is at the END of boot(), after the entity init block.
+    const bootSlice = RUNTIME.slice(RUNTIME.indexOf('initTargetReticle('), RUNTIME.indexOf('initLoop(update'));
     expect(bootSlice).not.toMatch(/startLoop\(\);/);
   });
 
   it('the loop is wired with a fatal handler that surfaces a visible, actionable message', () => {
-    expect(MAIN).toMatch(/initLoop\(\s*update\s*,\s*_onLoopFatal\s*\)/);
-    const fatalFn = MAIN.slice(MAIN.indexOf('function _onLoopFatal'), MAIN.indexOf('initLoop(update'));
+    expect(RUNTIME).toMatch(/initLoop\(\s*update\s*,\s*_onLoopFatal\s*\)/);
+    const fatalFn = RUNTIME.slice(RUNTIME.indexOf('function _onLoopFatal'), RUNTIME.indexOf('initLoop(update'));
     expect(fatalFn).toMatch(/showEntryStatus\(/);
     expect(fatalFn).toMatch(/reload the page/i);
   });

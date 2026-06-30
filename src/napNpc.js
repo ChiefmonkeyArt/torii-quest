@@ -3,6 +3,7 @@
 // Chiefmonkey idles there as a landmark. No collider — purely decorative.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 
 let _root  = null;
@@ -17,7 +18,11 @@ const NPC_Z = 5;
 export function buildNapNpc() {
   if (_root) return; // already built
 
-  new GLTFLoader().load('/chiefmonkey6.glb', gltf => {
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  loader.load('/chiefmonkey6.glb', gltf => {
     _root = gltf.scene;
 
     // Metre-scale GLB — render at 1.0 like the player model. Measure geometry-only

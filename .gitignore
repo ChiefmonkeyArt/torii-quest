@@ -5,3 +5,7 @@ dist/
 .env
 .env.*
 !.env.example
+
+# GLB optimizer backups (tools/optimize-glbs.mjs --write)
+public/*.glb.original
+

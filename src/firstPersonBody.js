@@ -5,6 +5,7 @@
 // player so it tracks the eye. Its own mixer plays a small idle/walk/run set.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
 
@@ -30,7 +31,11 @@ const _wp = new THREE.Vector3();
 export function loadFirstPersonBody(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; }
 
-  new GLTFLoader().load('/chiefmonkey-headless.glb', gltf => {
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  loader.load('/chiefmonkey-headless.glb', gltf => {
     _root = gltf.scene;
 
     let minY = Infinity;

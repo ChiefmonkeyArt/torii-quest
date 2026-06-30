@@ -2,6 +2,7 @@
 // Supports multiple selectable characters. Call setCharacter() before loadPlayerModel().
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
@@ -79,7 +80,11 @@ export function loadPlayerModel(parentObj) {
   const char = CHARACTERS[_charKey];
   _anims = char.anims;
 
-  new GLTFLoader().load(char.file, gltf => {
+  const _draco = new DRACOLoader();
+  _draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+  const _loader = new GLTFLoader();
+  _loader.setDRACOLoader(_draco);
+  _loader.load(char.file, gltf => {
     _root = gltf.scene;
 
     // Scale to TARGET_HEIGHT using geometry-only bounds (Box3.setFromObject includes

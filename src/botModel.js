@@ -2,6 +2,7 @@
 // Each bot gets its own cloned scene + mixer. Shared geometry via clone().
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { scene } from './scene.js';
 
@@ -24,7 +25,11 @@ let _loadPromise   = null;
 function _loadTemplate() {
   if (_loadPromise) return _loadPromise;
   _loadPromise = new Promise((resolve, reject) => {
-    new GLTFLoader().load('/banker-rigged.glb', gltf => {
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load('/banker-rigged.glb', gltf => {
       _templateScene = gltf.scene;
       _templateClips = gltf.animations;
       // GLB exported with alphaMode=BLEND — makes mesh translucent and causes

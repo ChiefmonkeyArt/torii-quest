@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `strategy.md` = vision/decision rules · `todo.md` = active task queue.
-> Current version: **v0.2.282-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.283-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 
 ---
@@ -10,7 +10,7 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.282-alpha** (build truth; live trails — manual maintainer deploy) |
+| Source version | **v0.2.283-alpha** (build truth; live trails — manual maintainer deploy) |
 | Tests | **1872 passing / 125 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **16 / 16 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |

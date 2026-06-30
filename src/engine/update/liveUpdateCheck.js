@@ -1,5 +1,5 @@
 // src/engine/update/liveUpdateCheck.js — LIVE, cached update-check orchestration
-// (M2, v0.2.282). Promotes the host-only GitHub fetch seam (githubReleaseSource
+// (M2, v0.2.283). Promotes the host-only GitHub fetch seam (githubReleaseSource
 // .fetchLatestRelease) from "wired in tests only" to the surface the title-screen
 // UPDATE card actually consumes, so an installed copy self-reports its TRUE standing
 // against the latest published release instead of a hard-coded local fixture.

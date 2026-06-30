@@ -1,5 +1,5 @@
 // tests/leaderboard-live-publish.test.js — LIVE leaderboard publish wiring (M2,
-// v0.2.282, src/engine/leaderboard/livePublish.js). Promotes the relay write to a
+// v0.2.283, src/engine/leaderboard/livePublish.js). Promotes the relay write to a
 // real NIP-07 sign + relay fan-out, but ONLY behind explicit consent AND the SEC-1
 // crypto-verified publishGate. We mock the NIP-07 signer + relay pool AT THE SEAM
 // and exercise: a consented, crypto-verified score reaches the relay pool with the

@@ -19,11 +19,11 @@ import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 import { productPreviewBlock } from './engine/components/productPreview.js';
 import { leaderboardPreviewBlock } from './engine/nostr/leaderboardPreview.js';
-// v0.2.282 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
+// v0.2.283 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
 import { summariseConsent } from './engine/consent/consentGate.js';
-// v0.2.282 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
+// v0.2.283 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
 import { checkForUpdateLive, liveStatusView } from './engine/update/liveUpdateCheck.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
@@ -396,7 +396,7 @@ function renderLeaderboardPreview() {
 }
 renderLeaderboardPreview();
 
-// ── LIVE leaderboard publish (M2, v0.2.282) ────────────────────────────────────
+// ── LIVE leaderboard publish (M2, v0.2.283) ────────────────────────────────────
 // The promoted relay write. A consented, crypto-verified finalised score is signed
 // via NIP-07 and fanned out to the configured RELAYS — reusing nostr.js seams
 // through the SEC-1 publishGate (no ungated path). The button arms ONLY when the

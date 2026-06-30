@@ -216,3 +216,16 @@ describe('reload sub-state fold (isReloading / tickReload, ARS-4)', () => {
     expect(state.ammo).toBe(MAX_AMMO);
   });
 });
+
+// Player-ownership boundary (v0.2.291) — Torii Quest seats exactly ONE local player.
+// Identity lives in the nostr* fields and is reseated by NIP-07 login or a verified
+// P2 arrival; there is no per-remote-player roster in this client. This guard pins
+// that the dead `remotePlayers` networked stub stays removed (it was never read or
+// written and only blurred the single-local-player ownership boundary).
+describe('player-ownership boundary (single local player)', () => {
+  it('carries exactly one local-player identity, not a networked-player roster', () => {
+    expect(state).not.toHaveProperty('remotePlayers');
+    expect(state).toHaveProperty('nostrPubkey');
+    expect(state).toHaveProperty('nostrName');
+  });
+});

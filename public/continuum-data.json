@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.290-alpha",
-  "generatedAt": "2026-06-30T19:22:03.160Z",
+  "version": "v0.2.291-alpha",
+  "generatedAt": "2026-06-30T19:34:22.362Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.290-alpha"
+        "value": "v0.2.291-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -58,7 +58,7 @@
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1923 passing / 129 files"
+        "value": "1931 passing / 129 files"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.290-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.291-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.290-alpha",
-    "gitCommit": "b8a89b4",
+    "version": "v0.2.291-alpha",
+    "gitCommit": "7636652",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.290-alpha / pkg 0.2.290-alpha"
+        "detail": "config v0.2.291-alpha / pkg 0.2.291-alpha"
       },
       {
         "key": "tests",
@@ -237,9 +237,7 @@
         "detail": "continuity docs carry current version"
       }
     ],
-    "blockers": [
-      "versionSync"
-    ],
+    "blockers": [],
     "unknowns": [],
     "nextTask": {
       "title": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -251,10 +249,10 @@
   "rcStatus": {
     "badge": "RC / RELEASE MANIFEST · LOCAL · READ-ONLY",
     "kind": "generated",
-    "band": "near",
-    "statusLabel": "NEAR · LOCAL GATES",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.290-alpha",
+    "version": "v0.2.291-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -262,14 +260,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "1923 passing / 129 files",
+    "testLabel": "1931 passing / 129 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.290-alpha"
+        "value": "v0.2.291-alpha"
       },
       {
         "label": "Release manifest",
@@ -281,7 +279,7 @@
       },
       {
         "label": "Tests",
-        "value": "1923 passing / 129 files"
+        "value": "1931 passing / 129 files"
       },
       {
         "label": "Test profiles",
@@ -293,7 +291,7 @@
       },
       {
         "label": "Last release gate",
-        "value": "NOT READY"
+        "value": "READY"
       }
     ],
     "note": "Release-candidate artifact posture — the release-artifact MANIFEST (required/optional present) and RC package-doc coverage, the curated test count, the manual validation still outstanding, and the last local release-gate verdict, folded into one read-only band. GENERATED at packaging time from on-disk artifact presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys NOTHING — manual live-browser validation and explicit user approval stay required (run: npm run rc:snapshot / npm run release:manifest)."
@@ -301,8 +299,8 @@
   "manualValidation": {
     "badge": "MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY",
     "kind": "generated",
-    "band": "manual-outstanding",
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual",
     "sections": 13,
     "items": 17,
@@ -312,7 +310,7 @@
     "validationAreas": 7,
     "checklistDocPresent": true,
     "resultsTemplatePresent": true,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "areas": [
       "Launch / title screen",
       "Shooter loop",
@@ -325,7 +323,7 @@
     "metrics": [
       {
         "label": "Local automated gates",
-        "value": "NOT READY"
+        "value": "READY · 15/15 local checks green"
       },
       {
         "label": "Manual playtest",
@@ -401,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.290-alpha",
+    "version": "v0.2.291-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -411,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.290-alpha"
+        "value": "v0.2.291-alpha"
       },
       {
         "label": "Approved by",
@@ -431,19 +429,19 @@
   "mvpGate": {
     "badge": "MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL",
     "kind": "generated",
-    "band": "signals-incomplete",
-    "statusLabel": "AUTOMATED CONFIDENCE SIGNALS INCOMPLETE",
+    "band": "awaiting",
+    "statusLabel": "CONFIDENCE GREEN · AWAITING EXPLICIT USER PLAYTEST + OK",
     "pill": "manual",
     "approved": false,
-    "verdict": "signals-incomplete",
+    "verdict": "awaiting-approval",
     "metrics": [
       {
         "label": "Gate verdict",
-        "value": "signals-incomplete"
+        "value": "awaiting-approval"
       },
       {
         "label": "Release gate",
-        "value": "not yet (confidence only, not approval)"
+        "value": "green (confidence only, not approval)"
       },
       {
         "label": "Entry smoke",
@@ -455,7 +453,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 1923 passing / 129 files"
+        "value": "green — 1931 passing / 129 files"
       },
       {
         "label": "Explicit approval",
@@ -563,7 +561,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.290-alpha"
+        "value": "v0.2.291-alpha"
       },
       {
         "label": "Live game",
@@ -583,7 +581,7 @@
       },
       {
         "label": "Manual blocker",
-        "value": "PENDING — MANUAL VALIDATION OUTSTANDING"
+        "value": "PENDING — LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING"
       },
       {
         "label": "MVP approval",

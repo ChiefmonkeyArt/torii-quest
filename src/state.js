@@ -25,11 +25,19 @@ export const state = {
   shootCd:    0,
   respawnTimer:0,
   pointerLocked: false,
+  // Player-ownership boundary (v0.2.291): Torii Quest seats exactly ONE local
+  // player. nostrPubkey/Name/Profile/Avatar identify whoever currently controls
+  // this client — anon by default, or a verified npub once a NIP-07 login OR a
+  // crypto-verified P2 arrival (engine/gateway/handoffArrival.js → main.js) seats
+  // one. All gameplay state above (hp/ammo/phase/kills…) belongs to that single
+  // local player; there is no per-remote-player state in this client. (The earlier
+  // unused `remotePlayers: new Map()` stub was removed here — it was never read or
+  // written, so it only blurred this single-local-player ownership boundary. A real
+  // networked-player roster would be a separate, deliberately-scoped feature.)
   nostrPubkey:  null,
   nostrName:    'ANON',
   nostrProfile: null,
   nostrAvatar:   null,
-  remotePlayers: new Map(),
 };
 
 export function resetRun() {

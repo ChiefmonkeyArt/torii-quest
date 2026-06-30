@@ -21,7 +21,7 @@ import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, onPointerLockLost, keys } from './input.js';
-import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
+import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot } from './bots.js';
@@ -237,24 +237,10 @@ export function createArenaRuntime(hooks = {}) {
     on(EV.PLAYER_HIT,    () => triggerHit());
     on(EV.PLAYER_KILLED, () => {
       triggerDeath();
-      const H = 14;
-      const CORNERS = [
-        { x: -H, z: -H }, { x:  H, z: -H }, { x:  H, z:  H }, { x: -H, z:  H },
-      ];
-      CORNERS.forEach(c => {
-        const dx = -c.x, dz = -c.z;
-        c.yaw = Math.atan2(-dx, -dz);
-      });
-      const liveBots = bots.filter(b => b.alive);
-      let best = CORNERS[0], bestDist = -1;
-      for (const c of CORNERS) {
-        let minD = Infinity;
-        for (const b of liveBots) {
-          const dx = (b.pos?.x ?? 0) - c.x, dz = (b.pos?.z ?? 0) - c.z;
-          minD = Math.min(minD, dx*dx + dz*dz);
-        }
-        if (minD > bestDist) { bestDist = minD; best = c; }
-      }
+      // Respawn as far from the live bots as possible — decision logic owned by the
+      // pure pickRespawnCorner in the player entity boundary (behaviour-identical to
+      // the former inline corner scan).
+      const best = pickRespawnCorner(bots.filter(b => b.alive).map(b => b.pos));
       setNextSpawn(best.x, best.z, best.yaw);
     });
     on(EV.HUD_UPDATE,    () => { if (isReloading()) triggerReload(); });

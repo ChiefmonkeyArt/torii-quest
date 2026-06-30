@@ -24,6 +24,9 @@ import {
 } from './engine/entities/player.js';
 
 export { PLAYER_SAFE_CORNER, SPAWN_X, SPAWN_Z, SPAWN_YAW };
+// Re-export the pure respawn-corner picker so arenaRuntime imports it from the same
+// player module as setNextSpawn (it is owned by the player entity boundary).
+export { pickRespawnCorner } from './engine/entities/player.js';
 
 
 export const playerObj = new THREE.Object3D();

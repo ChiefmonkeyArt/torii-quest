@@ -41,6 +41,37 @@ export const SPAWN_YAW = -3 * Math.PI / 4;
 // updates .x/.z on respawn, so consumers must read the shared object reference.
 export const PLAYER_SAFE_CORNER = { x: SPAWN_X, z: SPAWN_Z, radius: 6 };
 
+// Respawn-corner picker (v0.2.291) — the local player's "where do I respawn"
+// decision, lifted out of the THREE-coupled arenaRuntime PLAYER_KILLED handler so
+// it is one pure, owned, unit-testable function living with the spawn geometry it
+// uses. The four arena corners sit at ±SPAWN_MAG (matching |SPAWN_X|=|SPAWN_Z|);
+// the chosen corner MAXIMISES the minimum squared distance to the live bots (spawn
+// as far from danger as possible). A missing bot position counts as the origin
+// (0,0). Ties resolve to the lowest-index corner (SW first), so with no live bots
+// it returns the canonical SW spawn — behaviour-identical to the pre-extraction
+// inline logic. Each corner faces the arena centre: yaw = atan2(x, z) (Three.js
+// forward = (-sin yaw, -cos yaw), so facing (0,0) from (x,z) needs that yaw). Pure;
+// allocates one tiny result object (called once per death, never per frame).
+export const SPAWN_MAG = 14;
+const RESPAWN_CORNERS = Object.freeze([
+  { x: -SPAWN_MAG, z: -SPAWN_MAG },
+  { x:  SPAWN_MAG, z: -SPAWN_MAG },
+  { x:  SPAWN_MAG, z:  SPAWN_MAG },
+  { x: -SPAWN_MAG, z:  SPAWN_MAG },
+]);
+export function pickRespawnCorner(liveBotPositions = []) {
+  let best = RESPAWN_CORNERS[0], bestDist = -1;
+  for (const c of RESPAWN_CORNERS) {
+    let minD = Infinity;
+    for (const p of liveBotPositions) {
+      const dx = (p?.x ?? 0) - c.x, dz = (p?.z ?? 0) - c.z;
+      minD = Math.min(minD, dx * dx + dz * dz);
+    }
+    if (minD > bestDist) { bestDist = minD; best = c; }
+  }
+  return { x: best.x, z: best.z, yaw: Math.atan2(best.x, best.z) };
+}
+
 // --- Look-down POV (v0.2.112 neck-pivot arc) --------------------------------
 // The camera is a child of playerObj at the eye, so these offsets move the eye
 // WITHIN the head without touching gameplay height (playerObj.y stays at EYE —

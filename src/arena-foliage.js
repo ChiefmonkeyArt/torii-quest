@@ -91,8 +91,10 @@ function _buildGrass() {
   // height-only (instance origin + position.y) -> every vertex in a height ring
   // displaces identically -> cone bends as ONE rigid solid, cross-section never
   // distorts, joints stay locked all the way to the tip.
-  const BLADE_H    = 0.30;
-  const BLADE_R    = 0.060; // v0.2.304: 60mm radius = 120mm wide FLARED base (was 40mm).
+  const BLADE_H    = 0.50; // v0.2.306: knee-high (was 2.5 — jungle tall). ~0.5m = knee height.
+                          // Wind auto-scales with H, so proportional sway stays ~18%.
+  const BLADE_R    = 0.060; // v0.2.308: 60mm radius (was 75mm, -20%). Long thin blades —
+                            // height:width now ~8:1 at knee height, reads as slender grass.
   const BLADE_SIDES = 12;   // v0.2.302: 12-sided (was 8). The 8-sided octagonal silhouette read
                             // "flat angular" when a facet faced the camera (50% of the time). 12 sides
                             // gives a rounder cross-section so the tip reads as a point from any angle.
@@ -111,10 +113,10 @@ function _buildGrass() {
   for (let j = 0; j < BLADE_SEGS; j++) {
     const hr = j / BLADE_SEGS;
     const y  = hr * BLADE_H;
-    const taper = Math.pow(1.0 - hr, 2.0);  // v0.2.304: CONVEX taper (was linear 1-hr).
-                            // Trumpet / flared-jeans profile: wide splayed base, fast flare
-                            // reduction in the first ~15%, then gradual even taper, sharpening
-                            // to the tip point in the last segment. Strictly monotonic.
+    const taper = Math.pow(1.0 - hr, 1.5);  // v0.2.307: aggressive base taper (was linear 1-hr).
+                            // Radius drops fast at the base into a thin trunk, then tapers
+                            // to the tip. Strictly monotonic, no flare. Profile:
+                            // base 75mm -> 53mm -> 35mm -> 21mm -> 9mm -> 2mm -> 0.
     const r = BLADE_R * taper;
     for (let k = 0; k < BLADE_SIDES; k++) {
       _gPos.push(r * Math.cos(_angles[k]), y, r * Math.sin(_angles[k]));
@@ -169,11 +171,13 @@ function _buildGrass() {
         float g2 = sin(wpos.z * 0.17 - uTime * 0.80 + ph * 1.7);
         float gust = (g1 * 0.5 + g2 * 0.5) * 0.5 + 0.5;
         gust = smoothstep(0.15, 0.85, gust);
-        float heightPower = mix(t * t, t, 0.35);   // v0.2.303: blended (was t^3).
-          // 0.65*t^2 + 0.35*t — anchored at base (0 at t=0) but the TRUNK bends, not
-          // just the tip. At t=0.5 ~0.34 (was 0.125), so the body visibly curves.
+        float heightPower = mix(t * t, t, 0.55);   // v0.2.307: more trunk bend (was 0.35).
+          // Higher blend toward t -> the trunk itself bends more, not just the tip.
         float amp = 0.6 + vBright * 0.4;
-        float sway = (0.04 + gust * 0.14) * heightPower * amp;   // v0.2.304: ~2.5x wind (was 0.025+0.08)
+        float sway = (0.06 + gust * 0.22) * heightPower * amp;   // v0.2.307: more bend (was 0.04+0.14)
+        sway *= ${BLADE_H.toFixed(4)};   // v0.2.305: scale wind to blade height so tall grass
+                                         // sways visibly (absolute deflection grows with height —
+                                         // ~0.45m tip on a 2.5m blade, ~18%, reads as real wind).
         vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
         wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);
         // v0.2.303: REMOVED vertical compression (wp.y *= ...). The non-uniform Y
@@ -301,7 +305,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.304 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} sides=${BLADE_SIDES} segs=${BLADE_SEGS} shape=SOLID-WELDED-CONE taper=(1-hr)^2-TRUMPET-FLARE tip=SINGLE-VERTEX POINT-UP grad=GREEN bend=mix(t^2,t,0.35) sway=height-only windGust=0.14(x2.5) windSpeed=1.10/0.80`;
+  const stamp = `[grass-build] v0.2.308 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} sides=${BLADE_SIDES} segs=${BLADE_SEGS} shape=SOLID-WELDED-CONE taper=(1-hr)^1.5-THIN-TRUNK tip=SINGLE-VERTEX POINT-UP grad=GREEN bend=mix(t^2,t,0.55) sway=height-only+H-scaled windGust=0.22 windSpeed=1.10/0.80 KNEE-HIGH THIN-BLADES`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

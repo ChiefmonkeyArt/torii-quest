@@ -74,54 +74,70 @@ function _buildGrass() {
   // core, tapering to a 3-sided point. It occludes from every angle (no edge-on
   // vanishing) and never looks like a flat card. Cross-section radius is tiny so
   // each blade is a thin 3D needle, not a chunky prism.
-  // v0.2.299: FLAT CROSS-QUAD BLADE. The solid N-sided cone (v0.2.286-298)
-  // always read as a large flat angular TOP. A flat blade shape (wide base ->
-  // point tip) is what grass actually looks like. Two crossed flat blades per
-  // instance so the silhouette reads from every angle.
+  // v0.2.301: SOLID WELDED CONE (restored). The flat cross-quad (v0.2.299-300)
+  // read as two separate flat planes with independently swaying tips — never one
+  // solid object. A solid N-sided cone is what grass-as-a-solid actually is.
+  // WHY the old cone (v0.2.294-298) read "large flat angular red TOP": the old
+  // fragment shader colored the entire top ~30% red (vT>0.7 gradient) AND used
+  // per-facet two-sided diffuse lighting, so the top was 8 flat red trapezoidal
+  // panels catching light differently. The geometry was already welded; it was
+  // the coloring + lighting that made the flat facets loud.
+  // FIX: (a) solid 8-sided cone, facets share vertices at every joint (welded);
+  // (b) a SINGLE shared tip vertex — every cap triangle references the one
+  // point (was 8 coincident tip verts) -> true point, "all tips locked together
+  // at the point"; (c) red ONLY at the tip (vT>=0.80, top ~20%), body blue — the
+  // flat facets are quiet blue, only the small tip cone reads red; (d) unlit
+  // diagnostic (no vWn/normals) so facets aren't emphasized; (e) sway is
+  // height-only (instance origin + position.y) -> every vertex in a height ring
+  // displaces identically -> cone bends as ONE rigid solid, cross-section never
+  // distorts, joints stay locked all the way to the tip.
   const BLADE_H    = 0.30;
-  const BLADE_W     = 0.080; // 80mm base (2x wider per user feedback v0.2.298)
+  const BLADE_R    = 0.060; // v0.2.304: 60mm radius = 120mm wide FLARED base (was 40mm).
+  const BLADE_SIDES = 12;   // v0.2.302: 12-sided (was 8). The 8-sided octagonal silhouette read
+                            // "flat angular" when a facet faced the camera (50% of the time). 12 sides
+                            // gives a rounder cross-section so the tip reads as a point from any angle.
   const BLADE_SEGS  = 6;
   const TARGET_BLADES = 30000;
   const CAND_SPACING  = 0.040;
 
-  // Build two crossed flat blades (XY plane + YZ plane, 90 deg apart) so the
-  // grass silhouette reads from every angle. Each blade is a tapered strip:
-  // wide base (hw) -> single point tip. Quadratic taper keeps the base broad.
-  // v0.2.299 fix: the previous handover draft declared `attribute float vT`
-  // AND `varying float vT` (same name, two storage qualifiers) — illegal in
-  // GLSL ES, and the attribute was never read (vT is recomputed from
-  // position.y). Dropped the attribute + its vertex buffer; the varying alone
-  // carries the height ratio. computeVertexNormals() removed: the diagnostic
-  // fragment shader is unlit, so normals are dead weight.
+  // Build the cone as an indexed BufferGeometry: BLADE_SIDES corner columns
+  // (vertices SHARED between adjacent facets -> welded joints) up BLADE_SEGS
+  // height rings, radius tapering from BLADE_R at the base to 0 at the top,
+  // then ONE single tip vertex that every cap triangle references.
+  const _angles = Array.from({ length: BLADE_SIDES }, (_, k) => k * 2 * Math.PI / BLADE_SIDES);
   const _gPos = [];
   const _gIdx = [];
-  function addBlade(useZ) {
-    const base = _gPos.length / 3;
-    for (let jj = 0; jj <= BLADE_SEGS; jj++) {
-      const hr = jj / BLADE_SEGS;
-      const y  = hr * BLADE_H;
-      const taper = (1.0 - hr) * (1.0 - hr);
-      const hw = BLADE_W * 0.5 * taper;
-      if (jj < BLADE_SEGS) {
-        if (useZ) { _gPos.push(0, y, -hw,  0, y, hw); }
-        else      { _gPos.push(-hw, y, 0,  hw, y, 0); }
-      } else {
-        _gPos.push(0, y, 0);  // tip: single point
-      }
-    }
-    for (let jj = 0; jj < BLADE_SEGS; jj++) {
-      const r0 = jj * 2;
-      if (jj < BLADE_SEGS - 1) {
-        const r1 = (jj + 1) * 2;
-        _gIdx.push(base+r0, base+r0+1, base+r1,  base+r0+1, base+r1+1, base+r1);
-      } else {
-        const tip = BLADE_SEGS * 2;
-        _gIdx.push(base+r0, base+r0+1, base+tip);
-      }
+  // Height rings 0..BLADE_SEGS-1 (BLADE_SEGS rings of BLADE_SIDES verts each).
+  for (let j = 0; j < BLADE_SEGS; j++) {
+    const hr = j / BLADE_SEGS;
+    const y  = hr * BLADE_H;
+    const taper = Math.pow(1.0 - hr, 2.0);  // v0.2.304: CONVEX taper (was linear 1-hr).
+                            // Trumpet / flared-jeans profile: wide splayed base, fast flare
+                            // reduction in the first ~15%, then gradual even taper, sharpening
+                            // to the tip point in the last segment. Strictly monotonic.
+    const r = BLADE_R * taper;
+    for (let k = 0; k < BLADE_SIDES; k++) {
+      _gPos.push(r * Math.cos(_angles[k]), y, r * Math.sin(_angles[k]));
     }
   }
-  addBlade(false);  // blade A: XY plane
-  addBlade(true);   // blade B: YZ plane (crossed 90 deg)
+  // Single shared tip vertex — all cap triangles reference this one point.
+  _gPos.push(0, BLADE_H, 0);
+  const TIP = _gPos.length / 3 - 1;
+  // Side faces: quads between ring j and ring j+1, vertices shared with neighbours.
+  for (let j = 0; j < BLADE_SEGS - 1; j++) {
+    for (let k = 0; k < BLADE_SIDES; k++) {
+      const k2 = (k + 1) % BLADE_SIDES;
+      const b0 = j * BLADE_SIDES + k,  b1 = j * BLADE_SIDES + k2;
+      const t0 = (j + 1) * BLADE_SIDES + k, t1 = (j + 1) * BLADE_SIDES + k2;
+      _gIdx.push(b0, b1, t0,  b1, t1, t0);
+    }
+  }
+  // Cap: last ring -> single tip vertex (locked-together point).
+  const lastRing = (BLADE_SEGS - 1) * BLADE_SIDES;
+  for (let k = 0; k < BLADE_SIDES; k++) {
+    const k2 = (k + 1) % BLADE_SIDES;
+    _gIdx.push(lastRing + k, lastRing + k2, TIP);
+  }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(_gPos, 3));
@@ -142,17 +158,28 @@ function _buildGrass() {
         float t = clamp(position.y / h, 0.0, 1.0);
         vT = t;
         vBright = instanceColor.g;
+        // Instance origin ONLY (same for every vertex in this instance) — sway
+        // never depends on position.x/z, so every vertex in a height ring gets
+        // an identical displacement. The cone bends as one rigid solid: joints
+        // stay locked, the cross-section never distorts, tips never peel apart.
         vec3 wpos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
         float ph = instanceColor.r * 6.2832;
-        float g1 = sin(wpos.x * 0.21 + uTime * 0.70 + ph);
-        float g2 = sin(wpos.z * 0.17 - uTime * 0.50 + ph * 1.7);
+        // v0.2.304: much stronger + faster wind (was 0.70/0.50 and 0.025+0.08).
+        float g1 = sin(wpos.x * 0.21 + uTime * 1.10 + ph);
+        float g2 = sin(wpos.z * 0.17 - uTime * 0.80 + ph * 1.7);
         float gust = (g1 * 0.5 + g2 * 0.5) * 0.5 + 0.5;
-        gust = smoothstep(0.25, 0.95, gust);
-        float heightPower = t * t;
+        gust = smoothstep(0.15, 0.85, gust);
+        float heightPower = mix(t * t, t, 0.35);   // v0.2.303: blended (was t^3).
+          // 0.65*t^2 + 0.35*t — anchored at base (0 at t=0) but the TRUNK bends, not
+          // just the tip. At t=0.5 ~0.34 (was 0.125), so the body visibly curves.
         float amp = 0.6 + vBright * 0.4;
-        float sway = (0.025 + gust * 0.08) * heightPower * amp;
+        float sway = (0.04 + gust * 0.14) * heightPower * amp;   // v0.2.304: ~2.5x wind (was 0.025+0.08)
         vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
         wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);
+        // v0.2.303: REMOVED vertical compression (wp.y *= ...). The non-uniform Y
+        // squash bunched the upper rings together while their radius stayed the
+        // same, creating an hourglass/flared-top illusion. Pure horizontal bend
+        // now — the cone stays a clean monotonic taper and bends as one solid.
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
@@ -160,9 +187,12 @@ function _buildGrass() {
       varying float vT;
       varying float vBright;
       void main() {
-        vec3 red  = vec3(1.0, 0.0, 0.0);
-        vec3 blue = vec3(0.0, 0.0, 1.0);
-        vec3 col = vT >= 0.5 ? red : blue;
+        // v0.2.303: GREEN GRADIENT (red/blue diagnostic confirmed the shape works).
+        // Wide base reads as the bright visible anchor at the floor; tip softens.
+        // Even gradient across the full height for a continuous single-material read.
+        vec3 baseGreen = vec3(0.27, 0.60, 0.15);  // bright base (floor)
+        vec3 tipGreen  = vec3(0.18, 0.43, 0.12);  // softer tip (top)
+        vec3 col = mix(baseGreen, tipGreen, vT);
         col *= 0.85 + vBright * 0.3;
         gl_FragColor = vec4(col, 1.0);
       }
@@ -271,7 +301,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.299 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} segs=${BLADE_SEGS} shape=FLAT-CROSS-QUAD taper=(1-hr)^2 cross=2-blades-90deg POINT-UP grad=RED-TIP/BLUE-BASE-DIAG windGust=0.08`;
+  const stamp = `[grass-build] v0.2.304 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} sides=${BLADE_SIDES} segs=${BLADE_SEGS} shape=SOLID-WELDED-CONE taper=(1-hr)^2-TRUMPET-FLARE tip=SINGLE-VERTEX POINT-UP grad=GREEN bend=mix(t^2,t,0.35) sway=height-only windGust=0.14(x2.5) windSpeed=1.10/0.80`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

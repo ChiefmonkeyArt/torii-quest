@@ -74,54 +74,58 @@ function _buildGrass() {
   // core, tapering to a 3-sided point. It occludes from every angle (no edge-on
   // vanishing) and never looks like a flat card. Cross-section radius is tiny so
   // each blade is a thin 3D needle, not a chunky prism.
-  const BLADE_SEGS = 8;     // v0.2.294: more rows for a smooth cone silhouette (was 6).
-  const BLADE_H    = 0.20;  // shorter: less perspective foreshortening from downward view.
-  const BLADE_R    = 0.040; // 40mm base (2x wider): overpower downward-angle foreshortening
-                             // so the blue base reads as clearly the widest part at the floor.
-  const TARGET_BLADES = 30000;  // thinned so tips separate and read as points, not a canopy
-                                // software-GPU machines (SwiftShader crashed at 250k instances). 80k
-                                // 3-sided cones still read as a full field at ~95/m² over the NAP zone.
-  const CAND_SPACING  = 0.040;  // fine candidate grid; partial Fisher-Yates selects TARGET_BLADES.
+  // v0.2.299: FLAT CROSS-QUAD BLADE. The solid N-sided cone (v0.2.286-298)
+  // always read as a large flat angular TOP. A flat blade shape (wide base ->
+  // point tip) is what grass actually looks like. Two crossed flat blades per
+  // instance so the silhouette reads from every angle.
+  const BLADE_H    = 0.30;
+  const BLADE_W     = 0.080; // 80mm base (2x wider per user feedback v0.2.298)
+  const BLADE_SEGS  = 6;
+  const TARGET_BLADES = 30000;
+  const CAND_SPACING  = 0.040;
 
-  // Build the N-sided blade as an indexed BufferGeometry: N corner columns
-  // around the cross-section x (BLADE_SEGS+1) height rows. Radius tapers from
-  // BLADE_R at the base to 0 at the tip; a slight forward curl (z += hr^2*0.06)
-  // gives a gentle lean (tips stay upright + pointed, not flopped flat).
-  // v0.2.294: 5-sided cross-section (was 3). 3 flat sides at a 6mm base read as
-  // fat angular shards; 5 sides is rounder so each blade reads as a thin needle.
-  const BLADE_SIDES = 8; // 8-sided: smaller facets, reads smoother (less flat/angular).
-  const _angles = Array.from({ length: BLADE_SIDES }, (_, k) => k * 2 * Math.PI / BLADE_SIDES);
-  const _rows = BLADE_SEGS + 1;
+  // Build two crossed flat blades (XY plane + YZ plane, 90 deg apart) so the
+  // grass silhouette reads from every angle. Each blade is a tapered strip:
+  // wide base (hw) -> single point tip. Quadratic taper keeps the base broad.
+  // v0.2.299 fix: the previous handover draft declared `attribute float vT`
+  // AND `varying float vT` (same name, two storage qualifiers) — illegal in
+  // GLSL ES, and the attribute was never read (vT is recomputed from
+  // position.y). Dropped the attribute + its vertex buffer; the varying alone
+  // carries the height ratio. computeVertexNormals() removed: the diagnostic
+  // fragment shader is unlit, so normals are dead weight.
   const _gPos = [];
   const _gIdx = [];
-  for (let j = 0; j < _rows; j++) {
-    const hr = j / BLADE_SEGS;                 // 0..1
-    const y  = hr * BLADE_H;
-    // Smooth quadratic taper: wide base -> narrow tip. Only the final row (hr=1)
-    // is a true point. Avoids degenerate normals/black big triangles from a
-    // large zero-radius region. Reads as a clean cone: wide base, pointy top.
-    let taper = (1.0 - hr) * (1.0 - hr);
-    if (hr >= 0.999) taper = 0.0;              // sharp point at the tip (in the air)
-    const r = BLADE_R * taper;
-    // lean peaks at the TIP (hr=1) so the pointed top is what sways.
-    const lean = hr * hr * 0.06;
-    for (let k = 0; k < BLADE_SIDES; k++) {
-      _gPos.push(r * Math.cos(_angles[k]), y, r * Math.sin(_angles[k]) + lean);
+  function addBlade(useZ) {
+    const base = _gPos.length / 3;
+    for (let jj = 0; jj <= BLADE_SEGS; jj++) {
+      const hr = jj / BLADE_SEGS;
+      const y  = hr * BLADE_H;
+      const taper = (1.0 - hr) * (1.0 - hr);
+      const hw = BLADE_W * 0.5 * taper;
+      if (jj < BLADE_SEGS) {
+        if (useZ) { _gPos.push(0, y, -hw,  0, y, hw); }
+        else      { _gPos.push(-hw, y, 0,  hw, y, 0); }
+      } else {
+        _gPos.push(0, y, 0);  // tip: single point
+      }
+    }
+    for (let jj = 0; jj < BLADE_SEGS; jj++) {
+      const r0 = jj * 2;
+      if (jj < BLADE_SEGS - 1) {
+        const r1 = (jj + 1) * 2;
+        _gIdx.push(base+r0, base+r0+1, base+r1,  base+r0+1, base+r1+1, base+r1);
+      } else {
+        const tip = BLADE_SEGS * 2;
+        _gIdx.push(base+r0, base+r0+1, base+tip);
+      }
     }
   }
-  // N side faces, each a quad strip up the height between corner k and k+1.
-  for (let j = 0; j < BLADE_SEGS; j++) {
-    for (let k = 0; k < BLADE_SIDES; k++) {
-      const k2 = (k + 1) % BLADE_SIDES;
-      const b0 = j * BLADE_SIDES + k,  b1 = j * BLADE_SIDES + k2;
-      const t0 = (j + 1) * BLADE_SIDES + k, t1 = (j + 1) * BLADE_SIDES + k2;
-      _gIdx.push(b0, b1, t0,  b1, t1, t0);
-    }
-  }
+  addBlade(false);  // blade A: XY plane
+  addBlade(true);   // blade B: YZ plane (crossed 90 deg)
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(_gPos, 3));
   geo.setIndex(_gIdx);
-  geo.computeVertexNormals();   // per-face outward normals -> real 3D two-sided lighting in frag
 
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -129,10 +133,8 @@ function _buildGrass() {
       uWindDir: { value: { x: 0.707, y: 0.707 } },
     },
     vertexShader: /* glsl */`
-      varying float vT;       // height ratio 0..1
-      varying float vBright;  // per-blade brightness (instanceColor.g)
-      varying float vHue;     // per-blade hue shift (instanceColor.b)
-      varying vec3  vWn;      // world-space blade facing normal (two-sided lighting in frag)
+      varying float vT;
+      varying float vBright;
       uniform float uTime;
       uniform vec2  uWindDir;
       void main() {
@@ -140,121 +142,28 @@ function _buildGrass() {
         float t = clamp(position.y / h, 0.0, 1.0);
         vT = t;
         vBright = instanceColor.g;
-        vHue = instanceColor.b;
-
-        vec3 p = position;
-
-        // World-space instance origin for the patch-coherent gust field.
         vec3 wpos = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-        float ph = instanceColor.r * 6.2832;   // per-blade phase
-
-        // v0.2.266 ORGANIC WIND (retained): a low-frequency multi-octave gust
-        // envelope built from incommensurate sines, each per-blade phase-shifted,
-        // so neighbouring blades desync and patches rise independently - reads as
-        // rolling gusts, not a metronome. Layered on top of the demo blade.
+        float ph = instanceColor.r * 6.2832;
         float g1 = sin(wpos.x * 0.21 + uTime * 0.70 + ph);
         float g2 = sin(wpos.z * 0.17 - uTime * 0.50 + ph * 1.7);
-        float g3 = sin((wpos.x + wpos.z) * 0.11 + uTime * 0.30 + ph * 0.6);
-        float gust = (g1 * 0.5 + g2 * 0.3 + g3 * 0.2) * 0.5 + 0.5;   // 0..1
+        float gust = (g1 * 0.5 + g2 * 0.5) * 0.5 + 0.5;
         gust = smoothstep(0.25, 0.95, gust);
-
-        // High-frequency flutter - independent tip shimmer, different direction/tempo.
-        float flut = sin(wpos.x * 1.30 + wpos.z * 0.70 + uTime * 2.20 + ph * 3.1)
-                   + cos(wpos.z * 1.10 - wpos.x * 0.50 + uTime * 1.70 - ph * 2.3);
-
-        // heightPower: tips bend most, base stays put (quadratic - from the demo).
         float heightPower = t * t;
-        float amp = 0.6 + vBright * 0.4;     // per-blade wind amplitude (demo pattern)
-        // v0.2.272: gustier still — heavy gust coefficient so the rolling patch-to-patch
-        // variation reads strongly; wind-bend also flops blades over (more ground cover).
-        float wind = 0.030 + gust * 0.14 + flut * 0.016;  // v0.2.294: gentler gust (was 0.34) so tips sway, not flop flat
-        float sway = wind * heightPower * amp;
-
-        // Apply bend in world space along the gust direction + perpendicular flutter.
-        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        float amp = 0.6 + vBright * 0.4;
+        float sway = (0.025 + gust * 0.08) * heightPower * amp;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
         wp.xyz += vec3(uWindDir.x * sway, 0.0, uWindDir.y * sway);
-        wp.x += (-uWindDir.y) * flut * 0.016 * t;
-        wp.z += ( uWindDir.x) * flut * 0.016 * t;
-
-        // Vertical compression when bending (demo physics) - keeps arc length believable.
-        float totalBend = abs(sway) + abs(flut * 0.016 * t);
-        wp.y *= (1.0 - totalBend * 0.1 * heightPower);
-
-        // World facing normal for two-sided lighting in the fragment shader.
-        vWn = mat3(modelMatrix * instanceMatrix) * normal;
-
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
     fragmentShader: /* glsl */`
       varying float vT;
       varying float vBright;
-      varying float vHue;
-      varying vec3  vWn;
-
-      // HSV <-> RGB (from the demo) for per-blade hue/saturation variation.
-      vec3 hsv2rgb(vec3 c) {
-        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-      }
-      vec3 rgb2hsv(vec3 c) {
-        vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-        vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-        vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-        float d = q.x - min(q.w, q.y);
-        float e = 1.0e-10;
-        return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-      }
-
       void main() {
-        // v0.2.294: BRIGHT-BASE / SOFT-TIP gradient (INVERTED from the demo).
-        // The old dark-root/bright-tip gradient made the WIDE base vanish into
-        // the dark ground cover while only the narrow bright tip showed — so the
-        // whole field read as 'wide at top, narrow at bottom' (point-down) even
-        // though the cone geometry is point-up. Flipping the geometry never
-        // helped because the bright tip always dominated the visible mass.
-        // Brightening the base above the ground cover (0x3d5a2f ~= 0.24,0.35,0.18)
-        // makes the wide base the visible anchor at the floor, so the silhouette
-        // reads as a point-up cone: wide bright base -> narrow softer tip.
-        // Bright-base gradient (v0.2.293+): the wide base is the bright visible anchor
-        // at the floor; the tip softens. Silhouette reads point-up: wide bright base
-        // -> narrow softer tip. Orientation confirmed point-UP via red/blue diagnostic.
-        vec3 rootCol = vec3(0.0, 0.0, 1.0);  // BLUE base (floor)
-        vec3 baseCol = vec3(0.0, 0.0, 1.0);
-        vec3 midCol  = vec3(1.0, 0.0, 0.0);
-        vec3 tipCol  = vec3(1.0, 0.0, 0.0);  // RED tip (top)
-
-        // Per-blade brightness variation (0.8..1.2).
-        float bright = 0.8 + vBright * 0.4;
-        rootCol *= bright; baseCol *= bright; midCol *= bright; tipCol *= bright;
-
-        vec3 col;
-        if (vT < 0.2)      col = mix(rootCol, baseCol, vT * 5.0);
-        else if (vT < 0.7) col = mix(baseCol, midCol,  (vT - 0.2) * 2.0);
-        else               col = mix(midCol,  tipCol,  (vT - 0.7) * 3.33);
-
-        // HSV hue shift (+/-5%, stays green) + saturation variation (demo).
-        vec3 hsv = rgb2hsv(col);
-        hsv.x += (vHue - 0.5) * 0.1;
-        hsv.x = fract(hsv.x);
-        hsv.y *= (0.85 + vBright * 0.3);
-        col = hsv2rgb(hsv);
-
-        // Two-sided diffuse from the world facing normal (flip for back faces)
-        // + subsurface back-light (demo) for translucency.
-        vec3 wn = normalize(vWn);
-        if (!gl_FrontFacing) wn = -wn;
-        vec3 L = normalize(vec3(1.0, 1.0, 0.5));
-        float NdotL = dot(wn, L);
-        float light = NdotL * 0.6 + 0.4;
-        light += max(0.0, -NdotL) * 0.3;
-        col *= light;
-
-        // Per-pixel micro-noise for natural variation (demo).
-        float noise = fract(sin(gl_FragCoord.x * 12.9898 + gl_FragCoord.y * 78.233) * 43758.5453);
-        col *= (0.95 + noise * 0.1);
-
+        vec3 red  = vec3(1.0, 0.0, 0.0);
+        vec3 blue = vec3(0.0, 0.0, 1.0);
+        vec3 col = vT >= 0.5 ? red : blue;
+        col *= 0.85 + vBright * 0.3;
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -362,7 +271,7 @@ function _buildGrass() {
   // browser is actually running, so you can confirm whether you're seeing a
   // cached old build or the live one. If this line is missing entirely, the
   // grass code never ran (stale bundle). flare 5.6 + count 500000 = live v0.2.274.
-  const stamp = `[grass-build] v0.2.294 blades=${count} bladeR=${BLADE_R} bladeH=${BLADE_H} taper=(1-hr)^2 cross=5-sided POINT-UP lean=0.06 sink=-0.05 groundCover=0x3d5a2f windGust=0.14 tall21pct=x1.21Y tip=up grad=BRIGHT-BASE/SOFT-TIP`;
+  const stamp = `[grass-build] v0.2.299 blades=${count} bladeW=${BLADE_W} bladeH=${BLADE_H} segs=${BLADE_SEGS} shape=FLAT-CROSS-QUAD taper=(1-hr)^2 cross=2-blades-90deg POINT-UP grad=RED-TIP/BLUE-BASE-DIAG windGust=0.08`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

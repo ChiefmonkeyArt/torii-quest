@@ -222,10 +222,10 @@ function _buildGrass() {
         // Bright-base gradient (v0.2.293+): the wide base is the bright visible anchor
         // at the floor; the tip softens. Silhouette reads point-up: wide bright base
         // -> narrow softer tip. Orientation confirmed point-UP via red/blue diagnostic.
-        vec3 rootCol = vec3(0.27, 0.60, 0.15);  // bright base (floor)
-        vec3 baseCol = vec3(0.27, 0.60, 0.15);
-        vec3 midCol  = vec3(0.22, 0.51, 0.13);
-        vec3 tipCol  = vec3(0.18, 0.43, 0.12);  // softer tip (top)
+        vec3 rootCol = vec3(0.0, 0.0, 1.0);  // BLUE base (floor)
+        vec3 baseCol = vec3(0.0, 0.0, 1.0);
+        vec3 midCol  = vec3(1.0, 0.0, 0.0);
+        vec3 tipCol  = vec3(1.0, 0.0, 0.0);  // RED tip (top)
 
         // Per-blade brightness variation (0.8..1.2).
         float bright = 0.8 + vBright * 0.4;

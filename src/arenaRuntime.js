@@ -22,7 +22,7 @@ import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
-import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
+import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot } from './bots.js';
@@ -137,7 +137,6 @@ export function createArenaRuntime(hooks = {}) {
   let _footAccum  = 0;
   const FOOT_WALK_INTERVAL = 0.45;
   const FOOT_RUN_INTERVAL  = 0.30;
-  const EYE = 1.7;
   let _prevFootX = 0, _prevFootZ = 0, _footInit = false;
   const FOOT_MIN_SPEED = 1.5;
 
@@ -150,8 +149,14 @@ export function createArenaRuntime(hooks = {}) {
     if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
     tickWeapons(dt, playerObj.position);
     tickTargetReticle();
-    _isJumping = playerObj.position.y > EYE + 0.12;
-    const onGround = !_isJumping;
+    // Grounded state comes straight from the Rapier character controller
+    // (result.grounded), NOT an eye-height guess — the latter broke once the
+    // terrain rose to ISLAND_BASE_Y + hills (eye Y was permanently above the old
+    // EYE+0.12 threshold, so footsteps/jump-land never fired). The controller's
+    // grounded flag already respects the slope-climb angle, so it stays correct
+    // on the undulating heightfield and the bridge deck.
+    const onGround = isPlayerOnGround();
+    _isJumping = !onGround;
     if (onGround && !_prevOnGround) playJumpLand();
     _prevOnGround = onGround;
 

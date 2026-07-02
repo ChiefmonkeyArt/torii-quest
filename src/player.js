@@ -197,6 +197,12 @@ export function tickPlayer(dt) {
 
 export function getRecoilT() { return _recoilTimer / RECOIL_DUR; }
 
+// isPlayerOnGround() — the authoritative grounded state from the Rapier
+// KinematicCharacterController (result.grounded). arenaRuntime keys footsteps
+// and jump-land on this instead of an eye-height heuristic, so it stays correct
+// on the undulating heightfield and the bridge deck.
+export function isPlayerOnGround() { return _onGround; }
+
 const _shootOrigin     = new THREE.Vector3();
 const _shootDir        = new THREE.Vector3();
 const _camFwd          = new THREE.Vector3();

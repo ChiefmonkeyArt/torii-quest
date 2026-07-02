@@ -13,7 +13,10 @@
 // Capsule convention: Rapier capsule(halfHeight, radius). Total height =
 // 2*(halfHeight + radius). Player body is positioned at the *capsule centre*
 // (foot + halfHeight + radius), NOT the eye. player.js maps body↔eye.
-import { ARENA_HALF, WALL_H, NAP_X, NAP_FAR_X, CRATES, OBSTACLES } from './config.js';
+import {
+  ARENA_HALF, WALL_H, NAP_X, NAP_FAR_X, CRATES, OBSTACLES,
+  BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
+} from './config.js';
 import { initBodies, createStatic, createHeightfield } from './engine/physics/bodies.js';
 import { initRaycast } from './engine/physics/raycast.js';
 // Pure (node-safe) terrain heightmap — static import is fine: no THREE/RAPIER.
@@ -139,4 +142,14 @@ export function buildArenaColliders() {
   for (const [cx, cz, hw, hd, ch] of OBSTACLES) {
     createStatic(hw, ch / 2, hd, cx, ch / 2 + B, cz);
   }
+
+  // BRIDGE deck (Stage 4, v0.2.331) — a static cuboid spanning the sea channel at
+  // x=20, z=0, matching the visual deck in bridge.js. Its top face is at
+  // BRIDGE_DECK_Y (centre a half-thickness below). It overlaps both islands'
+  // heightfields at its ends, so the character controller can step arena → bridge
+  // → NAP over the channel water.
+  createStatic(
+    BRIDGE_LEN / 2, BRIDGE_THICK / 2, BRIDGE_WIDTH / 2,
+    BRIDGE_X, BRIDGE_DECK_Y - BRIDGE_THICK / 2, BRIDGE_Z,
+  );
 }

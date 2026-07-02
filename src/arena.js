@@ -3,12 +3,13 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
-import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA } from './config.js';
+import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
 import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
 import { buildSeaMesh } from './terrain/sea.js';
+import { buildBridge } from './bridge.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const C_WALL   = 0x1e3020;
@@ -23,8 +24,9 @@ const crateMat      = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness
 
 export const wallMeshes = [];
 
-// Wall span lookup — needed for texture tiling
+// Wall span + height lookup — needed for texture tiling
 const _wallSpans = [];
+const _wallHeights = [];
 
 // module-level scratch for instanced loops — never allocate inside
 const _up   = new THREE.Vector3(0, 1, 0);
@@ -37,6 +39,7 @@ export function buildArena() {
   _buildFloor();
   _buildWalls();
   _buildCrates();
+  buildBridge();       // Stage 4 — deck across the sea channel at x=20 (bridge.js)
   _buildToriiGate();
   _buildTravelGateway(); // far-side metaverse travel portal model (v0.2.239)
   _buildNapZone();     // floor extension + tree past the torii gate
@@ -77,12 +80,20 @@ function _buildWalls() {
   const eastSegZ   = (EAST_GAP_HALF + ARENA_HALF) / 2;   // midpoint of segment
   // Walls sit on the raised island plateau → base at ISLAND_BASE_Y.
   const WY = WALL_H / 2 + ISLAND_BASE_Y;
+  // The east wall segments run along x=20 — the sea channel line (v0.2.331). Root
+  // them DOWN below the water (EAST_ROOT_Y) instead of floating at the plateau
+  // base, so there's no ~1.5m gap over the channel. Top stays at the plateau wall
+  // height; only the bottom is extended.
+  const EAST_ROOT_Y = -1.0;
+  const eastTopY = ISLAND_BASE_Y + WALL_H;         // 3.2
+  const eastH    = eastTopY - EAST_ROOT_Y;         // 4.2
+  const eastY    = (eastTopY + EAST_ROOT_Y) / 2;   // 1.1
   const wallDefs = [
     [A,    WALL_H, 0.5,  0,          WY, -ARENA_HALF, A],            // north
     [A,    WALL_H, 0.5,  0,          WY,  ARENA_HALF, A],            // south
     [0.5,  WALL_H, A,   -ARENA_HALF, WY,  0,          A],            // west
-    [0.5,  WALL_H, eastSegLen,  ARENA_HALF, WY, -eastSegZ, eastSegLen], // east-north
-    [0.5,  WALL_H, eastSegLen,  ARENA_HALF, WY,  eastSegZ, eastSegLen], // east-south
+    [0.5,  eastH,  eastSegLen,  ARENA_HALF, eastY, -eastSegZ, eastSegLen], // east-north (rooted below channel)
+    [0.5,  eastH,  eastSegLen,  ARENA_HALF, eastY,  eastSegZ, eastSegLen], // east-south (rooted below channel)
   ];
 
   const capMat    = new THREE.MeshBasicMaterial({ color: C_ORANGE });
@@ -99,19 +110,25 @@ function _buildWalls() {
     scene.add(m);
     wallMeshes.push(m);
     _wallSpans.push(span);
+    _wallHeights.push(h);
 
-    // Orange cap
+    // Orange cap — always at the plateau wall top (channel-rooted walls keep the
+    // same top, only their bottom is extended).
     const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d + 0.1), capMat);
     cap.position.set(x, WALL_H + 0.11 + ISLAND_BASE_Y, z);
     scene.add(cap);
   });
 
-  // Purple corner pillars
+  // Purple corner pillars. The two EAST corners (x=ARENA_HALF) straddle the sea
+  // channel line, so root them down below the water like the east wall segments.
   [[-ARENA_HALF,-ARENA_HALF],[ARENA_HALF,-ARENA_HALF],
    [-ARENA_HALF, ARENA_HALF],[ARENA_HALF,  ARENA_HALF]]
   .forEach(([px, pz]) => {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, WALL_H + 0.5, 0.8), pillarMat);
-    p.position.set(px, (WALL_H + 0.5) / 2 + ISLAND_BASE_Y, pz);
+    const topY = ISLAND_BASE_Y + WALL_H + 0.5;
+    const botY = px === ARENA_HALF ? -1.0 : ISLAND_BASE_Y;
+    const ph = topY - botY;
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, ph, 0.8), pillarMat);
+    p.position.set(px, (topY + botY) / 2, pz);
     scene.add(p);
   });
 }
@@ -143,7 +160,7 @@ function _buildToriiGate() {
   const rp = lp.clone(); rp.position.set(0, 2.5, 3); fallback.add(rp);
   const cb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 6.5), mat);
   cb.position.set(0, 5.2, 0); fallback.add(cb);
-  fallback.position.set(ARENA_HALF, ISLAND_BASE_Y, 0); // gate sits on the flat gate seam
+  fallback.position.set(ARENA_HALF, BRIDGE_DECK_Y, 0); // gate now stands ON the bridge deck over the channel
   fallback.rotation.y = Math.PI / 2; // match GLB — crossbar parallel to east wall
   // Named for the proof-surface parent binding (v0.2.151), discoverable via
   // scene.getObjectByName('torii-gate'); the GLB below inherits the same name.
@@ -152,7 +169,7 @@ function _buildToriiGate() {
 
   // Accent light — stays regardless of GLB. Raised onto the island plateau.
   const gl = new THREE.PointLight(C_PURPLE, 3, 10);
-  gl.position.set(ARENA_HALF - 1, 4 + ISLAND_BASE_Y, 0); scene.add(gl);
+  gl.position.set(ARENA_HALF - 1, 4 + BRIDGE_DECK_Y, 0); scene.add(gl);
 
   // Load GLB asynchronously — replaces fallback when ready
   const draco = new DRACOLoader();
@@ -180,7 +197,7 @@ function _buildToriiGate() {
     // crossbar runs north–south, parallel to the east wall — players walk
     // through it along the X axis.
     box.setFromObject(gate);
-    gate.position.set(ARENA_HALF - 0.2, -box.min.y + ISLAND_BASE_Y, 0);
+    gate.position.set(ARENA_HALF - 0.2, -box.min.y + BRIDGE_DECK_Y, 0);
     // Spin 180° from the previous 0-rad orientation — user request, makes the
     // "front" face of the torii (and its plaque/markings) read from inside the
     // arena rather than from the NAP zone side.
@@ -313,7 +330,10 @@ function _loadWallTexture() {
         const span  = _wallSpans[i];
         // RepeatX: how many tiles wide. Texture aspect is 2:1 so tile width = WALL_H*2
         const repsX = span / (WALL_H * 2);
-        // RepeatY = 1.0 — texture fills exact wall height, no squish/stretch
+        // RepeatY scales with wall height so channel-rooted (taller) east segments
+        // keep the same texel density as the plateau-height walls instead of
+        // stretching one tile over the full extended height.
+        const repsY = (_wallHeights[i] || WALL_H) / WALL_H;
         // BOTH faces render the texture in its native left-to-right orientation
         // when viewed from the interior of the arena — no UV flipping. Previously
         // we negated repsX on side===1 which left south + east-segment interiors
@@ -321,7 +341,7 @@ function _loadWallTexture() {
         faceGroups[i].forEach((fi) => {
           const t = tex.clone();
           t.wrapS = t.wrapT = THREE.RepeatWrapping;
-          t.repeat.set(repsX, 1.0);
+          t.repeat.set(repsX, repsY);
           t.offset.set(0, 0);
           t.needsUpdate = true;
           mesh.material[fi] = new THREE.MeshBasicMaterial({ map: t });

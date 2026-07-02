@@ -5,9 +5,10 @@
 // rise from the Stage-2 sea: their interior sits on a raised plateau (ISLAND_BASE_Y
 // = +0.6, comfortably above SEA_LEVEL = -0.3 so no water pools in the dips), and
 // their sea-facing edges slope OUTWARD down to sea level so the land reads as an
-// island, not a floating slab. The shared edge at x=20 (where the torii gate is)
-// is a JOIN, not a shore: both zones flatten to the plateau height there so the
-// player walks through the gate on continuous, level ground — no trench.
+// island, not a floating slab. The shared edge at x=20 is now a SEA CHANNEL
+// (Stage 4, v0.2.331): both zones fade their land to SEA_LEVEL and dip
+// CHANNEL_DIP below it at the centreline, so the islands are separated by water
+// spanned by a bridge — the old level land JOIN under the gate is gone.
 //
 // Every consumer reads the SAME continuous height function h(x,z) per zone:
 //   - terrainMesh.js  → bakes h() into mesh vertex Y (exact, CPU)
@@ -31,10 +32,23 @@ export const ISLAND_BASE_Y = 0.6;
 // edge; the beach lives OUTSIDE it (mostly hidden behind arena walls / beyond the
 // play-area clamps), so the gameplay floor stays flat and level.
 export const SHORE_WIDTH = 4.0;
-// Seam band (metres): approaching a JOIN edge (the shared x=20 line) the hills
-// fade to 0 so both zones meet at exactly ISLAND_BASE_Y — continuous, level
-// ground under the gate.
+// Seam band (metres): approaching a JOIN edge the hills fade to 0 so both zones
+// meet at exactly ISLAND_BASE_Y — continuous, level ground. (No zone uses a plain
+// 'join' seam any more — the shared x=20 line is now a 'channel' — but the kind is
+// kept for completeness / any future interior join.)
 export const SEAM_WIDTH = 3.0;
+
+// ── Sea channel (Stage 4, v0.2.331) ──────────────────────────────────────────
+// The shared x=20 seam is no longer a level land JOIN: a north-south sea channel
+// is carved along it so the two islands are separated by water, spanned by a
+// bridge. CHANNEL_HALF is the half-width of the carve on EACH side of the seam
+// (so the channel land-gap is ~2·CHANNEL_HALF wide: arena land ends ≈ x=17, NAP
+// land starts ≈ x=23). CHANNEL_DIP is how far BELOW sea level the channel floor
+// sinks at the centreline so the gap reads as water, not a dry ditch.
+export const CHANNEL_HALF = 3.0;
+export const CHANNEL_DIP = 0.6;
+// Channel centreline (world X) — the shared seam both zones fade to.
+export const CHANNEL_X = NAP_X; // 20
 
 // GLSL-style smoothstep, mirrored in JS. Used for both the shore slope and the
 // seam hill-fade so the transitions are C1-smooth (walkable, jitter-free).
@@ -49,6 +63,9 @@ function smoothstep(edge0, edge1, x) {
 // d is the inward distance from the footprint edge (≥0 inside, <0 in the shore).
 function edgeLand(kind, d, shore) {
   if (kind === 'join') return 1;
+  // 'channel' → land ramps from 0 at the seam (d=0) up to full plateau
+  // CHANNEL_HALF inward, so the base sinks to SEA_LEVEL at the water's edge.
+  if (kind === 'channel') return smoothstep(0, CHANNEL_HALF, d);
   return smoothstep(-shore, 0, d);
 }
 
@@ -57,6 +74,8 @@ function edgeLand(kind, d, shore) {
 //   'sea'  → fade hills to 0 into the shore band (flat beach, no hills in the surf).
 function edgeHill(kind, d, shore, seam) {
   if (kind === 'join') return smoothstep(0, seam, d);
+  // 'channel' → hills fade to 0 into the channel (flat water surface, no waves).
+  if (kind === 'channel') return smoothstep(0, CHANNEL_HALF, d);
   return smoothstep(-shore, 0, d);
 }
 
@@ -123,8 +142,17 @@ function makeZone(cfg) {
     hill = Math.min(hill, edgeHill(edges.maxX, dE, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.minZ, dS, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.maxZ, dN, SHORE_WIDTH, SEAM_WIDTH));
+    // Channel carve: on a 'channel' edge the land factor already ramps the base
+    // down to SEA_LEVEL at the seam; additionally sink it CHANNEL_DIP BELOW sea
+    // level at the centreline so the gap reads as water. The dip fades to 0
+    // CHANNEL_HALF inward (same band as the land ramp) → C1-continuous surface.
+    let drop = 0;
+    if (edges.minX === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dW)) * CHANNEL_DIP);
+    if (edges.maxX === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dE)) * CHANNEL_DIP);
+    if (edges.minZ === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dS)) * CHANNEL_DIP);
+    if (edges.maxZ === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dN)) * CHANNEL_DIP);
     const base = SEA_LEVEL + (ISLAND_BASE_Y - SEA_LEVEL) * land;
-    return base + rawHeight(x, z, shapeCfg) * hill;
+    return base + rawHeight(x, z, shapeCfg) * hill - drop;
   }
 
   const TERRAIN = Object.freeze({
@@ -179,7 +207,8 @@ function makeZone(cfg) {
 }
 
 // ── NAP-zone island (east of the torii gate) ─────────────────────────────────
-// West edge (x=20) JOINS the arena island; the other three edges are open sea.
+// West edge (x=20) is the sea CHANNEL shared with the arena island; the other
+// three edges are open sea.
 const _nap = makeZone({
   name: 'nap',
   minX: NAP_X,        // 20  — shared seam with the arena island
@@ -189,11 +218,11 @@ const _nap = makeZone({
   amp: 0.35,          // full rolling hills — walkable garden, no bots/crates
   phase: 0.0,
   targetCell: 0.32,
-  edges: { minX: 'join', maxX: 'sea', minZ: 'sea', maxZ: 'sea' },
+  edges: { minX: 'channel', maxX: 'sea', minZ: 'sea', maxZ: 'sea' },
 });
 
 // ── Main-arena island (west of the torii gate) ───────────────────────────────
-// East edge (x=20) JOINS the NAP island; the other three edges are open sea
+// East edge (x=20) is the sea CHANNEL shared with the NAP island; the other three edges are open sea
 // (hidden behind the arena walls). Amplitude is now PRONOUNCED (v0.2.330): the
 // arena floor visibly rolls ±~0.5m so combat happens over real hills and dips.
 // This is safe because every arena entity now RIDES the terrain — bots sample
@@ -210,7 +239,7 @@ const _arena = makeZone({
   amp: 0.5,           // pronounced rolling hills (entities ride the terrain)
   phase: 2.3,         // different phase → distinct landform from the NAP island
   targetCell: 0.32,
-  edges: { minX: 'sea', maxX: 'join', minZ: 'sea', maxZ: 'sea' },
+  edges: { minX: 'sea', maxX: 'channel', minZ: 'sea', maxZ: 'sea' },
 });
 
 // ── NAP exports (Stage-1 names preserved) ─────────────────────────────────────

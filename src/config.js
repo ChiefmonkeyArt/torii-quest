@@ -1,5 +1,5 @@
 // config.js — ALL constants. Never scatter magic numbers.
-export const VERSION   = 'v0.2.330-alpha';
+export const VERSION   = 'v0.2.331-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -37,6 +37,20 @@ export const NAP_SPAWN_YAW = Math.PI / 2;     // face west (-X) across the grass
 // each model was calibrated to face the approaching player; this delta is added
 // on top of both, so a single tweak turns the whole gateway.
 export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4; // 45° clockwise (top-down)
+
+// ── Bridge over the sea channel (Stage 4, v0.2.331) ──────────────────────────
+// A static deck crossing the x=20 channel E-W at z=0, connecting the arena and
+// NAP islands. It overlaps the land ~3m on each side (x∈[BRIDGE_X±BRIDGE_LEN/2])
+// so it meets both islands' terrain, and its walkable top sits at BRIDGE_DECK_Y
+// (a hair above ISLAND_BASE_Y so the character controller steps up onto it). The
+// decorative torii-gate is placed ON this deck. Shared by bridge.js (mesh) and
+// physics.js (cuboid deck collider).
+export const BRIDGE_X      = ARENA_HALF; // 20 — channel centreline
+export const BRIDGE_Z      = 0;          // aligned with the east-wall gate gap
+export const BRIDGE_DECK_Y = 0.7;        // walkable top surface (world Y)
+export const BRIDGE_LEN    = 12;         // E-W span (x 14 → 26): 3m onto each island
+export const BRIDGE_WIDTH  = 4;          // N-S width (z −2 → +2)
+export const BRIDGE_THICK  = 0.4;        // deck slab thickness
 export const PLAYER_HP      = 100;
 export const PLAYER_SPEED   = 8;
 export const PLAYER_RADIUS  = 0.35;

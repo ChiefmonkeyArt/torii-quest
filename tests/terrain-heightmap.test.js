@@ -12,7 +12,7 @@ import {
   sampleHeight, sampleNapHeight, sampleArenaHeight,
   buildNapHeightfieldArray, buildArenaHeightfieldArray,
   napTerrainPeak, arenaTerrainPeak,
-  ISLAND_BASE_Y,
+  ISLAND_BASE_Y, CHANNEL_X, CHANNEL_HALF, CHANNEL_DIP,
 } from '../src/terrain/heightmap.js';
 import { SEA_LEVEL } from '../src/terrain/seaConfig.js';
 
@@ -22,21 +22,38 @@ describe('sampleHeight alias === sampleNapHeight (backward compat)', () => {
   });
 });
 
-describe('island seam — level JOIN at x=20 (ISLAND_BASE_Y, no trench)', () => {
-  it('NAP west join edge sits at exactly ISLAND_BASE_Y (hills faded out)', () => {
-    // NAP minX = 20 is the JOIN edge: land=1, hill=0 there → height == baseY.
-    expect(sampleNapHeight(NAP_TERRAIN.minX, NAP_TERRAIN.centerZ)).toBeCloseTo(ISLAND_BASE_Y, 6);
+describe('sea channel at x=20 (Stage 4, v0.2.331 — replaces the old level JOIN)', () => {
+  // The shared x=20 seam is now a SEA CHANNEL: both zones fade their land to
+  // SEA_LEVEL and dip CHANNEL_DIP below it at the centreline, so the islands are
+  // separated by water (spanned by a bridge). The old ISLAND_BASE_Y level-join
+  // assertions are gone by design.
+  const CHANNEL_FLOOR = SEA_LEVEL - CHANNEL_DIP;
+
+  it('NAP west channel edge dips to SEA_LEVEL − CHANNEL_DIP at the centreline', () => {
+    expect(sampleNapHeight(CHANNEL_X, NAP_TERRAIN.centerZ)).toBeCloseTo(CHANNEL_FLOOR, 6);
   });
 
-  it('arena east join edge sits at exactly ISLAND_BASE_Y (hills faded out)', () => {
-    // Arena maxX = 20 is the JOIN edge.
-    expect(sampleArenaHeight(ARENA_TERRAIN.maxX, ARENA_TERRAIN.centerZ)).toBeCloseTo(ISLAND_BASE_Y, 6);
+  it('arena east channel edge dips to SEA_LEVEL − CHANNEL_DIP at the centreline', () => {
+    expect(sampleArenaHeight(CHANNEL_X, ARENA_TERRAIN.centerZ)).toBeCloseTo(CHANNEL_FLOOR, 6);
   });
 
-  it('both zones meet at the same height on the shared x=20 line (continuous ground)', () => {
+  it('channel floor at the seam is below SEA_LEVEL (reads as water, not dry land)', () => {
     for (const z of [-15, -5, 0, 7, 15]) {
-      expect(sampleArenaHeight(20, z)).toBeCloseTo(sampleNapHeight(20, z), 6);
+      expect(sampleArenaHeight(CHANNEL_X, z)).toBeLessThanOrEqual(SEA_LEVEL);
+      expect(sampleNapHeight(CHANNEL_X, z)).toBeLessThanOrEqual(SEA_LEVEL);
     }
+  });
+
+  it('both zones still meet continuously on the shared x=20 line', () => {
+    for (const z of [-15, -5, 0, 7, 15]) {
+      expect(sampleArenaHeight(CHANNEL_X, z)).toBeCloseTo(sampleNapHeight(CHANNEL_X, z), 6);
+    }
+  });
+
+  it('land returns to the plateau just OUTSIDE the channel band on both sides', () => {
+    // Arena land edge ≈ x=17, NAP land edge ≈ x=23 (CHANNEL_HALF=3 from x=20).
+    expect(sampleArenaHeight(CHANNEL_X - CHANNEL_HALF, 0)).toBeGreaterThan(SEA_LEVEL);
+    expect(sampleNapHeight(CHANNEL_X + CHANNEL_HALF, 0)).toBeGreaterThan(SEA_LEVEL);
   });
 });
 
@@ -66,11 +83,14 @@ describe('island shore — sea edges slope OUTWARD down to SEA_LEVEL', () => {
 describe('no pooling — interior stays dry land above SEA_LEVEL', () => {
   function interiorMin(TERRAIN, sample) {
     // Sample the footprint interior on a fine grid; the lowest point must still
-    // be above SEA_LEVEL so the sea never shows through a wave trough.
+    // be above SEA_LEVEL so the sea never shows through a wave trough. The sea
+    // CHANNEL band around x=20 is DELIBERATELY below sea level (it's water), so
+    // it's excluded — "no pooling" means the dry LAND interior never dips below.
     let min = Infinity;
     const N = 60;
     for (let i = 0; i <= N; i++) {
       const x = TERRAIN.minX + (TERRAIN.maxX - TERRAIN.minX) * (i / N);
+      if (Math.abs(x - CHANNEL_X) < CHANNEL_HALF) continue;
       for (let j = 0; j <= N; j++) {
         const z = TERRAIN.minZ + (TERRAIN.maxZ - TERRAIN.minZ) * (j / N);
         min = Math.min(min, sample(x, z));
@@ -116,19 +136,36 @@ describe('hills exist and are bounded by baseY ± amplitude', () => {
 });
 
 describe('v0.2.330 — arena no-pooling holds at the raised amplitude', () => {
-  it('arena interior minimum stays above SEA_LEVEL even at amp 0.5', () => {
+  it('arena LAND interior minimum stays above SEA_LEVEL even at amp 0.5', () => {
     // Bigger hills mean deeper dips; verify the deepest interior point is still
     // dry land (above SEA_LEVEL) so the sea never shows through an arena trough.
+    // The sea channel band around x=20 is excluded — it's intentionally water.
     let min = Infinity;
     const N = 120;
     for (let i = 0; i <= N; i++) {
       const x = ARENA_TERRAIN.minX + (ARENA_TERRAIN.maxX - ARENA_TERRAIN.minX) * (i / N);
+      if (Math.abs(x - CHANNEL_X) < CHANNEL_HALF) continue;
       for (let j = 0; j <= N; j++) {
         const z = ARENA_TERRAIN.minZ + (ARENA_TERRAIN.maxZ - ARENA_TERRAIN.minZ) * (j / N);
         min = Math.min(min, sampleArenaHeight(x, z));
       }
     }
     expect(min).toBeGreaterThan(SEA_LEVEL);
+  });
+});
+
+describe('v0.2.331 — sea channel is carved below sea level along the whole x=20 seam', () => {
+  it('channel centreline is below SEA_LEVEL across the full N-S extent of both zones', () => {
+    for (let z = ARENA_TERRAIN.minZ; z <= ARENA_TERRAIN.maxZ; z += 2) {
+      expect(sampleArenaHeight(CHANNEL_X, z)).toBeLessThan(SEA_LEVEL);
+      expect(sampleNapHeight(CHANNEL_X, z)).toBeLessThan(SEA_LEVEL);
+    }
+  });
+
+  it('channel is a narrow band — land is dry again CHANNEL_HALF away on each side', () => {
+    // Just outside the band the surface is back on the plateau (well above sea).
+    expect(sampleArenaHeight(CHANNEL_X - CHANNEL_HALF - 0.5, 0)).toBeGreaterThan(SEA_LEVEL);
+    expect(sampleNapHeight(CHANNEL_X + CHANNEL_HALF + 0.5, 0)).toBeGreaterThan(SEA_LEVEL);
   });
 });
 

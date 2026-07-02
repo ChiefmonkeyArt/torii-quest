@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPREAD, ARENA_HALF, CRATES, EAST_GAP_HALF, NAP_X } from './config.js';
+import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPREAD, CRATES, NAP_X } from './config.js';
 import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
@@ -13,6 +13,7 @@ import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
 import { raycastService } from './engine/physics/raycastService.js';
 import { engageSpeed, steerComponent, inEngageRange } from './engine/entities/bot-agent.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
+import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 
 export const bots = [];
 
@@ -50,18 +51,24 @@ export function initBots(playerObj, spawnBulletFn) {
 }
 
 // ── Safe random spawn position — never inside the player's safe corner ──────
-const _SPAWN_MARGIN = 3; // keep bots away from walls too
+const _SPAWN_MARGIN = 2; // keep spawns a little inside the coast
 function _safeSpawnPos() {
-  const limit = ARENA_HALF - _SPAWN_MARGIN;
-  let x, z, tries = 0;
+  // Sample within the coastline's axis-aligned bounds, rejecting points outside
+  // the organic polygon (v0.2.342) and inside the player's safe corner. Falls
+  // back to the last sample after the retry budget (always polygon-clamped below).
+  const b = coastlineBounds();
+  let x = 0, z = 0, tries = 0;
   do {
-    x = (Math.random() * 2 - 1) * limit;
-    z = (Math.random() * 2 - 1) * limit;
+    x = b.minX + Math.random() * (b.maxX - b.minX);
+    z = b.minZ + Math.random() * (b.maxZ - b.minZ);
+    if (!pointInCoastline(x, z)) continue;
     const dx = x - PLAYER_SAFE_CORNER.x;
     const dz = z - PLAYER_SAFE_CORNER.z;
     if (dx*dx + dz*dz > PLAYER_SAFE_CORNER.radius * PLAYER_SAFE_CORNER.radius) break;
-  } while (++tries < 20);
-  return { x, z };
+  } while (++tries < 30);
+  // Guarantee the returned point is safely inside the coast.
+  const [cx, cz] = clampToCoastline(x, z, _SPAWN_MARGIN);
+  return { x: cx, z: cz };
 }
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
@@ -141,13 +148,16 @@ export function initBotPhysics() {} // API compat
 
 // ── AABB pushout — NAP-aware variant of the player clamp ───────────────────
 function _pushout(nx, nz) {
-  // Bots are LOCKED INSIDE the arena. The torii-gate gap is one-way — the
-  // player can leave through it into the NAP zone, but bots can never cross
-  // east of ARENA_HALF. This is the NAP (Non-Aggression Principle): step
-  // through the gate and the bots stay behind.
-  nx = Math.max(-ARENA_HALF + BOT_R, nx);
-  nx = Math.min(ARENA_HALF - BOT_R, nx);
-  nz = Math.max(-ARENA_HALF + BOT_R, Math.min(ARENA_HALF - BOT_R, nz));
+  // Bots are LOCKED INSIDE the arena by the organic coastline polygon (v0.2.342).
+  // This clamp is INDEPENDENT of the player's glass wall — kinematic bots ignore
+  // physics, so the wall collider does nothing for them; the math clamp is the
+  // only thing keeping them in. The full closed polygon is used (no gate gap), so
+  // bots can never cross the coast — including east toward the bridge/NAP zone,
+  // preserving the Non-Aggression Principle (step through the gate = peace).
+  [nx, nz] = clampToCoastline(nx, nz, BOT_R);
+  // Defensive: a clamp result should always be inside; if numerical edge cases
+  // ever leave it outside, snap back to a known-inside point (the origin).
+  if (!pointInCoastline(nx, nz)) { nx = 0; nz = 0; }
   for (const [cx, cz, hw, hd] of CRATES) {
     const dx = nx - cx, dz = nz - cz;
     const ox = hw + BOT_R - Math.abs(dx);
@@ -176,10 +186,11 @@ export function tickBots(dt) {
         bot._blowVz *= Math.pow(FRICTION, dt * 60);
         bot.pos.x += bot._blowVx * dt;
         bot.pos.z += bot._blowVz * dt;
-        // Clamp to arena bounds
-        const A = ARENA_HALF - 0.5;
-        bot.pos.x = Math.max(-A, Math.min(A, bot.pos.x));
-        bot.pos.z = Math.max(-A, Math.min(A, bot.pos.z));
+        // Clamp blown-back bodies to the coastline so corpses never sail past the
+        // boundary into the sea (v0.2.342).
+        const [bcx, bcz] = clampToCoastline(bot.pos.x, bot.pos.z, 0.5);
+        bot.pos.x = bcx;
+        bot.pos.z = bcz;
         // Body rests on the raised island surface, not y=0.
         bot._blowY = Math.max(_footY(bot.pos.x, bot.pos.z), bot._blowY + bot._blowVy * dt);
         // Sync model to blown-back position

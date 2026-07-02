@@ -1,6 +1,6 @@
 {
   "version": "v0.2.341-alpha",
-  "generatedAt": "2026-07-02T16:54:03.121Z",
+  "generatedAt": "2026-07-02T19:25:13.723Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -53,12 +53,12 @@
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 132"
+        "value": "fast 5 · foundation 25 · full 133"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "1981 passing / 132 files"
+        "value": "1981 passing / 133 files"
       },
       {
         "label": "Profile timings",
@@ -100,7 +100,7 @@
       {
         "pct": 19,
         "label": "Foundation coverage",
-        "sub": "25/132 files"
+        "sub": "25/133 files"
       }
     ]
   },
@@ -192,7 +192,7 @@
     "statusLabel": "NOT READY",
     "ready": false,
     "version": "v0.2.341-alpha",
-    "gitCommit": "7e113fd",
+    "gitCommit": "571d123",
     "signals": [
       {
         "key": "versionSync",
@@ -262,7 +262,7 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "1981 passing / 132 files",
+    "testLabel": "1981 passing / 133 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "NOT READY",
@@ -281,7 +281,7 @@
       },
       {
         "label": "Tests",
-        "value": "1981 passing / 132 files"
+        "value": "1981 passing / 133 files"
       },
       {
         "label": "Test profiles",
@@ -455,7 +455,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 1981 passing / 132 files"
+        "value": "green — 1981 passing / 133 files"
       },
       {
         "label": "Explicit approval",

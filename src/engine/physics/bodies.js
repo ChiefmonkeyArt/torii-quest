@@ -136,6 +136,20 @@ export function createStatic(hw, hh, hd, x, y, z) {
   );
 }
 
+// Static cuboid rotated about the world Y axis by `yaw` radians. Used for the
+// coastline wall segments, whose local +X (half-extent hw) is aligned to an
+// arbitrary segment direction. Rotation about Y maps local +X → (cos yaw, 0,
+// -sin yaw), so callers pass yaw = atan2(-dz, dx) to point +X along (dx, dz).
+export function createStaticYaw(hw, hh, hd, x, y, z, yaw) {
+  if (!_world) return;
+  const s = Math.sin(yaw / 2), c = Math.cos(yaw / 2);
+  _world.createCollider(
+    _RAPIER.ColliderDesc.cuboid(hw, hh, hd)
+      .setTranslation(x, y, z)
+      .setRotation({ x: 0, y: s, z: 0, w: c })
+  );
+}
+
 // Heightfield collider for undulating terrain (Stage 1, v0.2.326).
 // Rapier's heightfield: nrows/ncols are CELL counts (subdivisions). Rapier builds
 // a (nrows+1)×(ncols+1) column-major height matrix internally, so `heights` MUST

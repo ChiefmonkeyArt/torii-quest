@@ -3,19 +3,27 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
-import { ARENA_HALF, WALL_H, CRATES, NAP_X, NAP_FAR_X, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
+import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
 import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
+import { coastlineRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const C_CRATE  = 0x4a4458;
-const C_ORANGE = 0xf7931a;
 const C_PURPLE = 0x8b5cf6;
 const C_TURQ   = 0x1ad6c4;
+const C_NEON   = 0x27e1ff; // coastline neon edge
+
+// Coastline glass wall — knee-high (jumpable) transparent barrier + neon top edge.
+const WALL_WALL_H = 0.5; // wall height (m) — above the 0.3 autostep, well under the ~2m jump apex
+// A ring segment whose midpoint lies in the east torii-gate gap is skipped so the
+// bridge → NAP walkway stays open (mirrors EAST_GAP_HALF; bots are held in by the
+// full polygon clamp in bots.js, so the gap only concerns the player).
+function _inGateGap(mx, mz) { return mx > 6 && Math.abs(mz) < EAST_GAP_HALF; }
 
 const crateMat = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
 
@@ -51,17 +59,80 @@ export function buildArena() {
 function _buildFloor() {
   buildArenaTerrainMesh(scene); // name 'arena-floor'
 
-  // Orange perimeter trim — sits on the raised plateau edge.
-  const trim = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(ARENA_HALF*2, 0.08, ARENA_HALF*2)),
-    new THREE.LineBasicMaterial({ color: C_ORANGE })
-  );
-  trim.position.y = ISLAND_BASE_Y + 0.04;
-  scene.add(trim);
+  _buildCoastlineWall();
 
-  // Overhead accent so crates and bots still get a top-down turquoise read.
-  const top = new THREE.PointLight(C_TURQ, 1.2, ARENA_HALF * 2.4);
-  top.position.set(0, WALL_H + 4 + ISLAND_BASE_Y, 0); scene.add(top);
+  // Soft top-down fill replacing the old single turquoise PointLight — a
+  // HemisphereLight gives the arena its cool read for near-zero cost and without
+  // the "stray light" hotspot the point light created over the removed boundary.
+  const fill = new THREE.HemisphereLight(C_TURQ, 0xb9a06b, 0.5);
+  fill.position.set(0, WALL_H + 6 + ISLAND_BASE_Y, 0);
+  scene.add(fill);
+}
+
+// ── Coastline glass wall + neon edge (v0.2.342) ──────────────────────────────
+// One continuous low-poly ribbon of transparent glass following the organic
+// coastline ring, capped by a thin emissive neon tube along its top edge. Base Y
+// is sampled per-vertex so the wall rides the shore. Knee-high and jumpable — it
+// marks the boundary for the player but does NOT contain bots (that is the
+// independent polygon clamp in bots.js). One glass mesh + one neon mesh: cheap.
+const _glassMat = new THREE.MeshStandardMaterial({
+  color: 0x7fdfff, transparent: true, opacity: 0.18, roughness: 0.1, metalness: 0,
+  side: THREE.DoubleSide, depthWrite: false,
+});
+const _neonMat = new THREE.MeshStandardMaterial({
+  color: 0x061418, emissive: C_NEON, emissiveIntensity: 2.2, roughness: 0.4,
+});
+function _buildCoastlineWall() {
+  const ring = coastlineRing();
+  const n = ring.length;
+  const H = WALL_WALL_H;
+  const inGap = ring.map(([x, z]) => _inGateGap(x, z));
+
+  // Glass ribbon: two verts per ring point (bottom on ground, top at +H). Skip
+  // any segment touching the gate gap so the bridge walkway stays open.
+  const positions = new Float32Array(n * 2 * 3);
+  for (let i = 0; i < n; i++) {
+    const x = ring[i][0], z = ring[i][1];
+    const gy = sampleArenaHeight(x, z);
+    positions[i * 6 + 0] = x; positions[i * 6 + 1] = gy;     positions[i * 6 + 2] = z;
+    positions[i * 6 + 3] = x; positions[i * 6 + 4] = gy + H; positions[i * 6 + 5] = z;
+  }
+  const idx = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (inGap[i] || inGap[j]) continue;
+    const bi = i * 2, ti = i * 2 + 1, bj = j * 2, tj = j * 2 + 1;
+    idx.push(bi, ti, tj, bi, tj, bj);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const glass = new THREE.Mesh(geo, _glassMat);
+  glass.name = 'coastline-wall';
+  glass.renderOrder = 2;
+  scene.add(glass);
+
+  // Neon top edge: a thin emissive tube along the kept arc (open if a gate gap
+  // exists, closed loop otherwise). Start just after the gap so the arc is one
+  // contiguous run even across the ring's 0-index wrap.
+  let start = 0;
+  for (let i = 0; i < n; i++) {
+    if (!inGap[i] && inGap[(i - 1 + n) % n]) { start = i; break; }
+  }
+  const pts = [];
+  for (let k = 0; k < n; k++) {
+    const i = (start + k) % n;
+    if (inGap[i]) break;
+    const x = ring[i][0], z = ring[i][1];
+    pts.push(new THREE.Vector3(x, sampleArenaHeight(x, z) + H, z));
+  }
+  const closed = pts.length === n;
+  const curve = new THREE.CatmullRomCurve3(pts, closed);
+  const neonGeo = new THREE.TubeGeometry(curve, n * 2, 0.05, 6, closed);
+  const neon = new THREE.Mesh(neonGeo, _neonMat);
+  neon.name = 'coastline-neon';
+  scene.add(neon);
 }
 
 // ── Crates ────────────────────────────────────────────────────────────────────

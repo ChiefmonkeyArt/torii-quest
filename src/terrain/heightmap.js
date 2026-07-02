@@ -1,14 +1,17 @@
-// terrain/heightmap.js — TWO-ISLAND terrain heightfield (Stage 3, v0.2.329).
+// terrain/heightmap.js — TWO-ISLAND terrain heightfield (Stage 5, v0.2.332).
 //
 // The SINGLE source of truth for ground height in BOTH playable zones — the main
-// ARENA (x ≤ 20) and the NAP zone (x ≥ 20). Both are now undulating ISLANDS that
-// rise from the Stage-2 sea: their interior sits on a raised plateau (ISLAND_BASE_Y
-// = +0.6, comfortably above SEA_LEVEL = -0.3 so no water pools in the dips), and
+// ARENA (x ≤ 20) and the NAP zone (x ≥ 20). Both are undulating ISLANDS that rise
+// from the Stage-2 sea: their interior sits on a raised plateau (ISLAND_BASE_Y =
+// +0.6, comfortably above SEA_LEVEL = -0.3 so no water pools in the dips), and
 // their sea-facing edges slope OUTWARD down to sea level so the land reads as an
-// island, not a floating slab. The shared edge at x=20 is now a SEA CHANNEL
-// (Stage 4, v0.2.331): both zones fade their land to SEA_LEVEL and dip
-// CHANNEL_DIP below it at the centreline, so the islands are separated by water
-// spanned by a bridge — the old level land JOIN under the gate is gone.
+// island, not a floating slab. The two islands are separated by a MEANDERING RIVER
+// (Stage 5, v0.2.332): a curved water band that snakes north-south, oscillating
+// east/west about the x=20 seam. The river is carved GLOBALLY in sample() (keyed on
+// the distance to the curved centreline riverCenterX(z)), identically in both zones,
+// so it is one continuous feature; the x=20 seam itself is a level JOIN (hills fade
+// to 0 there in both zones) so the two heightfields still meet continuously wherever
+// the meander has curved away. A bridge crosses the river at z=0.
 //
 // Every consumer reads the SAME continuous height function h(x,z) per zone:
 //   - terrainMesh.js  → bakes h() into mesh vertex Y (exact, CPU)
@@ -33,22 +36,46 @@ export const ISLAND_BASE_Y = 0.6;
 // play-area clamps), so the gameplay floor stays flat and level.
 export const SHORE_WIDTH = 4.0;
 // Seam band (metres): approaching a JOIN edge the hills fade to 0 so both zones
-// meet at exactly ISLAND_BASE_Y — continuous, level ground. (No zone uses a plain
-// 'join' seam any more — the shared x=20 line is now a 'channel' — but the kind is
-// kept for completeness / any future interior join.)
+// meet at exactly ISLAND_BASE_Y — continuous, level ground. The shared x=20 line is
+// a 'join' seam in BOTH zones; the meandering river is carved globally on top (see
+// sample()), so the two heightfields agree at x=20 wherever the river has curved off.
 export const SEAM_WIDTH = 3.0;
 
-// ── Sea channel (Stage 4, v0.2.331) ──────────────────────────────────────────
-// The shared x=20 seam is no longer a level land JOIN: a north-south sea channel
-// is carved along it so the two islands are separated by water, spanned by a
-// bridge. CHANNEL_HALF is the half-width of the carve on EACH side of the seam
-// (so the channel land-gap is ~2·CHANNEL_HALF wide: arena land ends ≈ x=17, NAP
-// land starts ≈ x=23). CHANNEL_DIP is how far BELOW sea level the channel floor
-// sinks at the centreline so the gap reads as water, not a dry ditch.
-export const CHANNEL_HALF = 3.0;
-export const CHANNEL_DIP = 0.6;
-// Channel centreline (world X) — the shared seam both zones fade to.
-export const CHANNEL_X = NAP_X; // 20
+// ── Meandering river (Stage 5, v0.2.332) ─────────────────────────────────────
+// The Stage-4 straight channel at x=20 is replaced by a river that MEANDERS as
+// it runs north-south: its centreline curves east/west with a smooth sine so the
+// water snakes between the two islands instead of cutting a dead-straight line.
+//
+//   riverCenterX(z) = RIVER_BASE_X + MEANDER_AMP · sin(z · MEANDER_FREQ)
+//
+// RIVER_BASE_X = 20 (the shared seam) and sin(0) = 0, so riverCenterX(0) === 20
+// EXACTLY — the river passes through the bridge (which crosses E-W at z=0) right
+// where the deck spans it. MEANDER_FREQ = 2π/30 → one full wiggle every ~30m.
+// The river is a band of half-width RIVER_HALF centred on that curve; its floor
+// sinks RIVER_DIP below sea level at the centreline so it reads as water.
+//
+// The carve is applied GLOBALLY in sample() (not as a per-edge kind) using the
+// distance from riverCenterX(z), so BOTH zones share the identical centreline and
+// the river is continuous across the x=20 seam. The seam itself stays a level
+// 'join' (hills fade to 0 at x=20 in both zones) so the two heightfields still
+// meet continuously wherever the meander has curved away from x=20.
+export const RIVER_BASE_X = NAP_X;          // 20 — seam the river oscillates about
+export const MEANDER_AMP  = 3.5;            // ±3.5m east/west sway of the centreline
+export const MEANDER_FREQ = (2 * Math.PI) / 30; // one full meander per ~30m of z
+export const RIVER_HALF   = 3.0;            // half-width of the water band (~6m wide)
+export const RIVER_DIP    = 0.6;            // metres the floor sinks BELOW SEA_LEVEL
+
+// riverCenterX(z) — world-X of the meandering river centreline at depth z. Shared
+// by both zones (and by grass exclusion) so the river is one continuous feature.
+export function riverCenterX(z) {
+  return RIVER_BASE_X + MEANDER_AMP * Math.sin(z * MEANDER_FREQ);
+}
+
+// riverDist(x,z) — perpendicular-ish distance from the meandering centreline. Used
+// to decide how deeply a point is inside the river band.
+export function riverDist(x, z) {
+  return Math.abs(x - riverCenterX(z));
+}
 
 // GLSL-style smoothstep, mirrored in JS. Used for both the shore slope and the
 // seam hill-fade so the transitions are C1-smooth (walkable, jitter-free).
@@ -58,24 +85,21 @@ function smoothstep(edge0, edge1, x) {
 }
 
 // Per-edge land factor (1 = full plateau land, 0 = sea).
-//   'join' → always land (the seam is land on both sides).
+//   'join' → always land (the seam is land on both sides — the meandering river is
+//            carved GLOBALLY in sample(), not per-edge, so the x=20 seam is plain land).
 //   'sea'  → 1 at/inside the footprint edge, ramping to 0 SHORE_WIDTH outside it.
 // d is the inward distance from the footprint edge (≥0 inside, <0 in the shore).
 function edgeLand(kind, d, shore) {
   if (kind === 'join') return 1;
-  // 'channel' → land ramps from 0 at the seam (d=0) up to full plateau
-  // CHANNEL_HALF inward, so the base sinks to SEA_LEVEL at the water's edge.
-  if (kind === 'channel') return smoothstep(0, CHANNEL_HALF, d);
   return smoothstep(-shore, 0, d);
 }
 
 // Per-edge hill factor (1 = full wave amplitude, 0 = flat).
-//   'join' → fade hills to 0 across SEAM_WIDTH inside the edge (level at the seam).
+//   'join' → fade hills to 0 across SEAM_WIDTH inside the edge (level at the seam) so
+//            both zones agree at x=20 wherever the meander has curved away from it.
 //   'sea'  → fade hills to 0 into the shore band (flat beach, no hills in the surf).
 function edgeHill(kind, d, shore, seam) {
   if (kind === 'join') return smoothstep(0, seam, d);
-  // 'channel' → hills fade to 0 into the channel (flat water surface, no waves).
-  if (kind === 'channel') return smoothstep(0, CHANNEL_HALF, d);
   return smoothstep(-shore, 0, d);
 }
 
@@ -142,15 +166,18 @@ function makeZone(cfg) {
     hill = Math.min(hill, edgeHill(edges.maxX, dE, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.minZ, dS, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.maxZ, dN, SHORE_WIDTH, SEAM_WIDTH));
-    // Channel carve: on a 'channel' edge the land factor already ramps the base
-    // down to SEA_LEVEL at the seam; additionally sink it CHANNEL_DIP BELOW sea
-    // level at the centreline so the gap reads as water. The dip fades to 0
-    // CHANNEL_HALF inward (same band as the land ramp) → C1-continuous surface.
-    let drop = 0;
-    if (edges.minX === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dW)) * CHANNEL_DIP);
-    if (edges.maxX === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dE)) * CHANNEL_DIP);
-    if (edges.minZ === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dS)) * CHANNEL_DIP);
-    if (edges.maxZ === 'channel') drop = Math.max(drop, (1 - smoothstep(0, CHANNEL_HALF, dN)) * CHANNEL_DIP);
+    // Meandering river carve (GLOBAL, shared by both zones). Distance from the
+    // curved centreline riverCenterX(z) decides how deep we are in the water band:
+    // at the centreline riverLand=0 → base drops to SEA_LEVEL and the floor sinks a
+    // further RIVER_DIP below it (→ SEA_LEVEL − RIVER_DIP); riverLand ramps back to 1
+    // RIVER_HALF away, so plateau land resumes. Hills also fade to 0 in the band
+    // (flat water surface). Applying the SAME carve in both zones keeps the river one
+    // continuous feature across the x=20 seam even as the centreline meanders across it.
+    const rd = riverDist(x, z);
+    const riverLand = smoothstep(0, RIVER_HALF, rd);
+    land = Math.min(land, riverLand);
+    hill = Math.min(hill, riverLand);
+    const drop = (1 - riverLand) * RIVER_DIP;
     const base = SEA_LEVEL + (ISLAND_BASE_Y - SEA_LEVEL) * land;
     return base + rawHeight(x, z, shapeCfg) * hill - drop;
   }
@@ -207,7 +234,9 @@ function makeZone(cfg) {
 }
 
 // ── NAP-zone island (east of the torii gate) ─────────────────────────────────
-// West edge (x=20) is the sea CHANNEL shared with the arena island; the other
+// West edge (x=20) is the level JOIN seam shared with the arena island; the
+// meandering river is carved GLOBALLY (see sample()), not on this edge, so both
+// zones meet continuously at x=20 wherever the river has curved away. The other
 // three edges are open sea.
 const _nap = makeZone({
   name: 'nap',
@@ -218,11 +247,12 @@ const _nap = makeZone({
   amp: 0.35,          // full rolling hills — walkable garden, no bots/crates
   phase: 0.0,
   targetCell: 0.32,
-  edges: { minX: 'channel', maxX: 'sea', minZ: 'sea', maxZ: 'sea' },
+  edges: { minX: 'join', maxX: 'sea', minZ: 'sea', maxZ: 'sea' },
 });
 
 // ── Main-arena island (west of the torii gate) ───────────────────────────────
-// East edge (x=20) is the sea CHANNEL shared with the NAP island; the other three edges are open sea
+// East edge (x=20) is the level JOIN seam shared with the NAP island (the river is
+// carved globally in sample(), not on this edge); the other three edges are open sea
 // (hidden behind the arena walls). Amplitude is now PRONOUNCED (v0.2.330): the
 // arena floor visibly rolls ±~0.5m so combat happens over real hills and dips.
 // This is safe because every arena entity now RIDES the terrain — bots sample
@@ -239,7 +269,7 @@ const _arena = makeZone({
   amp: 0.5,           // pronounced rolling hills (entities ride the terrain)
   phase: 2.3,         // different phase → distinct landform from the NAP island
   targetCell: 0.32,
-  edges: { minX: 'sea', maxX: 'channel', minZ: 'sea', maxZ: 'sea' },
+  edges: { minX: 'sea', maxX: 'join', minZ: 'sea', maxZ: 'sea' },
 });
 
 // ── NAP exports (Stage-1 names preserved) ─────────────────────────────────────

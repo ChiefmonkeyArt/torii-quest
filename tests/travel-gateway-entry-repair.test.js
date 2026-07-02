@@ -64,7 +64,7 @@ describe('v0.2.240 — travel gateway GLB load is strictly fail-soft', () => {
   it('only removes the fallback after a successful load+process (swap, not pre-remove)', () => {
     const fn = ARENA.slice(
       ARENA.indexOf('function _buildTravelGateway'),
-      ARENA.indexOf('function _loadWallTexture'),
+      ARENA.indexOf('function _buildNapZone'),
     );
     const removeFallback = fn.indexOf('scene.remove(fallback)');
     const addReal = fn.indexOf('scene.add(gate)');
@@ -78,7 +78,7 @@ describe('v0.2.240 — travel gateway GLB load is strictly fail-soft', () => {
   it('guards loader-init, load and process failures and surfaces a loggable error', () => {
     const fn = ARENA.slice(
       ARENA.indexOf('function _buildTravelGateway'),
-      ARENA.indexOf('function _loadWallTexture'),
+      ARENA.indexOf('function _buildNapZone'),
     );
     // A try/catch around loader construction + a try/catch around onLoad processing
     // + the onError callback all route through a single fail-soft marker.

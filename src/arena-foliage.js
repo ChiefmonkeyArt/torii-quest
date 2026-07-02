@@ -4,11 +4,12 @@
 import * as THREE from 'three';
 import { scene } from './scene.js';
 import { ARENA_HALF, NAP_X, NAP_FAR_X, CRATES } from './config.js';
-import { sampleNapHeight, sampleArenaHeight, CHANNEL_X, CHANNEL_HALF } from './terrain/heightmap.js';
+import { sampleNapHeight, sampleArenaHeight, riverCenterX, RIVER_HALF } from './terrain/heightmap.js';
 
-// Blades within the sea channel band (|x − CHANNEL_X| < CHANNEL_HALF, Stage 4)
-// would stand in / over the water, so exclude them from both zones' candidates.
-const inChannel = (x) => Math.abs(x - CHANNEL_X) < CHANNEL_HALF;
+// Blades within the meandering river band (|x − riverCenterX(z)| < RIVER_HALF,
+// Stage 5) would stand in / over the water, so exclude them from both zones'
+// candidates. The band follows the curved centreline, so the test is z-aware.
+const inRiver = (x, z) => Math.abs(x - riverCenterX(z)) < RIVER_HALF;
 
 // NAP-zone footprint shared by both grass + flowers.
 //   x: just inside the gate edge → just inside the far wall (small inset so
@@ -243,7 +244,7 @@ function _buildGrass() {
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const dx = jx - TREE_X, dz = jz - TREE_Z;
       if (dx * dx + dz * dz < TREE_CLEAR_SQ) continue;
-      if (inChannel(jx)) continue;
+      if (inRiver(jx, jz)) continue;
       candidates.push(jx, jz, 0);
     }
   }
@@ -253,7 +254,7 @@ function _buildGrass() {
       const jx = x + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       if (inCrate(jx, jz)) continue;
-      if (inChannel(jx)) continue;
+      if (inRiver(jx, jz)) continue;
       candidates.push(jx, jz, 1);
     }
   }
@@ -649,7 +650,7 @@ function _buildWildflowers() {
       fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
       fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
       const dx = fx - TREE_X, dz = fz - TREE_Z;
-      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inChannel(fx)) break;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inRiver(fx, fz)) break;
     }
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);
@@ -766,7 +767,7 @@ function _buildTulips() {
       fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
       fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
       const dx = fx - TREE_X, dz = fz - TREE_Z;
-      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inChannel(fx)) break;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inRiver(fx, fz)) break;
     }
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);

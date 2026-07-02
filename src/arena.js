@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
-import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
+import { ARENA_HALF, WALL_H, CRATES, NAP_X, NAP_FAR_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
 import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
@@ -12,21 +12,17 @@ import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
-const C_WALL   = 0x1e3020;
 const C_CRATE  = 0x4a4458;
 const C_ORANGE = 0xf7931a;
 const C_PURPLE = 0x8b5cf6;
 const C_TURQ   = 0x1ad6c4;
 
-// perf: shared fallback materials (overwritten by texture load for walls)
-const _wallFallback = new THREE.MeshBasicMaterial({ color: C_WALL });
-const crateMat      = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
+const crateMat = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
 
-export const wallMeshes = [];
-
-// Wall span + height lookup — needed for texture tiling
-const _wallSpans = [];
-const _wallHeights = [];
+// The arena perimeter walls were removed in v0.2.333 — the island is now open to
+// the sea on all sides, with the shore slope (terrain) as the visual/physical
+// boundary. Crate meshes are still tracked here for potential debug enumeration.
+export const crateMeshes = [];
 
 // module-level scratch for instanced loops — never allocate inside
 const _up   = new THREE.Vector3(0, 1, 0);
@@ -37,15 +33,13 @@ const _m4   = new THREE.Matrix4();
 
 export function buildArena() {
   _buildFloor();
-  _buildWalls();
   _buildCrates();
-  buildBridge();       // Stage 4 — deck across the sea channel at x=20 (bridge.js)
+  buildBridge();       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
   _buildToriiGate();
   _buildTravelGateway(); // far-side metaverse travel portal model (v0.2.239)
   _buildNapZone();     // floor extension + tree past the torii gate
   buildSeaMesh(scene); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   buildFoliage();      // grass + wildflowers — arena-foliage.js (NAP zone only)
-  _loadWallTexture();  // async, deferred 1 rAF
 }
 
 // ── Floor ─────────────────────────────────────────────────────────────────────
@@ -70,69 +64,6 @@ function _buildFloor() {
   top.position.set(0, WALL_H + 4 + ISLAND_BASE_Y, 0); scene.add(top);
 }
 
-// ── Walls ─────────────────────────────────────────────────────────────────────
-function _buildWalls() {
-  // [w, h, d, x, y, z, span]  — span = textured face width for UV tiling
-  const A = ARENA_HALF * 2 + 0.5;
-  // East wall is split in two so the torii gate can sit in a true opening.
-  // Each segment runs from a corner to the gap edge along Z.
-  const eastSegLen = ARENA_HALF - EAST_GAP_HALF + 0.25; // extends past corner
-  const eastSegZ   = (EAST_GAP_HALF + ARENA_HALF) / 2;   // midpoint of segment
-  // Walls sit on the raised island plateau → base at ISLAND_BASE_Y.
-  const WY = WALL_H / 2 + ISLAND_BASE_Y;
-  // The east wall segments run along x=20 — the sea channel line (v0.2.331). Root
-  // them DOWN below the water (EAST_ROOT_Y) instead of floating at the plateau
-  // base, so there's no ~1.5m gap over the channel. Top stays at the plateau wall
-  // height; only the bottom is extended.
-  const EAST_ROOT_Y = -1.0;
-  const eastTopY = ISLAND_BASE_Y + WALL_H;         // 3.2
-  const eastH    = eastTopY - EAST_ROOT_Y;         // 4.2
-  const eastY    = (eastTopY + EAST_ROOT_Y) / 2;   // 1.1
-  const wallDefs = [
-    [A,    WALL_H, 0.5,  0,          WY, -ARENA_HALF, A],            // north
-    [A,    WALL_H, 0.5,  0,          WY,  ARENA_HALF, A],            // south
-    [0.5,  WALL_H, A,   -ARENA_HALF, WY,  0,          A],            // west
-    [0.5,  eastH,  eastSegLen,  ARENA_HALF, eastY, -eastSegZ, eastSegLen], // east-north (rooted below channel)
-    [0.5,  eastH,  eastSegLen,  ARENA_HALF, eastY,  eastSegZ, eastSegLen], // east-south (rooted below channel)
-  ];
-
-  const capMat    = new THREE.MeshBasicMaterial({ color: C_ORANGE });
-  const pillarMat = new THREE.MeshStandardMaterial({
-    color: C_PURPLE, emissive: 0x4a1d96, emissiveIntensity: 0.4
-  });
-
-  wallDefs.forEach(([w, h, d, x, y, z, span]) => {
-    // Use array material so faces can be individually textured later
-    const mats = Array(6).fill(_wallFallback);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
-    m.position.set(x, y, z);
-    m.castShadow = m.receiveShadow = true;
-    scene.add(m);
-    wallMeshes.push(m);
-    _wallSpans.push(span);
-    _wallHeights.push(h);
-
-    // Orange cap — always at the plateau wall top (channel-rooted walls keep the
-    // same top, only their bottom is extended).
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.22, d + 0.1), capMat);
-    cap.position.set(x, WALL_H + 0.11 + ISLAND_BASE_Y, z);
-    scene.add(cap);
-  });
-
-  // Purple corner pillars. The two EAST corners (x=ARENA_HALF) straddle the sea
-  // channel line, so root them down below the water like the east wall segments.
-  [[-ARENA_HALF,-ARENA_HALF],[ARENA_HALF,-ARENA_HALF],
-   [-ARENA_HALF, ARENA_HALF],[ARENA_HALF,  ARENA_HALF]]
-  .forEach(([px, pz]) => {
-    const topY = ISLAND_BASE_Y + WALL_H + 0.5;
-    const botY = px === ARENA_HALF ? -1.0 : ISLAND_BASE_Y;
-    const ph = topY - botY;
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.8, ph, 0.8), pillarMat);
-    p.position.set(px, (topY + botY) / 2, pz);
-    scene.add(p);
-  });
-}
-
 // ── Crates ────────────────────────────────────────────────────────────────────
 function _buildCrates() {
   CRATES.forEach(([cx, cz, hw, hd, ch]) => {
@@ -144,7 +75,7 @@ function _buildCrates() {
     m.position.set(cx, ch / 2 + sampleArenaHeight(cx, cz), cz);
     m.castShadow = m.receiveShadow = true;
     scene.add(m);
-    wallMeshes.push(m);
+    crateMeshes.push(m);
   });
 }
 
@@ -304,52 +235,6 @@ function _buildTravelGateway() {
     markGatewayFallback('loader-init-error', e);
     if (draco) draco.dispose();
   }
-}
-
-// ── Wall texture — async, deferred 1 rAF ──────────────────────────────────────
-// Texture is 1774×887 (2:1 aspect). We tile it so 1 tile = WALL_H tall, WALL_H*2 wide.
-// RepeatX = wallSpan / (WALL_H * 2), RepeatY = 1 (full height exactly fills wall).
-function _loadWallTexture() {
-  requestAnimationFrame(() => {
-    new THREE.TextureLoader().load('/wall-texture.webp', tex => {
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.needsUpdate = true;
-
-      // Face indices for BoxGeometry: 0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z(front), 5=-Z(back)
-      // North/South walls (Z-facing) — texture on faces 4 (+Z) and 5 (-Z)
-      // East/West walls (X-facing)  — texture on faces 0 (+X) and 1 (-X)
-      const faceGroups = [
-        [4, 5],  // north wall
-        [4, 5],  // south wall
-        [0, 1],  // west wall
-        [0, 1],  // east-north segment
-        [0, 1],  // east-south segment
-      ];
-
-      wallMeshes.slice(0, 5).forEach((mesh, i) => {
-        const span  = _wallSpans[i];
-        // RepeatX: how many tiles wide. Texture aspect is 2:1 so tile width = WALL_H*2
-        const repsX = span / (WALL_H * 2);
-        // RepeatY scales with wall height so channel-rooted (taller) east segments
-        // keep the same texel density as the plateau-height walls instead of
-        // stretching one tile over the full extended height.
-        const repsY = (_wallHeights[i] || WALL_H) / WALL_H;
-        // BOTH faces render the texture in its native left-to-right orientation
-        // when viewed from the interior of the arena — no UV flipping. Previously
-        // we negated repsX on side===1 which left south + east-segment interiors
-        // reading right-to-left (back-to-front).
-        faceGroups[i].forEach((fi) => {
-          const t = tex.clone();
-          t.wrapS = t.wrapT = THREE.RepeatWrapping;
-          t.repeat.set(repsX, repsY);
-          t.offset.set(0, 0);
-          t.needsUpdate = true;
-          mesh.material[fi] = new THREE.MeshBasicMaterial({ map: t });
-          mesh.material[fi].needsUpdate = true;
-        });
-      });
-    });
-  });
 }
 
 // ── NAP Zone — peaceful area past the torii gate ─────────────────────────

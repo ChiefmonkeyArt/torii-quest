@@ -1,5 +1,5 @@
 // config.js — ALL constants. Never scatter magic numbers.
-export const VERSION   = 'v0.2.331-alpha';
+export const VERSION   = 'v0.2.333-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -94,7 +94,7 @@ export const CRATES = [
   [  8,    8,  0.75, 0.75,  1.5 ],
   [  0,    0,  1.0,  1.0,   1.0 ],
   [-14,    0,  0.75, 0.75,  2.0 ],
-  [ 14,    0,  0.75, 0.75,  2.0 ],
+  [-10,  -10,  0.75, 0.75,  2.0 ], // was [14,0] — relocated off the arena bridge foot (v0.2.333)
   [ -5,   13,  1.5,  0.5,   1.0 ],
   [  5,  -13,  1.5,  0.5,   1.0 ],
 ];
@@ -106,24 +106,13 @@ export const CRATES = [
 //   - Bonsai tree trunk at (NAP_X+6, 0) — the NAP-zone tree must be solid.
 //   - Torii pillars at the east gate — z=±3.0 just inside EAST_GAP_HALF (3.5)
 //     so the central walkway stays clear. Half-width 0.4 covers the GLB pillar.
-// East-wall segments as colliders. arena.js builds these as visual meshes only;
-// adding them here makes them solid from BOTH sides — the previous code only
-// blocked east-bound players via a gap-aware clamp, which leaked when a player
-// in the NAP zone tried to walk back through the wall above/below the gap.
-// East-wall collider segments OVERLAP the torii pillars by 0.5m so there's no
-// micro-gap a capsule (radius 0.35 + Rapier offset 0.05 = 0.4) can squeeze
-// through. Pillars span z = ±[2.6, 3.4]; we start the wall at z = ±2.9 inward
-// of the pillar centre. Visual wall is unchanged — only the collider extends.
-// midZ = (2.9 + 20)/2 = 11.45,  halfD = (20 - 2.9)/2 = 8.55
-const _EAST_SEG_INNER = 2.9; // 0.5m inside EAST_GAP_HALF (3.4) for pillar overlap
-const _EAST_SEG_MIDZ  = (_EAST_SEG_INNER + ARENA_HALF) / 2;
-const _EAST_SEG_HALFD = (ARENA_HALF - _EAST_SEG_INNER) / 2;
-
+// v0.2.333: the east-wall collider segments were REMOVED along with the rest of
+// the arena perimeter walls — the island is now open to the sea on all sides.
+// The torii pillars remain (they belong to the decorative gate on the bridge
+// deck, not the wall), and the bonsai trunk stays solid.
 export const OBSTACLES = [
   // cx              cz                 hw    hd                 fullH
   [ ARENA_HALF + 6,  0,                 0.55, 0.55,              4.4 ], // bonsai trunk (NAP zone)
   [ ARENA_HALF,     -3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (north) — matches gate ×1.3 scale
   [ ARENA_HALF,      3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (south) — matches gate ×1.3 scale
-  [ ARENA_HALF,     -_EAST_SEG_MIDZ,    0.25, _EAST_SEG_HALFD,   WALL_H ],       // east-north wall segment
-  [ ARENA_HALF,      _EAST_SEG_MIDZ,    0.25, _EAST_SEG_HALFD,   WALL_H ],       // east-south wall segment
 ];

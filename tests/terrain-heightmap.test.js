@@ -1,10 +1,12 @@
-// tests/terrain-heightmap.test.js — TWO-ISLAND terrain heightmap (Stage 3, v0.2.329).
+// tests/terrain-heightmap.test.js — TWO-ISLAND terrain heightmap (Stage 5, v0.2.332).
 // Pure + node-safe (no THREE/RAPIER, deterministic), so it runs node-fast. Locks the
 // single source-of-truth height function that mesh + grass + physics all read for
-// BOTH the NAP zone and the main arena. The Stage-1 "fade to y=0 at the borders"
-// model is gone: each zone is now a raised island (interior ≈ ISLAND_BASE_Y) whose
-// sea-facing edges slope OUTWARD to SEA_LEVEL and whose shared x=20 seam is a level
-// JOIN at ISLAND_BASE_Y.
+// BOTH the NAP zone and the main arena. Each zone is a raised island (interior ≈
+// ISLAND_BASE_Y) whose sea-facing edges slope OUTWARD to SEA_LEVEL; the two islands
+// are separated by a MEANDERING RIVER — a curved water band that oscillates east/west
+// about the x=20 seam as it runs north-south (riverCenterX(z) = 20 + AMP·sin(z·FREQ)).
+// The river is carved GLOBALLY (same centreline in both zones), while the x=20 seam
+// itself is a level JOIN so the two heightfields still meet continuously there.
 import { describe, it, expect } from 'vitest';
 import {
   NAP_TERRAIN, NAP_GRID, NAP_TERRAIN_AMP,
@@ -12,9 +14,17 @@ import {
   sampleHeight, sampleNapHeight, sampleArenaHeight,
   buildNapHeightfieldArray, buildArenaHeightfieldArray,
   napTerrainPeak, arenaTerrainPeak,
-  ISLAND_BASE_Y, CHANNEL_X, CHANNEL_HALF, CHANNEL_DIP,
+  ISLAND_BASE_Y, RIVER_BASE_X, RIVER_HALF, RIVER_DIP, MEANDER_AMP, riverCenterX,
 } from '../src/terrain/heightmap.js';
 import { SEA_LEVEL } from '../src/terrain/seaConfig.js';
+
+// Sample the river floor at depth z on whichever island grid contains the curved
+// centreline there (arena grid ends at x=20, NAP grid starts at x=20; join edges are
+// NOT extended, so a point on the far side of the seam reads SEA_LEVEL as "off-grid").
+function sampleRiverFloor(z) {
+  const cx = riverCenterX(z);
+  return cx <= RIVER_BASE_X ? sampleArenaHeight(cx, z) : sampleNapHeight(cx, z);
+}
 
 describe('sampleHeight alias === sampleNapHeight (backward compat)', () => {
   it('is the same function reference', () => {
@@ -22,38 +32,59 @@ describe('sampleHeight alias === sampleNapHeight (backward compat)', () => {
   });
 });
 
-describe('sea channel at x=20 (Stage 4, v0.2.331 — replaces the old level JOIN)', () => {
-  // The shared x=20 seam is now a SEA CHANNEL: both zones fade their land to
-  // SEA_LEVEL and dip CHANNEL_DIP below it at the centreline, so the islands are
-  // separated by water (spanned by a bridge). The old ISLAND_BASE_Y level-join
-  // assertions are gone by design.
-  const CHANNEL_FLOOR = SEA_LEVEL - CHANNEL_DIP;
+describe('meandering river (Stage 5, v0.2.332 — replaces the straight x=20 channel)', () => {
+  // The two islands are separated by a CURVED water band that oscillates east/west
+  // about x=20. Along its centreline the surface dips to SEA_LEVEL − RIVER_DIP; the
+  // x=20 seam itself is a level JOIN so the two heightfields still agree there.
+  const RIVER_FLOOR = SEA_LEVEL - RIVER_DIP;
 
-  it('NAP west channel edge dips to SEA_LEVEL − CHANNEL_DIP at the centreline', () => {
-    expect(sampleNapHeight(CHANNEL_X, NAP_TERRAIN.centerZ)).toBeCloseTo(CHANNEL_FLOOR, 6);
+  it('river centreline passes through x=20 at z=0 (aligned with the bridge)', () => {
+    // sin(0) = 0 → riverCenterX(0) === RIVER_BASE_X (20) EXACTLY, so the river runs
+    // under the bridge that crosses E-W at z=0 right where the deck spans it.
+    expect(riverCenterX(0)).toBeCloseTo(RIVER_BASE_X, 12);
+    expect(riverCenterX(0)).toBe(20);
   });
 
-  it('arena east channel edge dips to SEA_LEVEL − CHANNEL_DIP at the centreline', () => {
-    expect(sampleArenaHeight(CHANNEL_X, ARENA_TERRAIN.centerZ)).toBeCloseTo(CHANNEL_FLOOR, 6);
+  it('centreline meanders east/west, staying within the ±MEANDER_AMP band', () => {
+    let sawEast = false, sawWest = false;
+    for (let z = -20; z <= 20; z += 1) {
+      const cx = riverCenterX(z);
+      expect(cx).toBeGreaterThanOrEqual(RIVER_BASE_X - MEANDER_AMP - 1e-9);
+      expect(cx).toBeLessThanOrEqual(RIVER_BASE_X + MEANDER_AMP + 1e-9);
+      if (cx > RIVER_BASE_X + 0.5) sawEast = true;
+      if (cx < RIVER_BASE_X - 0.5) sawWest = true;
+    }
+    expect(sawEast && sawWest).toBe(true); // the river actually curves both ways
   });
 
-  it('channel floor at the seam is below SEA_LEVEL (reads as water, not dry land)', () => {
-    for (const z of [-15, -5, 0, 7, 15]) {
-      expect(sampleArenaHeight(CHANNEL_X, z)).toBeLessThanOrEqual(SEA_LEVEL);
-      expect(sampleNapHeight(CHANNEL_X, z)).toBeLessThanOrEqual(SEA_LEVEL);
+  it('river floor dips to SEA_LEVEL − RIVER_DIP along the CURVED centreline', () => {
+    for (const z of [-15, -7.5, 0, 7.5, 15]) {
+      expect(sampleRiverFloor(z)).toBeCloseTo(RIVER_FLOOR, 6);
     }
   });
 
-  it('both zones still meet continuously on the shared x=20 line', () => {
-    for (const z of [-15, -5, 0, 7, 15]) {
-      expect(sampleArenaHeight(CHANNEL_X, z)).toBeCloseTo(sampleNapHeight(CHANNEL_X, z), 6);
+  it('river floor is below SEA_LEVEL along the curve (reads as water, not dry land)', () => {
+    for (const z of [-18, -10, -3, 0, 4, 11, 18]) {
+      expect(sampleRiverFloor(z)).toBeLessThanOrEqual(SEA_LEVEL);
     }
   });
 
-  it('land returns to the plateau just OUTSIDE the channel band on both sides', () => {
-    // Arena land edge ≈ x=17, NAP land edge ≈ x=23 (CHANNEL_HALF=3 from x=20).
-    expect(sampleArenaHeight(CHANNEL_X - CHANNEL_HALF, 0)).toBeGreaterThan(SEA_LEVEL);
-    expect(sampleNapHeight(CHANNEL_X + CHANNEL_HALF, 0)).toBeGreaterThan(SEA_LEVEL);
+  it('both zones still meet continuously on the shared x=20 JOIN line', () => {
+    for (const z of [-15, -5, 0, 7, 15]) {
+      expect(sampleArenaHeight(RIVER_BASE_X, z)).toBeCloseTo(sampleNapHeight(RIVER_BASE_X, z), 6);
+    }
+  });
+
+  it('land returns to the plateau just OUTSIDE the river band, following the curve', () => {
+    for (const z of [-12, 0, 9]) {
+      const cx = riverCenterX(z);
+      // Step RIVER_HALF+ off the curve on each side; whichever island holds that x
+      // must be dry land again (above SEA_LEVEL).
+      const west = cx - RIVER_HALF - 0.5;
+      const east = cx + RIVER_HALF + 0.5;
+      expect(sampleArenaHeight(Math.min(west, RIVER_BASE_X), z)).toBeGreaterThan(SEA_LEVEL);
+      expect(sampleNapHeight(Math.max(east, RIVER_BASE_X), z)).toBeGreaterThan(SEA_LEVEL);
+    }
   });
 });
 
@@ -83,16 +114,17 @@ describe('island shore — sea edges slope OUTWARD down to SEA_LEVEL', () => {
 describe('no pooling — interior stays dry land above SEA_LEVEL', () => {
   function interiorMin(TERRAIN, sample) {
     // Sample the footprint interior on a fine grid; the lowest point must still
-    // be above SEA_LEVEL so the sea never shows through a wave trough. The sea
-    // CHANNEL band around x=20 is DELIBERATELY below sea level (it's water), so
-    // it's excluded — "no pooling" means the dry LAND interior never dips below.
+    // be above SEA_LEVEL so the sea never shows through a wave trough. The
+    // meandering RIVER band is DELIBERATELY below sea level (it's water), so points
+    // inside it are excluded — "no pooling" means the dry LAND interior never dips
+    // below. The band follows the curve, so the exclusion is z-aware.
     let min = Infinity;
     const N = 60;
     for (let i = 0; i <= N; i++) {
       const x = TERRAIN.minX + (TERRAIN.maxX - TERRAIN.minX) * (i / N);
-      if (Math.abs(x - CHANNEL_X) < CHANNEL_HALF) continue;
       for (let j = 0; j <= N; j++) {
         const z = TERRAIN.minZ + (TERRAIN.maxZ - TERRAIN.minZ) * (j / N);
+        if (Math.abs(x - riverCenterX(z)) < RIVER_HALF) continue;
         min = Math.min(min, sample(x, z));
       }
     }
@@ -139,14 +171,14 @@ describe('v0.2.330 — arena no-pooling holds at the raised amplitude', () => {
   it('arena LAND interior minimum stays above SEA_LEVEL even at amp 0.5', () => {
     // Bigger hills mean deeper dips; verify the deepest interior point is still
     // dry land (above SEA_LEVEL) so the sea never shows through an arena trough.
-    // The sea channel band around x=20 is excluded — it's intentionally water.
+    // The meandering river band is excluded (z-aware) — it's intentionally water.
     let min = Infinity;
     const N = 120;
     for (let i = 0; i <= N; i++) {
       const x = ARENA_TERRAIN.minX + (ARENA_TERRAIN.maxX - ARENA_TERRAIN.minX) * (i / N);
-      if (Math.abs(x - CHANNEL_X) < CHANNEL_HALF) continue;
       for (let j = 0; j <= N; j++) {
         const z = ARENA_TERRAIN.minZ + (ARENA_TERRAIN.maxZ - ARENA_TERRAIN.minZ) * (j / N);
+        if (Math.abs(x - riverCenterX(z)) < RIVER_HALF) continue;
         min = Math.min(min, sampleArenaHeight(x, z));
       }
     }
@@ -154,18 +186,21 @@ describe('v0.2.330 — arena no-pooling holds at the raised amplitude', () => {
   });
 });
 
-describe('v0.2.331 — sea channel is carved below sea level along the whole x=20 seam', () => {
-  it('channel centreline is below SEA_LEVEL across the full N-S extent of both zones', () => {
+describe('v0.2.332 — river is carved below sea level along its whole meandering curve', () => {
+  it('river floor is below SEA_LEVEL along the curve across the full N-S extent', () => {
     for (let z = ARENA_TERRAIN.minZ; z <= ARENA_TERRAIN.maxZ; z += 2) {
-      expect(sampleArenaHeight(CHANNEL_X, z)).toBeLessThan(SEA_LEVEL);
-      expect(sampleNapHeight(CHANNEL_X, z)).toBeLessThan(SEA_LEVEL);
+      expect(sampleRiverFloor(z)).toBeLessThan(SEA_LEVEL);
     }
   });
 
-  it('channel is a narrow band — land is dry again CHANNEL_HALF away on each side', () => {
-    // Just outside the band the surface is back on the plateau (well above sea).
-    expect(sampleArenaHeight(CHANNEL_X - CHANNEL_HALF - 0.5, 0)).toBeGreaterThan(SEA_LEVEL);
-    expect(sampleNapHeight(CHANNEL_X + CHANNEL_HALF + 0.5, 0)).toBeGreaterThan(SEA_LEVEL);
+  it('river is a narrow band — land is dry again RIVER_HALF away from the curve', () => {
+    // Just outside the band (measured from the curved centreline) the surface is
+    // back on the plateau (well above sea) on whichever island holds that x.
+    for (const z of [-9, 0, 6]) {
+      const cx = riverCenterX(z);
+      expect(sampleArenaHeight(Math.min(cx - RIVER_HALF - 0.5, RIVER_BASE_X), z)).toBeGreaterThan(SEA_LEVEL);
+      expect(sampleNapHeight(Math.max(cx + RIVER_HALF + 0.5, RIVER_BASE_X), z)).toBeGreaterThan(SEA_LEVEL);
+    }
   });
 });
 

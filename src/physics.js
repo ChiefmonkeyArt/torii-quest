@@ -1,8 +1,9 @@
 // physics.js — Rapier world + kinematic character controller.
 // v0.2.61-alpha (Rapier Phase 1): player movement is now driven by Rapier's
-// KinematicCharacterController. Static colliders for arena, NAP floor, walls
-// (with east-gate gap), CRATES and OBSTACLES are built from config so the
-// physics world matches the visual + gameplay arena 1:1.
+// KinematicCharacterController. Static colliders for the arena + NAP heightfields,
+// CRATES and OBSTACLES are built from config so the physics world matches the
+// visual + gameplay arena 1:1. (Perimeter walls were removed in v0.2.333 — the
+// island is open to the sea, bounded by the shore slope + a void-fall respawn.)
 //
 // v0.2.110: body/collider factories were extracted to engine/physics/bodies.js
 // and the raycast layer to engine/physics/raycast.js. This module owns the
@@ -14,7 +15,7 @@
 // 2*(halfHeight + radius). Player body is positioned at the *capsule centre*
 // (foot + halfHeight + radius), NOT the eye. player.js maps body↔eye.
 import {
-  ARENA_HALF, WALL_H, NAP_X, NAP_FAR_X, CRATES, OBSTACLES,
+  CRATES, OBSTACLES,
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
 } from './config.js';
 import { initBodies, createStatic, createHeightfield } from './engine/physics/bodies.js';
@@ -118,18 +119,14 @@ export function buildArenaColliders() {
     `peak=${_ap.height.toFixed(3)} · nap ${NAP_GRID.colsX}x${NAP_GRID.rowsZ} ` +
     `peak=${_np.height.toFixed(3)} · baseY=${ISLAND_BASE_Y}`);
 
-  // Walls, crates and obstacles sit ON the raised plateau, so their base rises by
+  // Crates and obstacles sit ON the raised plateau, so their base rises by
   // ISLAND_BASE_Y (their footprints are on full-height plateau ground, not shore).
   const B = ISLAND_BASE_Y;
-  // Walls — north, south, west are solid full-length planes.
-  // East wall is split into two segments to leave the gate gap.
-  createStatic(ARENA_HALF + 0.3, WALL_H / 2, 0.25, 0, WALL_H / 2 + B, -ARENA_HALF); // north
-  createStatic(ARENA_HALF + 0.3, WALL_H / 2, 0.25, 0, WALL_H / 2 + B,  ARENA_HALF); // south
-  createStatic(0.25, WALL_H / 2, ARENA_HALF + 0.3, -ARENA_HALF, WALL_H / 2 + B, 0); // west
-
-  // East wall: two segments flanking the gate. Geometry already lives in
-  // OBSTACLES (split at EAST_GAP_HALF). We add them below in the OBSTACLES
-  // loop, so don't add a solid east plane here.
+  // Arena perimeter walls were REMOVED in v0.2.333 — no north/south/west/east wall
+  // colliders. The island is open to the sea on all sides; the terrain shore slope
+  // (heightfield) is the boundary, and the player.js void-fall net respawns anyone
+  // who walks off the edge into the sea. The east-wall segment colliders are also
+  // gone from OBSTACLES (config.js), leaving the bridge entrance at z=0 clear.
 
   // CRATES — visual + collidable cover. Each crate rests ON the undulating arena
   // surface: its collider base is the terrain height sampled at the crate centre

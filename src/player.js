@@ -154,19 +154,12 @@ export function tickPlayer(dt) {
     _vy = 0; _onGround = true;
   }
 
-  // NAP-zone z-clamp — there are no walls past the gate, so Rapier won't
-  // bound z out there. Clamp the visual + body to arena width so the player
-  // can't drift into the void around the bonsai tree.
-  if (playerObj.position.x > NAP_X) {
-    const zClamped = Math.max(-ARENA_HALF, Math.min(ARENA_HALF, playerObj.position.z));
-    if (zClamped !== playerObj.position.z) {
-      playerObj.position.z = zClamped;
-      if (_body) {
-        const t2 = _body.translation();
-        _body.setNextKinematicTranslation({ x: t2.x, y: t2.y, z: zClamped });
-      }
-    }
-  }
+  // NAP-zone z-clamp REMOVED (v0.2.338). The north/south NAP edges are now sea
+  // beaches with a graduated wadeable slope (heightfield collider extends to the
+  // slope edge), so the player MUST be free to walk out onto them — the old
+  // ±ARENA_HALF clamp stranded them at the footprint edge, unable to reach the
+  // left/right water. The void-fall respawn below (y < -2) catches anyone who
+  // walks past the slope into the collider-less void. No horizontal clamp.
 
   // Void-fall safety net (v0.2.104, retained through the v0.2.333 wall removal).
   // The arena is now an open island — the perimeter walls and the X/Z hard-clamp

@@ -8,10 +8,15 @@
 // so the shader and the unit tests agree exactly. Y-up: heights are along +Y, the
 // sea surface is the XZ plane at SEA_LEVEL. Stage 2 is VISUAL ONLY — no physics.
 
-// Sea datum. The land (arena floor y=0, NAP terrain peaks above 0, edges at 0)
-// sits 0.3m ABOVE the sea. Future Stage 3 islands rise out of this sea. We do NOT
-// move any terrain — only the visual water plane lives here.
-export const SEA_LEVEL = -0.3;
+// Sea datum. Raised to -0.26 (v0.2.334) so the water laps HIGHER up the sloped
+// island shores — closer to the +0.6 island base — without reopening interior
+// pooling. This is the ceiling: the islands' deepest interior LAND dip is ≈+0.15m
+// (arena, near x=4 z=12) and the animated sea crest can reach SEA_LEVEL + ~0.43m,
+// so SEA_LEVEL + crest must stay below +0.15. At -0.26 the crest tops out ≈+0.17
+// only right at the shore edge and stays ~1cm below the deepest interior dip over a
+// long wave sweep — water reaches the shore boundary but never shows through grass.
+// We do NOT move any terrain — only the visual water plane lives here.
+export const SEA_LEVEL = -0.26;
 
 // Plane extent (full width, metres). The scene camera far plane is 600 and the fog
 // (FogExp2 0xc8dde8, density 0.008) is ~fully opaque by ~300m, so a ±500m sheet

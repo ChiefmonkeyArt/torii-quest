@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { ARENA_HALF, NAP_X, NAP_FAR_X, CRATES } from './config.js';
 import { sampleNapHeight, sampleArenaHeight, riverCenterX, RIVER_HALF } from './terrain/heightmap.js';
+import { SEA_LEVEL } from './terrain/seaConfig.js';
 
 // Blades within the meandering river band (|x − riverCenterX(z)| < RIVER_HALF,
 // Stage 5) would stand in / over the water, so exclude them from both zones'
@@ -236,6 +237,14 @@ function _buildGrass() {
     return false;
   };
 
+  // Beach/surf exclusion (v0.2.336, lowered v0.2.337) — since the sea-facing edges
+  // now slope DOWN to SEA_LEVEL over BEACH_INSET INSIDE the footprint, blades placed
+  // there would stand in the surf. Reject any candidate whose sampled terrain sits
+  // below GRASS_MIN_Y so grass thins out toward the water. v0.2.337: GRASS_MIN_Y now
+  // sits just ABOVE SEA_LEVEL (not +0.2), so grass extends right down to the
+  // waterline — the sea laps the lowest blades instead of stopping on a bare strip.
+  const GRASS_MIN_Y = SEA_LEVEL + 0.04;   // ≈ -0.22: grass meets the waterline
+
   const candidates = [];
   // NAP zone (green) — bonsai cleared.
   for (let x = NAP_GRASS_X0; x <= NAP_GRASS_X1; x += CAND_SPACING) {
@@ -245,6 +254,7 @@ function _buildGrass() {
       const dx = jx - TREE_X, dz = jz - TREE_Z;
       if (dx * dx + dz * dz < TREE_CLEAR_SQ) continue;
       if (inRiver(jx, jz)) continue;
+      if (sampleNapHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 0);
     }
   }
@@ -255,6 +265,7 @@ function _buildGrass() {
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       if (inCrate(jx, jz)) continue;
       if (inRiver(jx, jz)) continue;
+      if (sampleArenaHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 1);
     }
   }

@@ -3,9 +3,11 @@
 // The SINGLE source of truth for ground height in BOTH playable zones — the main
 // ARENA (x ≤ 20) and the NAP zone (x ≥ 20). Both are undulating ISLANDS that rise
 // from the Stage-2 sea: their interior sits on a raised plateau (ISLAND_BASE_Y =
-// +0.6, comfortably above SEA_LEVEL = -0.3 so no water pools in the dips), and
-// their sea-facing edges slope OUTWARD down to sea level so the land reads as an
-// island, not a floating slab. The two islands are separated by a MEANDERING RIVER
+// +0.6, comfortably above SEA_LEVEL = -0.26 so no water pools in the dips), and
+// their sea-facing edges slope DOWN to sea level over a BEACH_INSET band INSIDE the
+// footprint (v0.2.336) so the waterline sits AT the game boundary and the player can
+// wade in; a flat wadeable SHELF then extends outward past the edge. The two islands
+// are separated by a MEANDERING RIVER
 // (Stage 5, v0.2.332): a curved water band that snakes north-south, oscillating
 // east/west about the x=20 seam. The river is carved GLOBALLY in sample() (keyed on
 // the distance to the curved centreline riverCenterX(z)), identically in both zones,
@@ -30,11 +32,29 @@ import { SEA_LEVEL } from './seaConfig.js';
 // downward wave) stays above SEA_LEVEL: even the deepest trough of the hills is
 // dry land, so the sea never shows through a dip (the Stage-1/2 pooling bug).
 export const ISLAND_BASE_Y = 0.6;
-// Outward shore band (metres): how far past a sea-facing footprint edge the land
-// slopes down to sea level. The plateau keeps full height right to the footprint
-// edge; the beach lives OUTSIDE it (mostly hidden behind arena walls / beyond the
-// play-area clamps), so the gameplay floor stays flat and level.
+// Outward shore band (metres): retained for the legacy per-edge edgeLand/edgeHill
+// ramps. Since v0.2.336 the WATERLINE lives at the footprint edge (see BEACH_INSET
+// below), so this outward ramp is fully masked by the beach + shelf and is now
+// harmless/redundant — kept only so the edge helpers stay unchanged.
 export const SHORE_WIDTH = 4.0;
+// Beach inset (v0.2.336). The player asked for the water to come RIGHT UP TO the
+// game boundary. So on every SEA-facing edge the land now slopes from the plateau
+// DOWN to SEA_LEVEL over a BEACH_INSET-wide band that lives INSIDE the footprint,
+// with terrain === SEA_LEVEL exactly AT the footprint edge (d=0). The waterline is
+// therefore at the boundary itself and the player can walk down the beach into the
+// surf. Beyond the edge the wadeable shelf (below) takes over. JOIN seam edges have
+// NO beach. Because the band is INSIDE the footprint it does NOT grow the extended
+// rect — only the shelf does.
+export const BEACH_INSET = 6.0;
+// Graduated wadeable slope (v0.2.335→337). Past the footprint edge (the waterline
+// at SEA_LEVEL) the ground does NOT sit on a flat shelf — it CONTINUES SLOPING
+// DOWN, graduating deeper the further out you wade, so the player walks into
+// progressively deeper water (splash footsteps throughout) rather than a flat
+// puddle. SHELF_DEPTH is how far the slope runs before the collider ends; SHELF_DEEP_Y
+// is the height at the outermost edge (well below sea level → deep water). No
+// global sea-level change, so no interior pooling.
+export const SHELF_DEPTH  = 14.0;
+export const SHELF_DEEP_Y = SEA_LEVEL - 0.6;   // outer edge ≈ -0.86 (deep wade)
 // Seam band (metres): approaching a JOIN edge the hills fade to 0 so both zones
 // meet at exactly ISLAND_BASE_Y — continuous, level ground. The shared x=20 line is
 // a 'join' seam in BOTH zones; the meandering river is carved globally on top (see
@@ -103,6 +123,19 @@ function edgeHill(kind, d, shore, seam) {
   return smoothstep(-shore, 0, d);
 }
 
+// Per-edge BEACH factor (v0.2.336). On a SEA edge the land+hills ramp from the
+// plateau (factor 1) DOWN to SEA_LEVEL (factor 0) exactly AT the footprint edge,
+// across a BEACH_INSET-wide band INSIDE the footprint — so the waterline sits at
+// the game boundary (d=0) and the player wades in off the beach. 'join' edges have
+// no beach (factor 1, untouched seam). Folded into BOTH `land` (drop to SEA_LEVEL)
+// and `hill` (fade hills to 0 → flat beach slope, no bumps in the surf).
+//   'sea'  → smoothstep(0, inset, d): 0 at the edge (waterline), 1 at d≥inset.
+//   'join' → 1.
+function edgeBeach(kind, d, inset) {
+  if (kind === 'join') return 1;
+  return smoothstep(0, inset, d);
+}
+
 // Layered low-frequency sines → broad rolling hills (no high-frequency content, so
 // slopes stay walkable + jitter-free). Centre-relative coords; a per-zone `phase`
 // makes the two islands read as distinct landforms rather than a mirrored pattern.
@@ -126,12 +159,16 @@ function rawHeight(x, z, cfg) {
 function makeZone(cfg) {
   const { minX, maxX, minZ, maxZ, edges, amp, targetCell } = cfg;
 
-  // Extended rect = footprint grown outward by SHORE_WIDTH on each SEA edge only
-  // (JOIN edges are not extended — the neighbouring island's terrain meets them).
-  const gMinX = minX - (edges.minX === 'sea' ? SHORE_WIDTH : 0);
-  const gMaxX = maxX + (edges.maxX === 'sea' ? SHORE_WIDTH : 0);
-  const gMinZ = minZ - (edges.minZ === 'sea' ? SHORE_WIDTH : 0);
-  const gMaxZ = maxZ + (edges.maxZ === 'sea' ? SHORE_WIDTH : 0);
+  // Extended rect = footprint grown outward by SHELF_DEPTH on each SEA edge only
+  // (v0.2.336). The beach is now INSIDE the footprint (BEACH_INSET) with the
+  // waterline AT the footprint edge, so only the wadeable shelf lives outside and
+  // it alone extends the rect. JOIN edges are not extended — the neighbouring
+  // island's terrain meets them.
+  const SEA_OUT = SHELF_DEPTH;
+  const gMinX = minX - (edges.minX === 'sea' ? SEA_OUT : 0);
+  const gMaxX = maxX + (edges.maxX === 'sea' ? SEA_OUT : 0);
+  const gMinZ = minZ - (edges.minZ === 'sea' ? SEA_OUT : 0);
+  const gMaxZ = maxZ + (edges.maxZ === 'sea' ? SEA_OUT : 0);
   const gWidth = gMaxX - gMinX;
   const gDepth = gMaxZ - gMinZ;
 
@@ -161,11 +198,24 @@ function makeZone(cfg) {
     land = Math.min(land, edgeLand(edges.maxX, dE, SHORE_WIDTH));
     land = Math.min(land, edgeLand(edges.minZ, dS, SHORE_WIDTH));
     land = Math.min(land, edgeLand(edges.maxZ, dN, SHORE_WIDTH));
+    // Beach inset (v0.2.336) — on each SEA edge the land ramps to SEA_LEVEL AT the
+    // footprint edge over BEACH_INSET INSIDE the footprint, so the waterline is at
+    // the game boundary. min() with the plateau land, so it only ever lowers.
+    land = Math.min(land, edgeBeach(edges.minX, dW, BEACH_INSET));
+    land = Math.min(land, edgeBeach(edges.maxX, dE, BEACH_INSET));
+    land = Math.min(land, edgeBeach(edges.minZ, dS, BEACH_INSET));
+    land = Math.min(land, edgeBeach(edges.maxZ, dN, BEACH_INSET));
     let hill = 1;
     hill = Math.min(hill, edgeHill(edges.minX, dW, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.maxX, dE, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.minZ, dS, SHORE_WIDTH, SEAM_WIDTH));
     hill = Math.min(hill, edgeHill(edges.maxZ, dN, SHORE_WIDTH, SEAM_WIDTH));
+    // Fade hills to 0 across the beach band too → a flat beach slope (no bumps in
+    // the surf), matching the land ramp.
+    hill = Math.min(hill, edgeBeach(edges.minX, dW, BEACH_INSET));
+    hill = Math.min(hill, edgeBeach(edges.maxX, dE, BEACH_INSET));
+    hill = Math.min(hill, edgeBeach(edges.minZ, dS, BEACH_INSET));
+    hill = Math.min(hill, edgeBeach(edges.maxZ, dN, BEACH_INSET));
     // Meandering river carve (GLOBAL, shared by both zones). Distance from the
     // curved centreline riverCenterX(z) decides how deep we are in the water band:
     // at the centreline riverLand=0 → base drops to SEA_LEVEL and the floor sinks a
@@ -179,7 +229,20 @@ function makeZone(cfg) {
     hill = Math.min(hill, riverLand);
     const drop = (1 - riverLand) * RIVER_DIP;
     const base = SEA_LEVEL + (ISLAND_BASE_Y - SEA_LEVEL) * land;
-    return base + rawHeight(x, z, shapeCfg) * hill - drop;
+    // Graduated slope INTO the sea (v0.2.337). At the footprint edge the beach
+    // land factor has reached 0 (base === SEA_LEVEL, the waterline); immediately
+    // OUTSIDE the edge the ground CONTINUES SLOPING DOWN — graduating deeper the
+    // further out you wade (progressively deeper splash footsteps) instead of a flat
+    // shelf. `out` is the deepest outward penetration across the sea edges only; the
+    // slope ramps from SEA_LEVEL at out=0 to SHELF_DEEP_Y at out=SHELF_DEPTH. Inside
+    // the footprint out<0 → slopeT 0 → no-op, so plateau/hills/river are untouched.
+    let out = -Infinity;
+    if (edges.minX === 'sea') out = Math.max(out, minX - x);
+    if (edges.maxX === 'sea') out = Math.max(out, x - maxX);
+    if (edges.minZ === 'sea') out = Math.max(out, minZ - z);
+    if (edges.maxZ === 'sea') out = Math.max(out, z - maxZ);
+    const slopeT = smoothstep(0, SHELF_DEPTH, out);
+    return base + (SHELF_DEEP_Y - SEA_LEVEL) * slopeT + rawHeight(x, z, shapeCfg) * hill - drop;
   }
 
   const TERRAIN = Object.freeze({
@@ -259,7 +322,7 @@ const _nap = makeZone({
 // sampleArenaHeight() each tick, static crates sit on the sampled surface, and
 // dynamic crates gravity-rest on the heightfield collider — so nothing floats or
 // sinks. Interior min ≈ baseY − 1.42·amp ≈ 0.6 − 0.71 sampled ≈ +0.15, still
-// comfortably above SEA_LEVEL (−0.3) so no water pools in the dips.
+// comfortably above SEA_LEVEL (−0.26) so no water pools in the dips.
 const _arena = makeZone({
   name: 'arena',
   minX: -ARENA_HALF,  // -20

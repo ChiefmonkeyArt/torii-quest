@@ -15,6 +15,7 @@ import {
   buildNapHeightfieldArray, buildArenaHeightfieldArray,
   napTerrainPeak, arenaTerrainPeak,
   ISLAND_BASE_Y, RIVER_BASE_X, RIVER_HALF, RIVER_DIP, MEANDER_AMP, riverCenterX,
+  SHELF_DEPTH, SHELF_DEEP_Y, BEACH_INSET,
 } from '../src/terrain/heightmap.js';
 import { SEA_LEVEL } from '../src/terrain/seaConfig.js';
 
@@ -100,14 +101,88 @@ describe('outside the grid extent → SEA_LEVEL', () => {
   });
 });
 
-describe('island shore — sea edges slope OUTWARD down to SEA_LEVEL', () => {
-  it('NAP far-east shore has dropped to ~SEA_LEVEL at the extended grid edge', () => {
-    // maxX is a 'sea' edge → land ramps to 0 SHORE_WIDTH beyond the footprint.
-    expect(sampleNapHeight(NAP_TERRAIN.gMaxX, NAP_TERRAIN.centerZ)).toBeCloseTo(SEA_LEVEL, 3);
+describe('beach inset (v0.2.336) — waterline sits AT the footprint edge', () => {
+  it('NAP far-east waterline is ~SEA_LEVEL exactly AT the footprint edge (d=0)', () => {
+    // maxX is a 'sea' edge → the beach ramps the land from the plateau DOWN to
+    // SEA_LEVEL over BEACH_INSET INSIDE the footprint, so terrain === SEA_LEVEL at
+    // the footprint edge itself (the game boundary) and the player wades in there.
+    expect(sampleNapHeight(NAP_TERRAIN.maxX, NAP_TERRAIN.centerZ)).toBeCloseTo(SEA_LEVEL, 3);
   });
 
-  it('arena west shore has dropped to ~SEA_LEVEL at the extended grid edge', () => {
-    expect(sampleArenaHeight(ARENA_TERRAIN.gMinX, ARENA_TERRAIN.centerZ)).toBeCloseTo(SEA_LEVEL, 3);
+  it('arena west waterline is ~SEA_LEVEL exactly AT the footprint edge (d=0)', () => {
+    expect(sampleArenaHeight(ARENA_TERRAIN.minX, ARENA_TERRAIN.centerZ)).toBeCloseTo(SEA_LEVEL, 3);
+  });
+
+  it('land is back on the plateau BEYOND the beach inset (d ≥ BEACH_INSET)', () => {
+    // A point BEACH_INSET inside the sea edge is full plateau land again — well
+    // above SEA_LEVEL — proving the beach band is confined to the inset.
+    expect(sampleNapHeight(NAP_TERRAIN.maxX - BEACH_INSET, NAP_TERRAIN.centerZ)).toBeGreaterThan(SEA_LEVEL);
+    expect(sampleArenaHeight(ARENA_TERRAIN.minX + BEACH_INSET, ARENA_TERRAIN.centerZ)).toBeGreaterThan(SEA_LEVEL);
+  });
+});
+
+describe('graduated wadeable slope (v0.2.337) — continual slope deeper past the waterline', () => {
+  // SHELF_DEEP_Y is well below SEA_LEVEL so wading gets progressively deeper,
+  // without a global sea-level change (no interior pooling).
+  it('SHELF_DEEP_Y is well below SEA_LEVEL (deep wade at the outer edge)', () => {
+    expect(SHELF_DEEP_Y).toBeLessThan(SEA_LEVEL);
+    expect(SHELF_DEEP_Y).toBeCloseTo(SEA_LEVEL - 0.6, 9);
+  });
+
+  it('extended grid grew by SHELF_DEPTH on sea edges (beach is INSIDE the footprint)', () => {
+    // NAP maxX is a sea edge; arena minX is a sea edge. The beach lives INSIDE the
+    // footprint (BEACH_INSET) so only the outward wadeable shelf extends the rect.
+    // JOIN edges unchanged.
+    expect(NAP_TERRAIN.gMaxX).toBeCloseTo(NAP_TERRAIN.maxX + SHELF_DEPTH, 6);
+    expect(ARENA_TERRAIN.gMinX).toBeCloseTo(ARENA_TERRAIN.minX - SHELF_DEPTH, 6);
+    // JOIN seam edges are NOT extended.
+    expect(NAP_TERRAIN.gMinX).toBeCloseTo(NAP_TERRAIN.minX, 6);
+    expect(ARENA_TERRAIN.gMaxX).toBeCloseTo(ARENA_TERRAIN.maxX, 6);
+  });
+
+  it('mid-slope sits between SEA_LEVEL and SHELF_DEEP_Y (continual descent, not flat)', () => {
+    // A point halfway out the slope band on a sea edge should read a height
+    // strictly between the waterline (SEA_LEVEL) and the deep outer edge
+    // (SHELF_DEEP_Y) — proving a continual graduated slope, not a flat shelf.
+    const midShelf = SHELF_DEPTH / 2;
+    const hNap = sampleNapHeight(NAP_TERRAIN.maxX + midShelf, NAP_TERRAIN.centerZ);
+    const hAre = sampleArenaHeight(ARENA_TERRAIN.minX - midShelf, ARENA_TERRAIN.centerZ);
+    expect(hNap).toBeLessThan(SEA_LEVEL);
+    expect(hNap).toBeGreaterThan(SHELF_DEEP_Y);
+    expect(hAre).toBeLessThan(SEA_LEVEL);
+    expect(hAre).toBeGreaterThan(SHELF_DEEP_Y);
+  });
+
+  it('outer edge reaches ~SHELF_DEEP_Y (deepest wade)', () => {
+    // At the outermost collider row the slope has run its full course.
+    const x = NAP_TERRAIN.maxX + SHELF_DEPTH * 0.95;
+    expect(sampleNapHeight(x, NAP_TERRAIN.centerZ)).toBeCloseTo(SHELF_DEEP_Y, 1);
+  });
+
+  it('a wadeable point ≤ SEA_LEVEL is now REACHABLE inside the collider extent', () => {
+    // The whole shelf band is on-grid (within gMinX..gMaxX), so sample() returns
+    // the shelf height (not the off-grid SEA_LEVEL sentinel) and a heightfield
+    // collider covers it — the player can stand there without falling into the void.
+    const x = NAP_TERRAIN.maxX + SHELF_DEPTH / 2;
+    expect(x).toBeGreaterThan(NAP_TERRAIN.maxX);
+    expect(x).toBeLessThan(NAP_TERRAIN.gMaxX);      // still inside the collider extent
+    expect(sampleNapHeight(x, 0)).toBeLessThanOrEqual(SEA_LEVEL); // submerged → splash
+  });
+
+  it('slope is smooth: waterline SEA_LEVEL descends continually (no hard step)', () => {
+    // Just past the footprint-edge waterline the height should be between SHELF_DEEP_Y
+    // and SEA_LEVEL (mid-blend), proving a C1 ramp rather than a cliff.
+    const x = ARENA_TERRAIN.minX - 0.5;
+    const h = sampleArenaHeight(x, ARENA_TERRAIN.centerZ);
+    expect(h).toBeGreaterThanOrEqual(SHELF_DEEP_Y - 1e-6);
+    expect(h).toBeLessThanOrEqual(SEA_LEVEL + 1e-6);
+  });
+
+  it('interior plateau is UNCHANGED by the shelf (no-op inside the footprint)', () => {
+    // A dry interior point far from any sea edge must be well above SEA_LEVEL and
+    // unaffected — the shelf override is strictly an outward addition.
+    expect(sampleArenaHeight(0, 0)).toBeGreaterThan(SEA_LEVEL);
+    expect(sampleNapHeight(NAP_TERRAIN.centerX, 5)).toBeGreaterThan(SEA_LEVEL);
   });
 });
 
@@ -118,12 +193,18 @@ describe('no pooling — interior stays dry land above SEA_LEVEL', () => {
     // meandering RIVER band is DELIBERATELY below sea level (it's water), so points
     // inside it are excluded — "no pooling" means the dry LAND interior never dips
     // below. The band follows the curve, so the exclusion is z-aware.
+    // Inset the sample rect by BEACH_INSET (v0.2.336): the sea-facing edges now
+    // slope DOWN to SEA_LEVEL over BEACH_INSET inside the footprint — that beach
+    // band is DELIBERATELY at/near water, so exclude it. "No pooling" means the DRY
+    // interior (beyond the beach + outside the river) never dips below SEA_LEVEL.
     let min = Infinity;
     const N = 60;
+    const x0 = TERRAIN.minX + BEACH_INSET, x1 = TERRAIN.maxX - BEACH_INSET;
+    const z0 = TERRAIN.minZ + BEACH_INSET, z1 = TERRAIN.maxZ - BEACH_INSET;
     for (let i = 0; i <= N; i++) {
-      const x = TERRAIN.minX + (TERRAIN.maxX - TERRAIN.minX) * (i / N);
+      const x = x0 + (x1 - x0) * (i / N);
       for (let j = 0; j <= N; j++) {
-        const z = TERRAIN.minZ + (TERRAIN.maxZ - TERRAIN.minZ) * (j / N);
+        const z = z0 + (z1 - z0) * (j / N);
         if (Math.abs(x - riverCenterX(z)) < RIVER_HALF) continue;
         min = Math.min(min, sample(x, z));
       }
@@ -172,12 +253,16 @@ describe('v0.2.330 — arena no-pooling holds at the raised amplitude', () => {
     // Bigger hills mean deeper dips; verify the deepest interior point is still
     // dry land (above SEA_LEVEL) so the sea never shows through an arena trough.
     // The meandering river band is excluded (z-aware) — it's intentionally water.
+    // Inset by BEACH_INSET (v0.2.336): the beach band inside the sea edges is
+    // intentionally at/near water, so the dry-interior check excludes it.
     let min = Infinity;
     const N = 120;
+    const x0 = ARENA_TERRAIN.minX + BEACH_INSET, x1 = ARENA_TERRAIN.maxX - BEACH_INSET;
+    const z0 = ARENA_TERRAIN.minZ + BEACH_INSET, z1 = ARENA_TERRAIN.maxZ - BEACH_INSET;
     for (let i = 0; i <= N; i++) {
-      const x = ARENA_TERRAIN.minX + (ARENA_TERRAIN.maxX - ARENA_TERRAIN.minX) * (i / N);
+      const x = x0 + (x1 - x0) * (i / N);
       for (let j = 0; j <= N; j++) {
-        const z = ARENA_TERRAIN.minZ + (ARENA_TERRAIN.maxZ - ARENA_TERRAIN.minZ) * (j / N);
+        const z = z0 + (z1 - z0) * (j / N);
         if (Math.abs(x - riverCenterX(z)) < RIVER_HALF) continue;
         min = Math.min(min, sampleArenaHeight(x, z));
       }

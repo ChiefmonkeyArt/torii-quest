@@ -112,6 +112,75 @@ export function playFootstep() {
   osc.stop(t + 0.07);
 }
 
+// ── Splash — real recorded water footstep (v0.2.335) ───────────────────────
+// Plays back a real "footstep in water" splash MP3 instead of synthesized noise.
+// Attribution: freesound.org sound #849638 ("footstep in water"), by user on
+// https://freesound.org/ — used under its Creative Commons licence. The file
+// lives at public/sounds/splash-footstep.wav (bundled into dist/). v0.2.338:
+// converted to lossless WAV (PCM 16-bit, stereo, native rate) so the browser
+// decodes it verbatim — the original low-sample-rate MP3 was being played back
+// sped-up/truncated by decodeAudioData. The audio content is byte-for-byte the
+// user-supplied recording; only the container changed.
+//
+// The MP3 is fetched + decoded ONCE into a cached AudioBuffer (`_splashBuf`);
+// every subsequent step just spawns a cheap AudioBufferSourceNode (GC'd after
+// stop, matching the other SFX). If decode fails, or on the very first call
+// before the buffer is ready, we fall back to a short synthesized splash so a
+// step is never silent.
+let _splashBuf = null;       // decoded AudioBuffer once ready
+let _splashPending = false;  // fetch/decode in flight (guards against re-fetch)
+let _splashFailed = false;   // decode failed → always use synth fallback
+
+function _loadSplash(ctx) {
+  if (_splashBuf || _splashPending || _splashFailed) return;
+  _splashPending = true;
+  const url = `${import.meta.env.BASE_URL}sounds/splash-footstep.wav`;
+  fetch(url)
+    .then((r) => r.arrayBuffer())
+    .then((buf) => ctx.decodeAudioData(buf))
+    .then((decoded) => { _splashBuf = decoded; _splashPending = false; })
+    .catch(() => { _splashFailed = true; _splashPending = false; });
+}
+
+// Synthesized fallback splash — short filtered noise burst with a downward
+// sweep, evoking a wet footstep. Used only on decode failure / first call.
+function _synthSplash(ctx, t) {
+  const dur = 0.18;
+  const sr  = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
+  const ch  = buf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+  const src   = ctx.createBufferSource();
+  const ngain = ctx.createGain();
+  const bp    = ctx.createBiquadFilter();
+  src.buffer = buf;
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(1400, t);
+  bp.frequency.exponentialRampToValueAtTime(500, t + dur);
+  bp.Q.value = 0.6;
+  ngain.gain.setValueAtTime(0.10, t);
+  ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(ngain); ngain.connect(ctx.destination);
+  src.start(t);
+}
+
+export function playSplash() {
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  if (_splashBuf) {
+    const src  = ctx.createBufferSource();
+    const gain = ctx.createGain();
+    src.buffer = _splashBuf;
+    gain.gain.value = 0.12;
+    src.connect(gain); gain.connect(ctx.destination);
+    src.start();
+    return;
+  }
+  // Not decoded yet — kick off the (one-time) load and play the synth this step.
+  _loadSplash(ctx);
+  _synthSplash(ctx, ctx.currentTime);
+}
+
 // ── Reload — snappy clunk-clunk-click (v0.2.113) ───────────────────────────
 // User feedback: reload "felt dead" with no audio and a 2.0s window. We dropped
 // the window to 1.1s AND give it a mechanical voice: two low "clunk"s (mag out,

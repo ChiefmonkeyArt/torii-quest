@@ -39,7 +39,9 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
-import { playShoot, playFootstep, playJumpLand } from './audio.js';
+import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
+import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
+import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -171,7 +173,14 @@ export function createArenaRuntime(hooks = {}) {
       const running = keys['ShiftLeft'] || keys['ShiftRight'];
       const interval = running ? FOOT_RUN_INTERVAL : FOOT_WALK_INTERVAL;
       _footAccum += dt;
-      if (_footAccum >= interval) { _footAccum = 0; playFootstep(); }
+      if (_footAccum >= interval) {
+        _footAccum = 0;
+        // On submerged ground (≤ SEA_LEVEL: the wadeable shelf / river) the step
+        // is a splash; on dry land it's a footstep.
+        const px = playerObj.position.x, pz = playerObj.position.z;
+        const groundY = px > NAP_X ? sampleNapHeight(px, pz) : sampleArenaHeight(px, pz);
+        if (groundY <= SEA_LEVEL) playSplash(); else playFootstep();
+      }
     } else {
       _footAccum = 0;
     }

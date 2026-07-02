@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.339-alpha",
-  "generatedAt": "2026-07-02T16:20:59.640Z",
+  "version": "v0.2.340-alpha",
+  "generatedAt": "2026-07-02T16:34:35.607Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.339-alpha"
+        "value": "v0.2.340-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.339-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.340-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -191,15 +191,15 @@
     "status": "not-ready",
     "statusLabel": "NOT READY",
     "ready": false,
-    "version": "v0.2.339-alpha",
-    "gitCommit": "2c6d51f",
+    "version": "v0.2.340-alpha",
+    "gitCommit": "1fda615",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.339-alpha / pkg 0.2.339-alpha"
+        "detail": "config v0.2.340-alpha / pkg 0.2.340-alpha"
       },
       {
         "key": "tests",
@@ -234,7 +234,7 @@
         "label": "Docs consistency",
         "state": "blocked",
         "pill": "gated",
-        "detail": "todo.md does not reference current version v0.2.339-alpha (doc drift); progress.md does not reference current version v0.2.339-alpha (doc drift); HANDOFF.md does not reference current version v0.2.339-alpha (doc drift)"
+        "detail": "todo.md does not reference current version v0.2.340-alpha (doc drift); progress.md does not reference current version v0.2.340-alpha (doc drift); HANDOFF.md does not reference current version v0.2.340-alpha (doc drift)"
       }
     ],
     "blockers": [
@@ -254,7 +254,7 @@
     "band": "near",
     "statusLabel": "NEAR · LOCAL GATES",
     "pill": "manual",
-    "version": "v0.2.339-alpha",
+    "version": "v0.2.340-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -269,7 +269,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.339-alpha"
+        "value": "v0.2.340-alpha"
       },
       {
         "label": "Release manifest",
@@ -401,7 +401,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.339-alpha",
+    "version": "v0.2.340-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -411,7 +411,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.339-alpha"
+        "value": "v0.2.340-alpha"
       },
       {
         "label": "Approved by",
@@ -563,7 +563,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.339-alpha"
+        "value": "v0.2.340-alpha"
       },
       {
         "label": "Live game",

@@ -72,7 +72,10 @@ function renderMvpLoop() {
   flowEl.textContent = block.flow;
   noteEl.textContent = block.note;
 }
-renderMvpLoop();
+// v0.2.340: the #mvp-loop header was removed from the title screen's centre column
+// during the card reorg, so there is nothing to render into. Call disabled (the
+// function + mvpLoopSummary() are kept for tests / potential reuse).
+// renderMvpLoop();
 
 // ── Gateway / n2n world-presence LIVE card (v0.2.251, P0) ───────────────────────
 // Live read of other Torii worlds advertising presence on shared relays. Read-only

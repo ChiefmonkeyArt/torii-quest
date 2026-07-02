@@ -171,6 +171,12 @@ function _buildGrass() {
     }
     const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // v0.2.322: pin sampling deterministically. LinearFilter + no mipmaps gives
+    // smooth interpolation for the vertex-shader wind fetch (no texel snapping,
+    // no driver-dependent LinearMipmapLinear behaviour on a 64² field).
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
     tex.needsUpdate = true;
     return tex;
   }
@@ -258,7 +264,11 @@ function _buildGrass() {
       uMap:           { value: grassTex },
       uNoise:         { value: noiseTex },
       uNoiseScale:    { value: 0.025 },    // wind noise frequency across the field
-      uWindIntensity: { value: 0.30 },
+      // v0.2.322 — murmuration wind restored. uWindIntensity 0.18 drives a
+      // two-layer wave+gust field (see the vertex shader). Slow scrolls + explicit
+      // LinearFilter on uNoise keep it jitter-free (v0.2.321 proved wind was the
+      // jitter cause; v0.2.322 fixes the params, not the pipeline).
+      uWindIntensity: { value: 0.18 },
       uLightDir:      { value: new THREE.Vector3(0.743, 0.371, -0.557) }, // toward arena sunrise sun (40,20,-30)
       uFogColor:      { value: new THREE.Color(0xc8dde8) },
       uFogDensity:    { value: 0.008 },    // matches scene FogExp2
@@ -313,7 +323,10 @@ function _buildGrass() {
         vec3 normal = vec3(rotate(0.0, n, yawv).x, 0.0, rotate(0.0, n, yawv).y);
 
         // Natural lean + animated curve. Bend lives in the vertical Y/Z plane.
-        float curve = shape.w + 0.125 * sin(uTime * 4.0 + offset.w * 0.2 * shape.y + offset.x + offset.y);
+        // v0.2.322: gentle per-blade-phased base sway (slow, low amplitude, small
+        // spatial phase scale) → independent waving, no global unison. (v0.2.321
+        // zeroed this for the wind-vs-aliasing diagnostic.)
+        float curve = shape.w + 0.05 * sin(uTime * 1.3 + offset.x * 0.12 + offset.y * 0.09 + shape.y);
         float rot = shape.z + curve * hpct;
         vec2 rotv = vec2(cos(rot), sin(rot));
         vpos.yz = rotate(vpos.y, vpos.z, rotv);
@@ -328,14 +341,23 @@ function _buildGrass() {
         // "diagonal strip" bug. .xy is correct.)
         vec2 bladePos = offset.xy;
 
-        // Wind — terra's noise-texture wind. Sample the noise green channel with a
-        // time-scrolling offset → organic, non-repeating gusts that vary across
-        // the field (vs the cone's uniform sin). Clamped, cubed, scaled by height.
-        vec2 samplePos = bladePos * uNoiseScale + 0.5;
-        float wind = texture2D(uNoise,
-          vec2(samplePos.x - uTime / 25.0, samplePos.y - uTime / 2.0) * 6.0).g;
-        wind = (clamp(wind, 0.25, 1.0) - 0.25) * (1.0 / 0.75);
-        wind = wind * wind * uWindIntensity;
+        // v0.2.322 — murmuration wind. Two independent per-blade-phased layers so
+        // the field never moves in unison: a slow low-freq traveling WAVE plus a
+        // faster localized GUST (smoothstep+squared for soft peaks between calm).
+        // Nearby blades share a gust while distant blades phase apart — starling
+        // murmuration, not a uniform lean. LinearFilter on uNoise (set in JS)
+        // guarantees smooth interpolation; slow scrolls (≤~9 texels/sec) keep it
+        // jitter-free (v0.2.321 proved the old fast scroll was the jitter cause).
+        vec2 sp = bladePos * uNoiseScale + 0.5;
+        float wave = texture2D(uNoise,
+          vec2(sp.x - uTime / 45.0, sp.y - uTime / 70.0) * 2.0).g;
+        wave = (clamp(wave, 0.25, 1.0) - 0.25) * (1.0 / 0.75);
+        float gust = texture2D(uNoise,
+          vec2(sp.x - uTime / 22.0, sp.y + uTime / 28.0) * 3.0).g;
+        gust = (clamp(gust, 0.25, 1.0) - 0.25) * (1.0 / 0.75);
+        gust = smoothstep(0.15, 1.0, gust);
+        gust = gust * gust;
+        float wind = (wave * 0.45 + gust * 0.55) * uWindIntensity;
         wind *= hpct;                       // tall parts sway more
         wind = -wind;
         rotv = vec2(cos(wind), sin(wind));
@@ -438,7 +460,7 @@ function _buildGrass() {
   // line starting with [grass-build] — it prints the EXACT params the browser is
   // running, so you can confirm live vs cached. If this line is missing, the grass
   // code never ran (stale bundle).
-  const stamp = `[grass-build] v0.2.313 blades=${count} bladeW=${BLADE_WIDTH} bladeH=${BLADE_HEIGHT_MIN}-${BLADE_HEIGHT_MAX} segs=${BLADE_SEGS} shape=TERRA-FLAT-RIBBON taper=(1-hpct^3)-GEOMETRIC-POINT bend=curve*hpct-YZ yaw=XZ wind=NOISE-TEXTURE-RGBA(uWindIntensity=${0.30},noiseScale=${0.025}) lighting=SUN+AMBIENT+AO green=(0.27,0.60,0.15)->(0.18,0.43,0.12) fog=EXP2(0xc8dde8,0.008) placement=offset.xy-XZ DIAGNOSTIC=uMode(blue->red,set uniforms.uMode.value=1) FLOWERS=REMOVED Y-UP`;
+  const stamp = `[grass-build] v0.2.322 blades=${count} bladeW=${BLADE_WIDTH} bladeH=${BLADE_HEIGHT_MIN}-${BLADE_HEIGHT_MAX} segs=${BLADE_SEGS} shape=TERRA-FLAT-RIBBON taper=(1-hpct^3)-GEOMETRIC-POINT bend=curve*hpct-YZ yaw=XZ wind=MURMURATION-WIND(wave*0.45+gust*0.55,smoothstep+sqr,noiseScale=${0.025},uWindIntensity=${0.18},LinearFilter,noMipmap) sway=0.05*sin(uTime*1.3+off*0.12) VERTEX_ANIM=ON lighting=SUN+AMBIENT+AO green=(0.27,0.60,0.15)->(0.18,0.43,0.12) fog=EXP2(0xc8dde8,0.008) placement=offset.xy-XZ DIAGNOSTIC=uMode(blue->red,set uniforms.uMode.value=1) FLOWERS=REMOVED Y-UP`;
   console.info(stamp);
   window.__GRASS_BUILD = stamp;
 }

@@ -18,11 +18,13 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v2 (v0.2.294):
-// the marker is promoted from bare rings+beam into a recognisable TORII-GATE frame
-// (two pillars + a top kasagi lintel + a lower nuki crossbar) — the game's namesake —
-// and frame parts gain an `approach:true` flag so the host can drive a proximity glow.
-export const PORTAL_MESH_PLAN_VERSION = 2;
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v3 (v0.2.318):
+// the redundant torii-gate frame (pillars + kasagi + nuki + shaft beam) is removed —
+// it read as a misaligned second torii clashing with the arena's real gate. The
+// marker is back to its clean 3-part form: outer range ring + inner accent ring + a
+// floating spinning core that glows on approach. The core keeps `approach:true`; the
+// rings stay inert (range-boundary + accent).
+export const PORTAL_MESH_PLAN_VERSION = 3;
 
 // Badge stamped on the plan + debug report: a visible marker, but inert + display-only.
 export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';
@@ -40,14 +42,6 @@ const COLOR_VIOLET = 0x8b5cf6;
 // Default proximity radius (world units) — mirrors gatewayPortalActivation /
 // portalTrigger so a plan built without an explicit range still aligns with the gate.
 const DEFAULT_RANGE = 3;
-
-// Torii-gate frame dimensions (world units). The opening faces along the approach
-// axis (±x), so the pillars are separated along z. Kept low-poly + asset-free.
-const GATE_HALF_SPAN = 1.5;   // pillar offset on z (gate opening half-width)
-const GATE_PILLAR_H  = 3.2;   // pillar height
-const GATE_PILLAR_R  = 0.16;  // pillar radius
-const GATE_TOP_Y     = 3.34;  // kasagi (top lintel) centre height
-const GATE_CROSS_Y   = 2.55;  // nuki (lower crossbar) centre height
 
 // _finite(n) → n is a finite number.
 function _finite(n) {
@@ -136,89 +130,6 @@ export function buildPortalMeshPlan(opts = {}) {
       emissiveIntensity: 0.45,
       opacity: 1,
       transparent: false,
-      spin: false,
-      pulse: false,
-      approach: false,
-      ...INERT,
-    },
-    // ── TORII-GATE FRAME (v0.2.294) — the namesake silhouette around the portal.
-    // The opening faces ±x (the approach axis); pillars sit on ±z. `approach:true`
-    // lets the host brighten the frame as the player nears (scalar glow, no alloc).
-    {
-      id: 'pillar-left',
-      kind: 'pillar',
-      role: 'gate-post',
-      geometry: { type: 'cylinder', radiusTop: GATE_PILLAR_R, radiusBottom: GATE_PILLAR_R * 1.12, height: GATE_PILLAR_H, radialSegments: 12 },
-      position: { x: 0, y: GATE_PILLAR_H / 2, z: -GATE_HALF_SPAN },
-      rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_TURQ,
-      emissiveIntensity: 0.4,
-      opacity: 1,
-      transparent: false,
-      spin: false,
-      pulse: false,
-      approach: true,
-      ...INERT,
-    },
-    {
-      id: 'pillar-right',
-      kind: 'pillar',
-      role: 'gate-post',
-      geometry: { type: 'cylinder', radiusTop: GATE_PILLAR_R, radiusBottom: GATE_PILLAR_R * 1.12, height: GATE_PILLAR_H, radialSegments: 12 },
-      position: { x: 0, y: GATE_PILLAR_H / 2, z: GATE_HALF_SPAN },
-      rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_TURQ,
-      emissiveIntensity: 0.4,
-      opacity: 1,
-      transparent: false,
-      spin: false,
-      pulse: false,
-      approach: true,
-      ...INERT,
-    },
-    {
-      id: 'kasagi',
-      kind: 'lintel',
-      role: 'gate-top', // the overhanging top beam
-      geometry: { type: 'box', width: 0.5, height: 0.26, depth: GATE_HALF_SPAN * 2 + 0.7 },
-      position: { x: 0, y: GATE_TOP_Y, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_TURQ,
-      emissiveIntensity: 0.46,
-      opacity: 1,
-      transparent: false,
-      spin: false,
-      pulse: false,
-      approach: true,
-      ...INERT,
-    },
-    {
-      id: 'nuki',
-      kind: 'crossbar',
-      role: 'gate-tie', // the lower tie-beam between the posts
-      geometry: { type: 'box', width: 0.38, height: 0.2, depth: GATE_HALF_SPAN * 2 + 0.1 },
-      position: { x: 0, y: GATE_CROSS_Y, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_VIOLET,
-      emissiveIntensity: 0.44,
-      opacity: 1,
-      transparent: false,
-      spin: false,
-      pulse: false,
-      approach: true,
-      ...INERT,
-    },
-    {
-      id: 'beam',
-      kind: 'beam',
-      role: 'shaft',
-      geometry: { type: 'cylinder', radiusTop: 0.16, radiusBottom: 0.16, height: 2.6, radialSegments: 12 },
-      position: { x: 0, y: 1.4, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_TURQ,
-      emissiveIntensity: 0.5,
-      opacity: 0.16, // faint, see-through gateway shaft
-      transparent: true,
       spin: false,
       pulse: false,
       approach: false,

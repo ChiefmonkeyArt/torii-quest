@@ -1,7 +1,7 @@
 // tests/portal-mesh-plan.test.js — locks the v0.2.183 in-world GATEWAY PORTAL marker.
-// Covers the PURE render plan (portalMeshPlan.js): range-aligned outer ring, the four
-// inert marker parts, the inert flags pinned on every part + the plan, and graceful
-// degradation on bad input. Also exercises the browser-only adapter (portalMesh.js)
+// Covers the PURE render plan (portalMeshPlan.js): range-aligned outer ring, the three
+// inert marker parts (outer ring + inner ring + core), the inert flags pinned on every
+// part + the plan, and graceful degradation on bad input. Also exercises the browser-only adapter (portalMesh.js)
 // build/tick/dispose with a fake scene (no DOM/WebGL — the marker uses no textures),
 // the debug-shell report, and SDK exposure. Pure plan → node-safe.
 import { describe, it, expect, afterEach } from 'vitest';
@@ -19,7 +19,7 @@ const INERT_KEYS = ['navigated', 'performed', 'external', 'signed', 'published']
 
 describe('module shape', () => {
   it('pins version, badge, group, and demo opts', () => {
-    expect(PORTAL_MESH_PLAN_VERSION).toBe(2);
+    expect(PORTAL_MESH_PLAN_VERSION).toBe(3);
     expect(PORTAL_MESH_BADGE).toBe('PORTAL MESH · DISPLAY-ONLY · INERT');
     expect(PORTAL_MESH_GROUP).toBe('gateway-portal');
     expect(DEMO_PORTAL_MESH_OPTS).toEqual({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Plebeian Market Bazaar' });
@@ -27,11 +27,11 @@ describe('module shape', () => {
 });
 
 describe('buildPortalMeshPlan — happy path', () => {
-  it('builds the full torii-gate marker (8 parts), ok, anchored at the trigger position', () => {
+  it('builds the clean 3-part marker (rings + core), ok, anchored at the trigger position', () => {
     const p = buildPortalMeshPlan({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Bazaar' });
     expect(p.ok).toBe(true);
-    expect(p.count).toBe(8);
-    expect(p.parts).toHaveLength(8);
+    expect(p.count).toBe(3);
+    expect(p.parts).toHaveLength(3);
     expect(p.anchor).toEqual({ x: 20, y: 0, z: 0 });
     expect(p.title).toBe('Bazaar');
     expect(p.reasons).toEqual([]);
@@ -46,39 +46,37 @@ describe('buildPortalMeshPlan — happy path', () => {
     expect(outer.role).toBe('range-boundary');
   });
 
-  it('has the expected part ids/kinds and spin/pulse assignment', () => {
+  it('has the expected 3 part ids/kinds and spin/pulse assignment', () => {
     const p = buildPortalMeshPlan({ position: { x: 0, y: 0, z: 0 }, range: 3 });
     expect(p.parts.map((x) => x.id)).toEqual(
-      ['outer-ring', 'inner-ring', 'pillar-left', 'pillar-right', 'kasagi', 'nuki', 'beam', 'core'],
+      ['outer-ring', 'inner-ring', 'core'],
     );
     expect(p.parts.find((x) => x.id === 'outer-ring').pulse).toBe(true);
     expect(p.parts.find((x) => x.id === 'core').spin).toBe(true);
-    expect(p.parts.find((x) => x.id === 'beam').transparent).toBe(true);
+    expect(p.parts.find((x) => x.id === 'outer-ring').transparent).toBe(false);
   });
 
-  it('frames the portal with a torii gate: two pillars on ±z + a top kasagi + a lower nuki', () => {
+  it('lays the two rings flat on the ground and floats the core above them', () => {
     const p = buildPortalMeshPlan({ position: { x: 0, y: 0, z: 0 }, range: 3 });
-    const left = p.parts.find((x) => x.id === 'pillar-left');
-    const right = p.parts.find((x) => x.id === 'pillar-right');
-    const kasagi = p.parts.find((x) => x.id === 'kasagi');
-    const nuki = p.parts.find((x) => x.id === 'nuki');
-    expect(left.geometry.type).toBe('cylinder');
-    expect(right.geometry.type).toBe('cylinder');
-    // The gate opening faces ±x, so the posts are mirrored on z.
-    expect(left.position.z).toBe(-right.position.z);
-    expect(left.position.z).toBeLessThan(0);
-    // Top + crossbar are box lintels mounted above the posts (kasagi over nuki).
-    expect(kasagi.geometry.type).toBe('box');
-    expect(nuki.geometry.type).toBe('box');
-    expect(kasagi.position.y).toBeGreaterThan(nuki.position.y);
+    const outer = p.parts.find((x) => x.id === 'outer-ring');
+    const inner = p.parts.find((x) => x.id === 'inner-ring');
+    const core = p.parts.find((x) => x.id === 'core');
+    expect(outer.geometry.type).toBe('torus');
+    expect(inner.geometry.type).toBe('torus');
+    // Rings lie flat (rotated -PI/2 about X) at ground level.
+    expect(outer.rotation.x).toBe(-Math.PI / 2);
+    expect(inner.rotation.x).toBe(-Math.PI / 2);
+    // Core is an octahedron diamond floating above the rings.
+    expect(core.geometry.type).toBe('octahedron');
+    expect(core.position.y).toBeGreaterThan(outer.position.y);
   });
 
-  it('flags the torii frame + core for the host-driven approach glow (rings/beam are not)', () => {
+  it('flags only the core for the host-driven approach glow (rings are not)', () => {
     const p = buildPortalMeshPlan({ position: { x: 0, y: 0, z: 0 }, range: 3 });
     const approachIds = p.parts.filter((x) => x.approach === true).map((x) => x.id).sort();
-    expect(approachIds).toEqual(['core', 'kasagi', 'nuki', 'pillar-left', 'pillar-right'].sort());
+    expect(approachIds).toEqual(['core']);
     expect(p.parts.find((x) => x.id === 'outer-ring').approach).toBe(false);
-    expect(p.parts.find((x) => x.id === 'beam').approach).toBe(false);
+    expect(p.parts.find((x) => x.id === 'inner-ring').approach).toBe(false);
   });
 });
 
@@ -159,7 +157,7 @@ describe('portalMesh adapter — build/tick/dispose', () => {
     const s = buildPortalMesh(scene, { position: { x: 20, y: 0, z: 0 }, range: 3 });
     expect(s.rendered).toBe(true);
     expect(s.ok).toBe(true);
-    expect(s.count).toBe(8);
+    expect(s.count).toBe(3);
     expect(s.anchor).toEqual({ x: 20, y: 0, z: 0 });
     expect(s.ringRadius).toBe(3);
     expect(added).toBeTruthy();

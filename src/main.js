@@ -692,9 +692,12 @@ elNapBtn?.addEventListener('click', async () => {
 (function wireFlyToggle() {
   const btn = document.getElementById('btn-fly-toggle');
   if (!btn) return;
+  const stateEl = btn.querySelector('.fly-switch-state');
   const paint = () => {
-    btn.textContent = state.flyMode ? '✈ FLY MODE: ON' : '✈ FLY MODE: OFF';
-    btn.classList.toggle('fly-on', state.flyMode);
+    const on = state.flyMode;
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (stateEl) stateEl.textContent = on ? 'ON' : 'OFF';
   };
   btn.addEventListener('click', () => { state.flyMode = !state.flyMode; paint(); });
   paint();

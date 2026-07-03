@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene, gunScene } from './scene.js';
 import { state, isReloading } from './state.js';
 import { emit, EV } from './events.js';
-import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, WALL_H, RELOAD_TIME } from './config.js';
+import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, RELOAD_TIME } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
 import { BOT_HEAD_CENTRE_Y_OFFSET, BOT_HEAD_RADIUS } from './physics.js';
 // v0.2.132 (ARS-3) — bullet/aim rays now go through the injectable RaycastService
@@ -56,6 +56,9 @@ export function getLastHit() { return _lastHit; }
 // connected with and derive a miss reason. Per-shot objects (one alloc per
 // trigger pull, NOT per frame) — surfaced via ToriiDebug.combat.lastShot/lastMiss.
 const DIAG_RANGE = 80; // m — diagnostic ray reach (≈ crosshair convergence dist)
+// Vertical bullet cull ceiling — above the 21m fly targeting ceiling (F4) so bot
+// shots can still reach a flying player below it, with margin for arc/spread.
+const FLY_CEIL = 24;
 let _lastShot = null;  // most recent fired player shot (predicted + resolved)
 let _lastMiss = null;  // most recent player shot that did NOT hit a live bot
 export function getLastShot() { return _lastShot; }
@@ -372,10 +375,13 @@ export function tickWeapons(dt, playerPos) {
       }
     }
 
-    // Safety net for out-of-bounds bullets
+    // Safety net for out-of-bounds bullets. The vertical ceiling is FLY_CEIL (not
+    // WALL_H+4) so bot shots can still reach a flying player below the 21m fly
+    // targeting ceiling (F4) — culling at ~6.6m killed the tracer long before it
+    // arrived.
     if (!remove && (Math.abs(b.mesh.position.x) > ARENA_HALF + 2 ||
                     Math.abs(b.mesh.position.z) > ARENA_HALF + 2 ||
-                    b.mesh.position.y > WALL_H + 4)) {
+                    b.mesh.position.y > FLY_CEIL)) {
       remove = true;
     }
 

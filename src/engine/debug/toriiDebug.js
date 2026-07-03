@@ -47,7 +47,7 @@ import { portalMeshRenderState } from '../gateway/portalMesh.js';
 import { buildProofSurfaceRenderPlan } from '../world/proofSurfaceRenderPlan.js';
 import { resolveParentBindings } from '../world/proofSurfaceParentBinding.js';
 import { proofSurfaceGate } from './proofSurfaceGate.js';
-import { enableFly, disableFly, toggleFly, isFlyEnabled } from './flyCamera.js';
+import { enableFly, disableFly, toggleFly, isFlyEnabled, getFlyEyeY } from './flyCamera.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -107,6 +107,9 @@ export function installToriiDebug(refs) {
       disable() { disableFly(); },
       toggle()  { return toggleFly(); },
       get enabled() { return isFlyEnabled(); },
+      // F4: current fly eye altitude — bots read this ceiling (21m) to decide
+      // whether the flying player is in reach.
+      get eyeY() { return getFlyEyeY(); },
     },
 
     physics: {

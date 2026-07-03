@@ -47,6 +47,11 @@
       border: 1px solid rgba(139,92,246,0.5);
       color: rgba(180,150,255,0.9);
     }
+    /* Free-fly toggle ON state — cyan/turquoise dev accent. */
+    #btn-fly-toggle.fly-on {
+      border: 1px solid #27e1ff;
+      color: #7fdfff;
+    }
     .btn-orange {
       background: transparent;
       border: 1px solid rgba(247,147,26,0.5);
@@ -546,6 +551,10 @@
            just sets a one-shot spawn override before enter(). -->
       <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#2d5016,#3d5a2f);border:1px solid #6b8e5a;">ENTER NAP ZONE</button>
       <button class="btn" id="btn-enter">ENTER ARENA</button>
+      <!-- Dev/debug free-fly camera toggle. Read on the three-free title screen (DOM
+           only) and honoured at ENTER: a true flyMode enables ToriiDebug.fly once the
+           arena boots. In-game F also toggles it. -->
+      <button class="btn btn-secondary" id="btn-fly-toggle" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">✈ FLY MODE: OFF</button>
       <!-- Entry feedback line (v0.2.228). Both entry buttons write here so a
            cloud/no-extension click is never a silent no-op: ENTER ARENA surfaces
            a clear failure/gated message if physics fails to load, and LOGIN WITH

@@ -685,6 +685,21 @@ elNapBtn?.addEventListener('click', async () => {
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
+// ── Dev free-fly toggle (three-free, title-screen) ──────────────────────────────
+// Reads/writes state.flyMode purely in the DOM before the arena boots; the ENTER
+// handler enables ToriiDebug.fly when this is true. In-game F toggles also sync
+// this button's label via the arena runtime's onToggle callback.
+(function wireFlyToggle() {
+  const btn = document.getElementById('btn-fly-toggle');
+  if (!btn) return;
+  const paint = () => {
+    btn.textContent = state.flyMode ? '✈ FLY MODE: ON' : '✈ FLY MODE: OFF';
+    btn.classList.toggle('fly-on', state.flyMode);
+  };
+  btn.addEventListener('click', () => { state.flyMode = !state.flyMode; paint(); });
+  paint();
+})();
+
 // v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is
 // bound, so it stands down. The shell wires this synchronously (no three), so the
 // flag is raised even though the 3D runtime is now deferred behind ENTER.

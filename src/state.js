@@ -25,6 +25,10 @@ export const state = {
   shootCd:    0,
   respawnTimer:0,
   pointerLocked: false,
+  // Dev/debug free-fly camera intent. Toggled on the title screen (DOM only) and
+  // read at ENTER to enable ToriiDebug.fly once the arena boots; also mirrors the
+  // live in-game fly state so the title toggle reflects reality after returning Home.
+  flyMode: false,
   // Player-ownership boundary (v0.2.291): Torii Quest seats exactly ONE local
   // player. nostrPubkey/Name/Profile/Avatar identify whoever currently controls
   // this client — anon by default, or a verified npub once a NIP-07 login OR a

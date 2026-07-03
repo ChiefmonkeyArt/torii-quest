@@ -181,7 +181,7 @@ const _auroraMat = new THREE.ShaderMaterial({
   `,
 });
 
-const _auroraDome = new THREE.Mesh(new THREE.SphereGeometry(500, 16, 8), _auroraMat);
+const _auroraDome = new THREE.Mesh(new THREE.SphereGeometry(500, 64, 32), _auroraMat);
 _auroraDome.renderOrder = -1;
 _auroraDome.frustumCulled = false; // camera is inside — Three.js culls incorrectly without this
 scene.add(_auroraDome);

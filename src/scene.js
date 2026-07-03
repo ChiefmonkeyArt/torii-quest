@@ -135,11 +135,9 @@ const _auroraMat = new THREE.ShaderMaterial({
       float shimmer = fbm(vec2(dir.x * 5.0 + t * 0.12, dir.z * 5.0 - t * 0.10));
       base += vec3(0.98, 0.92, 0.70) * shimmer * up * 0.15;
 
-      // Neon grid near horizon
-      float gridX = abs(fract(dir.x * 8.0 + t * 0.03) - 0.5);
-      float gridZ = abs(fract(dir.z * 8.0 - t * 0.02) - 0.5);
-      float grid  = smoothstep(0.48, 0.50, 1.0 - min(gridX, gridZ));
-      base += vec3(0.0, 1.0, 0.6) * grid * horizon * horizon * 0.18;
+      // Neon grid removed (v0.2.344): the fract()-based horizon grid produced two
+      // straight great-circle "X" strips visible across the sky in aerial/fly
+      // views. Sky already has aurora bands, sun glow, and stars for richness.
 
       // Stars — seam-free horizontal projection
       vec3 starCol = vec3(0.0);

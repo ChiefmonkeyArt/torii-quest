@@ -23,15 +23,15 @@ import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter } from './playerModel.js';
+import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
-import { loadFirstPersonBody, tickFirstPersonBody } from './firstPersonBody.js';
+import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt } from './hud.js';
+import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING } from './config.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
@@ -171,7 +171,7 @@ export function createArenaRuntime(hooks = {}) {
     const pdz = playerObj.position.z - _prevFootZ;
     const horizSpeed = _footInit && dt > 0 ? Math.sqrt(pdx*pdx + pdz*pdz) / dt : 0;
     _prevFootX = playerObj.position.x; _prevFootZ = playerObj.position.z; _footInit = true;
-    if (isPlaying() && onGround && keyHeld && horizSpeed > FOOT_MIN_SPEED) {
+    if (isPlaying() && !isFlyEnabled() && onGround && keyHeld && horizSpeed > FOOT_MIN_SPEED) {
       const running = keys['ShiftLeft'] || keys['ShiftRight'];
       const interval = running ? FOOT_RUN_INTERVAL : FOOT_WALK_INTERVAL;
       _footAccum += dt;
@@ -284,7 +284,11 @@ export function createArenaRuntime(hooks = {}) {
       camera, scene, playerObj,
       onToggle: (on) => {
         state.flyMode = on;
-        showPortalPrompt(on ? '✈ FLY: ON' : '✈ FLY: OFF');
+        showFlyNotice(on ? 'Flight Mode ON' : 'Flight Mode OFF');
+        // BUG 1: hide the player's own render bodies while flying so the free
+        // camera can't see the avatar; restore prior visibility on disable.
+        setFlyHiddenPlayerModel(on);
+        setFlyHiddenFirstPersonBody(on);
         const btn = document.getElementById('btn-fly-toggle');
         if (btn) {
           btn.classList.toggle('is-on', on);

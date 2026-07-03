@@ -99,6 +99,22 @@ function _play(name) {
   _current = name;
 }
 
+// Hide the FP body while the debug free-fly camera is active (it renders on
+// layer 2, which the fly camera sees). Stores the prior visibility on enable and
+// restores exactly that on disable — so a body already hidden (death/spawn) is
+// not force-shown when fly turns off.
+let _flyPrevVisible = null;
+export function setFlyHidden(hidden) {
+  if (!_root) return;
+  if (hidden) {
+    if (_flyPrevVisible === null) _flyPrevVisible = _root.visible;
+    _root.visible = false;
+  } else if (_flyPrevVisible !== null) {
+    _root.visible = _flyPrevVisible;
+    _flyPrevVisible = null;
+  }
+}
+
 export function tickFirstPersonBody(dt) {
   if (!_mixer) return;
   _mixer.update(dt);

@@ -201,6 +201,21 @@ export function triggerDance()  { if (_loaded) _play(_anims.DANCE, true); }
 export function triggerIdle()   { if (_loaded) _play(_anims.IDLE, true); }
 export function isModelLoaded() { return _loaded; }
 
+// Hide the full-body avatar while the debug free-fly camera is active. Stores the
+// prior visibility on enable and restores exactly that on disable — so a body
+// already hidden (death/spawn) is not force-shown when fly turns off.
+let _flyPrevVisible = null;
+export function setFlyHidden(hidden) {
+  if (!_root) return;
+  if (hidden) {
+    if (_flyPrevVisible === null) _flyPrevVisible = _root.visible;
+    _root.visible = false;
+  } else if (_flyPrevVisible !== null) {
+    _root.visible = _flyPrevVisible;
+    _flyPrevVisible = null;
+  }
+}
+
 // ── Tick ──────────────────────────────────────────────────────────────────────
 let _mirrored = false;
 

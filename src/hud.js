@@ -203,6 +203,52 @@ export function hidePortalPrompt() {
   _portalDom().style.opacity = '0';
 }
 
+// ── Flight-mode toggle notice ───────────────────────────────────
+// Centred, transient banner shown when fly mode is toggled (F key / ToriiDebug).
+// Reads exactly "Flight Mode ON" / "Flight Mode OFF", holds for 1s, then fades.
+// Rapid re-toggles reset the timer and replace the text (never stacks).
+let _flyNoticeEl = null;
+let _flyNoticeTimer = 0;
+const FLY_NOTICE_MS = 1000;
+function _flyNoticeDom() {
+  if (_flyNoticeEl) return _flyNoticeEl;
+  _flyNoticeEl = document.createElement('div');
+  _flyNoticeEl.id = 'fly-notice';
+  Object.assign(_flyNoticeEl.style, {
+    position:      'fixed',
+    top:           '50%',
+    left:          '50%',
+    transform:     'translate(-50%, -50%)',
+    padding:       '14px 36px',
+    background:    'rgba(0,0,0,0.55)',
+    border:        '1.5px solid rgba(220,242,255,0.92)',
+    borderRadius:  '999px',
+    color:         '#ffffff',
+    fontFamily:    'monospace',
+    fontSize:      '22px',
+    letterSpacing: '2px',
+    fontWeight:    'bold',
+    textShadow:    '0 0 12px rgba(255,255,255,0.95), 0 1px 2px rgba(0,0,0,0.85)',
+    boxShadow:     '0 0 34px rgba(139,92,246,0.75), 0 2px 8px rgba(0,0,0,0.5)',
+    pointerEvents: 'none',
+    opacity:       '0',
+    transition:    'opacity 0.35s ease',
+    zIndex:        '60',
+  });
+  document.body.appendChild(_flyNoticeEl);
+  return _flyNoticeEl;
+}
+export function showFlyNotice(text) {
+  const el = _flyNoticeDom();
+  el.textContent = text;
+  if (_flyNoticeTimer) clearTimeout(_flyNoticeTimer);
+  el.style.opacity = '1';
+  _flyNoticeTimer = setTimeout(() => {
+    _flyNoticeTimer = 0;
+    el.style.opacity = '0';
+  }, FLY_NOTICE_MS);
+}
+
 // Zone-route notice (v0.2.182) — an inert top banner shown when the app loads on a
 // same-origin `/zone/<slug>` deep-link/refresh. Display-only: textContent (never
 // innerHTML), pointerEvents none, opacity crossfade (no setTimeout). It announces

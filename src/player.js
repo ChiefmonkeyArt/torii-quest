@@ -9,7 +9,8 @@ import { stepPhysics, createKinematic, movePlayer, physicsReady } from './physic
 // (same default Rapier impl as before, behaviour-identical).
 import { raycastService } from './engine/physics/raycastService.js';
 import { getGunBarrelWorld } from './weapons.js';
-import { isFlyEnabled } from './engine/debug/flyCamera.js';
+import { isFlyEnabled, enableFly, disableFly, getFlyEye } from './engine/debug/flyCamera.js';
+import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
@@ -38,6 +39,7 @@ scene.add(playerObj);
 const _fwd   = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _move  = new THREE.Vector3();
+const _flyEye = new THREE.Vector3();
 
 let _body = null;
 let _collider = null;
@@ -45,6 +47,24 @@ let _vy = 0;          // vertical velocity (m/s)
 let _onGround = false;
 let _recoilTimer = 0;
 const RECOIL_DUR = 0.08;
+
+// ── Fly mode v2 state ────────────────────────────────────────────────────────
+// F3: pressing F on the ground first hops the player ~5m, THEN engages fly at the
+// apex (feels like a jump into flight, not a teleport). This flag defers the
+// enableFly() call until the hop reaches its apex (_vy ≤ 0).
+let _pendingFlyAtApex = false;
+// F2: after fly is toggled OFF in mid-air the player enters a falling/gliding
+// state — gravity pulls them down but they keep (reduced) horizontal air control
+// so they can steer/glide rather than dead-drop. Cleared once grounded.
+let _gliding = false;
+// v = sqrt(2·|g|·h): the launch speed for a 5m hop under movement gravity.
+const FLY_HOP_V = Math.sqrt(2 * Math.abs(GRAVITY) * 5); // ≈ 15.8 u/s
+const GLIDE_AIR_CONTROL = 0.4; // horizontal accel factor while gliding down
+const GLIDE_MIN_FOOT = 0.5;    // foot this far above terrain ⇒ treat as airborne
+
+function _groundYAt(x, z) {
+  return x > NAP_X ? sampleNapHeight(x, z) : sampleArenaHeight(x, z);
+}
 
 export function initPlayer() {
   playerObj.position.set(0, SPAWN_Y, 0);
@@ -61,6 +81,50 @@ export function initPlayer() {
   onShoot(() => {
     if (isPlaying()) shoot();
   });
+}
+
+// flyToggleFromInput() — the in-game F key handler (v2). Decides between the
+// three transitions based on the current fly + grounded state:
+//   • flying          → turn OFF into a falling/gliding hand-off (F2).
+//   • grounded + off   → 5m hop, then engage fly at the apex (F3).
+//   • airborne + off   → stop mid-air and resume fly immediately (F2, 2nd press).
+export function flyToggleFromInput() {
+  if (isFlyEnabled()) {
+    _beginFlyHandoff();
+    disableFly();
+    return;
+  }
+  if (_pendingFlyAtApex) return; // already hopping into flight; ignore repeats
+  if (_onGround) {
+    // F3 — hop up ~5m under normal gravity; fly engages at the apex.
+    _vy = FLY_HOP_V;
+    _onGround = false;
+    _gliding = false;
+    _pendingFlyAtApex = true;
+  } else {
+    // F2 (2nd press) — freeze the fall and fly from here. enableFly() detaches
+    // the camera at its current world transform, so the eye stays put.
+    _gliding = false;
+    enableFly();
+  }
+}
+
+// _beginFlyHandoff() — called while fly is still ON (camera detached). Move the
+// physics body under the fly eye so the view doesn't teleport when fly turns
+// OFF, then either enter a glide (if airborne) or land (if near the ground).
+// MUST run before disableFly() re-parents the camera to the player.
+function _beginFlyHandoff() {
+  getFlyEye(_flyEye);
+  const groundY = _groundYAt(_flyEye.x, _flyEye.z);
+  const airborne = (_flyEye.y - EYE) - groundY > GLIDE_MIN_FOOT;
+  const eyeY = airborne ? _flyEye.y : groundY + EYE;
+  if (_body) {
+    _body.setTranslation({ x: _flyEye.x, y: eyeY + BODY_FROM_EYE, z: _flyEye.z }, true);
+  }
+  playerObj.position.set(_flyEye.x, eyeY, _flyEye.z);
+  _vy = 0;
+  _onGround = !airborne;
+  _gliding = airborne;
 }
 
 export function setPlayerBody(handle) {
@@ -89,6 +153,8 @@ export function resetPlayerPos() {
   if (_body) _body.setTranslation({x:_spawnX, y:SPAWN_Y + BODY_FROM_EYE, z:_spawnZ}, true);
   _vy = 0;
   _onGround = true;
+  _pendingFlyAtApex = false;
+  _gliding = false;
   setYaw(_spawnYaw);
   // Update safe-corner so bots stay clear of the new spawn point
   PLAYER_SAFE_CORNER.x = _spawnX;
@@ -99,8 +165,20 @@ export function tickPlayer(dt) {
   if (!isPlaying()) return;
   // Dev free-fly (ToriiDebug.fly): the debug camera owns the shared camera while
   // enabled, so skip ALL player movement + camera writes and let fly controls win.
-  // Re-enabling flips this gate back and the next tick snaps the camera to the eye.
-  if (isFlyEnabled()) return;
+  // v2 (F4): the kinematic hit-capsule + playerObj still TRACK the fly eye so the
+  // flying player can be shot by bots below the ceiling — bullet hit tests read
+  // playerObj.position, and bots aim at it. Re-enabling flips this gate back and
+  // the next tick snaps the camera to the eye.
+  if (isFlyEnabled()) {
+    getFlyEye(_flyEye);
+    if (_body) {
+      _body.setNextKinematicTranslation({
+        x: _flyEye.x, y: _flyEye.y + BODY_FROM_EYE, z: _flyEye.z,
+      });
+    }
+    playerObj.position.set(_flyEye.x, _flyEye.y, _flyEye.z);
+    return;
+  }
 
   // Rotation from input
   playerObj.rotation.y = getYaw();
@@ -125,6 +203,9 @@ export function tickPlayer(dt) {
   if (keys['KeyD'] || keys['ArrowRight']) _move.addScaledVector(_right, 1);
 
   if (_move.lengthSq() > 0) _move.normalize().multiplyScalar(PLAYER_SPEED);
+  // F2: while gliding down after fly-off, horizontal control is reduced so it
+  // reads as a glide/steer rather than full ground-speed strafing in the air.
+  if (_gliding && !_onGround) _move.multiplyScalar(GLIDE_AIR_CONTROL);
 
   // --- Rapier kinematic character controller (v0.2.61-alpha Phase 1) ---
   // Replaces the manual AABB pushout. We compute the *desired* delta (XZ from
@@ -151,12 +232,21 @@ export function tickPlayer(dt) {
 
     _onGround = result.grounded;
     if (_onGround && _vy < 0) _vy = 0;
+    if (_onGround) _gliding = false; // landed — normal ground movement resumes
   } else {
     // Pre-physics fallback during the ~100ms Rapier init window.
     playerObj.position.x += desiredDX;
     playerObj.position.z += desiredDZ;
     playerObj.position.y  = EYE;
     _vy = 0; _onGround = true;
+  }
+
+  // F3: the ground hop has peaked (velocity turned downward) — engage fly now.
+  // enableFly() detaches the camera at its current world transform, so flight
+  // begins from the apex the hop reached, not a teleport.
+  if (_pendingFlyAtApex && _vy <= 0) {
+    _pendingFlyAtApex = false;
+    enableFly();
   }
 
   // NAP-zone z-clamp REMOVED (v0.2.338). The north/south NAP edges are now sea

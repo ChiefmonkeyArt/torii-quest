@@ -12,6 +12,7 @@ import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
 import { engageSpeed, steerComponent, inEngageRange } from './engine/entities/bot-agent.js';
+import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 
@@ -31,6 +32,11 @@ const _shootDir    = new THREE.Vector3();
 
 const BOT_R  = 0.4;
 const EYE_Y  = 0.9; // eye/shoot height on bot
+// F4: a flying player can only be targeted below this eye altitude. player.js
+// keeps playerObj.position (and the hit-capsule) under the fly eye while flying,
+// so pp.y IS the flying eye Y — bots aim at it below the ceiling and can't
+// acquire/shoot above it.
+const FLY_TARGET_CEILING = 21;
 
 let _spawnBulletFn = null;
 let _playerObj     = null;
@@ -261,11 +267,15 @@ export function tickBots(dt) {
     // Bots respect the Non-Aggression Principle past the torii gate.
     let isShooting = false;
     const playerInNap = pp.x > NAP_X;
+    // F4: too-high flying player is out of reach — bots can't acquire/shoot above
+    // the ceiling (below it, pp.y is the fly eye and targeting proceeds normally).
+    const tooHighToTarget = isFlyEnabled() && pp.y >= FLY_TARGET_CEILING;
     // LOS gate (v0.2.105): a bot only fires when it has a clear Rapier line to
     // the player — no wall, crate or obstacle in the way. Stops bots shooting
     // through cover. Eye-to-eye segment, player capsule excluded so it doesn't
     // self-block.
-    if (inEngageRange(dist, playerInNap) &&
+    if (!tooHighToTarget &&
+        inEngageRange(dist, playerInNap) &&
         raycastService.lineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
       bot.shootCd -= dt;
       if (bot.shootCd <= 0) {

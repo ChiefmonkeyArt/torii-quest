@@ -11,12 +11,17 @@
 // Surfaced through ToriiDebug.fly (see toriiDebug.js). Allocation-free update:
 // all temp vectors are module-scoped scratch, never allocated in the hot path.
 import * as THREE from 'three';
-import { keys, getYaw, getPitch } from '../../input.js';
+import { keys, getYaw, getPitch, setYaw, setPitch } from '../../input.js';
 import { state, isPlaying } from '../../state.js';
 
 const SPEED       = 18;   // units/sec, normal
 const BOOST_SPEED = 60;   // units/sec, Shift held
 const PITCH_LIMIT = Math.PI / 2 - 0.02; // ±~89°
+
+// F1 (v2): entering with fly ON drops the eye into the sky above the arena
+// centre, looking down at it — never a ground-level spawn that then rises.
+const SKY_EYE_Y   = 12;   // ≥10m above the arena, per spec
+const SKY_PITCH   = -Math.PI / 2.1; // steep look-down toward (0,0,0)
 
 // Scratch — never allocate in the per-frame update.
 const _fwd  = new THREE.Vector3();
@@ -39,7 +44,22 @@ export function initFlyCamera({ camera, scene, playerObj, onToggle } = {}) {
 
 export function isFlyEnabled() { return _enabled; }
 
-export function enableFly() {
+// Current fly-camera eye position in world space. During fly the camera is a
+// direct child of the scene, so its local position IS its world position.
+// Exposed so player.js can keep the hit-capsule under the eye and bots can read
+// the flying player's altitude (F4). Writes into `out` (no allocation).
+export function getFlyEye(out) {
+  if (_camera) out.copy(_camera.position);
+  return out;
+}
+export function getFlyEyeY() { return _camera ? _camera.position.y : 0; }
+
+// enableFly({ atSky }) — detach the shared camera and drive it free.
+//   • default: preserve the current world transform (used mid-air / at a jump
+//     apex so the view doesn't jump on enable).
+//   • atSky:true (F1): drop the eye to (0, SKY_EYE_Y, 0) looking down at the
+//     arena centre. Starts already high — never a ground spawn that then rises.
+export function enableFly(opts = {}) {
   if (_enabled || !_camera || !_scene) return;
   _enabled = true;
   // Detach from the player body, preserving the current world transform so the
@@ -48,6 +68,14 @@ export function enableFly() {
   // FPS-style look needs yaw-then-pitch order to avoid roll/gimbal artefacts.
   _prevOrder = _camera.rotation.order;
   _camera.rotation.order = 'YXZ';
+  if (opts.atSky) {
+    _camera.position.set(0, SKY_EYE_Y, 0);
+    // Drive the shared pointer-lock look so tickFly (which rewrites rotation from
+    // getYaw/getPitch every frame) holds the downward-at-centre orientation.
+    setYaw(0);
+    setPitch(SKY_PITCH);
+    _camera.rotation.set(SKY_PITCH, 0, 0);
+  }
   if (_onToggle) _onToggle(true);
 }
 

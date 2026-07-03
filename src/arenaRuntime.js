@@ -22,7 +22,7 @@ import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
-import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
+import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot } from './bots.js';
@@ -44,7 +44,7 @@ import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
-import { initFlyCamera, tickFly, toggleFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
+import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
@@ -287,8 +287,10 @@ export function createArenaRuntime(hooks = {}) {
         showPortalPrompt(on ? '✈ FLY: ON' : '✈ FLY: OFF');
         const btn = document.getElementById('btn-fly-toggle');
         if (btn) {
-          btn.textContent = on ? '✈ FLY MODE: ON' : '✈ FLY MODE: OFF';
-          btn.classList.toggle('fly-on', on);
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-checked', on ? 'true' : 'false');
+          const st = btn.querySelector('.fly-switch-state');
+          if (st) st.textContent = on ? 'ON' : 'OFF';
         }
       },
     });
@@ -339,7 +341,9 @@ export function createArenaRuntime(hooks = {}) {
     onKeyDown(code => {
       if (code !== 'KeyF' || !isPlaying()) return;
       if (_portalTrigger.isArmed()) { _openGatewayScreen(); return; }
-      toggleFly();
+      // v2: the ground/air-aware fly orchestration lives in player.js (hop from
+      // ground, stop-mid-air / glide handoff in the air).
+      flyToggleFromInput();
     });
 
     // Browser-forced pointer-lock loss still pauses a running game.
@@ -409,7 +413,8 @@ export function createArenaRuntime(hooks = {}) {
     emit(EV.HUD_UPDATE);
     // Title→arena handoff: honour the title-screen FLY MODE toggle once the arena
     // is live. Only enable (never force-disable) so an in-game toggle isn't undone.
-    if (state.flyMode && !isFlyEnabled()) enableFly();
+    // F1: spawn already in the sky above the arena centre, looking down.
+    if (state.flyMode && !isFlyEnabled()) enableFly({ atSky: true });
   }
 
   return { boot, bootstrapPhysics, enter, setSpawnOverride };

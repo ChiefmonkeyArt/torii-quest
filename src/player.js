@@ -9,6 +9,7 @@ import { stepPhysics, createKinematic, movePlayer, physicsReady } from './physic
 // (same default Rapier impl as before, behaviour-identical).
 import { raycastService } from './engine/physics/raycastService.js';
 import { getGunBarrelWorld } from './weapons.js';
+import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
@@ -96,6 +97,10 @@ export function resetPlayerPos() {
 
 export function tickPlayer(dt) {
   if (!isPlaying()) return;
+  // Dev free-fly (ToriiDebug.fly): the debug camera owns the shared camera while
+  // enabled, so skip ALL player movement + camera writes and let fly controls win.
+  // Re-enabling flips this gate back and the next tick snaps the camera to the eye.
+  if (isFlyEnabled()) return;
 
   // Rotation from input
   playerObj.rotation.y = getYaw();

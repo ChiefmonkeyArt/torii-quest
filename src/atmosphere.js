@@ -565,7 +565,9 @@ function _buildMist() {
   const mat = new THREE.MeshBasicMaterial({
     color: 0xd4eaf5,
     transparent: true,
-    opacity: 0.045,
+    // Lowered 0.045 → 0.028 (v0.2.342): on the new sandy ground the near-flat mist
+    // planes were starting to read as stray sheets; keep them as barely-there haze.
+    opacity: 0.028,
     depthWrite: false,
     side: THREE.DoubleSide,
     fog: false,

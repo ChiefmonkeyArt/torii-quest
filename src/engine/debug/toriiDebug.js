@@ -47,6 +47,7 @@ import { portalMeshRenderState } from '../gateway/portalMesh.js';
 import { buildProofSurfaceRenderPlan } from '../world/proofSurfaceRenderPlan.js';
 import { resolveParentBindings } from '../world/proofSurfaceParentBinding.js';
 import { proofSurfaceGate } from './proofSurfaceGate.js';
+import { enableFly, disableFly, toggleFly, isFlyEnabled } from './flyCamera.js';
 
 export function installToriiDebug(refs) {
   const {
@@ -95,6 +96,17 @@ export function installToriiDebug(refs) {
       resetToArena() { resetPlayerPos(); },
       get camera() { return camera || null; },
       setPitch(p) { if (setPitch) setPitch(p); },
+    },
+
+    // v0.2.343 — dev/debug free-fly camera. Detaches the camera from the player
+    // body and drives it with WASD + Space/C + mouse look (reusing the existing
+    // pointer lock). player.js skips its camera write while enabled. Toggle in-game
+    // with F, or from the title-screen FLY MODE button.
+    fly: {
+      enable()  { enableFly(); },
+      disable() { disableFly(); },
+      toggle()  { return toggleFly(); },
+      get enabled() { return isFlyEnabled(); },
     },
 
     physics: {

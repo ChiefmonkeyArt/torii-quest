@@ -52,7 +52,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
   passing: 1981,
-  files: 132,
+  files: 133,
   fastProfile: 5,
   foundationProfile: 25,
 });

@@ -44,6 +44,7 @@ import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
+import { initFlyCamera, tickFly, toggleFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
@@ -146,6 +147,7 @@ export function createArenaRuntime(hooks = {}) {
     // v0.2.112: step AFTER tickPlayer/tickBots set their kinematic targets but
     // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
+    tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
     tickDeath(dt, renderer);
     tickBots(dt);
     if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
@@ -276,6 +278,21 @@ export function createArenaRuntime(hooks = {}) {
       getCrateSummary, config: TUNING,
     });
 
+    // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
+    // callback fired on every enable/disable (from F, ToriiDebug.fly, or ENTER).
+    initFlyCamera({
+      camera, scene, playerObj,
+      onToggle: (on) => {
+        state.flyMode = on;
+        showPortalPrompt(on ? '✈ FLY: ON' : '✈ FLY: OFF');
+        const btn = document.getElementById('btn-fly-toggle');
+        if (btn) {
+          btn.textContent = on ? '✈ FLY MODE: ON' : '✈ FLY MODE: OFF';
+          btn.classList.toggle('fly-on', on);
+        }
+      },
+    });
+
     // Crosshair — show when pointer locked, hide when not.
     const _elCrosshair = document.getElementById('crosshair');
     document.addEventListener('pointerlockchange', () => {
@@ -316,12 +333,13 @@ export function createArenaRuntime(hooks = {}) {
       }
     }, true);
 
-    // KeyF — explicit gateway activation: only while playing AND the boundary is
-    // armed (player in range). Opens the in-world gateway screen.
+    // KeyF — dual role, mutually exclusive so one press never does both:
+    //  • in range of the gateway (armed): open the in-world gateway screen;
+    //  • otherwise, while playing: toggle the dev free-fly camera.
     onKeyDown(code => {
-      if (code !== 'KeyF') return;
-      if (!isPlaying() || !_portalTrigger.isArmed()) return;
-      _openGatewayScreen();
+      if (code !== 'KeyF' || !isPlaying()) return;
+      if (_portalTrigger.isArmed()) { _openGatewayScreen(); return; }
+      toggleFly();
     });
 
     // Browser-forced pointer-lock loss still pauses a running game.
@@ -389,6 +407,9 @@ export function createArenaRuntime(hooks = {}) {
     transition(GAME_EVENT.ENTER);
     requestLock(renderer.domElement);
     emit(EV.HUD_UPDATE);
+    // Title→arena handoff: honour the title-screen FLY MODE toggle once the arena
+    // is live. Only enable (never force-disable) so an in-game toggle isn't undone.
+    if (state.flyMode && !isFlyEnabled()) enableFly();
   }
 
   return { boot, bootstrapPhysics, enter, setSpawnOverride };

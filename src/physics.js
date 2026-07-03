@@ -15,10 +15,10 @@
 // 2*(halfHeight + radius). Player body is positioned at the *capsule centre*
 // (foot + halfHeight + radius), NOT the eye. player.js maps body↔eye.
 import {
-  CRATES, OBSTACLES,
+  CRATES, OBSTACLES, EAST_GAP_HALF,
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
 } from './config.js';
-import { initBodies, createStatic, createHeightfield } from './engine/physics/bodies.js';
+import { initBodies, createStatic, createStaticYaw, createHeightfield } from './engine/physics/bodies.js';
 import { initRaycast } from './engine/physics/raycast.js';
 // Pure (node-safe) terrain heightmap — static import is fine: no THREE/RAPIER.
 import {
@@ -26,6 +26,7 @@ import {
   ARENA_GRID, ARENA_TERRAIN, buildArenaHeightfieldArray, arenaTerrainPeak,
   sampleArenaHeight, ISLAND_BASE_Y,
 } from './terrain/heightmap.js';
+import { coastlineRing } from './terrain/coastline.js';
 
 // Re-export the SDK boundary surface so existing import sites are unchanged.
 export {
@@ -138,6 +139,29 @@ export function buildArenaColliders() {
   // OBSTACLES — collision-only (tree trunk, torii pillars, east wall segments).
   for (const [cx, cz, hw, hd, ch] of OBSTACLES) {
     createStatic(hw, ch / 2, hd, cx, ch / 2 + B, cz);
+  }
+
+  // COASTLINE wall — knee-high (0.5m) PLAYER colliders following the organic
+  // coast ring (v0.2.342). Height sits above the 0.3m autostep but far below the
+  // ~2m jump apex, so the player can jump the boundary but not walk over it. One
+  // thin yaw-rotated cuboid per ring segment (~32, well under the ≤40 budget),
+  // skipping the east torii-gate gap so the bridge → NAP walkway stays clear.
+  // These do NOT contain bots — bots are held in by the polygon clamp in bots.js
+  // (kinematic bots ignore static colliders). See coastline.js.
+  const ring = coastlineRing();
+  const rn = ring.length;
+  const WALL_HH = 0.25;   // half-height → 0.5m tall
+  const WALL_HD = 0.1;    // half-thickness (radial)
+  for (let i = 0; i < rn; i++) {
+    const [ax, az] = ring[i];
+    const [bx, bz] = ring[(i + 1) % rn];
+    const mx = (ax + bx) * 0.5, mz = (az + bz) * 0.5;
+    if (mx > 6 && Math.abs(mz) < EAST_GAP_HALF) continue; // gate gap (matches arena.js)
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz) || 1e-6;
+    const yaw = Math.atan2(-dz, dx);
+    const cy = sampleArenaHeight(mx, mz) + WALL_HH;
+    createStaticYaw(len / 2, WALL_HH, WALL_HD, mx, cy, mz, yaw);
   }
 
   // BRIDGE deck (Stage 4, v0.2.331) — a static cuboid spanning the sea channel at

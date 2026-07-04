@@ -36,6 +36,10 @@ import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interact
 // from the old inline `isHead ? 9 : 3` so it is unit-testable and the
 // one-shot-headshot contract is locked by tests against BOT_HP.
 import { shotDamage } from './engine/combat/damage.js';
+// v0.2.345 — safe-zone backstop. A live-bound import (read only at call time, never
+// during module init) so the player.js↔weapons.js cycle stays safe. Bot bullets
+// already in flight deal no damage once the player steps outside the fence.
+import { isPlayerOutsideFence } from './player.js';
 // v0.2.127 — pure reload viewmodel pose curve ("click down, clack snap back"),
 // extracted so the snap timing is unit-testable and allocation-free.
 import { reloadDip } from './engine/weapons/reloadPose.js';
@@ -341,7 +345,8 @@ export function tickWeapons(dt, playerPos) {
       if (!remove && !b.isPlayer) {
         // 1. Player hit — keep the cheap distance test (the player capsule is
         //    excluded from the static raycast, so the ray can't resolve it).
-        if (_onPlayerHit && b.mesh.position.distanceToSquared(playerPos) < 0.5) {
+        if (_onPlayerHit && !isPlayerOutsideFence() &&
+            b.mesh.position.distanceToSquared(playerPos) < 0.5) {
           _onPlayerHit(BOT_DAMAGE);
           remove = true;
         }

@@ -11,6 +11,7 @@ import { raycastService } from './engine/physics/raycastService.js';
 import { getGunBarrelWorld } from './weapons.js';
 import { isFlyEnabled, enableFly, disableFly, getFlyEye } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
+import { isInsideFence } from './terrain/coastline.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
@@ -45,6 +46,18 @@ let _body = null;
 let _collider = null;
 let _vy = 0;          // vertical velocity (m/s)
 let _onGround = false;
+
+// Safe-zone flag (v0.2.345): true when the player's XZ is OUTSIDE the fence ring —
+// i.e. in the 1m safe zone between fence and terrain edge, or out on the beach.
+// Recomputed once per tick (one point-in-polygon test), mirrored onto playerObj so
+// bots.js can read it, and consumed by weapons.js to null bot-bullet damage. Bots
+// neither acquire nor damage a player who is outside the fence.
+let _isOutsideFence = false;
+export function isPlayerOutsideFence() { return _isOutsideFence; }
+function _updateFenceFlag() {
+  _isOutsideFence = !isInsideFence(playerObj.position.x, playerObj.position.z);
+  playerObj.isOutsideFence = _isOutsideFence;
+}
 let _recoilTimer = 0;
 const RECOIL_DUR = 0.08;
 
@@ -177,6 +190,7 @@ export function tickPlayer(dt) {
       });
     }
     playerObj.position.set(_flyEye.x, _flyEye.y, _flyEye.z);
+    _updateFenceFlag();
     return;
   }
 
@@ -265,6 +279,9 @@ export function tickPlayer(dt) {
     const t = _body.translation();
     if (t.y < -2) resetPlayerPos();
   }
+
+  // Safe-zone flag — one point-in-polygon test per tick against the fence ring.
+  _updateFenceFlag();
 
   // Reload tick — the timer/refill now lives in state.tickReload (ARS-4 fold);
   // it returns true on the frame the reload completes so we emit the HUD update.

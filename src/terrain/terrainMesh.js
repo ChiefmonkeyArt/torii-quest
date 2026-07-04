@@ -15,6 +15,7 @@ import {
   ARENA_TERRAIN, ARENA_GRID, sampleArenaHeight, ISLAND_BASE_Y,
 } from './heightmap.js';
 import { SEA_LEVEL } from './seaConfig.js';
+import { pointInTerrainEdge } from './coastline.js';
 
 // Cheap deterministic value-noise in [0,1) from world XZ — no textures, no state.
 function _hash(x, z) {
@@ -25,7 +26,7 @@ function _hash(x, z) {
 // Shared builder: world-space grid mesh over a zone's extended extent. When
 // `vary(base, x, z, h)` is supplied, per-vertex colours are baked (vertexColors)
 // for cheap procedural ground variation with no texture assets.
-function buildZoneMesh(scene, TERRAIN, GRID, sample, { color, name, roughness = 1.0, vary = null }) {
+function buildZoneMesh(scene, TERRAIN, GRID, sample, { color, name, roughness = 1.0, vary = null, cellKeep = null }) {
   const { colsX, rowsZ, cellW, cellD } = GRID;
   const { gMinX, gMinZ } = TERRAIN;
 
@@ -52,18 +53,40 @@ function buildZoneMesh(scene, TERRAIN, GRID, sample, { color, name, roughness = 
     }
   }
 
-  const idxCount = (colsX - 1) * (rowsZ - 1) * 6;
-  const indices = new Uint32Array(idxCount);
-  let p = 0;
+  // Index build. When `cellKeep(cx,cz)` is supplied, a grid CELL is emitted only
+  // if its XZ centroid passes the test — this CROPS the mesh to an arbitrary
+  // polygon (the rounded terrain edge) so the visible/physical footprint follows
+  // the coast, not the square grid. The full vertex buffer is retained; culled
+  // cells simply leave their verts unreferenced (not drawn).
   const vidx = (col, row) => col * rowsZ + row;
-  for (let col = 0; col < colsX - 1; col++) {
-    for (let row = 0; row < rowsZ - 1; row++) {
-      const a = vidx(col,     row);
-      const b = vidx(col + 1, row);
-      const c = vidx(col + 1, row + 1);
-      const d = vidx(col,     row + 1);
-      indices[p++] = a; indices[p++] = d; indices[p++] = b;
-      indices[p++] = b; indices[p++] = d; indices[p++] = c;
+  let indices;
+  if (cellKeep) {
+    const arr = [];
+    for (let col = 0; col < colsX - 1; col++) {
+      const cx = gMinX + (col + 0.5) * cellW;
+      for (let row = 0; row < rowsZ - 1; row++) {
+        const cz = gMinZ + (row + 0.5) * cellD;
+        if (!cellKeep(cx, cz)) continue;
+        const a = vidx(col,     row);
+        const b = vidx(col + 1, row);
+        const c = vidx(col + 1, row + 1);
+        const d = vidx(col,     row + 1);
+        arr.push(a, d, b, b, d, c);
+      }
+    }
+    indices = new Uint32Array(arr);
+  } else {
+    indices = new Uint32Array((colsX - 1) * (rowsZ - 1) * 6);
+    let p = 0;
+    for (let col = 0; col < colsX - 1; col++) {
+      for (let row = 0; row < rowsZ - 1; row++) {
+        const a = vidx(col,     row);
+        const b = vidx(col + 1, row);
+        const c = vidx(col + 1, row + 1);
+        const d = vidx(col,     row + 1);
+        indices[p++] = a; indices[p++] = d; indices[p++] = b;
+        indices[p++] = b; indices[p++] = d; indices[p++] = c;
+      }
     }
   }
 
@@ -113,5 +136,10 @@ export function buildArenaTerrainMesh(scene) {
     name: 'arena-floor',
     roughness: 0.95,
     vary: _arenaGroundColor,
+    // Crop the visible/physical arena footprint to the ROUNDED terrain edge so the
+    // land follows the coast instead of the square grid. The east/river vertex is
+    // preserved (no outward push) and the bridge overlaps x∈[14,26] at z≈0, so the
+    // arena→bridge→NAP connection stays intact even though the corners round in.
+    cellKeep: (x, z) => pointInTerrainEdge(x, z),
   });
 }

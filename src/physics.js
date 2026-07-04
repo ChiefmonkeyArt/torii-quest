@@ -26,7 +26,7 @@ import {
   ARENA_GRID, ARENA_TERRAIN, buildArenaHeightfieldArray, arenaTerrainPeak,
   sampleArenaHeight, ISLAND_BASE_Y,
 } from './terrain/heightmap.js';
-import { coastlineRing } from './terrain/coastline.js';
+import { fenceRing } from './terrain/coastline.js';
 
 // Re-export the SDK boundary surface so existing import sites are unchanged.
 export {
@@ -148,7 +148,7 @@ export function buildArenaColliders() {
   // skipping the east torii-gate gap so the bridge → NAP walkway stays clear.
   // These do NOT contain bots — bots are held in by the polygon clamp in bots.js
   // (kinematic bots ignore static colliders). See coastline.js.
-  const ring = coastlineRing();
+  const ring = fenceRing();
   const rn = ring.length;
   const WALL_HH = 0.25;   // half-height → 0.5m tall
   const WALL_HD = 0.1;    // half-thickness (radial)

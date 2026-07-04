@@ -8,7 +8,7 @@ import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
-import { coastlineRing } from './terrain/coastline.js';
+import { fenceRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
 
@@ -83,7 +83,7 @@ const _neonMat = new THREE.MeshStandardMaterial({
   color: 0x061418, emissive: C_NEON, emissiveIntensity: 2.2, roughness: 0.4,
 });
 function _buildCoastlineWall() {
-  const ring = coastlineRing();
+  const ring = fenceRing();
   const n = ring.length;
   const H = WALL_WALL_H;
   const inGap = ring.map(([x, z]) => _inGateGap(x, z));

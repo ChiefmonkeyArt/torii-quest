@@ -7,7 +7,7 @@ import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPREAD, CRATES, NAP_X } from './co
 import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
-import { PLAYER_SAFE_CORNER, getPlayerCollider } from './player.js';
+import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
@@ -270,11 +270,15 @@ export function tickBots(dt) {
     // F4: too-high flying player is out of reach — bots can't acquire/shoot above
     // the ceiling (below it, pp.y is the fly eye and targeting proceeds normally).
     const tooHighToTarget = isFlyEnabled() && pp.y >= FLY_TARGET_CEILING;
+    // Safe zone (v0.2.345): a player OUTSIDE the fence (in the 1m safe zone or on
+    // the beach) is off-limits — bots neither acquire nor fire at them. Read from
+    // the once-per-tick flag computed in player.js (no per-bot polygon test here).
+    const playerSafe = isPlayerOutsideFence();
     // LOS gate (v0.2.105): a bot only fires when it has a clear Rapier line to
     // the player — no wall, crate or obstacle in the way. Stops bots shooting
     // through cover. Eye-to-eye segment, player capsule excluded so it doesn't
     // self-block.
-    if (!tooHighToTarget &&
+    if (!tooHighToTarget && !playerSafe &&
         inEngageRange(dist, playerInNap) &&
         raycastService.lineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
       bot.shootCd -= dt;

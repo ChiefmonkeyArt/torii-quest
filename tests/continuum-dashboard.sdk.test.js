@@ -33,7 +33,7 @@ describe('SDK exposure', () => {
   it('re-exports the continuum module at the experimental tier (dashboard barrel)', () => {
     // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.345-alpha');
+    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.346-alpha');
     expect(typeof DashboardSDK.continuum.renderContinuumPage).toBe('function');
     expect(DashboardSDK.DASHBOARD_SURFACE.continuum.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.

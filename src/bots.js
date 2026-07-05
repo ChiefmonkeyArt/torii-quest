@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPREAD, CRATES, NAP_X } from './config.js';
+import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X } from './config.js';
 import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
@@ -11,7 +11,12 @@ import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './p
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
-import { engageSpeed, steerComponent, inEngageRange } from './engine/entities/bot-agent.js';
+import { engageSpeed, steerComponent } from './engine/entities/bot-agent.js';
+import {
+  tierForIndex, flankSlotForIndex, flankAnchor,
+  buildCoverPoints, pickCover, obstacleAvoid,
+  effectiveSight, effectiveCooldown, effectiveSpread,
+} from './engine/entities/bot-tactics.js';
 import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
@@ -29,6 +34,9 @@ const _toPlayer = new THREE.Vector3();
 const _sep      = new THREE.Vector3();
 const _shootOrigin = new THREE.Vector3();
 const _shootDir    = new THREE.Vector3();
+// M4-G1 tactics scratch — plain {x,z} bags reused every tick (no allocs)
+const _avoid  = { x: 0, z: 0 }; // obstacle-avoidance steer
+const _anchor = { x: 0, z: 0 }; // flank anchor target
 
 const BOT_R  = 0.4;
 const EYE_Y  = 0.9; // eye/shoot height on bot
@@ -37,6 +45,23 @@ const EYE_Y  = 0.9; // eye/shoot height on bot
 // so pp.y IS the flying eye Y — bots aim at it below the ceiling and can't
 // acquire/shoot above it.
 const FLY_TARGET_CEILING = 21;
+
+// ── M4-G1 cover / steering tuning (module-level, computed once) ──────────────
+// Cover candidate points are precomputed ONCE from the static arena-side boxes
+// (crates + the arena-side obstacles west of the NAP plane — the torii pillars /
+// bonsai live east and are irrelevant to combat cover). Offset outward from each
+// box by (BOT_R + a small margin) so a bot standing on the point clears the box.
+const COVER_MARGIN = BOT_R + 0.35;
+const _arenaBoxes  = [...CRATES, ...OBSTACLES.filter(b => b[0] < NAP_X)];
+const _coverPoints = buildCoverPoints(_arenaBoxes, COVER_MARGIN);
+// Cover re-evaluation cadence — staggered per bot so the LOS rays never all fire
+// on the same frame. Each bot re-scores at most ~1.6×/sec.
+const COVER_EVAL_PERIOD = 0.6;   // seconds between cover re-scores per bot
+const COVER_MAX_DIST    = 12;    // don't chase cover further than this
+const COVER_ARRIVE_R2   = 0.6 * 0.6; // squared arrive radius at a cover point
+// Obstacle-avoidance feeler influence beyond each box half-extent.
+const AVOID_INFLUENCE = BOT_R + 1.1;
+const AVOID_WEIGHT    = 1.4;     // how hard avoidance bends the heading
 
 let _spawnBulletFn = null;
 let _playerObj     = null;
@@ -94,6 +119,12 @@ function _spawnBot(i) {
     respawnTimer: 0,
     // position convenience — kept in sync with model
     pos: new THREE.Vector3(x, 0, z),
+    // M4-G1 tactics state ─ deterministic per spawn index
+    tier: tierForIndex(i),
+    _flankSlot: flankSlotForIndex(i),
+    _coverPoint: null,                       // [x,z] chosen cover, or null
+    _coverTimer: (i / BOT_COUNT) * COVER_EVAL_PERIOD, // staggered first eval
+    _losTimer: 0,                            // LOS dwell for reaction gating
     _isHit: false,
     _hitTimer: 0,
     _isDying: false,
@@ -146,7 +177,13 @@ function _spawnCapsuleBots() {
     const pos = new THREE.Vector3(x, 0, z);
     bots.push({ model: null, mesh, hp: BOT_HP, alive: true,
       shootCd: Math.random() * BOT_SHOOT_CD, respawnTimer: 0,
-      pos, _isHit: false, _hitTimer: 0 });
+      pos,
+      tier: tierForIndex(i),
+      _flankSlot: flankSlotForIndex(i),
+      _coverPoint: null,
+      _coverTimer: (i / BOT_COUNT) * COVER_EVAL_PERIOD,
+      _losTimer: 0,
+      _isHit: false, _hitTimer: 0 });
   }
 }
 
@@ -174,6 +211,13 @@ function _pushout(nx, nz) {
     }
   }
   return [nx, nz];
+}
+
+// A cover point is valid if the player has NO clear line to it — i.e. static
+// geometry blocks the player→point ray (the inverse of lineOfSight). Eye-height
+// segment on both ends; player capsule excluded so it never self-counts.
+function _coverBlocked(px, pz, cx, cz) {
+  return !raycastService.lineOfSight(px, EYE_Y, pz, cx, EYE_Y, cz, getPlayerCollider());
 }
 
 // ── Tick ──────────────────────────────────────────────────────────────────────
@@ -224,12 +268,55 @@ export function tickBots(dt) {
 
     const px = bot.pos.x, pz = bot.pos.z;
     const pp = _playerObj.position;
+    const tier = bot.tier;
 
     _toPlayer.set(pp.x - px, 0, pp.z - pz);
     const dist = _toPlayer.length();
     _toPlayer.normalize();
 
-    // Bot-bot separation
+    // Safe zone (v0.2.345): player OUTSIDE the fence is off-limits — bots neither
+    // acquire, fire, nor seek cover against them. Computed once here and reused by
+    // the shoot block below (single per-tick polygon flag from player.js).
+    const playerSafe = isPlayerOutsideFence();
+
+    // ── Cover eval (M4-G1) — STAGGERED per bot, never every frame ──────────────
+    // Re-score cover only when this bot's timer elapses. Trigger seeking when the
+    // bot is pressured (low HP / recently hit / in cooldown / hard tier) and a
+    // coverBias roll passes; `persistence` decides whether it keeps a held point
+    // when not pressured. Distance-culled LOS ray runs at most ~1.6×/sec/bot.
+    bot._coverTimer -= dt;
+    if (bot._coverTimer <= 0) {
+      bot._coverTimer = COVER_EVAL_PERIOD;
+      const pressured = bot.hp <= BOT_HP * 0.5 || bot._isHit ||
+                        tier.id === 'hard' || bot.shootCd > 0;
+      if (!playerSafe && pressured && Math.random() < tier.coverBias) {
+        const ci = pickCover(px, pz, pp.x, pp.z, _coverPoints, _coverBlocked, COVER_MAX_DIST);
+        bot._coverPoint = ci >= 0 ? _coverPoints[ci] : null;
+      } else if (Math.random() > tier.persistence) {
+        bot._coverPoint = null; // low-persistence bots let cover lapse
+      }
+    }
+
+    // ── Desired target: held cover point, else the flank anchor ────────────────
+    // Flank anchor rings the player at a slot angle keyed by bot index so the
+    // squad spreads around the player instead of forming a conga line; flankBias
+    // widens the ring for the tier.
+    let tx, tz;
+    if (bot._coverPoint) {
+      tx = bot._coverPoint[0]; tz = bot._coverPoint[1];
+    } else {
+      flankAnchor(pp.x, pp.z, px, pz, bot._flankSlot.angle, tier.flankBias, _anchor);
+      tx = _anchor.x; tz = _anchor.z;
+    }
+    let dtx = tx - px, dtz = tz - pz;
+    const tlen = Math.hypot(dtx, dtz);
+    let dirx = 0, dirz = 0;
+    // Hold position once parked at a cover point; otherwise steer toward target.
+    if (!(bot._coverPoint && tlen * tlen <= COVER_ARRIVE_R2) && tlen > 1e-4) {
+      dirx = dtx / tlen; dirz = dtz / tlen;
+    }
+
+    // Bot-bot separation — stops bots stacking / sharing a flank slot.
     _sep.set(0, 0, 0);
     bots.forEach(o => {
       if (o === bot || !o.alive) return;
@@ -239,9 +326,19 @@ export function tickBots(dt) {
       if (d < BOT_R * 2.5 && d > 0) { _sep.x += dx / d; _sep.z += dz / d; }
     });
 
-    const spd = engageSpeed(dist);
-    const vx  = steerComponent(_toPlayer.x, _sep.x) * spd;
-    const vz  = steerComponent(_toPlayer.z, _sep.z) * spd;
+    // Obstacle avoidance — analytic feelers push away from + side-step around the
+    // static arena boxes so bots visibly slide past crates instead of stalling.
+    obstacleAvoid(px, pz, dirx, dirz, _arenaBoxes, AVOID_INFLUENCE, _avoid);
+
+    // Blend seek + separation (bot-agent weights) + avoidance, then normalise so
+    // avoidance BENDS the heading rather than boosting speed. Speed scales with
+    // engage distance to the player AND the tier speed multiplier.
+    let hx = steerComponent(dirx, _sep.x) + _avoid.x * AVOID_WEIGHT;
+    let hz = steerComponent(dirz, _sep.z) + _avoid.z * AVOID_WEIGHT;
+    const hlen = Math.hypot(hx, hz);
+    const spd = engageSpeed(dist) * tier.speedScale;
+    const vx = hlen > 1e-4 ? (hx / hlen) * spd : 0;
+    const vz = hlen > 1e-4 ? (hz / hlen) * spd : 0;
 
     const [nx, nz] = _pushout(px + vx * dt, pz + vz * dt);
     bot.pos.x = nx;
@@ -270,32 +367,37 @@ export function tickBots(dt) {
     // F4: too-high flying player is out of reach — bots can't acquire/shoot above
     // the ceiling (below it, pp.y is the fly eye and targeting proceeds normally).
     const tooHighToTarget = isFlyEnabled() && pp.y >= FLY_TARGET_CEILING;
-    // Safe zone (v0.2.345): a player OUTSIDE the fence (in the 1m safe zone or on
-    // the beach) is off-limits — bots neither acquire nor fire at them. Read from
-    // the once-per-tick flag computed in player.js (no per-bot polygon test here).
-    const playerSafe = isPlayerOutsideFence();
     // LOS gate (v0.2.105): a bot only fires when it has a clear Rapier line to
     // the player — no wall, crate or obstacle in the way. Stops bots shooting
     // through cover. Eye-to-eye segment, player capsule excluded so it doesn't
-    // self-block.
-    if (!tooHighToTarget && !playerSafe &&
-        inEngageRange(dist, playerInNap) &&
-        raycastService.lineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider())) {
-      bot.shootCd -= dt;
-      if (bot.shootCd <= 0) {
-        bot.shootCd = BOT_SHOOT_CD + Math.random() * 0.8;
+    // self-block. Acquisition range is the TIER sight (normal keeps the 14m
+    // contract; easy shorter, hard longer) and NAP suppression is unchanged.
+    const hasLos = !tooHighToTarget && !playerSafe && !playerInNap &&
+        dist <= effectiveSight(tier) &&
+        raycastService.lineOfSight(nx, EYE_Y, nz, pp.x, pp.y, pp.z, getPlayerCollider());
+    if (hasLos) {
+      // Reaction dwell (M4-G1): the bot must hold LOS for `tier.reaction` seconds
+      // before its first shot after acquiring — slower tiers hesitate, hard tier
+      // snaps almost instantly. LOS timer resets whenever the line breaks.
+      bot._losTimer += dt;
+      bot.shootCd  -= dt;
+      if (bot._losTimer >= tier.reaction && bot.shootCd <= 0) {
+        bot.shootCd = effectiveCooldown(tier) + Math.random() * 0.8;
+        const spread = effectiveSpread(tier); // tier aim error scales the cone
         _shootOrigin.set(nx, EYE_Y, nz);
         _shootDir.set(pp.x - nx, pp.y - EYE_Y, pp.z - nz).normalize();
         // Per-axis Gaussian-ish spread — sum of two uniforms is bell-shaped, so
         // most shots land near centre but the occasional wide miss feels human.
-        _shootDir.x += ((Math.random() + Math.random()) - 1) * BOT_SPREAD;
-        _shootDir.y += ((Math.random() + Math.random()) - 1) * BOT_SPREAD * 0.5;
-        _shootDir.z += ((Math.random() + Math.random()) - 1) * BOT_SPREAD;
+        _shootDir.x += ((Math.random() + Math.random()) - 1) * spread;
+        _shootDir.y += ((Math.random() + Math.random()) - 1) * spread * 0.5;
+        _shootDir.z += ((Math.random() + Math.random()) - 1) * spread;
         _shootDir.normalize();
         if (_spawnBulletFn) _spawnBulletFn(_shootOrigin, _shootDir, false);
         playBotShoot();
         isShooting = true;
       }
+    } else {
+      bot._losTimer = 0;
     }
 
     // LOD — skip mixer on distant bots, hide very distant ones
@@ -374,6 +476,11 @@ function _reviveBot(bot) {
   bot._isHit   = false;
   bot._isDying = false;
   bot._blowVx  = bot._blowVz = bot._blowVy = bot._blowY = 0;
+  // Reset tactics state — keep the deterministic tier/flank slot, drop any held
+  // cover point, reset the LOS dwell, and restagger the cover timer.
+  bot._coverPoint = null;
+  bot._losTimer   = 0;
+  bot._coverTimer = Math.random() * COVER_EVAL_PERIOD;
   const { x: rx, z: rz } = _safeSpawnPos();
   bot.pos.set(rx, 0, rz);
   // Lazy-create or re-position BOTH colliders.

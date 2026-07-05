@@ -12,7 +12,7 @@ This todo is reprioritised around the lean MVP only:
 - Keep the freedom-tech loop clear and demoable.
 - Keep shooter work maintenance-only unless a bug is demo-breaking.
 - Keep BotAgent / runtime separation work only where it improves Quest vs Continuum boundaries or prevents instability.
-- Keep NOSTR_ARENA_MASTER_TODO.md as the Arena-only source-of-truth file until the Quest / Continuum split is fully settled.
+- `NOSTR_ARENA_MASTER_TODO.md` is deleted; `todo.md` is a legacy tooling shim only. Do not use either as an active queue.
 - Defer broader polish, most live-promotion work, and larger redesign passes to Milestone 2 and Milestone 3, while keeping security gates visible until the related live features are promoted.
 
 

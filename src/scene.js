@@ -1,5 +1,15 @@
 // scene.js — renderer, camera, lights, aurora sky dome, bitcoin sun sprite.
 import * as THREE from 'three';
+// Post-processing (v0.2.347): UnrealBloom pass so emissive/neon elements (fence,
+// aurora, cyan paths, torii glow) read as luminous. These addons live in the
+// ARENA path only — scene.js is imported solely via arenaRuntime.js (the lazy
+// three chunk behind ENTER ARENA), so R2 stays intact: nothing here is pulled
+// into main.js / the shell / first-paint bundle. Same `three/addons/*` import
+// style as the GLTF/DRACO loaders elsewhere in the repo.
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -244,6 +254,25 @@ export function tickAurora(dt) {
   _auroraMat.uniforms.uTime.value += dt;
 }
 
+// ── Bloom post-processing composer ──────────────────────────────────────────
+// Allocated ONCE (never per-frame): RenderPass draws the scene, UnrealBloomPass
+// adds a threshold-gated glow so only bright/emissive pixels bloom, OutputPass
+// applies tone-mapping + sRGB so colours match the direct-render look. Bloom is
+// tuned low (threshold 0.85) so the sky/terrain don't wash out — only the neon
+// fence, aurora highlights, cyan paths and torii glow lift. The DOM HUD is an
+// overlay outside the WebGL canvas, so it is never touched by bloom.
+const BLOOM_STRENGTH  = 0.75; // overall glow intensity (0.6–0.9 band)
+const BLOOM_RADIUS    = 0.4;  // glow spread
+const BLOOM_THRESHOLD = 0.85; // only pixels brighter than this bloom
+const _composer  = new EffectComposer(renderer);
+_composer.addPass(new RenderPass(scene, camera));
+const _bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(innerWidth, innerHeight),
+  BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD,
+);
+_composer.addPass(_bloomPass);
+_composer.addPass(new OutputPass());
+
 // ── Resize ────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
@@ -251,10 +280,16 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   gunCamera.aspect = innerWidth/innerHeight;
   gunCamera.updateProjectionMatrix();
+  // Keep the composer + bloom targets in lockstep with the canvas.
+  _composer.setSize(innerWidth, innerHeight);
 });
 
 export function renderFrame(showGun) {
   renderer.clear();
-  renderer.render(scene, camera);
+  // Composer renders the bloomed scene to the canvas (RenderPass clears its own
+  // target; OutputPass writes the final image to screen).
+  _composer.render();
+  // Gun viewmodel draws on top afterwards (separate scene, always-on-top, no
+  // bloom) — clear only depth so it composites over the bloomed frame.
   if (showGun) { renderer.clearDepth(); renderer.render(gunScene, gunCamera); }
 }

@@ -111,6 +111,9 @@ Goal: lift the game from a functional MVP into a distinctive, replayable arena s
 - M4-V2 — Post-processing bloom: add a Three.js `EffectComposer` UnrealBloom pass so the neon fence, aurora, cyan paths, and torii gate read as actually luminous. Cheap, high visual payoff.
 - M4-V3 — Dynamic muzzle/impact lighting: gunfire and bot hits cast short-lived point-light flashes. Adds punch to currently-static arena lighting.
 - M4-V4 — Player character model rig/animation pass: fix jagged collar/neck polygons visible in third-person; clean rig + idle/move animations (Blender/Meshy workflow).
+  - M4-V4a — IN-CODE normals/material hygiene (LANDED): guarded `computeVertexNormals` (only if normals absent) + force `flatShading=false` on player GLB loads (`playerModel.js`, `firstPersonBody.js`). Rules out the normals/material hypothesis. Animation/AnimationMixer was already complete (no work needed).
+  - M4-V4b — ASSET WORK (deferred to Blender/Meshy, owner-driven): the headless FP body GLB (`chiefmonkey-headless.glb`) has an uncapped neck stump; `chiefmonkey6.glb` may have coarse collar topology. Re-export both GLBs from Blender with a capped neck + clean collar topology + smooth vertex normals. No code change can repair torn/uncapped mesh geometry.
+  - NOTE: the original paused-third-person "jagged collar/neck" screenshot was the headless body's open neck stump showing through fly mode before the `setFlyHidden` fix (v0.2.345). Normal play only shows the headless FP arms (layer 2); the full body appears only in the wall mirror. So the visible defect is already hidden in gameplay; V4b is cosmetic polish on the mirror/headless asset.
 
 ### Gameplay
 - M4-G1 — Bot AI upgrade: obstacle avoidance + cover-seeking + flanking + 2-3 difficulty tiers. Replaces current direct-position-mutation + simple proximity clamp. Biggest single gameplay lever.

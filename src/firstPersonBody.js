@@ -63,12 +63,21 @@ export function loadFirstPersonBody(parentObj) {
         o.receiveShadow = false;
         o.frustumCulled = false;
         o.layers.set(2); // main camera sees layer 2; mirror reflection disables it
+        // M4-V4a: defensive normals cleanup — recompute ONLY when the geometry
+        // has no normal attribute at all. Guarded so authored normals are left
+        // untouched (no shading change on well-formed meshes). Once at load.
+        if (o.geometry && !o.geometry.getAttribute('normal')) {
+          o.geometry.computeVertexNormals();
+        }
         if (o.material) {
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           for (const m of mats) {
             m.transparent = false;
             m.depthWrite  = true;
             m.alphaTest   = 0;
+            // Force smooth shading — flatShading reads as jagged on the low-poly
+            // neck/collar geometry of the headless body.
+            if (m.flatShading) m.flatShading = false;
             m.clippingPlanes = [_clipPlane]; // slice the neck stump below the eye
             m.needsUpdate = true;
           }

@@ -123,6 +123,13 @@ export function loadPlayerModel(parentObj) {
         o.receiveShadow = true;
         o.layers.set(1);
         o.frustumCulled = false;
+        // M4-V4a: defensive normals cleanup — recompute ONLY when the geometry
+        // has no normal attribute at all (missing normals shade as hard facets).
+        // Guarded so we never overwrite good authored normals (no shading change
+        // on well-formed meshes). Runs once at load, not per-frame.
+        if (o.geometry && !o.geometry.getAttribute('normal')) {
+          o.geometry.computeVertexNormals();
+        }
         if (o.material) {
           // Material may be an array — normalise to array and patch each.
           const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -130,6 +137,9 @@ export function loadPlayerModel(parentObj) {
             m.transparent = false;
             m.depthWrite  = true;
             m.alphaTest   = 0;
+            // Force smooth shading — a flatShading material renders per-face
+            // normals, which reads as jagged on low-poly collar/neck geometry.
+            if (m.flatShading) m.flatShading = false;
             m.needsUpdate = true;
           }
         }

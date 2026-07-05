@@ -102,6 +102,40 @@ Goal: improve visual quality, readability, and feel once the MVP loop is already
 - Larger Continuum redesign follow-up work such as DASHBOARD-LAYOUT-1 richer cards / tables / denser visual redesign.
 - Any nonessential visual or presentation improvements that do not change the MVP proof.
 
+## Milestone 4 — Visuals, gameplay, environment & nostr/bitcoin depth
+
+Goal: lift the game from a functional MVP into a distinctive, replayable arena shooter that leans into the cyberpunk-feudal + bitcoin/nostr identity. Each item is a thin vertical slice with a clear green checkpoint.
+
+### Visuals
+- M4-V1 — HUD legibility pass: bump top-right stats (SATS/KILLS/HP) font size + contrast, add text-shadow / background pills, fix the top-left TORII QUEST logo crop. (Fast win; problem observed across multiple verification rounds.)
+- M4-V2 — Post-processing bloom: add a Three.js `EffectComposer` UnrealBloom pass so the neon fence, aurora, cyan paths, and torii gate read as actually luminous. Cheap, high visual payoff.
+- M4-V3 — Dynamic muzzle/impact lighting: gunfire and bot hits cast short-lived point-light flashes. Adds punch to currently-static arena lighting.
+- M4-V4 — Player character model rig/animation pass: fix jagged collar/neck polygons visible in third-person; clean rig + idle/move animations (Blender/Meshy workflow).
+
+### Gameplay
+- M4-G1 — Bot AI upgrade: obstacle avoidance + cover-seeking + flanking + 2-3 difficulty tiers. Replaces current direct-position-mutation + simple proximity clamp. Biggest single gameplay lever.
+- M4-G2 — Weapon variety: 2-3 weapons (pistol / rifle / shotgun) with distinct range, damage, recoil, and spread. Combines with fly-mode verticality + 21m ceiling.
+- M4-G3 — Pickups: health, ammo, and sats drops from bots. Gives the arena a movement loop and a reason not to camp the safe zone.
+- M4-G4 — Verticality-aware arena design: elevated platforms, rooftop cover, risk/reward of flying vs. grounded, built around the fly + 21m ceiling + safe-zone ruleset.
+
+### Environment
+- M4-E1 — Day/night cycle (or dusk mode): slow sky/lighting cycle that changes combat visibility and mood; ties into the aurora sky work.
+- M4-E2 — Water interaction: splash VFX + audio on beach/water entry, shallow-wading movement penalty. Brings the outside-the-fence dead space to life.
+- M4-E3 — Torii gate as a functional portal: make the east-fence gate gap a real gateway to another zone/biome (the namesake gateway metaphor).
+- M4-E4 — Ambient soundscape: layered bed (wind, water, distant thunder, bird calls matching the V-shaped flocks) + spatial combat audio.
+
+### Nostr / Bitcoin (differentiator)
+- M4-N1 — Nostr-powered live leaderboards: kill counts / high scores signed and broadcast over nostr relays; verifiable, decentralized, no central DB. Builds on the existing NIP-07 leaderboard publish (M2, SEC-1 gate).
+- M4-N2 — SATS economy: bots drop sats, sats buy weapons/upgrades, optional small ante/betting mechanic for rounds. Ties bitcoin into actual mechanics, not just flavor.
+- M4-N3 — Player identity via nostr keys: log in with an npub, carry loadout/score across sessions and eventually across instances.
+
+### Priority order (suggested)
+1. M4-V1 HUD legibility (fast, observed problem)
+2. M4-V2 bloom post-processing (huge visual payoff, cheap)
+3. M4-G1 bot AI / cover (biggest gameplay lever)
+4. M4-V4 character model rig pass
+5. M4-G2 weapon variety, M4-G3 pickups, then the rest in priority order.
+
 ## Torii Quest ToDo - Working rules
 
 - Prefer thin vertical slices over polish traps.

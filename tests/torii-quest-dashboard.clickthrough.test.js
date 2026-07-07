@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.clickthrough.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.clickthrough.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: MVP loop click-through mockup section.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,15 +21,15 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
 import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
-  const curated = buildContinuumModel().clickThrough;
+  const curated = buildToriiQuestModel().clickThrough;
 
   it('the curated views are frozen and name the five MVP-loop screens in walk-through order', () => {
     expect(Object.isFrozen(CLICKTHROUGH_VIEWS)).toBe(true);
@@ -114,18 +114,18 @@ describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
     expect(buildClickThroughModel({ views: big }).views.length).toBe(12);
   });
 
-  it('buildContinuumModel + continuumDataJSON carry the curated click-through snapshot', () => {
-    const model = buildContinuumModel();
+  it('buildToriiQuestModel + toriiQuestDataJSON carry the curated click-through snapshot', () => {
+    const model = buildToriiQuestModel();
     expect(model.clickThrough).toBeTruthy();
     expect(model.clickThrough.badge).toBe(CLICKTHROUGH_BADGE);
-    const json = continuumDataJSON(model);
+    const json = toriiQuestDataJSON(model);
     expect(json.clickThrough).toBeTruthy();
     expect(json.clickThrough.views.length).toBe(5);
     expect(json.clickThrough.pill).toBe('deferred');
   });
 
   it('renders the click-through section in the dashboard with all five view cards', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     expect(html).toContain('MVP loop click-through');
     expect(html).toContain('1/5 · Gateway');
     expect(html).toContain('2/5 · Product');
@@ -139,7 +139,7 @@ describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
   });
 
   it('the section pill stays within the allowed vocabulary', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const allowed = ['pill-no-blocker', 'pill-gated', 'pill-manual', 'pill-deferred', 'pill-open-edge'];
     const section = html.slice(html.indexOf('MVP loop click-through'));
     const pillMatch = section.match(/class="pill (pill-[a-z-]+)"/);
@@ -148,13 +148,13 @@ describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
   });
 
   it('escapes injected click-through content and keeps exactly one inline script + the CSP hash', () => {
-    const evil = buildContinuumModel({
+    const evil = buildToriiQuestModel({
       clickThrough: buildClickThroughModel({
         views: [{ id: 'g', title: 'G<script>alert(1)</script>', proofs: '<img src=x onerror=alert(1)>', mockState: 'm<script>boom()</script>', status: 'proof' }],
         note: 'n<script>evil()</script>',
       }),
     });
-    const html = renderContinuumPage(evil);
+    const html = renderToriiQuestPage(evil);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>boom()</script>');
     expect(html).not.toContain('<script>evil()</script>');
@@ -163,19 +163,19 @@ describe('MVP loop click-through mockup section (v0.2.244 — C2)', () => {
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(m).toBeTruthy();
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 
   it('CSP/refresh-script hash is unchanged by the C2 section (no new script, no new data-k key)', () => {
-    const html = renderContinuumPage();
-    expect(CONTINUUM_SCRIPT_SHA256).toBe('sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw=');
+    const html = renderToriiQuestPage();
+    expect(TORII_QUEST_SCRIPT_SHA256).toBe('sha256-LuHCRD7D19XircznJIAKE8dV4QcKG0v4gYFNX9Imzlg=');
     expect((html.match(/<script/g) || []).length).toBe(1);
     expect(html).not.toMatch(/<script[^>]+src=/i);
     expect(html).not.toMatch(/\bon\w+\s*=\s*["']/i);
   });
 
   it('an override-free legacy model (clickThrough absent) omits the section entirely', () => {
-    const html = renderContinuumPage({ ...buildContinuumModel(), clickThrough: null });
+    const html = renderToriiQuestPage({ ...buildToriiQuestModel(), clickThrough: null });
     expect(html).not.toContain('MVP loop click-through');
   });
 });

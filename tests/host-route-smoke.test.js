@@ -83,7 +83,7 @@ describe('runHostRouteSmoke', () => {
     expect(sig.status).toBe('ok');
   });
 
-  it('confirms the continuum dashboard asset + data JSON ship', () => {
+  it('confirms the torii-quest dashboard asset + data JSON ship', () => {
     const r = runHostRouteSmoke();
     const sig = r.signals.find((s) => s.key === 'dashboard-asset-present');
     expect(sig.status).toBe('ok');

@@ -114,7 +114,7 @@ access; the automated parts are a single local command (§4).
 - [ ] **Host fallback configured.** The chosen host (Caddy/Nginx/CDN) serves `index.html`
       for unmatched paths — confirmed on the host itself (manual; outside this repo).
 - [ ] **CSP unchanged.** The fallback is a routing rule only; no `script-src`/`style-src`
-      change. (The app CSP lives in `index.html`; the continuum dashboard CSP is enforced
+      change. (The app CSP lives in `index.html`; the torii-quest dashboard CSP is enforced
       separately and unit-tested.)
 - [ ] **Manual smoke after publish.** Hard-refresh `https://<host>/zone/plebeian-market-bazaar`
       and confirm the app loads and shows the inert zone notice (not a host 404).

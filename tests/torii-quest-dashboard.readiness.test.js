@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.readiness.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.readiness.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: deployment / ship / RC-status readiness cards.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -81,15 +81,15 @@ describe('deployment readiness (v0.2.186)', () => {
     }
   });
 
-  it('continuumDataJSON carries the readiness model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the readiness model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.readiness).toBeTruthy();
     expect(typeof j.readiness.statusLabel).toBe('string');
     expect(Array.isArray(j.readiness.checks)).toBe(true);
   });
 
-  it('renderContinuumPage shows the Deployment-readiness section with a status pill + badge', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Deployment-readiness section with a status pill + badge', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Deployment readiness');
     expect(html).toContain(READINESS_BADGE);
     expect(html).toContain('pill pill-');
@@ -101,14 +101,14 @@ describe('deployment readiness (v0.2.186)', () => {
     const blocked = buildReadinessModel({
       zoneFallback: { ok: false, docs: { ok: false }, dist: { ok: false, skipped: false }, errors: ['boom'], warnings: ['heads up'] },
     });
-    const html = renderContinuumPage(buildContinuumModel({ readiness: blocked }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ readiness: blocked }));
     for (const bad of ['javascript:', 'window.location', 'location.href', 'eval(', 'window.open']) {
       expect(html).not.toContain(bad);
     }
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
@@ -193,15 +193,15 @@ describe('ship readiness & next task (v0.2.188)', () => {
     for (const r of buildShipModel().signals) expect(allowed.has(r.pill)).toBe(true);
   });
 
-  it('continuumDataJSON carries the ship model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the ship model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.ship).toBeTruthy();
     expect(typeof j.ship.statusLabel).toBe('string');
     expect(Array.isArray(j.ship.signals)).toBe(true);
   });
 
-  it('renderContinuumPage shows the Ship-readiness section + next safe task + badge', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Ship-readiness section + next safe task + badge', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Ship readiness');
     expect(html).toContain(SHIP_BADGE);
     expect(html).toContain('Next safe task');
@@ -215,7 +215,7 @@ describe('ship readiness & next task (v0.2.188)', () => {
       blockers: ['<script>alert(1)</script>'], unknowns: ['<iframe>'],
       signals: { docs: { state: 'blocked', ok: false, errors: ['<svg/onload=1>'] } },
     };
-    const html = renderContinuumPage(buildContinuumModel({
+    const html = renderToriiQuestPage(buildToriiQuestModel({
       ship: buildShipModel({ readiness: hostile, nextTask: { title: '<b>x</b>', why: '<img src=y>' } }),
     }));
     // The section's own static markup must introduce NONE of the banned tokens.
@@ -230,7 +230,7 @@ describe('ship readiness & next task (v0.2.188)', () => {
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
@@ -293,15 +293,15 @@ describe('RC / release-manifest status (v0.2.214)', () => {
     }
   });
 
-  it('continuumDataJSON carries the rcStatus model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the rcStatus model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.rcStatus).toBeTruthy();
     expect(typeof j.rcStatus.statusLabel).toBe('string');
     expect(Array.isArray(j.rcStatus.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the RC / release-manifest section + badge + band pill', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the RC / release-manifest section + badge + band pill', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('RC / release manifest');
     expect(html).toContain(RCSTATUS_BADGE);
     expect(html).toContain('Release manifest');
@@ -317,7 +317,7 @@ describe('RC / release-manifest status (v0.2.214)', () => {
       manifest: { status: 'COMPLETE', requiredPresent: 6, required: 6, optionalPresent: 6, optional: 6 },
       rcDocs: { present: 7, total: 7 }, manualValidationRemaining: 7,
     });
-    const html = renderContinuumPage(buildContinuumModel({ rcStatus: hostile }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ rcStatus: hostile }));
     for (const bad of ['javascript:', 'window.location', 'location.href', 'eval(', 'window.open']) {
       expect(html).not.toContain(bad);
     }
@@ -325,8 +325,8 @@ describe('RC / release-manifest status (v0.2.214)', () => {
     expect(html).not.toContain('<img src=x>');
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });

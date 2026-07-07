@@ -1,17 +1,17 @@
-// tools/build-continuum.mjs — generate the static Torii Continuum oversight page
+// tools/build-torii-quest-dashboard.mjs — generate the static Torii Quest oversight page
 // (v0.2.171). Imports the pure, node-safe data module, renders the page + a packaged
 // JSON snapshot, and writes both into public/ so Vite copies them verbatim into dist/.
-// Run with: node tools/build-continuum.mjs  (or: npm run build:continuum).
+// Run with: node tools/build-torii-quest-dashboard.mjs  (or: npm run build:torii-quest-dashboard).
 //
 // Safe by construction: it only READS the curated data module + torii-quest-progress.md/torii-quest-todo.md and
 // WRITES two static files under public/. No network, no install, no external writes, no
 // game code. As of v0.2.174 it DERIVES the dashboard's list sections from the project
-// docs via the pure tools/continuumParse.mjs and merges them over the curated fallback.
+// docs via the pure tools/toriiQuestDashboardParse.mjs and merges them over the curated fallback.
 import { writeFileSync, readFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  buildContinuumModel,
+  buildToriiQuestModel,
   buildHealthModel,
   buildReadinessModel,
   buildShipModel,
@@ -25,10 +25,10 @@ import {
   CURRENT_TEST_STATUS,
   testCountLabel,
   HEALTH_LASTKNOWN,
-  renderContinuumPage,
-  continuumDataJSON,
-} from '../src/engine/dashboard/continuumData.js';
-import { deriveContinuumData } from './continuumParse.mjs';
+  renderToriiQuestPage,
+  toriiQuestDataJSON,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
+import { deriveToriiQuestData } from './toriiQuestDashboardParse.mjs';
 import { REQUIRED_FALLBACK_DOCS, checkZoneFallbackReadiness } from './zoneFallbackReadiness.mjs';
 import { gatherReleaseReadiness } from './release-readiness.mjs';
 import { RELEASE_MANIFEST_REQUIRED, RELEASE_MANIFEST_OPTIONAL } from './releaseManifest.mjs';
@@ -52,7 +52,7 @@ import { VERSION } from '../src/config.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = join(ROOT, 'public');
 const HTML_OUT = join(PUBLIC, 'dashboard.html');
-const JSON_OUT = join(PUBLIC, 'continuum-data.json');
+const JSON_OUT = join(PUBLIC, 'torii-quest-data.json');
 
 // Read the doc sources safely — a missing/unreadable doc degrades to '' and the parser
 // records the gap, so the build never fails on a doc hiccup (curated defaults survive).
@@ -64,7 +64,7 @@ function readSafe(rel) {
 const SOURCES = ['torii-quest-progress.md', 'torii-quest-todo.md'];
 const progressMd = readSafe('torii-quest-progress.md');
 const todoMd = readSafe('torii-quest-todo.md');
-const { overrides, taskTotals, parsed, gaps } = deriveContinuumData({ progressMd, todoMd });
+const { overrides, taskTotals, parsed, gaps } = deriveToriiQuestData({ progressMd, todoMd });
 
 // Engineering-health: GENERATE the deterministic fields at build time (profile file
 // counts from the test-profile registry, the full test-file count on disk, the parser-gap
@@ -86,7 +86,7 @@ const health = buildHealthModel({
 });
 
 // Deployment readiness (v0.2.186) — run the v0.2.185 read-only zone-fallback guard over the
-// required docs + the dist/ present AT PACKAGING TIME (build:continuum runs before vite
+// required docs + the dist/ present AT PACKAGING TIME (build:torii-quest-dashboard runs before vite
 // build, so dist/ may be the previous build or absent — the verdict is honest either way:
 // no dist → "build check pending"). The authoritative dist check is regression-check [15].
 function readDocSafe(rel) {
@@ -287,7 +287,7 @@ try {
 // hand-edited file is normalised), the manual-validation card's blocker pill, the MVP-approval posture,
 // and the curated next safe task. GREEN-REQUIRES-EVIDENCE + non-religious-ethics floors live in the pure
 // module. Cheap file reads only — no crypto, no git, no network. On any failure we degrade to the curated
-// LAST-KNOWN card baked into continuumData.js.
+// LAST-KNOWN card baked into toriiQuestData.js.
 let handoffPanel;
 try {
   const liveSmokeRaw = readDocSafe(LIVE_SMOKE_FILE);
@@ -313,7 +313,7 @@ try {
   });
   handoffPanel = buildHandoffControlPanelCard(panel);
 } catch (e) {
-  handoffPanel = undefined; // fall back to the curated CURATED_HANDOFF_PANEL in continuumData.js
+  handoffPanel = undefined; // fall back to the curated CURATED_HANDOFF_PANEL in toriiQuestData.js
   console.log(`[continuum] handoff panel: live gather unavailable (${e.message}) — using last-known`);
 }
 
@@ -347,7 +347,7 @@ try {
   });
   mvpGate = buildMvpApprovalGateCard(gate);
 } catch (e) {
-  mvpGate = undefined; // fall back to the curated CURATED_MVP_GATE in continuumData.js
+  mvpGate = undefined; // fall back to the curated CURATED_MVP_GATE in toriiQuestData.js
   console.log(`[continuum] mvp approval gate: live gather unavailable (${e.message}) — using last-known`);
 }
 
@@ -361,7 +361,7 @@ try {
   const text = readDocSafe(PLAYTEST_VERDICT_FILE);
   playtestVerdict = buildPlaytestVerdictCard(summarizePlaytestVerdictForState(parsePlaytestVerdict(text == null ? '' : text)));
 } catch (e) {
-  playtestVerdict = undefined; // fall back to the curated CURATED_PLAYTEST_VERDICT in continuumData.js
+  playtestVerdict = undefined; // fall back to the curated CURATED_PLAYTEST_VERDICT in toriiQuestData.js
   console.log(`[continuum] playtest verdict: live gather unavailable (${e.message}) — using last-known`);
 }
 
@@ -374,13 +374,13 @@ const clickThrough = buildClickThroughModel();
 // Stamp the packaged build time so the page can show when the data was packaged.
 const generatedAt = new Date().toISOString();
 const model = {
-  ...buildContinuumModel({ ...overrides, health, readiness, ship, rcStatus, manualValidation, noBlockerQueue, mvpApproval, mvpGate, playtestResults, playtestVerdict, handoffPanel, clickThrough, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
+  ...buildToriiQuestModel({ ...overrides, health, readiness, ship, rcStatus, manualValidation, noBlockerQueue, mvpApproval, mvpGate, playtestResults, playtestVerdict, handoffPanel, clickThrough, taskTotals, derived: { parsed, gaps, sources: SOURCES } }),
   generatedAt,
 };
 
 mkdirSync(PUBLIC, { recursive: true });
-writeFileSync(HTML_OUT, renderContinuumPage(model), 'utf8');
-writeFileSync(JSON_OUT, JSON.stringify(continuumDataJSON(model), null, 2) + '\n', 'utf8');
+writeFileSync(HTML_OUT, renderToriiQuestPage(model), 'utf8');
+writeFileSync(JSON_OUT, JSON.stringify(toriiQuestDataJSON(model), null, 2) + '\n', 'utf8');
 
 console.log(`[continuum] wrote ${HTML_OUT}`);
 console.log(`[continuum] wrote ${JSON_OUT}`);

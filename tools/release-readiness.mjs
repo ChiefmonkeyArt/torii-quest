@@ -15,7 +15,7 @@
 // not a gate. The authoritative gate stays `npm run check` / `npm run test:release`.
 //
 // gatherReleaseReadiness(root) is exported (v0.2.188) so other build-time tooling — e.g.
-// build-continuum.mjs, which surfaces the verdict on the Torii Continuum dashboard — can fold
+// build-torii-quest-dashboard.mjs, which surfaces the verdict on the Torii Quest dashboard — can fold
 // the SAME live signals without duplicating the fs/git gathering. The CLI behaviour is
 // unchanged: when this file is run directly it still prints the formatted block and exits 0.
 import { readFileSync, readdirSync, existsSync, statSync, realpathSync } from 'node:fs';

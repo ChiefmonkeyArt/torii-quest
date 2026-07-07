@@ -31,7 +31,7 @@ import { resolveHandoffWritePath, buildHandoffSummary, HANDOFF_SUMMARY_LIVE_URL 
 import { buildMvpRcGate } from './mvpRcGate.mjs';
 import { buildGithubReleaseDryRunModel } from './githubReleaseDryRun.mjs';
 import { runMvpReadiness } from '../src/engine/status/mvpReadiness.js';
-import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
+import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import {
   buildRcSnapshotModel, formatRcSnapshot, formatRcSnapshotMarkdown,
   RC_SNAPSHOT_DOC_REFS, RC_SNAPSHOT_WRITE_FILENAME,

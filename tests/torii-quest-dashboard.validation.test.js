@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.validation.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.validation.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: manual-validation + no-blocker-queue cards.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -86,15 +86,15 @@ describe('manual validation / MVP-playtest readiness (v0.2.215)', () => {
     }
   });
 
-  it('continuumDataJSON carries the manualValidation model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the manualValidation model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.manualValidation).toBeTruthy();
     expect(typeof j.manualValidation.statusLabel).toBe('string');
     expect(Array.isArray(j.manualValidation.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the manual-validation section + badge + band pill', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the manual-validation section + badge + band pill', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Manual validation');
     expect(html).toContain(MANUALVALIDATION_BADGE);
     expect(html).toContain('Local automated gates');
@@ -108,15 +108,15 @@ describe('manual validation / MVP-playtest readiness (v0.2.215)', () => {
       checklistDocPresent: true, resultsTemplatePresent: true,
       areas: ['<img src=x onerror=alert(1)>', '</section><script>evil()</script>'],
     });
-    const html = renderContinuumPage(buildContinuumModel({ manualValidation: hostile }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ manualValidation: hostile }));
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect(html).not.toContain('<img src=x');
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
@@ -187,15 +187,15 @@ describe('no-blocker queue (v0.2.216)', () => {
     }
   });
 
-  it('continuumDataJSON carries the noBlockerQueue model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the noBlockerQueue model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.noBlockerQueue).toBeTruthy();
     expect(typeof j.noBlockerQueue.statusLabel).toBe('string');
     expect(Array.isArray(j.noBlockerQueue.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the no-blocker-queue section + badge + band pill', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the no-blocker-queue section + badge + band pill', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('No-blocker queue');
     expect(html).toContain(NOBLOCKERQUEUE_BADGE);
     expect(html).toContain('Next safe task');
@@ -209,13 +209,13 @@ describe('no-blocker queue (v0.2.216)', () => {
       nextSafeKind: '</section><script>evil()</script>',
       activeNow: 1, manualPending: true,
     });
-    const html = renderContinuumPage(buildContinuumModel({ noBlockerQueue: hostile }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ noBlockerQueue: hostile }));
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });

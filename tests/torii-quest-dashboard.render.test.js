@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.render.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.render.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: render output safety + CSP + layout + test-count freshness.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,21 +21,21 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
 import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
-describe('renderContinuumPage', () => {
-  const html = renderContinuumPage();
+describe('renderToriiQuestPage', () => {
+  const html = renderToriiQuestPage();
 
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.350-alpha');
-    expect(html).toContain('Torii Continuum');
+    expect(html).toContain('v0.2.351-alpha');
+    expect(html).toContain('Torii Quest');
   });
 
   it('renders all 12 next tasks and struck completed-24h items', () => {
@@ -62,7 +62,7 @@ describe('renderContinuumPage', () => {
   });
 
   it('SAFETY: only same-origin relative fetch, no timers, no eval', () => {
-    expect(html).toContain("fetch('./continuum-data.json'");
+    expect(html).toContain("fetch('./torii-quest-data.json'");
     expect(html).not.toMatch(/fetch\(\s*["']https?:/i);
     expect(html).not.toMatch(/setTimeout|setInterval/);
     expect(html).not.toMatch(/\beval\(/);
@@ -70,42 +70,42 @@ describe('renderContinuumPage', () => {
 });
 
 describe('CSP hardening (v0.2.172)', () => {
-  const html = renderContinuumPage();
+  const html = renderToriiQuestPage();
 
   it('emits a Content-Security-Policy meta tag carrying the strict policy', () => {
     expect(html).toContain('<meta http-equiv="Content-Security-Policy"');
-    expect(html).toContain(CONTINUUM_CSP);
+    expect(html).toContain(TORII_QUEST_CSP);
   });
 
   it('script-src is self + the script hash with NO unsafe-inline (XSS surface closed)', () => {
-    expect(CONTINUUM_CSP).toContain("script-src 'self' '" + CONTINUUM_SCRIPT_SHA256 + "'");
+    expect(TORII_QUEST_CSP).toContain("script-src 'self' '" + TORII_QUEST_SCRIPT_SHA256 + "'");
     // 'unsafe-inline'/'unsafe-eval' must NEVER appear in script-src.
-    expect(CONTINUUM_CSP).not.toMatch(/script-src[^;]*'unsafe-inline'/);
-    expect(CONTINUUM_CSP).not.toContain("'unsafe-eval'");
+    expect(TORII_QUEST_CSP).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(TORII_QUEST_CSP).not.toContain("'unsafe-eval'");
   });
 
   it('default-src/object-src/base-uri/form-action/frame-ancestors are locked down', () => {
-    expect(CONTINUUM_CSP).toContain("default-src 'self'");
-    expect(CONTINUUM_CSP).toContain("object-src 'none'");
-    expect(CONTINUUM_CSP).toContain("base-uri 'none'");
-    expect(CONTINUUM_CSP).toContain("form-action 'none'");
-    expect(CONTINUUM_CSP).toContain("frame-ancestors 'none'");
+    expect(TORII_QUEST_CSP).toContain("default-src 'self'");
+    expect(TORII_QUEST_CSP).toContain("object-src 'none'");
+    expect(TORII_QUEST_CSP).toContain("base-uri 'none'");
+    expect(TORII_QUEST_CSP).toContain("form-action 'none'");
+    expect(TORII_QUEST_CSP).toContain("frame-ancestors 'none'");
   });
 
   it('connect-src is same-origin only — no relay/external endpoint', () => {
-    expect(CONTINUUM_CSP).toContain("connect-src 'self'");
-    expect(CONTINUUM_CSP).not.toMatch(/connect-src[^;]*(https?:|wss?:)/i);
+    expect(TORII_QUEST_CSP).toContain("connect-src 'self'");
+    expect(TORII_QUEST_CSP).not.toMatch(/connect-src[^;]*(https?:|wss?:)/i);
   });
 
   it('the declared script hash is the REAL sha256 of the shipped inline script', () => {
-    const real = 'sha256-' + createHash('sha256').update(CONTINUUM_REFRESH_SCRIPT, 'utf8').digest('base64');
-    expect(CONTINUUM_SCRIPT_SHA256).toBe(real);
+    const real = 'sha256-' + createHash('sha256').update(TORII_QUEST_REFRESH_SCRIPT, 'utf8').digest('base64');
+    expect(TORII_QUEST_SCRIPT_SHA256).toBe(real);
   });
 
   it('the rendered page ships exactly that inline script (hash cannot drift)', () => {
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(m).not.toBeNull();
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
     expect(html).toContain("'" + pageHash + "'");
   });
@@ -121,7 +121,7 @@ describe('CSP hardening (v0.2.172)', () => {
 });
 
 describe('layout / readability pass (v0.2.177)', () => {
-  const html = renderContinuumPage();
+  const html = renderToriiQuestPage();
 
   it('promotes the ACTIVE-milestone headline above At-a-glance', () => {
     const ms = html.indexOf('>Milestones<');
@@ -152,7 +152,7 @@ describe('layout / readability pass (v0.2.177)', () => {
   });
 
   it('section count chips reflect the model list lengths', () => {
-    const m = buildContinuumModel();
+    const m = buildToriiQuestModel();
     expect(html).toContain(`>15-hour proof-of-concept route</h2> <span class="count">${m.leanRoute.length}</span>`);
     expect(html).toContain(`>Next 12 tasks</h2> <span class="count">${m.next12.length}</span>`);
   });
@@ -160,9 +160,9 @@ describe('layout / readability pass (v0.2.177)', () => {
   it('SAFETY: the layout pass adds no new script and preserves the CSP script hash', () => {
     expect((html.match(/<script/g) || []).length).toBe(1);
     const mm = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(mm[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(mm[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(mm[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
     // No external assets/links introduced by the layout pass.
     expect(html).not.toMatch(/<link\b/i);
     expect(html).not.toMatch(/href\s*=\s*["']https?:/i);

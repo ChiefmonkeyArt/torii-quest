@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.milestones.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.milestones.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: milestone model.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -76,15 +76,15 @@ describe('milestones (v0.2.176)', () => {
     expect(bad.counts.total).toBe(1);
   });
 
-  it('continuumDataJSON carries the milestone model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the milestone model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.milestones).toBeTruthy();
     expect(j.milestones.active.id).toBe('MVP-15H');
     expect(j.milestones.counts.active).toBe(1);
   });
 
-  it('renderContinuumPage shows the Milestones section with an ACTIVE pill + SEED chips', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Milestones section with an ACTIVE pill + SEED chips', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Milestones');
     expect(html).toContain('Total milestones:');
     expect(html).toContain('ACTIVE');
@@ -94,7 +94,7 @@ describe('milestones (v0.2.176)', () => {
   });
 
   it('grouped card values render as bullet lists, not dense · -separated prose', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     // The docs-derived row joins parts with ' · ' → must become a <ul class="mini">.
     expect(html).toContain('ul class="mini"');
     // No raw mid-dot-joined value string should survive as a single metric-value span.
@@ -102,11 +102,11 @@ describe('milestones (v0.2.176)', () => {
   });
 
   it('SAFETY: the milestones + bullet-list pass adds no new script (CSP hash intact)', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });

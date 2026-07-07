@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.helpers.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.helpers.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: pure helpers/format fns (module shape, escapeHtml, clampPct, barCells, ringDash, computeTotals).
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -30,14 +30,14 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(CONTINUUM_VERSION).toBe('v0.2.350-alpha');
-    expect(CONTINUUM_VERSION).toBe(VERSION);
-    expect(CONTINUUM_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
+    expect(TORII_QUEST_VERSION).toBe('v0.2.351-alpha');
+    expect(TORII_QUEST_VERSION).toBe(VERSION);
+    expect(TORII_QUEST_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });
 
   it('curated data is frozen and carries the expected sections', () => {
     expect(Object.isFrozen(CONTINUUM)).toBe(true);
-    expect(CONTINUUM.title).toBe('Torii Continuum');
+    expect(CONTINUUM.title).toBe('Torii Quest');
     expect(Array.isArray(CONTINUUM.next12)).toBe(true);
     expect(Array.isArray(CONTINUUM.leanRoute)).toBe(true);
     expect(Array.isArray(CONTINUUM.tracks)).toBe(true);

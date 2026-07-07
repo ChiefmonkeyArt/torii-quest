@@ -81,7 +81,7 @@ export * as liveUpdateCheck from '../engine/update/liveUpdateCheck.js';
 export * as mvpReadiness from '../engine/status/mvpReadiness.js';
 // handoffControlPanel: moved to src/sdk/dashboard.js (R1 completed, v0.2.294) — a
 // Continuum/build-only oversight surface with NO game-runtime importer (consumed only by
-// continuumData.js + build tools + tests). The tree-shake-hostile `export * as` re-export
+// toriiQuestData.js + build tools + tests). The tree-shake-hostile `export * as` re-export
 // here dragged it into the runtime app chunk; it lives on the dashboard barrel now.
 export * as mvpLoop from '../engine/mvpLoop.js';
 export * as proofSurfaceSpecs from '../engine/world/proofSurfaceSpecs.js';

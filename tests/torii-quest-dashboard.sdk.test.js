@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.sdk.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.sdk.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: SDK exposure.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -30,15 +30,15 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('SDK exposure', () => {
 
-  it('re-exports the continuum module at the experimental tier (dashboard barrel)', () => {
+  it('re-exports the torii-quest module at the experimental tier (dashboard barrel)', () => {
     // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.continuum.CONTINUUM_VERSION).toBe('v0.2.350-alpha');
-    expect(typeof DashboardSDK.continuum.renderContinuumPage).toBe('function');
-    expect(DashboardSDK.DASHBOARD_SURFACE.continuum.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
+    expect(DashboardSDK.toriiQuestDashboard.TORII_QUEST_VERSION).toBe('v0.2.351-alpha');
+    expect(typeof DashboardSDK.toriiQuestDashboard.renderToriiQuestPage).toBe('function');
+    expect(DashboardSDK.DASHBOARD_SURFACE.toriiQuestDashboard.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.
-    expect(SDK.continuum).toBeUndefined();
-    expect(SDK.SDK_SURFACE.continuum).toBeUndefined();
+    expect(SDK.toriiQuestDashboard).toBeUndefined();
+    expect(SDK.SDK_SURFACE.toriiQuestDashboard).toBeUndefined();
   });
 
   it('re-exports the handoff control-panel module at the experimental tier (dashboard barrel)', () => {

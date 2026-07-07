@@ -11,7 +11,7 @@
 //      blocker)
 //
 // SINGLE SOURCE OF TRUTH: this module is consumed by BOTH the static Continuum dashboard
-// (src/engine/dashboard/continuumData.js → a card) AND the node next-action state
+// (src/engine/dashboard/toriiQuestData.js → a card) AND the node next-action state
 // (tools/nextActionState.mjs → a folded field), so the "what does MVP approval require?" rubric can
 // never drift between the page and the CLI. Every field is FOLDED from inputs the caller already
 // gathered (release readiness, the two smoke summaries, the test count, the approval record); this
@@ -251,7 +251,7 @@ function _yesNo(b) { return b === true ? 'green' : 'not yet'; }
 
 // buildMvpApprovalGateCard(gate) → a render-ready dashboard card model for the Continuum page (same
 // shape as the other card builders: { badge, kind, band, statusLabel, pill, metrics, note }). Pure;
-// reuses the existing .metric/.pill markup → NO new script/CSS, so the continuum CSP +
+// reuses the existing .metric/.pill markup → NO new script/CSS, so the torii-quest CSP +
 // refresh-script hash stay intact. With no gate it degrades to an honest pending card. The pill is
 // 'no-blocker' only when the gate is APPROVED; otherwise 'manual' (a human OK is still required).
 export function buildMvpApprovalGateCard(gate = null) {

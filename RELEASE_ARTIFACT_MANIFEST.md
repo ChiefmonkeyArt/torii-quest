@@ -29,7 +29,7 @@
 | `MVP_PLAYTEST_RESULTS_TEMPLATE.md` | MVP playtest results template | doc | present | `1d935b55d46c` | 8581 |
 | `HANDOFF.md` | Handoff narrative (source of truth) | doc | present | `e4ca65f3b121` | 130389 |
 | `VPS_INSTALL.md` | VPS install / manual deploy notes | doc | present | `05127e4b7b25` | 22754 |
-| `public/continuum-data.json` | Continuum dashboard data (served) | build-metadata | present | `4756982c5d88` | 19409 |
+| `public/torii-quest-data.json` | Continuum dashboard data (served) | build-metadata | present | `4756982c5d88` | 19409 |
 
 ## How this supports release integrity / self-update
 

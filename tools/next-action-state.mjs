@@ -40,14 +40,14 @@ import {
   playtestItemCount,
 } from './playtestChecklist.mjs';
 import { RC_SNAPSHOT_MANUAL_VALIDATION } from './rcSnapshot.mjs';
-import { buildManualValidationModel, CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
+import { buildManualValidationModel, CURRENT_TEST_STATUS } from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import { runMvpReadiness } from '../src/engine/status/mvpReadiness.js';
 import { buildApprovalState, summarizeApprovalForState, MVP_APPROVAL_FILE, MVP_APPROVAL_STATUSES } from './mvpApproval.mjs';
 import { parsePlaytestResults, summarizePlaytestResults } from './playtestResults.mjs';
 import { PLAYTEST_RESULTS_STATE_FILE } from './playtestResultsState.mjs';
 import { buildLiveSmokeState, LIVE_SMOKE_FILE, LIVE_SMOKE_RESULTS, summarizeLiveSmokeForState } from './liveSmokeState.mjs';
 import { buildDashboardSmokeState, DASHBOARD_SMOKE_FILE, DASHBOARD_SMOKE_RESULTS, summarizeDashboardSmokeForState } from './dashboardSmokeState.mjs';
-import { SHIP_NEXT_SAFE_TASK } from '../src/engine/dashboard/continuumData.js';
+import { SHIP_NEXT_SAFE_TASK } from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import { buildHandoffControlPanel, HANDOFF_LIVE_URL, HANDOFF_DASHBOARD_URL } from '../src/engine/status/handoffControlPanel.js';
 import { buildMvpApprovalGate } from '../src/engine/status/mvpApprovalGate.js';
 import { parsePlaytestVerdict, summarizePlaytestVerdictForState, PLAYTEST_VERDICT_FILE } from '../src/engine/status/playtestVerdict.js';
@@ -74,7 +74,7 @@ function gitCommit() {
   } catch { return null; }
 }
 
-// Derive the manual-validation card the SAME way tools/build-continuum.mjs does, so the
+// Derive the manual-validation card the SAME way tools/build-torii-quest-dashboard.mjs does, so the
 // manual-blocker flag can never drift from the Continuum dashboard. Cheap file-presence +
 // frozen-constant reads only; degrades to the curated last-known card on any failure.
 function gatherManualValidation(shipStatusLabel) {

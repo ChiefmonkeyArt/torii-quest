@@ -7,7 +7,7 @@ import {
   NEXT_ACTION_STATE_SCHEMA, buildNextActionState,
 } from '../tools/nextActionState.mjs';
 import { VERSION } from '../src/config.js';
-import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
+import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import { handoff } from './_next-action-state-helpers.js';
 
 // No-stale-version guard: the next-action state must track the live config VERSION, and the

@@ -132,7 +132,7 @@ describe('runHostRouteSmoke', () => {
   });
 
   it('fails zone-fallback-documented when the docs omit the index.html fallback', () => {
-    const r = runHostRouteSmoke({ fallbackDocs: { 'VPS_INSTALL.md': 'no fallback here', 'HANDOFF.md': 'nor here' } });
+    const r = runHostRouteSmoke({ fallbackDocs: { 'VPS_INSTALL.md': 'no fallback here', 'torii-quest-handoff.md': 'nor here' } });
     const sig = r.signals.find((s) => s.key === 'zone-fallback-documented');
     expect(sig.status).toBe('fail');
     expect(r.ok).toBe(false);

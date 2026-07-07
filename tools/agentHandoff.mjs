@@ -28,7 +28,7 @@ export const AGENT_HANDOFF_BADGE = 'AGENT HANDOFF READINESS · LOCAL · READ-ONL
 export const AGENT_HANDOFF_SCHEMA = 'torii.agent-handoff';
 export const AGENT_HANDOFF_SCHEMA_VERSION = 1;
 
-// Default in-repo filename for the opt-in --write export. The curated HANDOFF.md is NEVER
+// Default in-repo filename for the opt-in --write export. The curated torii-quest-handoff.md is NEVER
 // replaced — this generated artifact sits beside it so a fresh agent can act immediately while
 // the human-authored handoff stays the source of truth.
 export const AGENT_HANDOFF_WRITE_FILENAME = 'HANDOFF.generated.md';
@@ -218,7 +218,7 @@ export function formatAgentHandoffMarkdown(handoff) {
   L.push('# Torii Quest — agent handoff readiness (generated)');
   L.push('');
   L.push(`> ${handoff.badge}`);
-  L.push('> Generated artifact — do NOT hand-edit. The curated `HANDOFF.md` stays the source of truth.');
+  L.push('> Generated artifact — do NOT hand-edit. The curated `torii-quest-handoff.md` stays the source of truth.');
   if (handoff.generatedAt) L.push(`> generated: ${handoff.generatedAt}`);
   L.push('');
   L.push(`- **Version:** ${handoff.version ?? '(unknown)'} (pkg ${handoff.packageVersion ?? '?'})`);

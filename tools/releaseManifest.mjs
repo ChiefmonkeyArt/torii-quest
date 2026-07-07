@@ -59,7 +59,7 @@ export const RELEASE_MANIFEST_OPTIONAL = Object.freeze([
   Object.freeze({ key: 'rc-snapshot', file: 'MVP_RC_SNAPSHOT.md', label: 'MVP RC freeze-candidate snapshot', category: 'doc' }),
   Object.freeze({ key: 'playtest-checklist', file: 'MVP_PLAYTEST_CHECKLIST.md', label: 'MVP playtest checklist', category: 'doc' }),
   Object.freeze({ key: 'playtest-results', file: 'MVP_PLAYTEST_RESULTS_TEMPLATE.md', label: 'MVP playtest results template', category: 'doc' }),
-  Object.freeze({ key: 'handoff', file: 'HANDOFF.md', label: 'Handoff narrative (source of truth)', category: 'doc' }),
+  Object.freeze({ key: 'handoff', file: 'torii-quest-handoff.md', label: 'Handoff narrative (source of truth)', category: 'doc' }),
   Object.freeze({ key: 'vps-install', file: 'VPS_INSTALL.md', label: 'VPS install / manual deploy notes', category: 'doc' }),
   Object.freeze({ key: 'continuum-data', file: 'public/continuum-data.json', label: 'Continuum dashboard data (served)', category: 'build-metadata' }),
 ]);

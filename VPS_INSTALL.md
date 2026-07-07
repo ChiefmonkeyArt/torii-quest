@@ -4,7 +4,7 @@
 > repo touches a server, performs an install, or auto-updates.** This page
 > describes how a maintainer would self-host the static build at `torii.quest`
 > on a shared Ubuntu VPS and update it BY HAND from GitHub. Deploying remains a
-> deliberate manual step — see `HANDOFF.md` §7 and the safety boundary in
+> deliberate manual step — see `torii-quest-handoff.md` §7 and the safety boundary in
 > `UPDATE_CHECK.md` §4.
 
 Torii Quest builds to a **static `dist/` bundle** (Vite 8). There is no backend,
@@ -493,7 +493,7 @@ publishing a `dist/`:
 - **Dashboard + update assets present:** `/continuum.html` (the oversight dashboard) and
   `release-metadata.json` (the manual update-check asset) are published.
 - **Required files documented** and the **`/zone/*` SPA fallback documented** in `VPS_INSTALL.md`
-  / `HANDOFF.md` (the same `try_files … /index.html` contract as §11).
+  / `torii-quest-handoff.md` (the same `try_files … /index.html` contract as §11).
 - **No fallback shadow:** no built file is published under `dist/zone/*` that would shadow the
   unmatched-path → `index.html` fallback.
 - **Unknown `/zone/<slug>` is served `index.html` by host config** (it is NOT a built file), while

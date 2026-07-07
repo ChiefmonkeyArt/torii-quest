@@ -61,9 +61,9 @@ describe('reportVersionToken', () => {
 
 describe('detectStaleDocs — aggregation', () => {
   const cleanDocs = () => ({
-    'todo.md': `Current version: ${V}`,
-    'progress.md': `Current version: ${V}\n| Tests | 1052 passing |`,
-    'HANDOFF.md': `Current version: ${V}\nlatest: torii-v0.2.191-foo-report.md`,
+    'torii-quest-todo.md': `Current version: ${V}`,
+    'torii-quest-progress.md': `Current version: ${V}\n| Tests | 1052 passing |`,
+    'torii-quest-handoff.md': `Current version: ${V}\nlatest: torii-v0.2.191-foo-report.md`,
   });
 
   it('reports no drift on consistent docs + a current, linked report', () => {
@@ -78,38 +78,38 @@ describe('detectStaleDocs — aggregation', () => {
 
   it('flags version-header-drift in a continuity doc', () => {
     const docs = cleanDocs();
-    docs['todo.md'] = 'Current version: **v0.2.190-alpha**';
+    docs['torii-quest-todo.md'] = 'Current version: **v0.2.190-alpha**';
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.191-foo-report.md'] });
     const kinds = r.issues.map((i) => i.kind);
     expect(kinds).toContain('version-header-drift');
-    expect(kinds).toContain('version-missing'); // todo.md no longer mentions V at all
+    expect(kinds).toContain('version-missing'); // torii-quest-todo.md no longer mentions V at all
     expect(r.ok).toBe(true); // advisory — warnings never fail
   });
 
   it('flags a continuity doc that never mentions the current version', () => {
     const docs = cleanDocs();
-    docs['progress.md'] = 'no version anywhere | 1052 passing |';
+    docs['torii-quest-progress.md'] = 'no version anywhere | 1052 passing |';
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.191-foo-report.md'] });
-    expect(r.issues.some((i) => i.kind === 'version-missing' && i.doc === 'progress.md')).toBe(true);
+    expect(r.issues.some((i) => i.kind === 'version-missing' && i.doc === 'torii-quest-progress.md')).toBe(true);
   });
 
   it('flags an unavailable continuity doc', () => {
     const docs = cleanDocs();
-    delete docs['HANDOFF.md'];
+    delete docs['torii-quest-handoff.md'];
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.191-foo-report.md'] });
-    expect(r.issues.some((i) => i.kind === 'doc-unavailable' && i.doc === 'HANDOFF.md')).toBe(true);
+    expect(r.issues.some((i) => i.kind === 'doc-unavailable' && i.doc === 'torii-quest-handoff.md')).toBe(true);
   });
 
   it('flags a newest report that no continuity doc references', () => {
     const docs = cleanDocs();
-    docs['HANDOFF.md'] = `Current version: ${V}`; // drop the report link
+    docs['torii-quest-handoff.md'] = `Current version: ${V}`; // drop the report link
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.191-foo-report.md'] });
     expect(r.issues.some((i) => i.kind === 'latest-report-unlinked')).toBe(true);
   });
 
   it('flags a newest report that lags the current version', () => {
     const docs = cleanDocs();
-    docs['HANDOFF.md'] = `Current version: ${V}\nlatest: torii-v0.2.190-old-report.md`;
+    docs['torii-quest-handoff.md'] = `Current version: ${V}\nlatest: torii-v0.2.190-old-report.md`;
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.190-old-report.md'] });
     expect(r.issues.some((i) => i.kind === 'report-version-lag')).toBe(true);
   });
@@ -121,8 +121,8 @@ describe('detectStaleDocs — aggregation', () => {
 
   it('flags disagreeing test counts across continuity docs', () => {
     const docs = cleanDocs();
-    docs['todo.md'] = `Current version: ${V}\n1040 passing`;
-    docs['progress.md'] = `Current version: ${V}\n1052 passing`;
+    docs['torii-quest-todo.md'] = `Current version: ${V}\n1040 passing`;
+    docs['torii-quest-progress.md'] = `Current version: ${V}\n1052 passing`;
     const r = detectStaleDocs({ version: V, docs, reports: ['torii-v0.2.191-foo-report.md'] });
     const drift = r.issues.find((i) => i.kind === 'test-count-drift');
     expect(drift).toBeTruthy();
@@ -159,7 +159,7 @@ describe('detectStaleDocs — aggregation', () => {
   });
 
   it('scans exactly the continuity docs', () => {
-    expect(CONTINUITY_DOCS).toEqual(['todo.md', 'progress.md', 'HANDOFF.md']);
+    expect(CONTINUITY_DOCS).toEqual(['torii-quest-todo.md', 'torii-quest-progress.md', 'torii-quest-handoff.md']);
   });
 });
 
@@ -168,9 +168,9 @@ describe('formatStaleDocs — text', () => {
     const r = detectStaleDocs({
       version: V,
       docs: {
-        'todo.md': `Current version: ${V}`,
-        'progress.md': `Current version: ${V}`,
-        'HANDOFF.md': `Current version: ${V}\ntorii-v0.2.191-foo-report.md`,
+        'torii-quest-todo.md': `Current version: ${V}`,
+        'torii-quest-progress.md': `Current version: ${V}`,
+        'torii-quest-handoff.md': `Current version: ${V}\ntorii-v0.2.191-foo-report.md`,
       },
       reports: ['torii-v0.2.191-foo-report.md'],
     });

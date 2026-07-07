@@ -52,7 +52,7 @@ export const RC_SNAPSHOT_DOC_REFS = Object.freeze([
   Object.freeze({ key: 'github-dry-run', file: 'GITHUB_RELEASE_DRY_RUN.md', label: 'GitHub release dry-run' }),
   Object.freeze({ key: 'playtest-checklist', file: 'MVP_PLAYTEST_CHECKLIST.md', label: 'MVP playtest checklist' }),
   Object.freeze({ key: 'playtest-results', file: 'MVP_PLAYTEST_RESULTS_TEMPLATE.md', label: 'MVP playtest results template' }),
-  Object.freeze({ key: 'handoff', file: 'HANDOFF.md', label: 'Handoff narrative (source of truth)' }),
+  Object.freeze({ key: 'handoff', file: 'torii-quest-handoff.md', label: 'Handoff narrative (source of truth)' }),
   Object.freeze({ key: 'vps-install', file: 'VPS_INSTALL.md', label: 'VPS install / manual deploy notes' }),
 ]);
 

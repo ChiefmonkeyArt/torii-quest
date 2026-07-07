@@ -1,13 +1,13 @@
 // engine/dashboard/continuumData.js — Torii Continuum project-oversight DASHBOARD
 // data + pure renderer (v0.2.171). This is the FIRST slice of a broader project
-// oversight surface. It turns the curated state kept in `progress.md` into a small,
+// oversight surface. It turns the curated state kept in `torii-quest-progress.md` into a small,
 // node-safe data model, computes headline totals/percentages, and renders it to a
 // self-contained static HTML page string.
 //
 // Source-of-truth split (preserved, and surfaced on the page itself):
-//   - `todo.md`      owns the active TASK queue (task source of truth).
-//   - `strategy.md`  owns VISION / decision rules (strategy source of truth).
-//   - `progress.md`  is the visual execution DASHBOARD source document — the data
+//   - `torii-quest-todo.md`      owns the active TASK queue (task source of truth).
+//   - `torii-quest-strategy.md`  owns VISION / decision rules (strategy source of truth).
+//   - `torii-quest-progress.md`  is the visual execution DASHBOARD source document — the data
 //                    below is curated from it.
 //
 // Refresh model: the generator (`tools/build-continuum.mjs`) writes BOTH the page
@@ -27,7 +27,7 @@
 //   - Curated/static data is the FALLBACK; it is isolated in CONTINUUM below. As of
 //     v0.2.174 the generator (tools/build-continuum.mjs + tools/continuumParse.mjs)
 //     DERIVES the list sections (next-12 / active-now / completed-24h / archive) and a
-//     "docs-derived" task-count metric from progress.md + todo.md at build time and
+//     "docs-derived" task-count metric from torii-quest-progress.md + torii-quest-todo.md at build time and
 //     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
@@ -117,8 +117,8 @@ export function buildHealthModel(input = {}) {
         : `${parserGaps} · curated fallback used` },
     { label: 'Release gate', kind: L, value: `${lk.regression} regression checks GREEN · last green ${lk.lastGreen}` },
     { label: 'Source-of-truth docs', kind: G,
-      value: docsInSync == null ? 'progress.md · todo.md · strategy.md'
-        : docsInSync ? 'progress.md · todo.md · strategy.md carry this version'
+      value: docsInSync == null ? 'torii-quest-progress.md · torii-quest-todo.md · torii-quest-strategy.md'
+        : docsInSync ? 'torii-quest-progress.md · torii-quest-todo.md · torii-quest-strategy.md carry this version'
         : 'doc/version drift — check the continuity docs' },
   ];
   const coverage = (foundation != null && fullFileCount)
@@ -151,7 +151,7 @@ const CURATED_HEALTH = buildHealthModel({
 // SEED_MILESTONES (v0.2.176) — clearly-labelled FUTURE milestones. These are NOT real,
 // tracked task sets; they are a seed roadmap so the dashboard can show "total milestones"
 // HONESTLY (one real ACTIVE milestone + N SEED/future) without pretending the future ones
-// have real task counts. Future parser hook: derive these from strategy.md. Pure data.
+// have real task counts. Future parser hook: derive these from torii-quest-strategy.md. Pure data.
 export const SEED_MILESTONES = Object.freeze([
   { id: 'M-RELAY', name: 'Live relay I/O + event signing',
     note: 'Gated by SEC-1/2/3 — explicit consent, handoff verification, and URL validation must clear before any wire write or live navigation.' },
@@ -203,7 +203,7 @@ export function buildMilestoneModel(input = {}) {
     counts: { total: 1 + seedList.length, active: 1, seed: seedList.length, done: 0 },
     note: 'One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from ' +
       'the route states); the rest are SEED/future milestones — labelled as such, not ' +
-      'pretending to carry real task counts yet. Future hook: derive seed milestones from strategy.md.',
+      'pretending to carry real task counts yet. Future hook: derive seed milestones from torii-quest-strategy.md.',
   };
 }
 
@@ -238,7 +238,7 @@ export function buildReadinessModel(input = {}) {
       note: docsOk == null
         ? 'not checked this build — run npm run zones:check'
         : docsOk
-          ? 'VPS_INSTALL.md + HANDOFF.md describe serving index.html for /zone/* deep-links'
+          ? 'VPS_INSTALL.md + torii-quest-handoff.md describe serving index.html for /zone/* deep-links'
           : 'a required doc is missing the index.html SPA fallback — run npm run zones:check',
     },
     {
@@ -712,7 +712,7 @@ export const NOBLOCKERQUEUE_BADGE = 'NO-BLOCKER QUEUE · SAFE NEXT WORK · READ-
 // NOBLOCKERQUEUE_LASTKNOWN (v0.2.216) — curated fallback no-blocker-queue posture, captured by hand
 // and clearly LABELLED last-known on the page so a stale snapshot is obvious rather than silently
 // wrong. The build-time generator (build-continuum.mjs) overrides this with the LIVE counts derived
-// from the SAME parsed todo.md/progress.md taskTotals the dashboard already uses (NO second source of
+// from the SAME parsed torii-quest-todo.md/torii-quest-progress.md taskTotals the dashboard already uses (NO second source of
 // truth) plus the recommended next SAFE task and whether manual playtest/approval is still pending —
 // so the card tracks the real "what can an agent do next without user input" queue each deploy.
 export const NOBLOCKERQUEUE_LASTKNOWN = Object.freeze({
@@ -733,7 +733,7 @@ export const NOBLOCKERQUEUE_LASTKNOWN = Object.freeze({
 // clearly SEPARATES the no-blocker infra/docs/tooling queue (the safe next task + the active/next/
 // archive counts an agent can keep working through) from the one user-gated item (the MVP playtest +
 // explicit approval). Inputs are plain data the generator gathers cheaply from the SAME parsed
-// todo.md/progress.md taskTotals the dashboard already derives (NO second source of truth) plus the
+// torii-quest-todo.md/torii-quest-progress.md taskTotals the dashboard already derives (NO second source of truth) plus the
 // recommended next SAFE task and a manual-pending flag — NO fs/network/THREE/DOM/child_process here,
 // and it imports NO tools/ module so the browser bundle stays clean. With no input it degrades to the
 // honest LAST-KNOWN snapshot and NEVER throws. It reuses the existing pill vocabulary + .metric
@@ -799,7 +799,7 @@ export function buildNoBlockerQueueModel(input = {}) {
     metrics,
     note: 'No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe '
       + 'task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the '
-      + 'active/next/archive counts are DERIVED from the same parsed todo.md/progress.md the rest of '
+      + 'active/next/archive counts are DERIVED from the same parsed torii-quest-todo.md/torii-quest-progress.md the rest of '
       + 'the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP '
       + 'playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; '
       + 'LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING.',
@@ -1133,7 +1133,7 @@ export const CONTINUUM_CSP =
   "style-src 'self' 'unsafe-inline'; " +
   `script-src 'self' '${CONTINUUM_SCRIPT_SHA256}'`;
 
-// Curated snapshot of progress.md (the dashboard source document). Keep this the
+// Curated snapshot of torii-quest-progress.md (the dashboard source document). Keep this the
 // ONLY place the curated copy lives so future automation has a single seam.
 export const CONTINUUM = Object.freeze({
   version: CONTINUUM_VERSION,
@@ -1236,9 +1236,9 @@ export const CONTINUUM = Object.freeze({
   ],
 
   sourceOfTruth: [
-    'todo.md remains the active TASK queue (task source of truth).',
-    'strategy.md remains VISION / decision rules (strategy source of truth).',
-    'progress.md remains the visual execution DASHBOARD source document — this page is curated from it.',
+    'torii-quest-todo.md remains the active TASK queue (task source of truth).',
+    'torii-quest-strategy.md remains VISION / decision rules (strategy source of truth).',
+    'torii-quest-progress.md remains the visual execution DASHBOARD source document — this page is curated from it.',
   ],
 });
 
@@ -1322,7 +1322,7 @@ export const CLICKTHROUGH_BADGE = 'MVP LOOP · CLICK-THROUGH MOCKUP · READ-ONLY
 
 // CLICKTHROUGH_VIEWS (C2) — the five MVP-loop mockup screens, in walk-through order. Each is a
 // frozen plain-data view: id, title, the proof it demonstrates, its mock state, and an honest
-// status (proof | mockup). Curated from progress.md / quest-todo.md; frozen so a caller cannot
+// status (proof | mockup). Curated from torii-quest-progress.md / torii-quest-todo.md; frozen so a caller cannot
 // mutate the shared model. PURE data — no fs/network/THREE/DOM.
 export const CLICKTHROUGH_VIEWS = Object.freeze([
   Object.freeze({
@@ -2003,7 +2003,7 @@ export function renderContinuumPage(model = buildContinuumModel()) {
   const derivedRow = tt
     ? `        <div class="metric"><span class="metric-label">Docs-derived <span class="seed">DERIVED · build-time</span></span>${_cardValueHtml(
         [
-          tt.todoCompletedMarkers != null ? `${tt.todoCompletedMarkers} completed task markers (todo.md)` : null,
+          tt.todoCompletedMarkers != null ? `${tt.todoCompletedMarkers} completed task markers (torii-quest-todo.md)` : null,
           t.tasksAhead != null ? `${t.tasksAhead} next-12` : null,
           t.archivedClusters != null ? `${t.archivedClusters} archive clusters` : null,
         ].filter(Boolean).join(' · ')

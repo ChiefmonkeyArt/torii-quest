@@ -14,9 +14,9 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.294-alpha (see §3 for every place the version string lives)
-- **Active focus:** 15-hour proof-of-concept route (see `strategy.md` → "15-Hour
-  Proof-of-Concept Route" and `todo.md` → "ACTIVE FOCUS"). **Shooter is
+- **Current version:** v0.2.349-alpha (see §3 for every place the version string lives)
+- **Active focus:** 15-hour proof-of-concept route (see `torii-quest-strategy.md` → "15-Hour
+  Proof-of-Concept Route" and `torii-quest-todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech
   loop — gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard
   preview, and the torii.quest GitHub update-check (LEAN-1..LEAN-5). Retrospective
@@ -68,7 +68,7 @@ Breaking one should fail CI/the check, not ship.
 | `MVP_PLAYTEST_RESULTS.md` | **NOT a version marker — do NOT bump.** Deliberately version-less/blank (v0.2.222): the human tester fills the Build/version + Commit cells with the build they actually tested. The committed file is the persistent, NO-CLOBBER recording surface (distinct from the build-regenerated `MVP_PLAYTEST_RESULTS_TEMPLATE.md`); `playtest-results-state.test.js` asserts it reads `not-run` by default. |
 | `LIVE_SMOKE_STATE.json` | **NOT a build version marker — do NOT bump to match config.** The `version` field records the DEPLOYED build a live cloud smoke actually observed, so it legitimately LAGS `config.js` `VERSION` (a smoke can only observe a deployed build). `live-smoke-state.test.js` asserts the committed record validates and that recorded version ≤ config `VERSION` (never leads). Surfaced on the Continuum dashboard + folded into `NEXT_ACTION_STATE.json` (v0.2.231); `impliesApproval` pinned false. |
 | `DASHBOARD_SMOKE_STATE.json` | **NOT a build version marker — do NOT bump to match config.** The `version` field records the DEPLOYED build a live cloud smoke of the Continuum dashboard (`/continuum.html`) actually observed, so it legitimately LAGS `config.js` `VERSION`. `dashboard-smoke-state.test.js` asserts the committed record validates and that recorded version ≤ config `VERSION` (never leads). Surfaced as a **Dashboard smoke** Continuum metric row + folded into `NEXT_ACTION_STATE.json` (v0.2.232); `impliesApproval` AND `impliesPlaytestComplete` both pinned false. |
-| `progress.md` / `todo.md` / `strategy.md` | "Current version" lines |
+| `torii-quest-progress.md` / `torii-quest-todo.md` / `torii-quest-strategy.md` | "Current version" lines |
 
 ## 4. Source of truth
 
@@ -79,20 +79,20 @@ Breaking one should fail CI/the check, not ship.
 - **`src/main.js`** — wiring only, no game logic.
 - **`CODE_INDEX.md`** — file-by-file map of the codebase. Update it when you add
   or move a module.
-- **Task queue split (v0.2.244+):** the active task queue is now split. **`quest-todo.md`**
-  is the Torii Quest (game app) active task source of truth; **`continuum-todo.md`** is
-  the Torii Continuum (oversight dashboard app) active task source of truth. **`todo.md`**
+- **Task queue split (v0.2.244+):** the active task queue is now split. **`torii-quest-todo.md`**
+  is the Torii Quest (game app) active task source of truth; **`torii-continuum-todo.md`** is
+  the Torii Continuum (oversight dashboard app) active task source of truth. **`torii-quest-todo.md`**
   is now a LEGACY POINTER (retained only because the continuity gate + Continuum parser
   read it for the version marker + historical struck completed-task markers). `NOSTR_ARENA_MASTER_TODO.md`
-  is archival history only. The active task files plus `todo.md`, `progress.md`,
-  and `HANDOFF.md` are all safely editable via **`npm run md:patch`**
+  is archival history only. The active task files plus `torii-quest-todo.md`, `torii-quest-progress.md`,
+  and `torii-quest-handoff.md` are all safely editable via **`npm run md:patch`**
   (`tools/mdPatch.mjs`, mdPatch-2): whitelist-confined, per-file capability map
-  (`HANDOFF.md` is append-only — `replace` is rejected to protect the curated
+  (`torii-quest-handoff.md` is append-only — `replace` is rejected to protect the curated
   handoff), `.bak` backup before every edit, no network, no arbitrary file
   writes. The `note` action appends a timestamped live bullet under a per-file
-  default heading — `npm run md:patch -- note progress.md "shipped X"`.
-- **`strategy.md`** — vision + decision rules. **`progress.md`** — execution
-  dashboard. **`todo.md`** — legacy pointer (see Task queue split above).
+  default heading — `npm run md:patch -- note torii-quest-progress.md "shipped X"`.
+- **`torii-quest-strategy.md`** — vision + decision rules. **`torii-quest-progress.md`** — execution
+  dashboard. **`torii-quest-todo.md`** — legacy pointer (see Task queue split above).
 - **`engine/`** — extracted, mostly-pure SDK seams (debug, physics, combat,
   entities, ui, weapons). Prefer adding pure logic here so it is node-testable.
 - **`src/sdk/index.js`** — public SDK entrypoint (ARS-5). Curated node-safe
@@ -178,7 +178,7 @@ Breaking one should fail CI/the check, not ship.
   path on a COLD hard-refresh/deep-link (see §7) — is now operationally explicit and
   LOCALLY checkable before publish. A pure node-safe helper (`tools/zoneFallbackReadiness.mjs`)
   + a read-only, network-free CLI (`npm run zones:check`) + regression-check [15] verify the
-  required docs (`VPS_INSTALL.md`/`HANDOFF.md`) describe the `index.html` SPA fallback and
+  required docs (`VPS_INSTALL.md`/`torii-quest-handoff.md`) describe the `index.html` SPA fallback and
   that a built `dist/` has an `index.html` with NO static file under `/zone/*` that would
   shadow it. New `ZONE_FALLBACK_READINESS.md` checklist + `VPS_INSTALL.md` §11 + an
   `UPDATE_CHECK.md` §4 pointer. NON-GOALS held: no server access/SSH/credentials, no
@@ -359,7 +359,7 @@ Breaking one should fail CI/the check, not ship.
   signals: root `index.html` present in the dist path set; the `DIST_SPEC.expectedArtifacts`
   (`index.html`+`assets`) present; the `/continuum.html` dashboard asset present; the
   `release-metadata.json` update asset present; the `REQUIRED_FILES` floor documented; the `/zone/*`
-  SPA fallback documented in `VPS_INSTALL.md`/`HANDOFF.md` (reuses `checkFallbackDocs`); NO built file
+  SPA fallback documented in `VPS_INSTALL.md`/`torii-quest-handoff.md` (reuses `checkFallbackDocs`); NO built file
   shadows the `/zone/<slug>` fallback (`zonePathsInDist` empty); an unknown `/zone/<slug>` is served
   `index.html` by host config while NOT a built file; the app route parser keeps the slug SAFE
   (`parseZoneRoute`→`ZONE`, `isValidZoneSlug` true) and rejects the whole `HOSTILE_ZONE_PATHS` fixture
@@ -411,7 +411,7 @@ Breaking one should fail CI/the check, not ship.
   `torii.agent-handoff` v1) / `--markdown`; READ-ONLY/local/no-network and never writes unless an
   explicit `--write[=path]` is given — that emits `HANDOFF.generated.md` (default), confined inside the
   repo via the SHARED `resolveHandoffWritePath` (absolute path / `..` escape rejected) and NEVER
-  touching this curated `HANDOFF.md`. `tests/agent-handoff.test.js` (+13). Read-only except the
+  touching this curated `torii-quest-handoff.md`. `tests/agent-handoff.test.js` (+13). Read-only except the
   explicit `--write` output; no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/
   live network write; `godMode` stays false.
   **v0.2.200** added a DASHBOARD METRIC FRESHNESS CLEANUP — resolves the recurring stale LAST-KNOWN
@@ -497,7 +497,7 @@ Breaking one should fail CI/the check, not ship.
   producing a single discoverability artifact (`MVP_RELEASE_PACKAGE.md`) so humans and future
   agents can find every relevant MVP-proof file fast. The frozen `RELEASE_PACKAGE_ENTRIES` index
   (10 entries grouped by category) points at `RELEASE_NOTES_DRAFT.md`, `MVP_PLAYTEST_CHECKLIST.md`,
-  `MVP_PLAYTEST_RESULTS_TEMPLATE.md`, `HANDOFF.generated.md`, `HANDOFF.md`, `progress.md`, `todo.md`,
+  `MVP_PLAYTEST_RESULTS_TEMPLATE.md`, `HANDOFF.generated.md`, `torii-quest-handoff.md`, `torii-quest-progress.md`, `torii-quest-todo.md`,
   `UPDATE_CHECK.md`, `VPS_INSTALL.md`, `ZONE_FALLBACK_READINESS.md`, and folds in version/commit, the
   curated test-count, the live URL, the known advisories, and the recommended next safe action.
   `buildReleasePackageModel(...)` is pure (the `present` map is INJECTED by the CLI so the helper
@@ -1078,7 +1078,7 @@ Breaking one should fail CI/the check, not ship.
   plus the active/next/archive queue COUNTS — kept SEPARATE from the one item parked on the human
   (the live-browser MVP playtest + explicit approval). A new PURE, browser-safe
   `buildNoBlockerQueueModel(input?)` in `src/engine/dashboard/continuumData.js` DERIVES the counts
-  from the SAME `taskTotals` already parsed off todo.md/progress.md by `tools/continuumParse.mjs`
+  from the SAME `taskTotals` already parsed off torii-quest-todo.md/torii-quest-progress.md by `tools/continuumParse.mjs`
   (`activeNow`/`next12`/`archiveClusters`/`completed24h`/`todoCompletedMarkers`) — no second source of
   truth — folded in via `buildContinuumModel({noBlockerQueue})` with a `manualPending` flag read off
   `manualValidation.pill !== 'no-blocker'`; with no input it degrades to an honest
@@ -1236,16 +1236,16 @@ Breaking one should fail CI/the check, not ship.
   stays false; no new `setTimeout`/`Vector3`/`Matrix4`.
   Latest slice report: `torii-v0.2.209-generated-commit-stamp-clarity-report.md`.
   **v0.2.208** PROGRESS PARSER GAP CLEANUP — a pure build-time parser/doc fix (no runtime change).
-  The Continuum build logs flagged `activeNow: no usable items parsed from progress.md` and
-  `completed24h: no usable items parsed from progress.md`, forcing the dashboard to keep curated
+  The Continuum build logs flagged `activeNow: no usable items parsed from torii-quest-progress.md` and
+  `completed24h: no usable items parsed from torii-quest-progress.md`, forcing the dashboard to keep curated
   defaults. Root cause was the per-section bounds in `tools/continuumParse.mjs` `deriveContinuumData()`,
-  not the parsing logic: progress.md's `## Active now` / `## Completed last 24h` are running logs (each
+  not the parsing logic: torii-quest-progress.md's `## Active now` / `## Completed last 24h` are running logs (each
   shipped slice prepends an entry) that had grown past the original v0.2.174 `tryList` ceilings —
   activeNow 34 top-level bullets vs `max:16`, completed24h 26 struck bullets vs `max:24` — so both were
   dropped as `gaps`. The running-log format is intended, so the bounds were RAISED to fit it
   (activeNow/completed24h `max:60`, archive `max:40`, next12 `max:24`) while KEEPING the protective
   guard (a `>60`-item garbled section still degrades to the curated default). After the fix
-  `npm run build:continuum` derives all four lists from progress.md (`next12 (12), activeNow (34),
+  `npm run build:continuum` derives all four lists from torii-quest-progress.md (`next12 (12), activeNow (34),
   completed24h (26), archive (11)`; gaps: none). `tests/continuum-parse.test.js` (+2; 15→17; suite now
   1334/84): a long-but-bounded 34/26 parse with NO gap, and an absurd 61-item list that still falls back
   to the curated default. Pure build-time parser change only — no parser CALL site, schema, or dashboard
@@ -1256,7 +1256,7 @@ Breaking one should fail CI/the check, not ship.
   data model + pure static-page renderer — read-only, no live writes; v0.2.174
   added a `buildContinuumModel(overrides)` merge seam fed by the build-time doc
   parser `tools/continuumParse.mjs`, so the page DERIVES its list sections from
-  progress.md/todo.md with a safe curated fallback; v0.2.175 added a pure
+  torii-quest-progress.md/torii-quest-todo.md with a safe curated fallback; v0.2.175 added a pure
   browser-safe `buildHealthModel(input)` + `HEALTH_LASTKNOWN` baseline that
   surface an **Engineering health** section on the page — profile/test-file
   counts, parser gaps, version + doc-sync GENERATED at build, total tests /
@@ -1399,7 +1399,7 @@ Breaking one should fail CI/the check, not ship.
 npm install
 npm run dev      # local dev server (vite)
 npm run build    # production build → dist/ (runs build:continuum first → public/continuum.html + continuum-data.json)
-npm run build:continuum  # (re)generate the Torii Continuum dashboard page + packaged data from progress.md model
+npm run build:continuum  # (re)generate the Torii Continuum dashboard page + packaged data from torii-quest-progress.md model
 npm run check    # static regression guardrails (tools/regression-check.mjs)
 npm test         # vitest run (FULL unit suite, node env)
 npm run test:fast        # ~5 core files (state/events/classifier/aim/snapshot) — innermost edit→test loop
@@ -1428,7 +1428,7 @@ A change is "green" when **build + check + test** all pass. Current baseline:
 **821 tests / 60 files**, all 14 regression checks GREEN, build clean. Built bundle
 sizes are tracked as an advisory baseline — `npm run bundle:report` (full table) or the
 non-failing `[13]` line in `npm run check` (v0.2.153). Docs/status drift is guarded by
-check `[14]` (v0.2.154) — the continuity docs (`todo.md`/`progress.md`/`HANDOFF.md`) must
+check `[14]` (v0.2.154) — the continuity docs (`torii-quest-todo.md`/`torii-quest-progress.md`/`torii-quest-handoff.md`) must
 carry the current version or `npm run check` fails; its stale-live-version ADVISORY ignores
 quoted/changelog prose (v0.2.155) so it only flags plainly-stated status lines. For a
 one-glance snapshot of all of the above (VERSION/pkg sync, git commit, live URL, checks,
@@ -1511,7 +1511,7 @@ separate manual step performed by the maintainer/main agent — **task agents mu
 NOT deploy, publish, push, or upload Space files.** Hand back a clean,
 green source tree and report the version + changes; the maintainer ships it.
 
-Live currently trails source (see `progress.md` "Deployment" track). Lifting the
+Live currently trails source (see `torii-quest-progress.md` "Deployment" track). Lifting the
 source-built artifact to live is its own tracked task (TQ-MANUAL-113 — manual
 smoke test on real hardware first).
 
@@ -1549,7 +1549,7 @@ host fallback remains a manual maintainer step — this repo touches no server.
 ## 8. Active issues / open edges
 
 - Travel-time lead on fast-moving targets (bullets are hitscan-aimed but
-  projectile-flown; long shots on strafing bots can trail). Tracked in `todo.md`.
+  projectile-flown; long shots on strafing bots can trail). Tracked in `torii-quest-todo.md`.
 - Live deployment trails source by several versions — needs manual smoke + publish.
 - ARS-5 (`src/sdk/index.js` skeleton) landed in v0.2.131. ARS-4: `canShoot`/
   `canReload` + `isEngaged`/`needsPointerLock` + `isReloading`/`tickReload`
@@ -1607,10 +1607,10 @@ host fallback remains a manual maintainer step — this repo touches no server.
   gateway's portal mesh (actually move the player), the real leaderboard
   signer/publisher + relay read, the in-world product panel mesh, and the
   loader's remote/Nostr-event path with signature/hash/capability enforcement.
-  See `progress.md` Current Sprint.
+  See `torii-quest-progress.md` Current Sprint.
 - ESBUILD-1 (deferred): low-severity dev-server-only esbuild advisory; `npm audit
   fix` pulls a broad rolldown/vite chain, deemed too risky for an alpha — left as a
-  tracked WARN in `todo.md`.
+  tracked WARN in `torii-quest-todo.md`.
 - **SEC-1 (consent gate):** before wiring `leaderboardPublisher` to a real NIP-07
   signer or live relay publish, require explicit user consent. Current implementation
   is pure/injected and not wired to live publish.

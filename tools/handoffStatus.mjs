@@ -17,7 +17,7 @@ export const LIVE_URL = 'https://torii-quest.pplx.app';
 // The cross-model handoff / source-of-truth docs a new agent should read first. Presence is
 // reported so a handoff immediately sees if one is missing.
 export const CORE_DOCS = [
-  'README.md', 'todo.md', 'progress.md', 'HANDOFF.md', 'strategy.md',
+  'README.md', 'torii-quest-todo.md', 'torii-quest-progress.md', 'torii-quest-handoff.md', 'torii-quest-strategy.md',
   'CODE_INDEX.md', 'SDK_DEBUG_INDEX.md',
 ];
 

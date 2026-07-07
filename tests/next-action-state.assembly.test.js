@@ -16,7 +16,7 @@ describe('buildNextActionState — assembly', () => {
     const s = buildNextActionState({
       agentHandoff: handoff(), manualValidation: manualPending,
       testStatus: { passing: 1417, files: 87 },
-      docs: ['HANDOFF.md', 'progress.md'],
+      docs: ['torii-quest-handoff.md', 'torii-quest-progress.md'],
     });
     expect(s.schema).toBe(NEXT_ACTION_STATE_SCHEMA);
     expect(s.schemaVersion).toBe(NEXT_ACTION_STATE_SCHEMA_VERSION);
@@ -34,7 +34,7 @@ describe('buildNextActionState — assembly', () => {
     expect(s.tests).toEqual({ passing: 1417, files: 87 });
     expect(s.nextSafeTask).toEqual({ title: 'Next infra slice', why: 'keep cadence', kind: 'infra' });
     expect(s.constraints).toContain('godMode false');
-    expect(s.docs).toEqual(['HANDOFF.md', 'progress.md']);
+    expect(s.docs).toEqual(['torii-quest-handoff.md', 'torii-quest-progress.md']);
     expect(s.reports).toEqual(['torii-v0.2.216-no-blocker-queue-dashboard-report.md']);
   });
 

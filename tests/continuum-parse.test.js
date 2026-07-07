@@ -1,6 +1,6 @@
 // tests/continuum-parse.test.js — locks the PURE build-time doc parser
 // (tools/continuumParse.mjs, v0.2.174) that derives the Torii Continuum dashboard's
-// list sections from progress.md/todo.md, plus the buildContinuumModel(overrides)
+// list sections from torii-quest-progress.md/torii-quest-todo.md, plus the buildContinuumModel(overrides)
 // merge seam it feeds. Proves: section/list parsing, bullet cleaning, safe fallback +
 // gap reporting on a missing/garbled section, the docs-derived task counts, and that
 // overrides REPLACE curated arrays + recompute totals while no-override stays curated.
@@ -131,7 +131,7 @@ describe('deriveContinuumData', () => {
 });
 
 describe('running-log bounds tolerance (v0.2.208)', () => {
-  // progress.md "Active now" / "Completed last 24h" are running logs: every shipped slice
+  // torii-quest-progress.md "Active now" / "Completed last 24h" are running logs: every shipped slice
   // prepends an entry, so the realistic lengths (30+) far exceed the original v0.2.174
   // ceilings. These cases lock the raised bounds: a long-but-bounded list now parses
   // (no gap, dashboard derives from the doc) while a truly absurd list still falls back.
@@ -171,13 +171,13 @@ describe('buildContinuumModel(overrides) merge seam', () => {
       next12: ['a', 'b', 'c'],
       completed24h: ['x'],
       taskTotals: { isDerived: true, todoCompletedMarkers: 9 },
-      derived: { parsed: ['next12 (3)'], gaps: [], sources: ['progress.md'] },
+      derived: { parsed: ['next12 (3)'], gaps: [], sources: ['torii-quest-progress.md'] },
     };
     const m = buildContinuumModel(overrides);
     expect(m.totals.tasksAhead).toBe(3);
     expect(m.totals.completedLast24h).toBe(1);
     expect(m.taskTotals.todoCompletedMarkers).toBe(9);
-    expect(m.derived.sources).toEqual(['progress.md']);
+    expect(m.derived.sources).toEqual(['torii-quest-progress.md']);
     // curated source is not mutated
     expect(CONTINUUM.next12.length).toBe(12);
   });

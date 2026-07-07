@@ -12,7 +12,7 @@
 > `window.location`/external URLs at module scope (the window is injected).
 > Source of truth for the SDK surface is `src/sdk/index.js` (`SDK_SURFACE`); for the
 > debug reports it is `src/engine/debug/shellReport.js`. See `CODE_INDEX.md` for the
-> full file-by-file map and `HANDOFF.md` for onboarding.
+> full file-by-file map and `torii-quest-handoff.md` for onboarding.
 
 ---
 
@@ -139,7 +139,7 @@ harness that proves the torii.quest static-host route + asset readiness contract
 a server, shell, or network. Constants: `HOST_ROUTE_SMOKE_VERSION` (1), `HOST_ROUTE_SMOKE_BADGE`
 (`HOST ROUTE SMOKE · READ-ONLY · NO DEPLOY`), `REQUIRED_ASSETS` (index.html / continuum.html /
 continuum-data.json / release-metadata.json); frozen LOCAL fixtures `SAMPLE_DIST_PATHS`
-(Vite-build-shape path list), `SAMPLE_FALLBACK_DOCS` (VPS_INSTALL.md/HANDOFF.md with try_files +
+(Vite-build-shape path list), `SAMPLE_FALLBACK_DOCS` (VPS_INSTALL.md/torii-quest-handoff.md with try_files +
 /zone/ text), `SAMPLE_ZONE_SLUG` (`plebeian-market-bazaar`), `HOSTILE_ZONE_PATHS` (absolute scheme /
 protocol-relative / dot-dot / sub-path / uppercase+underscore / empty slug / percent-encoding /
 `javascript:`). `runHostRouteSmoke(opts?)` composes the shipped pure readiness helpers
@@ -404,7 +404,7 @@ exposes NO navigate/open/reload/goto/assign/href/pushState method; never throws.
 root ONLY): reads `window.location.pathname` once on startup + on `popstate`, calling `hud.js`
 `showZoneNotice`/`hideZoneNotice` (lazy `#zone-notice` div, opacity crossfade, no `setTimeout`). Reachable
 read-only via `ToriiDebug.shells.zoneRoute(...)` / `zoneRouteReport(...)`. **Hard-refresh deep-link resolution
-needs a static-host SPA fallback (serve `index.html` for `/zone/*`) — see HANDOFF.md §7 / GATEWAY_PROTOCOL.md;
+needs a static-host SPA fallback (serve `index.html` for `/zone/*`) — see torii-quest-handoff.md §7 / GATEWAY_PROTOCOL.md;
 documented, NOT faked in app code.**
 
 `portalMeshPlan` (GATEWAY / NAP-world, v0.2.183) is the pure render PLAN for a dedicated visible in-world
@@ -446,7 +446,7 @@ safe — NO module-scope `window`/THREE/DOM; never throws. Reachable read-only v
 
 `continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Continuum
 project-oversight DASHBOARD data + renderer — the FIRST slice of a broader oversight surface.
-`CONTINUUM` holds the curated `progress.md` snapshot (metrics, a clearly-flagged SEED
+`CONTINUUM` holds the curated `torii-quest-progress.md` snapshot (metrics, a clearly-flagged SEED
 contributors/clankers metric, tracks, the 15-hour `leanRoute`, activeNow/next12/archive/
 completed24h, risks, sourceOfTruth) + `CONTINUUM_VERSION`/`CONTINUUM_BADGE`. Pure helpers:
 `escapeHtml`, `clampPct` (0..100|null), `barCells`, `ringDash`, `computeTotals(data)` (headline
@@ -980,7 +980,7 @@ verification.
    (no `innerHTML`); add the card markup + CSS in `index.html`.
 5. **Test** — add `tests/<name>.test.js` asserting the inert invariants and that no
    live-action keys (`fetch`/`navigate`/`sign`/`publish`/`checkout`/`onClick`) leak.
-6. **Docs** — update this index (§2/§3/§5), `CODE_INDEX.md`, `progress.md`, `todo.md`.
+6. **Docs** — update this index (§2/§3/§5), `CODE_INDEX.md`, `torii-quest-progress.md`, `torii-quest-todo.md`.
 7. **Bump the version** and run `npm run build && npm run check && npm test`.
 
 ### Promote a preview to a live surface

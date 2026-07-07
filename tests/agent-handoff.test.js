@@ -185,7 +185,7 @@ describe('agent-handoff — formatters', () => {
     const h = buildAgentHandoff({ handoffSummary: summary(), mvpReadiness: rollup() });
     const md = formatAgentHandoffMarkdown(h);
     expect(md).toContain('# Torii Quest — agent handoff readiness (generated)');
-    expect(md).toContain('The curated `HANDOFF.md` stays the source of truth');
+    expect(md).toContain('The curated `torii-quest-handoff.md` stays the source of truth');
     expect(md).toContain('| Harness | SDK | Debug shell | Status | Purpose |');
     expect(md).toContain('| readHealth | `SDK.readHealth` | `shells.readHealth(o?)` | ok |');
     expect(md).toContain('**MVP readiness:** 100% · READY');

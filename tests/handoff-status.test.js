@@ -63,11 +63,11 @@ describe('buildHandoffStatus', () => {
 
   it('reports missing core docs', () => {
     const present = allPresent();
-    delete present['HANDOFF.md'];
-    present['HANDOFF.md'] = false;
+    delete present['torii-quest-handoff.md'];
+    present['torii-quest-handoff.md'] = false;
     const s = buildHandoffStatus({ version: V, packageVersion: PKG, docsPresent: present });
-    expect(s.docs.missing).toContain('HANDOFF.md');
-    expect(s.docs.present).not.toContain('HANDOFF.md');
+    expect(s.docs.missing).toContain('torii-quest-handoff.md');
+    expect(s.docs.present).not.toContain('torii-quest-handoff.md');
   });
 
   it('degrades safely when git commit and dist bundle are unavailable', () => {
@@ -116,12 +116,12 @@ describe('formatHandoffStatus', () => {
 
   it('flags version drift and missing docs in the text', () => {
     const present = allPresent();
-    present['strategy.md'] = false;
+    present['torii-quest-strategy.md'] = false;
     const s = buildHandoffStatus({ version: V, packageVersion: '0.2.150-alpha', docsPresent: present });
     const out = formatHandoffStatus(s);
     expect(out).toContain('DRIFT');
     expect(out).toContain('MISSING');
-    expect(out).toContain('strategy.md');
+    expect(out).toContain('torii-quest-strategy.md');
   });
 
   it('notes when no dist bundle exists', () => {

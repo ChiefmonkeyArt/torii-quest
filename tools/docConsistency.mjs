@@ -1,6 +1,6 @@
 // tools/docConsistency.mjs — PURE, node-safe docs/status consistency checks (v0.2.155).
-// Keeps the continuity docs that AI/dev handoffs rely on (todo.md, progress.md,
-// HANDOFF.md, SDK_DEBUG_INDEX.md) from drifting away from the live runtime VERSION. Build-
+// Keeps the continuity docs that AI/dev handoffs rely on (torii-quest-todo.md, torii-quest-progress.md,
+// torii-quest-handoff.md, SDK_DEBUG_INDEX.md) from drifting away from the live runtime VERSION. Build-
 // time only — never imported by the game; NO fs/network/THREE/DOM in here (the CLI/guard in
 // regression-check does the fs I/O and hands plain {name → content} strings to these
 // helpers). Deterministic + plain-data so the logic is unit-testable
@@ -12,7 +12,7 @@
 
 // The continuity docs that MUST carry the current version (hard fail if they drift). These
 // are the cross-model handoff source-of-truth files.
-export const CONTINUITY_DOCS = ['todo.md', 'progress.md', 'HANDOFF.md'];
+export const CONTINUITY_DOCS = ['torii-quest-todo.md', 'torii-quest-progress.md', 'torii-quest-handoff.md'];
 
 // Docs that SHOULD reference the current version but only warn if they lag (lower-churn,
 // larger reference files where a one-version lag is not handoff-breaking).

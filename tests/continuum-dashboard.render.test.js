@@ -49,9 +49,9 @@ describe('renderContinuumPage', () => {
     expect(html).toContain('<svg');
     expect(html).toContain('donut-val');
     expect(html).toContain('Source of truth');
-    expect(html).toContain('todo.md');
-    expect(html).toContain('strategy.md');
-    expect(html).toContain('progress.md');
+    expect(html).toContain('torii-quest-todo.md');
+    expect(html).toContain('torii-quest-strategy.md');
+    expect(html).toContain('torii-quest-progress.md');
   });
 
   it('SAFETY: no external navigation, no http(s) href/redirect', () => {

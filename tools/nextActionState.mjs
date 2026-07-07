@@ -252,7 +252,7 @@ export function formatNextActionStateMarkdown(state) {
   L.push('');
   L.push(`> ${state.badge}`);
   L.push('> Generated artifact — do NOT hand-edit. Folded from the agent-handoff export + the');
-  L.push('> manual-validation card; the curated `HANDOFF.md` stays the source of truth.');
+  L.push('> manual-validation card; the curated `torii-quest-handoff.md` stays the source of truth.');
   if (state.generatedAt) L.push(`> generated: ${state.generatedAt}`);
   L.push('');
   L.push(`- **Version:** ${state.version ?? '(unknown)'} (pkg ${state.packageVersion ?? '?'})`);

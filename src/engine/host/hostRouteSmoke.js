@@ -9,7 +9,7 @@
 //   3. dashboard asset present    — the continuum.html dashboard + its data JSON ship
 //   4. update asset present+safe  — release-metadata.json ships AND validates manual-only
 //   5. required files documented  — releaseMeta REQUIRED_FILES are accounted for
-//   6. zone fallback documented   — VPS_INSTALL.md/HANDOFF.md describe the index.html fallback
+//   6. zone fallback documented   — VPS_INSTALL.md/torii-quest-handoff.md describe the index.html fallback
 //   7. no zone shadow             — no built file under /zone/* would shadow the fallback
 //   8. unknown zone → index       — an unknown /zone/<slug> is NOT a built file, so the host
 //                                    must serve index.html (and the parser keeps the slug safe)
@@ -102,7 +102,7 @@ export const SAMPLE_FALLBACK_DOCS = Object.freeze({
   'VPS_INSTALL.md':
     'Serve the SPA: nginx `try_files $uri $uri/ /index.html;` so any /zone/<slug> '
     + 'deep-link falls back to index.html (Caddy: `try_files {path} /index.html`).',
-  'HANDOFF.md':
+  'torii-quest-handoff.md':
     'Static host must serve index.html for any unmatched /zone/* path (SPA fallback) '
     + 'so a cold deep-link to /zone/<slug> loads the app, not a host 404.',
 });

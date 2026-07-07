@@ -32,7 +32,7 @@ describe('release-package — constants', () => {
     const files = RELEASE_PACKAGE_ENTRIES.map((e) => e.file);
     for (const f of [
       'RELEASE_NOTES_DRAFT.md', 'MVP_PLAYTEST_CHECKLIST.md', 'MVP_PLAYTEST_RESULTS_TEMPLATE.md',
-      'HANDOFF.generated.md', 'HANDOFF.md', 'progress.md', 'todo.md',
+      'HANDOFF.generated.md', 'torii-quest-handoff.md', 'torii-quest-progress.md', 'torii-quest-todo.md',
       'UPDATE_CHECK.md', 'VPS_INSTALL.md', 'ZONE_FALLBACK_READINESS.md',
     ]) {
       expect(files).toContain(f);

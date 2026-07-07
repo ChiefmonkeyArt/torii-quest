@@ -171,7 +171,7 @@ describe('release-manifest — selectRecentReports (shell-less discovery)', () =
     const names = [
       'torii-v0.2.210-mvp-rc-snapshot-report.md',
       'torii-v0.2.211-release-artifact-manifest-report.md',
-      'README.md', 'progress.md', 'torii-notes.md', 'torii-v0.2.212-report.md.bak',
+      'README.md', 'torii-quest-progress.md', 'torii-notes.md', 'torii-v0.2.212-report.md.bak',
       'package.json', 'src',
     ];
     expect(selectRecentReports(names)).toEqual([

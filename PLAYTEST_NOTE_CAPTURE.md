@@ -16,7 +16,7 @@ here runs the game, reaches the network, or deploys anything.
    observed **severity**, **repro notes**, and a **recommended next action**.
 4. Run `npm run playtest:capture` to see, at a glance, what is still blank and which FAILs are
    missing follow-up fields.
-5. Feed every `FAIL` back into `todo.md` / `progress.md` / `HANDOFF.md` by item id.
+5. Feed every `FAIL` back into `torii-quest-todo.md` / `torii-quest-progress.md` / `torii-quest-handoff.md` by item id.
 
 ## Mapping rough notes → recorded results
 

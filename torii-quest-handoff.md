@@ -14,8 +14,13 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.351-alpha (see §3 for every place the version string lives)
-- **Doc structure (v0.2.351-alpha refresh):** per-project source-of-truth files use the `torii-quest-{strategy,todo,progress,handoff}.md` convention (Torii Quest will use `torii-continuum-*` when written; Torii DE will use `torii-de-*`). Legacy top-level `todo.md` shim was deleted; historical struck markers migrated verbatim into `torii-quest-todo.md` (`## Historical completed (archive)`). Tools updated: `docConsistency` `CONTINUITY_DOCS`, `build-continuum` `SOURCES`, `mdPatch` whitelist, `regression-check`.
+- **Current version:** v0.2.352-alpha (see §3 for every place the version string lives)
+- **Doc structure (v0.2.352-alpha refresh):** per-project source-of-truth files use the `torii-quest-{strategy,todo,progress,handoff}.md` convention. Sibling apps live in fully separate GitHub repos with their own docs — `torii-continuum` uses `torii-continuum-*` and `torii-de` uses `torii-de-*`; never cross-name. Legacy top-level `todo.md` shim was deleted; historical struck markers migrated verbatim into `torii-quest-todo.md` (`## Historical completed (archive)`). The dashboard subsystem was renamed continuum→torii-quest in v0.2.351 (files, identifiers, SDK namespace). Tools updated: `docConsistency` `CONTINUITY_DOCS`, `build-torii-quest-dashboard` `SOURCES`, `mdPatch` whitelist, `regression-check`.
+- **Standing operating rules (project-wide, across all Torii repos):**
+  1. Each Torii app lives in a fully separate GitHub repo (`torii-quest`, `torii-continuum`, `torii-de`, `torii-base`, `torii-suite`); files carry ONLY that repo's project name — Quest files say "quest", Continuum files say "continuum", DE files say "de". Never cross-name.
+  2. Bump the version on EVERY change without exception — including doc-only changes, comment tweaks, filename renames, and typo fixes. There is no "too small to bump" change.
+  3. Push everything to GitHub immediately via a PR that lands on `main`. No local-only work.
+  4. Never publish device names, hostnames, or local machine identifiers to GitHub (commits, PR titles, PR bodies, code, docs). Use generic terms like "your local machine".
 - **Active focus:** 15-hour proof-of-concept route (see `torii-quest-strategy.md` → "15-Hour
   Proof-of-Concept Route" and `torii-quest-todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech

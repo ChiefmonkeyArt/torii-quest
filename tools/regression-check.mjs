@@ -28,7 +28,7 @@
 //      warning becomes a tracked baseline. Full table: `npm run bundle:report`
 //  14. docs/status consistency guard (v0.2.154; v0.2.155 quiets quoted/changelog prose) —
 //      FAILS on clear current-version drift in
-//      the core continuity docs (todo.md/progress.md/HANDOFF.md) or a missing core doc;
+//      the core continuity docs (torii-quest-todo.md/torii-quest-progress.md/torii-quest-handoff.md) or a missing core doc;
 //      ADVISORY warnings (never fail) for advisory-doc lag (SDK_DEBUG_INDEX/CODE_INDEX) and
 //      stale "live/published version: vX" contradiction lines. Pure helpers in
 //      tools/docConsistency.mjs (unit-tested); this block only reads the files.
@@ -336,7 +336,7 @@ console.log('[13] bundle size advisory (npm run bundle:report)');
 
 // 14. docs/status consistency guard (v0.2.154) — keep the cross-model handoff docs from
 // drifting away from the live runtime VERSION. HARD FAIL on clear current-version drift in
-// the core continuity docs (todo.md/progress.md/HANDOFF.md) or a missing core doc; ADVISORY
+// the core continuity docs (torii-quest-todo.md/torii-quest-progress.md/torii-quest-handoff.md) or a missing core doc; ADVISORY
 // warnings (never fail) for advisory-doc lag + stale live/published version lines. The pure
 // logic lives in docConsistency.mjs (node-safe, unit-tested); this block only does fs reads.
 console.log('[14] docs/status consistency guard (docConsistency)');

@@ -2,7 +2,7 @@
 //
 // The single, intentional import point for external contributors and future
 // community/marketplace components (see strategy.md "Reusable Components
-// Library and Community Marketplace" + the CMP-* tasks in todo.md).
+// Library and Community Marketplace" + the CMP-* tasks in torii-quest-todo.md).
 //
 // Design rules (keep this tiny and future-safe):
 //   - Re-export ONLY pure, node-testable leaf modules from the engine/ layer.

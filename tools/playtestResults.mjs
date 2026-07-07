@@ -62,7 +62,7 @@ export const PLAYTEST_RESULTS_ITEM_FIELDS = Object.freeze([
 export const PLAYTEST_RESULTS_HOWTO = Object.freeze([
   'Run the MVP_PLAYTEST_CHECKLIST against the live build, then record each item\'s outcome here.',
   'Fill the Result cell with PASS, FAIL, or N/A (leave blank if not yet run). For a FAIL, record the observed severity, repro notes, any media, and a recommended next action.',
-  'Feed every FAIL back into todo.md / progress.md / HANDOFF.md by item id (e.g. AIM-2) so it is tracked unambiguously.',
+  'Feed every FAIL back into torii-quest-todo.md / torii-quest-progress.md / torii-quest-handoff.md by item id (e.g. AIM-2) so it is tracked unambiguously.',
   'This is a manual intake form — no browser automation is required or implied; nothing here runs or deploys anything.',
 ]);
 
@@ -223,7 +223,7 @@ export function formatPlaytestResultsTemplateMarkdown(model) {
   L.push('');
   L.push('_RESULTS INTAKE TEMPLATE ONLY — fill this in by hand after running the checklist. It ' +
     'runs no browser automation, reaches no network, and triggers no deploy/publish. Feed every ' +
-    'FAIL back into todo.md / progress.md / HANDOFF.md by item id. The parent agent owns security ' +
+    'FAIL back into torii-quest-todo.md / torii-quest-progress.md / torii-quest-handoff.md by item id. The parent agent owns security ' +
     'review, deploy, publish, push, and Space upload._');
   L.push('');
   return L.join('\n');

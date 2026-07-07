@@ -3,11 +3,11 @@
 // Lets an assistant (or a human) make SAFE, narrow edits to the active
 // source-of-truth task/progress/handoff docs without manual copy-editing and
 // without arbitrary file-write access:
-//   - quest-todo.md       (Torii Quest active task source of truth)
-//   - continuum-todo.md   (Torii Continuum active task source of truth)
-//   - todo.md             (legacy active-task pointer / queue)
-//   - progress.md         (curated progress dashboard)
-//   - HANDOFF.md          (curated contributor/agent handoff — APPEND-ONLY)
+//   - torii-quest-todo.md       (Torii Quest active task source of truth)
+//   - torii-continuum-todo.md   (Torii Continuum active task source of truth)
+//   - torii-quest-todo.md             (legacy active-task pointer / queue)
+//   - torii-quest-progress.md         (curated progress dashboard)
+//   - torii-quest-handoff.md          (curated contributor/agent handoff — APPEND-ONLY)
 //
 // Allowed actions (only these mutate; per-file capability map below):
 //   - append a bullet under a heading       (`append`)
@@ -32,10 +32,10 @@
 // NEXT_ACTION_STATE.json, generated reports / release artifacts, and any other
 // file. Touching those needs a different, explicitly-approved tool.
 //
-// Per-file capability map (MD_PATCH_CAPABILITIES): HANDOFF.md is the curated
+// Per-file capability map (MD_PATCH_CAPABILITIES): torii-quest-handoff.md is the curated
 // source of truth, so it is APPEND-ONLY (append / note / list) — `replace` is
 // rejected to stop a blind section-swap clobbering handoff content. The two
-// todos, todo.md, and progress.md allow append / replace / note / list.
+// todos, torii-quest-todo.md, and torii-quest-progress.md allow append / replace / note / list.
 //
 // Pure transform helpers (resolveTarget / findSection / appendBulletUnderHeading /
 // replaceNamedSection / appendNote / listHeadings / capabilityFor) are exported
@@ -43,10 +43,10 @@
 // file does the fs I/O (read → backup → write) behind `--dry-run` and exit codes.
 //
 // Run:  npm run md:patch -- <action> <file> ...
-//       node tools/mdPatch.mjs append  quest-todo.md "Active MVP tasks" "a new bullet"
-//       node tools/mdPatch.mjs replace quest-todo.md "Scope" --stdin < body.txt
-//       node tools/mdPatch.mjs note    progress.md "shipped v0.2.259 — md pipeline"
-//       node tools/mdPatch.mjs list   quest-todo.md
+//       node tools/mdPatch.mjs append  torii-quest-todo.md "Active MVP tasks" "a new bullet"
+//       node tools/mdPatch.mjs replace torii-quest-todo.md "Scope" --stdin < body.txt
+//       node tools/mdPatch.mjs note    torii-quest-progress.md "shipped v0.2.259 — md pipeline"
+//       node tools/mdPatch.mjs list   torii-quest-todo.md
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative, isAbsolute, sep, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -57,11 +57,11 @@ export const MD_PATCH_BADGE = 'MDPATCH · WHITELIST · SAME-REPO · NO-NETWORK';
 
 // The ONLY files this tool may edit (bare basenames; matched after normalisation).
 export const MD_PATCH_WHITELIST = Object.freeze([
-  'quest-todo.md',
-  'continuum-todo.md',
-  'todo.md',
-  'progress.md',
-  'HANDOFF.md',
+  'torii-quest-todo.md',
+  'torii-continuum-todo.md',
+  'torii-quest-todo.md',
+  'torii-quest-progress.md',
+  'torii-quest-handoff.md',
 ]);
 
 // Files that must NEVER be editable by this tool (documented, not relied on for
@@ -71,28 +71,28 @@ export const MD_PATCH_READ_ONLY = Object.freeze([
   'NEXT_ACTION_STATE.json',
 ]);
 
-// Per-file allowed actions. HANDOFF.md is the curated source of truth, so it is
+// Per-file allowed actions. torii-quest-handoff.md is the curated source of truth, so it is
 // APPEND-ONLY (no `replace`) — a blind section-swap there could clobber handoff
 // content. Every other whitelisted file allows the full set.
 const FULL = Object.freeze(['append', 'replace', 'note', 'list']);
 const APPEND_ONLY = Object.freeze(['append', 'note', 'list']);
 export const MD_PATCH_CAPABILITIES = Object.freeze({
-  'quest-todo.md': FULL,
-  'continuum-todo.md': FULL,
-  'todo.md': FULL,
-  'progress.md': FULL,
-  'HANDOFF.md': APPEND_ONLY,
+  'torii-quest-todo.md': FULL,
+  'torii-continuum-todo.md': FULL,
+  'torii-quest-todo.md': FULL,
+  'torii-quest-progress.md': FULL,
+  'torii-quest-handoff.md': APPEND_ONLY,
 });
 
 // Default heading for the `note` action per file (the natural "on the fly" live
 // update target). Overridable via --heading on the CLI. Verified against the
 // real docs; if a heading is renamed, the note action reports heading-not-found.
 export const MD_PATCH_NOTE_HEADING = Object.freeze({
-  'quest-todo.md': 'Active MVP tasks',
-  'continuum-todo.md': 'Active tasks',
-  'todo.md': 'Source of truth (active task queues)',
-  'progress.md': 'Active now',
-  'HANDOFF.md': '8. Active issues / open edges',
+  'torii-quest-todo.md': 'Active MVP tasks',
+  'torii-continuum-todo.md': 'Active tasks',
+  'torii-quest-todo.md': 'Source of truth (active task queues)',
+  'torii-quest-progress.md': 'Active now',
+  'torii-quest-handoff.md': '8. Active issues / open edges',
 });
 
 // capabilityFor(file) → the frozen action list for that file, or [] if not
@@ -394,7 +394,7 @@ Actions:
   list     (read-only) print every heading with its level
 
 Whitelist (only these may be edited): ${MD_PATCH_WHITELIST.join(', ')}
-Capabilities: HANDOFF.md is append-only (no replace); all others allow replace.
+Capabilities: torii-quest-handoff.md is append-only (no replace); all others allow replace.
 Default note headings: quest-todo=Active MVP tasks · continuum-todo=Active tasks ·
   todo=Source of truth (active task queues) · progress=Active now ·
   HANDOFF=8. Active issues / open edges

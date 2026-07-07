@@ -21,7 +21,7 @@ import { fallbackEvidence } from './zoneFallbackReadiness.mjs';
 export const VPS_DRY_RUN_BADGE = 'VPS INSTALL DRY-RUN · LOCAL · READ-ONLY · NO SSH/NETWORK/DNS';
 
 // The docs an operator must have in order before a deploy. Missing any is a hard fail.
-export const REQUIRED_DOCS = Object.freeze(['VPS_INSTALL.md', 'UPDATE_CHECK.md', 'HANDOFF.md']);
+export const REQUIRED_DOCS = Object.freeze(['VPS_INSTALL.md', 'UPDATE_CHECK.md', 'torii-quest-handoff.md']);
 
 // Section anchors VPS_INSTALL.md must carry so the manual install/update/rollback story is
 // complete. Matched case-insensitively as substrings of a heading line.
@@ -136,7 +136,7 @@ export function checkRealRepoMetadata(releaseMeta, updateCheckDoc) {
     `metadata + UPDATE_CHECK.md both reference ${REAL_REPO_SLUG}`);
 }
 
-// VPS_INSTALL.md + HANDOFF.md document the SPA /zone/* → index.html fallback (reuse the guard).
+// VPS_INSTALL.md + torii-quest-handoff.md document the SPA /zone/* → index.html fallback (reuse the guard).
 export function checkZoneFallbackDocs(vpsDoc, handoffDoc) {
   const vps = fallbackEvidence(vpsDoc);
   const handoff = fallbackEvidence(handoffDoc);
@@ -147,10 +147,10 @@ export function checkZoneFallbackDocs(vpsDoc, handoffDoc) {
   }
   if (!vpsOk || !handoff.indexFallback) {
     return check('zone-fallback-docs', '/zone/* SPA fallback documented', WARN,
-      'VPS_INSTALL.md shows the index.html fallback but the /zone/ route link is thin in VPS_INSTALL.md/HANDOFF.md');
+      'VPS_INSTALL.md shows the index.html fallback but the /zone/ route link is thin in VPS_INSTALL.md/torii-quest-handoff.md');
   }
   return check('zone-fallback-docs', '/zone/* SPA fallback documented', PASS,
-    'VPS_INSTALL.md + HANDOFF.md describe the /zone/* → index.html fallback');
+    'VPS_INSTALL.md + torii-quest-handoff.md describe the /zone/* → index.html fallback');
 }
 
 // VPS_INSTALL.md carries the required install/update/rollback/security sections.
@@ -168,7 +168,7 @@ export function checkVpsSections(vpsDoc) {
     `all required sections present: ${REQUIRED_VPS_SECTIONS.join(', ')}`);
 }
 
-// build/verify commands are spelled out in the deploy docs (VPS_INSTALL.md or HANDOFF.md).
+// build/verify commands are spelled out in the deploy docs (VPS_INSTALL.md or torii-quest-handoff.md).
 export function checkBuildCommands(vpsDoc, handoffDoc) {
   const corpus = `${vpsDoc || ''}\n${handoffDoc || ''}`;
   const missing = REQUIRED_BUILD_COMMANDS.filter((c) => !containsCI(corpus, c));
@@ -225,18 +225,18 @@ export function checkLiveUrls(handoffDoc) {
   const missing = LIVE_URLS.filter((u) => !containsCI(handoffDoc, u));
   if (missing.length === LIVE_URLS.length) {
     return check('live-urls', 'live URL references clear', FAIL,
-      `HANDOFF.md references none of: ${LIVE_URLS.join(', ')}`);
+      `torii-quest-handoff.md references none of: ${LIVE_URLS.join(', ')}`);
   }
   if (missing.length) {
     return check('live-urls', 'live URL references clear', WARN,
-      `HANDOFF.md does not mention: ${missing.join(', ')}`);
+      `torii-quest-handoff.md does not mention: ${missing.join(', ')}`);
   }
   return check('live-urls', 'live URL references clear', PASS,
-    `HANDOFF.md references: ${LIVE_URLS.join(', ')}`);
+    `torii-quest-handoff.md references: ${LIVE_URLS.join(', ')}`);
 }
 
 // runVpsDryRun({ docs, dist, releaseMeta }) → folded checklist. PURE; never throws.
-//   docs:        { 'VPS_INSTALL.md': str, 'UPDATE_CHECK.md': str, 'HANDOFF.md': str, ... }
+//   docs:        { 'VPS_INSTALL.md': str, 'UPDATE_CHECK.md': str, 'torii-quest-handoff.md': str, ... }
 //   dist:        { paths: [..] } or omitted (no build → the dist row is SKIPPED)
 //   releaseMeta: parsed public/release-metadata.json object, or null when missing/unparseable
 // `ok` is true iff NO check failed. warn/skip never flip `ok`.
@@ -245,7 +245,7 @@ export function runVpsDryRun(input) {
   const d = docs && typeof docs === 'object' ? docs : {};
   const vpsDoc = d['VPS_INSTALL.md'];
   const updateCheckDoc = d['UPDATE_CHECK.md'];
-  const handoffDoc = d['HANDOFF.md'];
+  const handoffDoc = d['torii-quest-handoff.md'];
 
   const checks = [];
 

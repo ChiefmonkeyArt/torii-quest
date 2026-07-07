@@ -1,6 +1,6 @@
 // tools/zoneFallbackReadiness.mjs — PURE, node-safe SPA `/zone/*` fallback READINESS
 // checks (v0.2.185). Makes the OUTSTANDING torii.quest/VPS static-host requirement —
-// "serve index.html for any /zone/<slug> path" (HANDOFF.md §7, GATEWAY_PROTOCOL.md,
+// "serve index.html for any /zone/<slug> path" (torii-quest-handoff.md §7, GATEWAY_PROTOCOL.md,
 // documented since the v0.2.182 client-side route parser) — operationally EXPLICIT and
 // CHECKABLE, without touching app runtime behaviour or contacting any server.
 //
@@ -28,8 +28,8 @@ export const ZONE_FALLBACK_BADGE = 'ZONE FALLBACK · DOCS+DIST CHECK · LOCAL RE
 
 // The docs that MUST carry the SPA-fallback requirement so a future host operator can't
 // miss it. VPS_INSTALL.md must show the concrete server directive (the EXAMPLE config);
-// HANDOFF.md must document the requirement in the deploy section.
-export const REQUIRED_FALLBACK_DOCS = ['VPS_INSTALL.md', 'HANDOFF.md'];
+// torii-quest-handoff.md must document the requirement in the deploy section.
+export const REQUIRED_FALLBACK_DOCS = ['VPS_INSTALL.md', 'torii-quest-handoff.md'];
 
 // The SPA entry document a fallback must resolve unmatched paths to.
 const INDEX_DOC = 'index.html';

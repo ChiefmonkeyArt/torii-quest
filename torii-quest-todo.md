@@ -5,14 +5,14 @@ Source of truth for Torii Quest tasks.
 ## Scope
 
 Torii Quest is the game app.
-Torii Continuum is a separate dashboard app and must stay on `continuum-todo.md`.
+Torii Continuum is a separate dashboard app and must stay on `torii-continuum-todo.md`.
 Nostr Arena is archival only and must not be used as the active queue for Quest.
 
 This todo is reprioritised around the lean MVP only:
 - Keep the freedom-tech loop clear and demoable.
 - Keep shooter work maintenance-only unless a bug is demo-breaking.
 - Keep BotAgent / runtime separation work only where it improves Quest vs Continuum boundaries or prevents instability.
-- `NOSTR_ARENA_MASTER_TODO.md` is deleted; `todo.md` is a legacy tooling shim only. Do not use either as an active queue.
+- `NOSTR_ARENA_MASTER_TODO.md` is deleted; `torii-quest-todo.md` is a legacy tooling shim only. Do not use either as an active queue.
 - Defer broader polish, most live-promotion work, and larger redesign passes to Milestone 2 and Milestone 3, while keeping security gates visible until the related live features are promoted.
 
 
@@ -32,10 +32,10 @@ Goal: ship the smallest clean proof-of-concept that demonstrates the Torii Quest
 - Keep the four MVP proof slices visible and coherent as one loop: Gateway, Product, Leaderboard, Update.
 - Keep the title-screen / entry / in-world flow stable so the loop can be demoed end-to-end without silent failure.
 - Keep the current safe gateway path intact: preview, intent, consent copy, dry-run plan, same-origin executor seam, and controlled host transport seam.
-- Complete the move of the Torii jump gate / gateway experience into the far-right corner of the NAP zone (DONE v0.2.245–v0.2.250) and now **promote the gateway to the live n2n hop**: see `strategy.md` → "15-Hour Proof-of-Concept Route" item 2. Phased — P0 presence/who's-online (live relay read + publish our own world-presence event) → P1 signed travel-request/confirm handshake (NIP-07, SEC-2) → P2 cross-host jump carrying npub (SEC-3) → P3 two-instance interop proof. The placeholder second-zone idea is RETIRED in favour of the real cross-world hop described in `GATEWAY_PROTOCOL.md` §6.
+- Complete the move of the Torii jump gate / gateway experience into the far-right corner of the NAP zone (DONE v0.2.245–v0.2.250) and now **promote the gateway to the live n2n hop**: see `torii-quest-strategy.md` → "15-Hour Proof-of-Concept Route" item 2. Phased — P0 presence/who's-online (live relay read + publish our own world-presence event) → P1 signed travel-request/confirm handshake (NIP-07, SEC-2) → P2 cross-host jump carrying npub (SEC-3) → P3 two-instance interop proof. The placeholder second-zone idea is RETIRED in favour of the real cross-world hop described in `GATEWAY_PROTOCOL.md` §6.
 - Keep BotAgent / separation work only where it sharpens the Torii Quest vs Torii Continuum app boundary or prevents demo-breaking instability.
 - Keep docs / handoff / code-index upkeep only at the minimum needed to stop agent confusion and preserve clean app separation.
-- Stand up a safe assistant-editable .md pipeline for quest-todo.md / continuum-todo.md so todo, handoff, and progress updates can be made on the fly without manual copy-editing. **BUILT v0.2.259** — `tools/mdPatch.mjs` (mdPatch-2): whitelist now covers quest-todo / continuum-todo / todo / progress / HANDOFF; per-file capability map (HANDOFF append-only); new `note` action appends a timestamped live bullet under a per-file default heading. `npm run md:patch`.
+- Stand up a safe assistant-editable .md pipeline for torii-quest-todo.md / torii-continuum-todo.md so todo, handoff, and progress updates can be made on the fly without manual copy-editing. **BUILT v0.2.259** — `tools/mdPatch.mjs` (mdPatch-2): whitelist now covers quest-todo / continuum-todo / todo / progress / HANDOFF; per-file capability map (HANDOFF append-only); new `note` action appends a timestamped live bullet under a per-file default heading. `npm run md:patch`.
 - Stand up a thin Continuum click-through mockup for the MVP loop (read-only dashboard path, no admin actions), so the freedom-tech loop can be demonstrated with oversight.
 
 ### MVP constraints

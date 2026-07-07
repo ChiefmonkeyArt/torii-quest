@@ -3,7 +3,7 @@
 // JSON snapshot, and writes both into public/ so Vite copies them verbatim into dist/.
 // Run with: node tools/build-continuum.mjs  (or: npm run build:continuum).
 //
-// Safe by construction: it only READS the curated data module + progress.md/todo.md and
+// Safe by construction: it only READS the curated data module + torii-quest-progress.md/torii-quest-todo.md and
 // WRITES two static files under public/. No network, no install, no external writes, no
 // game code. As of v0.2.174 it DERIVES the dashboard's list sections from the project
 // docs via the pure tools/continuumParse.mjs and merges them over the curated fallback.
@@ -61,9 +61,9 @@ function readSafe(rel) {
   catch { return ''; }
 }
 
-const SOURCES = ['progress.md', 'todo.md'];
-const progressMd = readSafe('progress.md');
-const todoMd = readSafe('todo.md');
+const SOURCES = ['torii-quest-progress.md', 'torii-quest-todo.md'];
+const progressMd = readSafe('torii-quest-progress.md');
+const todoMd = readSafe('torii-quest-todo.md');
 const { overrides, taskTotals, parsed, gaps } = deriveContinuumData({ progressMd, todoMd });
 
 // Engineering-health: GENERATE the deterministic fields at build time (profile file
@@ -211,7 +211,7 @@ try {
 }
 
 // No-blocker queue (v0.2.216): the safe next move an AI agent can pick up with NO user input vs the
-// one item parked on the human. DERIVED from the SAME parsed todo.md/progress.md taskTotals the rest
+// one item parked on the human. DERIVED from the SAME parsed torii-quest-todo.md/torii-quest-progress.md taskTotals the rest
 // of the dashboard already uses (no second source of truth) plus the curated next SAFE task and a
 // manual-pending flag read off the manual-validation card. Pure data — no fs/crypto/git/network here
 // beyond what taskTotals already gathered. On any failure we degrade to the curated card.

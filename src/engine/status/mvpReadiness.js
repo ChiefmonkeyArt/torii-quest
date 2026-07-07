@@ -51,7 +51,7 @@ const SAFETY_FLAGS = Object.freeze([
 // DEFAULT_TEST_STATUS — the last-known local test verdict (vitest), injected as a curated
 // fixture so the module stays pure. A build/CLI step can pass the live numbers via
 // opts.tests. Kept in lock-step with the dashboard's CURRENT_TEST_STATUS capture
-// (continuumData.js) — a unit test (tests/continuum-dashboard.render.test.js, v0.2.200) asserts
+// (toriiQuestData.js) — a unit test (tests/torii-quest-dashboard.render.test.js, v0.2.200) asserts
 // the two captures agree, so this count can't quietly drift from the dashboard's.
 export const DEFAULT_TEST_STATUS = Object.freeze({
   passing: 2009,

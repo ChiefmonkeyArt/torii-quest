@@ -1,6 +1,6 @@
-// tests/continuum-parse.test.js — locks the PURE build-time doc parser
-// (tools/continuumParse.mjs, v0.2.174) that derives the Torii Continuum dashboard's
-// list sections from torii-quest-progress.md/torii-quest-todo.md, plus the buildContinuumModel(overrides)
+// tests/torii-quest-dashboard.parse.test.js — locks the PURE build-time doc parser
+// (tools/toriiQuestDashboardParse.mjs, v0.2.174) that derives the Torii Quest dashboard's
+// list sections from torii-quest-progress.md/torii-quest-todo.md, plus the buildToriiQuestModel(overrides)
 // merge seam it feeds. Proves: section/list parsing, bullet cleaning, safe fallback +
 // gap reporting on a missing/garbled section, the docs-derived task counts, and that
 // overrides REPLACE curated arrays + recompute totals while no-override stays curated.
@@ -8,11 +8,11 @@ import { describe, it, expect } from 'vitest';
 import {
   stripInlineMd, cleanBullet, sectionLines,
   parseNumberedList, parseStruckBullets, parseBullets,
-  countStruck, deriveContinuumData, summariseTaskTotals,
-} from '../tools/continuumParse.mjs';
+  countStruck, deriveToriiQuestData, summariseTaskTotals,
+} from '../tools/toriiQuestDashboardParse.mjs';
 import {
-  buildContinuumModel, computeTotals, CONTINUUM,
-} from '../src/engine/dashboard/continuumData.js';
+  buildToriiQuestModel, computeTotals, CONTINUUM,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 
 const PROGRESS = `# Title
 
@@ -99,9 +99,9 @@ describe('list parsers', () => {
   });
 });
 
-describe('deriveContinuumData', () => {
+describe('deriveToriiQuestData', () => {
   it('derives all four list sections + task totals from clean docs', () => {
-    const d = deriveContinuumData({ progressMd: PROGRESS, todoMd: TODO });
+    const d = deriveToriiQuestData({ progressMd: PROGRESS, todoMd: TODO });
     expect(d.overrides.next12.length).toBe(3);
     expect(d.overrides.activeNow.length).toBe(2);
     expect(d.overrides.completed24h.length).toBe(2);
@@ -112,15 +112,15 @@ describe('deriveContinuumData', () => {
     expect(d.parsed.length).toBe(4);
   });
   it('falls back safely (no override) and reports a gap when a section is missing', () => {
-    const d = deriveContinuumData({ progressMd: '# empty\n', todoMd: '' });
+    const d = deriveToriiQuestData({ progressMd: '# empty\n', todoMd: '' });
     expect(d.overrides.next12).toBeUndefined();
     expect(d.overrides.activeNow).toBeUndefined();
     expect(d.gaps.length).toBeGreaterThan(0);
     expect(d.taskTotals.todoCompletedMarkers).toBe(0);
   });
   it('never throws on null/garbage input', () => {
-    expect(() => deriveContinuumData()).not.toThrow();
-    expect(() => deriveContinuumData({ progressMd: null, todoMd: 123 })).not.toThrow();
+    expect(() => deriveToriiQuestData()).not.toThrow();
+    expect(() => deriveToriiQuestData({ progressMd: null, todoMd: 123 })).not.toThrow();
   });
   it('summariseTaskTotals renders a one-line metric, safe on null', () => {
     expect(summariseTaskTotals(null)).toBe('');
@@ -142,7 +142,7 @@ describe('running-log bounds tolerance (v0.2.208)', () => {
   };
 
   it('parses a long-but-bounded Active now (34 items) without a gap', () => {
-    const d = deriveContinuumData({ progressMd: docWith(34, 26), todoMd: '' });
+    const d = deriveToriiQuestData({ progressMd: docWith(34, 26), todoMd: '' });
     expect(d.overrides.activeNow.length).toBe(34);
     expect(d.overrides.completed24h.length).toBe(26);
     expect(d.gaps.some((g) => g.startsWith('activeNow'))).toBe(false);
@@ -150,7 +150,7 @@ describe('running-log bounds tolerance (v0.2.208)', () => {
   });
 
   it('still falls back to the curated default when a list is absurdly long', () => {
-    const d = deriveContinuumData({ progressMd: docWith(61, 61), todoMd: '' });
+    const d = deriveToriiQuestData({ progressMd: docWith(61, 61), todoMd: '' });
     expect(d.overrides.activeNow).toBeUndefined();
     expect(d.overrides.completed24h).toBeUndefined();
     expect(d.gaps.some((g) => g.startsWith('activeNow'))).toBe(true);
@@ -158,9 +158,9 @@ describe('running-log bounds tolerance (v0.2.208)', () => {
   });
 });
 
-describe('buildContinuumModel(overrides) merge seam', () => {
+describe('buildToriiQuestModel(overrides) merge seam', () => {
   it('no overrides → curated model unchanged', () => {
-    const m = buildContinuumModel();
+    const m = buildToriiQuestModel();
     expect(m.next12).toEqual(CONTINUUM.next12);
     expect(m.totals.tasksAhead).toBe(12);
     expect(m.taskTotals).toBeNull();
@@ -173,7 +173,7 @@ describe('buildContinuumModel(overrides) merge seam', () => {
       taskTotals: { isDerived: true, todoCompletedMarkers: 9 },
       derived: { parsed: ['next12 (3)'], gaps: [], sources: ['torii-quest-progress.md'] },
     };
-    const m = buildContinuumModel(overrides);
+    const m = buildToriiQuestModel(overrides);
     expect(m.totals.tasksAhead).toBe(3);
     expect(m.totals.completedLast24h).toBe(1);
     expect(m.taskTotals.todoCompletedMarkers).toBe(9);
@@ -182,7 +182,7 @@ describe('buildContinuumModel(overrides) merge seam', () => {
     expect(CONTINUUM.next12.length).toBe(12);
   });
   it('totals override keeps non-overridden sections curated', () => {
-    const m = buildContinuumModel({ next12: ['only one'] });
+    const m = buildToriiQuestModel({ next12: ['only one'] });
     expect(m.totals.activeTasks).toBe(computeTotals(CONTINUUM).activeTasks);
   });
 });

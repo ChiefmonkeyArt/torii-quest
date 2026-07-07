@@ -36,7 +36,7 @@ const FAST = [
 // foundation: fast PLUS the wider pure-engine seams (combat damage, raycast service, player
 // boundary, bot agent), the SDK contract surface (sdk barrel, registry, component), the
 // read-only security gate, and the build-time guard suites (doc-consistency, handoff-status,
-// bundle-sizes, continuum-parse, zone-fallback-readiness, release-readiness). Broader
+// bundle-sizes, torii-quest-dashboard.parse, zone-fallback-readiness, release-readiness). Broader
 // confidence than fast, still far cheaper than the
 // whole suite. Must remain a superset of fast (enforced by validateProfiles + the unit test).
 const FOUNDATION = [
@@ -58,7 +58,7 @@ const FOUNDATION = [
   'doc-consistency.test.js',
   'handoff-status.test.js',
   'bundle-sizes.test.js',
-  'continuum-parse.test.js',
+  'torii-quest-dashboard.parse.test.js',
   'zone-fallback-readiness.test.js',
   'release-readiness.test.js',
 ];

@@ -1,12 +1,12 @@
 {
   "name": "torii-quest",
-  "version": "0.2.350-alpha",
+  "version": "0.2.351-alpha",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:continuum": "node tools/build-continuum.mjs",
-    "build": "node tools/build-continuum.mjs && vite build",
+    "build:torii-quest-dashboard": "node tools/build-torii-quest-dashboard.mjs",
+    "build": "node tools/build-torii-quest-dashboard.mjs && vite build",
     "preview": "vite preview",
     "check": "node tools/regression-check.mjs",
     "bundle:report": "node tools/bundle-report.mjs",

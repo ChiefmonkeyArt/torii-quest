@@ -90,8 +90,8 @@ LOCAL `SAMPLE_PROFILE_EVENTS`/`SAMPLE_SCORE_EVENTS`. Six pure signal checks
 future-gated) fold into `runReadHealth({profileEvents,scoreEvents})→{ok,badge,signals,summary:{total:6,ok,fail},readOnly:true,signed:false,published:false,errors}`;
 `formatReadHealth` renders one stable text block. Derives all signals from the shipped pure
 read modules — NO relay/socket/sign/publish/DOM/network/key handling; never throws on
-null/empty input. Surfaced in the Torii Continuum dashboard as a read-only status panel
-(`buildReadHealthModel` in `continuumData.js`) and in `ToriiDebug.shells.readHealth`.
+null/empty input. Surfaced in the Torii Quest dashboard as a read-only status panel
+(`buildReadHealthModel` in `toriiQuestData.js`) and in `ToriiDebug.shells.readHealth`.
 
 `travelSmoke` (GATEWAY / TRAVEL-SMOKE, v0.2.195) is the pure READ-ONLY/DRY-RUN smoke
 harness that proves the gateway travel-flow contracts hold WITHOUT a browser, router, or
@@ -138,7 +138,7 @@ updater (performs no real update). Reachable read-only via
 harness that proves the torii.quest static-host route + asset readiness contracts hold WITHOUT
 a server, shell, or network. Constants: `HOST_ROUTE_SMOKE_VERSION` (1), `HOST_ROUTE_SMOKE_BADGE`
 (`HOST ROUTE SMOKE · READ-ONLY · NO DEPLOY`), `REQUIRED_ASSETS` (index.html / continuum.html /
-continuum-data.json / release-metadata.json); frozen LOCAL fixtures `SAMPLE_DIST_PATHS`
+torii-quest-data.json / release-metadata.json); frozen LOCAL fixtures `SAMPLE_DIST_PATHS`
 (Vite-build-shape path list), `SAMPLE_FALLBACK_DOCS` (VPS_INSTALL.md/torii-quest-handoff.md with try_files +
 /zone/ text), `SAMPLE_ZONE_SLUG` (`plebeian-market-bazaar`), `HOSTILE_ZONE_PATHS` (absolute scheme /
 protocol-relative / dot-dot / sub-path / uppercase+underscore / empty slug / percent-encoding /
@@ -444,37 +444,37 @@ external nav; the safety model is unchanged (proximity ARMS, KeyF confirms, same
 safe — NO module-scope `window`/THREE/DOM; never throws. Reachable read-only via `ToriiDebug.shells.zoneLabel(opts?)`
 / `zoneLabelReport(opts?)`, which return label previews + a `safe` flag proving hostile input is stripped.
 
-`continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Continuum
+`continuum` (PROGRESS-1 / project oversight, v0.2.171) is the pure Torii Quest
 project-oversight DASHBOARD data + renderer — the FIRST slice of a broader oversight surface.
 `CONTINUUM` holds the curated `torii-quest-progress.md` snapshot (metrics, a clearly-flagged SEED
 contributors/clankers metric, tracks, the 15-hour `leanRoute`, activeNow/next12/archive/
-completed24h, risks, sourceOfTruth) + `CONTINUUM_VERSION`/`CONTINUUM_BADGE`. Pure helpers:
+completed24h, risks, sourceOfTruth) + `TORII_QUEST_VERSION`/`TORII_QUEST_BADGE`. Pure helpers:
 `escapeHtml`, `clampPct` (0..100|null), `barCells`, `ringDash`, `computeTotals(data)` (headline
-counts + pocProgressPct/buildProgressPct/milestonesAchievedPct), `buildContinuumModel()`,
-`continuumDataJSON(model)` (the packaged JSON snapshot), and `renderContinuumPage(model)` → a
+counts + pocProgressPct/buildProgressPct/milestonesAchievedPct), `buildToriiQuestModel()`,
+`toriiQuestDataJSON(model)` (the packaged JSON snapshot), and `renderToriiQuestPage(model)` → a
 self-contained dark-cyberpunk static HTML string (CSS bars + 3 SVG donut rings + totals strip +
 Now/Next/Later + next-12 + struck completed-24h + archive + source-of-truth footer). Renders fully
-WITHOUT JS; a SAME-ORIGIN-only refresh script re-reads `./continuum-data.json` (no external URL/
-eval/timers). `tools/build-continuum.mjs` (in `npm run build`) writes `public/continuum.html` +
-`public/continuum-data.json` each build, so a page refresh shows the latest PACKAGED state.
+WITHOUT JS; a SAME-ORIGIN-only refresh script re-reads `./torii-quest-data.json` (no external URL/
+eval/timers). `tools/build-torii-quest-dashboard.mjs` (in `npm run build`) writes `public/continuum.html` +
+`public/torii-quest-data.json` each build, so a page refresh shows the latest PACKAGED state.
 READ-ONLY: no live writes/auth/signing/relay-publish/admin actions/navigation. Open it from the
 title-screen `⛩ PROJECT DASHBOARD` link (`./continuum.html`).
-**CSP hardening (v0.2.172):** `renderContinuumPage` now emits a strict `Content-Security-Policy`
-`<meta>` (`CONTINUUM_CSP`) — `default-src 'self'`; `object-src`/`base-uri`/`form-action`/
+**CSP hardening (v0.2.172):** `renderToriiQuestPage` now emits a strict `Content-Security-Policy`
+`<meta>` (`TORII_QUEST_CSP`) — `default-src 'self'`; `object-src`/`base-uri`/`form-action`/
 `frame-ancestors` `'none'`; `connect-src 'self'` (same-origin JSON refresh only); `script-src
 'self' '<sha256>'` (NO `'unsafe-inline'` script — the one refresh IIFE is hashed via
-`CONTINUUM_SCRIPT_SHA256` over `CONTINUUM_REFRESH_SCRIPT`, kept in sync by a `node:crypto` test so
+`TORII_QUEST_SCRIPT_SHA256` over `TORII_QUEST_REFRESH_SCRIPT`, kept in sync by a `node:crypto` test so
 it cannot drift); `style-src 'self' 'unsafe-inline'` (data-driven bar widths only — styles cannot
 execute JS). Resolves the prior inline-script WARN; page stays fully static/read-only.
 **Engineering health (v0.2.175):** a PURE `buildHealthModel(input)` + frozen `HEALTH_LASTKNOWN`
 baseline drive an **Engineering health** `<section>` (cards + 3 SVG rings + the efficiency-loop
 note: measure · profile · standardise · automate · modularise · document). It runs at module load
-for the curated `CONTINUUM.health` fallback AND in `tools/build-continuum.mjs` with GENERATED
+for the curated `CONTINUUM.health` fallback AND in `tools/build-torii-quest-dashboard.mjs` with GENERATED
 inputs (profile/test-file counts, parser gaps, version, doc-sync). Each metric carries
 `kind: 'generated' | 'last-known'` shown as a provenance chip (`.hk-gen`/`.hk-lk`) so a stale
 number is obvious; GENERATED = profile sizes/parser gaps/version/doc-sync, LAST-KNOWN = total
 tests/timings/bundle/last-green gate. Server-rendered escaped text, NO new `<script>` — CSP hash
-unchanged. `continuumDataJSON` carries `health`.
+unchanged. `toriiQuestDataJSON` carries `health`.
 
 **Milestones (v0.2.176):** a PURE `buildMilestoneModel(input)` + frozen `SEED_MILESTONES` drive a
 **Milestones** `<section>`. The 15-hour MVP route is the ONE true ACTIVE milestone — its
@@ -482,8 +482,8 @@ unchanged. `continuumDataJSON` carries `health`.
 from each slice's `state`) + a `donePct` and a directional `progressPct` (`_average` of per-slice
 `progress`, labelled an estimate, never conflated with tasks-done) — shown as an ACTIVE-pill card
 with a % bar + bullet-list counts, alongside clearly-labelled `SEED_MILESTONES` future cards so the
-"total milestones" figure stays HONEST (1 active + N seed). `buildContinuumModel` attaches
-`milestones`; `continuumDataJSON` carries it. Grouped card values now render as `<ul class="mini">`
+"total milestones" figure stays HONEST (1 active + N seed). `buildToriiQuestModel` attaches
+`milestones`; `toriiQuestDataJSON` carries it. Grouped card values now render as `<ul class="mini">`
 bullet lists via `_cardValueHtml` (` · `-joined → bullets; user preference over dense prose).
 Server-rendered escaped text, NO new `<script>` — CSP hash unchanged. Layout follow-up:
 **DASHBOARD-LAYOUT-1**.
@@ -508,13 +508,13 @@ checked) / **DOCS READY · BUILD CHECK PENDING** (docs ok, no build yet) / **NOT
 doc/dist shape fails) / **NOT CHECKED** (no input) — and a four-row per-check table (SPA fallback
 documented, built dist route shape, host fallback = MANUAL, auto-update = MANUAL). It never throws
 and each check `state` reuses the existing pill vocabulary (`no-blocker`/`gated`/`manual`/
-`deferred`) so `_readinessSection` adds NO new CSS. `tools/build-continuum.mjs` reads the required
+`deferred`) so `_readinessSection` adds NO new CSS. `tools/build-torii-quest-dashboard.mjs` reads the required
 docs + walks `dist/` at packaging time (absent → dist check SKIPPED; regression-check [15] is the
 authoritative dist check) and feeds the real verdict; with no override a curated NOT-CHECKED model
-ships. `continuumDataJSON` carries `readiness`. Server-rendered escaped text, NO new `<script>`/
-`data-k` → CSP hash unchanged. `tests/continuum-dashboard.test.js` (+8).
+ships. `toriiQuestDataJSON` carries `readiness`. Server-rendered escaped text, NO new `<script>`/
+`data-k` → CSP hash unchanged. `tests/torii-quest-dashboard.test.js` (+8).
 
-**Ship readiness (v0.2.188):** `continuumData.js` `buildShipModel(input={})` folds the v0.2.187
+**Ship readiness (v0.2.188):** `toriiQuestData.js` `buildShipModel(input={})` folds the v0.2.187
 read-only release-readiness verdict (passed in as `input.readiness` — the module does NO fs/git/
 network) into a render-ready ship model: live signals → `kind:'generated'`, else it degrades to the
 frozen `SHIP_LASTKNOWN` baseline (`kind:'last-known'`); accepts an `input.nextTask` override
@@ -523,12 +523,12 @@ READ-ONLY'; `SHIP_STATUS_COMMAND` = 'npm run release:status'; `SHIP_SIGNAL_PILL`
 status to the existing pill vocabulary (ok→`no-blocker`, blocked→`gated`, advisory→`manual`,
 skipped/unknown→`deferred`). `_shipSection` (status pill + `_healthChip(ship.kind)` + **Next safe
 task** block + six-row signal table + blockers/unknowns/verdict lines, all escaped) sits after
-Active focus, before Milestones; NO new CSS. `buildContinuumModel` attaches `ship` (falling back to
-`CURATED_SHIP = buildShipModel()`); `continuumDataJSON` carries `ship`. `tools/release-readiness.mjs`
+Active focus, before Milestones; NO new CSS. `buildToriiQuestModel` attaches `ship` (falling back to
+`CURATED_SHIP = buildShipModel()`); `toriiQuestDataJSON` carries `ship`. `tools/release-readiness.mjs`
 now EXPORTS `gatherReleaseReadiness(root=process.cwd())` (fs/git helpers are closures over `root`,
 behind a `realpathSync` run-guard so the `release:status` CLI is unchanged) and
-`tools/build-continuum.mjs` feeds that SAME verdict into `buildShipModel` at packaging time. NO new
-`<script>`/`data-k` → CSP hash unchanged. `tests/continuum-dashboard.test.js` (+10).
+`tools/build-torii-quest-dashboard.mjs` feeds that SAME verdict into `buildShipModel` at packaging time. NO new
+`<script>`/`data-k` → CSP hash unchanged. `tests/torii-quest-dashboard.test.js` (+10).
 
 `githubReleaseSource` (LEAN-5, v0.2.157) is the pure GitHub Releases source adapter:
 `normalizeRelease`/`selectLatestRelease`/`evaluateFromSource` turn a `releases/latest`
@@ -948,7 +948,7 @@ PURE/node-safe — composes plain data only; renders and acts on nothing.
 | `tools/releaseMeta.mjs` (PURE release/update METADATA, v0.2.192) + `tools/release-meta.mjs` CLI (`npm run release:meta`) — shapes the static metadata a FUTURE torii.quest / VPS update-checker reads to surface an inert "update available" notice, with NO live update and NO runtime network. `buildReleaseMeta`/`validateReleaseMeta`/`formatReleaseMeta` + `channelForVersion`/`releaseUrlsFor` + constants (`RELEASE_META_BADGE`, `METADATA_SCHEMA_VERSION`, `RELEASE_META_KIND`, `RELEASE_META_FILE`=`public/release-metadata.json`, `UPDATE_CHANNELS`, `DEFAULT_SOURCE`, `DIST_SPEC`, `REQUIRED_FILES`, `REQUIRED_CHECKS`, `CONSENT_TEXT`, `UPDATE_NOTICE`). `validateReleaseMeta` is the SAFETY FLOOR — ERRORs if `update.autoUpdate`/`update.actionable` ≠ `false` (machine-enforced no-auto-update contract); never throws, safe on degraded input. CLI: text / `--json` / `--write` (DETERMINISTIC `public/release-metadata.json`, re-runs never churn) / `--stamp` (live commit+time for a deploy step), READ-ONLY by default + writes only the in-repo safe path under `--write`, ALWAYS exits 0. | `tests/release-meta.test.js` |
 | `tools/vpsDryRun.mjs` (PURE VPS install dry-run checklist, v0.2.193) + `tools/vps-dry-run.mjs` CLI (`npm run vps:dry-run`) — a LOCAL, READ-ONLY readiness checklist an operator runs BEFORE deploying torii.quest to a VPS/static host, with NO SSH/network/DNS/server change. REUSES the shipped pure guards (`validateReleaseMeta`/`DEFAULT_SOURCE`, `fallbackEvidence`). `runVpsDryRun`/`formatVpsDryRun` + the 11 per-row `check*` fns + constants (`VPS_DRY_RUN_BADGE`, `REQUIRED_DOCS`, `REQUIRED_VPS_SECTIONS`, `REQUIRED_BUILD_COMMANDS`, `REAL_REPO_SLUG`=`ChiefmonkeyArt/torii-gate`, `LIVE_URLS`). Folds 11 checks: required deploy docs; `dist/` (if built) index.html + copied release-metadata.json; metadata present + manual-only; real-repo metadata + UPDATE_CHECK.md; `/zone/*` fallback; VPS_INSTALL sections; build/verify commands; rollback + manual wording; service-worker stance; live URLs. `ok` true iff NO check FAILED (warn/skip never flip it); never throws. CLI: text / `--json`, READ-ONLY/local/no-network, exits non-zero ONLY on a blocking FAIL — NOT in `npm run check`. | `tests/vps-dry-run.test.js` |
 | `tools/handoffStatus.mjs` (AI-handoff status snapshot, `npm run handoff:status`) | `tests/handoff-status.test.js` |
-| `tools/releaseReadiness.mjs` (PURE release-readiness aggregator, v0.2.187) + `tools/release-readiness.mjs` CLI (`npm run release:status`) — one concise ship verdict folding version sync / test-profile counts / regression-gate count / bundle advisory / `/zone/*` fallback / docs consistency / latest reports. **v0.2.188:** the CLI now exports `gatherReleaseReadiness(root)` (fs/git helpers as closures, `realpathSync` run-guard — CLI output unchanged) so `tools/build-continuum.mjs` reuses the SAME verdict for the Continuum **Ship readiness** section via `buildShipModel`. **v0.2.189:** added a pure `buildReleaseStatusJson(summary,{generatedAt})` envelope (`RELEASE_STATUS_SCHEMA`='torii.release-status' / `SCHEMA_VERSION`=1) + a `--json` flag (`npm run release:status:json`) that emits the verdict as machine-readable JSON on stdout (node tools/release-readiness.mjs --json is pure JSON; plain `npm run` prepends a lifecycle banner to stdout, so scripted consumers use `npm run --silent release:status:json`) for dashboard/handoff/updater/agent consumption — `generatedAt` optional/isolated for deterministic tests; garbled summary → `status:'unknown'`; read-only/local/no-network | `tests/release-readiness.test.js` |
+| `tools/releaseReadiness.mjs` (PURE release-readiness aggregator, v0.2.187) + `tools/release-readiness.mjs` CLI (`npm run release:status`) — one concise ship verdict folding version sync / test-profile counts / regression-gate count / bundle advisory / `/zone/*` fallback / docs consistency / latest reports. **v0.2.188:** the CLI now exports `gatherReleaseReadiness(root)` (fs/git helpers as closures, `realpathSync` run-guard — CLI output unchanged) so `tools/build-torii-quest-dashboard.mjs` reuses the SAME verdict for the Continuum **Ship readiness** section via `buildShipModel`. **v0.2.189:** added a pure `buildReleaseStatusJson(summary,{generatedAt})` envelope (`RELEASE_STATUS_SCHEMA`='torii.release-status' / `SCHEMA_VERSION`=1) + a `--json` flag (`npm run release:status:json`) that emits the verdict as machine-readable JSON on stdout (node tools/release-readiness.mjs --json is pure JSON; plain `npm run` prepends a lifecycle banner to stdout, so scripted consumers use `npm run --silent release:status:json`) for dashboard/handoff/updater/agent consumption — `generatedAt` optional/isolated for deterministic tests; garbled summary → `status:'unknown'`; read-only/local/no-network | `tests/release-readiness.test.js` |
 | `tools/testProfiles.mjs` (PURE test-profile registry, v0.2.173) + `tools/test-profile.mjs` CLI (`npm run test:fast` ~5 files / `test:foundation` ~16 files) | `tests/test-profiles.test.js` |
 
 Run all with `npm test` (Vitest, node env). `npm run check` separately guards the

@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.approval.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.approval.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: mvp-approval + playtest-results + approval-gate + handoff control panel + playtest verdict.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -89,16 +89,16 @@ describe('mvp approval card (v0.2.221)', () => {
     }
   });
 
-  it('continuumDataJSON carries the mvpApproval model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the mvpApproval model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.mvpApproval).toBeTruthy();
     expect(typeof j.mvpApproval.statusLabel).toBe('string');
     expect(j.mvpApproval.status).toBe('pending');
     expect(Array.isArray(j.mvpApproval.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the MVP-approval section + badge + pending band pill', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the MVP-approval section + badge + pending band pill', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('>MVP approval<');
     expect(html).toContain(MVPAPPROVAL_BADGE);
     expect(html).toContain('Approval status');
@@ -111,14 +111,14 @@ describe('mvp approval card (v0.2.221)', () => {
       version: 'v0<script>alert(1)</script>',
       approvedBy: '</section><script>evil()</script>',
     });
-    const html = renderContinuumPage(buildContinuumModel({ mvpApproval: hostile }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ mvpApproval: hostile }));
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
@@ -190,8 +190,8 @@ describe('playtest results card (v0.2.223)', () => {
     }
   });
 
-  it('continuumDataJSON carries the playtestResults model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the playtestResults model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.playtestResults).toBeTruthy();
     expect(typeof j.playtestResults.statusLabel).toBe('string');
     expect(j.playtestResults.status).toBe('not-run');
@@ -199,8 +199,8 @@ describe('playtest results card (v0.2.223)', () => {
     expect(Array.isArray(j.playtestResults.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the Playtest-results section + badge + not-run band pill', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Playtest-results section + badge + not-run band pill', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('>Playtest results<');
     expect(html).toContain(PLAYTESTRESULTS_BADGE);
     expect(html).toContain('Results status');
@@ -212,19 +212,19 @@ describe('playtest results card (v0.2.223)', () => {
       status: 'attention', total: 1, fail: 1,
       fails: ['</section><script>evil()</script>'],
     });
-    const html = renderContinuumPage(buildContinuumModel({ playtestResults: hostile }));
+    const html = renderToriiQuestPage(buildToriiQuestModel({ playtestResults: hostile }));
     expect(html).not.toContain('<script>evil()</script>');
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
 describe('handoff / release control panel section (v0.2.233)', () => {
   it('renders the curated handoff panel section with version, live URLs, and principles', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     expect(html).toContain('Handoff / release control panel');
     expect(html).toContain('torii-quest.pplx.app');
     expect(html).toContain('dashboard.html');
@@ -235,7 +235,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
   });
 
   it('surfaces the Workflow invariants metric (the do-not-cancel-useful-jobs rule) in the panel section', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const section = html.slice(html.indexOf('Handoff / release control panel'));
     expect(section).toContain('Workflow invariants');
     // The rule text must be visible to a future agent/human reading the dashboard.
@@ -245,7 +245,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
   });
 
   it('the rendered ethics copy contains NO religious language', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     // The panel's ethics copy must read as a practical engineering compass, not doctrine.
     const denied = ['sacred', 'holy', 'worship', 'prayer', 'divine', 'scripture', 'doctrine', 'gospel', 'salvation'];
     for (const term of denied) {
@@ -254,7 +254,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
   });
 
   it('escapes injected handoff-panel content and keeps exactly one inline script + the CSP hash', () => {
-    const evilPanel = buildContinuumModel({
+    const evilPanel = buildToriiQuestModel({
       handoffPanel: {
         badge: 'B<script>alert(1)</script>',
         kind: 'generated',
@@ -266,7 +266,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
         note: 'n<script>boom()</script>',
       },
     });
-    const html = renderContinuumPage(evilPanel);
+    const html = renderToriiQuestPage(evilPanel);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect(html).not.toContain('<script>x()</script>');
@@ -275,11 +275,11 @@ describe('handoff / release control panel section (v0.2.233)', () => {
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(m).toBeTruthy();
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 
   it('the panel pill stays within the allowed vocabulary', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const allowed = ['pill-no-blocker', 'pill-gated', 'pill-manual', 'pill-deferred', 'pill-open-edge'];
     // The handoff panel's pill class must be one of the known classes (no stray class injected).
     const section = html.slice(html.indexOf('Handoff / release control panel'));
@@ -291,7 +291,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
 
 describe('MVP approval gate section (v0.2.234)', () => {
   it('renders the gate section with the verdict, the focus categories, and the clarifications', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     expect(html).toContain('>MVP approval gate<');
     expect(html).toContain('MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL');
     // The curated gate is confidence-green but awaiting an explicit human OK — never approved.
@@ -310,7 +310,7 @@ describe('MVP approval gate section (v0.2.234)', () => {
   });
 
   it('the gate copy contains NO religious language', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const denied = ['sacred', 'holy', 'worship', 'prayer', 'divine', 'scripture', 'doctrine', 'gospel', 'salvation'];
     for (const term of denied) {
       expect(new RegExp(`\\b${term}\\b`, 'i').test(html)).toBe(false);
@@ -318,7 +318,7 @@ describe('MVP approval gate section (v0.2.234)', () => {
   });
 
   it('escapes injected gate content and keeps exactly one inline script + the CSP hash', () => {
-    const evil = buildContinuumModel({
+    const evil = buildToriiQuestModel({
       mvpGate: {
         badge: 'B<script>alert(1)</script>',
         kind: 'generated',
@@ -332,7 +332,7 @@ describe('MVP approval gate section (v0.2.234)', () => {
         note: 'n<script>boom()</script>',
       },
     });
-    const html = renderContinuumPage(evil);
+    const html = renderToriiQuestPage(evil);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect(html).not.toContain('<script>x()</script>');
@@ -341,11 +341,11 @@ describe('MVP approval gate section (v0.2.234)', () => {
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(m).toBeTruthy();
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 
   it('the gate pill stays within the allowed vocabulary', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const allowed = ['pill-no-blocker', 'pill-gated', 'pill-manual', 'pill-deferred', 'pill-open-edge'];
     const section = html.slice(html.indexOf('>MVP approval gate<'));
     const pillMatch = section.match(/class="pill (pill-[a-z-]+)"/);
@@ -356,7 +356,7 @@ describe('MVP approval gate section (v0.2.234)', () => {
 
 describe('Playtest verdict section (v0.2.235)', () => {
   it('renders the verdict section with the badge, the focus categories, and the how-to', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     expect(html).toContain('>Playtest verdict<');
     expect(html).toContain('MVP PLAYTEST VERDICT · LOCAL · READ-ONLY · TESTER VERDICT ≠ MVP APPROVAL');
     // Curated default ships blank → pending (no verdict recorded yet).
@@ -371,7 +371,7 @@ describe('Playtest verdict section (v0.2.235)', () => {
   });
 
   it('keeps every reported blocker VISIBLE in the rendered section', () => {
-    const model = buildContinuumModel({
+    const model = buildToriiQuestModel({
       playtestVerdict: {
         badge: 'MVP PLAYTEST VERDICT · LOCAL · READ-ONLY · TESTER VERDICT ≠ MVP APPROVAL',
         kind: 'generated', band: 'blocked',
@@ -384,14 +384,14 @@ describe('Playtest verdict section (v0.2.235)', () => {
         note: 'verdict note',
       },
     });
-    const html = renderContinuumPage(model);
+    const html = renderToriiQuestPage(model);
     const section = html.slice(html.indexOf('>Playtest verdict<'));
     expect(section).toContain('headshots flaky');
     expect(section).toContain('crate jitter');
   });
 
   it('the verdict copy contains NO religious language', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const denied = ['sacred', 'holy', 'worship', 'prayer', 'divine', 'scripture', 'doctrine', 'gospel', 'salvation'];
     for (const term of denied) {
       expect(new RegExp(`\\b${term}\\b`, 'i').test(html)).toBe(false);
@@ -399,7 +399,7 @@ describe('Playtest verdict section (v0.2.235)', () => {
   });
 
   it('escapes injected verdict content and keeps exactly one inline script + the CSP hash', () => {
-    const evil = buildContinuumModel({
+    const evil = buildToriiQuestModel({
       playtestVerdict: {
         badge: 'B<script>alert(1)</script>',
         kind: 'generated', band: 'blocked',
@@ -409,7 +409,7 @@ describe('Playtest verdict section (v0.2.235)', () => {
         note: 'n<script>boom()</script>',
       },
     });
-    const html = renderContinuumPage(evil);
+    const html = renderToriiQuestPage(evil);
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<script>evil()</script>');
     expect(html).not.toContain('<script>x()</script>');
@@ -418,11 +418,11 @@ describe('Playtest verdict section (v0.2.235)', () => {
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
     expect(m).toBeTruthy();
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 
   it('the verdict pill stays within the allowed vocabulary', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     const allowed = ['pill-no-blocker', 'pill-gated', 'pill-manual', 'pill-deferred', 'pill-open-edge'];
     const section = html.slice(html.indexOf('>Playtest verdict<'));
     const pillMatch = section.match(/class="pill (pill-[a-z-]+)"/);

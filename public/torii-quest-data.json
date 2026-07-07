@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.349-alpha",
-  "generatedAt": "2026-07-05T11:44:33.920Z",
+  "version": "v0.2.351-alpha",
+  "generatedAt": "2026-07-07T11:05:55.247Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -23,7 +23,7 @@
   },
   "taskTotals": {
     "isDerived": true,
-    "todoCompletedMarkers": 12,
+    "todoCompletedMarkers": 17,
     "next12": 12,
     "activeNow": 52,
     "completed24h": 27,
@@ -38,8 +38,8 @@
     ],
     "gaps": [],
     "sources": [
-      "progress.md",
-      "todo.md"
+      "torii-quest-progress.md",
+      "torii-quest-todo.md"
     ]
   },
   "health": {
@@ -48,7 +48,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.349-alpha"
+        "value": "v0.2.351-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -78,12 +78,12 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.349-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.351-alpha"
       },
       {
         "label": "Source-of-truth docs",
         "kind": "generated",
-        "value": "doc/version drift — check the continuity docs"
+        "value": "torii-quest-progress.md · torii-quest-todo.md · torii-quest-strategy.md carry this version"
       }
     ],
     "rings": [
@@ -151,7 +151,7 @@
       "seed": 3,
       "done": 0
     },
-    "note": "One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from the route states); the rest are SEED/future milestones — labelled as such, not pretending to carry real task counts yet. Future hook: derive seed milestones from strategy.md."
+    "note": "One real ACTIVE milestone (its tasks are the 15-hour MVP slices, DERIVED from the route states); the rest are SEED/future milestones — labelled as such, not pretending to carry real task counts yet. Future hook: derive seed milestones from torii-quest-strategy.md."
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
@@ -161,7 +161,7 @@
       {
         "item": "SPA /zone/* fallback documented",
         "state": "no-blocker",
-        "note": "VPS_INSTALL.md + HANDOFF.md describe serving index.html for /zone/* deep-links"
+        "note": "VPS_INSTALL.md + torii-quest-handoff.md describe serving index.html for /zone/* deep-links"
       },
       {
         "item": "Built dist route shape",
@@ -188,18 +188,18 @@
     "statusCommand": "npm run release:status",
     "gateCommand": "npm run test:release",
     "kind": "generated",
-    "status": "not-ready",
-    "statusLabel": "NOT READY",
-    "ready": false,
-    "version": "v0.2.349-alpha",
-    "gitCommit": "78cba95",
+    "status": "ready",
+    "statusLabel": "READY",
+    "ready": true,
+    "version": "v0.2.351-alpha",
+    "gitCommit": null,
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.349-alpha / pkg 0.2.349-alpha"
+        "detail": "config v0.2.351-alpha / pkg 0.2.351-alpha"
       },
       {
         "key": "tests",
@@ -232,14 +232,12 @@
       {
         "key": "docs",
         "label": "Docs consistency",
-        "state": "blocked",
-        "pill": "gated",
-        "detail": "todo.md does not reference current version v0.2.349-alpha (doc drift); progress.md does not reference current version v0.2.349-alpha (doc drift); HANDOFF.md does not reference current version v0.2.349-alpha (doc drift)"
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "continuity docs carry current version"
       }
     ],
-    "blockers": [
-      "docs"
-    ],
+    "blockers": [],
     "unknowns": [],
     "nextTask": {
       "title": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -251,10 +249,10 @@
   "rcStatus": {
     "badge": "RC / RELEASE MANIFEST · LOCAL · READ-ONLY",
     "kind": "generated",
-    "band": "near",
-    "statusLabel": "NEAR · LOCAL GATES",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.349-alpha",
+    "version": "v0.2.351-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -265,11 +263,11 @@
     "testLabel": "2009 passing / 134 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.349-alpha"
+        "value": "v0.2.351-alpha"
       },
       {
         "label": "Release manifest",
@@ -293,7 +291,7 @@
       },
       {
         "label": "Last release gate",
-        "value": "NOT READY"
+        "value": "READY"
       }
     ],
     "note": "Release-candidate artifact posture — the release-artifact MANIFEST (required/optional present) and RC package-doc coverage, the curated test count, the manual validation still outstanding, and the last local release-gate verdict, folded into one read-only band. GENERATED at packaging time from on-disk artifact presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys NOTHING — manual live-browser validation and explicit user approval stay required (run: npm run rc:snapshot / npm run release:manifest)."
@@ -301,8 +299,8 @@
   "manualValidation": {
     "badge": "MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY",
     "kind": "generated",
-    "band": "manual-outstanding",
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual",
     "sections": 13,
     "items": 17,
@@ -312,7 +310,7 @@
     "validationAreas": 7,
     "checklistDocPresent": true,
     "resultsTemplatePresent": true,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "areas": [
       "Launch / title screen",
       "Shooter loop",
@@ -325,7 +323,7 @@
     "metrics": [
       {
         "label": "Local automated gates",
-        "value": "NOT READY"
+        "value": "READY · 15/15 local checks green"
       },
       {
         "label": "Manual playtest",
@@ -363,7 +361,7 @@
     "nextUp": 12,
     "archiveClusters": 11,
     "completed24h": 27,
-    "todoCompletedMarkers": 12,
+    "todoCompletedMarkers": 17,
     "manualPending": true,
     "metrics": [
       {
@@ -388,10 +386,10 @@
       },
       {
         "label": "Archive / done",
-        "value": "11 landed clusters · 27 done (24h) · 12 struck markers"
+        "value": "11 landed clusters · 27 done (24h) · 17 struck markers"
       }
     ],
-    "note": "No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the active/next/archive counts are DERIVED from the same parsed todo.md/progress.md the rest of the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING."
+    "note": "No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the active/next/archive counts are DERIVED from the same parsed torii-quest-todo.md/torii-quest-progress.md the rest of the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING."
   },
   "mvpApproval": {
     "badge": "MVP APPROVAL · LOCAL · READ-ONLY · PENDING UNTIL EXPLICIT USER OK",
@@ -401,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.349-alpha",
+    "version": "v0.2.351-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -411,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.349-alpha"
+        "value": "v0.2.351-alpha"
       },
       {
         "label": "Approved by",
@@ -431,19 +429,19 @@
   "mvpGate": {
     "badge": "MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL",
     "kind": "generated",
-    "band": "signals-incomplete",
-    "statusLabel": "AUTOMATED CONFIDENCE SIGNALS INCOMPLETE",
+    "band": "awaiting",
+    "statusLabel": "CONFIDENCE GREEN · AWAITING EXPLICIT USER PLAYTEST + OK",
     "pill": "manual",
     "approved": false,
-    "verdict": "signals-incomplete",
+    "verdict": "awaiting-approval",
     "metrics": [
       {
         "label": "Gate verdict",
-        "value": "signals-incomplete"
+        "value": "awaiting-approval"
       },
       {
         "label": "Release gate",
-        "value": "not yet (confidence only, not approval)"
+        "value": "green (confidence only, not approval)"
       },
       {
         "label": "Entry smoke",
@@ -563,7 +561,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.349-alpha"
+        "value": "v0.2.351-alpha"
       },
       {
         "label": "Live game",
@@ -583,7 +581,7 @@
       },
       {
         "label": "Manual blocker",
-        "value": "PENDING — MANUAL VALIDATION OUTSTANDING"
+        "value": "PENDING — LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING"
       },
       {
         "label": "MVP approval",

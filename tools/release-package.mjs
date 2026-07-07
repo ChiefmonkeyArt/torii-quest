@@ -26,7 +26,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { selectRecentReports } from './releaseManifest.mjs';
 import { resolveHandoffWritePath, HANDOFF_SUMMARY_LIVE_URL } from './handoffSummary.mjs';
-import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/continuumData.js';
+import { CURRENT_TEST_STATUS } from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import {
   buildReleasePackageModel, formatReleasePackage, formatReleasePackageMarkdown,
   RELEASE_PACKAGE_ENTRIES, RELEASE_PACKAGE_WRITE_FILENAME,

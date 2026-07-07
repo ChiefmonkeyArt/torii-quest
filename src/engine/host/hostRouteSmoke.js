@@ -58,7 +58,7 @@ export const HOST_ROUTE_SMOKE_BADGE = 'HOST ROUTE SMOKE · READ-ONLY · NO DEPLO
 export const REQUIRED_ASSETS = Object.freeze([
   'index.html',          // SPA entry + the /zone/* fallback document
   'dashboard.html',       // the oversight dashboard (static, same-origin)
-  'continuum-data.json', // the dashboard data the page reads (same-origin relative fetch)
+  'torii-quest-data.json', // the dashboard data the page reads (same-origin relative fetch)
   RELEASE_META_FILE.replace(/^public\//, ''), // 'release-metadata.json' at the web root
 ]);
 
@@ -87,7 +87,7 @@ export const SAMPLE_DIST_PATHS = Object.freeze([
   'assets/rapier-ghi789.js',
   'assets/rolldown-runtime-jkl012.js',
   'dashboard.html',
-  'continuum-data.json',
+  'torii-quest-data.json',
   'release-metadata.json',
   'sw.js',
   'torii-gate.glb',
@@ -216,16 +216,16 @@ export function runHostRouteSmoke(opts = {}) {
     signals.push(_signal('expected-artifacts-present', 'DIST_SPEC artifacts present', false, `threw: ${e.message}`));
   }
 
-  // 3. Dashboard asset present — the continuum dashboard page + its data JSON ship as
+  // 3. Dashboard asset present — the torii-quest dashboard page + its data JSON ship as
   // same-origin static assets.
   try {
     const page = _hasAsset(distPaths, 'dashboard.html');
-    const data = _hasAsset(distPaths, 'continuum-data.json');
+    const data = _hasAsset(distPaths, 'torii-quest-data.json');
     signals.push(_signal(
       'dashboard-asset-present',
       'Continuum dashboard asset present',
       page && data,
-      `dashboard.html=${page}, continuum-data.json=${data}`,
+      `dashboard.html=${page}, torii-quest-data.json=${data}`,
     ));
   } catch (e) {
     signals.push(_signal('dashboard-asset-present', 'Continuum dashboard asset present', false, `threw: ${e.message}`));

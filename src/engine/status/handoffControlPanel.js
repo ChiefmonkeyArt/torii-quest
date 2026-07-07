@@ -12,7 +12,7 @@
 //   8. the project's practical, NON-RELIGIOUS operating principles (PROJECT_PRINCIPLES)
 //
 // SINGLE SOURCE OF TRUTH: this module is consumed by BOTH the static Continuum dashboard
-// (src/engine/dashboard/continuumData.js → a card) AND the node next-action state
+// (src/engine/dashboard/toriiQuestData.js → a card) AND the node next-action state
 // (tools/nextActionState.mjs → a folded field), so the "is the handoff surface complete?"
 // logic can never drift between the page and the CLI. Every field is FOLDED from inputs the
 // caller already gathered (smoke summaries, manual-validation card, next-safe task); this is

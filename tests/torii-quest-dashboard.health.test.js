@@ -1,4 +1,4 @@
-// tests/continuum-dashboard.health.test.js — split from continuum-dashboard.test.js (E3, v0.2.267).
+// tests/torii-quest-dashboard.health.test.js — split from torii-quest-dashboard.test.js (E3, v0.2.267).
 // Slice: engineering health + Nostr read-path health panels.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
@@ -6,8 +6,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  CONTINUUM_VERSION, CONTINUUM_BADGE, CONTINUUM,
-  CONTINUUM_REFRESH_SCRIPT, CONTINUUM_SCRIPT_SHA256, CONTINUUM_CSP,
+  TORII_QUEST_VERSION, TORII_QUEST_BADGE, CONTINUUM,
+  TORII_QUEST_REFRESH_SCRIPT, TORII_QUEST_SCRIPT_SHA256, TORII_QUEST_CSP,
   CURRENT_TEST_STATUS, testCountLabel,
   HEALTH_LASTKNOWN, buildHealthModel,
   SEED_MILESTONES, buildMilestoneModel,
@@ -21,8 +21,8 @@ import {
   READHEALTH_BADGE, buildReadHealthModel,
   CLICKTHROUGH_BADGE, CLICKTHROUGH_VIEWS, buildClickThroughModel,
   escapeHtml, clampPct, barCells, ringDash,
-  computeTotals, buildContinuumModel, continuumDataJSON, renderContinuumPage,
-} from '../src/engine/dashboard/continuumData.js';
+  computeTotals, buildToriiQuestModel, toriiQuestDataJSON, renderToriiQuestPage,
+} from '../src/engine/dashboard/toriiQuestDashboardData.js';
 import * as SDK from '../src/sdk/index.js';
 import * as DashboardSDK from '../src/sdk/dashboard.js';
 import { VERSION } from '../src/config.js';
@@ -84,14 +84,14 @@ describe('engineering health (v0.2.175)', () => {
     expect(CONTINUUM.health.metrics.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('continuumDataJSON carries the health model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the health model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.health).toBeTruthy();
     expect(Array.isArray(j.health.metrics)).toBe(true);
   });
 
-  it('renderContinuumPage shows the Engineering health section with provenance chips', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Engineering health section with provenance chips', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Engineering health');
     expect(html).toContain('hk-gen');
     expect(html).toContain('hk-lk');
@@ -100,13 +100,13 @@ describe('engineering health (v0.2.175)', () => {
   });
 
   it('SAFETY: the health section adds no new script and preserves the CSP script hash', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     // Still exactly one inline script, and its hash still matches (health is static text).
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });
 
@@ -148,15 +148,15 @@ describe('Nostr read-path health panel (v0.2.194)', () => {
     for (const s of buildReadHealthModel({ profileEvents: [] }).signals) expect(allowed.has(s.pill)).toBe(true);
   });
 
-  it('continuumDataJSON carries the read-health model', () => {
-    const j = continuumDataJSON();
+  it('toriiQuestDataJSON carries the read-health model', () => {
+    const j = toriiQuestDataJSON();
     expect(j.readHealth).toBeTruthy();
     expect(typeof j.readHealth.statusLabel).toBe('string');
     expect(Array.isArray(j.readHealth.signals)).toBe(true);
   });
 
-  it('renderContinuumPage shows the Nostr read-path health section + badge + invariants', () => {
-    const html = renderContinuumPage();
+  it('renderToriiQuestPage shows the Nostr read-path health section + badge + invariants', () => {
+    const html = renderToriiQuestPage();
     expect(html).toContain('Nostr read-path health');
     expect(html).toContain(READHEALTH_BADGE);
     expect(html).toContain('READ-ONLY OK');
@@ -165,14 +165,14 @@ describe('Nostr read-path health panel (v0.2.194)', () => {
   });
 
   it('SAFETY: the read-health section injects no unsafe token + no new script (CSP hash intact)', () => {
-    const html = renderContinuumPage();
+    const html = renderToriiQuestPage();
     for (const bad of ['javascript:', 'window.location', 'location.href', 'eval(', 'window.open']) {
       expect(html).not.toContain(bad);
     }
     expect((html.match(/<script/g) || []).length).toBe(1);
     const m = html.match(/<script>([\s\S]*?)<\/script>/);
-    expect(m[1]).toBe(CONTINUUM_REFRESH_SCRIPT);
+    expect(m[1]).toBe(TORII_QUEST_REFRESH_SCRIPT);
     const pageHash = 'sha256-' + createHash('sha256').update(m[1], 'utf8').digest('base64');
-    expect(pageHash).toBe(CONTINUUM_SCRIPT_SHA256);
+    expect(pageHash).toBe(TORII_QUEST_SCRIPT_SHA256);
   });
 });

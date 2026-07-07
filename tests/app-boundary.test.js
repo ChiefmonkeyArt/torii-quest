@@ -1,4 +1,4 @@
-// tests/app-boundary.test.js — locks the Torii Quest (game) vs Torii Continuum
+// tests/app-boundary.test.js — locks the Torii Quest (game) vs Torii Quest
 // (project-oversight dashboard) app boundary (v0.2.294). The R-series cleanup (R1
 // dashboard SDK split, R2 lazy-THREE, R4 barrel-leak audit) established that:
 //
@@ -24,7 +24,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 // Continuum / project-oversight surfaces that must live in the DASHBOARD barrel only.
-const DASHBOARD_ONLY = ['continuum', 'hostRouteSmoke', 'updateFlowSmoke', 'handoffControlPanel'];
+const DASHBOARD_ONLY = ['toriiQuestDashboard', 'hostRouteSmoke', 'updateFlowSmoke', 'handoffControlPanel'];
 
 describe('Quest ↔ Continuum SDK barrel split', () => {
   it('the runtime SDK barrel re-exports NO Continuum dashboard-only surface', () => {

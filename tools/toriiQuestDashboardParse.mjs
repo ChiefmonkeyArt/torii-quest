@@ -1,10 +1,10 @@
-// tools/continuumParse.mjs — PURE, node-safe markdown PARSER for the Torii Continuum
+// tools/toriiQuestDashboardParse.mjs — PURE, node-safe markdown PARSER for the Torii Quest
 // dashboard (v0.2.174). Reduces the curated copy in
-// `src/engine/dashboard/continuumData.js` by DERIVING the dashboard's list sections
+// `src/engine/dashboard/toriiQuestData.js` by DERIVING the dashboard's list sections
 // (next-12 / active-now / completed-24h / archive clusters) and a small set of task
 // counts from `torii-quest-progress.md` + `torii-quest-todo.md` at BUILD time. Build/dev tooling only — NEVER
-// imported by the game and NEVER by continuumData.js (which stays browser-bundle-safe);
-// the CLI (tools/build-continuum.mjs) does the fs reads and hands plain STRINGS to these
+// imported by the game and NEVER by toriiQuestData.js (which stays browser-bundle-safe);
+// the CLI (tools/build-torii-quest-dashboard.mjs) does the fs reads and hands plain STRINGS to these
 // helpers, which return plain data. NO fs/network/THREE/DOM/crypto in here.
 //
 // Robust-and-safe by design (per the work order): parse only simple, stable patterns
@@ -108,13 +108,13 @@ export function countStruck(md) {
   return matches ? matches.length : 0;
 }
 
-// deriveContinuumData({ progressMd, todoMd }) → { overrides, taskTotals, parsed, gaps }.
+// deriveToriiQuestData({ progressMd, todoMd }) → { overrides, taskTotals, parsed, gaps }.
 // PURE. `overrides` carries ONLY the sections that parsed cleanly (the caller merges them
 // over the curated CONTINUUM defaults); a section that fails to parse is recorded in
 // `gaps` and omitted, so the curated default survives. `taskTotals` is a small, clearly
 // DERIVED set of counts for an at-a-glance "docs-derived" metric. Bounds keep an oddly
 // formatted doc from producing an absurd list.
-export function deriveContinuumData(docs = {}) {
+export function deriveToriiQuestData(docs = {}) {
   const progressMd = String(docs.progressMd || '');
   const todoMd = String(docs.todoMd || '');
   const overrides = {};

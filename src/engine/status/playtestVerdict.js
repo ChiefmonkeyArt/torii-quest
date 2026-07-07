@@ -20,7 +20,7 @@
 // PURE + browser+node-safe: NO fs, NO network, NO child_process, NO process, NO THREE/DOM, no
 // tools/ imports. The CLI (tools/playtest-verdict.mjs) does the read-only fs I/O and stamps
 // version/commit, so this assembly stays unit-testable (tests/playtest-verdict.test.js). The
-// dashboard (continuumData.js) and the next-action state (tools/nextActionState.mjs) import it
+// dashboard (toriiQuestData.js) and the next-action state (tools/nextActionState.mjs) import it
 // directly so the verdict vocabulary can never drift between the page and the CLI. Null/garbled
 // input degrades to an honest `pending`; never throws.
 import { MVP_PLAYTEST_FOCUS } from './mvpApprovalGate.js';

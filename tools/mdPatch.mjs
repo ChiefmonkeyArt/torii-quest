@@ -4,7 +4,7 @@
 // source-of-truth task/progress/handoff docs without manual copy-editing and
 // without arbitrary file-write access:
 //   - torii-quest-todo.md             (Torii Quest active task source of truth)
-//   - torii-continuum-todo.md         (Torii Continuum active task source of truth)
+//   - torii-continuum-todo.md         (Torii Quest active task source of truth)
 //   - torii-quest-progress.md         (curated progress dashboard)
 //   - torii-quest-handoff.md          (curated contributor/agent handoff — APPEND-ONLY)
 //

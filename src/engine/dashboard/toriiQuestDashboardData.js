@@ -1,4 +1,4 @@
-// engine/dashboard/continuumData.js — Torii Continuum project-oversight DASHBOARD
+// engine/dashboard/toriiQuestData.js — Torii Quest project-oversight DASHBOARD
 // data + pure renderer (v0.2.171). This is the FIRST slice of a broader project
 // oversight surface. It turns the curated state kept in `torii-quest-progress.md` into a small,
 // node-safe data model, computes headline totals/percentages, and renders it to a
@@ -10,8 +10,8 @@
 //   - `torii-quest-progress.md`  is the visual execution DASHBOARD source document — the data
 //                    below is curated from it.
 //
-// Refresh model: the generator (`tools/build-continuum.mjs`) writes BOTH the page
-// (`public/continuum.html`) and a packaged data file (`public/continuum-data.json`)
+// Refresh model: the generator (`tools/build-torii-quest-dashboard.mjs`) writes BOTH the page
+// (`public/continuum.html`) and a packaged data file (`public/torii-quest-data.json`)
 // from this module at build/deploy time, so each deploy — and the page refresh
 // after it — shows the latest PACKAGED project state. The page renders fully WITHOUT
 // JavaScript; a tiny, optional, same-origin-only refresh script re-reads the packaged
@@ -25,10 +25,10 @@
 //     nostrich could read it from a cold cache and nothing would fire.
 //   - Contributors/clankers is a clearly-flagged SEED metric, not live data.
 //   - Curated/static data is the FALLBACK; it is isolated in CONTINUUM below. As of
-//     v0.2.174 the generator (tools/build-continuum.mjs + tools/continuumParse.mjs)
+//     v0.2.174 the generator (tools/build-torii-quest-dashboard.mjs + tools/toriiQuestDashboardParse.mjs)
 //     DERIVES the list sections (next-12 / active-now / completed-24h / archive) and a
 //     "docs-derived" task-count metric from torii-quest-progress.md + torii-quest-todo.md at build time and
-//     passes them to buildContinuumModel(overrides). Anything that fails to parse falls
+//     passes them to buildToriiQuestModel(overrides). Anything that fails to parse falls
 //     back to the curated values below, so the page never shows an empty/garbled section.
 
 import { runReadHealth } from '../nostr/readHealth.js';
@@ -36,8 +36,8 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const CONTINUUM_VERSION = 'v0.2.350-alpha';
-export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
+export const TORII_QUEST_VERSION = 'v0.2.351-alpha';
+export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
 // size, captured from the most recent green `npm run test:release`. BOTH places the page
@@ -45,7 +45,7 @@ export const CONTINUUM_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // metric — DERIVE from this one object via testCountLabel(), so they can never drift apart
 // again (the recurring stale '1180 passing' issue, where HEALTH_LASTKNOWN.totalTests was a
 // second hand-maintained copy that fell behind the metrics row). The deterministic test-FILE
-// count is still GENERATED from disk at build time (countTestFiles in build-continuum.mjs);
+// count is still GENERATED from disk at build time (countTestFiles in build-torii-quest-dashboard.mjs);
 // `files` here is the curated mirror, asserted against the real on-disk count by the unit
 // tests so an added/removed test file forces this constant to be bumped. The passing COUNT
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
@@ -80,19 +80,19 @@ export const HEALTH_LASTKNOWN = Object.freeze({
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '16 / 16',
-  lastGreen: CONTINUUM_VERSION,
+  lastGreen: TORII_QUEST_VERSION,
 });
 
 // buildHealthModel(input) — PURE, browser-safe builder for the Engineering-health
 // section (v0.2.175). Takes plain data only (no fs/network/THREE/DOM) so it runs both at
-// module load (the curated fallback below) AND at build time (tools/build-continuum.mjs
+// module load (the curated fallback below) AND at build time (tools/build-torii-quest-dashboard.mjs
 // passes the freshly GENERATED inputs). Each metric carries a `kind`: 'generated' (derived
 // deterministically this build) or 'last-known' (captured from the last green gate run),
 // surfaced as a chip on the page so provenance is never ambiguous. Returns { note, metrics,
 // rings } — a small, dependency-free model the renderer turns into cards + SVG rings.
 export function buildHealthModel(input = {}) {
   const {
-    version = CONTINUUM_VERSION,
+    version = TORII_QUEST_VERSION,
     profiles = {},
     fullFileCount = null,
     parserGaps = null,
@@ -137,11 +137,11 @@ export function buildHealthModel(input = {}) {
 }
 
 // The curated fallback health model — built from the pure builder at module load with the
-// current known counts, so renderContinuumPage() with NO overrides (tests + the no-JS
+// current known counts, so renderToriiQuestPage() with NO overrides (tests + the no-JS
 // fallback) shows a complete, honest Engineering-health section. The build-time generator
 // re-runs buildHealthModel with freshly measured inputs and overrides this.
 const CURATED_HEALTH = buildHealthModel({
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   profiles: { fast: 5, foundation: 17 },
   fullFileCount: 60,
   parserGaps: 0,
@@ -216,7 +216,7 @@ export const READINESS_BADGE = 'DEPLOY READINESS · STATIC HOST · READ-ONLY';
 // shows the VPS/static-host posture at a glance. It folds the plain result of the v0.2.185
 // `checkZoneFallbackReadiness({ docs, dist })` guard (passed in as `input.zoneFallback`)
 // into a render-ready { badge, status, statusLabel, checks, errors, warnings, note } model.
-// NO fs/network/THREE/DOM — the CLI / build-continuum.mjs / regression-check do the fs reads
+// NO fs/network/THREE/DOM — the CLI / build-torii-quest-dashboard.mjs / regression-check do the fs reads
 // and hand the plain verdict here. With no input it degrades to an honest NOT-CHECKED model
 // (never throws). Each check's `state` reuses the existing pill vocabulary
 // (no-blocker / gated / manual / deferred) so the renderer needs no new CSS. This is an
@@ -282,7 +282,7 @@ export function buildReadinessModel(input = {}) {
   };
 }
 
-// The curated fallback readiness model — built at module load so renderContinuumPage() with
+// The curated fallback readiness model — built at module load so renderToriiQuestPage() with
 // NO overrides (tests + the no-JS fallback) shows an honest NOT-CHECKED readiness section.
 // The build-time generator re-runs buildReadinessModel with the freshly measured verdict.
 const CURATED_READINESS = buildReadinessModel();
@@ -316,12 +316,12 @@ const SHIP_SIGNAL_PILL = Object.freeze({
 
 // SHIP_LASTKNOWN (v0.2.188) — the last green `npm run release:status` verdict, captured by
 // hand and clearly LABELLED last-known on the page, so a stale snapshot is obvious rather
-// than silently wrong. The build-time generator (build-continuum.mjs) overrides this with the
+// than silently wrong. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with the
 // LIVE verdict folded from tools/releaseReadiness.buildReleaseReadiness at packaging time.
 export const SHIP_LASTKNOWN = Object.freeze({
   status: 'ready',
   statusLabel: 'READY',
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   signals: Object.freeze([
     { key: 'versionSync', label: 'Version sync', state: 'ok', detail: 'config + package.json agree' },
     { key: 'tests', label: 'Test profiles', state: 'ok', detail: 'fast 5 · foundation 25 file(s)' },
@@ -363,14 +363,14 @@ function _shipSignalRows(signals) {
 
 // buildShipModel(input) — PURE, browser-safe builder (v0.2.188). Folds a release-readiness
 // summary (the plain output of tools/releaseReadiness.buildReleaseReadiness, supplied by
-// build-continuum.mjs at packaging time) into a render-ready model so the dashboard surfaces
+// build-torii-quest-dashboard.mjs at packaging time) into a render-ready model so the dashboard surfaces
 // the LAST release-readiness verdict AND the NEXT SAFE task at a glance:
 //   { badge, statusCommand, gateCommand, kind, status, statusLabel, ready, version,
 //     gitCommit, signals[], blockers[], unknowns[], nextTask, note }.
 // `kind` is 'generated' (a live summary was supplied this build) or 'last-known' (the curated
 // SHIP_LASTKNOWN fallback). With no summary it degrades to the honest last-known snapshot and
 // NEVER throws. NO fs/network/THREE/DOM — it only reuses the existing pill vocabulary (no new
-// CSS) and adds NO script (the continuum CSP/script-hash stay intact). INFORMATIONAL only: it
+// CSS) and adds NO script (the torii-quest CSP/script-hash stay intact). INFORMATIONAL only: it
 // never runs the gate, deploys, publishes, or contacts a server.
 export function buildShipModel(input = {}) {
   const rd = input && typeof input === 'object' ? input.readiness : null;
@@ -420,9 +420,9 @@ export function buildShipModel(input = {}) {
   };
 }
 
-// The curated fallback ship model — built at module load so renderContinuumPage() with NO
+// The curated fallback ship model — built at module load so renderToriiQuestPage() with NO
 // overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN ship-readiness section.
-// build-continuum.mjs re-runs buildShipModel with the freshly gathered live verdict.
+// build-torii-quest-dashboard.mjs re-runs buildShipModel with the freshly gathered live verdict.
 const CURATED_SHIP = buildShipModel();
 
 // READHEALTH_BADGE (v0.2.194) — the badge shown on the Nostr read-path health panel.
@@ -460,7 +460,7 @@ export function buildReadHealthModel(input) {
 }
 
 // The curated fallback read-health model — built at module load from the deterministic
-// LOCAL samples so renderContinuumPage() with NO overrides (tests + the no-JS fallback)
+// LOCAL samples so renderToriiQuestPage() with NO overrides (tests + the no-JS fallback)
 // shows an honest all-green READ-ONLY panel. No relay/network is ever touched.
 const CURATED_READHEALTH = buildReadHealthModel();
 
@@ -470,12 +470,12 @@ export const RCSTATUS_BADGE = 'RC / RELEASE MANIFEST · LOCAL · READ-ONLY';
 
 // RCSTATUS_LASTKNOWN (v0.2.214) — the curated fallback RC/release-manifest posture, captured by
 // hand and clearly LABELLED last-known on the page so a stale snapshot is obvious rather than
-// silently wrong. The build-time generator (build-continuum.mjs) overrides this with the LIVE
+// silently wrong. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with the LIVE
 // artifact presence (the release-manifest REQUIRED/OPTIONAL refs + RC package docs stat-ed on
 // disk), the curated test count, the manual-validation-remaining count, and the last release-gate
 // verdict — so the card tracks the real on-disk RC posture each deploy.
 export const RCSTATUS_LASTKNOWN = Object.freeze({
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   manifestStatus: 'COMPLETE',
   manifestRequiredPresent: 6,
   manifestRequired: 6,
@@ -577,9 +577,9 @@ export function buildRcStatusModel(input = {}) {
   };
 }
 
-// The curated fallback RC-status model — built at module load so renderContinuumPage() with NO
+// The curated fallback RC-status model — built at module load so renderToriiQuestPage() with NO
 // overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN RC/release-manifest section.
-// build-continuum.mjs re-runs buildRcStatusModel with the freshly gathered artifact presence.
+// build-torii-quest-dashboard.mjs re-runs buildRcStatusModel with the freshly gathered artifact presence.
 const CURATED_RCSTATUS = buildRcStatusModel();
 
 // MANUALVALIDATION_BADGE (v0.2.215) — names the manual-validation / playtest-readiness oversight
@@ -589,7 +589,7 @@ export const MANUALVALIDATION_BADGE = 'MANUAL VALIDATION · MVP PLAYTEST · READ
 
 // MANUALVALIDATION_LASTKNOWN (v0.2.215) — curated fallback playtest-readiness posture, captured by
 // hand and clearly LABELLED last-known on the page so a stale snapshot is obvious rather than
-// silently wrong. The build-time generator (build-continuum.mjs) overrides this with the LIVE
+// silently wrong. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with the LIVE
 // playtest-checklist section/item counts + blocker/major/minor severity tallies (from
 // tools/playtestChecklist.mjs), the on-disk presence of the checklist + results-template docs, the
 // count of highest-level manual live-browser validation areas, and the already-gathered last
@@ -625,7 +625,7 @@ export const MANUALVALIDATION_LASTKNOWN = Object.freeze({
 // booleans + the already-gathered last gate verdict) — NO fs/network/THREE/DOM/child_process here,
 // and it imports NO tools/ module so the browser bundle stays clean. With no input it degrades to
 // the honest LAST-KNOWN snapshot and NEVER throws. It reuses the existing pill vocabulary + .metric
-// markup (no new CSS/script) → the continuum CSP/refresh-script hash stay intact. INFORMATIONAL
+// markup (no new CSS/script) → the torii-quest CSP/refresh-script hash stay intact. INFORMATIONAL
 // only: it releases/tags/publishes/deploys NOTHING — manual playtest + explicit approval REQUIRED.
 export function buildManualValidationModel(input = {}) {
   const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
@@ -702,16 +702,16 @@ export function buildManualValidationModel(input = {}) {
   };
 }
 
-// The curated fallback manual-validation model — built at module load so renderContinuumPage() with
+// The curated fallback manual-validation model — built at module load so renderToriiQuestPage() with
 // NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN playtest-readiness section.
-// build-continuum.mjs re-runs buildManualValidationModel with the freshly gathered checklist counts.
+// build-torii-quest-dashboard.mjs re-runs buildManualValidationModel with the freshly gathered checklist counts.
 const CURATED_MANUALVALIDATION = buildManualValidationModel();
 
 export const NOBLOCKERQUEUE_BADGE = 'NO-BLOCKER QUEUE · SAFE NEXT WORK · READ-ONLY';
 
 // NOBLOCKERQUEUE_LASTKNOWN (v0.2.216) — curated fallback no-blocker-queue posture, captured by hand
 // and clearly LABELLED last-known on the page so a stale snapshot is obvious rather than silently
-// wrong. The build-time generator (build-continuum.mjs) overrides this with the LIVE counts derived
+// wrong. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with the LIVE counts derived
 // from the SAME parsed torii-quest-todo.md/torii-quest-progress.md taskTotals the dashboard already uses (NO second source of
 // truth) plus the recommended next SAFE task and whether manual playtest/approval is still pending —
 // so the card tracks the real "what can an agent do next without user input" queue each deploy.
@@ -737,7 +737,7 @@ export const NOBLOCKERQUEUE_LASTKNOWN = Object.freeze({
 // recommended next SAFE task and a manual-pending flag — NO fs/network/THREE/DOM/child_process here,
 // and it imports NO tools/ module so the browser bundle stays clean. With no input it degrades to the
 // honest LAST-KNOWN snapshot and NEVER throws. It reuses the existing pill vocabulary + .metric
-// markup (no new CSS/script) → the continuum CSP/refresh-script hash stay intact. INFORMATIONAL
+// markup (no new CSS/script) → the torii-quest CSP/refresh-script hash stay intact. INFORMATIONAL
 // only: it queues/runs/deploys NOTHING — it just makes the safe next move unambiguous.
 export function buildNoBlockerQueueModel(input = {}) {
   const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
@@ -806,9 +806,9 @@ export function buildNoBlockerQueueModel(input = {}) {
   };
 }
 
-// The curated fallback no-blocker-queue model — built at module load so renderContinuumPage() with NO
+// The curated fallback no-blocker-queue model — built at module load so renderToriiQuestPage() with NO
 // overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN no-blocker-queue section.
-// build-continuum.mjs re-runs buildNoBlockerQueueModel with the freshly parsed todo/progress counts.
+// build-torii-quest-dashboard.mjs re-runs buildNoBlockerQueueModel with the freshly parsed todo/progress counts.
 const CURATED_NOBLOCKERQUEUE = buildNoBlockerQueueModel();
 
 // MVPAPPROVAL_BADGE (v0.2.221) — names the MVP-approval-state oversight card. The user MISSED the
@@ -817,14 +817,14 @@ const CURATED_NOBLOCKERQUEUE = buildNoBlockerQueueModel();
 export const MVPAPPROVAL_BADGE = 'MVP APPROVAL · LOCAL · READ-ONLY · PENDING UNTIL EXPLICIT USER OK';
 
 // MVPAPPROVAL_LASTKNOWN (v0.2.221) — curated fallback approval posture, captured by hand and clearly
-// LABELLED last-known on the page. The build-time generator (build-continuum.mjs) overrides this with
+// LABELLED last-known on the page. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with
 // the LIVE record read from MVP_APPROVAL_STATE.json (re-shaped via tools/mvpApproval.mjs
 // summarizeApprovalForState), so the card tracks the real approval state each deploy. Defaults to
 // PENDING with no approver — the floor this slice can never silently flip past.
 export const MVPAPPROVAL_LASTKNOWN = Object.freeze({
   status: 'pending',
   approved: false,
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   approvedBy: null,
   approvedAt: null,
 });
@@ -838,7 +838,7 @@ export const MVPAPPROVAL_LASTKNOWN = Object.freeze({
 // and NEVER throws. `approved` is treated STRICTLY: only an exact 'approved' status WITH an approved:true
 // flag renders as approved, so a partial/garbled record stays PENDING on the page (matching the model's
 // isApproved() floor). Reuses the existing pill vocabulary + .metric markup (no new CSS/script) → the
-// continuum CSP/refresh-script hash stay intact. INFORMATIONAL only: it approves/releases NOTHING.
+// torii-quest CSP/refresh-script hash stay intact. INFORMATIONAL only: it approves/releases NOTHING.
 export function buildMvpApprovalModel(input = {}) {
   const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
   const lk = MVPAPPROVAL_LASTKNOWN;
@@ -894,9 +894,9 @@ export function buildMvpApprovalModel(input = {}) {
   };
 }
 
-// The curated fallback MVP-approval model — built at module load so renderContinuumPage() with NO
+// The curated fallback MVP-approval model — built at module load so renderToriiQuestPage() with NO
 // overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN pending approval section.
-// build-continuum.mjs re-runs buildMvpApprovalModel with the freshly read MVP_APPROVAL_STATE.json.
+// build-torii-quest-dashboard.mjs re-runs buildMvpApprovalModel with the freshly read MVP_APPROVAL_STATE.json.
 const CURATED_MVPAPPROVAL = buildMvpApprovalModel();
 
 // PLAYTESTRESULTS_BADGE (v0.2.223) — names the MVP-playtest-results-state oversight card. The
@@ -908,7 +908,7 @@ export const PLAYTESTRESULTS_BADGE =
   'MVP PLAYTEST RESULTS · LOCAL · READ-ONLY · NOT RUN UNTIL TESTER RECORDS · NOT AN APPROVAL';
 
 // PLAYTESTRESULTS_LASTKNOWN (v0.2.223) — curated fallback results posture, clearly LABELLED
-// last-known on the page. The build-time generator (build-continuum.mjs) overrides this with the
+// last-known on the page. The build-time generator (build-torii-quest-dashboard.mjs) overrides this with the
 // LIVE state read from MVP_PLAYTEST_RESULTS.md (re-shaped via tools/playtestResultsState.mjs
 // summarizePlaytestForState), so the card tracks the real recording state each deploy. Defaults to
 // NOT-RUN with no recorded results — the safe floor this card can never silently flip past, and it
@@ -935,7 +935,7 @@ export const PLAYTESTRESULTS_LASTKNOWN = Object.freeze({
 // input it degrades to the honest LAST-KNOWN not-run snapshot and NEVER throws. CRITICAL: this card
 // can NEVER imply approval — `approvalImplied` is pinned false in every branch, and a fully-complete
 // (all PASS/N-A) result still renders "NOT AN APPROVAL · explicit user OK required". Reuses the
-// existing pill vocabulary + .metric markup (no new CSS/script) → the continuum CSP/refresh-script
+// existing pill vocabulary + .metric markup (no new CSS/script) → the torii-quest CSP/refresh-script
 // hash stay intact. INFORMATIONAL only: it approves/releases NOTHING.
 export function buildPlaytestResultsCardModel(input = {}) {
   const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
@@ -1034,16 +1034,16 @@ export function buildPlaytestResultsCardModel(input = {}) {
   };
 }
 
-// The curated fallback playtest-results model — built at module load so renderContinuumPage() with
+// The curated fallback playtest-results model — built at module load so renderToriiQuestPage() with
 // NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN not-run section.
-// build-continuum.mjs re-runs buildPlaytestResultsCardModel with the freshly read recording file.
+// build-torii-quest-dashboard.mjs re-runs buildPlaytestResultsCardModel with the freshly read recording file.
 const CURATED_PLAYTESTRESULTS = buildPlaytestResultsCardModel();
 
 // Curated LAST-KNOWN smoke evidence for the handoff control panel's fallback card (v0.2.233).
 // These mirror the most recent committed LIVE_SMOKE_STATE.json (app-entry, v0.2.349-alpha PASS
 // 3/3) and DASHBOARD_SMOKE_STATE.json (oversight dashboard, v0.2.349-alpha PASS 4/4). The smoke
 // version LEGITIMATELY lags the build version — a smoke can only observe a deployed build. The
-// build-time generator (build-continuum.mjs) overrides this with the freshly read state.
+// build-time generator (build-torii-quest-dashboard.mjs) overrides this with the freshly read state.
 const HANDOFF_LASTKNOWN_ENTRY_SMOKE = Object.freeze({
   result: 'pass', pass: true, version: 'v0.2.349-alpha', checks: 3, passed: 3, failed: 0,
 });
@@ -1052,11 +1052,11 @@ const HANDOFF_LASTKNOWN_DASHBOARD_SMOKE = Object.freeze({
 });
 
 // CURATED_HANDOFF_PANEL — the curated fallback handoff/release control-panel card, built at module
-// load so renderContinuumPage() with NO overrides (tests + the no-JS fallback) shows an honest
-// LAST-KNOWN handoff surface. build-continuum.mjs re-builds the panel from the freshly gathered
+// load so renderToriiQuestPage() with NO overrides (tests + the no-JS fallback) shows an honest
+// LAST-KNOWN handoff surface. build-torii-quest-dashboard.mjs re-builds the panel from the freshly gathered
 // smoke states + manual-validation card and passes the card as a `handoffPanel` override.
 const CURATED_HANDOFF_PANEL = buildHandoffControlPanelCard(buildHandoffControlPanel({
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   entrySmoke: HANDOFF_LASTKNOWN_ENTRY_SMOKE,
   dashboardSmoke: HANDOFF_LASTKNOWN_DASHBOARD_SMOKE,
   manualBlocker: { pending: true, statusLabel: 'MVP playtest + approval pending', pill: 'manual' },
@@ -1065,13 +1065,13 @@ const CURATED_HANDOFF_PANEL = buildHandoffControlPanelCard(buildHandoffControlPa
 }));
 
 // CURATED_MVP_GATE (v0.2.234) — the curated fallback MVP-approval-gate card, built at module load so
-// renderContinuumPage() with NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN
-// gate. The build-time generator (build-continuum.mjs) re-builds it from the freshly gathered release
+// renderToriiQuestPage() with NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN
+// gate. The build-time generator (build-torii-quest-dashboard.mjs) re-builds it from the freshly gathered release
 // readiness + smoke summaries + the approval record. Defaults to confidence-green / approval-pending:
 // the automated signals look healthy, but the explicit human OK is the floor the gate can never flip
 // past on its own. APPROVAL-REQUIRES-EXPLICIT-OK lives in the pure mvpApprovalGate.js module.
 const CURATED_MVP_GATE = buildMvpApprovalGateCard(buildMvpApprovalGate({
-  version: CONTINUUM_VERSION,
+  version: TORII_QUEST_VERSION,
   releaseReady: true,
   entrySmokePass: HANDOFF_LASTKNOWN_ENTRY_SMOKE.pass,
   dashboardSmokePass: HANDOFF_LASTKNOWN_DASHBOARD_SMOKE.pass,
@@ -1080,24 +1080,24 @@ const CURATED_MVP_GATE = buildMvpApprovalGateCard(buildMvpApprovalGate({
 }));
 
 // CURATED_PLAYTEST_VERDICT (v0.2.235) — the curated fallback MVP-playtest-verdict card, built at
-// module load so renderContinuumPage() with NO overrides (tests + the no-JS fallback) shows an
-// honest LAST-KNOWN `pending` verdict. The build-time generator (build-continuum.mjs) re-builds it
+// module load so renderToriiQuestPage() with NO overrides (tests + the no-JS fallback) shows an
+// honest LAST-KNOWN `pending` verdict. The build-time generator (build-torii-quest-dashboard.mjs) re-builds it
 // from the freshly read MVP_PLAYTEST_VERDICT.md. The shipped capture file is BLANK → pending, and a
 // verdict NEVER implies approval — approval stays the separate explicit user gate.
 const CURATED_PLAYTEST_VERDICT = buildPlaytestVerdictCard('');
 
-// CONTINUUM_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
+// TORII_QUEST_REFRESH_SCRIPT (v0.2.172) — the EXACT inline-script body the page ships,
 // kept as the single source of that text so its CSP hash can never silently drift.
 // It is STATIC (no model interpolation), so its sha256 is stable across deploys: a
 // page refresh re-reads the packaged SAME-ORIGIN JSON to update the totals strip.
 // No external URL, no eval, no timers — degrades silently on any failure. The page
 // renders fully WITHOUT this script; it is pure progressive enhancement.
-export const CONTINUUM_REFRESH_SCRIPT = `
+export const TORII_QUEST_REFRESH_SCRIPT = `
   // Best-effort refresh from the packaged SAME-ORIGIN data file. No external URL,
   // no eval, no timers — silently keeps the server-rendered values on any failure.
   (function(){
     try{
-      fetch('./continuum-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      fetch('./torii-quest-data.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
         if(!d||!d.totals)return;
         var map={tasksAhead:d.totals.tasksAhead,activeTasks:d.totals.activeTasks,completedLast24h:d.totals.completedLast24h,archivedClusters:d.totals.archivedClusters,trackCount:d.totals.trackCount,milestones:(d.totals.milestonesAchieved+' / '+d.totals.milestoneCount)};
         Object.keys(map).forEach(function(k){var el=document.querySelector('[data-k="'+k+'"]');if(el&&map[k]!=null)el.textContent=map[k];});
@@ -1107,14 +1107,14 @@ export const CONTINUUM_REFRESH_SCRIPT = `
   })();
   `;
 
-// CONTINUUM_SCRIPT_SHA256 (v0.2.172) — base64 sha256 of CONTINUUM_REFRESH_SCRIPT, in
+// TORII_QUEST_SCRIPT_SHA256 (v0.2.172) — base64 sha256 of TORII_QUEST_REFRESH_SCRIPT, in
 // the `'sha256-…'` source-expression form a CSP `script-src` consumes. Hardcoded
 // (this module stays crypto-free so it remains node- AND browser-bundle-safe, like
-// the hash in index.html); `tests/continuum-dashboard.render.test.js` recomputes it with
+// the hash in index.html); `tests/torii-quest-dashboard.render.test.js` recomputes it with
 // node:crypto and FAILS the build if the script body and this constant ever diverge.
-export const CONTINUUM_SCRIPT_SHA256 = "sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70QQR5dXePHmw=";
+export const TORII_QUEST_SCRIPT_SHA256 = "sha256-LuHCRD7D19XircznJIAKE8dV4QcKG0v4gYFNX9Imzlg=";
 
-// CONTINUUM_CSP (v0.2.172) — strict Content-Security-Policy for the generated
+// TORII_QUEST_CSP (v0.2.172) — strict Content-Security-Policy for the generated
 // dashboard, resolving the prior "inline script with no CSP" WARN:
 //   - script-src 'self' + the script hash → NO 'unsafe-inline' for script (the XSS
 //     surface is closed); only the one packaged refresh script may run.
@@ -1123,21 +1123,21 @@ export const CONTINUUM_SCRIPT_SHA256 = "sha256-otKqhP2RYAA6ZkrRVcAQSBm7B1ssPR70Q
 //     cannot be element-hashed, and adding any style hash would disable 'unsafe-inline'
 //     and break the bars; style injection cannot execute script, so this is the
 //     maintainable low-risk choice.
-//   - connect-src 'self' → ONLY the same-origin continuum-data.json refresh; no relay,
+//   - connect-src 'self' → ONLY the same-origin torii-quest-data.json refresh; no relay,
 //     no external API.
 //   - default-src 'self'; object-src/base-uri/form-action/frame-ancestors locked down
 //     → no plugins, no <base> hijack, no form posting, no framing.
-export const CONTINUUM_CSP =
+export const TORII_QUEST_CSP =
   "default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; " +
   "frame-ancestors 'none'; img-src 'self'; connect-src 'self'; " +
   "style-src 'self' 'unsafe-inline'; " +
-  `script-src 'self' '${CONTINUUM_SCRIPT_SHA256}'`;
+  `script-src 'self' '${TORII_QUEST_SCRIPT_SHA256}'`;
 
 // Curated snapshot of torii-quest-progress.md (the dashboard source document). Keep this the
 // ONLY place the curated copy lives so future automation has a single seam.
 export const CONTINUUM = Object.freeze({
-  version: CONTINUUM_VERSION,
-  title: 'Torii Continuum',
+  version: TORII_QUEST_VERSION,
+  title: 'Torii Quest',
   subtitle: 'Project oversight dashboard',
   liveUrl: 'torii-quest.pplx.app',
   focus: '15-hour proof-of-concept route — shooter is maintenance-only unless ' +
@@ -1151,7 +1151,7 @@ export const CONTINUUM = Object.freeze({
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile} curated · test:foundation:list ~${CURRENT_TEST_STATUS.foundationProfile} curated · test:foundation = vitest --changed origin/main)` },
     { label: 'Regression check', value: '16 / 16 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
-    { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · continuum CSP enforced' },
+    { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · torii-quest CSP enforced' },
     { label: 'Smoke (entry + dashboard)', value: 'Both cloud smokes consolidated into the Handoff / release control panel at the top of this page — app-entry v0.2.349-alpha PASS 3/3, oversight-dashboard v0.2.349-alpha PASS 4/4. A smoke pass does not imply MVP approval or a completed human playtest.' },
     { label: 'Active slice', value: 'v0.2.244 HOST-SAFE CANONICAL ZONE ROUTE (game slice) — fixes the v0.2.243 follow-up: the live rendered screenshot of /zone/plebeian-market-bazaar/ STILL showed the JSON 404 ("No static asset at /zone/plebeian-market-bazaar"). ROOT CAUSE: the published exact-path static host (torii-quest.pplx.app) has NO SPA rewrite and NO directory index and normalises BOTH /zone/<slug> AND /zone/<slug>/ to an exact static-asset lookup → 404, so EVERY /zone/* PATH strategy fails (v0.2.242 extensionless → octet-stream download; v0.2.243 directory-index shell → 404). Only the root / reliably serves index.html as text/html. FIX (no backend): the canonical zone route is now the URL FRAGMENT /#/zone/<slug> — the fragment is never sent to the server, so the request path is always / and the root shell ALWAYS renders on hard refresh; the client parser reads the fragment. zoneRouteFor + handoffRouteFor build /#/zone/<slug>; the portal allowlists are /#/zone/; main._applyZoneRoute reads the URL hash fragment (+ a hashchange listener) and falls back to the path for a LEGACY /zone/<slug> link, which the parser still resolves client-side (NON-CANONICAL: a cold /zone/* deep-link 404s before the bundle loads, so it is never generated/shared). No per-slug static shell is generated any more (the build step + tools/zoneShells.mjs + tools/generate-zone-shells.mjs were removed); the dist ships NO /zone/* file. Preserves the v0.2.240 service-worker fail-soft precache (HTML is network-first; the root / is always the cache key), the v0.2.238 fail-closed loop, and the v0.2.236 NIP-07 login decoupling; root entry flow + ENTER ARENA + ESC pause unchanged. Prior — v0.2.243 zone renderable trailing-slash shell (404d live, superseded); v0.2.242 zone exact-path extensionless shell (downloaded as octet-stream, superseded); v0.2.241 zone hard-refresh shell; v0.2.240 travel-gateway entry repair. HARD CONSTRAINTS held: godMode false; no new timers (loop uses rAF only); no new hot-path Vector3/Matrix4; nostrich comments; Chiefmonkey exact; debug tools ship unconditionally; non-religious ethics guard + useful-job invariant intact; no Nostr writes/signing beyond the existing login/read; no deploy/publish/push (parent handles those).' },
   ],
@@ -1423,23 +1423,23 @@ export function buildClickThroughModel(input = {}) {
   };
 }
 
-// The curated fallback click-through model — built at module load so renderContinuumPage() with
+// The curated fallback click-through model — built at module load so renderToriiQuestPage() with
 // NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN mockup section.
 const CURATED_CLICKTHROUGH = buildClickThroughModel();
 
-// buildContinuumModel(overrides) — curated data MERGED with optional build-time overrides
+// buildToriiQuestModel(overrides) — curated data MERGED with optional build-time overrides
 // (v0.2.174), plus per-track bar cells + computed totals. Pure (no mutation of CONTINUUM);
 // the single entry point the renderer + tests use. `overrides` may carry derived list
 // sections (next12/activeNow/completed24h/archive) that REPLACE the curated arrays, plus
 // two meta fields pulled out before the merge: `taskTotals` (the docs-derived metric) and
 // `derived` (parser provenance). With NO overrides it returns exactly the curated model,
 // so the existing tests + the no-JS fallback are unchanged.
-export function buildContinuumModel(overrides = {}) {
+export function buildToriiQuestModel(overrides = {}) {
   const { taskTotals = null, derived = null, ...dataOverrides } = overrides || {};
   const base = { ...CONTINUUM, ...dataOverrides };
   return {
     ...base,
-    badge: CONTINUUM_BADGE,
+    badge: TORII_QUEST_BADGE,
     generatedAt: base.generatedAt || null,
     tracks: (base.tracks || []).map((t) => ({ ...t, bar: barCells(t.percent) })),
     totals: computeTotals(base),
@@ -1461,9 +1461,9 @@ export function buildContinuumModel(overrides = {}) {
   };
 }
 
-// continuumDataJSON(model) — the packaged, JSON-serialisable snapshot the generator
-// writes to public/continuum-data.json. Pure; safe to JSON.stringify.
-export function continuumDataJSON(model = buildContinuumModel()) {
+// toriiQuestDataJSON(model) — the packaged, JSON-serialisable snapshot the generator
+// writes to public/torii-quest-data.json. Pure; safe to JSON.stringify.
+export function toriiQuestDataJSON(model = buildToriiQuestModel()) {
   return {
     version: model.version,
     generatedAt: model.generatedAt || null,
@@ -1988,12 +1988,12 @@ ${note}
     </section>`;
 }
 
-// renderContinuumPage(model) — full self-contained static HTML document string.
+// renderToriiQuestPage(model) — full self-contained static HTML document string.
 // Dark Torii/nostrich/cyberpunk feel via inline CSS only; CSS bars + SVG rings.
 // The page renders fully WITHOUT JavaScript. A tiny, optional, same-origin-only
-// script re-reads ./continuum-data.json to refresh the totals strip (no external
+// script re-reads ./torii-quest-data.json to refresh the totals strip (no external
 // URL, no eval, no timers; degrades silently). Pure; safe to write to a file.
-export function renderContinuumPage(model = buildContinuumModel()) {
+export function renderToriiQuestPage(model = buildToriiQuestModel()) {
   const m = model;
   const t = m.totals;
   const contrib = m.contributors
@@ -2020,7 +2020,7 @@ export function renderContinuumPage(model = buildContinuumModel()) {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta http-equiv="Content-Security-Policy" content="${CONTINUUM_CSP}" />
+<meta http-equiv="Content-Security-Policy" content="${TORII_QUEST_CSP}" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
 <title>${escapeHtml(m.title)} · ${escapeHtml(m.version)}</title>
@@ -2238,10 +2238,10 @@ ${_riskRows(m.risks)}
     <ul>
 ${_li(m.sourceOfTruth)}
     </ul>
-    Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:continuum</b>.
+    Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:torii-quest-dashboard</b>.
 ${derivedNote}
   </footer>
-  <script>${CONTINUUM_REFRESH_SCRIPT}</script>
+  <script>${TORII_QUEST_REFRESH_SCRIPT}</script>
 </body>
 </html>
 `;

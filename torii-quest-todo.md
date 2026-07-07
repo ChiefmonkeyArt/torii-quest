@@ -1,9 +1,11 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.349-alpha`
+Current version: `v0.2.350-alpha`
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 Source of truth for Torii Quest tasks.
+
+> **Doc structure (v0.2.350-alpha refresh):** the per-project convention is now `torii-quest-{strategy,todo,progress,handoff}.md`. Torii Continuum uses `torii-continuum-*` (when written); Torii DE uses `torii-de-*` (when written). The old `todo.md` legacy shim was deleted; historical struck completed markers moved into `## Historical completed (archive)` at the end of this file. Tools have been updated to reference the new names (`docConsistency`, `build-continuum`, `mdPatch`, `regression-check`).
 
 ## Scope
 

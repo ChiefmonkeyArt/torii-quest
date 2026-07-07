@@ -14,7 +14,8 @@
 A browser arena shooter: Three.js (WebGL) render layer, Rapier3D (WASM) physics,
 Nostr identity, Bitcoin/ecash (fake sats in alpha). Vite 8 build. Pure ES modules.
 
-- **Current version:** v0.2.349-alpha (see §3 for every place the version string lives)
+- **Current version:** v0.2.350-alpha (see §3 for every place the version string lives)
+- **Doc structure (v0.2.350-alpha refresh):** per-project source-of-truth files use the `torii-quest-{strategy,todo,progress,handoff}.md` convention (Torii Continuum will use `torii-continuum-*` when written; Torii DE will use `torii-de-*`). Legacy top-level `todo.md` shim was deleted; historical struck markers migrated verbatim into `torii-quest-todo.md` (`## Historical completed (archive)`). Tools updated: `docConsistency` `CONTINUITY_DOCS`, `build-continuum` `SOURCES`, `mdPatch` whitelist, `regression-check`.
 - **Active focus:** 15-hour proof-of-concept route (see `torii-quest-strategy.md` → "15-Hour
   Proof-of-Concept Route" and `torii-quest-todo.md` → "ACTIVE FOCUS"). **Shooter is
   maintenance-only** unless a bug is demo-breaking; the active MVP is the freedom-tech

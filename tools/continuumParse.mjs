@@ -2,7 +2,7 @@
 // dashboard (v0.2.174). Reduces the curated copy in
 // `src/engine/dashboard/continuumData.js` by DERIVING the dashboard's list sections
 // (next-12 / active-now / completed-24h / archive clusters) and a small set of task
-// counts from `progress.md` + `todo.md` at BUILD time. Build/dev tooling only — NEVER
+// counts from `torii-quest-progress.md` + `torii-quest-todo.md` at BUILD time. Build/dev tooling only — NEVER
 // imported by the game and NEVER by continuumData.js (which stays browser-bundle-safe);
 // the CLI (tools/build-continuum.mjs) does the fs reads and hands plain STRINGS to these
 // helpers, which return plain data. NO fs/network/THREE/DOM/crypto in here.
@@ -11,8 +11,8 @@
 // (level-2 headings + numbered lists + struck/plain bullets). Anything that does not
 // parse cleanly is reported in `gaps` and the caller keeps the curated default — the
 // dashboard never shows an empty/garbled section because a doc heading was renamed.
-// Source-of-truth split is preserved: todo.md owns tasks, strategy.md owns vision,
-// progress.md is the dashboard source document this reads.
+// Source-of-truth split is preserved: torii-quest-todo.md owns tasks, torii-quest-strategy.md owns vision,
+// torii-quest-progress.md is the dashboard source document this reads.
 
 // stripInlineMd(s) — remove the inline markdown emphasis that would otherwise leak into
 // the escaped dashboard text (**bold**, ~~strike~~, `code`). Pure, never throws.
@@ -102,7 +102,7 @@ export function parseBullets(md, headingPrefix) {
 }
 
 // countStruck(md) — number of `~~…~~` struck spans in a doc (a robust proxy for completed
-// task markers in todo.md). Pure.
+// task markers in torii-quest-todo.md). Pure.
 export function countStruck(md) {
   const matches = String(md == null ? '' : md).match(/~~[^~]+~~/g);
   return matches ? matches.length : 0;
@@ -127,22 +127,22 @@ export function deriveContinuumData(docs = {}) {
       parsed.push(`${key} (${items.length})`);
       return items.length;
     }
-    gaps.push(`${key}: no usable items parsed from progress.md — kept curated default`);
+    gaps.push(`${key}: no usable items parsed from torii-quest-progress.md — kept curated default`);
     return null;
   };
 
   const next12 = tryList('next12', parseNumberedList(progressMd, 'Next 12 tasks'), { max: 24 });
-  // activeNow/completed24h are running logs in progress.md — each shipped slice prepends an
+  // activeNow/completed24h are running logs in torii-quest-progress.md — each shipped slice prepends an
   // entry, so the realistic list lengths far exceed the original v0.2.174 guard ceilings.
   // The bounds still exist to reject an absurd/garbled section; they are raised to fit the
-  // intended running-log format so the dashboard derives from progress.md instead of falling
+  // intended running-log format so the dashboard derives from torii-quest-progress.md instead of falling
   // back to the curated default (the gap the v0.2.208 cleanup closed).
   const activeNow = tryList('activeNow', parseBullets(progressMd, 'Active now'), { max: 60 });
   const completed24h = tryList('completed24h', parseStruckBullets(progressMd, 'Completed last 24h'), { max: 60 });
   const archive = tryList('archive', parseBullets(progressMd, 'Archive'), { max: 40 });
 
   const todoCompletedMarkers = countStruck(todoMd);
-  if (!todoMd) gaps.push('todo.md: empty/unreadable — completed-task count unavailable');
+  if (!todoMd) gaps.push('torii-quest-todo.md: empty/unreadable — completed-task count unavailable');
 
   const taskTotals = {
     isDerived: true,
@@ -161,7 +161,7 @@ export function deriveContinuumData(docs = {}) {
 export function summariseTaskTotals(taskTotals) {
   if (!taskTotals) return '';
   const parts = [];
-  if (taskTotals.todoCompletedMarkers != null) parts.push(`${taskTotals.todoCompletedMarkers} completed task markers (todo.md)`);
+  if (taskTotals.todoCompletedMarkers != null) parts.push(`${taskTotals.todoCompletedMarkers} completed task markers (torii-quest-todo.md)`);
   if (taskTotals.next12 != null) parts.push(`${taskTotals.next12} next-12`);
   if (taskTotals.archiveClusters != null) parts.push(`${taskTotals.archiveClusters} archive clusters`);
   return parts.join(' · ');

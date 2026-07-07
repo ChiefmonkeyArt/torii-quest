@@ -1,5 +1,8 @@
 # Torii Quest ToDo
 
+Current version: `v0.2.294-alpha`
+Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+
 Source of truth for Torii Quest tasks.
 
 ## Scope

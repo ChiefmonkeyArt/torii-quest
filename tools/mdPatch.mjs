@@ -3,9 +3,8 @@
 // Lets an assistant (or a human) make SAFE, narrow edits to the active
 // source-of-truth task/progress/handoff docs without manual copy-editing and
 // without arbitrary file-write access:
-//   - torii-quest-todo.md       (Torii Quest active task source of truth)
-//   - torii-continuum-todo.md   (Torii Continuum active task source of truth)
-//   - torii-quest-todo.md             (legacy active-task pointer / queue)
+//   - torii-quest-todo.md             (Torii Quest active task source of truth)
+//   - torii-continuum-todo.md         (Torii Continuum active task source of truth)
 //   - torii-quest-progress.md         (curated progress dashboard)
 //   - torii-quest-handoff.md          (curated contributor/agent handoff — APPEND-ONLY)
 //
@@ -59,7 +58,6 @@ export const MD_PATCH_BADGE = 'MDPATCH · WHITELIST · SAME-REPO · NO-NETWORK';
 export const MD_PATCH_WHITELIST = Object.freeze([
   'torii-quest-todo.md',
   'torii-continuum-todo.md',
-  'torii-quest-todo.md',
   'torii-quest-progress.md',
   'torii-quest-handoff.md',
 ]);
@@ -79,7 +77,6 @@ const APPEND_ONLY = Object.freeze(['append', 'note', 'list']);
 export const MD_PATCH_CAPABILITIES = Object.freeze({
   'torii-quest-todo.md': FULL,
   'torii-continuum-todo.md': FULL,
-  'torii-quest-todo.md': FULL,
   'torii-quest-progress.md': FULL,
   'torii-quest-handoff.md': APPEND_ONLY,
 });
@@ -90,7 +87,6 @@ export const MD_PATCH_CAPABILITIES = Object.freeze({
 export const MD_PATCH_NOTE_HEADING = Object.freeze({
   'torii-quest-todo.md': 'Active MVP tasks',
   'torii-continuum-todo.md': 'Active tasks',
-  'torii-quest-todo.md': 'Source of truth (active task queues)',
   'torii-quest-progress.md': 'Active now',
   'torii-quest-handoff.md': '8. Active issues / open edges',
 });

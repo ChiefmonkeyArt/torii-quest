@@ -41,10 +41,10 @@ describe('resolveTarget — whitelist + traversal boundary', () => {
     expect(resolveTarget(root, join(root, QTODO)).error).toBe('absolute-path-not-allowed');
   });
   it('rejects path separators and traversal', () => {
-    expect(resolveTarget(root, '../quest-todo.md').error).toBe('path-separator-not-allowed');
-    expect(resolveTarget(root, 'sub/quest-todo.md').error).toBe('path-separator-not-allowed');
-    expect(resolveTarget(root, '..\\quest-todo.md').error).toBe('path-separator-not-allowed');
-    expect(resolveTarget(root, './quest-todo.md').error).toBe('path-separator-not-allowed');
+    expect(resolveTarget(root, '../torii-quest-todo.md').error).toBe('path-separator-not-allowed');
+    expect(resolveTarget(root, 'sub/torii-quest-todo.md').error).toBe('path-separator-not-allowed');
+    expect(resolveTarget(root, '..\\torii-quest-todo.md').error).toBe('path-separator-not-allowed');
+    expect(resolveTarget(root, './torii-quest-todo.md').error).toBe('path-separator-not-allowed');
   });
   it('rejects empty / non-string inputs without throwing', () => {
     expect(resolveTarget('', QTODO).error).toBe('no-root');
@@ -52,17 +52,16 @@ describe('resolveTarget — whitelist + traversal boundary', () => {
     expect(resolveTarget(root, null).error).toBe('no-file');
     expect(resolveTarget(null, QTODO).error).toBe('no-root');
   });
-  it('whitelist is frozen and exactly the five editable docs', () => {
+  it('whitelist is frozen and exactly the four editable docs', () => {
     expect(Object.isFrozen(MD_PATCH_WHITELIST)).toBe(true);
     expect([...MD_PATCH_WHITELIST]).toEqual([
-      'quest-todo.md',
-      'continuum-todo.md',
-      'todo.md',
-      'progress.md',
-      'HANDOFF.md',
+      'torii-quest-todo.md',
+      'torii-continuum-todo.md',
+      'torii-quest-progress.md',
+      'torii-quest-handoff.md',
     ]);
   });
-  it('accepts all five whitelisted basenames', () => {
+  it('accepts all four whitelisted basenames', () => {
     for (const f of MD_PATCH_WHITELIST) {
       expect(resolveTarget(root, f)).toEqual({ ok: true, path: join(root, f) });
     }
@@ -70,7 +69,7 @@ describe('resolveTarget — whitelist + traversal boundary', () => {
 });
 
 describe('capabilities — per-file action map', () => {
-  it('HANDOFF.md is append-only (no replace)', () => {
+  it('torii-quest-handoff.md is append-only (no replace)', () => {
     expect(capabilityFor(HAND)).toEqual(['append', 'note', 'list']);
     expect(resolveCapability(HAND, 'replace').error).toBe('action-not-permitted');
     expect(resolveCapability(HAND, 'append').ok).toBe(true);

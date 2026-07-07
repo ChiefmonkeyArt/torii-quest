@@ -2,7 +2,7 @@
 
 > **Status:** architecture / pure helpers landed v0.2.138-alpha. **No network, no
 > auto-update, no install.** Deploying a new release stays a MANUAL maintainer step
-> (see `HANDOFF.md` §7). This document describes the shape of the update-check flow
+> (see `torii-quest-handoff.md` §7). This document describes the shape of the update-check flow
 > and the boundary between the pure (shipped) part and the deferred host part.
 
 ## 1. Purpose

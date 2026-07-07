@@ -243,7 +243,7 @@ Once the signed-event format (§6) is stable and demonstrated **cross-world** (a
 Torii gate handing off to a second world that implements only this document, not
 Torii code), it is a candidate to propose as a **NIP** — a spatial-hop / world-
 handoff event kind for the wider Nostr ecosystem. The staged path mirrors
-`strategy.md` → *Nostr Spatial Gateway Protocol*:
+`torii-quest-strategy.md` → *Nostr Spatial Gateway Protocol*:
 
 1. Reference component — Torii Gateway (landed v0.2.133). ✅
 2. **This spec** — extract the wire format (GWPROTO-1, v0.2.134). ✅ (draft)
@@ -404,7 +404,7 @@ linked by signed spatial events, with **no central router**.
   > `index.html` for unknown deep-link paths so the SPA boots and `_applyZoneRoute()` can interpret the path.
   > This is a hosting config, not app code, and is documented honestly rather than faked: Nginx
   > `try_files $uri $uri/ /index.html;`, Caddy `try_files {path} /index.html`, or a CDN 404→`/index.html`
-  > rewrite (see `HANDOFF.md` §7). Without it a hard refresh on a deep link 404s before any JS runs.
+  > rewrite (see `torii-quest-handoff.md` §7). Without it a hard refresh on a deep link 404s before any JS runs.
 - `src/engine/gateway/portalMeshPlan.js` + `src/engine/gateway/portalMesh.js` (v0.2.183) — the dedicated
   visible in-world **portal MARKER** at the existing `portalTrigger` position, so a player can SEE the travel
   point they are approaching. It is split per the project's pure-plan/adapter pattern: `portalMeshPlan.js` is a

@@ -7,8 +7,8 @@
 > `src/engine/components/contract.js` (CMP-2) and is surfaced via `src/sdk/index.js`
 > as the `component` namespace.
 
-See `strategy.md` (Reusable Components Library and Community Marketplace) for the
-vision and `todo.md` (Later — Component Economy) for the CMP-1..CMP-16 task list.
+See `torii-quest-strategy.md` (Reusable Components Library and Community Marketplace) for the
+vision and `torii-quest-todo.md` (Later — Component Economy) for the CMP-1..CMP-16 task list.
 
 ---
 
@@ -310,7 +310,7 @@ A host MUST, before mounting a third-party component:
    refuse to keep a component that fails to tear down.
 6. **Never relax core game constraints.** A component cannot enable `godMode`,
    add disallowed timers, or violate the firing/pause invariants in
-   `HANDOFF.md` §2. Components run alongside the game, not above its rules.
+   `torii-quest-handoff.md` §2. Components run alongside the game, not above its rules.
 
 Validation today is intentionally a thin, machine-checkable slice
 (`validateManifest` / `isComponent` / `defineComponent` in

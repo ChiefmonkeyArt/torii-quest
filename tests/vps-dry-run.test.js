@@ -37,7 +37,7 @@ function goodDocs() {
   return {
     'VPS_INSTALL.md': GOOD_VPS,
     'UPDATE_CHECK.md': GOOD_UPDATE,
-    'HANDOFF.md': GOOD_HANDOFF,
+    'torii-quest-handoff.md': GOOD_HANDOFF,
   };
 }
 

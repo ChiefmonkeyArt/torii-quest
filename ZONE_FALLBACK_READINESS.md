@@ -43,7 +43,7 @@
 > the bundle loads. The `index.html` SPA-fallback documented below remains the right model for any
 > non-pplx host that supports a `try_files … /index.html` rewrite, and is kept for that case.
 >
-> See also: `HANDOFF.md` §7 (the SPA-rewrite note), `VPS_INSTALL.md` §6a/§6b/§11 (the
+> See also: `torii-quest-handoff.md` §7 (the SPA-rewrite note), `VPS_INSTALL.md` §6a/§6b/§11 (the
 > concrete Caddy/Nginx config), `GATEWAY_PROTOCOL.md`, and `UPDATE_CHECK.md` §4 (the
 > manual/no-auto-update boundary this slice does not relax).
 
@@ -101,7 +101,7 @@ contain the `try_files … /index.html` line.
 Run through this before lifting a new `dist/` to `torii.quest`. None of it requires server
 access; the automated parts are a single local command (§4).
 
-- [ ] **Docs carry the requirement.** `VPS_INSTALL.md` and `HANDOFF.md` both describe the
+- [ ] **Docs carry the requirement.** `VPS_INSTALL.md` and `torii-quest-handoff.md` both describe the
       `index.html` SPA fallback for `/zone/*`. *(checked: `npm run zones:check`)*
 - [ ] **Built bundle has an entry document.** `dist/index.html` exists for the fallback to
       serve. *(checked: `npm run zones:check` after `npm run build`)*
@@ -133,7 +133,7 @@ npm run build && npm run zones:check   # include the built-bundle route-shape ch
 
 It exits non-zero (FAIL) when:
 
-1. a required doc (`VPS_INSTALL.md` / `HANDOFF.md`) does not describe the `index.html`
+1. a required doc (`VPS_INSTALL.md` / `torii-quest-handoff.md`) does not describe the `index.html`
    SPA fallback, or
 2. a built `dist/` has no `index.html`, or
 3. a static file is published under `dist/zone/*` that would shadow the fallback — EXCEPT a

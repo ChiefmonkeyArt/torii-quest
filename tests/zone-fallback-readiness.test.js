@@ -13,14 +13,14 @@ import {
 // Minimal docs that both name the /zone/ route and show an index.html fallback directive.
 const goodDocs = () => ({
   'VPS_INSTALL.md': 'serve /zone/<slug> via nginx: try_files $uri $uri/ /index.html;',
-  'HANDOFF.md': 'SPA fallback: serve index.html for any /zone/* path (Caddy try_files {path} /index.html).',
+  'torii-quest-handoff.md': 'SPA fallback: serve index.html for any /zone/* path (Caddy try_files {path} /index.html).',
 });
 
 describe('module constants', () => {
   it('pins the route prefix, badge, and required docs', () => {
     expect(ZONE_ROUTE_PREFIX).toBe('/zone/');
     expect(ZONE_FALLBACK_BADGE).toMatch(/LOCAL READ-ONLY/);
-    expect(REQUIRED_FALLBACK_DOCS).toEqual(['VPS_INSTALL.md', 'HANDOFF.md']);
+    expect(REQUIRED_FALLBACK_DOCS).toEqual(['VPS_INSTALL.md', 'torii-quest-handoff.md']);
   });
 });
 
@@ -57,10 +57,10 @@ describe('checkFallbackDocs', () => {
 
   it('HARD FAILS when a required doc is missing', () => {
     const docs = goodDocs();
-    delete docs['HANDOFF.md'];
+    delete docs['torii-quest-handoff.md'];
     const r = checkFallbackDocs(docs);
     expect(r.ok).toBe(false);
-    expect(r.errors.some((e) => e.includes('HANDOFF.md'))).toBe(true);
+    expect(r.errors.some((e) => e.includes('torii-quest-handoff.md'))).toBe(true);
   });
 
   it('HARD FAILS when a required doc never describes the index.html fallback', () => {
@@ -73,10 +73,10 @@ describe('checkFallbackDocs', () => {
 
   it('WARNS (does not fail) when the fallback is shown but the /zone/ route is unnamed', () => {
     const docs = goodDocs();
-    docs['HANDOFF.md'] = 'SPA fallback: try_files $uri /index.html;';
+    docs['torii-quest-handoff.md'] = 'SPA fallback: try_files $uri /index.html;';
     const r = checkFallbackDocs(docs);
     expect(r.ok).toBe(true);
-    expect(r.warnings.some((w) => w.includes('HANDOFF.md') && w.includes('/zone/'))).toBe(true);
+    expect(r.warnings.some((w) => w.includes('torii-quest-handoff.md') && w.includes('/zone/'))).toBe(true);
   });
 
   it('is deterministic and JSON-serialisable', () => {

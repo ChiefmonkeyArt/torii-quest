@@ -162,3 +162,14 @@ Goal: lift the game from a functional MVP into a distinctive, replayable arena s
 - Pause any bot-related work that does not directly improve MVP stability, app boundaries, or player feedback.
 - Do not let long-running BotAgent jobs block progress reports or dashboard updates; report partial landings as soon as they are green.
 - Prefer short, observable slices (1–3 hours) that show visible changes in bot behaviour, load, or safety.
+
+## Historical completed (archive)
+
+These items are DONE and kept only as struck markers for the Continuum dashboard's completed-task count. Details are in `torii-quest-progress.md` and git history.
+
+- ~~ARS-1~~ ~~Debug dump / handoff snapshot (`engine/debug/snapshot.js`). DONE v0.2.130.~~
+- ~~ARS-2~~ ~~Physics interaction API (`engine/physics/interactions.js`). DONE v0.2.130.~~
+- ~~ARS-3~~ ~~Rapier raycast service (`engine/physics/raycastService.js`), migration complete v0.2.133.~~
+- ~~ARS-5~~ ~~SDK/API skeleton (`src/sdk/index.js`). DONE v0.2.131.~~
+- ~~ARS-7~~ ~~Handoff template (`torii-quest-handoff.md`). DONE v0.2.130.~~
+- ~~TESTPROF-1~~ ~~Test profile system (`tools/testProfiles.mjs`). DONE v0.2.173.~~

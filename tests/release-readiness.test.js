@@ -59,7 +59,7 @@ describe('buildReleaseReadiness — verdict', () => {
   it('is NOT READY when zone fallback or docs consistency fail', () => {
     const s = buildReleaseReadiness(greenInputs({
       zoneFallback: { ok: false, errors: ['VPS_INSTALL.md missing fallback'], warnings: [], dist: { skipped: false } },
-      docs: { ok: false, errors: ['todo.md does not reference current version'], warnings: [] },
+      docs: { ok: false, errors: ['torii-quest-todo.md does not reference current version'], warnings: [] },
     }));
     expect(s.status).toBe('not-ready');
     expect(s.blockers).toEqual(expect.arrayContaining(['zoneFallback', 'docs']));

@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.361-alpha
+**Current version:** v0.2.362-alpha
 
 ---
 

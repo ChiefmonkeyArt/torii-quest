@@ -1,10 +1,10 @@
 {
-  "version": "v0.2.361-alpha",
-  "generatedAt": "2026-07-08T19:58:42.301Z",
+  "version": "v0.2.362-alpha",
+  "generatedAt": "2026-07-08T20:01:28.532Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 60,
+    "activeTasks": 3,
     "completedLast24h": 27,
     "archivedClusters": 11,
     "trackCount": 6,
@@ -25,18 +25,19 @@
     "isDerived": true,
     "todoCompletedMarkers": 17,
     "next12": 12,
-    "activeNow": 60,
+    "activeNow": null,
     "completed24h": 27,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (60)",
       "completed24h (27)",
       "archive (11)"
     ],
-    "gaps": [],
+    "gaps": [
+      "activeNow: no usable items parsed from torii-quest-progress.md — kept curated default"
+    ],
     "sources": [
       "torii-quest-progress.md",
       "torii-quest-todo.md"
@@ -48,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.361-alpha"
+        "value": "v0.2.362-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -73,12 +74,12 @@
       {
         "label": "Parser gaps",
         "kind": "generated",
-        "value": "0 · dashboard lists fully derived"
+        "value": "1 · curated fallback used"
       },
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.361-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.362-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -191,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.361-alpha",
-    "gitCommit": "165e379",
+    "version": "v0.2.362-alpha",
+    "gitCommit": "620d866",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.361-alpha / pkg 0.2.361-alpha"
+        "detail": "config v0.2.362-alpha / pkg 0.2.362-alpha"
       },
       {
         "key": "tests",
@@ -252,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.361-alpha",
+    "version": "v0.2.362-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -267,7 +268,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.361-alpha"
+        "value": "v0.2.362-alpha"
       },
       {
         "label": "Release manifest",
@@ -357,7 +358,7 @@
     "nextSafeTitle": "Continue the read-only oversight loop — next safe infra/dashboard slice",
     "nextSafeWhy": "Keep shipping no-runtime-risk tooling/docs that make AI handoff faster and the gate harder to get wrong (e.g. package the release:status verdict as a build artifact, or add a docs-freshness signal). SEC-gated live-relay / world-hop work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.",
     "nextSafeKind": "infra",
-    "activeNow": 60,
+    "activeNow": 42,
     "nextUp": 12,
     "archiveClusters": 11,
     "completed24h": 27,
@@ -378,7 +379,7 @@
       },
       {
         "label": "Active now",
-        "value": "60 in progress"
+        "value": "42 in progress"
       },
       {
         "label": "Next up",
@@ -399,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.361-alpha",
+    "version": "v0.2.362-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -409,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.361-alpha"
+        "value": "v0.2.362-alpha"
       },
       {
         "label": "Approved by",
@@ -561,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.361-alpha"
+        "value": "v0.2.362-alpha"
       },
       {
         "label": "Live game",

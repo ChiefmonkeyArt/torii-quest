@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.355-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.356-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 
@@ -11,7 +11,7 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.355-alpha** (build truth; live trails — manual maintainer deploy) |
+| Source version | **v0.2.356-alpha** (build truth; live trails — manual maintainer deploy) |
 | Tests | **1872 passing / 125 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **16 / 16 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
@@ -113,6 +113,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 - [2026-06-30 07:10 UTC] v0.2.259 shipped — mdPatch v2: .md pipeline now covers todos + progress + HANDOFF (append-only); new timestamped 'note' action; +18 tests (1834 passing)
 - [2026-07-08 07:17 UTC] v0.2.354-alpha — SEC-3 product URL validation LANDED (source-tree). productDisplay.isSafeHttpUrl swapped from a regex string check (^https://[^\s]+$) to a WHATWG URL-object parser enforcing protocol === 'https:' + non-empty hostname (with a pre-parse whitespace guard preserving the old [^\s]+ invariant). productPanel view-model inherits the tightened check. +6 tests in tests/product-display.test.js locking scheme rejection, malformed rejection, WHATWG normalisation behaviour, and non-string safety. No gate downgraded; no gameplay/portal/physics/CSP change; no new deps; no bundle change (pure logic swap).
 - [2026-07-08 07:27 UTC] v0.2.355-alpha — SEC-1 mandatory gate LANDED (source-tree). createLeaderboardPublisher now defaults `gate` to verifyPublishGate; explicit `gate: null` with a wired `publish` is a SEC-1 construction error and fails closed pre-sign (never signs, never publishes). Closes the earlier bypass where { sign, publish } without a gate quietly shipped stub-signed or unverified events. +5 tests across tests/leaderboard-publisher.test.js and tests/leaderboard-publish-gate.test.js (the old 'backward compatible' test flipped to two fail-closed assertions). No gate downgraded; no gameplay/portal/physics/CSP change; no new deps.
+- [2026-07-08 07:34 UTC] v0.2.356-alpha — SEC-2 handoff crypto verification LANDED on traveller side (source-tree). src/world/handoff.js now exports verifyHandoffCrypto (BIP-340 schnorr verify over a re-derived NIP-01 event id, mirroring the SEC-1 leaderboard gate + SEC-2 gateway gate). resolveHandoffSpawn now REQUIRES a hex64 expectedPlayerPubkey opt and only arms a spawn on a crypto-verified verdict — an unsigned/tampered/wrong-key/wrong-traveller envelope returns null. New helpers deriveHandoffId (pure) + signHandoffEvent (test/demo convenience). +32 tests in tests/world-handoff.test.js covering shape, id derivation, sign+verify round-trip, malformed opts, identity mismatch, tampered body, stub sig, wrong-key sig, freshness gate, resolveHandoffSpawn fail-closed matrix, and serialize/deserialize sig preservation. No gate downgraded; no gameplay/portal/physics/CSP change; no new deps.
 
 ## Next 12 tasks
 

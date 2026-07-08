@@ -19,14 +19,18 @@ import { VERSION } from '../../config.js';
 
 // Where the latest-release data WOULD be fetched from (documentation only — this
 // module performs no I/O). The maintainer/host wires the actual read-only fetch.
-// Points at the real repo ChiefmonkeyArt/torii-gate (corrected in v0.2.193 from the
-// legacy torii-quest/torii-quest placeholder; kept in sync with releaseMeta DEFAULT_SOURCE).
+// v0.2.361-alpha (UPD-1): repo constant corrected from `torii-gate` (a legacy
+// name that GitHub only serves via redirect) to `torii-quest` — the previous
+// value meant every live update probe fell through to "UNABLE TO CHECK" even
+// when the API was reachable, because `/repos/.../torii-gate/releases/latest`
+// is only resolvable after following the 301 redirect that browsers cannot
+// transparently traverse for `api.github.com`.
 export const RELEASE_SOURCE = Object.freeze({
   owner: 'ChiefmonkeyArt',
-  repo: 'torii-gate',
+  repo: 'torii-quest',
   // GitHub "latest release" REST endpoint shape — for documentation/reference.
-  latestReleaseUrl: 'https://api.github.com/repos/ChiefmonkeyArt/torii-gate/releases/latest',
-  releasesPageUrl: 'https://github.com/ChiefmonkeyArt/torii-gate/releases',
+  latestReleaseUrl: 'https://api.github.com/repos/ChiefmonkeyArt/torii-quest/releases/latest',
+  releasesPageUrl: 'https://github.com/ChiefmonkeyArt/torii-quest/releases',
 });
 
 // Update-check result statuses.

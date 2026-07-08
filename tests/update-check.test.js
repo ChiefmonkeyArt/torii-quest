@@ -10,14 +10,19 @@ import {
 import { VERSION } from '../src/config.js';
 
 describe('updateCheck — RELEASE_SOURCE', () => {
-  it('points at the real repo ChiefmonkeyArt/torii-gate (not the legacy placeholder)', () => {
+  // v0.2.361-alpha (UPD-1): the release-source constant was corrected from the
+  // legacy `torii-gate` name to the current `torii-quest` repo. Before this
+  // fix the LIVE update check always resolved to UNABLE (the wrong repo 404s)
+  // even when the API was reachable.
+  it('points at the real repo ChiefmonkeyArt/torii-quest (post-rename)', () => {
     expect(RELEASE_SOURCE.owner).toBe('ChiefmonkeyArt');
-    expect(RELEASE_SOURCE.repo).toBe('torii-gate');
+    expect(RELEASE_SOURCE.repo).toBe('torii-quest');
     expect(RELEASE_SOURCE.latestReleaseUrl).toBe(
-      'https://api.github.com/repos/ChiefmonkeyArt/torii-gate/releases/latest');
+      'https://api.github.com/repos/ChiefmonkeyArt/torii-quest/releases/latest');
     expect(RELEASE_SOURCE.releasesPageUrl).toBe(
-      'https://github.com/ChiefmonkeyArt/torii-gate/releases');
-    expect(`${RELEASE_SOURCE.owner}/${RELEASE_SOURCE.repo}`).not.toContain('torii-quest/torii-quest');
+      'https://github.com/ChiefmonkeyArt/torii-quest/releases');
+    // The legacy placeholder must not resurface.
+    expect(RELEASE_SOURCE.repo).not.toBe('torii-gate');
   });
 });
 

@@ -80,15 +80,39 @@ describe('liveStatusView', () => {
     expect(v.updateAvailable).toBe(false);
     expect(v.actionable).toBe(false);
   });
+  // v0.2.361-alpha (UPD-1): the panel is titled 'Version' and renders exactly
+  // two rows (Installed + Latest). The Latest row carries a `highlight` flag
+  // when an update is available so the renderer can visually mark it — the
+  // old STATUS + SOURCE rows are gone.
+  it('reshapes to a Version panel: title, 2 rows, highlight on latest when behind', () => {
+    const v = liveStatusView({ currentVersion: 'v0.2.360-alpha', latestVersion: '0.2.361-alpha' });
+    expect(v.title).toBe('Version');
+    expect(v.lines.length).toBe(2);
+    expect(v.lines[0]).toMatchObject({ key: 'installed', label: 'Installed', highlight: false });
+    expect(v.lines[0].value).toBe('v0.2.360-alpha');
+    expect(v.lines[1]).toMatchObject({ key: 'latest', label: 'Latest', highlight: true });
+    expect(v.lines[1].value).toBe('0.2.361-alpha');
+    expect(v.updateAvailable).toBe(true);
+  });
+  it('when up-to-date, the Latest row is NOT highlighted', () => {
+    const v = liveStatusView({ currentVersion: 'v0.2.361-alpha', latestVersion: 'v0.2.361-alpha' });
+    expect(v.lines[1].highlight).toBe(false);
+    expect(v.updateAvailable).toBe(false);
+  });
+  it('UNABLE state shows an em-dash for the Latest value and no highlight', () => {
+    const v = liveStatusView({ currentVersion: 'v0.2.361-alpha', latestVersion: null });
+    expect(v.lines[1].value).toBe('—');
+    expect(v.lines[1].highlight).toBe(false);
+  });
 });
 
 describe('checkForUpdateLive', () => {
   it('latest > installed → behind, fetched once, then cached (no 2nd fetch)', async () => {
     const s = memStorage();
-    const fetcher = vi.fn(async () => release('v0.2.360-alpha'));
+    const fetcher = vi.fn(async () => release('v0.2.361-alpha'));
     const a = await checkForUpdateLive({ fetcher, storage: s, now: () => 1000, currentVersion: 'v0.2.280-alpha' });
     expect(a.status).toBe(LIVE_STATUS.BEHIND);
-    expect(a.behindBy).toBe(80);  // 360-280=80 (tracks app version)
+    expect(a.behindBy).toBe(81);  // 361-280=81 (tracks app version)
     expect(a.fromCache).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(1);
     // second call within TTL → served from cache, fetcher not called again

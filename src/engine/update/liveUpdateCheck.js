@@ -115,26 +115,35 @@ export function liveStatusView({
 } = {}) {
   const current = String(currentVersion || VERSION);
   const { status, label, delta } = _statusFor(current, latestVersion);
+  const updateAvailable = status === LIVE_STATUS.BEHIND;
+  // v0.2.361-alpha (UPD-1): panel is now titled 'Version' and shows two rows.
+  // Row shape carries a `highlight` flag so the renderer can visually mark the
+  // Latest cell when a newer release exists — status is encoded in that cue
+  // instead of a separate STATUS row. The releases page link is preserved on
+  // the view-model root (`releaseUrl`) so an admin "open on GitHub" affordance
+  // could pick it up without another module round-trip.
   const lines = [
-    { label: 'Installed', value: current },
-    { label: 'Latest', value: latestVersion || '—' },
-    { label: 'Status', value: label },
-    { label: 'Source', value: RELEASE_SOURCE.releasesPageUrl },
+    { key: 'installed', label: 'Installed', value: current, highlight: false },
+    { key: 'latest',    label: 'Latest',    value: latestVersion || '—', highlight: updateAvailable },
   ];
   return {
-    title: 'UPDATE CHECK',
+    title: 'Version',
     status,
     statusLabel: label,
     currentVersion: current,
     latestVersion: latestVersion || null,
     behindBy: status === LIVE_STATUS.BEHIND ? (delta ? delta.count : null) : 0,
-    updateAvailable: status === LIVE_STATUS.BEHIND,
+    updateAvailable,
     fromCache: fromCache === true,
     checkedAt: Number.isFinite(checkedAt) ? checkedAt : null,
     releaseUrl: releaseUrl || RELEASE_SOURCE.releasesPageUrl,
     lines,
     readOnly: true,
-    actionable: false, // display-only; deploying a release stays a manual host step
+    // v0.2.361-alpha (UPD-1): still `actionable:false` at the VIEW layer —
+    // this module never touches the wire. The admin "Upgrade Now" button is
+    // wired in main.js against the separate `upgradeInPlace` helper, which
+    // performs a browser-only SW-cache purge + reload; no deploy is done here.
+    actionable: false,
   };
 }
 

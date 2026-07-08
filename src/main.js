@@ -29,6 +29,11 @@ import { summariseConsent } from './engine/consent/consentGate.js';
 // v0.2.285 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
 import { checkForUpdateLive, liveStatusView } from './engine/update/liveUpdateCheck.js';
+// v0.2.361-alpha (UPD-1): client-side upgrade primitive + admin identity check
+// for the Upgrade Now button. Both modules are pure/injectable — importing them
+// touches nothing (no SW touch, no reload, no globals).
+import { runUpgradeInPlace, browserUpgradeAdapter } from './engine/update/upgradeInPlace.js';
+import { isInstanceAdmin } from './engine/ui/instanceSettings.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
@@ -625,19 +630,74 @@ async function _publishMyScore() {
   on(EV.NOSTR_LOGIN, _refreshLbPublishButton);
 })();
 
+// v0.2.361-alpha (UPD-1): the latest resolved view-model, cached at module scope
+// so `_refreshUpgradeButtonVisibility` can key off `updateAvailable` without re-
+// running a network probe on every login event. `null` until the first probe
+// resolves (or a synthetic "checking…" state is painted).
+let _latestUpdateView = null;
+
 function _drawUpdateBlock(block) {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
-  body.replaceChildren(...block.lines.flatMap(({ label, value }) => {
+  body.replaceChildren(...block.lines.flatMap((row) => {
+    const { label, value, highlight } = row || {};
     const l = document.createElement('div');
     l.className = 'up-row-label';
     l.textContent = label;
     const v = document.createElement('div');
-    v.className = 'up-row-value';
+    v.className = highlight ? 'up-row-value up-row-value--new' : 'up-row-value';
     v.textContent = value;
     return [l, v];
   }));
 }
+
+// v0.2.361-alpha (UPD-1): Upgrade Now button visibility rule. Fail-closed —
+// button is hidden unless the caller is a logged-in admin AND the latest
+// probe says an update is available. Never throws; a missing button element
+// or an absent view-model is treated as "hide".
+function _refreshUpgradeButtonVisibility() {
+  const btn = document.getElementById('update-upgrade-btn');
+  if (!btn) return;
+  const view = _latestUpdateView;
+  const admin = isInstanceAdmin({
+    operatorPubkey: state.nostrPubkey || '',
+    hostPubkey: _hostIdentity(),
+  });
+  const show = admin && !!(view && view.updateAvailable === true);
+  btn.hidden = !show;
+  if (!show) {
+    // Re-enable so a subsequent visible state starts clickable again.
+    btn.disabled = false;
+    btn.textContent = '⬆ UPGRADE NOW · CLICK HERE';
+  }
+}
+
+// v0.2.361-alpha (UPD-1): wire the Upgrade Now click handler once. Idempotent —
+// re-imports of main.js would re-attach at most one listener. The handler
+// disables the button (so a double-click can't double-fire) and invokes the
+// pure `runUpgradeInPlace` primitive with the browser adapter. The reload
+// step never returns in a live browser; the disable is defensive.
+(function _wireUpgradeButton() {
+  const btn = document.getElementById('update-upgrade-btn');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'UPGRADING…';
+    try {
+      await runUpgradeInPlace({ adapter: browserUpgradeAdapter() });
+    } catch {
+      // runUpgradeInPlace never throws — defensive only.
+      btn.disabled = false;
+      btn.textContent = '⬆ UPGRADE NOW · CLICK HERE';
+    }
+  });
+})();
+
+// Refresh the button visibility whenever the login identity changes. The
+// upstream NOSTR_LOGIN handler already fires on both admit + delayed-login.
+on(EV.NOSTR_LOGIN, _refreshUpgradeButtonVisibility);
 
 // LIVE update-check: paint an immediate "checking…" row, then resolve against the real
 // GitHub releases/latest endpoint (cached client-side) and repaint. Failure / rate-limit /
@@ -650,8 +710,13 @@ function renderUpdatePreview() {
     ? window.fetch.bind(window) : null;
   const storage = (typeof window !== 'undefined') ? window.localStorage : null;
   checkForUpdateLive({ fetcher, storage })
-    .then((block) => _drawUpdateBlock(block))
-    .catch(() => _drawUpdateBlock(liveStatusView({ latestVersion: null })));
+    .then((view) => { _latestUpdateView = view; _drawUpdateBlock(view); _refreshUpgradeButtonVisibility(); })
+    .catch(() => {
+      const view = liveStatusView({ latestVersion: null });
+      _latestUpdateView = view;
+      _drawUpdateBlock(view);
+      _refreshUpgradeButtonVisibility();
+    });
 }
 renderUpdatePreview();
 

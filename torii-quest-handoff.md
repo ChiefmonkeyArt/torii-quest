@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.354-alpha
+**Current version:** v0.2.355-alpha
 
 ---
 
@@ -139,7 +139,7 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 - **Travel-time lead on fast-moving targets** — bullets are hitscan-aimed but projectile-flown; long shots on strafing bots can trail. Tracked in `torii-quest-todo.md`.
 - **Live deployment trails source** by several versions — needs manual smoke + publish (`TQ-MANUAL-113`).
 - **ESBUILD-1** (deferred) — low-severity dev-server-only esbuild advisory. `npm audit fix` pulls a broad rolldown/vite chain, deemed too risky for alpha. Tracked WARN in `torii-quest-todo.md`.
-- **SEC-1 (consent gate)** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent. Current impl is pure/injected.
+- ~~**SEC-1 (mandatory gate on `leaderboardPublisher`)**~~ — **LANDED v0.2.355-alpha.** The `createLeaderboardPublisher({ sign, publish, gate })` adapter no longer treats `gate` as optional: `gate` DEFAULTS to `verifyPublishGate` (the crypto-verified SEC-1 gate), so any live publisher inherits real BIP-340 verification + the consent check by default. An explicit `gate: null` combined with a wired `publish` is a SEC-1 CONSTRUCTION ERROR — `publishScore` fails closed on every call, never signs, never publishes, and returns `ok:false` with a `SEC-1: publish is wired without a gate` error. The build-only path (no publisher) still needs no gate. This closes the earlier bypass where a caller could wire `{ sign, publish }` without a gate and quietly ship stub-signed or unverified events to a relay. Tests: 5 new cases across `tests/leaderboard-publisher.test.js` (mandatory-gate fail-closed describe block) and `tests/leaderboard-publish-gate.test.js` (the old "backward compatible" bypass test flipped to two fail-closed assertions). Consent gating for the real signer/relay wiring landed earlier (v0.2.257 publishGate, v0.2.277 real BIP-340, v0.2.285 live NIP-07); v0.2.355 removes the last opt-out path.
 - **SEC-2 (handoff verification)** — before `world/handoff.js` acts on live relay data, add cryptographic verification of incoming handoff events. Never act on unverified travel intents from the wire.
 - ~~**SEC-3 (product URL validation)**~~ — **LANDED v0.2.354-alpha.** `productDisplay.isSafeHttpUrl` (the shared validator both `productDisplay` and the `productPanel` view-model use) is now a WHATWG `URL`-object parser: it trims + rejects any embedded whitespace, tries `new URL(s)`, and only accepts a result whose `protocol === 'https:'` and whose `hostname` is non-empty. The old regex `^https:\/\/[^\s]+$` accepted malformed inputs like `https://` and `https:javascript:…`; the parser refuses them and normalises the permissive-but-safe cases (`https:host`, `https:///host`, `HTTPS://`) to a real https host, so a listing can no longer smuggle a non-https scheme through us. Tests: 6 new cases in `tests/product-display.test.js` locking scheme/host enforcement, malformed rejection, WHATWG normalisation behaviour, and non-string safety.
 

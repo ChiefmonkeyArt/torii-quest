@@ -55,7 +55,18 @@ function cspHeaderPlugin() {
         // Append the versioned entry import to the single classic inline bootstrap
         // script. The ?v=<stamp> query busts the 4h CDN edge cache on every publish so a
         // stale entry (pointing at a dead chunk hash) can never reach a returning player.
-        out = out.replace(/\n<\/script>\n<\/body>/, `\n${VERSIONED_IMPORT_LINE}\n</script>\n</body>`);
+        // Append the versioned entry import to the LAST inline bootstrap <script>
+        // in the document. v0.2.360-alpha regression fix: previously matched
+        // `\n</script>\n</body>` verbatim, which silently no-op'd when v0.2.358
+        // added DOM elements (Instance Settings overlay) between the script and
+        // </body>, shipping a live build with NO entry import and every button
+        // dead. This lastIndexOf-based append is decoupled from what sits between
+        // </script> and </body>.
+        const lastCloseIdx = out.lastIndexOf('</script>');
+        if (lastCloseIdx === -1) {
+          throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
+        }
+        out = out.slice(0, lastCloseIdx) + `\n${VERSIONED_IMPORT_LINE}\n` + out.slice(lastCloseIdx);
         return out;
       },
     },

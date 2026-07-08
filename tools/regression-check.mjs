@@ -51,7 +51,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.359-alpha';
+const EXPECTED_VERSION = 'v0.2.360-alpha';
 const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -181,8 +181,22 @@ console.log('[6] dist markers (skipped if no dist/)');
       }
     }
     const distHtml = join(distDir, 'index.html');
-    if (existsSync(distHtml) && readFileSync(distHtml, 'utf8').includes(EXPECTED_VERSION)) pass('dist index.html version ok');
-    else if (existsSync(distHtml)) fail('dist index.html missing version');
+    if (existsSync(distHtml)) {
+      const distHtmlSrc = readFileSync(distHtml, 'utf8');
+      if (distHtmlSrc.includes(EXPECTED_VERSION)) pass('dist index.html version ok');
+      else fail('dist index.html missing version');
+      // v0.2.360-alpha: bootstrap-less build guard. The vite CSP plugin appends
+      // `import('/assets/torii-entry.js?v=<stamp>');` inside the LAST inline
+      // <script>. If that import is missing, no game code runs on live and every
+      // button is a silent no-op (the v0.2.358/359 live regression). Assert it.
+      // Match both absolute (`/assets/`) and depth-rewritten relative (`./assets/`)
+      // — tools/relfix.mjs converts the first to the second post-build.
+      if (/import\(\s*['"](?:\.?\/)+assets\/torii-entry\.js\?v=/.test(distHtmlSrc)) {
+        pass('dist index.html bootstraps torii-entry.js (versioned import present)');
+      } else {
+        fail('dist index.html has NO versioned torii-entry.js import — build would ship a dead bundle');
+      }
+    }
   }
 }
 
@@ -499,7 +513,9 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     }
 
     if (/<script\b[^>]*\bsrc=["']\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (strict-dynamic needs it loaded by the trusted inline script)');
-    else if (!/import\(['"]\/assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('/assets/torii-entry.js[?v=...]') in the inline bootstrap");
+    // Accept either absolute (`/assets/`) or depth-rewritten relative (`./assets/`)
+    // — tools/relfix.mjs rewrites the plugin's absolute URL post-build.
+    else if (!/import\(['"](?:\.?\/)+assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('/assets/torii-entry.js[?v=...]') in the inline bootstrap");
     else if (!/\?v=/.test(distHtml)) fail("dist/index.html entry import lacks a ?v= cache-bust query (CDN would serve stale entry)");
     else pass('entry loaded via versioned import() from the trusted inline bootstrap (strict-dynamic + CDN cache-bust)');
 

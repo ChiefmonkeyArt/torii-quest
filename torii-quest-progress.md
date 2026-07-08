@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.359-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.360-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 
@@ -11,7 +11,7 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.359-alpha** (build truth; live trails — manual maintainer deploy) |
+| Source version | **v0.2.360-alpha** (build truth; live trails — manual maintainer deploy) |
 | Tests | **1872 passing / 125 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
 | Regression check | **16 / 16 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
@@ -117,6 +117,7 @@ Baseline totals marked **[baseline]** — nudge them as work lands; directional 
 - [2026-07-08 08:21 UTC] v0.2.357-alpha: added Milestone-2 access-model theme to torii-quest-todo.md — ACC-1 (owner-set arrivalPolicy: public/follows-only/invite-only + policy check seam after SEC-2 verify), ACC-2 (follow-graph/invite state sourcing), ACC-3 (write authority via owner-curated admin group, DEFERRED WHOLE-SLICE). Public travel + read-only visit is the default; only the admin-group write-gate is the big deferred slice. Doc-only; no code, no test, no gate change.
 - [2026-07-08 08:57 UTC] v0.2.358-alpha: ACC-1 lands the instance admin settings shell. New pure/node-safe view-model at src/engine/ui/instanceSettings.js exposes isInstanceAdmin() (host-pubkey seam, hex64 case-insensitive, fail-closed), a frozen COMING_SOON_ARRIVAL_MODES list (follow-me → whitelist → invite-only), buildInstanceSettingsModel(), and renderInstanceSettingsPanel(). Title screen now shows a mauve '⚙ INSTANCE SETTINGS' link next to the project dashboard link — visible only when the current npub matches the instance host pubkey. Panel is inert: renders an Access section (Arrival: Public + Coming soon placeholders) and a More section — no gate change, no relay call, no signer touch (SEC-1/2/3 untouched). 23 new tests in tests/instance-settings.test.js cover visibility rule, model shape, frozen coming-soon set, hostile-input escaping, close-button hook, and defence-in-depth. Total 2076 passing / 136 files. Public-by-default access model + admin-group write authority (ACC-2a follows-only, ACC-2b whitelist/invite-only, ACC-3 admin group) documented in torii-quest-strategy.md and torii-quest-todo.md as deferred slices.
 - [2026-07-08 12:40 UTC] v0.2.359-alpha: doc-only version bump. No code changes — carries the version-markers rev only. Test suite 2076/2076 GREEN; regression check 16/16 GREEN; SEC-1/SEC-2/SEC-3 and public-by-default access model (ACC-1 shell) untouched.
+- [2026-07-08 13:29 UTC] v0.2.360-alpha: HOTFIX for live regression introduced in v0.2.358 and shipped in v0.2.359. The Instance Settings overlay divs added in v0.2.358 sat between </script> and </body>, which broke vite CSP plugin's verbatim regex `\n</script>\n</body>` — the versioned entry-import line was silently NOT appended, so the built index.html shipped with NO game bootstrap and every title-screen button was a dead no-op on the live site. Fix: (1) moved overlay divs to just before the <script type=module>/<script> bootstrap block so the regex still matches, (2) replaced the verbatim regex with a defensive lastIndexOf('</script>') insertion that throws if no closing tag is found, (3) added regression-check assertion asserting a versioned torii-entry.js import is present in dist/index.html (accepting both absolute and relfix'd relative forms) — this specific failure mode can never ship silently again. 2076/2076 tests pass; 16/16 check GREEN including the new bootstrap-less build guard.
 
 ## Next 12 tasks
 

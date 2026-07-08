@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const TORII_QUEST_VERSION = 'v0.2.359-alpha';
+export const TORII_QUEST_VERSION = 'v0.2.360-alpha';
 export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite

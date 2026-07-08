@@ -248,12 +248,36 @@ describe('SEC-1 publishGate — publisher integration (gate blocks relay write)'
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it('without a gate, behaviour is unchanged (backward compatible)', async () => {
+  it('SEC-1 (v0.2.355): omitting the gate defaults to the real crypto gate — a stub-signed event fails closed', async () => {
+    // The earlier "backward compatible" bypass — where a caller could wire
+    // { sign, publish } with no gate and quietly ship stub-signed events to a
+    // relay — is closed. From v0.2.355 the gate DEFAULTS to verifyPublishGate,
+    // so omitting it opts INTO the real crypto gate rather than out of SEC-1.
     const publish = vi.fn(async () => 'OK');
-    const sign = vi.fn(async (t) => ({ ...t, sig: STUB_SIG }));
+    const sign = vi.fn(async (t) => ({ ...t, sig: STUB_SIG, id: 'a'.repeat(64), pubkey: PK }));
     const pub = createLeaderboardPublisher({ sign, publish }); // no gate
     const res = await pub.publishScore(SCORE); // no ctx
-    expect(res.published).toBe(true);
-    expect(publish).toHaveBeenCalledOnce();
+    expect(res.ok).toBe(false);
+    expect(res.signed).toBe(true);
+    expect(res.published).toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+    expect(res.errors.some((e) => e.startsWith('SEC-1 gate blocked publish'))).toBe(true);
+  });
+
+  it('SEC-1 (v0.2.355): an explicit `gate: null` with publish wired fails closed BEFORE signing', async () => {
+    // The one true opt-out path ("I really do not want a gate") is refused when
+    // publish is wired — the fail-closed construction guard blocks the call
+    // before sign() is even invoked. Callers who want no gate must leave publish
+    // unset (build-only), not pass gate:null.
+    const publish = vi.fn(async () => 'OK');
+    const sign = vi.fn(async (t) => ({ ...t, sig: STUB_SIG }));
+    const pub = createLeaderboardPublisher({ sign, publish, gate: null });
+    const res = await pub.publishScore(SCORE);
+    expect(res.ok).toBe(false);
+    expect(res.signed).toBe(false);
+    expect(res.published).toBe(false);
+    expect(sign).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(res.errors.some((e) => e.startsWith('SEC-1: publish is wired without a gate'))).toBe(true);
   });
 });

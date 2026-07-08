@@ -41,6 +41,10 @@ import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 import { readArrivingTraveller } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
+// v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
+// Settings shell (INERT: shown only to the logged-in instance admin; the Access
+// section is a read-only "public + coming soon" placeholder).
+import { buildInstanceSettingsModel, renderInstanceSettingsPanel } from './engine/ui/instanceSettings.js';
 import { NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW } from './config.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
@@ -340,7 +344,79 @@ on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
   publishOurWorldPresence();
+  refreshInstanceSettingsVisibility();
 });
+
+// ── Instance Settings (ACC-1, v0.2.358) ────────────────────────────────────────
+// Title-screen admin surface. The entry-point link (`#instance-settings-link`)
+// is shown ONLY when the logged-in operator's npub matches this deployment's
+// configured host pubkey (`_hostIdentity()`), so a visitor / anon session /
+// mismatched login sees no admin UI. Clicking the link opens an inert panel
+// (`#instance-settings-panel`) rendered from the pure `instanceSettings.js`
+// view-model — no gate change, no relay call, no navigation. The Access
+// section is a read-only "public + coming soon" placeholder.
+const _elInstanceSettingsLink  = typeof document !== 'undefined' ? document.getElementById('instance-settings-link')  : null;
+const _elInstanceSettingsPanel = typeof document !== 'undefined' ? document.getElementById('instance-settings-panel') : null;
+const _elInstanceSettingsBackdrop = typeof document !== 'undefined' ? document.getElementById('instance-settings-backdrop') : null;
+
+function _currentInstanceSettingsModel() {
+  return buildInstanceSettingsModel({
+    operatorPubkey: state.nostrPubkey || '',
+    hostPubkey: _hostIdentity(),
+  });
+}
+
+function refreshInstanceSettingsVisibility() {
+  if (!_elInstanceSettingsLink) return;
+  const model = _currentInstanceSettingsModel();
+  _elInstanceSettingsLink.hidden = !model.visible;
+  // If the panel was left open when the operator logged out / switched to a
+  // non-admin identity, hide it immediately (defence in depth — the panel is
+  // inert, but we do not want stale admin UI lingering).
+  if (!model.visible) _closeInstanceSettingsPanel();
+}
+
+function _openInstanceSettingsPanel() {
+  if (!_elInstanceSettingsPanel) return;
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible) return; // shell-side gate; renderer also returns '' when hidden.
+  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
+  _elInstanceSettingsPanel.hidden = false;
+  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = false;
+}
+
+function _closeInstanceSettingsPanel() {
+  if (_elInstanceSettingsPanel) {
+    _elInstanceSettingsPanel.hidden = true;
+    _elInstanceSettingsPanel.innerHTML = '';
+  }
+  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = true;
+}
+
+if (_elInstanceSettingsLink) {
+  _elInstanceSettingsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    _openInstanceSettingsPanel();
+  });
+}
+if (_elInstanceSettingsPanel) {
+  // Delegated close: bind to the panel root so a re-rendered close button
+  // still works. Only the `data-action="close"` element triggers a close;
+  // clicks elsewhere inside the panel are ignored.
+  _elInstanceSettingsPanel.addEventListener('click', (e) => {
+    const t = e && e.target;
+    if (t && t.getAttribute && t.getAttribute('data-action') === 'close') {
+      e.preventDefault();
+      _closeInstanceSettingsPanel();
+    }
+  });
+}
+if (_elInstanceSettingsBackdrop) {
+  _elInstanceSettingsBackdrop.addEventListener('click', _closeInstanceSettingsPanel);
+}
+// Initial visibility pass (covers the case where the operator is already
+// seated at load, e.g. a returning admin or a P2 arrival that matches host).
+refreshInstanceSettingsVisibility();
 
 // ── Canonical /#/zone/<slug> hash route resolution (inert notice only) ──────────
 function _applyZoneRoute() {

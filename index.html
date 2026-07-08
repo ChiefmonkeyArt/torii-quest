@@ -219,6 +219,68 @@
       color: #36e0c8; text-decoration: none; border: 1px solid rgba(54,224,200,0.35);
       border-radius: 3px; padding: 2px 8px; }
     #torii-quest-dashboard-link:hover { border-color: #36e0c8; }
+    /* Instance Settings link (v0.2.358, ACC-1) — title-screen admin corner link.
+       Hidden by default; main.js unhides it only when the logged-in operator's
+       npub matches the deployment's host pubkey. Sibling styling to the project
+       dashboard link so the two sit together as a quiet corner cluster. */
+    #instance-settings-link { display: inline-block; margin-top: 7px; margin-left: 6px;
+      font-size: 9px; letter-spacing: 2px; color: #a88bfa; text-decoration: none;
+      border: 1px solid rgba(168,139,250,0.35); border-radius: 3px; padding: 2px 8px;
+      cursor: pointer; background: transparent; }
+    #instance-settings-link:hover { border-color: #a88bfa; }
+    #instance-settings-link[hidden] { display: none; }
+    /* Instance Settings panel (v0.2.358) — inert overlay on the title screen.
+       Rendered by main.js from the pure `instanceSettings.js` view-model. No
+       gate change, no relay call, no navigation. */
+    #instance-settings-backdrop {
+      position: fixed; inset: 0; background: rgba(4,6,14,0.72);
+      z-index: 40; display: block;
+    }
+    #instance-settings-backdrop[hidden] { display: none; }
+    #instance-settings-panel {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
+      overflow: auto; z-index: 41;
+      background: rgba(14,10,26,0.96); color: #d8d4ee;
+      border: 1px solid rgba(168,139,250,0.45); border-radius: 8px;
+      padding: 14px 16px; font-family: inherit; text-align: left;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    }
+    #instance-settings-panel[hidden] { display: none; }
+    #instance-settings-panel .is-header { display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(168,139,250,0.25); padding-bottom: 8px; margin-bottom: 10px; }
+    #instance-settings-panel .is-title { margin: 0; font-size: 14px; letter-spacing: 2px;
+      color: #d8d4ee; text-transform: uppercase; flex: 1; }
+    #instance-settings-panel .is-admin { font-size: 10px; color: #a0a8b8; }
+    #instance-settings-panel .is-admin code { color: #a88bfa; background: rgba(168,139,250,0.08);
+      padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+    #instance-settings-panel .is-close { background: transparent; border: 1px solid rgba(255,255,255,0.15);
+      color: #d8d4ee; border-radius: 3px; width: 24px; height: 24px; font-size: 16px;
+      line-height: 1; cursor: pointer; padding: 0; }
+    #instance-settings-panel .is-close:hover { border-color: #a88bfa; }
+    #instance-settings-panel .is-section { margin-bottom: 12px; padding: 10px 12px;
+      background: rgba(18,12,34,0.6); border: 1px solid rgba(168,139,250,0.18); border-radius: 6px; }
+    #instance-settings-panel .is-section-title { margin: 0 0 6px 0; font-size: 11px;
+      letter-spacing: 2px; color: #a88bfa; text-transform: uppercase; }
+    #instance-settings-panel .is-row { display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 0; font-size: 12px; }
+    #instance-settings-panel .is-row-label { color: #a0a8b8; }
+    #instance-settings-panel .is-row-value { color: #d8d4ee; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 1px; font-size: 11px; }
+    #instance-settings-panel .is-coming-soon { margin-top: 8px; padding-top: 8px;
+      border-top: 1px dashed rgba(168,139,250,0.22); }
+    #instance-settings-panel .is-coming-soon-head { font-size: 9px; letter-spacing: 2px;
+      color: #a88bfa; text-transform: uppercase; margin-bottom: 4px; }
+    #instance-settings-panel .is-mode-list { margin: 0; padding: 0; list-style: none; }
+    #instance-settings-panel .is-mode-list li { display: flex; flex-direction: column;
+      padding: 4px 0; border-bottom: 1px dotted rgba(168,139,250,0.12); }
+    #instance-settings-panel .is-mode-list li:last-child { border-bottom: 0; }
+    #instance-settings-panel .is-mode-label { color: #d8d4ee; font-size: 11px; font-weight: 600; }
+    #instance-settings-panel .is-mode-hint { color: #a0a8b8; font-size: 10px; margin-top: 2px; }
+    #instance-settings-panel .is-note { margin: 8px 0 0 0; font-size: 10px; color: #a0a8b8;
+      font-style: normal; }
+    #instance-settings-panel .is-footer { border-top: 1px solid rgba(168,139,250,0.18);
+      padding-top: 8px; margin-top: 4px; font-size: 10px; color: #7d8494; text-align: center; }
 
     /* ── MVP loop header — frames the four preview cards as one loop (v0.2.143) ── */
     #mvp-loop {
@@ -630,10 +692,14 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.357-alpha</div>
+      <div id="version-label">v0.2.358-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
+      <!-- Instance Settings admin corner link (v0.2.358, ACC-1). Hidden by
+           default; main.js unhides it only when the logged-in operator's
+           npub matches the deployment's host pubkey (`_hostIdentity()`). -->
+      <a id="instance-settings-link" href="#" hidden>⚙ INSTANCE SETTINGS</a>
 
       <!-- Gateway / n2n world-presence LIVE card (v0.2.251, P0). Rendered by main.js
            from a REAL read-only relay scan (kind 30078, topic `torii-gateway`). It
@@ -810,7 +876,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.357-alpha · torii quest</div>
+  <div id="ver">v0.2.358-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -893,5 +959,13 @@
       .catch(e => console.warn('[SW] registration failed:', e));
   }
 </script>
+
+<!-- Instance Settings overlay (v0.2.358, ACC-1). Both elements are hidden by
+     default; main.js unhides them together when the instance admin clicks the
+     corner link. The panel body is rendered from the pure `instanceSettings.js`
+     view-model (no gate change, no relay call, no navigation). -->
+<div id="instance-settings-backdrop" hidden></div>
+<div id="instance-settings-panel" role="dialog" aria-label="Instance Settings" hidden></div>
+
 </body>
 </html>

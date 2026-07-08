@@ -1,10 +1,10 @@
 {
-  "version": "v0.2.360-alpha",
-  "generatedAt": "2026-07-08T13:29:16.382Z",
+  "version": "v0.2.361-alpha",
+  "generatedAt": "2026-07-08T19:58:42.301Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
-    "activeTasks": 58,
+    "activeTasks": 60,
     "completedLast24h": 27,
     "archivedClusters": 11,
     "trackCount": 6,
@@ -25,14 +25,14 @@
     "isDerived": true,
     "todoCompletedMarkers": 17,
     "next12": 12,
-    "activeNow": 58,
+    "activeNow": 60,
     "completed24h": 27,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "activeNow (58)",
+      "activeNow (60)",
       "completed24h (27)",
       "archive (11)"
     ],
@@ -48,17 +48,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.360-alpha"
+        "value": "v0.2.361-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 136"
+        "value": "fast 5 · foundation 25 · full 137"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2076 passing / 136 files"
+        "value": "2092 passing / 137 files"
       },
       {
         "label": "Profile timings",
@@ -78,7 +78,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.360-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.361-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -100,7 +100,7 @@
       {
         "pct": 18,
         "label": "Foundation coverage",
-        "sub": "25/136 files"
+        "sub": "25/137 files"
       }
     ]
   },
@@ -191,15 +191,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.360-alpha",
-    "gitCommit": "c202fa6",
+    "version": "v0.2.361-alpha",
+    "gitCommit": "165e379",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.360-alpha / pkg 0.2.360-alpha"
+        "detail": "config v0.2.361-alpha / pkg 0.2.361-alpha"
       },
       {
         "key": "tests",
@@ -252,7 +252,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.360-alpha",
+    "version": "v0.2.361-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -260,14 +260,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2076 passing / 136 files",
+    "testLabel": "2092 passing / 137 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.360-alpha"
+        "value": "v0.2.361-alpha"
       },
       {
         "label": "Release manifest",
@@ -279,7 +279,7 @@
       },
       {
         "label": "Tests",
-        "value": "2076 passing / 136 files"
+        "value": "2092 passing / 137 files"
       },
       {
         "label": "Test profiles",
@@ -357,7 +357,7 @@
     "nextSafeTitle": "Continue the read-only oversight loop — next safe infra/dashboard slice",
     "nextSafeWhy": "Keep shipping no-runtime-risk tooling/docs that make AI handoff faster and the gate harder to get wrong (e.g. package the release:status verdict as a build artifact, or add a docs-freshness signal). SEC-gated live-relay / world-hop work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.",
     "nextSafeKind": "infra",
-    "activeNow": 58,
+    "activeNow": 60,
     "nextUp": 12,
     "archiveClusters": 11,
     "completed24h": 27,
@@ -378,7 +378,7 @@
       },
       {
         "label": "Active now",
-        "value": "58 in progress"
+        "value": "60 in progress"
       },
       {
         "label": "Next up",
@@ -399,7 +399,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.360-alpha",
+    "version": "v0.2.361-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -409,7 +409,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.360-alpha"
+        "value": "v0.2.361-alpha"
       },
       {
         "label": "Approved by",
@@ -453,7 +453,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2076 passing / 136 files"
+        "value": "green — 2092 passing / 137 files"
       },
       {
         "label": "Explicit approval",
@@ -561,7 +561,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.360-alpha"
+        "value": "v0.2.361-alpha"
       },
       {
         "label": "Live game",

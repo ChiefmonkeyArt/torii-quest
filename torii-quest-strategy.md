@@ -593,6 +593,122 @@ of independently-owned worlds linked by signed spatial events, with no central
 router. See `COMPONENTS.md` (CMP-8 reference component) and the CMP loader/handoff
 tasks in `torii-quest-todo.md`.
 
+## Instance Access Model & Admin Settings
+
+Once n2n travel is live, every listed Torii instance becomes reachable by any
+traveller who resolves its gateway. That is the point of the open protocol —
+no central router, no gate-keeping directory, worlds link themselves. But once
+anyone can arrive, we need a clear answer to two questions the owner cares
+about: *who can arrive?* and *who can change anything once they are here?*
+
+### Design defaults (v0.2.358-alpha)
+
+- **Travel is public by default.** Any npub can resolve any listed gateway and
+  arrive at any listed instance. No invite required. This matches the
+  "gateway to a decentralised open world of infinite possibilities" phrasing
+  of the project.
+- **Visitors are read-only by default.** A visiting npub can move, play the
+  arena, visit the nap zone, browse the shop, and buy things (commerce stays
+  out-of-band on the marketplace, unchanged). They cannot mutate world state.
+- **The instance admin — and only the instance admin — can narrow arrival.**
+  On a per-instance basis, they can set an `arrivalPolicy` other than
+  `public`.
+- **The instance admin — and only the instance admin — can grant write
+  authority.** By default no visitor can change anything; the admin can add
+  named npubs to an admin group that has per-action write authority.
+
+### The four arrival modes
+
+1. **`public` (default).** Any npub with a valid crypto verdict on their
+   handoff envelope is admitted.
+2. **`follows-only` — "follow me to enter".** Only npubs that follow the
+   instance admin are admitted. Default semantics is one-way, visitor → owner
+   ("follow me"); visitor-follows-owner / owner-follows-visitor / mutual stays
+   as a config knob if we want it later, but we start with the pattern the
+   owner asked for.
+3. **`whitelist`.** Only npubs on an admin-curated per-instance allow-list are
+   admitted.
+4. **`invite-only`.** Arrival requires a per-visitor invite issued by the
+   admin. Shares the same allow-list plumbing as `whitelist` with a subset
+   shape (per-visitor entries, potentially time-bounded / single-use).
+
+### Two-layer arrival check
+
+1. **Crypto verify (SEC-2 layer, already landed on both the gateway host-side
+   and the traveller-side, v0.2.263 and v0.2.356).** Confirms the handoff
+   envelope is a real BIP-340 schnorr signature by the npub that claims to
+   own it. Fail-closed on any tamper / wrong-key / forged / missing sig.
+2. **Policy check (new, deferred to ACC-2a / ACC-2b).** Runs AFTER crypto
+   verify. Consults the instance's `arrivalPolicy` and decides whether the
+   already-verified npub is admitted. `public` short-circuits to admit;
+   `follows-only` / `whitelist` / `invite-only` consult owner-supplied state.
+   Crypto verify does NOT change; the policy check is a strictly additional
+   layer.
+
+A small refinement to `src/world/handoff.js` is queued alongside ACC-2a: the
+`expectedPlayerPubkey` opt to `resolveHandoffSpawn` becomes optional when the
+caller is on the public arrival path. SEC-2 still verifies the envelope's own
+claimed pubkey against its signature; only the host-must-name-a-specific-
+traveller requirement relaxes, because the whole point of the public case is
+that the host does NOT know who is about to arrive. `follows-only` /
+`whitelist` / `invite-only` keep the fail-closed default.
+
+### Write authority
+
+A verified, admitted visitor can still not change anything. Write authority
+is a separate concept, gated by an **admin group** the instance owner curates
+per instance. Adding an npub to the admin group grants per-action write
+capability (place / edit / remove world objects, change zone config, moderate
+chat, edit shop listings if any land here, etc.).
+
+This is a full slice — data model, admin UX to add/remove members, per-action
+write-gate enforcement across every mutating surface, and audit — and is not
+required for the public-travel / read-only-visit default to be usable. It is
+tracked as **ACC-3** (deferred whole-slice) in `torii-quest-todo.md`.
+
+### The Instance Settings page (admin-only surface)
+
+Every instance grows a per-instance settings page reachable from the Quest
+Home Screen. A small `⚙ INSTANCE SETTINGS` corner link sits next to the
+existing `⛩ PROJECT DASHBOARD` link on the title screen. The link is visible
+**only** to the logged-in instance admin.
+
+**Who is the admin?** The deployment's configured host pubkey — the same
+`window.__toriiHostPubkey` / `<meta name="torii-host-pubkey">` seam the P2
+arrival flow already reads through `main.js`'s `_hostIdentity()`. If the
+logged-in operator's npub matches that host pubkey, the settings link
+renders. Any other identity (anon, mismatched login, or no configured host)
+does not see it. Fail-closed on any malformed input.
+
+**What the page holds now (ACC-1, v0.2.358-alpha).** A single inert overlay
+rendered from a pure view-model (`src/engine/ui/instanceSettings.js`), with
+two sections:
+
+- **Access** — shows `Arrival: Public` (read-only) plus a "Coming soon" list
+  of the three future modes: `follow-me`, `whitelist`, `invite-only`. Each
+  mode carries a short hint. No control to actually set the policy yet.
+- **More coming soon** — a placeholder marker for the sections the page will
+  grow to hold: identity, appearance, moderation, and the write-authority
+  admin group from ACC-3.
+
+Everything on the page is inert: no gate change, no relay call, no
+navigation, no sign. SEC-1 / SEC-2 / SEC-3 untouched. This lets the shape of
+the admin surface land in the product before any of its mechanics do, so
+future ACC-2a / ACC-2b / ACC-3 slices have an obvious home.
+
+### Sequencing
+
+1. **ACC-1 (LANDED v0.2.358).** Admin-settings shell + Access placeholder.
+   Public default is the actual behaviour.
+2. **ACC-2a (deferred).** Wire `follows-only` — relay-read follow graph,
+   cache, arrival policy check runs after SEC-2 verify. Small
+   `resolveHandoffSpawn` relaxation for the public path lands here.
+3. **ACC-2b (deferred).** Wire `whitelist` + `invite-only` on shared
+   allow-list plumbing. Owner-facing UI in the Access section to curate the
+   list.
+4. **ACC-3 (deferred whole-slice).** Write authority via admin group.
+   Read-only visitor default holds until this ships.
+
 ## Multiplayer, Events, and Duels
 
 The shoot'em up should remain excellent fun.

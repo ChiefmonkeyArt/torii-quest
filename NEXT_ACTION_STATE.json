@@ -1,17 +1,19 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-07-08T08:21:43.689Z",
+  "generatedAt": "2026-07-08T08:57:40.156Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.357-alpha",
-  "packageVersion": "0.2.357-alpha",
-  "gitCommit": "5851813",
+  "version": "v0.2.358-alpha",
+  "packageVersion": "0.2.358-alpha",
+  "gitCommit": "206d33f",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
-    "ready": true,
-    "gateStatus": "READY",
+    "ready": false,
+    "gateStatus": "NOT READY",
     "gateCommand": "npm run test:release",
-    "blockers": [],
+    "blockers": [
+      "docs"
+    ],
     "regression": {
       "count": 16,
       "expected": 15
@@ -22,12 +24,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 2053,
-    "files": 135
+    "passing": 2076,
+    "files": 136
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
+    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -35,7 +37,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.357-alpha"
+    "version": "v0.2.358-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -102,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.357-alpha",
+    "version": "v0.2.358-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -124,11 +126,11 @@
     "impliesPlaytestComplete": false
   },
   "mvpGate": {
-    "verdict": "awaiting-approval",
+    "verdict": "signals-incomplete",
     "approved": false,
-    "confidenceGreen": true,
+    "confidenceGreen": false,
     "confidenceSignals": {
-      "releaseReady": true,
+      "releaseReady": false,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true

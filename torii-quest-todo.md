@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.356-alpha`
+Current version: `v0.2.357-alpha`
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 Source of truth for Torii Quest tasks.
@@ -80,6 +80,16 @@ Goal: promote selected proof surfaces into richer, more functional experiences a
   - **Residual gap / follow-up for the LIVE two-host test:** the spawn-URL npub is not yet bound to a fresh per-hop signature — seating relies on a valid signed travel request existing on the relay (authored by the arriving npub, addressed to the host). A live two-host run should confirm CSP allows the hop target host and exercise the relay re-read path under real network latency. SEC-gated live-relay writes stay parked behind a manual deploy.
 
 These are not Milestone 1 delivery tasks unless live promotion is explicitly being advanced, but they are also not ordinary backlog items to forget. Keep them visible as standing gates that must be cleared before the related live features are promoted.
+
+### Instance access model & write authority (Milestone 2 theme)
+
+Owner-set design constraint (v0.2.357-alpha): travel between gates / instances is PUBLIC BY DEFAULT — any npub can resolve a listed gateway and arrive at any listed instance without invite or allow-list. The instance OWNER can narrow arrival on a per-instance basis to `public` (default) / `follows-only` / `invite-only`. Visiting npubs are READ-ONLY by default — they can move, play the arena, visit the nap zone, browse the shop, and buy things (commerce stays out-of-band on the marketplace, unchanged) — but they cannot mutate world state.
+
+- **ACC-1 — Instance arrival policy field + policy check seam (thin slice, Milestone 2 candidate).** Add an owner-set `arrivalPolicy: 'public' | 'follows-only' | 'invite-only'` on an instance's descriptor + a pure policy check that runs AFTER SEC-2 crypto verify on arrival. `public` short-circuits to admit; `follows-only` / `invite-only` consult owner-supplied state (source deferred to a follow-up). Crypto verify layer is untouched (SEC-2 stays fail-closed on identity); this is a separate policy layer that decides whether a verified npub is admitted. Includes a small relaxation of `resolveHandoffSpawn` so `expectedPlayerPubkey` becomes optional when the caller is on the public arrival path (SEC-2 still verifies the envelope's own claimed pubkey; the change is only that we no longer require the host to name a specific expected traveller for the public case). Fail-closed default preserved on `follows-only` / `invite-only`.
+- **ACC-2 — Follow-graph / invite state sourcing (Milestone 2, deferred until ACC-1 lands).** Decide `follows-only` semantics (visitor-follows-owner / owner-follows-visitor / mutual — pick one default, keep the others as a config knob) and where the follow graph is read from (relay query, cached snapshot, both). Invite-list source is a separate small slice (owner-signed invite list, or a per-instance NIP-51 list).
+- **ACC-3 — Write authority via owner-curated admin group — DEFERRED WHOLE-SLICE (Milestone 2, big).** By default a visiting npub can NEVER change anything in an instance. Write capability (place / edit / remove world objects, change zone config, moderate, etc.) is gated by an OWNER-CURATED ADMIN GROUP the owner maintains per-instance. This is a full slice — data model for admin groups, owner UX to add/remove members, per-action write-gate enforcement across every mutating surface (world objects, zone config, shop listing edits if any land, moderation), and audit — and is NOT required for the public-travel / read-only-visit default to be usable. Track as its own slice; do NOT bundle into ACC-1 / ACC-2. Read-only visitor default holds until this lands.
+
+These are Milestone 2 access-model items and are not Milestone 1 delivery tasks. Keep them visible so they are not forgotten once the live n2n hop is being advanced.
 
 ## Audit follow-ups (v0.2.259 optimization pass)
 

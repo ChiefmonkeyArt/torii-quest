@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.353-alpha
+**Current version:** v0.2.354-alpha
 
 ---
 
@@ -141,7 +141,7 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 - **ESBUILD-1** (deferred) — low-severity dev-server-only esbuild advisory. `npm audit fix` pulls a broad rolldown/vite chain, deemed too risky for alpha. Tracked WARN in `torii-quest-todo.md`.
 - **SEC-1 (consent gate)** — before wiring `leaderboardPublisher` to a real NIP-07 signer or live relay publish, require explicit user consent. Current impl is pure/injected.
 - **SEC-2 (handoff verification)** — before `world/handoff.js` acts on live relay data, add cryptographic verification of incoming handoff events. Never act on unverified travel intents from the wire.
-- **SEC-3 (product URL validation)** — before `productDisplay`/`productPanel` URLs are made clickable or fetched, replace regex `https://` check with `URL`-object parsing (validate scheme + host).
+- ~~**SEC-3 (product URL validation)**~~ — **LANDED v0.2.354-alpha.** `productDisplay.isSafeHttpUrl` (the shared validator both `productDisplay` and the `productPanel` view-model use) is now a WHATWG `URL`-object parser: it trims + rejects any embedded whitespace, tries `new URL(s)`, and only accepts a result whose `protocol === 'https:'` and whose `hostname` is non-empty. The old regex `^https:\/\/[^\s]+$` accepted malformed inputs like `https://` and `https:javascript:…`; the parser refuses them and normalises the permissive-but-safe cases (`https:host`, `https:///host`, `HTTPS://`) to a real https host, so a listing can no longer smuggle a non-https scheme through us. Tests: 6 new cases in `tests/product-display.test.js` locking scheme/host enforcement, malformed rejection, WHATWG normalisation behaviour, and non-string safety.
 
 ## 10. Next-job format
 

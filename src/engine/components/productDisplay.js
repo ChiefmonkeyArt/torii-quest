@@ -27,11 +27,28 @@ function _isBlank(v) { return v == null || v === ''; }
 function looksLikeNpub(v) {
   return typeof v === 'string' && /^npub1[0-9a-z]{20,}$/.test(v);
 }
-// Accept only http(s) external links — never javascript:/data:/relative — so a
-// listing can't smuggle a script URL into the host (consistent with the existing
-// Nostr-avatar URL validation + CSP hardening). Pure check, no navigation.
-function isSafeHttpUrl(v) {
-  return typeof v === 'string' && /^https:\/\/[^\s]+$/i.test(v.trim());
+// Accept only https:// external links with a real host — never javascript:/data:/
+// relative — so a listing can't smuggle a script URL into the host (consistent
+// with the existing Nostr-avatar URL validation + CSP hardening). Pure check,
+// no navigation. SEC-3 (v0.2.354): the previous regex `/^https:\/\/[^\s]+$/i`
+// was a naive string check that accepted anything starting with `https://`
+// including malformed values like `https://` alone. We now parse with the
+// WHATWG URL constructor and enforce `protocol === 'https:'` + a non-empty
+// hostname — the parser rejects the truly malformed cases (`https://`,
+// `https:javascript:`) and normalises the permissive-but-safe ones
+// (`https:host`, `https:///host`, `HTTPS://`) to a real https host, so a
+// listing can no longer smuggle a non-https scheme through us. A pre-parse
+// whitespace guard preserves the old `[^\s]+` invariant (URL trims/encodes
+// embedded whitespace, which we don't want to silently rewrite). The URL
+// constructor is available in every supported runtime (browsers + Node ≥ 10)
+// and only throws for unparseable inputs, handled below.
+export function isSafeHttpUrl(v) {
+  if (typeof v !== 'string') return false;
+  const s = v.trim();
+  if (s === '' || /\s/.test(s)) return false;
+  let u;
+  try { u = new URL(s); } catch { return false; }
+  return u.protocol === 'https:' && u.hostname.length > 0;
 }
 
 // validateProduct(product) → { valid, errors }. Pure, never throws. A displayable

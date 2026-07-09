@@ -33,7 +33,9 @@ import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenF
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
-import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING } from './config.js';
+import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED } from './config.js';
+import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
@@ -67,6 +69,14 @@ export function createArenaRuntime(hooks = {}) {
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
 
   let _booted = false;
+  // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
+  // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
+  // no scene mutations. When enabled, the host owns the ws lifecycle + peer avatar
+  // roster; the render loop only calls `_mp.tick(now)` and (throttled) `_mp.sendMove()`.
+  let _mp = null;
+  let _mpMoveAccum = 0;
+  const MP_MOVE_HZ = 10;
+  const MP_MOVE_INTERVAL = 1 / MP_MOVE_HZ;
 
   // ── In-world GATEWAY PORTAL trigger (v0.2.181) ───────────────────────────────
   // The composition-root boundary: the ONE place a real `window` is injected into
@@ -212,6 +222,21 @@ export function createArenaRuntime(hooks = {}) {
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
     // thus this loop) is ever booted. The game loop no longer polls them.
+    // MP-1: tick peer avatars (interpolation) + throttle-broadcast our own MOVE.
+    // No-op when MP_ENABLED is false (host is null). Uses the same dt we drove the
+    // player with, so latency compensation matches the rest of the frame.
+    if (_mp) {
+      _mp.tick(performance.now());
+      _mpMoveAccum += dt;
+      if (isPlaying() && _mpMoveAccum >= MP_MOVE_INTERVAL) {
+        _mpMoveAccum = 0;
+        _mp.sendMove({
+          pos: [playerObj.position.x, playerObj.position.y, playerObj.position.z],
+          rot: [playerObj.rotation.y, 0],
+          vel: [0, 0, 0], // velocity source lives in the character controller; MP-2 will read it.
+        });
+      }
+    }
     try {
       renderFrame(isLive());
     } catch (e) {
@@ -361,6 +386,52 @@ export function createArenaRuntime(hooks = {}) {
       document.exitPointerLock?.();
       resetEnterButton();
     });
+
+    // ── MP-1 multiplayer wiring (single seam) ───────────────────────────────────
+    // The ONE place main.js/arenaRuntime.js wires the multiplayer subsystem, per
+    // torii-quest-handoff.md §5. MP_ENABLED ships FALSE (see config.js + MP_1_SPEC.md
+    // §6); flipping it to TRUE dials wss://<origin>/mp, joins the presence roster,
+    // and starts syncing our own MOVE + relaying peer moves through the roster.
+    if (MP_ENABLED) {
+      const _mpGltf = new GLTFLoader();
+      _mp = createMultiplayerHost({
+        scene,
+        // Load the shared chiefmonkey6 model for every peer (per-character skinning
+        // lands in MP-1.5). Returns a THREE.Group with position/rotation/dispose().
+        avatarLoader: (peer) => new Promise((resolve, reject) => {
+          _mpGltf.load('/chiefmonkey6.glb', (gltf) => {
+            const obj = gltf.scene;
+            obj.userData.peerId = peer.id;
+            obj.dispose = () => {
+              obj.traverse((n) => {
+                if (n.geometry) n.geometry.dispose();
+                if (n.material) {
+                  const mats = Array.isArray(n.material) ? n.material : [n.material];
+                  for (const m of mats) m.dispose?.();
+                }
+              });
+            };
+            resolve(obj);
+          }, undefined, reject);
+        }),
+        // NIP-42 kind:22242 auth — the server verifies via nostr-tools. The client
+        // signer is browser-only (window.nostr); the wire only carries the signed event.
+        signAuth: async ({ challenge }) => {
+          if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
+            throw new Error('multiplayer: NIP-07 signer unavailable');
+          }
+          const event = await globalThis.nostr.signEvent({
+            kind: 22242,
+            created_at: Math.floor(Date.now() / 1000),
+            content: 'torii-quest-mp-1',
+            tags: [['challenge', challenge]],
+          });
+          const npub = await globalThis.nostr.getPublicKey?.();
+          return { npub, sig: event.sig, event };
+        },
+      });
+      _mp.start();
+    }
 
     // Render loop start (LAST — every binding update() touches is initialised now).
     initLoop(update, _onLoopFatal);

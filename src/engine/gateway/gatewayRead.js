@@ -33,8 +33,20 @@ export const GATEWAY_TOPIC = 'torii-gateway';
 // The destination-record fields this module surfaces into the travel-preview model.
 export const GATEWAY_FIELDS = Object.freeze([
   'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'website',
-  'banner', 'relays', 'topics', 'created_at', 'trust',
+  'banner', 'relays', 'topics', 'wsEndpoint', 'created_at', 'trust',
 ]);
+
+// _safeWssRead(raw) → a wss URL string or null. Read-side counterpart to the
+// worldPresence _safeWss builder. Kept local to avoid a cross-module dependency
+// (the read graph stays leaf-pure by convention).
+function _safeWssRead(raw) {
+  if (typeof raw !== 'string' || raw.length > 2048) return null;
+  let u;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.protocol !== 'wss:') return null;
+  if (!u.hostname || u.username || u.password) return null;
+  return u.href;
+}
 
 // The zoneType vocabulary mirrors travelIntent §4 (nap/arena/shop/gallery). An
 // unknown/absent type degrades to null rather than being trusted.
@@ -193,6 +205,9 @@ export function extractGatewayFromEvent(event) {
     banner: safeProfileUrl(content.banner != null ? content.banner : content.picture),
     relays,
     topics,
+    // MP-1: optional multiplayer WebSocket endpoint. Reader picks from tag first,
+    // then content — content is attacker-controlled JSON so tag takes precedence.
+    wsEndpoint: _safeWssRead(_tagValue(tags, 'ws')) || _safeWssRead(content.wsEndpoint),
     created_at: _isInt(event.created_at) ? event.created_at : null,
     // A read record is never crypto-verified here, so it is surfaced as unverified.
     trust: 'unverified',

@@ -272,7 +272,7 @@ and *feels right*, circle back for shooter feel, mesh/material polish, and UX.
 
 ### Later
 
-- **Mass player mode**: explore relay/WebSocket presence, remote player transforms, and event rooms.
+- **Mass player mode**: **MP-1 LANDED v0.2.363-alpha** — in-process Node WebSocket relay (`server/arena-ws.js`) + client `src/engine/multiplayer/*` subsystem behind `MP_ENABLED = false`. Advisory hit detection (server-authoritative flip is MP-2), single-origin `wss://<domain>/mp` via Caddy reverse-proxy, NIP-42 challenge auth, per-instance MAX_PEERS cap. Next: MP-2 server-authoritative hit resolution, per-zone opt-in surface, event rooms.
 - **Duels and events**: add structured game modes that can be hosted by a NAP zone owner.
 - **User-decorated NAP zones**: let players decorate their own zone with wallpapers, objects, GLBs, signs, stalls, and art.
 - **Plebeian.Market spatial layer**: map shops, stalls, product displays, auctions, community boards, and galleries into the world — delivered as mountable components.

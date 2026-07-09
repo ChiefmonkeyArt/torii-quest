@@ -189,6 +189,10 @@ export function createWsClient(opts) {
       case MSG.CHAT:  emit('chat', msg);    return;
       // MP-2 additive: server-only warp+heal for the local player.
       case MSG.RESPAWN: emit('respawn', msg); return;
+      // MP-3 (v0.2.366-alpha): final match tallies from server.
+      // Additive on PROTOCOL_VERSION=1; older MP-1/1.5 clients silently drop
+      // this via decode()'s UNKNOWN_TYPE guard.
+      case MSG.SCORE: emit('score', msg); return;
       case MSG.PING:  send({ t: MSG.PONG, ts: msg.ts }); return;
       case MSG.PONG:  return; // measured elsewhere
       default: return;

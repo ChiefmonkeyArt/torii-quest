@@ -33,9 +33,13 @@ export const MSG = Object.freeze({
   CHAT:      'CHAT',
   PING:      'PING',
   PONG:      'PONG',
-  // MP-2 (v0.2.365-alpha): server-only, purely additive, PROTOCOL_VERSION unchanged.
+  // MP-2 (v0.2.366-alpha): server-only, purely additive, PROTOCOL_VERSION unchanged.
   // MP-1 clients drop this via decode()'s UNKNOWN_TYPE guard (harmless).
   RESPAWN:   'RESPAWN',
+  // MP-3 (v0.2.366-alpha): server→all-peers, purely additive.
+  // Delivered on match-end or peer disconnect; carries session-final tallies
+  // so each peer can client-sign their own Nostr kind:30078 leaderboard event.
+  SCORE:     'SCORE',
 });
 
 const MSG_TYPES = new Set(Object.values(MSG));
@@ -163,6 +167,24 @@ const validators = {
     if (!isFiniteNum(m.hp) || m.hp < 0 || m.hp > 9999) return fail('BAD_FIELD', 'hp');
     return ok(m);
   },
+  [MSG.SCORE](m) {
+    if (typeof m.sessionId !== 'string' || !/^[0-9a-f]{16}$/.test(m.sessionId)) {
+      return fail('BAD_FIELD', 'sessionId');
+    }
+    if (!isFiniteNum(m.endedAt) || m.endedAt < 0) return fail('BAD_FIELD', 'endedAt');
+    if (!Array.isArray(m.tallies) || m.tallies.length < 1 || m.tallies.length > 32) {
+      return fail('BAD_FIELD', 'tallies');
+    }
+    for (const row of m.tallies) {
+      if (!row || typeof row !== 'object')                      return fail('BAD_FIELD', 'tallies[row]');
+      if (typeof row.id !== 'string' || row.id.length < 1 || row.id.length > 32) return fail('BAD_FIELD', 'tallies[id]');
+      if (typeof row.npub !== 'string' || !/^[0-9a-f]{64}$/.test(row.npub))     return fail('BAD_FIELD', 'tallies[npub]');
+      if (!Number.isInteger(row.kills)  || row.kills  < 0 || row.kills  > 1e6)   return fail('BAD_FIELD', 'tallies[kills]');
+      if (!Number.isInteger(row.deaths) || row.deaths < 0 || row.deaths > 1e6)   return fail('BAD_FIELD', 'tallies[deaths]');
+      if (!Number.isInteger(row.damage) || row.damage < 0 || row.damage > 1e6)   return fail('BAD_FIELD', 'tallies[damage]');
+    }
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -222,6 +244,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.PING]:      ['ts'],
   [MSG.PONG]:      ['ts'],
   [MSG.RESPAWN]:   ['pos', 'rot', 'hp'],
+  [MSG.SCORE]:     ['sessionId', 'endedAt', 'tallies'],
 });
 
 /** Is this a known message type? */

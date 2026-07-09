@@ -1,6 +1,8 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.364-alpha`
+Current version: `v0.2.365-alpha`
+
+**v0.2.365-alpha shipped MP-1.5** — arena-ws bundled into `dist/server/arena-ws.cjs` (esbuild, `ws` external) and runs INSIDE the pplx.app published sandbox. `arena-ws.js` now binds `0.0.0.0:$PORT` (default 5000), attaches WSS to `/mp` on an HTTP server (with `/healthz` endpoint), and accepts URLs of shape `/mp` OR `/port/5000/mp` (proxy rewrite). Client `multiplayerHost.resolveUrl` uses the `__PORT_5000__` sentinel — `deploy_website` rewrites it to `port/5000` at S3 upload time so the browser dials `wss://quest-torii.pplx.app/port/5000/mp`. `MP_ENABLED = true` at build (per-instance runtime toggle preserved). VPS path (Caddy + systemd on `/opt/torii-arena-ws`, VPS_INSTALL.md §16) still works — env `PORT=8787 HOST=127.0.0.1` restores the pre-1.5 shape.
 
 **v0.2.364-alpha shipped MP-2** — server-authoritative hit resolution on the same wire (`PROTOCOL_VERSION=1`, additive `RESPAWN` only). Server keeps snapshot rings per peer, rewinds up to `LAG_COMP_MS=300`, resolves ray-vs-capsule/head-sphere itself, applies damage from a parity-locked table (head=9, body=3), broadcasts `HIT`/`KILL` to ALL, and issues `RESPAWN` to the victim after `RESPAWN_MS=3000`. Client stops emitting `HIT`. One-flag rollback via `MP_MODE=advisory` in the systemd unit (see VPS_INSTALL.md §16.6). Same behaviour gate (`MP_ENABLED=false`) as MP-1. Next multiplayer slice is MP-3 (spec queued): richer respawn UX + kill-feed HUD + server-authoritative KILL attribution.
 

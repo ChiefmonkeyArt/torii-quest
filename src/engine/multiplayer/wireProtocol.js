@@ -33,7 +33,7 @@ export const MSG = Object.freeze({
   CHAT:      'CHAT',
   PING:      'PING',
   PONG:      'PONG',
-  // MP-2 (v0.2.364-alpha): server-only, purely additive, PROTOCOL_VERSION unchanged.
+  // MP-2 (v0.2.365-alpha): server-only, purely additive, PROTOCOL_VERSION unchanged.
   // MP-1 clients drop this via decode()'s UNKNOWN_TYPE guard (harmless).
   RESPAWN:   'RESPAWN',
 });

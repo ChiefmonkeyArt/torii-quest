@@ -26,6 +26,7 @@
 // Env: PORT (default 8787), MAX_PEERS (default 32), LOG_LEVEL (default 'info')
 
 import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
 import { randomBytes } from 'crypto';
 
 import {
@@ -43,10 +44,12 @@ import {
 
 // ---------- config ----------
 
-const PORT       = Number(process.env.PORT || 8787);
+const PORT       = Number(process.env.PORT || 5000);
+const HOST       = process.env.HOST || '0.0.0.0';
+const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.364-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.365-alpha';
 
 // MP-2 tunables.
 //   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
@@ -367,7 +370,41 @@ function scheduleRespawn(victimId, killerPos) {
 
 // ---------- server bring-up ----------
 
-const wss = new WebSocketServer({ port: PORT, host: '127.0.0.1' });
+// HTTP server: 200 OK on /healthz, 404 for everything else non-WS.
+// WebSocket upgrades are handled explicitly for WS_PATH only.
+const httpServer = createServer((req, res) => {
+  if (req.url === '/healthz' || req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      ok: true,
+      peers: sessions.size,
+      maxPeers: MAX_PEERS,
+      version: SERVER_VERSION,
+      protocol: PROTOCOL_VERSION,
+      mode: MP_MODE,
+    }));
+    return;
+  }
+  res.writeHead(404, { 'Content-Type': 'text/plain' });
+  res.end('arena-ws: not found');
+});
+
+const wss = new WebSocketServer({ noServer: true });
+
+httpServer.on('upgrade', (req, socket, head) => {
+  // Only upgrade the /mp path; the sandbox proxy may forward /port/5000/mp
+  // (rewritten from client-side __PORT_5000__ sentinel). Accept both shapes.
+  const url = req.url || '';
+  const isMpPath = url === WS_PATH || url.endsWith(WS_PATH) || url.startsWith(`${WS_PATH}?`);
+  if (!isMpPath) {
+    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => {
+    wss.emit('connection', ws, req);
+  });
+});
 
 wss.on('connection', (ws, req) => {
   if (sessions.size >= MAX_PEERS) {
@@ -417,4 +454,6 @@ setInterval(() => {
   log.info(`peers=${sessions.size}/${MAX_PEERS}`);
 }, 60_000);
 
-log.info(`listening on 127.0.0.1:${PORT} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
+httpServer.listen(PORT, HOST, () => {
+  log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
+});

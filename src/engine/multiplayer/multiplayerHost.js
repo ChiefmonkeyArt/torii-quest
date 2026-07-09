@@ -80,10 +80,18 @@ export function createMultiplayerHost(deps) {
   };
 
   function resolveUrl() {
-    if (typeof origin === 'string' && origin.length > 0) return `wss://${origin}${MP_WS_PATH}`;
+    // MP-1.5: pplx.app sandbox port-forward sentinel. deploy_website rewrites
+    // __PORT_5000__ → 'port/5000' at S3 upload time; local dev keeps the literal
+    // sentinel and we fall through to same-origin (VPS/dev shape wss://host/mp).
+    // See skills/website-building/shared/19-backend.md.
+    const PORT_SENTINEL = '__PORT_5000__';
+    const rewritten = !PORT_SENTINEL.startsWith('__');
+    const wsPath = rewritten ? `/${PORT_SENTINEL}${MP_WS_PATH}` : MP_WS_PATH;
+
+    if (typeof origin === 'string' && origin.length > 0) return `wss://${origin}${wsPath}`;
     // Browser path: same origin, wss guaranteed for pplx.app / any HTTPS host.
     if (typeof globalThis !== 'undefined' && globalThis.location && globalThis.location.host) {
-      return `wss://${globalThis.location.host}${MP_WS_PATH}`;
+      return `wss://${globalThis.location.host}${wsPath}`;
     }
     // Fallback (should not happen in prod) — refuse rather than dial a bad URL.
     return null;
@@ -154,7 +162,7 @@ export function createMultiplayerHost(deps) {
   }
   function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel }); }
   function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts }); }
-  // MP-2 (v0.2.364-alpha): server is authoritative on hits. This is now a
+  // MP-2 (v0.2.365-alpha): server is authoritative on hits. This is now a
   // no-op export kept for regression compat with callers that were wired in
   // MP-1. Under MP_MODE=advisory the server still relays if a client sends
   // one, but the shipped client never should. See MP_2_SPEC.md §10.

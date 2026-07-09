@@ -213,7 +213,7 @@ describe('multiplayerHost — outbound wire', () => {
     await handshake(ws);
     expect(host.sendMove({ pos: [1, 2, 3], rot: [0.5, 0], vel: [0, 0, 0] })).toBe(true);
     expect(host.sendShot({ origin: [0, 0, 0], dir: [1, 0, 0], ts: 100 })).toBe(true);
-    // MP-2 (v0.2.364-alpha): client stops emitting HIT. Server is authoritative.
+    // MP-2 (v0.2.365-alpha): client stops emitting HIT. Server is authoritative.
     // sendHit is a no-op returning false; nothing is written to the socket.
     // See MP_2_SPEC.md §10 and multiplayerHost.js:sendHit.
     const sentBeforeHit = ws.sent.length;

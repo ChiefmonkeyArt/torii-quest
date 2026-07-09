@@ -129,14 +129,21 @@ describe('buildInstanceSettingsModel', () => {
     expect(typeof more.note).toBe('string');
   });
 
-  it('reports Multiplayer status — disabled by default (MP_ENABLED=false at build)', () => {
+  it('reports Multiplayer status — enabled by default (MP-1.5 sandbox-hosted arena, MP_ENABLED=true at build)', () => {
     const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
     const mp = m.sections.find((s) => s.key === 'multiplayer');
     expect(mp).toBeTruthy();
     expect(mp.title).toBe('Multiplayer');
+    expect(mp.current).toBe('enabled');
+    expect(m.mpEnabled).toBe(true);
+    expect(mp.note.toLowerCase()).toContain('mp-1');
+  });
+
+  it('accepts an explicit mpEnabled=false override (rollback seam)', () => {
+    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A, mpEnabled: false });
+    const mp = m.sections.find((s) => s.key === 'multiplayer');
     expect(mp.current).toBe('disabled');
     expect(m.mpEnabled).toBe(false);
-    expect(mp.note.toLowerCase()).toContain('mp-1');
   });
 
   it('accepts an explicit mpEnabled override (test seam for MP-1.1 runtime toggle)', () => {

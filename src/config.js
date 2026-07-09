@@ -1,5 +1,5 @@
 // config.js — ALL constants. Never scatter magic numbers.
-export const VERSION   = 'v0.2.364-alpha';
+export const VERSION   = 'v0.2.365-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -85,7 +85,7 @@ export const godMode        = false; // NEVER deploy true
 // TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.
 // Ships FALSE by default (see MP_1_SPEC.md §6). An admin can toggle it at
 // runtime from Instance Settings; a per-zone flag can further narrow scope.
-export const MP_ENABLED     = false;
+export const MP_ENABLED     = true; // MP-1.5: sandbox-hosted arena, live on quest-torii.pplx.app
 // MP-1 WebSocket relative path on the operator's domain. Combined with
 // window.location.host at runtime — no client-side URL config.
 export const MP_WS_PATH     = '/mp';

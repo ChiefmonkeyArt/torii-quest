@@ -511,7 +511,9 @@ steps in §6/§11; this only makes the route + asset readiness checkable in CI.
 
 ---
 
-## 16. Multiplayer server: Caddy `/mp` reverse-proxy + systemd unit (v0.2.364-alpha, MP-1 + MP-2)
+## 16. Multiplayer server: Caddy `/mp` reverse-proxy + systemd unit (v0.2.365-alpha, MP-1 + MP-2 + MP-1.5)
+
+> **MP-1.5 (v0.2.365-alpha):** The arena-ws server now also runs INSIDE the pplx.app published sandbox — no VPS required for the default deployment. `dist/server/arena-ws.cjs` is an esbuild bundle (`ws` external), started by `publish_website(run_command="node dist/server/arena-ws.cjs", install_command="npm ci --omit=dev", port=5000)`. The client dials `wss://<origin>/port/5000/mp` via the `__PORT_5000__` sentinel that `deploy_website` rewrites at S3 upload time. This §16 is now the **VPS-scale-out path**: use it when you outgrow the sandbox (need MAX_PEERS > 32, dedicated CPU, or lower latency). To restore the pre-1.5 shape on a VPS: `PORT=8787 HOST=127.0.0.1 node server/arena-ws.js` (or run the bundled `dist/server/arena-ws.cjs` with the same env).
 
 MP-1 adds an in-process Node WebSocket server (`server/arena-ws.js`) that relays
 position + advisory-hit frames between peers in the same arena instance. It runs

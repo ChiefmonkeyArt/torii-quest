@@ -1,12 +1,12 @@
 {
   "name": "torii-quest",
-  "version": "0.2.364-alpha",
+  "version": "0.2.365-alpha",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build:torii-quest-dashboard": "node tools/build-torii-quest-dashboard.mjs",
-    "build": "node tools/build-torii-quest-dashboard.mjs && vite build",
+    "build": "node tools/build-torii-quest-dashboard.mjs && vite build && npm run build:server",
     "preview": "vite preview",
     "check": "node tools/regression-check.mjs",
     "bundle:report": "node tools/bundle-report.mjs",
@@ -39,7 +39,8 @@
     "test:fast": "node tools/test-profile.mjs fast",
     "test:foundation": "vitest run --changed origin/main --passWithNoTests",
     "test:foundation:list": "node tools/test-profile.mjs foundation",
-    "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run handoff:status"
+    "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run handoff:status",
+    "build:server": "esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --outfile=dist/server/arena-ws.cjs --log-level=warning"
   },
   "devDependencies": {
     "vite": "^8.0.16",

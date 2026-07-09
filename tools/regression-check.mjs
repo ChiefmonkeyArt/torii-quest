@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.364-alpha';
+const EXPECTED_VERSION = 'v0.2.365-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -534,7 +534,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   }
 }
 
-// 17. MP-2 server-authoritative HIT source (v0.2.364-alpha) — the MP_MODE=advisory
+// 17. MP-2 server-authoritative HIT source (v0.2.365-alpha) — the MP_MODE=advisory
 //     branch may relay client HIT untouched, but the authoritative code path MUST
 //     NEVER re-broadcast a client-sent HIT. resolveAndBroadcast() emits its own
 //     HIT via broadcastToAll(). This guard catches accidental regressions where
@@ -567,7 +567,7 @@ console.log('[17] MP-2 HIT authoritative source (no client-HIT rebroadcast)');
   }
 }
 
-// 18. MP-2 damage-table parity (v0.2.364-alpha) — server/combat/damageTable.js
+// 18. MP-2 damage-table parity (v0.2.365-alpha) — server/combat/damageTable.js
 //     copies constants rather than importing from src/, so a static check keeps
 //     them locked to the shipped client values (9/3). The full parity is also
 //     unit-tested (tests/multiplayer/damage-table-parity.test.js).

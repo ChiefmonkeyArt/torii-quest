@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const TORII_QUEST_VERSION = 'v0.2.365-alpha';
+export const TORII_QUEST_VERSION = 'v0.2.366-alpha';
 export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,8 +51,8 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 2155,
-  files: 137,
+  passing: 2264,
+  files: 138,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -1427,6 +1427,46 @@ export function buildClickThroughModel(input = {}) {
 // NO overrides (tests + the no-JS fallback) shows an honest LAST-KNOWN mockup section.
 const CURATED_CLICKTHROUGH = buildClickThroughModel();
 
+// ----------------------------------------------------------------------------
+// MP-3 (v0.2.366-alpha) — Leaderboard tile.
+// Pure model over the same shape emitted by src/ui/leaderboardPanel.js#renderDashboardTile.
+// Data is empty by default (no history baked into the static dashboard); the live
+// leaderboard is populated at runtime from Nostr relays. The tile still renders a
+// neutral 'no scores yet' state so the dashboard is stable at build time.
+// ----------------------------------------------------------------------------
+export const LEADERBOARD_BADGE = 'LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY';
+export const LEADERBOARD_LASTKNOWN = Object.freeze({
+  badge: LEADERBOARD_BADGE,
+  version: TORII_QUEST_VERSION,
+  rows: Object.freeze([]),
+  emptyLabel: 'No scores yet — play a match to get on the board.',
+  source: 'kind:30078#d=torii-quest + kind:1#t=torii-quest-score',
+});
+
+/**
+ * Build the leaderboard tile model from an optional pre-computed rows array
+ * (as emitted by src/ui/leaderboardPanel.js#renderDashboardTile). Pure.
+ * @param {{ rows?: Array<{rank:number, display:string, kills:number, kd:string}> }} [input]
+ */
+export function buildLeaderboardModel(input = {}) {
+  const raw = Array.isArray(input && input.rows) ? input.rows : [];
+  const clean = raw.slice(0, 5).map((r, i) => ({
+    rank: Number.isInteger(r?.rank) ? r.rank : (i + 1),
+    display: typeof r?.display === 'string' ? r.display : '',
+    kills: Number.isInteger(r?.kills) ? r.kills : 0,
+    kd: typeof r?.kd === 'string' ? r.kd : String(r?.kd ?? '0.00'),
+  }));
+  return {
+    badge: LEADERBOARD_BADGE,
+    version: TORII_QUEST_VERSION,
+    rows: Object.freeze(clean),
+    empty: clean.length === 0,
+    emptyLabel: LEADERBOARD_LASTKNOWN.emptyLabel,
+    source: LEADERBOARD_LASTKNOWN.source,
+  };
+}
+const CURATED_LEADERBOARD = buildLeaderboardModel();
+
 // buildToriiQuestModel(overrides) — curated data MERGED with optional build-time overrides
 // (v0.2.174), plus per-track bar cells + computed totals. Pure (no mutation of CONTINUUM);
 // the single entry point the renderer + tests use. `overrides` may carry derived list
@@ -1456,6 +1496,7 @@ export function buildToriiQuestModel(overrides = {}) {
     handoffPanel: base.handoffPanel || CURATED_HANDOFF_PANEL,
     readHealth: base.readHealth || CURATED_READHEALTH,
     clickThrough: base.clickThrough || CURATED_CLICKTHROUGH,
+    leaderboard: base.leaderboard || CURATED_LEADERBOARD,
     taskTotals,
     derived,
   };
@@ -1486,6 +1527,7 @@ export function toriiQuestDataJSON(model = buildToriiQuestModel()) {
     handoffPanel: model.handoffPanel || null,
     readHealth: model.readHealth || null,
     clickThrough: model.clickThrough || null,
+    leaderboard: model.leaderboard || null,
   };
 }
 

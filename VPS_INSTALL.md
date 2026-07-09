@@ -712,3 +712,27 @@ Verify authoritative mode is live in the boot log:
 sudo journalctl -u torii-arena-ws -n 20 --no-pager | grep 'mp_mode'
 # → listening on 127.0.0.1:8787 (max_peers=32, protocol=1, mp_mode=authoritative, lag_comp_ms=300)
 ```
+
+### §16.7 — MP-3: Nostr score/leaderboard (v0.2.366-alpha)
+
+MP-3 adds a server-authoritative per-peer score ledger (kills, deaths, damage)
+that emits a `SCORE` frame to all authed peers on disconnect. Each client signs
+ONLY its own row via nip07 (`window.nostr`) and publishes it to Nostr relays as:
+
+- `kind:30078` with `d=torii-quest` — one canonical current entry per pubkey
+  (NIP-33 parameterized replaceable event)
+- `kind:1` tagged `t=torii-quest-score` — durable history for lifetime aggregation
+
+The read path is client-only; the server never signs and never speaks to
+relays. Wire is additive on `PROTOCOL_VERSION=1` (no protocol bump).
+
+**Feature flag:**
+
+```ini
+# Append to /etc/systemd/system/torii-arena-ws.service under [Service]:
+Environment=SCORE_ENABLED=true        # default true; set 'false' to disable ledger entirely
+```
+
+With `SCORE_ENABLED=false` the server does not track scores and never emits
+`SCORE` frames — clients simply never publish anything. No key material lives
+on the server.

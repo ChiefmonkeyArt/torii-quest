@@ -1,6 +1,8 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.365-alpha`
+Current version: `v0.2.366-alpha`
+
+**v0.2.366-alpha shipping MP-3** — Nostr score/leaderboard, Option A (client-signed). Server accumulates per-peer `{kills, deaths, damage}` in `server/combat/scoreLedger.js` (in-memory, ephemeral) and emits authoritative `SCORE{sessionId(16-hex), endedAt, tallies[]}` frames on peer disconnect to all authed peers (departing peer receives before close). Wire is additive on `PROTOCOL_VERSION=1`. Each client signs ONLY its own row via `window.nostr` (nip07) and publishes as `kind:30078#d=torii-quest` (current, replaceable) + `kind:1#t=torii-quest-score` (durable history) to configured relays. `src/engine/multiplayer/leaderboardAgg.js` aggregates lifetime tallies by dedupe (pubkey, sessionId); `src/ui/leaderboardPanel.js` renders top-20; dashboard tile shows top-5. LocalStorage dedupe key `tq.mp3.published:{sessionId}:{endedAt}`. Empty-row guard skips publish for scoreless matches. `SCORE_ENABLED=true` env default; server-side scoring not required in advisory rollback. MP-3.1 (WoT co-occurrence seed) queued as follow-up, not this shipment.
 
 **v0.2.365-alpha shipped MP-1.5** — arena-ws bundled into `dist/server/arena-ws.cjs` (esbuild, `ws` external) and runs INSIDE the pplx.app published sandbox. `arena-ws.js` now binds `0.0.0.0:$PORT` (default 5000), attaches WSS to `/mp` on an HTTP server (with `/healthz` endpoint), and accepts URLs of shape `/mp` OR `/port/5000/mp` (proxy rewrite). Client `multiplayerHost.resolveUrl` uses the `__PORT_5000__` sentinel — `deploy_website` rewrites it to `port/5000` at S3 upload time so the browser dials `wss://quest-torii.pplx.app/port/5000/mp`. `MP_ENABLED = true` at build (per-instance runtime toggle preserved). VPS path (Caddy + systemd on `/opt/torii-arena-ws`, VPS_INSTALL.md §16) still works — env `PORT=8787 HOST=127.0.0.1` restores the pre-1.5 shape.
 

@@ -394,7 +394,7 @@ export function createArenaRuntime(hooks = {}) {
     // and starts syncing our own MOVE + relaying peer moves through the roster.
     if (MP_ENABLED) {
       const _mpGltf = new GLTFLoader();
-      // MP-2 (v0.2.365-alpha): server issues RESPAWN when this client is killed.
+      // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed.
       // Handler warps the local body to the server-picked corner and heals to
       // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
       const _mpEmit = (name, payload) => {

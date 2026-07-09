@@ -1,21 +1,19 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-07-09T20:06:24.203Z",
+  "generatedAt": "2026-07-09T23:24:46.151Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.365-alpha",
-  "packageVersion": "0.2.365-alpha",
-  "gitCommit": "9c8dde3",
+  "version": "v0.2.366-alpha",
+  "packageVersion": "0.2.366-alpha",
+  "gitCommit": "8d0cbc0",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
-    "ready": false,
-    "gateStatus": "NOT READY",
+    "ready": true,
+    "gateStatus": "READY",
     "gateCommand": "npm run test:release",
-    "blockers": [
-      "docs"
-    ],
+    "blockers": [],
     "regression": {
-      "count": 18,
+      "count": 20,
       "expected": 15
     }
   },
@@ -24,12 +22,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 2155,
-    "files": 137
+    "passing": 2264,
+    "files": 138
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -37,7 +35,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.365-alpha"
+    "version": "v0.2.366-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -104,7 +102,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.365-alpha",
+    "version": "v0.2.366-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -126,11 +124,11 @@
     "impliesPlaytestComplete": false
   },
   "mvpGate": {
-    "verdict": "signals-incomplete",
+    "verdict": "awaiting-approval",
     "approved": false,
-    "confidenceGreen": false,
+    "confidenceGreen": true,
     "confidenceSignals": {
-      "releaseReady": false,
+      "releaseReady": true,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true

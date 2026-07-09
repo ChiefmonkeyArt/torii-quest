@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.365-alpha';
+const EXPECTED_VERSION = 'v0.2.366-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -534,7 +534,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   }
 }
 
-// 17. MP-2 server-authoritative HIT source (v0.2.365-alpha) — the MP_MODE=advisory
+// 17. MP-2 server-authoritative HIT source (v0.2.366-alpha) — the MP_MODE=advisory
 //     branch may relay client HIT untouched, but the authoritative code path MUST
 //     NEVER re-broadcast a client-sent HIT. resolveAndBroadcast() emits its own
 //     HIT via broadcastToAll(). This guard catches accidental regressions where
@@ -567,7 +567,7 @@ console.log('[17] MP-2 HIT authoritative source (no client-HIT rebroadcast)');
   }
 }
 
-// 18. MP-2 damage-table parity (v0.2.365-alpha) — server/combat/damageTable.js
+// 18. MP-2 damage-table parity (v0.2.366-alpha) — server/combat/damageTable.js
 //     copies constants rather than importing from src/, so a static check keeps
 //     them locked to the shipped client values (9/3). The full parity is also
 //     unit-tested (tests/multiplayer/damage-table-parity.test.js).
@@ -593,6 +593,46 @@ console.log('[18] MP-2 damage-table parity (server ↔ client constants)');
     else if (sHead !== cHead) fail(`HEADSHOT_DAMAGE drift: server=${sHead} vs client=${cHead}`);
     else if (sBody !== cBody) fail(`BODY_DAMAGE drift: server=${sBody} vs client=${cBody}`);
     else pass(`damage-table parity locked (head=${sHead}, body=${sBody})`);
+  }
+}
+
+// 19. MP-3 SCORE additive-only on PROTOCOL_VERSION=1 (v0.2.366-alpha) — the new
+//     SCORE frame is server→client only and MUST NOT bump the wire
+//     PROTOCOL_VERSION. The validator + type set must both know about SCORE and
+//     the frame layout stays additive (no removed types).
+console.log('[19] MP-3 SCORE additive-only on PROTOCOL_VERSION=1');
+{
+  const p = 'src/engine/multiplayer/wireProtocol.js';
+  if (!existsSync(join(ROOT, p))) {
+    fail(`${p} missing`);
+  } else {
+    const src = readFileSync(join(ROOT, p), 'utf8');
+    // PROTOCOL_VERSION must still be 1.
+    const pv = src.match(/PROTOCOL_VERSION\s*=\s*(\d+)/);
+    if (!pv || pv[1] !== '1') fail(`PROTOCOL_VERSION must remain 1 (got ${pv ? pv[1] : 'missing'})`);
+    else if (!/SCORE\s*:\s*'SCORE'/.test(src)) fail('MSG.SCORE token missing from MSG map');
+    else if (!/\[MSG\.SCORE\]\s*\(/.test(src)) fail('SCORE validator missing');
+    else pass('SCORE additive on PROTOCOL_VERSION=1');
+  }
+}
+
+// 20. MP-3 leaderboard read-path lock (v0.2.366-alpha) — the leaderboard
+//     aggregator MUST only speak kind:30078 with d=torii-quest and kind:1 with
+//     t=torii-quest-score. This keeps relay reads cheap + the WoT seed clean.
+console.log('[20] MP-3 leaderboard reads only kind:30078#d=torii-quest + kind:1#t=torii-quest-score');
+{
+  const rep = 'src/engine/multiplayer/scoreReporter.js';
+  const agg = 'src/engine/multiplayer/leaderboardAgg.js';
+  if (!existsSync(join(ROOT, rep))) fail(`${rep} missing`);
+  else if (!existsSync(join(ROOT, agg))) fail(`${agg} missing`);
+  else {
+    const r = readFileSync(join(ROOT, rep), 'utf8');
+    const a = readFileSync(join(ROOT, agg), 'utf8');
+    if (!/SCORE_KIND_ADDRESSABLE\s*=\s*30078/.test(r)) fail('scoreReporter: SCORE_KIND_ADDRESSABLE must be 30078');
+    else if (!/SCORE_D_TAG\s*=\s*'torii-quest'/.test(r)) fail("scoreReporter: SCORE_D_TAG must be 'torii-quest'");
+    else if (!/SCORE_HISTORY_T_TAG\s*=\s*'torii-quest-score'/.test(r)) fail("scoreReporter: SCORE_HISTORY_T_TAG must be 'torii-quest-score'");
+    else if (/kind\s*:\s*(?!30078|1\b)\d+/.test(a)) fail('leaderboardAgg reads a kind other than 30078 / 1');
+    else pass('leaderboard read-path locked to 30078#d=torii-quest + 1#t=torii-quest-score');
   }
 }
 

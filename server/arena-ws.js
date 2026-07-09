@@ -41,6 +41,7 @@ import {
   createHpLedger, register as hpRegister, unregister as hpUnregister,
   applyDamage, respawn, HP_MAX,
 } from './combat/hpLedger.js';
+import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
 
 // ---------- config ----------
 
@@ -49,7 +50,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.365-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.366-alpha';
 
 // MP-2 tunables.
 //   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
@@ -95,6 +96,16 @@ const snapshotRings = new Map();
 
 // Server-authoritative HP ledger.
 const hpLedger = createHpLedger(HP_MAX_ENV);
+
+// MP-3: authoritative per-peer kill/death/damage ledger for the current
+// arena instance. Client-signed leaderboard events derive from snapshots
+// of this state at match-end / peer-disconnect.
+const scoreLedger  = createScoreLedger();
+const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() !== 'false';
+// Arena-instance session id. Peers within a single arena share this id;
+// it is emitted in every SCORE frame so replay-attack guards / WoT
+// aggregation can group tallies per match.
+const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
 
 // Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
 // on reconnect / LEFT we clear pending timers to avoid warping ghosts.
@@ -149,15 +160,33 @@ function broadcastToAll(msg) {
 }
 
 function closeSession(sess, reason) {
+  const wasAuthed = sess.authed && sessions.has(sess.id);
+  // MP-3: emit final SCORE to the departing peer BEFORE we close the socket,
+  // then to remaining peers AFTER we drop from the ledger. Best-effort;
+  // failures do not block session teardown.
+  if (wasAuthed && SCORE_ENABLED) {
+    try {
+      const tallies = scoreLedger.snapshot();
+      if (tallies.length > 0) {
+        try { sess.ws.send(encode({ t: MSG.SCORE, sessionId: SCORE_SESSION_ID, endedAt: Date.now(), tallies })); }
+        catch { /* client already gone — ignore */ }
+      }
+    } catch (e) { log.warn('SCORE pre-close send failed', sess.id, e.message); }
+  }
+
   try { sess.ws.close(1000, reason); } catch { /* noop */ }
   if (sessions.has(sess.id)) {
     sessions.delete(sess.id);
     snapshotRings.delete(sess.id);
     hpUnregister(hpLedger, sess.id);
+    if (SCORE_ENABLED) scoreLedger.drop(sess.id);
     const timer = respawnTimers.get(sess.id);
     if (timer) { clearTimeout(timer); respawnTimers.delete(sess.id); }
     if (sess.authed) {
       broadcastToOthers(sess.id, { t: MSG.LEFT, id: sess.id, reason });
+      // MP-3: broadcast the post-drop snapshot to remaining peers so their
+      // leaderboard views converge on the same match-final state.
+      broadcastScoreFrame();
     }
   }
 }
@@ -213,6 +242,11 @@ function handleMessage(sess, raw) {
     // MP-2: bootstrap ledger + ring at auth time.
     hpRegister(hpLedger, sess.id);
     snapshotRings.set(sess.id, createSnapshotRing());
+    // MP-3: register in score ledger keyed by pubkey (hex, from AUTH event).
+    if (SCORE_ENABLED && typeof sess.pubkey === 'string' && /^[0-9a-f]{64}$/.test(sess.pubkey)) {
+      try { scoreLedger.register(sess.id, sess.pubkey); }
+      catch (e) { log.warn('scoreLedger register failed', sess.id, e.message); }
+    }
     // Build roster of OTHER authed sessions.
     const roster = [];
     for (const other of sessions.values()) {
@@ -325,6 +359,9 @@ function resolveAndBroadcast(shooter, shotMsg) {
     shotTs: shotMsg.ts,
   });
 
+  // MP-3: attribute damage to shooter in score ledger (any zone counts).
+  if (SCORE_ENABLED) scoreLedger.addDamage(shooter.id, outcome.applied);
+
   if (outcome.killed) {
     broadcastToAll({
       t: MSG.KILL,
@@ -332,8 +369,25 @@ function resolveAndBroadcast(shooter, shotMsg) {
       victimId: result.targetId,
       weapon: 'primary',
     });
+    // MP-3: attribute kill → shooter, death → victim.
+    if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
     scheduleRespawn(result.targetId, shooter.pos);
   }
+}
+
+// MP-3: broadcast a SCORE frame to all authed peers. Called on peer
+// disconnect (so departing peer + remaining peers both have a final tally
+// for client-signing / leaderboard publishing).
+function broadcastScoreFrame() {
+  if (!SCORE_ENABLED) return;
+  const tallies = scoreLedger.snapshot();
+  if (tallies.length === 0) return;
+  broadcastToAll({
+    t: MSG.SCORE,
+    sessionId: SCORE_SESSION_ID,
+    endedAt: Date.now(),
+    tallies,
+  });
 }
 
 function scheduleRespawn(victimId, killerPos) {

@@ -11,7 +11,7 @@ import {
 const goodHello = {
   t: MSG.HELLO,
   challenge: 'a'.repeat(44),
-  serverVersion: 'v0.2.365-alpha',
+  serverVersion: 'v0.2.366-alpha',
   protocolVersion: PROTOCOL_VERSION,
 };
 

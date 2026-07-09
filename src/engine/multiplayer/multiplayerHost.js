@@ -162,7 +162,7 @@ export function createMultiplayerHost(deps) {
   }
   function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel }); }
   function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts }); }
-  // MP-2 (v0.2.365-alpha): server is authoritative on hits. This is now a
+  // MP-2 (v0.2.366-alpha): server is authoritative on hits. This is now a
   // no-op export kept for regression compat with callers that were wired in
   // MP-1. Under MP_MODE=advisory the server still relays if a client sends
   // one, but the shipped client never should. See MP_2_SPEC.md §10.

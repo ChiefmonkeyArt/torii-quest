@@ -71,7 +71,7 @@ Single origin. One TLS cert. One domain. No client-side URL to configure — the
 
 ## 5. Wire protocol (JSON for MP-1)
 
-Every message is `{ t: <type>, ... }`. Types are short strings to keep bytes low; a binary pass is an MP-1.5 optimisation.
+Every message is `{ t: <type>, ... }`. Types are short strings to keep bytes low; a binary pass is an MP-1.5 optimisation. Timestamp payload fields are named `ts` (not `t`) to avoid colliding with the type field.
 
 ### Handshake
 

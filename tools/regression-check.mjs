@@ -4,7 +4,8 @@
 // Catches the regressions the Strategy doc calls out, without needing a browser:
 //   1. syntax — `node --check` every src/**/*.js
 //   2. godMode must never be committed as true
-//   3. setTimeout only in the two approved files (nostr.js WS close, hud.js feed)
+//   3. setTimeout only in the approved files (nostr.js WS close, hud.js feed,
+//      multiplayer/wsClient.js reconnect — injectable seam via setTimeoutFn)
 //   4. no `new THREE.Vector3` / `new THREE.Matrix4` in foundation/new modules
 //   5. version markers agree on EXPECTED_VERSION (config.js + index.html +
 //      package.json — semver-stripped, no leading 'v'); package.json stays
@@ -52,7 +53,11 @@ import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
 const EXPECTED_VERSION = 'v0.2.362-alpha';
-const SETTIMEOUT_ALLOWED = new Set(['src/nostr.js', 'src/hud.js']);
+const SETTIMEOUT_ALLOWED = new Set([
+  'src/nostr.js',
+  'src/hud.js',
+  'src/engine/multiplayer/wsClient.js', // MP-1 reconnect timer (setTimeoutFn is injectable)
+]);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
   'src/dynamicCrates.js',
@@ -110,7 +115,7 @@ console.log('[3] setTimeout allowlist');
     const n = (txt.match(/setTimeout\s*\(/g) || []).length;
     if (n > 0 && !SETTIMEOUT_ALLOWED.has(f)) { fail(`${n} setTimeout in non-allowed ${f}`); bad = true; }
   }
-  if (!bad) pass('setTimeout only in nostr.js + hud.js');
+  if (!bad) pass('setTimeout only in nostr.js + hud.js + multiplayer/wsClient.js');
 }
 
 // 4. no hot-path allocations in new/foundation modules

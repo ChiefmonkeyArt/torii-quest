@@ -81,6 +81,15 @@ export const ENTRY_SATS     = 100;
 export const RESPAWN_TIME   = 4.0;
 export const godMode        = false; // NEVER deploy true
 
+// MP-1 multiplayer flag. FALSE = single-player, identical to pre-MP-1 behaviour;
+// TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.
+// Ships FALSE by default (see MP_1_SPEC.md §6). An admin can toggle it at
+// runtime from Instance Settings; a per-zone flag can further narrow scope.
+export const MP_ENABLED     = false;
+// MP-1 WebSocket relative path on the operator's domain. Combined with
+// window.location.host at runtime — no client-side URL config.
+export const MP_WS_PATH     = '/mp';
+
 // Compact, JSON-serialisable tuning snapshot (v0.2.130) — surfaced via
 // ToriiDebug.snapshot().config so a tester can paste the live balance values
 // alongside their playtest feedback. Mirror of the constants above; keep in sync.
@@ -88,7 +97,7 @@ export const TUNING = Object.freeze({
   PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD,
   BULLET_SPEED, BULLET_LIFE,
   BOT_COUNT, BOT_HP, BOT_DAMAGE, BOT_SPEED, BOT_SHOOT_CD, BOT_SIGHT, BOT_SPREAD,
-  ARENA_HALF, godMode,
+  ARENA_HALF, godMode, MP_ENABLED, MP_WS_PATH,
 });
 
 // CRATES — single source of truth for geometry AND collision.

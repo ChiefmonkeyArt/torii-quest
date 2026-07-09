@@ -34,6 +34,8 @@
 //   - `state.phase` unaffected (panel is title-screen UI, not arena).
 //   - Panel is same-origin and inert — no navigation, no relay call, no sign.
 
+import { MP_ENABLED } from '../../config.js';
+
 const HEX64 = /^[0-9a-f]{64}$/;
 
 /**
@@ -100,6 +102,10 @@ export function buildInstanceSettingsModel(opts) {
   const host = typeof o.hostPubkey === 'string' ? o.hostPubkey.toLowerCase() : '';
   const visible = isInstanceAdmin({ operatorPubkey: op, hostPubkey: host });
 
+  // MP-1: allow tests / future runtime override to force the reported flag.
+  // Reads `mpEnabled` from opts; falls back to the build-time constant.
+  const mpEnabled = typeof o.mpEnabled === 'boolean' ? o.mpEnabled : !!MP_ENABLED;
+
   const sections = [
     {
       key: 'access',
@@ -110,6 +116,13 @@ export function buildInstanceSettingsModel(opts) {
       note: 'Travel between instances is public by default. Admin-set restrictions are coming soon.',
     },
     {
+      key: 'multiplayer',
+      title: 'Multiplayer',
+      status: 'placeholder',
+      current: mpEnabled ? 'enabled' : 'disabled',
+      note: 'MP-1 (advisory hit detection) ships behind a build-time flag. Runtime toggle + per-zone opt-in land in MP-1.1.',
+    },
+    {
       key: 'more',
       title: 'More coming soon',
       status: 'placeholder',
@@ -117,7 +130,7 @@ export function buildInstanceSettingsModel(opts) {
     },
   ];
 
-  return { visible, operatorPubkey: op, sections };
+  return { visible, operatorPubkey: op, sections, mpEnabled };
 }
 
 // ── HTML rendering (pure string; injected as-is into a hidden panel) ─────────
@@ -181,6 +194,11 @@ export function renderInstanceSettingsPanel(model) {
           <div class="is-coming-soon-head">Coming soon</div>
           <ul class="is-mode-list">${modeItems}</ul>
         </div>`;
+    }
+    if (s && s.key === 'multiplayer') {
+      const current = _escape(s.current || 'disabled');
+      body = `
+        <div class="is-row"><span class="is-row-label">Status</span><span class="is-row-value">${current}</span></div>`;
     }
     return `
       <section class="is-section" data-section="${_escape(s && s.key || '')}">

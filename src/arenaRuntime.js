@@ -492,5 +492,12 @@ export function createArenaRuntime(hooks = {}) {
     if (state.flyMode && !isFlyEnabled()) enableFly({ atSky: true });
   }
 
-  return { boot, bootstrapPhysics, enter, setSpawnOverride };
+  // MP-1 cross-instance travel seam: the shell calls this in _executeJump before
+  // window.location.href navigates away, so the server-side close is graceful and
+  // peers see us LEFT immediately instead of after a ping-timeout gap.
+  function stopMultiplayer(reason = 'travel') {
+    if (_mp) { try { _mp.stop(reason); } catch {} _mp = null; }
+  }
+
+  return { boot, bootstrapPhysics, enter, setSpawnOverride, stopMultiplayer };
 }

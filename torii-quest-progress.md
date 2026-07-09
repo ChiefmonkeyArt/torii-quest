@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.363-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+> Current version: **v0.2.364-alpha** | Live: [torii-quest.pplx.app](https://torii-quest.pplx.app) (v0.2.363-alpha, MP-2 build pending manual deploy)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 
@@ -11,8 +11,8 @@
 
 | Metric | Value |
 |---|---|
-| Source version | **v0.2.363-alpha** (build truth; live trails — manual maintainer deploy) |
-| Tests | **2155 passing / 137 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files) |
+| Source version | **v0.2.364-alpha** (build truth; live trails — manual maintainer deploy) |
+| Tests | **2210 passing / 153 files** (profiles: `test:fast` ~5 files, `test:foundation` ~25 files). MP-2 added 65 tests across 8 new files under `tests/multiplayer/`. |
 | Regression check | **16 / 16 GREEN** |
 | Bundle (advisory) | 2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected) |
 | Gates | SEC-1 / SEC-2 / SEC-3 intact · godMode `false` · torii-quest CSP enforced |

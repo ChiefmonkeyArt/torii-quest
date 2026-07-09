@@ -1,8 +1,10 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.363-alpha`
+Current version: `v0.2.364-alpha`
 
-**v0.2.363-alpha shipped MP-1** — WebSocket multiplayer (advisory hit detection). Behind `MP_ENABLED = false`; flip in Instance Settings → Multiplayer once Caddy `/mp` + arena-ws systemd unit are up (VPS_INSTALL.md §16). Next multiplayer slice is MP-2: server-authoritative hit resolution over the same wire (no protocol change).
+**v0.2.364-alpha shipped MP-2** — server-authoritative hit resolution on the same wire (`PROTOCOL_VERSION=1`, additive `RESPAWN` only). Server keeps snapshot rings per peer, rewinds up to `LAG_COMP_MS=300`, resolves ray-vs-capsule/head-sphere itself, applies damage from a parity-locked table (head=9, body=3), broadcasts `HIT`/`KILL` to ALL, and issues `RESPAWN` to the victim after `RESPAWN_MS=3000`. Client stops emitting `HIT`. One-flag rollback via `MP_MODE=advisory` in the systemd unit (see VPS_INSTALL.md §16.6). Same behaviour gate (`MP_ENABLED=false`) as MP-1. Next multiplayer slice is MP-3 (spec queued): richer respawn UX + kill-feed HUD + server-authoritative KILL attribution.
+
+**v0.2.363-alpha shipped MP-1** — WebSocket multiplayer (advisory hit detection). Behind `MP_ENABLED = false`; flip in Instance Settings → Multiplayer once Caddy `/mp` + arena-ws systemd unit are up (VPS_INSTALL.md §16). Superseded by MP-2 above; MP-1 semantics remain reachable via `MP_MODE=advisory`.
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 Source of truth for Torii Quest tasks.

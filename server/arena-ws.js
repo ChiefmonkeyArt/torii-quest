@@ -33,13 +33,28 @@ import {
   decode, encode, sanitize,
 } from '../src/engine/multiplayer/wireProtocol.js';
 import { verifyNostrEventSig } from '../src/engine/crypto/nostrSig.js';
+import { createSnapshotRing, push as pushSnap } from './combat/snapshotRing.js';
+import { resolveShot, DEFAULT_LAG_COMP_MS } from './combat/hitResolver.js';
+import { damageFor } from './combat/damageTable.js';
+import {
+  createHpLedger, register as hpRegister, unregister as hpUnregister,
+  applyDamage, respawn, HP_MAX,
+} from './combat/hpLedger.js';
 
 // ---------- config ----------
 
 const PORT       = Number(process.env.PORT || 8787);
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.363-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.364-alpha';
+
+// MP-2 tunables.
+//   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
+//   MP_MODE = 'advisory'                — MP-1 behaviour: relay client HIT untouched.
+const MP_MODE     = (process.env.MP_MODE || 'authoritative').toLowerCase();
+const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
+const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
+const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 
 // Per-session rate limits (msg / sec).
 const RATE = Object.freeze({
@@ -68,6 +83,20 @@ const CHALLENGE_TTL_MS   = 60_000; // an AUTH event's created_at must be within 
  */
 /** @type {Map<string, Session>} */
 const sessions = new Map();
+
+// Per-session snapshot ring for MP-2 lag-compensated hit resolution.
+// Kept OUT of the Session struct so the MP-1 shape stays untouched and
+// snapshot writes remain a single point of concern.
+/** @type {Map<string, ReturnType<typeof createSnapshotRing>>} */
+const snapshotRings = new Map();
+
+// Server-authoritative HP ledger.
+const hpLedger = createHpLedger(HP_MAX_ENV);
+
+// Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
+// on reconnect / LEFT we clear pending timers to avoid warping ghosts.
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const respawnTimers = new Map();
 
 // ---------- logging ----------
 
@@ -105,10 +134,25 @@ function broadcastToOthers(fromId, msg) {
   }
 }
 
+// MP-2: HIT / KILL are broadcast to EVERYONE including the shooter, because
+// the shooter's client no longer decides outcomes — it needs the wire event
+// to trigger its own kill-confirmed audio/HUD.
+function broadcastToAll(msg) {
+  const wire = encode(msg);
+  for (const sess of sessions.values()) {
+    if (!sess.authed) continue;
+    try { sess.ws.send(wire); } catch { /* ignore */ }
+  }
+}
+
 function closeSession(sess, reason) {
   try { sess.ws.close(1000, reason); } catch { /* noop */ }
   if (sessions.has(sess.id)) {
     sessions.delete(sess.id);
+    snapshotRings.delete(sess.id);
+    hpUnregister(hpLedger, sess.id);
+    const timer = respawnTimers.get(sess.id);
+    if (timer) { clearTimeout(timer); respawnTimers.delete(sess.id); }
     if (sess.authed) {
       broadcastToOthers(sess.id, { t: MSG.LEFT, id: sess.id, reason });
     }
@@ -163,6 +207,9 @@ function handleMessage(sess, raw) {
     sess.authed = true;
     sess.npub = msg.npub;
     sess.pubkey = msg.event.pubkey;
+    // MP-2: bootstrap ledger + ring at auth time.
+    hpRegister(hpLedger, sess.id);
+    snapshotRings.set(sess.id, createSnapshotRing());
     // Build roster of OTHER authed sessions.
     const roster = [];
     for (const other of sessions.values()) {
@@ -187,23 +234,42 @@ function handleMessage(sess, raw) {
     case MSG.MOVE: {
       if (!checkRate(sess, 'MOVE', RATE.MOVE)) return;
       sess.pos = msg.pos; sess.rot = msg.rot;
+      // MP-2: record every accepted MOVE for lag-compensated hit resolution.
+      const ring = snapshotRings.get(sess.id);
+      if (ring) {
+        pushSnap(ring, {
+          ts: sess.lastActivity,
+          pos: msg.pos, rot: msg.rot,
+          vel: Array.isArray(msg.vel) ? msg.vel : [0, 0, 0],
+        });
+      }
       broadcastToOthers(sess.id, { ...msg, id: sess.id });
       return;
     }
     case MSG.SHOT: {
       if (!checkRate(sess, 'SHOT', RATE.SHOT)) return;
       broadcastToOthers(sess.id, { ...msg, id: sess.id });
+      // MP-2: after relaying the muzzle/tracer cue, resolve the hit ourselves.
+      if (MP_MODE === 'authoritative') resolveAndBroadcast(sess, msg);
       return;
     }
     case MSG.HIT: {
       if (!checkRate(sess, 'HIT', RATE.HIT)) return;
-      // ADVISORY MODEL (MP-1): trust the shooter's claim, relay untouched.
-      // MP-2 will replace this with a server-side raycast; the wire is unchanged.
-      broadcastToOthers(sess.id, { ...msg, id: sess.id });
+      if (MP_MODE === 'advisory') {
+        // MP-1 LEGACY: relay untouched. Only reachable with MP_MODE=advisory.
+        broadcastToOthers(sess.id, { ...msg, id: sess.id });
+        return;
+      }
+      // MP-2 AUTHORITATIVE: client HIT is IGNORED. The server-issued HIT is
+      // the only one clients ever apply damage from. Drop silently to avoid
+      // wasting a warning per bugged/legacy client.
       return;
     }
     case MSG.KILL: {
-      broadcastToOthers(sess.id, msg);
+      if (MP_MODE === 'advisory') {
+        broadcastToOthers(sess.id, msg);
+      }
+      // MP-2: server emits KILL; client-sent KILL is dropped.
       return;
     }
     case MSG.CHAT: {
@@ -221,6 +287,82 @@ function handleMessage(sess, raw) {
     // Ignore anything a client shouldn't be sending.
     default: return;
   }
+}
+
+// ---------- MP-2 authoritative hit resolution ----------
+
+function resolveAndBroadcast(shooter, shotMsg) {
+  const peerRings = [];
+  for (const [id, ring] of snapshotRings) {
+    if (id === shooter.id) continue;
+    const other = sessions.get(id);
+    if (!other || !other.authed) continue;
+    peerRings.push({ id, ring });
+  }
+  const result = resolveShot({
+    shooterId: shooter.id,
+    shot: { origin: shotMsg.origin, dir: shotMsg.dir, ts: shotMsg.ts },
+    peerRings,
+    now: Date.now(),
+    lagCompMs: LAG_COMP_MS,
+  });
+  if (!result) return;
+
+  const dmg = damageFor(result.zone);
+  if (dmg <= 0) return;
+
+  const outcome = applyDamage(hpLedger, result.targetId, dmg);
+  // Server-issued HIT — broadcast to ALL so shooter also sees definitive result.
+  broadcastToAll({
+    t: MSG.HIT,
+    id: shooter.id,           // shooter session id
+    targetId: result.targetId,
+    dmg: outcome.applied,
+    zone: result.zone,
+    shotTs: shotMsg.ts,
+  });
+
+  if (outcome.killed) {
+    broadcastToAll({
+      t: MSG.KILL,
+      shooterId: shooter.id,
+      victimId: result.targetId,
+      weapon: 'primary',
+    });
+    scheduleRespawn(result.targetId, shooter.pos);
+  }
+}
+
+function scheduleRespawn(victimId, killerPos) {
+  // Clear any pending timer (e.g. victim was already scheduled).
+  const existing = respawnTimers.get(victimId);
+  if (existing) clearTimeout(existing);
+
+  const timer = setTimeout(() => {
+    respawnTimers.delete(victimId);
+    const victim = sessions.get(victimId);
+    if (!victim || !victim.authed) return; // peer left before respawn
+
+    const r = respawn(hpLedger, victimId, killerPos);
+    victim.pos = r.pos;
+    // Reset the peer's ring so lag-comp doesn't rewind through a corpse.
+    snapshotRings.set(victimId, createSnapshotRing());
+
+    // RESPAWN → victim only (they warp + heal).
+    sendTo(victim, {
+      t: MSG.RESPAWN,
+      pos: r.pos,
+      rot: victim.rot,
+      hp: r.hp,
+    });
+    // Synthetic MOVE → everyone else so remote avatars pop to the new corner.
+    broadcastToOthers(victimId, {
+      t: MSG.MOVE,
+      id: victimId,
+      pos: r.pos, rot: victim.rot, vel: [0, 0, 0],
+    });
+  }, RESPAWN_MS);
+  respawnTimers.set(victimId, timer);
 }
 
 // ---------- server bring-up ----------
@@ -275,4 +417,4 @@ setInterval(() => {
   log.info(`peers=${sessions.size}/${MAX_PEERS}`);
 }, 60_000);
 
-log.info(`listening on 127.0.0.1:${PORT} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION})`);
+log.info(`listening on 127.0.0.1:${PORT} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);

@@ -206,19 +206,24 @@ describe('multiplayerHost — outbound wire', () => {
     expect(host.sendHit({ targetId: 'x', dmg: 25, zone: 'body', shotTs: 1 })).toBe(false);
   });
 
-  it('after CONNECTED, sendMove/Shot/Hit/Kill/Chat emit framed messages with the correct type', async () => {
+  it('after CONNECTED, sendMove/Shot/Kill/Chat emit framed messages with the correct type; sendHit is a no-op (MP-2)', async () => {
     const { host } = makeHost();
     host.start();
     const ws = FakeWS.instances[0];
     await handshake(ws);
     expect(host.sendMove({ pos: [1, 2, 3], rot: [0.5, 0], vel: [0, 0, 0] })).toBe(true);
     expect(host.sendShot({ origin: [0, 0, 0], dir: [1, 0, 0], ts: 100 })).toBe(true);
-    expect(host.sendHit({ targetId: 'p1', dmg: 25, zone: 'body', shotTs: 99 })).toBe(true);
+    // MP-2 (v0.2.364-alpha): client stops emitting HIT. Server is authoritative.
+    // sendHit is a no-op returning false; nothing is written to the socket.
+    // See MP_2_SPEC.md §10 and multiplayerHost.js:sendHit.
+    const sentBeforeHit = ws.sent.length;
+    expect(host.sendHit({ targetId: 'p1', dmg: 25, zone: 'body', shotTs: 99 })).toBe(false);
+    expect(ws.sent.length).toBe(sentBeforeHit);
     expect(host.sendKill({ shooterId: 'me', victimId: 'p1', weapon: 'pistol' })).toBe(true);
     expect(host.sendChat('gg')).toBe(true);
-    // Skip the initial AUTH frame; sanity-check the last 5 sends against expected types.
-    const outbound = ws.sent.slice(-5).map((raw) => JSON.parse(raw).t);
-    expect(outbound).toEqual([MSG.MOVE, MSG.SHOT, MSG.HIT, MSG.KILL, MSG.CHAT]);
+    // Skip the initial AUTH frame; sanity-check the last 4 sends against expected types.
+    const outbound = ws.sent.slice(-4).map((raw) => JSON.parse(raw).t);
+    expect(outbound).toEqual([MSG.MOVE, MSG.SHOT, MSG.KILL, MSG.CHAT]);
   });
 
   it('tick() forwards to the roster (no crash when roster is empty)', () => {

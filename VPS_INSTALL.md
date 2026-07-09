@@ -511,7 +511,7 @@ steps in §6/§11; this only makes the route + asset readiness checkable in CI.
 
 ---
 
-## 16. Multiplayer server: Caddy `/mp` reverse-proxy + systemd unit (v0.2.363-alpha, MP-1)
+## 16. Multiplayer server: Caddy `/mp` reverse-proxy + systemd unit (v0.2.364-alpha, MP-1 + MP-2)
 
 MP-1 adds an in-process Node WebSocket server (`server/arena-ws.js`) that relays
 position + advisory-hit frames between peers in the same arena instance. It runs
@@ -669,3 +669,44 @@ sudo systemctl daemon-reload
 
 Remove the `handle /mp { … }` block from the Caddyfile and `sudo systemctl
 reload caddy`. The static site is untouched.
+
+### 16.6 MP-2 addendum — server-authoritative hits (v0.2.364-alpha)
+
+MP-2 lands on the same wire as MP-1 (`PROTOCOL_VERSION=1`, one additive `RESPAWN`
+message). No Caddy or DNS changes required. The server now resolves shots itself,
+keeps an HP ledger, and issues `HIT` / `KILL` / `RESPAWN` on its own authority.
+Clients under MP-2 stop emitting `HIT`; a legacy client still sending them is
+ignored (or, under the fallback below, relayed as before).
+
+Tuning knobs (all optional — defaults match MP_2_SPEC.md):
+
+```ini
+# Append to /etc/systemd/system/torii-arena-ws.service under [Service]:
+Environment=MP_MODE=authoritative     # 'authoritative' (default) or 'advisory'
+Environment=LAG_COMP_MS=300           # ms of rewind for shot resolution
+Environment=HP_MAX=100                # starting HP per peer
+Environment=RESPAWN_MS=3000           # dead-time before server sends RESPAWN
+```
+
+**Rollback to MP-1 behaviour without a code redeploy:**
+
+```bash
+sudo systemctl edit torii-arena-ws.service      # adds an override drop-in
+# In the editor:
+#   [Service]
+#   Environment=MP_MODE=advisory
+sudo systemctl restart torii-arena-ws.service
+```
+
+Under `MP_MODE=advisory` the server relays client `HIT` and `KILL` untouched
+(MP-1 semantics) and never issues its own. This is the one-flag emergency exit
+if MP-2 misbehaves in production — no rebuild, no dist swap. Return to
+authoritative by removing the override (`systemctl revert torii-arena-ws.service`)
+and restarting the unit.
+
+Verify authoritative mode is live in the boot log:
+
+```bash
+sudo journalctl -u torii-arena-ws -n 20 --no-pager | grep 'mp_mode'
+# → listening on 127.0.0.1:8787 (max_peers=32, protocol=1, mp_mode=authoritative, lag_comp_ms=300)
+```

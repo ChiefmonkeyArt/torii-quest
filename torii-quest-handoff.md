@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.363-alpha
+**Current version:** v0.2.364-alpha (live at v0.2.363-alpha — MP-2 build pending manual deploy)
 
 ---
 
@@ -12,7 +12,7 @@ A browser arena shooter — Three.js (WebGL) render, Rapier3D (WASM) physics, No
 
 - **Live:** https://torii-quest.pplx.app (Perplexity Space; publish is a separate manual step — see §7)
 - **Active focus:** 15-hour proof-of-concept route (`torii-quest-strategy.md` → "15-Hour Proof-of-Concept Route"; `torii-quest-todo.md` → "ACTIVE FOCUS"). Shooter is maintenance-only; the active MVP is the freedom-tech loop — gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest update-check (LEAN-1..LEAN-5).
-- **Multiplayer:** MP-1 LANDED v0.2.363-alpha. In-process Node WebSocket relay at `server/arena-ws.js`; client subsystem in `src/engine/multiplayer/*` wired behind `MP_ENABLED = false` (single `if(MP_ENABLED)` seam in `arenaRuntime.js`). Advisory hit detection (MP-2 flips to server-authoritative without a wire change). Single-origin `wss://<domain>/mp` via Caddy reverse-proxy — no subdomains (VPS_INSTALL.md §16). Turn on via Instance Settings → Multiplayer once the operator has installed the `/mp` block + `torii-arena-ws` systemd unit.
+- **Multiplayer:** MP-2 LANDED v0.2.364-alpha — server-authoritative hit resolution on the same wire (`PROTOCOL_VERSION=1`, additive `RESPAWN` only). Pure server modules under `server/combat/` (snapshotRing, capsuleModel, rayVsCapsule, damageTable, hpLedger, hitResolver); arena-ws wiring keeps a per-peer ring, rewinds to shot ts (clamped to `LAG_COMP_MS=300`), damages via a parity-locked table (head=9, body=3), broadcasts `HIT`/`KILL` to ALL, and issues `RESPAWN` to the victim after `RESPAWN_MS=3000`. Client `sendHit` is a no-op; `wsClient` handles `RESPAWN` and `arenaRuntime` warps the player + resets HP. One-flag rollback via `MP_MODE=advisory` in the systemd unit restores MP-1 relay semantics with no redeploy (VPS_INSTALL.md §16.6). MP-1 LANDED v0.2.363-alpha (advisory hit detection) remains reachable via that fallback. Same behaviour gate (`MP_ENABLED = false`; single `if(MP_ENABLED)` seam in `arenaRuntime.js`). Single-origin `wss://<domain>/mp` via Caddy reverse-proxy — no subdomains (VPS_INSTALL.md §16). Turn on via Instance Settings → Multiplayer once the operator has installed the `/mp` block + `torii-arena-ws` systemd unit.
 
 ## 2. Standing operating rules (project-wide, across all Torii repos)
 

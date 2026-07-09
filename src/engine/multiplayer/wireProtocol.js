@@ -33,6 +33,9 @@ export const MSG = Object.freeze({
   CHAT:      'CHAT',
   PING:      'PING',
   PONG:      'PONG',
+  // MP-2 (v0.2.364-alpha): server-only, purely additive, PROTOCOL_VERSION unchanged.
+  // MP-1 clients drop this via decode()'s UNKNOWN_TYPE guard (harmless).
+  RESPAWN:   'RESPAWN',
 });
 
 const MSG_TYPES = new Set(Object.values(MSG));
@@ -154,6 +157,12 @@ const validators = {
     if (!isFiniteNum(m.ts)) return fail('BAD_FIELD', 'ts');
     return ok(m);
   },
+  [MSG.RESPAWN](m) {
+    if (!isVec3(m.pos, LIMITS.POS_ABS)) return fail('BAD_FIELD', 'pos');
+    if (!isRot2(m.rot))                 return fail('BAD_FIELD', 'rot');
+    if (!isFiniteNum(m.hp) || m.hp < 0 || m.hp > 9999) return fail('BAD_FIELD', 'hp');
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -212,6 +221,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.CHAT]:      ['id', 'msg'],
   [MSG.PING]:      ['ts'],
   [MSG.PONG]:      ['ts'],
+  [MSG.RESPAWN]:   ['pos', 'rot', 'hp'],
 });
 
 /** Is this a known message type? */

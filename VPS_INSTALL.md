@@ -508,3 +508,164 @@ report pins `served/deployed/navigated/performed/external/network/wrote/fetched 
 harness exposes no `serve`/`deploy`/`publish`/`upload`/`fetch`/`write`/`navigate`/`ssh`/`connect`
 method. This is **NOT a VPS deployment** — configuring the real host stays the manual maintainer
 steps in §6/§11; this only makes the route + asset readiness checkable in CI.
+
+---
+
+## 16. Multiplayer server: Caddy `/mp` reverse-proxy + systemd unit (v0.2.363-alpha, MP-1)
+
+MP-1 adds an in-process Node WebSocket server (`server/arena-ws.js`) that relays
+position + advisory-hit frames between peers in the same arena instance. It runs
+on **the same VPS as the static site** and is exposed on the **same origin** as
+the game — `wss://<your-domain>/mp` — so operators never have to configure a
+separate subdomain, TLS cert, or CORS policy. This is the single-origin contract
+called out in `MP_1_SPEC.md` §9.
+
+The default is **OFF**: fresh installs ship with `MP_ENABLED = false` in
+`src/config.js`, no client will attempt a `wss://…/mp` connection until an admin
+flips it in the Instance Settings panel. The `/mp` proxy block below can be
+installed ahead of time — it costs nothing while `arena-ws.js` isn't running,
+and Caddy 502s any stray probe.
+
+### 16.1 Caddy — add a `/mp` handler alongside the existing `file_server`
+
+Extend the `torii.quest` (or your domain) site block in `/etc/caddy/Caddyfile`
+from §6a with a `handle /mp` route **before** the `file_server` directive so
+Caddy upgrades the WebSocket handshake instead of trying to serve `/mp` as a
+static path:
+
+```caddyfile
+torii.quest, www.torii.quest {
+    root * /var/www/torii.quest/current
+    encode zstd gzip
+
+    # MP-1: WebSocket multiplayer relay. Runs on 127.0.0.1:8787 (systemd unit
+    # below). Caddy proxies the Upgrade handshake through so the connection
+    # stays on the same origin as the game (no subdomain, no CORS).
+    handle /mp {
+        reverse_proxy 127.0.0.1:8787
+    }
+
+    file_server
+
+    # SPA-ish fallback (unchanged)
+    try_files {path} /index.html
+
+    @wasm path *.wasm
+    header @wasm Content-Type application/wasm
+
+    # NOTE: connect-src must include wss://<your-domain> so the browser is
+    # allowed to open the multiplayer WebSocket back to the same origin. The
+    # relay list from §6a already covers the Nostr relays; add your own domain
+    # (or a wss://self placeholder if your CSP builder rewrites it).
+    header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net wss://torii.quest"
+
+    @assets path /assets/*
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+    header /index.html Cache-Control "no-cache"
+}
+```
+
+```bash
+sudo systemctl reload caddy
+```
+
+Caddy detects the WebSocket `Upgrade: websocket` header automatically inside a
+`reverse_proxy` block — no extra `@websocket` matcher or `header_up` directives
+are needed. The relay never talks to the public internet directly; only Caddy
+(and localhost) can reach `127.0.0.1:8787`.
+
+### 16.2 systemd — run `arena-ws.js` as a supervised service
+
+Create `/etc/systemd/system/torii-arena-ws.service`:
+
+```ini
+[Unit]
+Description=Torii Quest Arena WebSocket server (MP-1)
+After=network.target
+
+[Service]
+Type=simple
+User=torii
+WorkingDirectory=/opt/torii-quest
+ExecStart=/usr/bin/node /opt/torii-quest/server/arena-ws.js
+Restart=on-failure
+RestartSec=2
+
+# Bind address + limits. PORT stays on loopback; Caddy is the only public
+# ingress. MAX_PEERS caps concurrent connections per instance (see MP_1_SPEC §7).
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+Environment=MAX_PEERS=32
+
+# Hardening — arena-ws.js only needs to bind loopback and read its own module.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/torii-quest
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now torii-arena-ws.service
+sudo systemctl status torii-arena-ws.service --no-pager
+```
+
+Expected steady state: `active (running)`, listening on `127.0.0.1:8787`,
+logs to `journalctl -u torii-arena-ws -f`.
+
+### 16.3 Verify end-to-end
+
+From the VPS itself (loopback, bypasses Caddy):
+
+```bash
+curl -i -N -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+     -H "Sec-WebSocket-Version: 13" \
+     http://127.0.0.1:8787/  | head -5
+# → HTTP/1.1 101 Switching Protocols
+```
+
+From a laptop against the public origin (through Caddy):
+
+```bash
+# a browser-side smoke test is enough; from a terminal:
+websocat wss://torii.quest/mp
+# → connection stays open; the server sends a WELCOME frame after auth.
+```
+
+If Caddy answers `502` on `/mp`, the systemd unit isn't running (or is bound to
+a different port). If Caddy answers `426 Upgrade Required`, the `handle /mp`
+block was placed **after** `file_server` — move it above.
+
+### 16.4 Turning multiplayer on
+
+MP-1 ships **disabled** by default. Once §16.1 + §16.2 are in place and healthy:
+
+1. Open the site as an admin (a pubkey with the admin role in Instance Settings).
+2. Instance Settings → **Multiplayer** section: flip the toggle to `enabled`.
+3. The next page load will open `wss://<your-domain>/mp` and the arena will
+   render remote avatars in real time.
+
+Turning the toggle back to `disabled` (or setting `MP_ENABLED = false` in
+`src/config.js` and re-deploying) restores the single-player behaviour with no
+other config changes required — the Caddy `/mp` handler and the systemd unit
+can stay running idle.
+
+### 16.5 Rollback
+
+Multiplayer is fully additive. To roll `arena-ws.js` out of the stack:
+
+```bash
+sudo systemctl disable --now torii-arena-ws.service
+sudo rm /etc/systemd/system/torii-arena-ws.service
+sudo systemctl daemon-reload
+```
+
+Remove the `handle /mp { … }` block from the Caddyfile and `sudo systemctl
+reload caddy`. The static site is untouched.

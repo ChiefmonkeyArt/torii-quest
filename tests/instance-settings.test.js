@@ -129,6 +129,23 @@ describe('buildInstanceSettingsModel', () => {
     expect(typeof more.note).toBe('string');
   });
 
+  it('reports Multiplayer status — disabled by default (MP_ENABLED=false at build)', () => {
+    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
+    const mp = m.sections.find((s) => s.key === 'multiplayer');
+    expect(mp).toBeTruthy();
+    expect(mp.title).toBe('Multiplayer');
+    expect(mp.current).toBe('disabled');
+    expect(m.mpEnabled).toBe(false);
+    expect(mp.note.toLowerCase()).toContain('mp-1');
+  });
+
+  it('accepts an explicit mpEnabled override (test seam for MP-1.1 runtime toggle)', () => {
+    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A, mpEnabled: true });
+    const mp = m.sections.find((s) => s.key === 'multiplayer');
+    expect(mp.current).toBe('enabled');
+    expect(m.mpEnabled).toBe(true);
+  });
+
   it('does not share the COMING_SOON_ARRIVAL_MODES array by reference', () => {
     const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
     const modes = m.sections[0].comingSoon;

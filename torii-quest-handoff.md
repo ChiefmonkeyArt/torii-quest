@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.362-alpha
+**Current version:** v0.2.363-alpha
 
 ---
 
@@ -12,6 +12,7 @@ A browser arena shooter — Three.js (WebGL) render, Rapier3D (WASM) physics, No
 
 - **Live:** https://torii-quest.pplx.app (Perplexity Space; publish is a separate manual step — see §7)
 - **Active focus:** 15-hour proof-of-concept route (`torii-quest-strategy.md` → "15-Hour Proof-of-Concept Route"; `torii-quest-todo.md` → "ACTIVE FOCUS"). Shooter is maintenance-only; the active MVP is the freedom-tech loop — gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest update-check (LEAN-1..LEAN-5).
+- **Multiplayer:** MP-1 LANDED v0.2.363-alpha. In-process Node WebSocket relay at `server/arena-ws.js`; client subsystem in `src/engine/multiplayer/*` wired behind `MP_ENABLED = false` (single `if(MP_ENABLED)` seam in `arenaRuntime.js`). Advisory hit detection (MP-2 flips to server-authoritative without a wire change). Single-origin `wss://<domain>/mp` via Caddy reverse-proxy — no subdomains (VPS_INSTALL.md §16). Turn on via Instance Settings → Multiplayer once the operator has installed the `/mp` block + `torii-arena-ws` systemd unit.
 
 ## 2. Standing operating rules (project-wide, across all Torii repos)
 

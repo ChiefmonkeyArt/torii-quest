@@ -44,6 +44,18 @@ function _safeRelays(raw) {
   return out;
 }
 
+// _safeWss(raw) → a wss URL string or null. Pure, never throws.
+// Used for the MP-1 `["ws", "wss://.../mp"]` gateway endpoint tag.
+export function _safeWss(raw) {
+  if (typeof raw !== 'string' || raw.length > 2048) return null;
+  let u;
+  try { u = new URL(raw); } catch { return null; }
+  // wss ONLY — no plaintext ws:// on the public gateway surface.
+  if (u.protocol !== 'wss:') return null;
+  if (!u.hostname || u.username || u.password) return null;
+  return u.href;
+}
+
 // _safeHttps(raw) → an https URL string or null. Pure, never throws.
 function _safeHttps(raw) {
   if (typeof raw !== 'string' || raw.length > 2048) return null;
@@ -76,12 +88,17 @@ export function buildPresenceEvent(input = {}) {
   const topics = Array.isArray(i.topics)
     ? i.topics.filter((t) => typeof t === 'string').map((t) => t.slice(0, 64)).slice(0, 8)
     : [];
+  // MP-1: optional `ws` endpoint — the operator's arena WebSocket URL. When
+  // present, a traveller can jump straight into shared gameplay on arrival.
+  // Missing = single-player-only world (backwards-compatible with pre-MP-1 events).
+  const wsEndpoint = _safeWss(i.wsEndpoint);
 
   const content = {
     zoneId, title, description, zoneType, website, relays, topics,
     version: WORLD_PRESENCE_VERSION,
   };
   if (npub) content.npub = npub;
+  if (wsEndpoint) content.wsEndpoint = wsEndpoint;
 
   const tags = [
     ['d', zoneId],
@@ -91,6 +108,7 @@ export function buildPresenceEvent(input = {}) {
   if (title) tags.push(['title', title]);
   if (npub) tags.push(['npub', npub]);
   for (const r of relays) tags.push(['relay', r]);
+  if (wsEndpoint) tags.push(['ws', wsEndpoint]);
 
   const event = {
     kind: GATEWAY_KIND,

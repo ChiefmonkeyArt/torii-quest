@@ -225,6 +225,9 @@ function _executeJump() {
   const withTraveller = appendTraveller(hardened.url, state.nostrPubkey || '');
   const target = withTraveller.ok ? withTraveller.url : hardened.url;
   _handshake.clearArmed();
+  // MP-1: gracefully close the multiplayer WebSocket before we navigate, so the
+  // server logs a proper LEFT rather than a ping-timeout when we hop instances.
+  try { _arena?.stopMultiplayer?.('travel'); } catch (e) { /* best-effort */ }
   try { window.location.href = target; } catch (e) { renderGatewayCard(); }
 }
 

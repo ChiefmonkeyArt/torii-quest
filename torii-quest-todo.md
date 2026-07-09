@@ -1,6 +1,8 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.362-alpha`
+Current version: `v0.2.363-alpha`
+
+**v0.2.363-alpha shipped MP-1** — WebSocket multiplayer (advisory hit detection). Behind `MP_ENABLED = false`; flip in Instance Settings → Multiplayer once Caddy `/mp` + arena-ws systemd unit are up (VPS_INSTALL.md §16). Next multiplayer slice is MP-2: server-authoritative hit resolution over the same wire (no protocol change).
 Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
 
 Source of truth for Torii Quest tasks.

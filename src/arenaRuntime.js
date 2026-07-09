@@ -33,7 +33,7 @@ import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenF
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
-import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED } from './config.js';
+import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
@@ -394,8 +394,22 @@ export function createArenaRuntime(hooks = {}) {
     // and starts syncing our own MOVE + relaying peer moves through the roster.
     if (MP_ENABLED) {
       const _mpGltf = new GLTFLoader();
+      // MP-2 (v0.2.364-alpha): server issues RESPAWN when this client is killed.
+      // Handler warps the local body to the server-picked corner and heals to
+      // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
+      const _mpEmit = (name, payload) => {
+        if (name !== 'mp_respawn') return;
+        const p = payload || {};
+        if (!Array.isArray(p.pos)) return;
+        const yaw = Array.isArray(p.rot) ? p.rot[0] : 0;
+        setNextSpawn(p.pos[0], p.pos[2], yaw);
+        resetPlayerPos();
+        state.hp = typeof p.hp === 'number' ? p.hp : PLAYER_HP;
+        emit(EV.HUD_UPDATE);
+      };
       _mp = createMultiplayerHost({
         scene,
+        emit: _mpEmit,
         // Load the shared chiefmonkey6 model for every peer (per-character skinning
         // lands in MP-1.5). Returns a THREE.Group with position/rotation/dispose().
         avatarLoader: (peer) => new Promise((resolve, reject) => {

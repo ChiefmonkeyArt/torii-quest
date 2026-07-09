@@ -187,6 +187,8 @@ export function createWsClient(opts) {
       case MSG.HIT:   emit('hit', msg);     return;
       case MSG.KILL:  emit('kill', msg);    return;
       case MSG.CHAT:  emit('chat', msg);    return;
+      // MP-2 additive: server-only warp+heal for the local player.
+      case MSG.RESPAWN: emit('respawn', msg); return;
       case MSG.PING:  send({ t: MSG.PONG, ts: msg.ts }); return;
       case MSG.PONG:  return; // measured elsewhere
       default: return;

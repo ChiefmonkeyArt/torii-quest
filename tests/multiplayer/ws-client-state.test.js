@@ -69,7 +69,7 @@ describe('wsClient state machine', () => {
     client.connect();
     const ws = FakeWS.instances[0];
     ws._open();
-    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.363-alpha', protocolVersion: PROTOCOL_VERSION });
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.364-alpha', protocolVersion: PROTOCOL_VERSION });
     // signAuth is async — flush microtasks.
     await Promise.resolve(); await Promise.resolve();
     expect(client.state).toBe(WS_STATE.AUTHENTICATING);

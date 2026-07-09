@@ -83,11 +83,11 @@ All new server code goes under `server/`. All node-pure (no `ws` import), except
 | Module | Responsibility | ~Lines |
 |---|---|---|
 | `server/combat/snapshotRing.js` | Pure. Ring buffer of `{ts, pos, rot, vel}` per session. `push(t, snap)`, `sampleAt(t)` returns the snapshot ≤ t (or interpolates between two flanking snaps). Capacity = 30 (≥1.5 s at 20 Hz). | ~90 |
-| `server/combat/capsuleModel.js` | Pure. Given a snapshot, produce `{ bodyCap: {p0,p1,r}, headSphere: {c,r} }`. Constants: body height 1.8 m, radius 0.35 m, head radius 0.20 m, head centre offset +1.55 (matches shipped client `BOT_HEAD_CENTRE_Y_OFFSET`). | ~60 |
-| `server/combat/rayVsCapsule.js` | Pure. Analytic ray-vs-capsule and ray-vs-sphere. Returns nearest hit + zone (`"head"` if sphere hit, `"body"` if cap hit, `"limb"` if cap hit but outside a "core" fraction). | ~140 |
+| `server/combat/capsuleModel.js` | Pure. Given a snapshot, produce `{ bodyCap: {p0,p1,r}, headSphere: {c,r} }`. Constants mirror shipped `bodies.js`: body capsule half-height 0.50, radius 0.26, centre offset +0.76 (spans [0,1.52]); head sphere radius 0.20, centre offset +1.55 (spans [1.35,1.75]). | ~60 |
+| `server/combat/rayVsCapsule.js` | Pure. Analytic ray-vs-capsule and ray-vs-sphere. Returns nearest hit + zone (`"head"` if sphere hit, `"body"` if cap hit). Shipped combat is 2-zone; `"limb"` stays valid on the wire but is never emitted. | ~140 |
 | `server/combat/hitResolver.js` | Pure. `resolveShot({shooterId, shot, sessions, snapshotRings}) → HIT[]`. Iterates other sessions, rewinds each to `shot.ts` (clamped ≤ `LAG_COMP_MS`), builds capsule, casts ray, returns 0 or 1 `HIT` (nearest peer only — no penetration). | ~120 |
-| `server/combat/damageTable.js` | Pure. `damageFor(zone, weapon) → number`. Matches client `engine/combat/damage.js` values: head 100, body 34, limb 20. Single source of truth mirrored (import-copy at build time — see §11). | ~30 |
-| `server/combat/hpLedger.js` | Pure. `applyDamage(sid, dmg) → {hpAfter, killed}`. `respawn(sid)` resets HP. `HP_MAX` default 100. | ~60 |
+| `server/combat/damageTable.js` | Pure. `damageFor(zone, weapon) → number`. Matches client `engine/combat/damage.js` values: head 9, body 3. Parity test enforces no drift (§11). | ~30 |
+| `server/combat/hpLedger.js` | Pure. `applyDamage(sid, dmg) → {hpAfter, killed}`. `respawn(sid)` resets HP. `HP_MAX` default `PLAYER_HP=100` (shipped). Two body shots (2×3=6) don't kill; a head shot (9) does not one-shot; players are more durable than bots (BOT_HP=5). | ~60 |
 
 `arena-ws.js` grows by ~50 lines: it wires `snapshotRing.push()` on every accepted `MOVE`, calls `hitResolver.resolveShot()` on every accepted `SHOT`, applies `hpLedger`, and emits the resulting `HIT`/`KILL` via the existing `broadcastToOthers` (with a new `broadcastToAll` for `HIT`/`KILL` since the shooter needs to see the definitive result).
 
@@ -105,9 +105,9 @@ Client-side prediction / smoothing is unchanged from MP-1 (`positionSync.js` sti
 ## 8. HP + respawn
 
 - `HP_MAX = 100` (env)
-- Server applies damage from `damageTable.damageFor(zone, weapon)`. Head 100 (one-shot), body 34, limb 20 — same as the shipped client `damage.js`.
+- Server applies damage from `damageTable.damageFor(zone, weapon)`. Head 9, body 3 — same as the shipped client `damage.js`. Player-vs-player is intentionally low-damage on the current tuning; damage-tuning is a separate follow-up if MP-2 playtests feel too slow.
 - On `hpAfter ≤ 0`, server emits `KILL{shooterId, victimId, weapon}` to all peers (including victim + shooter) and schedules a respawn after `RESPAWN_MS` (default 3000).
-- On respawn, server sets `hp = HP_MAX`, picks a spawn point from a small pool (initial pool: 4 spawn points mirroring the client `spawnPoints` array in `player.js`), and emits a `MOVE` on the peer's behalf so other peers see them warp. Actual client-side warp is driven by a new `RESPAWN` message → see §9.
+- On respawn, server sets `hp = HP_MAX`, picks a spawn point from the shipped `RESPAWN_CORNERS` pool in `player.js` (±14, ±14 — server has its own copy in `hpLedger.js` to stay client-free), and emits a `MOVE` on the peer's behalf so other peers see them warp. Actual client-side warp is driven by a new `RESPAWN` message → see §9.
 
 ## 9. Wire protocol — one additive (backwards-compatible) message
 

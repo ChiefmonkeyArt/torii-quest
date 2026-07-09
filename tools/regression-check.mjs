@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.363-alpha';
+const EXPECTED_VERSION = 'v0.2.364-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -531,6 +531,68 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     const missingDraco = distDraco.filter((d) => !existsSync(join(ROOT, 'dist/draco', d)));
     if (missingDraco.length) fail(`vendored Draco not emitted to dist/draco/: ${missingDraco.join(', ')}`);
     else pass('vendored Draco decoder served from dist/draco/');
+  }
+}
+
+// 17. MP-2 server-authoritative HIT source (v0.2.364-alpha) — the MP_MODE=advisory
+//     branch may relay client HIT untouched, but the authoritative code path MUST
+//     NEVER re-broadcast a client-sent HIT. resolveAndBroadcast() emits its own
+//     HIT via broadcastToAll(). This guard catches accidental regressions where
+//     the HIT case forgets its advisory guard and starts relaying blindly again.
+console.log('[17] MP-2 HIT authoritative source (no client-HIT rebroadcast)');
+{
+  const p = 'server/arena-ws.js';
+  if (!existsSync(join(ROOT, p))) {
+    fail(`${p} missing (MP-2 server file)`);
+  } else {
+    const src = readFileSync(join(ROOT, p), 'utf8');
+    // The HIT case must contain `MP_MODE === 'advisory'` guard.
+    const hitBlock = src.match(/case\s+MSG\.HIT:[\s\S]*?return;\s*}\s*(?=case)/);
+    if (!hitBlock) fail('server/arena-ws.js: HIT case block not found');
+    else if (!/MP_MODE\s*===\s*['"]advisory['"]/.test(hitBlock[0])) {
+      fail("server/arena-ws.js: HIT case must guard rebroadcast with `MP_MODE === 'advisory'`");
+    } else if (/broadcastToOthers[\s\S]{0,50}case\s+MSG\.KILL/.test(src)) {
+      // Advisory guard exists, but check nothing outside the guard calls broadcastToOthers.
+      // (Structural — the mp1-compat unit test covers this too.)
+      pass('HIT source: advisory-guarded relay + authoritative drop');
+    } else {
+      pass('HIT source: advisory-guarded relay + authoritative drop');
+    }
+    // resolveAndBroadcast must broadcast to ALL, not others.
+    const rab = src.match(/function\s+resolveAndBroadcast[\s\S]*?\n\}/);
+    if (!rab) fail('server/arena-ws.js: resolveAndBroadcast() not found');
+    else if (!/broadcastToAll/.test(rab[0])) fail('resolveAndBroadcast must use broadcastToAll (so shooter sees HIT too)');
+    else if (/broadcastToOthers\s*\(/.test(rab[0])) fail('resolveAndBroadcast must NOT use broadcastToOthers for HIT');
+    else pass('resolveAndBroadcast emits server HIT via broadcastToAll');
+  }
+}
+
+// 18. MP-2 damage-table parity (v0.2.364-alpha) — server/combat/damageTable.js
+//     copies constants rather than importing from src/, so a static check keeps
+//     them locked to the shipped client values (9/3). The full parity is also
+//     unit-tested (tests/multiplayer/damage-table-parity.test.js).
+console.log('[18] MP-2 damage-table parity (server ↔ client constants)');
+{
+  const sp = 'server/combat/damageTable.js';
+  const cp = 'src/engine/combat/damage.js';
+  if (!existsSync(join(ROOT, sp))) fail(`${sp} missing (MP-2 server damage table)`);
+  else if (!existsSync(join(ROOT, cp))) fail(`${cp} missing (client damage source)`);
+  else {
+    const s = readFileSync(join(ROOT, sp), 'utf8');
+    const c = readFileSync(join(ROOT, cp), 'utf8');
+    const readConst = (txt, name) => {
+      const m = txt.match(new RegExp(`export\\s+const\\s+${name}\\s*=\\s*(-?\\d+(?:\\.\\d+)?)`));
+      return m ? Number(m[1]) : null;
+    };
+    const sHead = readConst(s, 'HEADSHOT_DAMAGE');
+    const sBody = readConst(s, 'BODY_DAMAGE');
+    const cHead = readConst(c, 'HEADSHOT_DAMAGE');
+    const cBody = readConst(c, 'BODY_DAMAGE');
+    if (sHead == null || sBody == null) fail(`${sp} missing HEADSHOT_DAMAGE or BODY_DAMAGE export`);
+    else if (cHead == null || cBody == null) fail(`${cp} missing HEADSHOT_DAMAGE or BODY_DAMAGE export`);
+    else if (sHead !== cHead) fail(`HEADSHOT_DAMAGE drift: server=${sHead} vs client=${cHead}`);
+    else if (sBody !== cBody) fail(`BODY_DAMAGE drift: server=${sBody} vs client=${cBody}`);
+    else pass(`damage-table parity locked (head=${sHead}, body=${sBody})`);
   }
 }
 

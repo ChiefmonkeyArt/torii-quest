@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.362-alpha",
-  "generatedAt": "2026-07-08T20:02:10.117Z",
+  "version": "v0.2.364-alpha",
+  "generatedAt": "2026-07-09T16:48:08.921Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.362-alpha"
+        "value": "v0.2.364-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -59,7 +59,7 @@
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2092 passing / 137 files"
+        "value": "2155 passing / 137 files"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.362-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.364-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -156,8 +156,8 @@
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
-    "status": "docs-ready",
-    "statusLabel": "DOCS READY · BUILD CHECK PENDING",
+    "status": "ready",
+    "statusLabel": "READY",
     "checks": [
       {
         "item": "SPA /zone/* fallback documented",
@@ -166,8 +166,8 @@
       },
       {
         "item": "Built dist route shape",
-        "state": "deferred",
-        "note": "no dist/ this build — run npm run build then npm run zones:check"
+        "state": "no-blocker",
+        "note": "dist/index.html present; no static file under /zone/* shadows the fallback"
       },
       {
         "item": "Host SPA fallback configured",
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.362-alpha",
-    "gitCommit": "c36aa0d",
+    "version": "v0.2.364-alpha",
+    "gitCommit": "cba4bad",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.362-alpha / pkg 0.2.362-alpha"
+        "detail": "config v0.2.364-alpha / pkg 0.2.364-alpha"
       },
       {
         "key": "tests",
@@ -214,21 +214,21 @@
         "label": "Regression gate",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "16 / 15 checks"
+        "detail": "18 / 15 checks"
       },
       {
         "key": "bundle",
         "label": "Bundle baseline",
-        "state": "skipped",
-        "pill": "deferred",
-        "detail": "no dist/ — build then bundle:report"
+        "state": "advisory",
+        "pill": "manual",
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
       },
       {
         "key": "zoneFallback",
         "label": "/zone/* fallback",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "docs ok · dist check pending"
+        "detail": "docs + dist ok"
       },
       {
         "key": "docs",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.362-alpha",
+    "version": "v0.2.364-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -261,14 +261,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2092 passing / 137 files",
+    "testLabel": "2155 passing / 137 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.362-alpha"
+        "value": "v0.2.364-alpha"
       },
       {
         "label": "Release manifest",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "2092 passing / 137 files"
+        "value": "2155 passing / 137 files"
       },
       {
         "label": "Test profiles",
@@ -400,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.362-alpha",
+    "version": "v0.2.364-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.362-alpha"
+        "value": "v0.2.364-alpha"
       },
       {
         "label": "Approved by",
@@ -454,7 +454,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2092 passing / 137 files"
+        "value": "green — 2155 passing / 137 files"
       },
       {
         "label": "Explicit approval",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.362-alpha"
+        "value": "v0.2.364-alpha"
       },
       {
         "label": "Live game",

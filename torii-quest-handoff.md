@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.366-alpha (live at v0.2.366-alpha — MP-3 Nostr score+leaderboard shipping)
+**Current version:** v0.2.366-alpha (source at v0.2.366-alpha; LIVE at v0.2.365-alpha — MP-3 build merged to main, publish blocked by pplx-tool bridge outage on July 10)
 
 ---
 
@@ -12,6 +12,8 @@ A browser arena shooter — Three.js (WebGL) render, Rapier3D (WASM) physics, No
 
 - **Live:** https://torii-quest.pplx.app (Perplexity Space; publish is a separate manual step — see §7)
 - **Active focus:** 15-hour proof-of-concept route (`torii-quest-strategy.md` → "15-Hour Proof-of-Concept Route"; `torii-quest-todo.md` → "ACTIVE FOCUS"). Shooter is maintenance-only; the active MVP is the freedom-tech loop — gateway/NAP-to-NAP preview, Plebeian/Nostr product panel proof, leaderboard preview, torii.quest update-check (LEAN-1..LEAN-5).
+- **MP-3 (v0.2.366-alpha) LANDED to main, awaiting publish.** Nostr score/leaderboard, client-signed via nip07 (window.nostr). Server broadcasts authoritative `SCORE` frame on peer disconnect; each peer signs OWN row and publishes to configured relays as **kind:30078 (`d=torii-quest`, NIP-33 parameterized replaceable current entry)** + **kind:1 (`t=torii-quest-score`, durable history for lifetime aggregation)**. LocalStorage dedupe key `tq.mp3.published:{sessionId}:{endedAt}`. Empty-row guard skips 0-kills/0-deaths/0-damage rows (still dedupe-marked). Session id is 16-hex from server `randomBytes(8)`, regex `/^[0-9a-f]{16}$/`. Additive on `PROTOCOL_VERSION=1` (server→client only). Dashboard tile added: `buildLeaderboardModel` renders top-5 via `renderDashboardTile`. 4 new src modules: `server/combat/scoreLedger.js`, `src/engine/multiplayer/scoreReporter.js`, `src/engine/multiplayer/leaderboardAgg.js`, `src/ui/leaderboardPanel.js`. ~53 new tests (score-ledger, wire, reporter, agg, panel, integration, dashboard). Regression checks 19 (SCORE additive on `PROTOCOL_VERSION=1`) + 20 (leaderboard constants lock: `SCORE_KIND_ADDRESSABLE=30078`, `SCORE_KIND_HISTORY=1`, `SCORE_D_TAG='torii-quest'`, `SCORE_HISTORY_T_TAG='torii-quest-score'`). Green gate: 2264/2264 tests, 20/20 checks, release:status READY. PR #23 squash-merged into main at commit `f8f7499`. `dist/package.json` written with `ws@^8.21.0` runtime dep. Pre-publish security review PASS across all checks. **Publish blocked** by pplx-tool bridge websocket outage (`ToolBridgeWorkerReadyTimeout`) starting ~00:30 BST July 10 — deploy_website + publish_website both unreachable. Diagnostic ID `07c84677-0e5d-4800-a18b-05282d8d51f3`. MP-3.1 (WoT co-occurrence: record how often installations align + who they are, forming trust seed) queued as documented follow-up. **Trigger to publish once bridge recovers:** `deploy_website(project_path=/home/user/workspace/torii-quest/dist, site_name='Torii Quest', entry_point='index.html')` then `publish_website(project_path=/home/user/workspace/torii-quest/dist, dist_path=/home/user/workspace/torii-quest/dist, app_name='Torii Quest', site_id='93507979-679f-4aac-949d-20a4a33d7352', port=5000, run_command='node server/arena-ws.cjs', install_command='npm install --omit=dev --no-audit --no-fund')`.
+- **MP-1.5 (arena-ws in pplx.app sandbox) LANDED v0.2.365-alpha.** Node backend runs INSIDE the pplx.app publish sandbox — `arena-ws.js` bundled via esbuild to `dist/server/arena-ws.cjs`, binds `0.0.0.0:$PORT`, HTTP+WSS via `on('upgrade')`, client uses `__PORT_5000__` sentinel (rewritten to `port/5000` at S3 upload). Live handshake verified at `wss://quest-torii.pplx.app/port/5000/mp` returning HELLO with `serverVersion: v0.2.365-alpha`. Sovereign Hybrid Compute VPS is currently paused / not connected — pplx.app sandbox is the ONLY multiplayer host for now.
 - **Multiplayer:** MP-2 LANDED v0.2.364-alpha — server-authoritative hit resolution on the same wire (`PROTOCOL_VERSION=1`, additive `RESPAWN` only). Pure server modules under `server/combat/` (snapshotRing, capsuleModel, rayVsCapsule, damageTable, hpLedger, hitResolver); arena-ws wiring keeps a per-peer ring, rewinds to shot ts (clamped to `LAG_COMP_MS=300`), damages via a parity-locked table (head=9, body=3), broadcasts `HIT`/`KILL` to ALL, and issues `RESPAWN` to the victim after `RESPAWN_MS=3000`. Client `sendHit` is a no-op; `wsClient` handles `RESPAWN` and `arenaRuntime` warps the player + resets HP. One-flag rollback via `MP_MODE=advisory` in the systemd unit restores MP-1 relay semantics with no redeploy (VPS_INSTALL.md §16.6). MP-1 LANDED v0.2.363-alpha (advisory hit detection) remains reachable via that fallback. Same behaviour gate (`MP_ENABLED = false`; single `if(MP_ENABLED)` seam in `arenaRuntime.js`). Single-origin `wss://<domain>/mp` via Caddy reverse-proxy — no subdomains (VPS_INSTALL.md §16). Turn on via Instance Settings → Multiplayer once the operator has installed the `/mp` block + `torii-arena-ws` systemd unit.
 
 ## 2. Standing operating rules (project-wide, across all Torii repos)
@@ -111,11 +113,17 @@ Tests run in node (`vite.config.js` → `environment: 'node'`). `WebGLRenderer` 
 
 Optional headless smoke (not in CI): `npm i -D puppeteer-core`, drive Chrome with swiftshader flags against `npm run preview`, click `#btn-enter`, inspect `window.ToriiDebug.snapshot()`.
 
-## 7. Deploy / publish (MANUAL — not done by task agents)
+## 7. Deploy / publish (task agents may publish when explicitly instructed)
 
-Deploy target is the Perplexity Space at `torii-quest.pplx.app`. Build artifact is `dist/` (`npm run build`). Publishing/uploading Space files is a manual step performed by the maintainer.
+Deploy target is the pplx.app subdomain `quest-torii.pplx.app`. Build artifact is `dist/` (`npm run build`). **Maintainer shortcut: "bump and push" = bump version, update the live site quest-torii.pplx.app, and push everything to GitHub.**
 
-**Task agents must NOT deploy, publish, push, or upload Space files.** Hand back a clean green source tree and report the version + changes; the maintainer ships it. Live currently trails source (see `torii-quest-progress.md` → "Deployment").
+**Task agents SHOULD ship end-to-end when the maintainer says "go", "publish it", "bump and push", or similar.** The pipeline is: green gate (build + check + vitest + release:status) → commit → PR → squash-merge to main → `npm run build` → deploy_website → publish_website (with site_id `93507979-679f-4aac-949d-20a4a33d7352`) → smoke test the live URL. Old handoff rule that maintainer publishes is superseded as of v0.2.365.
+
+**publish_website shape (locked):** `project_path=/home/user/workspace/torii-quest/dist`, `dist_path=/home/user/workspace/torii-quest/dist`, `app_name='Torii Quest'`, `port=5000`, `run_command='node server/arena-ws.cjs'`, `install_command='npm install --omit=dev --no-audit --no-fund'`. Requires `dist/package.json` to exist with `ws` runtime dep — created if missing.
+
+**Self-hosted VPS at torii.quest** is the eventual target but Sovereign Hybrid Compute VPS is currently paused — do NOT reference Namecheap or any other provider.
+
+**Pre-publish security review is REQUIRED** — run subagent with `/home/user/workspace/skills/website-building/website-publishing/security_subagent_prompt.md` against `dist/`. Address BLOCK findings automatically; surface WARN findings to maintainer.
 
 **Self-hosting the static build at `torii.quest`** (shared Ubuntu VPS — Caddy/Nginx + HTTPS, DNS checklist, manual GitHub update sequence, symlink rollback, security posture): see `VPS_INSTALL.md`. No server is touched from this repo.
 

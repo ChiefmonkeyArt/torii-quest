@@ -2,6 +2,38 @@
 
 Current version: `v0.2.366-alpha`
 
+## 🚨 TOP OF QUEUE
+
+### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena (v0.2.365-alpha)
+
+**Reported:** Friday July 10, 2026 — 10:03 BST by maintainer.
+**Repro:** Open `https://quest-torii.pplx.app` in two different browsers, sign in with two different npubs, both reach the arena. Neither peer sees the other. No hits register.
+**Live version at repro time:** v0.2.365-alpha (MP-1.5 shipped, MP-3 not yet published due to pplx-tool bridge outage).
+
+**Investigation so far (in-thread, before session handover):**
+1. Live WS handshake works — `wss://quest-torii.pplx.app/port/5000/mp` returns `{"t":"HELLO","challenge":"…","serverVersion":"v0.2.365-alpha","protocolVersion":1}`. Server is up.
+2. Server logic looks correct in source (`server/arena-ws.js`): sends `WELCOME + roster` to new peer, broadcasts `JOIN` to others (lines 259–262).
+3. `MP_ENABLED = true` in `src/config.js:88`.
+4. Client URL construction lives in `src/engine/multiplayer/multiplayerHost.js:resolveUrl()` — uses `__PORT_5000__` sentinel that should be rewritten to `port/5000` at S3 upload.
+5. **Suspicious finding:** the deployed main entry bundle at `https://quest-torii.pplx.app/assets/torii-entry.js` (131 KB) contains ZERO occurrences of `__PORT_5000__`, `PORT_SENTINEL`, `port/5000`, `MP_WS_PATH`, or `resolveUrl`. MP code appears to be split into `assets/arenaRuntime-BGSjMydI.js` chunk. Investigation was cut short by session handover; NEEDS to be checked whether that chunk actually loads at runtime and whether the sentinel got rewritten inside it.
+
+**Hypotheses to check (in the new session, AFTER publishing v0.2.366-alpha):**
+- **H1:** Sentinel not rewritten in the arenaRuntime chunk — `deploy_website`/`publish_website` might only rewrite the entry bundle, not code-split chunks. If arenaRuntime chunk still contains literal `__PORT_5000__`, `!PORT_SENTINEL.startsWith('__')` evaluates FALSE and URL falls back to `wss://quest-torii.pplx.app/mp` — which hits the S3 static edge, never reaches the sandbox. Client would silently fail to connect.
+- **H2:** MP code not eagerly loaded — `multiplayerHost.start()` may not fire on first sign-in for one of the browsers. Check `mp_disabled` / `mp_no_url` emits.
+- **H3:** AUTH failure after HELLO — signAuth flow may reject the challenge silently. Server logs (arena-ws `log.info`) not visible from client; would need to add a client-side event listener on `mp_auth_error` and surface it in the HUD.
+- **H4:** WELCOME arriving but roster not being applied to the scene — `roster.upsert` at `multiplayerHost.js` might not be visualising peers even when the wire is fine.
+
+**Debug plan for new session (order):**
+1. FIRST: publish v0.2.366-alpha (bridge should be fresh in new session). Bug may already be fixed by an MP-3 change; if not, MP-3's leaderboard tile will give a better peer-visibility signal.
+2. Re-run the two-tab test on v0.2.366-alpha.
+3. If still broken: fetch `https://quest-torii.pplx.app/assets/arenaRuntime-*.js` and grep for `__PORT_5000__` / `port/5000`. If sentinel is literal, that's H1 — fix is either (a) inline the sentinel in the entry bundle or (b) add a runtime fallback that dials `wss://<host>/port/5000/mp` when a same-origin `/mp` connection fails to WELCOME within 3s.
+4. Open DevTools on both browsers, filter WS frames, confirm HELLO → AUTH → WELCOME sequence. If AUTH is silently dropping, add a HUD toast for `mp_auth_error`.
+5. If AUTH is fine and WELCOME arrives with a non-empty roster: bug is in the roster → scene visualisation path (H4). Grep `arenaRuntime.js` for `roster.upsert` handling.
+
+**Do NOT ship a fix until repro is confirmed on published v0.2.366-alpha.** MP-3 build has never been live — we don't yet know if this bug is pre-existing MP-1.5 issue or something the MP-3 changes affect either way.
+
+---
+
 **v0.2.366-alpha shipping MP-3** — Nostr score/leaderboard, Option A (client-signed). Server accumulates per-peer `{kills, deaths, damage}` in `server/combat/scoreLedger.js` (in-memory, ephemeral) and emits authoritative `SCORE{sessionId(16-hex), endedAt, tallies[]}` frames on peer disconnect to all authed peers (departing peer receives before close). Wire is additive on `PROTOCOL_VERSION=1`. Each client signs ONLY its own row via `window.nostr` (nip07) and publishes as `kind:30078#d=torii-quest` (current, replaceable) + `kind:1#t=torii-quest-score` (durable history) to configured relays. `src/engine/multiplayer/leaderboardAgg.js` aggregates lifetime tallies by dedupe (pubkey, sessionId); `src/ui/leaderboardPanel.js` renders top-20; dashboard tile shows top-5. LocalStorage dedupe key `tq.mp3.published:{sessionId}:{endedAt}`. Empty-row guard skips publish for scoreless matches. `SCORE_ENABLED=true` env default; server-side scoring not required in advisory rollback. MP-3.1 (WoT co-occurrence seed) queued as follow-up, not this shipment.
 
 **v0.2.365-alpha shipped MP-1.5** — arena-ws bundled into `dist/server/arena-ws.cjs` (esbuild, `ws` external) and runs INSIDE the pplx.app published sandbox. `arena-ws.js` now binds `0.0.0.0:$PORT` (default 5000), attaches WSS to `/mp` on an HTTP server (with `/healthz` endpoint), and accepts URLs of shape `/mp` OR `/port/5000/mp` (proxy rewrite). Client `multiplayerHost.resolveUrl` uses the `__PORT_5000__` sentinel — `deploy_website` rewrites it to `port/5000` at S3 upload time so the browser dials `wss://quest-torii.pplx.app/port/5000/mp`. `MP_ENABLED = true` at build (per-instance runtime toggle preserved). VPS path (Caddy + systemd on `/opt/torii-arena-ws`, VPS_INSTALL.md §16) still works — env `PORT=8787 HOST=127.0.0.1` restores the pre-1.5 shape.

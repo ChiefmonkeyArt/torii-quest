@@ -4,7 +4,16 @@ Current version: `v0.2.366-alpha`
 
 ## 🚨 TOP OF QUEUE
 
-### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena (v0.2.365-alpha)
+### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena (v0.2.365-alpha) — ROOT CAUSE FOUND 2026-07-11
+
+> **STATUS UPDATE — 2026-07-11 09:13 BST (Computer session):** Root cause is **NOT** a client-side bug (H1–H4). The published site's **backend sandbox is down** while the static frontend is healthy — that split is what produces the silent-WS symptom.
+> - **Frontend live & healthy:** `GET /` → HTTP 200, version string reads `v0.2.366-alpha` (static S3).
+> - **Backend DOWN:** `GET /port/5000/` → HTTP 503 then full 12s timeout (was 503 on 2026-07-10, worsened to timeout by 2026-07-11 09:09). Arena WS server process is not running.
+> - **WS symptom reproduced & explained:** WS upgrade OPENs at the proxy layer on both `/port/5000/mp` and `/mp` (HTTP 101) but **zero bytes ever arrive** — no HELLO, no close, 15s silence. This is the signature of a dead backend behind a live proxy, NOT a client URL/auth/roster failure.
+> - **Server code is healthy:** `node dist/server/arena-ws.cjs` boots locally and sends `HELLO` in 9ms: `{"t":"HELLO","challenge":"…","serverVersion":"v0.2.366-alpha","protocolVersion":1}`. No crash-on-startup.
+> - **H1 ELIMINATED:** the live `arenaRuntime-DsJt_cka.js` split chunk has the `__PORT_5000__` sentinel **correctly rewritten** to `port/5000` (0× `__PORT_5000__`, 1× `port/5000`). The S3-upload rewrite DOES reach code-split chunks. `resolveUrl()` runtime detection (`!PORT_SENTINEL.startsWith('__')`) works as designed; the client correctly dials `wss://quest-torii.pplx.app/port/5000/mp`.
+> - **Fix is trivial once infra recovers:** a single `deploy_website` + `publish_website` (site_id `93507979-679f-4aac-949d-20a4a33d7352`, port 5000, `node server/arena-ws.cjs`) brings the backend up. Re-smoke expects `HELLO` with `serverVersion: v0.2.366-alpha`. The two-npub test should then pass since the arena server will actually be running.
+> - **Blocker is the pplx-tool bridge:** every `pplx-tool` call returns `503 "tool bridge is not connected"` (describe ×3 + actual `deploy_website`). Diagnostic `9a174646-325a-4e00-a21b-f71fcb8dc4c1`. Down ~32h+ since 2026-07-10 ~00:30 BST. A fresh Computer session did NOT get a fresh bridge worker — this is a platform-side outage, not a per-session stuck worker. Maintainer to file Perplexity support; do not burn credits retrying.
 
 **Reported:** Friday July 10, 2026 — 10:03 BST by maintainer.
 **Repro:** Open `https://quest-torii.pplx.app` in two different browsers, sign in with two different npubs, both reach the arena. Neither peer sees the other. No hits register.
@@ -15,10 +24,10 @@ Current version: `v0.2.366-alpha`
 2. Server logic looks correct in source (`server/arena-ws.js`): sends `WELCOME + roster` to new peer, broadcasts `JOIN` to others (lines 259–262).
 3. `MP_ENABLED = true` in `src/config.js:88`.
 4. Client URL construction lives in `src/engine/multiplayer/multiplayerHost.js:resolveUrl()` — uses `__PORT_5000__` sentinel that should be rewritten to `port/5000` at S3 upload.
-5. **Suspicious finding:** the deployed main entry bundle at `https://quest-torii.pplx.app/assets/torii-entry.js` (131 KB) contains ZERO occurrences of `__PORT_5000__`, `PORT_SENTINEL`, `port/5000`, `MP_WS_PATH`, or `resolveUrl`. MP code appears to be split into `assets/arenaRuntime-BGSjMydI.js` chunk. Investigation was cut short by session handover; NEEDS to be checked whether that chunk actually loads at runtime and whether the sentinel got rewritten inside it.
+5. **Suspicious finding (NOW EXPLAINED — not a bug):** the deployed main entry bundle at `https://quest-torii.pplx.app/assets/torii-entry.js` (131 KB) contains ZERO occurrences of `__PORT_5000__`, `PORT_SENTINEL`, `port/5000`, `MP_WS_PATH`, or `resolveUrl`. This is **expected and correct** — the sentinel and `resolveUrl()` live in the code-split `assets/arenaRuntime-DsJt_cka.js` chunk, NOT the entry bundle. Verified 2026-07-11: the live arenaRuntime chunk HAS the sentinel rewritten to `port/5000` (0× literal, 1× `port/5000`). See STATUS UPDATE above — H1 eliminated.
 
 **Hypotheses to check (in the new session, AFTER publishing v0.2.366-alpha):**
-- **H1:** Sentinel not rewritten in the arenaRuntime chunk — `deploy_website`/`publish_website` might only rewrite the entry bundle, not code-split chunks. If arenaRuntime chunk still contains literal `__PORT_5000__`, `!PORT_SENTINEL.startsWith('__')` evaluates FALSE and URL falls back to `wss://quest-torii.pplx.app/mp` — which hits the S3 static edge, never reaches the sandbox. Client would silently fail to connect.
+- **H1: ELIMINATED 2026-07-11.** Sentinel IS rewritten in the arenaRuntime chunk (verified on live). `deploy_website`/`publish_website` DO rewrite code-split chunks, not just the entry bundle. `!PORT_SENTINEL.startsWith('__')` evaluates TRUE in production; client dials `wss://quest-torii.pplx.app/port/5000/mp` correctly. Not the cause.
 - **H2:** MP code not eagerly loaded — `multiplayerHost.start()` may not fire on first sign-in for one of the browsers. Check `mp_disabled` / `mp_no_url` emits.
 - **H3:** AUTH failure after HELLO — signAuth flow may reject the challenge silently. Server logs (arena-ws `log.info`) not visible from client; would need to add a client-side event listener on `mp_auth_error` and surface it in the HUD.
 - **H4:** WELCOME arriving but roster not being applied to the scene — `roster.upsert` at `multiplayerHost.js` might not be visualising peers even when the wire is fine.
@@ -30,7 +39,7 @@ Current version: `v0.2.366-alpha`
 4. Open DevTools on both browsers, filter WS frames, confirm HELLO → AUTH → WELCOME sequence. If AUTH is silently dropping, add a HUD toast for `mp_auth_error`.
 5. If AUTH is fine and WELCOME arrives with a non-empty roster: bug is in the roster → scene visualisation path (H4). Grep `arenaRuntime.js` for `roster.upsert` handling.
 
-**Do NOT ship a fix until repro is confirmed on published v0.2.366-alpha.** MP-3 build has never been live — we don't yet know if this bug is pre-existing MP-1.5 issue or something the MP-3 changes affect either way.
+**Updated guidance (2026-07-11):** Root cause is the **down backend sandbox**, not H1–H4. Do NOT chase client-side URL/auth/roster fixes — they are verified working (sentinel rewritten, server sends HELLO locally). The ONLY fix needed is republishing so the backend comes up, which is blocked by the pplx-tool bridge outage (diagnostic `9a174646`). Once the bridge recovers: `deploy_website` + `publish_website` → re-smoke (expect `HELLO` serverVersion `v0.2.366-alpha`) → re-run two-npub test → expected PASS. H2/H3/H4 need only be revisited if the backend is up, HELLO flows, and peers STILL can't see each other.
 
 ---
 

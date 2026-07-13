@@ -548,7 +548,7 @@ export function createArenaRuntime(hooks = {}) {
         if (_peerCombat(name, payload)) return;
         const p = payload || {};
 
-        // Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots. In MP
+        // Bot milestone chunk 2 (v0.2.378-alpha): server-authoritative bots. In MP
         // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
         // the local AI + ignore local damage) and drive it from the BOT_* stream.
         if (name === 'mp_state') {

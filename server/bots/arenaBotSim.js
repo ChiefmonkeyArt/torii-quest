@@ -50,7 +50,22 @@ export function createArenaBotSim(opts = {}) {
     coverPoints: COVER_POINTS,
     config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
     playerSafeCorner: NO_SAFE_CORNER,
-    shotCallback: (origin, dir) => { if (onBotShot) onBotShot(origin, dir); },
+    // v0.2.378 fix 2: lift the SIM-LOCAL origin (y = EYE_Y above feet) to the
+    // bot's real world eye height and re-aim at the player world-eye `target`, so
+    // the bot→player ray starts at the muzzle and reaches the capsule. The old
+    // path forwarded a raw y≈0.9 that missed the player (sess.pos.y ≈ 3.1).
+    shotCallback: (origin, dir, target) => {
+      if (!onBotShot) return;
+      const footY = sampleArenaHeight(origin.x, origin.z);
+      const worldOrigin = { x: origin.x, y: footY + origin.y, z: origin.z };
+      let worldDir = dir;
+      if (target) {
+        let dx = target.x - worldOrigin.x, dy = target.y - worldOrigin.y, dz = target.z - worldOrigin.z;
+        const len = Math.hypot(dx, dy, dz);
+        if (len > 1e-6) worldDir = { x: dx / len, y: dy / len, z: dz / len };
+      }
+      onBotShot(worldOrigin, worldDir);
+    },
     getPlayerCollider: () => null,
   });
 

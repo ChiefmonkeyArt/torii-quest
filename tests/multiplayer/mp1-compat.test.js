@@ -1,8 +1,12 @@
-// mp1-compat.test.js — MP_MODE=advisory rollback path.
+// mp1-compat.test.js — MP_MODE handling + authoritative combat guards.
 //
-// This is a source-level regression guard: the shipped server.arena-ws.js
-// MUST still contain the advisory branches so `MP_MODE=advisory` can
-// restore MP-1 (client-authoritative HIT relay) behaviour without a redeploy.
+// v0.2.378 hotfix fix 1: MP_MODE is now FORCED to 'authoritative' in code —
+// the advisory (MP-1 client-authoritative HIT relay) mode was retired when the
+// client dropped inbound client-side HIT in v0.2.374, so a stale
+// `MP_MODE=advisory` in a live .env silently broke combat resolution. The env
+// is still read (into MP_MODE_ENV) so a leftover advisory value can be warned
+// about, and the now-DEAD advisory HIT/KILL branches remain in source (guarded
+// by `MP_MODE === 'advisory'`, unreachable) rather than being ripped out.
 //
 // We inspect the source rather than boot a full ws server (arena-ws.js has
 // no exports and no easy test harness), which is the same pattern used by
@@ -15,11 +19,29 @@ import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const src = readFileSync(resolve(__dirname, '../../server/arena-ws.js'), 'utf8');
 
-describe('MP_MODE=advisory rollback (MP-1 compat)', () => {
-  it('MP_MODE env is read with authoritative as default', () => {
+describe('MP_MODE forced authoritative (MP-1 compat)', () => {
+  it('reads the MP_MODE env (into MP_MODE_ENV) with authoritative as default', () => {
     expect(src).toMatch(
-      /const\s+MP_MODE\s*=\s*\(process\.env\.MP_MODE\s*\|\|\s*['"]authoritative['"]\)/,
+      /const\s+MP_MODE_ENV\s*=\s*\(process\.env\.MP_MODE\s*\|\|\s*['"]authoritative['"]\)/,
     );
+  });
+
+  it('FORCES MP_MODE to authoritative in code (advisory retired)', () => {
+    expect(src).toMatch(/const\s+MP_MODE\s*=\s*['"]authoritative['"]\s*;/);
+  });
+
+  it('warns when a retired MP_MODE=advisory env is still set', () => {
+    expect(src).toMatch(/MP_MODE_ENV\s*===\s*['"]advisory['"]/);
+    expect(src).toMatch(/log\.warn\([^)]*advisory/i);
+  });
+
+  it('resolves + broadcasts on every SHOT (not gated on MP_MODE)', () => {
+    // The SHOT case must call resolveAndBroadcast unconditionally — no
+    // `if (MP_MODE === 'authoritative')` gate that a stale env could skip.
+    const shotBlock = src.match(/case\s+MSG\.SHOT:[\s\S]*?(?=\n\s*case\s+MSG\.)/);
+    expect(shotBlock).not.toBeNull();
+    expect(shotBlock[0]).toMatch(/resolveAndBroadcast\s*\(/);
+    expect(shotBlock[0]).not.toMatch(/if\s*\(\s*MP_MODE\s*===/);
   });
 
   it('HIT branch relays untouched when advisory', () => {

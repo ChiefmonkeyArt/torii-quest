@@ -45,7 +45,7 @@ export const MSG = Object.freeze({
   // Delivered on match-end or peer disconnect; carries session-final tallies
   // so each peer can client-sign their own Nostr kind:30078 leaderboard event.
   SCORE:     'SCORE',
-  // Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots. All four
+  // Bot milestone chunk 2 (v0.2.378-alpha): server-authoritative bots. All four
   // are server→all-peers, purely additive on PROTOCOL_VERSION=1 (older clients
   // drop them via decode()'s UNKNOWN_TYPE guard).
   //   BOT_STATE — throttled ~15Hz continuous roster {id,x,z,rotY,hp,alive,animHint}

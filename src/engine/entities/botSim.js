@@ -1,4 +1,4 @@
-// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.377-alpha).
+// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.378-alpha).
 //
 // The single-player bot AI/sim extracted verbatim out of src/bots.js. This module
 // has ZERO render/audio/physics imports: no three, no scene, no audio, no Rapier,
@@ -49,6 +49,17 @@ const _SPAWN_MARGIN   = 2;       // keep spawns a little inside the coast
 // player, preserving byte-identical single-player behaviour.
 export const ACQUIRE_RANGE = 60;
 
+// Target-switch hysteresis (multi-player). A bot keeps its current target until a
+// DIFFERENT eligible player is either very close (within TARGET_SWITCH_CLOSE and
+// nearer than the current) or MATERIALLY nearer (< TARGET_NEARER_RATIO of the
+// current target's distance). This stops the "confused" flicker where a bot chases
+// a far player while another stands next to it, without thrashing between two
+// near-equidistant targets. Single-player (1 player) never trips these gates — the
+// sole player is always the target — so single-player stays byte-identical.
+const TARGET_SWITCH_CLOSE   = 8;                          // m — this-close grabs aggro
+const TARGET_SWITCH_CLOSE_2 = TARGET_SWITCH_CLOSE ** 2;   // squared
+const TARGET_NEARER_RATIO_2 = 0.7 ** 2;                   // switch if new² < 0.49·cur²
+
 // createBotSim(deps) — build the headless bot brain.
 //
 // deps = {
@@ -61,7 +72,11 @@ export const ACQUIRE_RANGE = 60;
 //   coverPoints,                                           // precomputed [x,z] pts
 //   config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
 //   playerSafeCorner: { x, z, radius },                    // live spawn-reject disc
-//   shotCallback(origin{x,y,z}, dir{x,y,z}),               // client: bullet + audio
+//   shotCallback(origin{x,y,z}, dir{x,y,z}, target{x,y,z}),// client: bullet + audio
+//     origin is SIM-LOCAL (y = EYE_Y above feet); target is the player world eye
+//     the bot aimed at. Callers lift origin to world (footY + origin.y) and
+//     recompute worldDir = normalize(target - worldOrigin) so the ray starts at
+//     the bot's real eye height and points at the player (see bots.js/arenaBotSim).
 //   getPlayerCollider() -> collider|null,                  // LOS self-exclude
 // }
 // Returns { bots, spawnAll, tick, hitBot, killBot, revive }.
@@ -173,11 +188,32 @@ export function createBotSim(deps) {
            !(p.flyEnabled && p.y >= FLY_TARGET_CEILING);
   }
 
-  // Per-bot target = the NEAREST ELIGIBLE player within ACQUIRE_RANGE. If none is
-  // eligible, fall back to the nearest player overall so the bot still flanks the
-  // closest threat (this fallback is what keeps a 1-element array — single-player
-  // — byte-identical: the sole player is always the target, engage-gated exactly
-  // as before). Returns null only when there are zero players (server idle).
+  // Stable per-target key so a bot can recognise its current target across ticks
+  // even though the roster objects are rebuilt every tick. The server stamps each
+  // player with `id`; the single-player client passes an id-less object, which
+  // collapses to one shared key — correct because there is only ever one player.
+  function _targetKey(p) { return p.id != null ? p.id : '__solo__'; }
+
+  // Commit `target` as this bot's current target. On a REAL identity change (an
+  // already-held target → a different one), clear the held cover/flank so the bot
+  // re-paths to the new target instead of walking toward the old target's cover.
+  // Never fires on first acquisition (nothing held yet) or in single-player (key
+  // never changes) — that keeps single-player byte-identical.
+  function _acquire(state, target) {
+    const key = _targetKey(target);
+    if (state._targetKey != null && state._targetKey !== key) {
+      state._coverPoint = null;
+      state._coverTimer = 0;                        // force cover re-eval next tick
+      state._flankSlot  = flankSlotForIndex(state.id);
+    }
+    state._targetKey = key;
+  }
+
+  // Per-bot target selection with switch hysteresis. The memoryless nearest is the
+  // NEAREST ELIGIBLE player within ACQUIRE_RANGE, falling back to nearest overall.
+  // If a target is already held and still eligible, keep it UNLESS a different
+  // candidate is very close or materially nearer (see TARGET_* gates). Returns null
+  // only when there are zero players (server idle).
   function _selectTarget(state) {
     const bx = state.pos.x, bz = state.pos.z;
     let bestEli = null, bestEliD2 = Infinity;
@@ -191,7 +227,27 @@ export function createBotSim(deps) {
         bestEliD2 = d2; bestEli = p;
       }
     }
-    return bestEli || bestAny;
+    const cand = bestEli || bestAny;
+    if (!cand) { state._targetKey = null; return null; }
+    const candD2 = bestEli ? bestEliD2 : bestAnyD2;
+
+    // Locate the currently-held target in this tick's roster (by stable key).
+    let cur = null;
+    if (state._targetKey != null) {
+      for (let i = 0; i < players.length; i++) {
+        if (_targetKey(players[i]) === state._targetKey) { cur = players[i]; break; }
+      }
+    }
+    // No held target, or it left / is no longer eligible → take the fresh nearest.
+    if (!cur || !_eligible(cur)) { _acquire(state, cand); return cand; }
+    if (cur === cand) return cur;
+
+    // Held target still valid but a different candidate is nearest → hysteresis.
+    const curD2 = (cur.x - bx) ** 2 + (cur.z - bz) ** 2;
+    const switchClose  = candD2 <= TARGET_SWITCH_CLOSE_2 && candD2 < curD2;
+    const switchNearer = candD2 < curD2 * TARGET_NEARER_RATIO_2;
+    if (switchClose || switchNearer) { _acquire(state, cand); return cand; }
+    return cur;
   }
 
   // ── Tick ────────────────────────────────────────────────────────────────────
@@ -335,7 +391,15 @@ export function createBotSim(deps) {
           dz += ((Math.random() + Math.random()) - 1) * spread;
           dl = Math.hypot(dx, dy, dz) || 1;
           dx /= dl; dy /= dl; dz /= dl;
-          if (shotCallback) shotCallback({ x: ox, y: oy, z: oz }, { x: dx, y: dy, z: dz });
+          if (shotCallback) {
+            // origin is SIM-LOCAL (y = EYE_Y above feet); pass the player world eye
+            // as target so the caller can lift origin to world + re-aim (fix 2).
+            shotCallback(
+              { x: ox, y: oy, z: oz },
+              { x: dx, y: dy, z: dz },
+              { x: pp.x, y: pp.y, z: pp.z },
+            );
+          }
           isShooting = true;
         }
       } else {

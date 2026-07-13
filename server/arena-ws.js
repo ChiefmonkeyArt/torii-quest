@@ -56,17 +56,21 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.377-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.378-alpha';
 
 // MP-2 tunables.
-//   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
-//   MP_MODE = 'advisory'                — MP-1 behaviour: relay client HIT untouched.
-const MP_MODE     = (process.env.MP_MODE || 'authoritative').toLowerCase();
+//   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
+//   (the client no longer sends client-side HIT), so in advisory the server relays
+//   SHOT visuals but never resolves hits — making player→peer AND player→bot damage
+//   impossible. v0.2.378 hard-codes authoritative so a stale VPS .env cannot break
+//   combat; a leftover MP_MODE=advisory is warned about below and ignored.
+const MP_MODE_ENV = (process.env.MP_MODE || 'authoritative').toLowerCase();
+const MP_MODE     = 'authoritative';
 const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
 const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
 const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 
-// Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots.
+// Bot milestone chunk 2 (v0.2.378-alpha): server-authoritative bots.
 //   BOT_SIM_ENABLED — master switch (default on).
 //   BOT_TICK_MS     — fixed AI tick period (~20Hz).
 //   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
@@ -149,6 +153,12 @@ const log = {
   warn:  (...a) => console.warn('[arena-ws]', ...a),
   error: (...a) => console.error('[arena-ws]', ...a),
 };
+
+// v0.2.378 fix 1: warn (once, at boot) if a retired MP_MODE=advisory is still set
+// in the environment — it is ignored; authoritative is the only supported mode.
+if (MP_MODE_ENV === 'advisory') {
+  log.warn('MP_MODE=advisory is retired (client dropped client-side HIT in v0.2.374); ignoring and forcing authoritative');
+}
 
 // ---------- helpers ----------
 
@@ -346,7 +356,9 @@ function handleMessage(sess, raw) {
       if (!checkRate(sess, 'SHOT', RATE.SHOT)) return;
       broadcastToOthers(sess.id, { ...msg, id: sess.id });
       // MP-2: after relaying the muzzle/tracer cue, resolve the hit ourselves.
-      if (MP_MODE === 'authoritative') resolveAndBroadcast(sess, msg);
+      // v0.2.378 fix 1: unconditional — advisory is retired, so every SHOT is
+      // resolved authoritatively (player→peer AND player→bot).
+      resolveAndBroadcast(sess, msg);
       return;
     }
     case MSG.HIT: {
@@ -387,6 +399,19 @@ function handleMessage(sess, raw) {
 
 // ---------- MP-2 authoritative hit resolution ----------
 
+// Rate-limited (≤1/sec per shooter) SHOT-pipeline diagnostic. Tagged
+// [SHOT-RESOLVE] so a stuck combat loop is greppable in the server log.
+const _shotLogAt = new Map();
+function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decision) {
+  const now = Date.now();
+  if (now - (_shotLogAt.get(shooterId) || 0) < 1000) return;
+  _shotLogAt.set(shooterId, now);
+  const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
+  const bot  = botResult ? `${botResult.botId}@t=${botResult.t.toFixed(2)}` : 'null';
+  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}`);
+}
+
 function resolveAndBroadcast(shooter, shotMsg) {
   const peerRings = [];
   for (const [id, ring] of snapshotRings) {
@@ -410,6 +435,12 @@ function resolveAndBroadcast(shooter, shotMsg) {
     ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir)
     : null;
   const botNearer = botResult && (!result || botResult.t < result.t);
+
+  // v0.2.378 fix 4: low-noise diagnostic (≤1/sec per shooter). If player→player
+  // damage still fails after fix 1, the next play session leaves a signal here.
+  _logShotResolve(shooter.id, shotMsg, peerRings.length, result, botResult,
+    botNearer ? 'bot-hit' : (result ? 'peer-hit' : 'miss'));
+
   if (botNearer) {
     resolvePlayerBotHit(shooter, botResult);
     return;
@@ -571,7 +602,9 @@ if (BOT_SIM_ENABLED) {
     for (const sess of sessions.values()) {
       if (!sess.authed) continue;
       const [x, y, z] = sess.pos;
-      players.push({ x, y, z, outsideFence: !pointInCoastline(x, z), flyEnabled: false });
+      // `id` gives the bot brain a stable per-player key for target-switch
+      // hysteresis (v0.2.378 fix 3) across ticks.
+      players.push({ id: sess.id, x, y, z, outsideFence: !pointInCoastline(x, z), flyEnabled: false });
     }
     arenaBotSim.tick(dt, players);
     const now = Date.now();

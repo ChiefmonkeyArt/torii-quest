@@ -1,5 +1,5 @@
 // bots.js — thin render/collider/audio/LOD wrapper around the PURE headless bot
-// AI in engine/entities/botSim.js (v0.2.377-alpha).
+// AI in engine/entities/botSim.js (v0.2.378-alpha).
 //
 // The AI brain (spawn logic, per-frame steering/cover/LOS/shoot decision, and the
 // hit/kill/blowback/respawn state machine) lives in botSim.js with ZERO
@@ -32,7 +32,7 @@ import { createBotNetState, animHintToFlags } from './engine/entities/botNetStat
 
 export const bots = [];
 
-// Bot milestone chunk 2 (v0.2.377-alpha): in multiplayer the client is
+// Bot milestone chunk 2 (v0.2.378-alpha): in multiplayer the client is
 // RENDER-ONLY — the server runs the authoritative bot AI and streams BOT_STATE.
 // _netMode flips tickBots() from local-AI to interpolate-from-server, and makes
 // hitBot() a no-op (damage is resolved server-side via the SHOT path).
@@ -48,6 +48,21 @@ export function isBotNetMode() { return _netMode; }
 // includes ISLAND_BASE_Y). Kinematic bots don't gravity-settle, so we plant them
 // on the sampled surface explicitly.
 function _footY(x, z) { return sampleArenaHeight(x, z); }
+
+// v0.2.378 fix 2: the pure sim hands shotCallback a SIM-LOCAL origin (y = EYE_Y
+// above the bot's feet) plus the player world-eye `target`. Lift the origin to the
+// bot's real world eye height (footY + origin.y) and re-aim at the target, so the
+// enemy tracer starts at the muzzle and actually reaches the player capsule (the
+// old code fired from an absolute y≈0.9, far below the player on raised terrain).
+function _botShotToWorld(origin, dir, target) {
+  const worldOrigin = { x: origin.x, y: _footY(origin.x, origin.z) + origin.y, z: origin.z };
+  if (!target) return [worldOrigin, dir];
+  let dx = target.x - worldOrigin.x, dy = target.y - worldOrigin.y, dz = target.z - worldOrigin.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len > 1e-6) { dx /= len; dy /= len; dz /= len; }
+  else { dx = dir.x; dy = dir.y; dz = dir.z; }
+  return [worldOrigin, { x: dx, y: dy, z: dz }];
+}
 
 // Cover candidate points are precomputed ONCE from the static arena-side boxes
 // (crates + arena-side obstacles west of the NAP plane — the torii pillars/bonsai
@@ -73,8 +88,11 @@ const sim = createBotSim({
   coverPoints: _coverPoints,
   config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
   playerSafeCorner: PLAYER_SAFE_CORNER,
-  shotCallback: (origin, dir) => {
-    if (_spawnBulletFn) _spawnBulletFn(origin, dir, false);
+  shotCallback: (origin, dir, target) => {
+    if (_spawnBulletFn) {
+      const [worldOrigin, worldDir] = _botShotToWorld(origin, dir, target);
+      _spawnBulletFn(worldOrigin, worldDir, false);
+    }
     playBotShoot();
   },
   getPlayerCollider,

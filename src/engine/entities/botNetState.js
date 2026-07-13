@@ -1,5 +1,5 @@
 // engine/entities/botNetState.js — PURE client-side interpolation for the
-// server-authoritative bots (chunk 2, v0.2.377-alpha).
+// server-authoritative bots (chunk 2, v0.2.378-alpha).
 //
 // In multiplayer the client does NOT run the local bot AI (tickBots). Instead
 // the server broadcasts MSG.BOT_STATE (a compact {id,x,z,rotY,hp,alive,animHint}

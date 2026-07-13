@@ -1,10 +1,20 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.366-alpha`
+Current version: `v0.2.368-alpha`
 
 ## 🚨 TOP OF QUEUE
 
-### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena (v0.2.365-alpha) — ROOT CAUSE FOUND 2026-07-11
+### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena — peer discovery VERIFIED at protocol level 2026-07-13 (full in-world ENTER path NOT exercised in headless)
+
+> **TEST RESULT — 2026-07-13 (Computer session): peer discovery verified at the protocol level on chiefmonkey.art/quest/.** A simulated two-npub live test against the production install confirmed the wire-level handshake and cross-client peer visibility:
+> - Two isolated browser contexts, each performing a real NIP-07 nostr-login with a distinct burner npub (A: `npub1prenm3latj270…`, pubkey `08f33dc7fd…`; B: `npub15m4vrrexahn…`, pubkey `a6eac18f26…`), each opened `wss://chiefmonkey.art/mp`.
+> - Both received `HELLO` (`serverVersion: v0.2.366-alpha`, `protocolVersion: 1`), sent `AUTH` (NIP-01 kind-22242, BIP-340 schnorr, challenge-bound via `window.nostr.signEvent`), and were accepted by the server (WELCOME returned).
+> - **B's `WELCOME.roster` contained A** → peer B sees the already-present peer A on join.
+> - **A received a `JOIN` frame announcing B** (`{id, npub, pos:[0,0,0], rot, character}`) → cross-client peer visibility confirmed (server fan-out works).
+> - **Confirmed working:** auth gate, roster fan-out, JOIN broadcast on the live install.
+> - **NOT confirmed in this test:** the full in-world arena render + roster visualisation via the app's normal `ENTER ARENA` → `boot()` path. Under headless software-WebGL (swiftshader) the arena's render loop starves the async NIP-07 callback, so `signEvent` does not resolve before the 10s `AUTH_TIMEOUT_MS` when driven through the full 3D flow; the test therefore drove the AUTH handshake directly in-page (same `wss://chiefmonkey.art/mp`, same `window.nostr` shim) to isolate the protocol path. This is a **headless test-environment limitation, not proven to be free of a product-side rendering/roster-visualisation issue (H4)** — re-verify the full ENTER→in-world path on real GPU hardware before closing H4.
+> - H2 (MP not eagerly loaded) and H3 (silent AUTH rejection) are not implicated by this test (both peers authed and received WELCOME/JOIN), but were not directly exercised through the ENTER button either.
+> - The original pplx.app symptom was solely the broken pplx.app backend sandbox (still 503), now bypassed by the SHC VPS install at chiefmonkey.art.
 
 > **STATUS UPDATE — 2026-07-11 09:13 BST (Computer session):** Root cause is **NOT** a client-side bug (H1–H4). The published site's **backend sandbox is down** while the static frontend is healthy — that split is what produces the silent-WS symptom.
 > - **Frontend live & healthy:** `GET /` → HTTP 200, version string reads `v0.2.366-alpha` (static S3).
@@ -50,7 +60,19 @@ Current version: `v0.2.366-alpha`
 **v0.2.364-alpha shipped MP-2** — server-authoritative hit resolution on the same wire (`PROTOCOL_VERSION=1`, additive `RESPAWN` only). Server keeps snapshot rings per peer, rewinds up to `LAG_COMP_MS=300`, resolves ray-vs-capsule/head-sphere itself, applies damage from a parity-locked table (head=9, body=3), broadcasts `HIT`/`KILL` to ALL, and issues `RESPAWN` to the victim after `RESPAWN_MS=3000`. Client stops emitting `HIT`. One-flag rollback via `MP_MODE=advisory` in the systemd unit (see VPS_INSTALL.md §16.6). Same behaviour gate (`MP_ENABLED=false`) as MP-1. Next multiplayer slice is MP-3 (spec queued): richer respawn UX + kill-feed HUD + server-authoritative KILL attribution.
 
 **v0.2.363-alpha shipped MP-1** — WebSocket multiplayer (advisory hit detection). Behind `MP_ENABLED = false`; flip in Instance Settings → Multiplayer once Caddy `/mp` + arena-ws systemd unit are up (VPS_INSTALL.md §16). Superseded by MP-2 above; MP-1 semantics remain reachable via `MP_MODE=advisory`.
-Live site: [torii-quest.pplx.app](https://torii-quest.pplx.app)
+Live site (primary): [chiefmonkey.art/quest/](https://chiefmonkey.art/quest/) (SHC VPS, Torii Suite install) · secondary (broken backend): [torii-quest.pplx.app](https://torii-quest.pplx.app)
+
+## Deployment conventions — chiefmonkey.art (Torii Suite install)
+
+Quest is live on `chiefmonkey.art` via the **Torii Suite** installer (`torii-suite` v0.7.0-alpha), NOT the ad-hoc Caddy bundle from earlier sessions. Future agents/deployment runs must inherit this state without manual re-discovery:
+
+- **Frontend mount:** Quest is served at the path prefix **`/quest/`** (NOT the domain root). Root `/` currently 404s (no launcher/claim-gate mounted yet — deferred to the v0.8.0 plan). Hit `https://chiefmonkey.art/quest/` for the game.
+- **Multiplayer WS:** the arena WebSocket is at the **root-level, same-origin `/mp`** path → `wss://chiefmonkey.art/mp`. There is no `/port/5000/mp` sentinel on the VPS path (that sentinel is pplx.app-sandbox-only). The client `multiplayerHost.resolveUrl()` resolves to `wss://chiefmonkey.art/mp` on the VPS origin.
+- **Backend daemon:** `arena-ws` runs as the hardened systemd unit **`torii-arena-ws.service`** (`User=torii-quest`, bound to `127.0.0.1:8788`, `NoNewPrivileges`, `ProtectSystem=strict`). nginx proxies `location /mp` → `127.0.0.1:8788` with the WS upgrade.
+- **nginx layout:** apps mount as path prefixes under one domain via fragments in `/opt/torii/nginx-fragments/<app>.conf`, included by the main torii.conf HTTPS `server{}` block. Quest static at `/quest/`, Quest `/mp` proxy in `quest-mp.conf`. **The shared parent `/opt/torii` stays `root:root 0755` (world-traversable)** so nginx www-data can traverse to siblings — the v0.2.30 fix for the permission regression that 404'd sibling apps. NEVER re-own or re-mode an existing parent.
+- **Sibling apps on the same VPS:** Continuum at `/continuum/` (agent `torii-continuum-agent.service`, `127.0.0.1:8787`, API at `/api/`), Plebeian at `/plebeian/`. The Continuum session is actively managing onboarding on this shared host — do NOT touch the shared nginx/parent-dir config while that work is in flight.
+- **Suite installer (source of truth for installs):** `curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-suite/v0.7.0-alpha/bootstrap.sh | sudo bash`. Pinned refs: `TORII_QUEST_REF=v0.2.367-alpha`, `TORII_CONTINUUM_REF=v0.2.14-alpha`. Backups under `/var/backups/torii-<app>-<ts>`.
+- **Cosmetic note:** the live `arena-ws` advertises `serverVersion: v0.2.366-alpha` in HELLO frames (the live build predates the v0.2.368-alpha source bump); the pinned Suite tag is v0.2.367-alpha. No functional impact.
 
 Source of truth for Torii Quest tasks.
 

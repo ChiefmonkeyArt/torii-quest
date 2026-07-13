@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.369-alpha",
-  "generatedAt": "2026-07-13T13:48:06.345Z",
+  "version": "v0.2.370-alpha",
+  "generatedAt": "2026-07-13T16:51:03.261Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.369-alpha"
+        "value": "v0.2.370-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 138"
+        "value": "fast 5 · foundation 25 · full 139"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2264 passing / 138 files"
+        "value": "2269 passing / 139 files"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.369-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.370-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 18,
         "label": "Foundation coverage",
-        "sub": "25/138 files"
+        "sub": "25/139 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.369-alpha",
-    "gitCommit": "a164ae9",
+    "version": "v0.2.370-alpha",
+    "gitCommit": "9594987",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.369-alpha / pkg 0.2.369-alpha"
+        "detail": "config v0.2.370-alpha / pkg 0.2.370-alpha"
       },
       {
         "key": "tests",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.369-alpha",
+    "version": "v0.2.370-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -261,14 +261,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2264 passing / 138 files",
+    "testLabel": "2269 passing / 139 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.369-alpha"
+        "value": "v0.2.370-alpha"
       },
       {
         "label": "Release manifest",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "2264 passing / 138 files"
+        "value": "2269 passing / 139 files"
       },
       {
         "label": "Test profiles",
@@ -400,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.369-alpha",
+    "version": "v0.2.370-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.369-alpha"
+        "value": "v0.2.370-alpha"
       },
       {
         "label": "Approved by",
@@ -454,7 +454,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2264 passing / 138 files"
+        "value": "green — 2269 passing / 139 files"
       },
       {
         "label": "Explicit approval",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.369-alpha"
+        "value": "v0.2.370-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.369-alpha",
+    "version": "v0.2.370-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

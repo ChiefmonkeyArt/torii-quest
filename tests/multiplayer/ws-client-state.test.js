@@ -122,7 +122,7 @@ describe('wsClient keepalive', () => {
     client.connect();
     const ws = FakeWS.instances[0];
     ws._open();
-    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.373-alpha', protocolVersion: PROTOCOL_VERSION });
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.374-alpha', protocolVersion: PROTOCOL_VERSION });
     await Promise.resolve(); await Promise.resolve();
     ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [] });
     return ws;

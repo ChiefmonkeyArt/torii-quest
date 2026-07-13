@@ -22,7 +22,7 @@ import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
-import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
+import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot } from './bots.js';
@@ -31,11 +31,13 @@ import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynami
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
+import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
 import { assetUrl } from './assetUrl.js';
+import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -67,6 +69,11 @@ export { setCharacter };
 // return renders peers high in the sky, backwards, and un-animated.
 const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
 const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
+
+// Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
+// event so the inbound bridge stays allocation-free.
+const _mpShotOrigin = new THREE.Vector3();
+const _mpShotDir    = new THREE.Vector3();
 
 let _mpTemplateScene = null;
 let _mpTemplateClips = [];
@@ -380,6 +387,16 @@ export function createArenaRuntime(hooks = {}) {
       }
       triggerRecoil();
       playShoot();
+      // MP-2 peer combat (outbound): every arena shot reports to the authoritative
+      // server, which ray-resolves it against lag-compensated peer snapshots and
+      // no-ops when it hits no peer. Gate + payload live in the pure peerCombat
+      // module (prefers the AIM ray so server hit-detection matches what the
+      // shooter saw). Bot hits stay a separate client-side path — a shot may both
+      // hit a bot locally AND resolve a peer hit server-side; that is expected.
+      if (_mp && shouldSendShot({ playerX: playerObj.position.x, napX: NAP_X, selfId: _mp.selfId })) {
+        const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now());
+        if (shot) _mp.sendShot(shot);
+      }
     });
     on(EV.SHOOT, () => { _isShooting = true; });
 
@@ -505,7 +522,30 @@ export function createArenaRuntime(hooks = {}) {
       // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed.
       // Handler warps the local body to the server-picked corner and heals to
       // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
+      // MP-2 peer combat (v0.2.374-alpha) — pure dispatcher for the relayed/
+      // broadcast SHOT/HIT/KILL events. Peer SHOT is visual-only; HIT/KILL are
+      // server-authoritative. The visual cue (muzzle burst + short tracer) keeps
+      // three in this seam via spawnPeerShotFx.
+      const _peerCombat = createPeerCombat({
+        getSelfId: () => _mp && _mp.selfId,
+        takeDamage,
+        killPlayer,
+        flashCross,
+        addKill,
+        state,
+        onHudUpdate: () => emit(EV.HUD_UPDATE),
+        spawnPeerShotFx: (origin, dir) => {
+          _mpShotOrigin.set(origin[0], origin[1], origin[2]);
+          _mpShotDir.set(dir[0], dir[1], dir[2]);
+          if (_mpShotDir.lengthSq() > 1e-8) _mpShotDir.normalize();
+          spawnSpark(_mpShotOrigin, _mpShotDir);
+          spawnRicochet(_mpShotOrigin, _mpShotDir);
+        },
+      });
       const _mpEmit = (name, payload) => {
+        if (_peerCombat(name, payload)) return;
+        // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed —
+        // warp the local body to the server-picked corner and heal to PLAYER_HP.
         if (name !== 'mp_respawn') return;
         const p = payload || {};
         if (!Array.isArray(p.pos)) return;

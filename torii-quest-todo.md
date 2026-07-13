@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.375-alpha`
+Current version: `v0.2.376-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### BOT-MILESTONE-1 — Extract the pure headless bot AI (v0.2.376-alpha) — source-only refactor, no behavior change
+
+> **PURE BOT AI EXTRACTION — 2026-07-13 (v0.2.376-alpha):** The single-player bot AI/sim was tangled into `src/bots.js` alongside THREE, the BotModel GLB, audio, Rapier, `raycastService` and LOD. Extracted the brain into a new PURE module `src/engine/entities/botSim.js` (`createBotSim(deps)` → `{ bots, spawnAll, tick, hitBot, killBot, revive }`) with ZERO render/audio/physics imports — everything it needs (line-of-sight, ground height, coastline clamp/containment, the precomputed arena boxes + cover points, config, the spawn-reject disc, and a `shotCallback`) is injected. `src/bots.js` is now a thin wrapper: each `bots[]` entry pairs a BotModel + Rapier colliders with a reference to its pure sim `state`, mirrors `alive`/`hp`/`pos` for the combat raycast, and applies the kill side-effects (`state.kills++`, sats, `emit`) the brain deliberately does NOT own. `initBots`/`tickBots`/`hitBot` keep their exact signatures; `arenaRuntime.js` untouched. New `tests/multiplayer/bot-sim.test.js` (16) exercises the brain in plain node with injected fakes; all existing bot tests stay green. Chunk 1 of the bot milestone.
 
 ### MP-AUTH-1 — Session tokens: "1 sign at login, 0 signs in-game" (v0.2.375-alpha) — awaiting Suite redeploy (bump TORII_QUEST_REF → v0.2.375-alpha) + real-browser retest
 

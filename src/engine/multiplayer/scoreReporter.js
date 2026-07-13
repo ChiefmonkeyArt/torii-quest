@@ -54,7 +54,7 @@ export function pickSelfRow(tallies, self) {
  * @param {number} args.endedAt      ms epoch
  * @param {{kills:number, deaths:number, damage:number}} args.row
  * @param {number} args.createdAt    unix seconds
- * @param {string} args.clientTag    e.g. 'torii-quest/v0.2.375-alpha'
+ * @param {string} args.clientTag    e.g. 'torii-quest/v0.2.376-alpha'
  * @returns unsigned event object (missing id, sig)
  */
 export function buildAddressableEvent(args) {
@@ -127,7 +127,7 @@ export function createScoreReporter(deps) {
     signer, publisher, self,
     storage = defaultStorage(),
     now = () => Date.now(),
-    clientTag = 'torii-quest/v0.2.375-alpha',
+    clientTag = 'torii-quest/v0.2.376-alpha',
     log = () => {},
   } = deps || {};
 

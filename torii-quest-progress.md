@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.366-alpha** | Live: [quest-torii.pplx.app](https://quest-torii.pplx.app) (v0.2.366-alpha, MP-3 Nostr score+leaderboard shipping)
+> Current version: **v0.2.368-alpha** | Live: [chiefmonkey.art/quest/](https://chiefmonkey.art/quest/) (v0.2.366-alpha live build, Torii Suite SHC VPS install; MP-3 Nostr score+leaderboard shipping) · secondary (broken backend): [quest-torii.pplx.app](https://quest-torii.pplx.app)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

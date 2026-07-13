@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.371-alpha",
-  "generatedAt": "2026-07-13T18:14:55.752Z",
+  "version": "v0.2.372-alpha",
+  "generatedAt": "2026-07-13T18:25:13.167Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.371-alpha"
+        "value": "v0.2.372-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,12 +79,12 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.371-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.372-alpha"
       },
       {
         "label": "Source-of-truth docs",
         "kind": "generated",
-        "value": "doc/version drift — check the continuity docs"
+        "value": "torii-quest-progress.md · torii-quest-todo.md · torii-quest-strategy.md carry this version"
       }
     ],
     "rings": [
@@ -189,18 +189,18 @@
     "statusCommand": "npm run release:status",
     "gateCommand": "npm run test:release",
     "kind": "generated",
-    "status": "not-ready",
-    "statusLabel": "NOT READY",
-    "ready": false,
-    "version": "v0.2.371-alpha",
-    "gitCommit": "8a2f2f4",
+    "status": "ready",
+    "statusLabel": "READY",
+    "ready": true,
+    "version": "v0.2.372-alpha",
+    "gitCommit": "bb54717",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.371-alpha / pkg 0.2.371-alpha"
+        "detail": "config v0.2.372-alpha / pkg 0.2.372-alpha"
       },
       {
         "key": "tests",
@@ -233,14 +233,12 @@
       {
         "key": "docs",
         "label": "Docs consistency",
-        "state": "blocked",
-        "pill": "gated",
-        "detail": "torii-quest-todo.md does not reference current version v0.2.371-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.371-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.371-alpha (doc drift)"
+        "state": "ok",
+        "pill": "no-blocker",
+        "detail": "continuity docs carry current version"
       }
     ],
-    "blockers": [
-      "docs"
-    ],
+    "blockers": [],
     "unknowns": [],
     "nextTask": {
       "title": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -252,10 +250,10 @@
   "rcStatus": {
     "badge": "RC / RELEASE MANIFEST · LOCAL · READ-ONLY",
     "kind": "generated",
-    "band": "near",
-    "statusLabel": "NEAR · LOCAL GATES",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.371-alpha",
+    "version": "v0.2.372-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -266,11 +264,11 @@
     "testLabel": "2269 passing / 139 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.371-alpha"
+        "value": "v0.2.372-alpha"
       },
       {
         "label": "Release manifest",
@@ -294,7 +292,7 @@
       },
       {
         "label": "Last release gate",
-        "value": "NOT READY"
+        "value": "READY"
       }
     ],
     "note": "Release-candidate artifact posture — the release-artifact MANIFEST (required/optional present) and RC package-doc coverage, the curated test count, the manual validation still outstanding, and the last local release-gate verdict, folded into one read-only band. GENERATED at packaging time from on-disk artifact presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys NOTHING — manual live-browser validation and explicit user approval stay required (run: npm run rc:snapshot / npm run release:manifest)."
@@ -302,8 +300,8 @@
   "manualValidation": {
     "badge": "MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY",
     "kind": "generated",
-    "band": "manual-outstanding",
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "band": "gates-green",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual",
     "sections": 13,
     "items": 17,
@@ -313,7 +311,7 @@
     "validationAreas": 7,
     "checklistDocPresent": true,
     "resultsTemplatePresent": true,
-    "gateStatusLabel": "NOT READY",
+    "gateStatusLabel": "READY",
     "areas": [
       "Launch / title screen",
       "Shooter loop",
@@ -326,7 +324,7 @@
     "metrics": [
       {
         "label": "Local automated gates",
-        "value": "NOT READY"
+        "value": "READY · 15/15 local checks green"
       },
       {
         "label": "Manual playtest",
@@ -402,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.371-alpha",
+    "version": "v0.2.372-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -412,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.371-alpha"
+        "value": "v0.2.372-alpha"
       },
       {
         "label": "Approved by",
@@ -432,19 +430,19 @@
   "mvpGate": {
     "badge": "MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL",
     "kind": "generated",
-    "band": "signals-incomplete",
-    "statusLabel": "AUTOMATED CONFIDENCE SIGNALS INCOMPLETE",
+    "band": "awaiting",
+    "statusLabel": "CONFIDENCE GREEN · AWAITING EXPLICIT USER PLAYTEST + OK",
     "pill": "manual",
     "approved": false,
-    "verdict": "signals-incomplete",
+    "verdict": "awaiting-approval",
     "metrics": [
       {
         "label": "Gate verdict",
-        "value": "signals-incomplete"
+        "value": "awaiting-approval"
       },
       {
         "label": "Release gate",
-        "value": "not yet (confidence only, not approval)"
+        "value": "green (confidence only, not approval)"
       },
       {
         "label": "Entry smoke",
@@ -564,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.371-alpha"
+        "value": "v0.2.372-alpha"
       },
       {
         "label": "Live game",
@@ -584,7 +582,7 @@
       },
       {
         "label": "Manual blocker",
-        "value": "PENDING — MANUAL VALIDATION OUTSTANDING"
+        "value": "PENDING — LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING"
       },
       {
         "label": "MVP approval",
@@ -741,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.371-alpha",
+    "version": "v0.2.372-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

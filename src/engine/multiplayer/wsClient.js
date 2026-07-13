@@ -27,6 +27,14 @@ export const WS_STATE = Object.freeze({
 export const BACKOFF_MS_INITIAL = 500;
 export const BACKOFF_MS_CAP     = 30_000;
 
+// Client-initiated keepalive. The server idle-drops silent sessions after 60s
+// (IDLE_DISCONNECT_MS in server/arena-ws.js) and never initiates its own PING,
+// so a paused client that sends no MOVE frames goes quiet and gets dropped —
+// which triggers reconnect + a fresh NIP-42 challenge + a NIP-07 signer prompt,
+// looping every ~60s on the pause screen. Sending a PING every 25s keeps the
+// session alive well inside that window.
+export const KEEPALIVE_MS = 25_000;
+
 /**
  * Create a WS client.
  *
@@ -66,6 +74,7 @@ export function createWsClient(opts) {
     ws: null,
     backoffMs: BACKOFF_MS_INITIAL,
     reconnectTimer: null,
+    keepaliveTimer: null,
     // for testing / observability
     lastError: null,
     // set by disconnect() to suppress reconnect
@@ -78,6 +87,8 @@ export function createWsClient(opts) {
     setState,
     _handleMessage,
     _scheduleReconnect,
+    _startKeepalive,
+    _stopKeepalive,
   };
 
   return api;
@@ -111,6 +122,7 @@ export function createWsClient(opts) {
     api.ws.onerror   = (err) => { api.lastError = err; };
     api.ws.onclose   = (ev) => {
       const wasConnected = api.state === WS_STATE.CONNECTED || api.state === WS_STATE.AUTHENTICATING;
+      _stopKeepalive();
       setState(WS_STATE.CLOSED, { code: ev && ev.code, reason: ev && ev.reason });
       api.ws = null;
       if (wasConnected || api.state === WS_STATE.CLOSED) _scheduleReconnect();
@@ -119,6 +131,7 @@ export function createWsClient(opts) {
 
   function disconnect(reason = 'client_disconnect') {
     api._disconnected = true;
+    _stopKeepalive();
     if (api.reconnectTimer) {
       clearTimeoutFn(api.reconnectTimer);
       api.reconnectTimer = null;
@@ -172,6 +185,7 @@ export function createWsClient(opts) {
         api.selfId = msg.selfId;
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
         api.backoffMs = BACKOFF_MS_INITIAL; // reset on successful connect
+        _startKeepalive();
         emit('roster', { roster: msg.roster });
         return;
       }
@@ -212,5 +226,31 @@ export function createWsClient(opts) {
       connect();
     }, delay);
     emit('reconnect_scheduled', { delay });
+  }
+
+  // ---------- keepalive ----------
+
+  // Recursive setTimeout (not setInterval — the codebase gates setInterval and
+  // the injectable setTimeoutFn seam keeps this testable). Guarded so only one
+  // keepalive chain runs even if WELCOME arrives twice. NOTE: a genuine network
+  // drop still reconnects and re-authenticates (new NIP-42 challenge → NIP-07
+  // prompt); this only removes the *idle* drop. Future hardening: a server-issued
+  // session token that survives a reconnect without a fresh signer prompt.
+  function _startKeepalive() {
+    if (api.keepaliveTimer) return;
+    const tick = () => {
+      api.keepaliveTimer = null;
+      if (api.state !== WS_STATE.CONNECTED) return;
+      send({ t: MSG.PING, ts: now() });
+      api.keepaliveTimer = setTimeoutFn(tick, KEEPALIVE_MS);
+    };
+    api.keepaliveTimer = setTimeoutFn(tick, KEEPALIVE_MS);
+  }
+
+  function _stopKeepalive() {
+    if (api.keepaliveTimer) {
+      clearTimeoutFn(api.keepaliveTimer);
+      api.keepaliveTimer = null;
+    }
   }
 }

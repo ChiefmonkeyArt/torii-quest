@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.371-alpha`
+Current version: `v0.2.372-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### QA-MP-AUTHLOOP-1 — Repeating NIP-07 signer prompt on the pause/idle screen — root cause FOUND+FIXED v0.2.372-alpha (no client keepalive → 60s server idle-drop → reconnect + re-auth loop; awaiting Suite redeploy + real-browser retest)
+
+> **PAUSE-SCREEN AUTH-LOOP UPDATE — 2026-07-13 (v0.2.372-alpha):** On the pause/idle screen the client sends no MOVE frames, so its WS connection goes completely silent. The server idle-drops silent sessions after 60s (`IDLE_DISCONNECT_MS = 60_000` in `server/arena-ws.js`) and never initiates its own PING, while `src/engine/multiplayer/wsClient.js` only sent a PONG in *reply* to a server PING — which never arrives. So a paused session was dropped at ~60s → `ws.onclose` → `_scheduleReconnect` → reconnect → fresh `HELLO` + NIP-42 challenge → `signAuth` → **another NIP-07 signer prompt**, looping every ~60s while paused. **FIXED in v0.2.372-alpha** (client-side, minimal): `wsClient.js` now sends a keepalive `{ t: MSG.PING, ts: now() }` every 25s (`KEEPALIVE_MS`) while CONNECTED — `_startKeepalive()` fires in the WELCOME handler and `_stopKeepalive()` clears it in `disconnect()` and `onclose`, via the injectable `setTimeoutFn`/`clearTimeoutFn` seams (recursive setTimeout, single-instance guard). NO server change and NO session-token/auth-caching scheme (NIP-42 challenges are per-session + anti-replay, `arena-ws.js:206`); a *genuine* network drop still reconnects + re-auths — a code comment records the future hardening (server-issued session token). `wsClient.js` already sits on the `tools/regression-check.mjs` [3] setTimeout allowlist. New keepalive unit tests in `tests/multiplayer/ws-client-state.test.js`. Verified: check green, build green, tests green. **Source-only — LIVE v0.2.370-alpha keeps looping until a Suite redeploy that includes v0.2.372 (bundles the v0.2.371 DRACOLoader peer-visibility fix + this keepalive fix); the maintainer must bump the Suite Quest ref to v0.2.372-alpha (or the merge commit) before a redeploy (Suite builds `--base=/quest/`) will include it; do NOT touch the VPS while the Continuum session is active.** Not closed until a real-browser retest on the redeployed build shows the pause screen holding a session past 60s with no re-prompt.
 
 ### QA-MP-BLOCKER-1 / H4 — Two players can’t see each other in the live arena — root cause FOUND+FIXED v0.2.371-alpha (peer-avatar GLTFLoader was missing a DRACOLoader; awaiting Suite redeploy + real-browser retest)
 

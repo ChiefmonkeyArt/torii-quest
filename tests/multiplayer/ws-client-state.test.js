@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   createWsClient, WS_STATE,
-  BACKOFF_MS_INITIAL, BACKOFF_MS_CAP,
+  BACKOFF_MS_INITIAL, BACKOFF_MS_CAP, KEEPALIVE_MS,
 } from '../../src/engine/multiplayer/wsClient.js';
 import { MSG, PROTOCOL_VERSION, encode } from '../../src/engine/multiplayer/wireProtocol.js';
 
@@ -114,5 +114,54 @@ describe('wsClient state machine', () => {
     expect(timers.length).toBe(0);
     expect(client.state).toBe(WS_STATE.CLOSED);
     expect(client._disconnected).toBe(true);
+  });
+});
+
+describe('wsClient keepalive', () => {
+  async function toConnected(client) {
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.372-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [] });
+    return ws;
+  }
+
+  it('starts a keepalive timer at KEEPALIVE_MS when it reaches CONNECTED', async () => {
+    const { client, timers } = makeClient();
+    await toConnected(client);
+    expect(client.state).toBe(WS_STATE.CONNECTED);
+    expect(client.keepaliveTimer).not.toBeNull();
+    expect(timers.some((t) => t.ms === KEEPALIVE_MS)).toBe(true);
+  });
+
+  it('sends a PING on each keepalive tick and re-arms the timer', async () => {
+    const { client, timers } = makeClient();
+    const ws = await toConnected(client);
+    const before = ws.sent.length;
+    // Fire the pending keepalive tick.
+    const tick = timers.find((t) => t.ms === KEEPALIVE_MS);
+    tick.fn();
+    expect(ws.sent.length).toBe(before + 1);
+    expect(ws.sent[ws.sent.length - 1]).toContain(MSG.PING);
+    // A fresh keepalive timer is re-armed (recursive setTimeout, not a one-shot).
+    expect(client.keepaliveTimer).not.toBeNull();
+  });
+
+  it('clears the keepalive timer on disconnect()', async () => {
+    const { client } = makeClient();
+    await toConnected(client);
+    expect(client.keepaliveTimer).not.toBeNull();
+    client.disconnect('user requested');
+    expect(client.keepaliveTimer).toBeNull();
+  });
+
+  it('clears the keepalive timer when the socket closes', async () => {
+    const { client } = makeClient();
+    const ws = await toConnected(client);
+    expect(client.keepaliveTimer).not.toBeNull();
+    ws._closeFromServer(1006, 'lost');
+    expect(client.keepaliveTimer).toBeNull();
   });
 });

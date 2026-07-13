@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.369-alpha';
+const EXPECTED_VERSION = 'v0.2.370-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -194,9 +194,10 @@ console.log('[6] dist markers (skipped if no dist/)');
       // `import('/assets/torii-entry.js?v=<stamp>');` inside the LAST inline
       // <script>. If that import is missing, no game code runs on live and every
       // button is a silent no-op (the v0.2.358/359 live regression). Assert it.
-      // Match both absolute (`/assets/`) and depth-rewritten relative (`./assets/`)
-      // — tools/relfix.mjs converts the first to the second post-build.
-      if (/import\(\s*['"](?:\.?\/)+assets\/torii-entry\.js\?v=/.test(distHtmlSrc)) {
+      // Match absolute (`/assets/`), depth-rewritten relative (`./assets/`), AND
+      // base-prefixed (`/quest/assets/`) — the vite plugin now emits the deploy base
+      // (v0.2.370-alpha), tools/relfix.mjs rewrites to relative for subpath proxies.
+      if (/import\(\s*['"][^'"]*\/assets\/torii-entry\.js\?v=/.test(distHtmlSrc)) {
         pass('dist index.html bootstraps torii-entry.js (versioned import present)');
       } else {
         fail('dist index.html has NO versioned torii-entry.js import — build would ship a dead bundle');
@@ -536,10 +537,11 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
       else pass(`inline-script sha matches dist/_headers (${sha.slice(0, 24)}…)`);
     }
 
-    if (/<script\b[^>]*\bsrc=["']\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (strict-dynamic needs it loaded by the trusted inline script)');
-    // Accept either absolute (`/assets/`) or depth-rewritten relative (`./assets/`)
-    // — tools/relfix.mjs rewrites the plugin's absolute URL post-build.
-    else if (!/import\(['"](?:\.?\/)+assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('/assets/torii-entry.js[?v=...]') in the inline bootstrap");
+    if (/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (strict-dynamic needs it loaded by the trusted inline script)');
+    // Accept absolute (`/assets/`), depth-rewritten relative (`./assets/`), or
+    // base-prefixed (`/quest/assets/`) — the plugin emits the deploy base
+    // (v0.2.370-alpha), tools/relfix.mjs rewrites to relative post-build.
+    else if (!/import\(['"][^'"]*\/assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('.../assets/torii-entry.js[?v=...]') in the inline bootstrap");
     else if (!/\?v=/.test(distHtml)) fail("dist/index.html entry import lacks a ?v= cache-bust query (CDN would serve stale entry)");
     else pass('entry loaded via versioned import() from the trusted inline bootstrap (strict-dynamic + CDN cache-bust)');
 

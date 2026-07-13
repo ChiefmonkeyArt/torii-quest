@@ -23,12 +23,23 @@ import { CSP_VALUE, headersFileBody, headersFileBodyForSha, cspValueForSha } fro
 // one, and throws "does not provide an export named 'Lt'" (or any symbol added since).
 // Rewriting both to the same versioned URL makes the browser dedupe to the fresh fetch.
 const BUILD_STAMP = Date.now().toString(36);
-const VERSIONED_IMPORT_LINE = `  import('/assets/torii-entry.js?v=${BUILD_STAMP}');`;
 const ENTRY_BASE = 'torii-entry.js';
 // Matches import specifiers pointing at the pinned entry, e.g. from"./torii-entry.js"
-// or from'./torii-entry.js' or from"/assets/torii-entry.js". Avoids touching the
-// entry file itself or unrelated strings.
+// or from'./torii-entry.js' or from"/assets/torii-entry.js" or from"/quest/assets/torii-entry.js".
+// Avoids touching the entry file itself or unrelated strings.
 const ENTRY_IMPORT_RE = /(from\s*["'])([.\w/-]*\/assets\/torii-entry\.js|[.]+\/torii-entry\.js)(["'])/g;
+
+// v0.2.370-alpha: the pinned-entry URL MUST carry the deploy base (import.meta
+// env BASE_URL — '/' at root, '/quest/' on the Torii Suite mount). Previously the
+// inline bootstrap import AND every chunk back-reference were hardcoded to the
+// root-absolute `/assets/torii-entry.js?v=<stamp>`, which 404s under `/quest/`.
+// The 404 rejected the ENTER ARENA `import('./arenaRuntime.js')` graph (arenaRuntime
+// statically imports the entry), so the arena never booted on the subpath deploy.
+// Vite normalises base to always end in '/', so `${base}assets/…` is correct for
+// both '/' and '/quest/'.
+function entryUrl(base) {
+  return `${base}assets/${ENTRY_BASE}?v=${BUILD_STAMP}`;
+}
 
 // Recompute the sha256 of the single attribute-less inline <script> in dist/index.html.
 // Must match the extraction regex used by tools/regression-check.mjs (check 16c).
@@ -38,8 +49,14 @@ function inlineScriptShaOf(html) {
   return 'sha256-' + createHash('sha256').update(matches[0], 'utf8').digest('base64');
 }
 function cspHeaderPlugin() {
+  // Deploy base ('/' at root, '/quest/' on the Suite mount). Captured from the
+  // resolved Vite config so the emitted entry URL is base-correct.
+  let resolvedBase = '/';
   return {
     name: 'torii-csp-http-header',
+    configResolved(config) {
+      resolvedBase = config.base || '/';
+    },
     transformIndexHtml: {
       order: 'post',
       handler(html, ctx) {
@@ -49,9 +66,10 @@ function cspHeaderPlugin() {
         if (!ctx.bundle) return html;
         // Drop the parser-inserted entry tag + any modulepreload hint for it; the
         // trusted inline bootstrap loads it via import() so strict-dynamic applies.
+        // Base-agnostic: matches `/assets/…` and base-prefixed `/quest/assets/…`.
         let out = html
-          .replace(/\s*<script\b[^>]*\bsrc="\/assets\/torii-entry\.js"[^>]*><\/script>/, '')
-          .replace(/\s*<link\b[^>]*\bhref="\/assets\/torii-entry\.js"[^>]*>/g, '');
+          .replace(/\s*<script\b[^>]*\bsrc="[^"]*\/assets\/torii-entry\.js"[^>]*><\/script>/, '')
+          .replace(/\s*<link\b[^>]*\bhref="[^"]*\/assets\/torii-entry\.js"[^>]*>/g, '');
         // Append the versioned entry import to the single classic inline bootstrap
         // script. The ?v=<stamp> query busts the 4h CDN edge cache on every publish so a
         // stale entry (pointing at a dead chunk hash) can never reach a returning player.
@@ -66,7 +84,8 @@ function cspHeaderPlugin() {
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
         }
-        out = out.slice(0, lastCloseIdx) + `\n${VERSIONED_IMPORT_LINE}\n` + out.slice(lastCloseIdx);
+        const versionedImportLine = `  import('${entryUrl(resolvedBase)}');`;
+        out = out.slice(0, lastCloseIdx) + `\n${versionedImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },
     },
@@ -84,7 +103,7 @@ function cspHeaderPlugin() {
           // Skip if this chunk doesn't import the entry at all (cheap guard).
           if (!src.includes(ENTRY_BASE)) continue;
           const rewritten = src.replace(ENTRY_IMPORT_RE, (_m, pre, _spec, post) =>
-            `${pre}/assets/torii-entry.js?v=${BUILD_STAMP}${post}`);
+            `${pre}${entryUrl(resolvedBase)}${post}`);
           if (rewritten !== src) writeFileSync(p, rewritten);
         }
       }

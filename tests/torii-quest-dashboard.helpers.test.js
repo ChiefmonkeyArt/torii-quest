@@ -30,7 +30,7 @@ import { DEFAULT_TEST_STATUS } from '../src/engine/status/mvpReadiness.js';
 
 describe('module shape', () => {
   it('pins the version (tracks the build) and the read-only oversight badge', () => {
-    expect(TORII_QUEST_VERSION).toBe('v0.2.369-alpha');
+    expect(TORII_QUEST_VERSION).toBe('v0.2.370-alpha');
     expect(TORII_QUEST_VERSION).toBe(VERSION);
     expect(TORII_QUEST_BADGE).toBe('PROJECT OVERSIGHT · STATIC · READ-ONLY');
   });

@@ -1,5 +1,5 @@
 // bots.js — thin render/collider/audio/LOD wrapper around the PURE headless bot
-// AI in engine/entities/botSim.js (v0.2.376-alpha).
+// AI in engine/entities/botSim.js (v0.2.377-alpha).
 //
 // The AI brain (spawn logic, per-frame steering/cover/LOS/shoot decision, and the
 // hit/kill/blowback/respawn state machine) lives in botSim.js with ZERO
@@ -28,8 +28,20 @@ import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
+import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
 
 export const bots = [];
+
+// Bot milestone chunk 2 (v0.2.377-alpha): in multiplayer the client is
+// RENDER-ONLY — the server runs the authoritative bot AI and streams BOT_STATE.
+// _netMode flips tickBots() from local-AI to interpolate-from-server, and makes
+// hitBot() a no-op (damage is resolved server-side via the SHOT path).
+let _netMode = false;
+const _botNet = createBotNetState();
+const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+export function setBotNetMode(on) { _netMode = !!on; }
+export function isBotNetMode() { return _netMode; }
 
 // Foot ground height for a bot at arena (x,z). Stage 3 (v0.2.329): the arena is a
 // raised undulating island, so a bot's feet ride sampleArenaHeight() (which already
@@ -156,6 +168,9 @@ export function initBotPhysics() {} // API compat
 // ── Tick ──────────────────────────────────────────────────────────────────────
 export function tickBots(dt) {
   if (!isPlaying()) return;
+  // MP: render-only. Interpolate positions from the server's BOT_STATE stream
+  // and drive animation from animHint; never run the local AI or apply damage.
+  if (_netMode) { _tickNet(dt); return; }
   const pp = _playerObj.position;
   const playerState = {
     x: pp.x, y: pp.y, z: pp.z,
@@ -163,8 +178,112 @@ export function tickBots(dt) {
     flyEnabled: isFlyEnabled(),
   };
   // The brain moves + decides for every bot; the wrapper only renders the result.
-  sim.tick(dt, playerState);
+  // Single-player passes a 1-element array → byte-identical target selection.
+  sim.tick(dt, [playerState]);
   bots.forEach(bot => _syncBot(bot, dt));
+}
+
+// ── MP render-only path ─────────────────────────────────────────────────────
+function _botById(id) { return bots.find(b => b.state.id === id) || null; }
+
+// Ingest a server BOT_STATE roster (throttled continuous stream OR a full
+// late-join snapshot). Positions are buffered for interpolation.
+export function ingestBotState(states) {
+  if (!Array.isArray(states)) return;
+  _botNet.ingest(states, _nowMs());
+}
+
+// A bot fired — spawn the enemy tracer bullet + play the bot-shoot cue. Mirrors
+// the single-player shotCallback so the visual/audio is identical.
+export function applyBotShot(originArr, dirArr) {
+  if (!Array.isArray(originArr) || !Array.isArray(dirArr)) return;
+  const origin = { x: originArr[0], y: originArr[1], z: originArr[2] };
+  const dir = { x: dirArr[0], y: dirArr[1], z: dirArr[2] };
+  if (_spawnBulletFn) _spawnBulletFn(origin, dir, false);
+  playBotShoot();
+}
+
+// Server says a player's shot hit a bot — sync authoritative HP + hit flash.
+export function applyBotHit(botId, hp) {
+  const bot = _botById(botId);
+  if (!bot) return;
+  bot.state.hp = hp;
+  bot.state._isHit = true;
+  bot.state._hitTimer = 0.3;
+}
+
+// Server says a bot died — mark it dead so the render path hides it. Snap the
+// interpolation so the corpse doesn't slide.
+export function applyBotKill(botId) {
+  const bot = _botById(botId);
+  if (bot) bot.state.alive = false;
+  _botNet.forceSnap(botId);
+}
+
+function _tickNet(dt) {
+  const poses = _botNet.sample(_nowMs());
+  for (const p of poses) {
+    const bot = _botById(p.id);
+    if (bot) _syncNetBot(bot, p, dt);
+  }
+}
+
+function _syncNetBot(bot, pose, dt) {
+  const st = bot.state;
+  // Mirror the interpolated server pose into the wrapper's sim-state bag so the
+  // rest of the client (HUD, headshot classifier, etc.) reads live values.
+  st.pos.x = pose.x; st.pos.z = pose.z; st.rotY = pose.rotY;
+  st.hp = pose.hp; st.animHint = pose.animHint;
+  bot.pos.set(pose.x, 0, pose.z);
+  const fy = _footY(pose.x, pose.z);
+  const flags = animHintToFlags(pose.animHint);
+
+  if (!pose.alive) {
+    st.alive = false;
+    if (bot.model?.loaded) {
+      if (bot._prevAlive) bot.model.updateAnim(0, false, true, false); // death on transition
+      bot.model.syncTo(pose.x, fy, pose.z, pose.rotY);
+      bot.model.tick(dt);
+    } else if (bot._capsuleMesh) {
+      bot._capsuleMesh.visible = false;
+    }
+    // Park VISUAL-ONLY colliders below the floor so local bullets can't resolve
+    // a hit on a dead bot (damage is server-authoritative regardless).
+    if (bot.rapierBody)     setBotBodyPos(bot.rapierBody,     pose.x, -100, pose.z);
+    if (bot.rapierHeadBody) setBotBodyPos(bot.rapierHeadBody, pose.x, -100, pose.z);
+    bot._prevAlive = false;
+    return;
+  }
+
+  st.alive = true;
+  // Spawn/respawn transition — (re)create + show.
+  if (!bot._prevAlive) {
+    _ensureBotColliders(bot, pose.x, pose.z);
+    if (bot.model?.root) { bot.model.show(); bot.model.play('Walking', true); }
+    else if (bot._capsuleMesh) bot._capsuleMesh.visible = true;
+  }
+  if (!bot.rapierBody || !bot.rapierHeadBody) {
+    _ensureBotColliders(bot, pose.x, pose.z);
+  } else {
+    setBotBodyPos(bot.rapierBody,     pose.x, fy + BOT_BODY_CENTRE_Y_OFFSET, pose.z);
+    setBotBodyPos(bot.rapierHeadBody, pose.x, fy + BOT_HEAD_CENTRE_Y_OFFSET, pose.z);
+  }
+
+  const pPos = _playerObj.position;
+  const dist = Math.hypot(pPos.x - pose.x, pPos.z - pose.z);
+  const lod = getLodLevel(pose.x, pose.z, pPos.x, pPos.z);
+  applyLod(bot.model, lod);
+  if (bot.model?.loaded) {
+    bot.model.syncTo(pose.x, fy, pose.z, pose.rotY);
+    if (lod === 'full') {
+      bot.model.updateAnim(dist, flags.isShooting, false, flags.isHit);
+      bot.model.tick(dt);
+    }
+  } else if (bot._capsuleMesh && !bot.model) {
+    bot._capsuleMesh.position.set(pose.x, 1.15 + fy, pose.z);
+    bot._capsuleMesh.rotation.y = pose.rotY;
+  }
+  bot._prevAlive = true;
 }
 
 // Render one wrapper bot from its (already-ticked) sim state.
@@ -237,6 +356,9 @@ function _syncBot(bot, dt) {
 
 // ── Hit / Kill ────────────────────────────────────────────────────────────────
 export function hitBot(bot, dmg) {
+  // MP: damage is server-authoritative (resolved via the SHOT path → BOT_HIT).
+  // The client must NEVER apply local bot damage.
+  if (_netMode) return;
   const pp = _playerObj ? _playerObj.position : null;
   const res = sim.hitBot(bot.state, dmg, pp);
   if (res.killed) _applyKillRender(bot);

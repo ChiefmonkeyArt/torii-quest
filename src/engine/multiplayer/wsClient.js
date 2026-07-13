@@ -237,6 +237,12 @@ export function createWsClient(opts) {
       // Additive on PROTOCOL_VERSION=1; older MP-1/1.5 clients silently drop
       // this via decode()'s UNKNOWN_TYPE guard.
       case MSG.SCORE: emit('score', msg); return;
+      // Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots.
+      // Additive on PROTOCOL_VERSION=1; the host forwards these as mp_bot*.
+      case MSG.BOT_STATE: emit('botState', msg); return;
+      case MSG.BOT_SHOT:  emit('botShot', msg);  return;
+      case MSG.BOT_HIT:   emit('botHit', msg);   return;
+      case MSG.BOT_KILL:  emit('botKill', msg);  return;
       case MSG.PING:  send({ t: MSG.PONG, ts: msg.ts }); return;
       case MSG.PONG:  return; // measured elsewhere
       default: return;

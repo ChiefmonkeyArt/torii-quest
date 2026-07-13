@@ -43,6 +43,11 @@ import {
   applyDamage, respawn, HP_MAX,
 } from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
+import { createArenaBotSim } from './bots/arenaBotSim.js';
+import { buildColliders } from './combat/capsuleModel.js';
+import { rayVsPeer } from './combat/rayVsCapsule.js';
+import { pointInCoastline } from '../src/terrain/coastline.js';
+import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
 
 // ---------- config ----------
 
@@ -51,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.376-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.377-alpha';
 
 // MP-2 tunables.
 //   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
@@ -60,6 +65,14 @@ const MP_MODE     = (process.env.MP_MODE || 'authoritative').toLowerCase();
 const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
 const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
 const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
+
+// Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots.
+//   BOT_SIM_ENABLED — master switch (default on).
+//   BOT_TICK_MS     — fixed AI tick period (~20Hz).
+//   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
+const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCase() !== 'false';
+const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
+const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
 
 // Per-session rate limits (msg / sec).
 const RATE = Object.freeze({
@@ -117,6 +130,17 @@ const sessionTokens = createSessionTokens();
 // on reconnect / LEFT we clear pending timers to avoid warping ghosts.
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const respawnTimers = new Map();
+
+// Bot milestone chunk 2: the server-authoritative bot brain. onBotShot fires
+// synchronously from inside the sim's tick when a bot pulls the trigger — we
+// broadcast the tracer to all clients AND resolve the shot against players.
+const arenaBotSim = createArenaBotSim({
+  onBotShot: (origin, dir) => onBotShot(origin, dir),
+});
+if (BOT_SIM_ENABLED) arenaBotSim.spawn(BOT_COUNT);
+// Synthetic shooter id carried on bot→player HIT/KILL so the existing client
+// peerCombat handler applies damage exactly as it does for a peer shot.
+const BOT_SHOOTER_ID = 'bot';
 
 // ---------- logging ----------
 
@@ -249,6 +273,12 @@ function finishAuth(sess, { npub, pubkey }) {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,
     pos: sess.pos, rot: sess.rot, character: sess.character,
   });
+  // Bot milestone chunk 2: send the FULL bot roster snapshot immediately on
+  // (re)auth so a late-joining / reconnecting client never briefly renders
+  // stale/default bots before the first throttled BOT_STATE arrives.
+  if (BOT_SIM_ENABLED) {
+    sendTo(sess, { t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
+  }
   log.info('AUTH OK', sess.id, String(sess.npub).slice(0, 12) + '…');
 }
 
@@ -372,6 +402,18 @@ function resolveAndBroadcast(shooter, shotMsg) {
     now: Date.now(),
     lagCompMs: LAG_COMP_MS,
   });
+
+  // Bot milestone chunk 2: also resolve against server-authoritative bots and
+  // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
+  // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
+  const botResult = BOT_SIM_ENABLED
+    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir)
+    : null;
+  const botNearer = botResult && (!result || botResult.t < result.t);
+  if (botNearer) {
+    resolvePlayerBotHit(shooter, botResult);
+    return;
+  }
   if (!result) return;
 
   const dmg = damageFor(result.zone);
@@ -449,6 +491,95 @@ function scheduleRespawn(victimId, killerPos) {
     });
   }, RESPAWN_MS);
   respawnTimers.set(victimId, timer);
+}
+
+// ---------- bot milestone chunk 2: server-authoritative bots ----------
+
+// A player's shot hit a bot (nearest across peers+bots). Apply authoritative
+// damage to the bot, broadcast BOT_HIT, and on kill broadcast BOT_KILL. Damage
+// (any zone) is attributed to the shooter's MP-3 score tally.
+function resolvePlayerBotHit(shooter, botResult) {
+  const dmg = damageFor(botResult.zone);
+  if (dmg <= 0) return;
+  const playerPos = { x: shooter.pos[0], z: shooter.pos[2] };
+  const res = arenaBotSim.applyBotDamage(botResult.botId, dmg, playerPos);
+  if (!res.hit) return;
+  broadcastToAll({
+    t: MSG.BOT_HIT,
+    botId: botResult.botId,
+    dmg,
+    zone: botResult.zone,
+    hp: res.hpAfter,
+    shooterId: shooter.id,
+  });
+  if (SCORE_ENABLED) scoreLedger.addDamage(shooter.id, dmg);
+  if (res.killed) {
+    broadcastToAll({ t: MSG.BOT_KILL, botId: botResult.botId, shooterId: shooter.id });
+  }
+}
+
+// A bot pulled the trigger (fired synchronously from arenaBotSim.tick). Emit the
+// tracer cue to every client immediately, then resolve the shot against players
+// authoritatively (bot → player damage reuses the peer HIT/KILL wire path with a
+// synthetic shooter id so the client's existing peerCombat handler applies it).
+function onBotShot(origin, dir) {
+  const originArr = [origin.x, origin.y, origin.z];
+  const dirArr = [dir.x, dir.y, dir.z];
+  broadcastToAll({ t: MSG.BOT_SHOT, origin: originArr, dir: dirArr });
+
+  // Nearest player hit — bots use the CURRENT authoritative player positions
+  // (no lag-comp rewind needed; the bot itself is server-side).
+  let best = null;
+  for (const sess of sessions.values()) {
+    if (!sess.authed) continue;
+    const colliders = buildColliders({ pos: sess.pos });
+    const r = rayVsPeer(originArr, dirArr, colliders);
+    if (!r.hit) continue;
+    if (!best || r.t < best.t) best = { id: sess.id, zone: r.zone, t: r.t };
+  }
+  if (!best) return;
+
+  const outcome = applyDamage(hpLedger, best.id, BOT_DAMAGE);
+  if (outcome.applied <= 0) return; // target already dead — no wire event
+  broadcastToAll({
+    t: MSG.HIT,
+    id: BOT_SHOOTER_ID,
+    targetId: best.id,
+    dmg: outcome.applied,
+    zone: best.zone,
+    shotTs: Date.now(),
+  });
+  if (outcome.killed) {
+    broadcastToAll({
+      t: MSG.KILL,
+      shooterId: BOT_SHOOTER_ID,
+      victimId: best.id,
+      weapon: 'bot',
+    });
+    scheduleRespawn(best.id, [origin.x, origin.y, origin.z]);
+  }
+}
+
+// Fixed-rate bot AI loop (~20Hz). Builds the live player roster from authed
+// sessions, ticks the brain (which may fire onBotShot), and broadcasts the
+// throttled (~15Hz) BOT_STATE roster only when there is someone to receive it.
+let _lastBotStateAt = 0;
+if (BOT_SIM_ENABLED) {
+  setInterval(() => {
+    const dt = BOT_TICK_MS / 1000;
+    const players = [];
+    for (const sess of sessions.values()) {
+      if (!sess.authed) continue;
+      const [x, y, z] = sess.pos;
+      players.push({ x, y, z, outsideFence: !pointInCoastline(x, z), flyEnabled: false });
+    }
+    arenaBotSim.tick(dt, players);
+    const now = Date.now();
+    if (players.length > 0 && now - _lastBotStateAt >= BOT_STATE_MS) {
+      _lastBotStateAt = now;
+      broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
+    }
+  }, BOT_TICK_MS);
 }
 
 // ---------- server bring-up ----------

@@ -1,4 +1,4 @@
-// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.376-alpha).
+// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.377-alpha).
 //
 // The single-player bot AI/sim extracted verbatim out of src/bots.js. This module
 // has ZERO render/audio/physics imports: no three, no scene, no audio, no Rapier,
@@ -41,6 +41,13 @@ const COVER_ARRIVE_R2   = 0.6 * 0.6; // squared arrive radius at a cover point
 const AVOID_INFLUENCE = BOT_R + 1.1;
 const AVOID_WEIGHT    = 1.4;     // how hard avoidance bends the heading
 const _SPAWN_MARGIN   = 2;       // keep spawns a little inside the coast
+// Multi-player target acquisition radius. A player is a *preferred* (eligible)
+// target only when in-fence, non-NAP, not-too-high AND within this range.
+// Deliberately arena-spanning so eligibility reduces to "shootable zone" — the
+// range clause only ever breaks ties between many connected players, and the
+// single-player fallback (nearest player overall) makes it a no-op for one
+// player, preserving byte-identical single-player behaviour.
+export const ACQUIRE_RANGE = 60;
 
 // createBotSim(deps) — build the headless bot brain.
 //
@@ -159,13 +166,45 @@ export function createBotSim(deps) {
     return moving ? 'walk' : 'idle';
   }
 
+  // Is this player a valid shooting/engage target? In-fence, non-NAP, and (for a
+  // flying player) below the targeting ceiling. Mirrors the shooting gate.
+  function _eligible(p) {
+    return !p.outsideFence && p.x <= NAP_X &&
+           !(p.flyEnabled && p.y >= FLY_TARGET_CEILING);
+  }
+
+  // Per-bot target = the NEAREST ELIGIBLE player within ACQUIRE_RANGE. If none is
+  // eligible, fall back to the nearest player overall so the bot still flanks the
+  // closest threat (this fallback is what keeps a 1-element array — single-player
+  // — byte-identical: the sole player is always the target, engage-gated exactly
+  // as before). Returns null only when there are zero players (server idle).
+  function _selectTarget(state) {
+    const bx = state.pos.x, bz = state.pos.z;
+    let bestEli = null, bestEliD2 = Infinity;
+    let bestAny = null, bestAnyD2 = Infinity;
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      const dx = p.x - bx, dz = p.z - bz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < bestAnyD2) { bestAnyD2 = d2; bestAny = p; }
+      if (d2 <= ACQUIRE_RANGE * ACQUIRE_RANGE && _eligible(p) && d2 < bestEliD2) {
+        bestEliD2 = d2; bestEli = p;
+      }
+    }
+    return bestEli || bestAny;
+  }
+
   // ── Tick ────────────────────────────────────────────────────────────────────
-  // playerState = { x, y, z, outsideFence, flyEnabled }. inNap derived x>NAP_X.
-  function tick(dt, playerState) {
-    const pp = playerState;
-    const playerSafe = !!pp.outsideFence;
-    const playerInNap = pp.x > NAP_X;
-    const tooHighToTarget = !!pp.flyEnabled && pp.y >= FLY_TARGET_CEILING;
+  // players = array of { x, y, z, outsideFence, flyEnabled }. A single object is
+  // accepted too (normalised to a 1-element array) so single-player callers and
+  // the chunk-1 tests keep working. Each bot picks its own nearest-eligible
+  // target; inNap/safe/too-high are derived PER TARGET (were global in chunk 1,
+  // identical when there is one player).
+  let players = [];
+  function tick(dt, playerStateOrArray) {
+    players = Array.isArray(playerStateOrArray)
+      ? playerStateOrArray
+      : (playerStateOrArray ? [playerStateOrArray] : []);
 
     bots.forEach(state => {
       // Dead — tick blowback physics + death timer, then wait for respawn.
@@ -197,6 +236,20 @@ export function createBotSim(deps) {
         state._hitTimer -= dt;
         if (state._hitTimer <= 0) state._isHit = false;
       }
+
+      // Per-bot target = nearest eligible player (fallback: nearest overall).
+      // No players at all (server idle) → sit idle, no movement/shooting.
+      const pp = _selectTarget(state);
+      if (!pp) {
+        state.isShooting = false;
+        state._losTimer = 0;
+        state.animHint = _animHint(state, false);
+        return;
+      }
+      // Per-target gates (were global in chunk 1; identical for one player).
+      const playerSafe     = !!pp.outsideFence;
+      const playerInNap     = pp.x > NAP_X;
+      const tooHighToTarget = !!pp.flyEnabled && pp.y >= FLY_TARGET_CEILING;
 
       const px = state.pos.x, pz = state.pos.z;
       const tier = state.tier;

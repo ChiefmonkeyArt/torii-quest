@@ -25,7 +25,7 @@ import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } fro
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot } from './bots.js';
+import { bots, initBots, tickBots, hitBot, setBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -35,6 +35,7 @@ import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPor
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
+import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
 import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { assetUrl } from './assetUrl.js';
@@ -545,10 +546,40 @@ export function createArenaRuntime(hooks = {}) {
       });
       const _mpEmit = (name, payload) => {
         if (_peerCombat(name, payload)) return;
+        const p = payload || {};
+
+        // Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots. In MP
+        // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
+        // the local AI + ignore local damage) and drive it from the BOT_* stream.
+        if (name === 'mp_state') {
+          if (p.state === WS_STATE.CONNECTED) setBotNetMode(true);
+          else if (p.state === WS_STATE.CLOSED) setBotNetMode(false);
+          return;
+        }
+        if (name === 'mp_stopped' || name === 'mp_disabled') { setBotNetMode(false); return; }
+        if (name === 'mp_botState') { ingestBotState(p.bots); return; }
+        if (name === 'mp_botShot')  { applyBotShot(p.origin, p.dir); return; }
+        if (name === 'mp_botHit') {
+          applyBotHit(p.botId, p.hp);
+          if (_mp && p.shooterId === _mp.selfId) flashCross();
+          return;
+        }
+        if (name === 'mp_botKill') {
+          applyBotKill(p.botId);
+          // Score a bot frag only when WE landed the killing shot — mirror the
+          // single-player kill side-effects (kills/sats/HUD) the sim doesn't own.
+          if (_mp && p.shooterId === _mp.selfId) {
+            state.kills++;
+            state.sats += 5;
+            emit(EV.BOT_KILLED, { sats: 5 });
+            emit(EV.HUD_UPDATE);
+          }
+          return;
+        }
+
         // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed —
         // warp the local body to the server-picked corner and heal to PLAYER_HP.
         if (name !== 'mp_respawn') return;
-        const p = payload || {};
         if (!Array.isArray(p.pos)) return;
         const yaw = Array.isArray(p.rot) ? p.rot[0] : 0;
         setNextSpawn(p.pos[0], p.pos[2], yaw);

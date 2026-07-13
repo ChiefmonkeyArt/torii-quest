@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.376-alpha`
+Current version: `v0.2.377-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### BOT-MILESTONE-2 — Server-authoritative bots (v0.2.377-alpha) — bots now sync across all players in MP
+
+> **SERVER-AUTHORITATIVE BOTS — 2026-07-13 (v0.2.377-alpha):** Chunk 2 makes the extracted bot brain server-authoritative. `botSim.tick(dt, players[])` now accepts the live player roster with per-bot nearest-eligible (in-fence, non-NAP) target selection; single-player passes a 1-element array so behavior is byte-identical. New pure server modules under `server/bots/`: `headlessLos.js` (2D segment-vs-AABB LOS at eye height over CRATES+OBSTACLES — NO Rapier; terrain LOS deferred), `botColliders.js` (ray-vs-bot capsule/head), `arenaBotSim.js` (wraps `createBotSim` with headless LOS + terrain deps). `server/arena-ws.js` runs the sim on a fixed ~20Hz tick against authed sessions, broadcasts `BOT_STATE` (~15Hz throttled) + immediate `BOT_SHOT`/`BOT_HIT`/`BOT_KILL`, resolves player→bot (nearest hit across peers AND bots) and bot→player damage (reuses the peer HIT/KILL path with a synthetic `bot` shooter id). Late-join/reconnect gets a full bot snapshot on finishAuth. Clients are RENDER-ONLY in MP: `src/engine/entities/botNetState.js` buffers+interpolates (SNAP on spawn/kill/respawn), `src/bots.js` net mode stops the local AI + ignores local damage, `arenaRuntime.js` wires the `mp_bot*` events. Additive on PROTOCOL_VERSION=1. Chunk 2 of the bot milestone.
 
 ### BOT-MILESTONE-1 — Extract the pure headless bot AI (v0.2.376-alpha) — source-only refactor, no behavior change
 

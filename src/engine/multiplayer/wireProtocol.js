@@ -45,7 +45,21 @@ export const MSG = Object.freeze({
   // Delivered on match-end or peer disconnect; carries session-final tallies
   // so each peer can client-sign their own Nostr kind:30078 leaderboard event.
   SCORE:     'SCORE',
+  // Bot milestone chunk 2 (v0.2.377-alpha): server-authoritative bots. All four
+  // are server→all-peers, purely additive on PROTOCOL_VERSION=1 (older clients
+  // drop them via decode()'s UNKNOWN_TYPE guard).
+  //   BOT_STATE — throttled ~15Hz continuous roster {id,x,z,rotY,hp,alive,animHint}
+  //   BOT_SHOT  — immediate tracer cue {origin,dir} for a bot's shot
+  //   BOT_HIT   — immediate {botId,dmg,zone,hp} when a player's shot hits a bot
+  //   BOT_KILL  — immediate {botId,shooterId} when a bot dies
+  BOT_STATE: 'BOT_STATE',
+  BOT_SHOT:  'BOT_SHOT',
+  BOT_HIT:   'BOT_HIT',
+  BOT_KILL:  'BOT_KILL',
 });
+
+// Animation hint labels a bot state may carry (mirrors botSim _animHint).
+const BOT_ANIM_HINTS = new Set(['walk', 'idle', 'shoot', 'hit', 'die']);
 
 const MSG_TYPES = new Set(Object.values(MSG));
 
@@ -195,6 +209,41 @@ const validators = {
     }
     return ok(m);
   },
+  [MSG.BOT_STATE](m) {
+    if (!Array.isArray(m.bots) || m.bots.length > 64) return fail('BAD_FIELD', 'bots');
+    for (const b of m.bots) {
+      if (!b || typeof b !== 'object')                         return fail('BAD_FIELD', 'bots[row]');
+      if (!Number.isInteger(b.id) || b.id < 0 || b.id > 999)   return fail('BAD_FIELD', 'bots[id]');
+      if (!isFiniteNum(b.x) || Math.abs(b.x) > LIMITS.POS_ABS)  return fail('BAD_FIELD', 'bots[x]');
+      if (!isFiniteNum(b.z) || Math.abs(b.z) > LIMITS.POS_ABS)  return fail('BAD_FIELD', 'bots[z]');
+      if (!isFiniteNum(b.rotY) || Math.abs(b.rotY) > LIMITS.ROT_ABS) return fail('BAD_FIELD', 'bots[rotY]');
+      if (!isFiniteNum(b.hp) || b.hp < 0 || b.hp > 9999)        return fail('BAD_FIELD', 'bots[hp]');
+      if (typeof b.alive !== 'boolean')                        return fail('BAD_FIELD', 'bots[alive]');
+      if (!BOT_ANIM_HINTS.has(b.animHint))                     return fail('BAD_FIELD', 'bots[animHint]');
+    }
+    return ok(m);
+  },
+  [MSG.BOT_SHOT](m) {
+    if (!isVec3(m.origin, LIMITS.POS_ABS)) return fail('BAD_FIELD', 'origin');
+    if (!isVec3(m.dir, 2))                 return fail('BAD_FIELD', 'dir');
+    if (m.botId !== undefined && (!Number.isInteger(m.botId) || m.botId < 0 || m.botId > 999)) {
+      return fail('BAD_FIELD', 'botId');
+    }
+    return ok(m);
+  },
+  [MSG.BOT_HIT](m) {
+    if (!Number.isInteger(m.botId) || m.botId < 0 || m.botId > 999) return fail('BAD_FIELD', 'botId');
+    if (!isFiniteNum(m.dmg) || m.dmg <= 0 || m.dmg > 999)          return fail('BAD_FIELD', 'dmg');
+    if (!LIMITS.ZONES.includes(m.zone))                            return fail('BAD_FIELD', 'zone');
+    if (!isFiniteNum(m.hp) || m.hp < 0 || m.hp > 9999)             return fail('BAD_FIELD', 'hp');
+    if (m.shooterId !== undefined && !isStr(m.shooterId, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'shooterId');
+    return ok(m);
+  },
+  [MSG.BOT_KILL](m) {
+    if (!Number.isInteger(m.botId) || m.botId < 0 || m.botId > 999) return fail('BAD_FIELD', 'botId');
+    if (m.shooterId !== undefined && !isStr(m.shooterId, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'shooterId');
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -256,6 +305,10 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.PONG]:      ['ts'],
   [MSG.RESPAWN]:   ['pos', 'rot', 'hp'],
   [MSG.SCORE]:     ['sessionId', 'endedAt', 'tallies'],
+  [MSG.BOT_STATE]: ['bots'],
+  [MSG.BOT_SHOT]:  ['origin', 'dir', 'botId'],
+  [MSG.BOT_HIT]:   ['botId', 'dmg', 'zone', 'hp', 'shooterId'],
+  [MSG.BOT_KILL]:  ['botId', 'shooterId'],
 });
 
 /** Is this a known message type? */

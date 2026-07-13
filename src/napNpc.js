@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 import { sampleNapHeight } from './terrain/heightmap.js';
+import { assetUrl } from './assetUrl.js';
 
 let _root  = null;
 let _mixer = null;
@@ -20,10 +21,10 @@ export function buildNapNpc() {
   if (_root) return; // already built
 
   const draco = new DRACOLoader();
-  draco.setDecoderPath('/draco/');
+  draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load('/chiefmonkey6.glb', gltf => {
+  loader.load(assetUrl('/chiefmonkey6.glb'), gltf => {
     _root = gltf.scene;
 
     // Metre-scale GLB — render at 1.0 like the player model. Measure geometry-only

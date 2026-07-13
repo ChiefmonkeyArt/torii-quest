@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { scene } from './scene.js';
+import { assetUrl } from './assetUrl.js';
 
 // ── Clip name map ─────────────────────────────────────────────────────────────
 const ANIM = {
@@ -26,10 +27,10 @@ function _loadTemplate() {
   if (_loadPromise) return _loadPromise;
   _loadPromise = new Promise((resolve, reject) => {
     const draco = new DRACOLoader();
-    draco.setDecoderPath('/draco/');
+    draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    loader.load('/banker-rigged.glb', gltf => {
+    loader.load(assetUrl('/banker-rigged.glb'), gltf => {
       _templateScene = gltf.scene;
       _templateClips = gltf.animations;
       // GLB exported with alphaMode=BLEND — makes mesh translucent and causes

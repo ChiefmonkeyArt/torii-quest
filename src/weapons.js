@@ -9,6 +9,7 @@ import { emit, EV } from './events.js';
 import { BULLET_SPEED, BULLET_LIFE, BOT_DAMAGE, ARENA_HALF, RELOAD_TIME } from './config.js';
 import { spawnSpark, spawnRicochet, tickFx } from './fx.js';
 import { BOT_HEAD_CENTRE_Y_OFFSET, BOT_HEAD_RADIUS } from './physics.js';
+import { assetUrl } from './assetUrl.js';
 // v0.2.132 (ARS-3) — bullet/aim rays now go through the injectable RaycastService
 // facade instead of the concrete castRay/castRayStatic singletons. The default
 // service wraps the same Rapier-backed functions (raycast.js), so this is
@@ -427,9 +428,9 @@ function _buildGun() {
   gunScene.add(_gunPlaceholder);
 
   const draco = new DRACOLoader();
-  draco.setDecoderPath('/draco/');
+  draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader(); loader.setDRACOLoader(draco);
-  loader.load('/gun-steampunk.glb', gltf => {
+  loader.load(assetUrl('/gun-steampunk.glb'), gltf => {
     _gunMesh = gltf.scene;
     // Auto-scale: fit within 0.34m bounding box (was 0.25 — bigger = closer feel)
     const bbox = new THREE.Box3().setFromObject(_gunMesh);

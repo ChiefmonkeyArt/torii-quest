@@ -35,6 +35,7 @@ import { initHUD, tickHUD, flashCross, drawMinimap, setNapMode, showPortalPrompt
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
+import { assetUrl } from './assetUrl.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
@@ -413,7 +414,7 @@ export function createArenaRuntime(hooks = {}) {
         // Load the shared chiefmonkey6 model for every peer (per-character skinning
         // lands in MP-1.5). Returns a THREE.Group with position/rotation/dispose().
         avatarLoader: (peer) => new Promise((resolve, reject) => {
-          _mpGltf.load('/chiefmonkey6.glb', (gltf) => {
+          _mpGltf.load(assetUrl('/chiefmonkey6.glb'), (gltf) => {
             const obj = gltf.scene;
             obj.userData.peerId = peer.id;
             obj.dispose = () => {

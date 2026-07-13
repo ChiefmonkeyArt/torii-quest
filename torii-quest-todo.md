@@ -1,10 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.368-alpha`
+Current version: `v0.2.369-alpha`
 
 ## 🚨 TOP OF QUEUE
 
-### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena — peer discovery VERIFIED at protocol level 2026-07-13 (full in-world ENTER path NOT exercised in headless)
+### QA-MP-BLOCKER-1 — Two peers can’t see each other in live arena — peer discovery VERIFIED at protocol level 2026-07-13; root-relative asset-path root cause FOUND+FIXED v0.2.369-alpha (graphics + peer-avatar visibility; awaiting Suite redeploy + real-browser retest)
+
+> **REAL-BROWSER UPDATE — 2026-07-13 (v0.2.369-alpha):** A two-npub real-browser test (Firefox + Brave) on chiefmonkey.art/quest/ found the arena loads and peers auth/join, but **no `.glb` models load** (bots = capsule pills) and **peer avatars never appear** (players can’t see one another) — the peer-avatar `avatarLoader` has no fallback on GLB failure. Root cause: all `GLTFLoader.load('/foo.glb')`, `setDecoderPath('/draco/')`, `TextureLoader.load('/bitcoin-b.png')` in `src/` were **root-relative**; under the `/quest/` mount they resolve to host root and 404 (confirmed: root 404, `/quest/` 200). **FIXED in v0.2.369-alpha**: new `src/assetUrl.js` helper (`${import.meta.env.BASE_URL}${name}`, mirroring `audio.js`) applied across 8 source files; `tools/regression-check.mjs` [16] hardened to require `assetUrl('/draco/')` + FAIL on any bare root-relative `.load('/...glb|png|…')`. Verified: `--base=/quest/` build inlines `/quest/` + passes GLB args to helper; 2264/2264 tests, 20/20 checks. **Source-only fix — LIVE v0.2.366-alpha stays broken until a Suite redeploy that includes v0.2.369; the Suite installer is pinned at `TORII_QUEST_REF=v0.2.367-alpha`, so the maintainer must first bump the Suite Quest ref to v0.2.369-alpha (or the merge commit) before a redeploy (Suite builds `--base=/quest/`) will include it; do NOT touch the VPS while the Continuum session is active).** H4 NOT closed until a real-browser retest on the redeployed build shows both avatars in-world. SW follow-up (non-blocking): `public/sw.js` registration + precache are root-relative and don’t register under `/quest/`; game loads via network regardless.
 
 > **TEST RESULT — 2026-07-13 (Computer session): peer discovery verified at the protocol level on chiefmonkey.art/quest/.** A simulated two-npub live test against the production install confirmed the wire-level handshake and cross-client peer visibility:
 > - Two isolated browser contexts, each performing a real NIP-07 nostr-login with a distinct burner npub (A: `npub1prenm3latj270…`, pubkey `08f33dc7fd…`; B: `npub15m4vrrexahn…`, pubkey `a6eac18f26…`), each opened `wss://chiefmonkey.art/mp`.
@@ -72,7 +74,7 @@ Quest is live on `chiefmonkey.art` via the **Torii Suite** installer (`torii-sui
 - **nginx layout:** apps mount as path prefixes under one domain via fragments in `/opt/torii/nginx-fragments/<app>.conf`, included by the main torii.conf HTTPS `server{}` block. Quest static at `/quest/`, Quest `/mp` proxy in `quest-mp.conf`. **The shared parent `/opt/torii` stays `root:root 0755` (world-traversable)** so nginx www-data can traverse to siblings — the v0.2.30 fix for the permission regression that 404'd sibling apps. NEVER re-own or re-mode an existing parent.
 - **Sibling apps on the same VPS:** Continuum at `/continuum/` (agent `torii-continuum-agent.service`, `127.0.0.1:8787`, API at `/api/`), Plebeian at `/plebeian/`. The Continuum session is actively managing onboarding on this shared host — do NOT touch the shared nginx/parent-dir config while that work is in flight.
 - **Suite installer (source of truth for installs):** `curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-suite/v0.7.0-alpha/bootstrap.sh | sudo bash`. Pinned refs: `TORII_QUEST_REF=v0.2.367-alpha`, `TORII_CONTINUUM_REF=v0.2.14-alpha`. Backups under `/var/backups/torii-<app>-<ts>`.
-- **Cosmetic note:** the live `arena-ws` advertises `serverVersion: v0.2.366-alpha` in HELLO frames (the live build predates the v0.2.368-alpha source bump); the pinned Suite tag is v0.2.367-alpha. No functional impact.
+- **Cosmetic note:** the live `arena-ws` advertises `serverVersion: v0.2.366-alpha` in HELLO frames (the live build predates the v0.2.369-alpha source bump); the pinned Suite tag is v0.2.367-alpha. No functional impact.
 
 Source of truth for Torii Quest tasks.
 

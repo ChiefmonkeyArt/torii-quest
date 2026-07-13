@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.368-alpha';
+const EXPECTED_VERSION = 'v0.2.369-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -433,7 +433,10 @@ console.log('[15] SPA /zone/* fallback readiness (zoneFallbackReadiness)');
 //   (a) index.html (source + built) carries NO meta CSP.
 //   (b) tools/csp.mjs CSP_VALUE has the required directives, strict-dynamic, the inline
 //       sha, and NO gstatic; no src/ file or index.html references gstatic; the Draco
-//       decoder files are vendored under public/draco/ and src points setDecoderPath at /draco/.
+//       decoder files are vendored under public/draco/ and src points setDecoderPath at
+//       assetUrl('/draco/') (base-aware so the vendored decoder resolves under the /quest/
+//       mount prefix — a bare '/draco/' 404s on the Suite VPS); and no bare root-relative
+//       static-asset loads (GLB/texture) exist in src/ — all must go through assetUrl().
 //   (c) when dist/ exists: dist/_headers carries the exact CSP_VALUE; the built inline
 //       bootstrap script's recomputed sha256 matches INLINE_SCRIPT_SHA256 (so a changed
 //       inline script fails the check); the static entry <script> tag is gone and the
@@ -459,13 +462,29 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   for (const d of dracoFiles) {
     if (!existsSync(join(ROOT, 'public/draco', d))) { fail(`vendored Draco file missing: public/draco/${d}`); dracoOk = false; }
   }
+  // v0.2.369: every setDecoderPath must be wrapped in assetUrl('/draco/') so the
+  // vendored decoder resolves under the /quest/ mount prefix (a bare '/draco/'
+  // 404s on the Suite VPS). Catches both wrong paths and forgotten assetUrl().
   for (const f of srcFiles) {
     const txt = readFileSync(join(ROOT, f), 'utf8');
-    for (const m of txt.matchAll(/setDecoderPath\(\s*['"]([^'"]+)['"]/g)) {
-      if (m[1] !== '/draco/') { fail(`${f}: setDecoderPath('${m[1]}') is not the vendored '/draco/'`); dracoOk = false; }
-    }
+    const total = (txt.match(/setDecoderPath\(/g) || []).length;
+    const valid = (txt.match(/setDecoderPath\(\s*assetUrl\(\s*['"]\/draco\/['"]\s*\)\s*\)/g) || []).length;
+    if (total !== valid) { fail(`${f}: ${total - valid} setDecoderPath call(s) not wrapped in assetUrl('/draco/') (vendored + base-aware under /quest/ mount)`); dracoOk = false; }
   }
-  if (dracoOk) pass('Draco decoder vendored at public/draco/ and setDecoderPath uses /draco/');
+  if (dracoOk) pass("Draco decoder vendored at public/draco/ and setDecoderPath uses assetUrl('/draco/')");
+
+  // v0.2.369: no bare root-relative static-asset loads in src/. Quest mounts at a path
+  // prefix (/quest/) on the Suite VPS, so '/foo.glb' resolves to host root and 404s —
+  // every GLB/texture load must go through assetUrl(). /mp (the WS path) is not a loader
+  // call, so it is naturally excluded. Catches the regression the moment it is typed.
+  let rootAssetOk = true;
+  const ROOT_ASSET_RE = /\.load\(\s*['"]\/[a-zA-Z0-9_.\-]+\.(?:glb|gltf|png|jpe?g|webp|svg|ktx2|hdr|wasm|mp3|wav|ogg)/;
+  for (const f of srcFiles) {
+    const txt = readFileSync(join(ROOT, f), 'utf8');
+    const m = txt.match(ROOT_ASSET_RE);
+    if (m) { fail(`${f}: bare root-relative asset load "${m[0]}" — wrap in assetUrl() (mount prefix /quest/ on VPS)`); rootAssetOk = false; }
+  }
+  if (rootAssetOk) pass('no bare root-relative static-asset loads in src/ (all base-aware via assetUrl)');
 
   // CSP single-source sanity (tools/csp.mjs).
   let CSP_VALUE, INLINE_SHA, HEADERS_BODY;

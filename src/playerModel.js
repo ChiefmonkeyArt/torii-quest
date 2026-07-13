@@ -6,6 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
+import { assetUrl } from './assetUrl.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -81,10 +82,10 @@ export function loadPlayerModel(parentObj) {
   _anims = char.anims;
 
   const _draco = new DRACOLoader();
-  _draco.setDecoderPath('/draco/');
+  _draco.setDecoderPath(assetUrl('/draco/'));
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
-  _loader.load(char.file, gltf => {
+  _loader.load(assetUrl(char.file), gltf => {
     _root = gltf.scene;
 
     // Scale to TARGET_HEIGHT using geometry-only bounds (Box3.setFromObject includes

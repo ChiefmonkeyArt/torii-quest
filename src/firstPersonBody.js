@@ -8,6 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
+import { assetUrl } from './assetUrl.js';
 
 let _root  = null;
 let _mixer = null;
@@ -32,10 +33,10 @@ export function loadFirstPersonBody(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; }
 
   const draco = new DRACOLoader();
-  draco.setDecoderPath('/draco/');
+  draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load('/chiefmonkey-headless.glb', gltf => {
+  loader.load(assetUrl('/chiefmonkey-headless.glb'), gltf => {
     _root = gltf.scene;
 
     let minY = Infinity;

@@ -11,6 +11,7 @@ import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/hei
 import { fenceRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
+import { assetUrl } from './assetUrl.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const C_CRATE  = 0x4a4458;
@@ -175,10 +176,10 @@ function _buildToriiGate() {
 
   // Load GLB asynchronously — replaces fallback when ready
   const draco = new DRACOLoader();
-  draco.setDecoderPath('/draco/');
+  draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load('/torii-gate.glb', gltf => {
+  loader.load(assetUrl('/torii-gate.glb'), gltf => {
     scene.remove(fallback);
     const gate = gltf.scene;
 
@@ -261,10 +262,10 @@ function _buildTravelGateway() {
   let draco;
   try {
     draco = new DRACOLoader();
-    draco.setDecoderPath('/draco/');
+    draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    loader.load('/torii-gateway-experience.glb', gltf => {
+    loader.load(assetUrl('/torii-gateway-experience.glb'), gltf => {
       try {
         const gate = gltf.scene;
 

@@ -54,7 +54,7 @@ describe('v0.2.240 — travel gateway GLB load is strictly fail-soft', () => {
   it('adds the procedural fallback to the scene before the async load', () => {
     const fn = ARENA.slice(ARENA.indexOf('function _buildTravelGateway'));
     const addFallback = fn.indexOf('scene.add(fallback)');
-    const load = fn.indexOf("loader.load('/torii-gateway-experience.glb'");
+    const load = fn.indexOf("loader.load(assetUrl('/torii-gateway-experience.glb')");
     expect(addFallback).toBeGreaterThan(-1);
     expect(load).toBeGreaterThan(-1);
     // fallback is in the scene BEFORE the loader is invoked.

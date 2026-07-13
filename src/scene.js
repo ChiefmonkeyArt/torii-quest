@@ -10,6 +10,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { assetUrl } from './assetUrl.js';
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -235,7 +236,7 @@ scene.add(_auroraDome);
   sunSprite.renderOrder = 1;
   scene.add(sunSprite);
 
-  new THREE.TextureLoader().load('/bitcoin-b.png', tex2 => {
+  new THREE.TextureLoader().load(assetUrl('/bitcoin-b.png'), tex2 => {
     const mat2 = new THREE.SpriteMaterial({
       map: tex2, transparent: true, opacity: 0.30,
       blending: THREE.NormalBlending,

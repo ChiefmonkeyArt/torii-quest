@@ -53,14 +53,14 @@ describe('v0.2.239 — far-side placement constant', () => {
 
 describe('v0.2.239 — arena loads the travel gateway on the far side', () => {
   it('loads the new GLB model', () => {
-    expect(ARENA).toContain("loader.load('/torii-gateway-experience.glb'");
+    expect(ARENA).toContain("loader.load(assetUrl('/torii-gateway-experience.glb')");
   });
 
   it('builds the travel gateway and names it distinctly from the entrance', () => {
     expect(ARENA).toContain('_buildTravelGateway()');
     expect(ARENA).toContain("name = 'travel-gateway'");
     // Entrance gate is still built and still named 'torii-gate' (the NAP marker).
-    expect(ARENA).toContain("loader.load('/torii-gate.glb'");
+    expect(ARENA).toContain("loader.load(assetUrl('/torii-gate.glb')");
     expect(ARENA).toContain("name = 'torii-gate'");
   });
 

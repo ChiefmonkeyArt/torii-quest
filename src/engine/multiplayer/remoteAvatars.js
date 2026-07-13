@@ -96,17 +96,30 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
     pushSnapshot(entry.buf, snap);
   }
 
+  // Wall-clock dt between ticks, seconds. Drives each avatar's animation mixer
+  // (obj.update). Clamped so a tab-throttle gap doesn't fast-forward the clip, and
+  // skipped on the very first tick (lastRenderTime unset → huge dt).
+  let lastRenderTime = null;
+  const MAX_DT = 0.1;
+
   function tick(renderTime) {
+    let dt = 0;
+    if (lastRenderTime !== null) {
+      dt = Math.min(MAX_DT, Math.max(0, (renderTime - lastRenderTime) / 1000));
+    }
+    lastRenderTime = renderTime;
     for (const entry of roster.values()) {
       if (!entry.obj) continue;
       const s = sample(entry.buf, renderTime);
-      if (!s) continue;
-      if (entry.obj.position && typeof entry.obj.position.set === 'function') {
-        entry.obj.position.set(s.pos[0], s.pos[1], s.pos[2]);
+      if (s) {
+        if (entry.obj.position && typeof entry.obj.position.set === 'function') {
+          entry.obj.position.set(s.pos[0], s.pos[1], s.pos[2]);
+        }
+        if (entry.obj.rotation && typeof entry.obj.rotation.set === 'function') {
+          entry.obj.rotation.set(0, s.rot[0], 0);
+        }
       }
-      if (entry.obj.rotation && typeof entry.obj.rotation.set === 'function') {
-        entry.obj.rotation.set(0, s.rot[0], 0);
-      }
+      if (dt > 0 && typeof entry.obj.update === 'function') entry.obj.update(dt);
     }
   }
 

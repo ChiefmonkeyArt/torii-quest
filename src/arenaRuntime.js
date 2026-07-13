@@ -36,8 +36,10 @@ import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './en
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { assetUrl } from './assetUrl.js';
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
@@ -54,6 +56,111 @@ import { createToriiGateway } from './engine/components/toriiGateway.js';
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
 export { setCharacter };
+
+// ── MP-1 peer-avatar template + factory ─────────────────────────────────────
+// The peer avatar is the shared chiefmonkey6 model. Loaded ONCE and cloned per
+// peer (mirroring botModel.js): a single scene can't be added to multiple parents
+// and SkinnedMesh needs its own bone binding per instance. All per-peer setup that
+// playerModel.js/botModel.js apply (feet offset, π facing, opaque materials,
+// AnimationMixer + IDLE clip) is applied here — the raw gltf.scene is authored high
+// off its origin (large gMinY), faces +Z, and sits in bind-pose (T-pose), so a raw
+// return renders peers high in the sky, backwards, and un-animated.
+const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
+const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
+
+let _mpTemplateScene = null;
+let _mpTemplateClips = [];
+let _mpTemplateGMinY = 0;
+let _mpTemplatePromise = null;
+
+function _loadPeerTemplate() {
+  if (_mpTemplatePromise) return _mpTemplatePromise;
+  _mpTemplatePromise = new Promise((resolve, reject) => {
+    const draco = new DRACOLoader();
+    draco.setDecoderPath(assetUrl('/draco/'));
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load(assetUrl('/chiefmonkey6.glb'), (gltf) => {
+      _mpTemplateScene = gltf.scene;
+      _mpTemplateClips = gltf.animations || [];
+      // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
+      // SkinnedMesh) — playerModel.js:93-101.
+      let gMinY = Infinity;
+      _mpTemplateScene.traverse((o) => {
+        if (o.isMesh && o.geometry) {
+          o.geometry.computeBoundingBox();
+          const b = o.geometry.boundingBox;
+          if (b) gMinY = Math.min(gMinY, b.min.y);
+        }
+      });
+      _mpTemplateGMinY = Number.isFinite(gMinY) ? gMinY : 0;
+      resolve();
+    }, undefined, reject);
+  });
+  return _mpTemplatePromise;
+}
+
+// Build one peer avatar: a wrapper Group (remoteAvatars sets its position/rotation)
+// containing a SkeletonUtils-cloned model offset so feet land on the ground given
+// the eye-height Y peers broadcast, faced game-forward (-Z), with an IDLE mixer.
+async function _createPeerAvatar(peer) {
+  await _loadPeerTemplate();
+  const model = skeletonClone(_mpTemplateScene);
+  model.scale.setScalar(1.0);
+  // Feet on ground: peers broadcast eye-height Y (playerObj.position.y ≈ 1.7),
+  // so the wrapper sits at eye height; drop the model by gMinY + eye offset.
+  model.position.y = -_mpTemplateGMinY - MP_EYE_OFFSET;
+  model.rotation.y = Math.PI; // GLB faces +Z, game forward is -Z
+
+  model.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+    o.frustumCulled = false; // bind-pose cull box clips animated SkinnedMesh
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      if (!m) continue;
+      m.transparent = false;
+      m.depthWrite  = true;
+      m.alphaTest   = 0;
+      if (m.flatShading) m.flatShading = false;
+      m.needsUpdate = true;
+    }
+  });
+
+  const mixer = new THREE.AnimationMixer(model);
+  let clipName = MP_PEER_IDLE_CLIP;
+  let clip = _mpTemplateClips.find((c) => c.name === clipName);
+  if (!clip && _mpTemplateClips.length) {
+    clip = _mpTemplateClips[0];
+    clipName = clip.name;
+    console.warn('[mp] idle clip', MP_PEER_IDLE_CLIP, 'missing; falling back to', clipName);
+  }
+  if (clip) {
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.play();
+    mixer.update(0.016); // tick once so the skeleton leaves bind-pose (no T-pose flash)
+  }
+  // MP-1.5 future: switch to a WALK clip on movement (needs peer velocity/speed).
+
+  const obj = new THREE.Group();
+  obj.add(model);
+  obj.userData.peerId = peer.id;
+  // Driven per-frame by remoteAvatars.tick → advances the IDLE animation.
+  obj.update = (dt) => mixer.update(dt);
+  obj.dispose = () => {
+    obj.update = null;
+    model.traverse((n) => {
+      if (n.geometry) n.geometry.dispose();
+      if (n.material) {
+        const mats = Array.isArray(n.material) ? n.material : [n.material];
+        for (const m of mats) m.dispose?.();
+      }
+    });
+  };
+  return obj;
+}
 
 // createArenaRuntime(hooks) — build the arena runtime. `boot()` runs the one-time
 // three scene/loop bootstrap; `bootstrapPhysics()` lazy-loads Rapier + spawns the
@@ -395,14 +502,6 @@ export function createArenaRuntime(hooks = {}) {
     // §6); flipping it to TRUE dials wss://<origin>/mp, joins the presence roster,
     // and starts syncing our own MOVE + relaying peer moves through the roster.
     if (MP_ENABLED) {
-      // chiefmonkey6.glb is Draco-compressed, so the peer-avatar loader needs a
-      // DRACOLoader just like every other loader that touches it (playerModel.js,
-      // botModel.js, arena.js, firstPersonBody.js). Without it the load rejects and
-      // remoteAvatars.upsert() drops the roster entry → peers never render (H4).
-      const _mpDraco = new DRACOLoader();
-      _mpDraco.setDecoderPath(assetUrl('/draco/'));
-      const _mpGltf = new GLTFLoader();
-      _mpGltf.setDRACOLoader(_mpDraco);
       // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed.
       // Handler warps the local body to the server-picked corner and heals to
       // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
@@ -420,25 +519,11 @@ export function createArenaRuntime(hooks = {}) {
         scene,
         emit: _mpEmit,
         // Load the shared chiefmonkey6 model for every peer (per-character skinning
-        // lands in MP-1.5). Returns a THREE.Group with position/rotation/dispose().
-        avatarLoader: (peer) => new Promise((resolve, reject) => {
-          _mpGltf.load(assetUrl('/chiefmonkey6.glb'), (gltf) => {
-            const obj = gltf.scene;
-            obj.userData.peerId = peer.id;
-            obj.dispose = () => {
-              obj.traverse((n) => {
-                if (n.geometry) n.geometry.dispose();
-                if (n.material) {
-                  const mats = Array.isArray(n.material) ? n.material : [n.material];
-                  for (const m of mats) m.dispose?.();
-                }
-              });
-            };
-            resolve(obj);
-          }, undefined, (err) => {
-            console.warn('[mp] avatar_load_error', peer?.id, err);
-            reject(err);
-          });
+        // lands in MP-1.5). Returns a wrapper THREE.Group (feet on ground, faced
+        // -Z, IDLE mixer, obj.update(dt)) with position/rotation/dispose().
+        avatarLoader: (peer) => _createPeerAvatar(peer).catch((err) => {
+          console.warn('[mp] avatar_load_error', peer?.id, err);
+          throw err;
         }),
         // NIP-42 kind:22242 auth — the server verifies via nostr-tools. The client
         // signer is browser-only (window.nostr); the wire only carries the signed event.

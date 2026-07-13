@@ -97,6 +97,51 @@ describe('remoteAvatarRoster', () => {
     expect(scene._removed.length).toBe(3);
   });
 
+  it('tick drives obj.update(dt) with wall-clock dt, skipping the first tick', async () => {
+    const scene = makeFakeScene();
+    const updates = [];
+    const loader = async (p) => {
+      const obj = makeFakeObj(p.id);
+      obj.update = (dt) => updates.push(dt);
+      return obj;
+    };
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    await roster.upsert(peer('p1'));
+    // First tick has no prior timestamp → dt=0 → update skipped.
+    roster.tick(1000);
+    expect(updates.length).toBe(0);
+    // Second tick 16ms later → update called with dt≈0.016.
+    roster.tick(1016);
+    expect(updates.length).toBe(1);
+    expect(updates[0]).toBeCloseTo(0.016, 6);
+  });
+
+  it('tick clamps dt after a large gap (tab-throttle) so animation does not fast-forward', async () => {
+    const scene = makeFakeScene();
+    const updates = [];
+    const loader = async (p) => {
+      const obj = makeFakeObj(p.id);
+      obj.update = (dt) => updates.push(dt);
+      return obj;
+    };
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    await roster.upsert(peer('p1'));
+    roster.tick(0);
+    roster.tick(5000); // 5s gap
+    expect(updates.length).toBe(1);
+    expect(updates[0]).toBe(0.1); // clamped to MAX_DT
+  });
+
+  it('tick is safe when obj has no update() (fake without animation)', async () => {
+    const scene = makeFakeScene();
+    const roster = createRemoteAvatarRoster({
+      avatarLoader: async (p) => makeFakeObj(p.id),
+      scene,
+    });
+    await roster.upsert(peer('p1'));
+    expect(() => { roster.tick(0); roster.tick(16); }).not.toThrow();
+  });
+
   it('upsert on an existing peer is idempotent (does not reload)', async () => {
     const scene = makeFakeScene();
     const loader = vi.fn(async (p) => makeFakeObj(p.id));

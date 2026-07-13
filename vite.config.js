@@ -23,7 +23,6 @@ import { CSP_VALUE, headersFileBody, headersFileBodyForSha, cspValueForSha } fro
 // one, and throws "does not provide an export named 'Lt'" (or any symbol added since).
 // Rewriting both to the same versioned URL makes the browser dedupe to the fresh fetch.
 const BUILD_STAMP = Date.now().toString(36);
-const VERSIONED_IMPORT_LINE = `  import('/assets/torii-entry.js?v=${BUILD_STAMP}');`;
 const ENTRY_BASE = 'torii-entry.js';
 // Matches import specifiers pointing at the pinned entry, e.g. from"./torii-entry.js"
 // or from'./torii-entry.js' or from"/assets/torii-entry.js". Avoids touching the
@@ -38,8 +37,21 @@ function inlineScriptShaOf(html) {
   return 'sha256-' + createHash('sha256').update(matches[0], 'utf8').digest('base64');
 }
 function cspHeaderPlugin() {
+  // v0.2.370-alpha: natively base-aware. Under the Torii Suite path-prefix mount
+  // (`vite build --base=/quest/`) the entry must be referenced under the SAME
+  // prefixed URL everywhere (static tag stripped, inline import, chunk back-refs)
+  // or the browser loads it under two URLs → two module instances → the v0.2.285
+  // dedupe invariant breaks → arena boot hangs (ENTER ARENA freeze). ENTRY_URL is
+  // resolved from config.base so root (`/`) behaves exactly as before.
+  let base = '/';
+  let ENTRY_URL = `${base}assets/${ENTRY_BASE}`;
   return {
     name: 'torii-csp-http-header',
+    configResolved(config) {
+      base = config.base || '/';
+      if (!base.endsWith('/')) base += '/';
+      ENTRY_URL = `${base}assets/${ENTRY_BASE}`;
+    },
     transformIndexHtml: {
       order: 'post',
       handler(html, ctx) {
@@ -49,9 +61,13 @@ function cspHeaderPlugin() {
         if (!ctx.bundle) return html;
         // Drop the parser-inserted entry tag + any modulepreload hint for it; the
         // trusted inline bootstrap loads it via import() so strict-dynamic applies.
+        // Base-AGNOSTIC strip: `[^"]*assets\/torii-entry\.js` matches the parser-
+        // inserted entry tag under any base (`/assets/...` or `/quest/assets/...`).
+        // Deliberately written WITHOUT the literal `/assets/torii-entry.js` substring
+        // so the Suite's install-time sed rewrites can't corrupt this pattern.
         let out = html
-          .replace(/\s*<script\b[^>]*\bsrc="\/assets\/torii-entry\.js"[^>]*><\/script>/, '')
-          .replace(/\s*<link\b[^>]*\bhref="\/assets\/torii-entry\.js"[^>]*>/g, '');
+          .replace(/\s*<script\b[^>]*\bsrc="[^"]*assets\/torii-entry\.js"[^>]*><\/script>/, '')
+          .replace(/\s*<link\b[^>]*\bhref="[^"]*assets\/torii-entry\.js"[^>]*>/g, '');
         // Append the versioned entry import to the single classic inline bootstrap
         // script. The ?v=<stamp> query busts the 4h CDN edge cache on every publish so a
         // stale entry (pointing at a dead chunk hash) can never reach a returning player.
@@ -66,7 +82,8 @@ function cspHeaderPlugin() {
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
         }
-        out = out.slice(0, lastCloseIdx) + `\n${VERSIONED_IMPORT_LINE}\n` + out.slice(lastCloseIdx);
+        const versionedImportLine = `  import('${ENTRY_URL}?v=${BUILD_STAMP}');`;
+        out = out.slice(0, lastCloseIdx) + `\n${versionedImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },
     },
@@ -84,7 +101,7 @@ function cspHeaderPlugin() {
           // Skip if this chunk doesn't import the entry at all (cheap guard).
           if (!src.includes(ENTRY_BASE)) continue;
           const rewritten = src.replace(ENTRY_IMPORT_RE, (_m, pre, _spec, post) =>
-            `${pre}/assets/torii-entry.js?v=${BUILD_STAMP}${post}`);
+            `${pre}${ENTRY_URL}?v=${BUILD_STAMP}${post}`);
           if (rewritten !== src) writeFileSync(p, rewritten);
         }
       }

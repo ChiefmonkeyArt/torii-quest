@@ -117,12 +117,97 @@ describe('wsClient state machine', () => {
   });
 });
 
+// v0.2.375-alpha: "1 sign at login, 0 signs in-game." When a session token is
+// present the HELLO handshake sends AUTH_TOKEN and NEVER calls signAuth (no
+// NIP-07 prompt). A rejected token clears itself and the reconnect falls back
+// to the NIP-42 signAuth path.
+describe('wsClient session-token auth', () => {
+  function makeTokenClient({ token } = {}) {
+    FakeWS.instances.length = 0;
+    const emitted = [];
+    const timers = [];
+    const setTimeoutFn = (fn, ms) => { const id = timers.length + 1; timers.push({ id, fn, ms }); return id; };
+    const clearTimeoutFn = (id) => { const i = timers.findIndex((t) => t.id === id); if (i >= 0) timers.splice(i, 1); };
+    const signAuth = vi.fn(async ({ challenge }) => ({
+      npub: 'npub1' + 'x'.repeat(58),
+      sig:  'b'.repeat(128),
+      event: { kind: 22242, tags: [['challenge', challenge]], content: '', created_at: 1 },
+    }));
+    let stored = token;
+    const clearSessionToken = vi.fn(() => { stored = null; });
+    const client = createWsClient({
+      url: 'wss://example.test/mp',
+      WebSocketCtor: FakeWS,
+      signAuth,
+      getSessionToken: () => stored,
+      clearSessionToken,
+      emit: (name, payload) => emitted.push({ name, payload }),
+      setTimeoutFn,
+      clearTimeoutFn,
+    });
+    return { client, emitted, timers, signAuth, clearSessionToken, getStored: () => stored };
+  }
+
+  it('sends AUTH_TOKEN and never calls signAuth when a token is present', async () => {
+    const { client, signAuth } = makeTokenClient({ token: 'tok-abc123' });
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    expect(signAuth).not.toHaveBeenCalled();
+    expect(ws.sent.length).toBe(1);
+    expect(ws.sent[0]).toContain(MSG.AUTH_TOKEN);
+    expect(ws.sent[0]).toContain('tok-abc123');
+    // WELCOME still lands the client in CONNECTED like the NIP-42 path.
+    ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [] });
+    expect(client.state).toBe(WS_STATE.CONNECTED);
+  });
+
+  it('on AUTH_FAIL clears the token and reconnects to the NIP-42 signAuth path', async () => {
+    const { client, timers, signAuth, clearSessionToken } = makeTokenClient({ token: 'stale-tok' });
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    expect(ws.sent[0]).toContain(MSG.AUTH_TOKEN);
+    // Server rejects the token.
+    ws._message({ t: MSG.AUTH_FAIL, reason: 'bad token' });
+    expect(clearSessionToken).toHaveBeenCalledTimes(1);
+    // The close from AUTHENTICATING schedules a reconnect (not a hard disconnect).
+    expect(client._disconnected).toBe(false);
+    const reconnect = timers.find((t) => t.ms === BACKOFF_MS_INITIAL);
+    expect(reconnect).toBeDefined();
+    // Reconnect now has no token → HELLO must drive the signAuth (NIP-42) path.
+    reconnect.fn();
+    const ws2 = FakeWS.instances[1];
+    ws2._open();
+    ws2._message({ t: MSG.HELLO, challenge: 'c'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    expect(signAuth).toHaveBeenCalledTimes(1);
+    expect(ws2.sent[0]).toContain(MSG.AUTH);
+  });
+
+  it('uses signAuth (NIP-42) when no token is stored', async () => {
+    const { client, signAuth } = makeTokenClient({ token: null });
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    expect(signAuth).toHaveBeenCalledTimes(1);
+    expect(ws.sent[0]).toContain(MSG.AUTH);
+    expect(ws.sent[0]).not.toContain(MSG.AUTH_TOKEN);
+  });
+});
+
 describe('wsClient keepalive', () => {
   async function toConnected(client) {
     client.connect();
     const ws = FakeWS.instances[0];
     ws._open();
-    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.374-alpha', protocolVersion: PROTOCOL_VERSION });
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
     await Promise.resolve(); await Promise.resolve();
     ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [] });
     return ws;

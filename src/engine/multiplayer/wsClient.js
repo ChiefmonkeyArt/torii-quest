@@ -42,6 +42,11 @@ export const KEEPALIVE_MS = 25_000;
  * @param {string} opts.url                        - wss URL (typically wss://host/mp)
  * @param {Function} opts.WebSocketCtor            - WebSocket constructor (window.WebSocket or a fake)
  * @param {Function} opts.signAuth                 - async ({ challenge }) => { npub, sig, event }
+ * @param {Function} [opts.getSessionToken]        - () => string|null. When it returns a token,
+ *                                                    the client sends AUTH_TOKEN (no signing) instead
+ *                                                    of the NIP-42 AUTH. (v0.2.375-alpha)
+ * @param {Function} [opts.clearSessionToken]      - () => void. Called when the server rejects the
+ *                                                    token (AUTH_FAIL) so the reconnect falls back to NIP-42.
  * @param {Function} [opts.emit]                   - event sink: (name, payload) => void
  * @param {Function} [opts.now]                    - () => ms clock (defaults Date.now)
  * @param {Function} [opts.setTimeoutFn]           - injectable setTimeout (test seam)
@@ -52,6 +57,8 @@ export function createWsClient(opts) {
     url,
     WebSocketCtor,
     signAuth,
+    getSessionToken = null,
+    clearSessionToken = null,
     emit = () => {},
     now = () => Date.now(),
     setTimeoutFn = setTimeout,
@@ -170,6 +177,18 @@ export function createWsClient(opts) {
           return;
         }
         setState(WS_STATE.AUTHENTICATING);
+        // v0.2.375-alpha: if we hold a server-issued session token, reuse it —
+        // no NIP-07 signature on arena entry / reconnect. Otherwise fall back
+        // to the NIP-42 kind:22242 challenge sign.
+        const token = getSessionToken ? getSessionToken() : null;
+        if (token) {
+          api._usedToken = true;
+          if (!api.ws) return;
+          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token })); }
+          catch (err) { api.lastError = err; disconnect('auth_error'); }
+          return;
+        }
+        api._usedToken = false;
         try {
           const auth = await signAuth({ challenge: msg.challenge });
           if (!api.ws) return;
@@ -191,6 +210,17 @@ export function createWsClient(opts) {
       }
       case MSG.AUTH_FAIL: {
         emit('auth_fail', { reason: msg.reason });
+        // v0.2.375-alpha: a rejected/expired session token must not wedge the
+        // client into a re-send loop. Clear it and let the reconnect fall back
+        // to the NIP-42 signing path (one signer prompt, then normal play).
+        if (api._usedToken && clearSessionToken) {
+          clearSessionToken();
+          api._usedToken = false;
+          try { if (api.ws) api.ws.close(1000, 'token_rejected'); } catch { /* noop */ }
+          // onclose fires from AUTHENTICATING → schedules a reconnect that now
+          // has no token, so signAuth (NIP-42) runs on the next HELLO.
+          return;
+        }
         disconnect('auth_fail');
         return;
       }

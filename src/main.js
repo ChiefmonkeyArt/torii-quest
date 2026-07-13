@@ -351,7 +351,11 @@ renderGatewayPreview();
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
-  publishOurWorldPresence();
+  // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
+  // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
+  // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
+  // card is read-only. (publishOurWorldPresence remains available for a future
+  // explicit, user-initiated publish, but is no longer auto-triggered.)
   refreshInstanceSettingsVisibility();
 });
 

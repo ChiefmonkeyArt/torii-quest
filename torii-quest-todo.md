@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.374-alpha`
+Current version: `v0.2.375-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### MP-AUTH-1 — Session tokens: "1 sign at login, 0 signs in-game" (v0.2.375-alpha) — awaiting Suite redeploy (bump TORII_QUEST_REF → v0.2.375-alpha) + real-browser retest
+
+> **SESSION-TOKEN AUTH — 2026-07-13 (v0.2.375-alpha):** Arena auth used a per-session NIP-42 (kind:22242) challenge, which is anti-replay so it CANNOT be cached — every arena entry and every reconnect re-prompted the NIP-07 signer. Combined with the score-publish sign and the login presence-publish sign, players saw ~5 signer prompts. Replaced with a one-time login sign that mints a server-issued opaque session token. **SERVER:** new pure `server/auth/sessionTokens.js` (challenge issue/verify one-time-use + TTL 60s; token issue/verify TTL 8h; stores ONLY sha256(token), never the raw token) + two plain-HTTP endpoints in `server/arena-ws.js` (`GET /mp/auth-challenge`, `POST /mp/session` — verifies a NIP-98 kind:27235 login event via the shared `verifyNostrEventSig`, returns `{token, npub}`); a new `finishAuth()` unifies the WELCOME/JOIN path for both the AUTH_TOKEN and NIP-42 branches. **CLIENT:** new `src/engine/multiplayer/sessionAuth.js` (HTTP-base derived from the same MP_WS_PATH mount as the WS URL — never a hard-coded `/mp`; sessionStorage token store; one-sign login flow); `src/nostr.js` login signs once then falls back to `getPublicKey()`; `wsClient.js` sends the additive `AUTH_TOKEN` frame when a token is stored and only calls `signAuth` (NIP-42) as a fallback; a rejected token (AUTH_FAIL) self-clears and reconnects onto the NIP-42 path. **PRESENCE:** dropped the auto presence-publish on `NOSTR_LOGIN` (presence is WS-roster only now). In-game score signs were already zero (`createScoreReporter` is never invoked; the manual "PUBLISH MY SCORE" button is user-initiated and left intact). `PROTOCOL_VERSION` stays 1 (AUTH_TOKEN is additive; old clients drop it). **Source-only — LIVE is unaffected until a Suite redeploy bumps `TORII_QUEST_REF` to v0.2.375-alpha; do NOT touch the VPS.** Not closed until a real-browser retest shows exactly one signer prompt at login and zero on arena entry/reconnect/death.
 
 ### QA-MP-COMBAT-1 — Peer combat wired client-side (v0.2.374-alpha): players can now damage + kill each other (server-authoritative); awaiting Suite redeploy + real-browser two-npub retest
 

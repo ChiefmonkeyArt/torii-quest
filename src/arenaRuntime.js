@@ -36,6 +36,7 @@ import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './en
 import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
+import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { assetUrl } from './assetUrl.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
@@ -565,8 +566,14 @@ export function createArenaRuntime(hooks = {}) {
           console.warn('[mp] avatar_load_error', peer?.id, err);
           throw err;
         }),
-        // NIP-42 kind:22242 auth — the server verifies via nostr-tools. The client
-        // signer is browser-only (window.nostr); the wire only carries the signed event.
+        // v0.2.375-alpha: prefer the server-issued session token (login signed
+        // once via NIP-98) so arena entry / reconnect needs no signature. A
+        // rejected/expired token is cleared so the reconnect falls back to NIP-42.
+        getSessionToken: () => getStoredToken(),
+        clearSessionToken: () => clearStoredToken(),
+        // NIP-42 kind:22242 auth (FALLBACK) — the server verifies via nostr-tools.
+        // The client signer is browser-only (window.nostr); only the signed event
+        // is carried on the wire. Reached only when no session token is present.
         signAuth: async ({ challenge }) => {
           if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
             throw new Error('multiplayer: NIP-07 signer unavailable');

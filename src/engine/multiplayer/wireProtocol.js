@@ -22,6 +22,11 @@ export const PROTOCOL_VERSION = 1;
 export const MSG = Object.freeze({
   HELLO:     'HELLO',
   AUTH:      'AUTH',
+  // v0.2.375-alpha: bearer-token auth. Additive on PROTOCOL_VERSION=1 — the
+  // client sends this INSTEAD of AUTH when it holds a server-issued session
+  // token (login signed once via NIP-98), so arena entry / reconnect needs no
+  // NIP-07 signature. NIP-42 AUTH remains the fallback.
+  AUTH_TOKEN: 'AUTH_TOKEN',
   AUTH_FAIL: 'AUTH_FAIL',
   WELCOME:   'WELCOME',
   JOIN:      'JOIN',
@@ -53,6 +58,7 @@ export const LIMITS = Object.freeze({
   NPUB_LEN:     72,          // "npub1" + 63 chars max in practice
   ID_LEN:       32,
   CHALLENGE_LEN:88,          // base64 of 32 bytes = 44, allow room to spare
+  TOKEN_LEN:    128,         // opaque session token, hex (32 bytes = 64), room to spare
   SIG_HEX_LEN:  128,         // schnorr sig, hex
   ZONES:        Object.freeze(['head', 'body', 'limb']),
 });
@@ -88,6 +94,10 @@ const validators = {
     if (typeof m.event !== 'object' || m.event === null) return fail('BAD_FIELD', 'event');
     // Full nostr-event verification happens on the server via nostr-tools;
     // wire-level only asserts shape.
+    return ok(m);
+  },
+  [MSG.AUTH_TOKEN](m) {
+    if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {
@@ -232,6 +242,7 @@ export function sanitize(msg) {
 const ALLOWED_FIELDS = Object.freeze({
   [MSG.HELLO]:     ['challenge', 'serverVersion', 'protocolVersion'],
   [MSG.AUTH]:      ['npub', 'sig', 'event'],
+  [MSG.AUTH_TOKEN]:['token'],
   [MSG.AUTH_FAIL]: ['reason'],
   [MSG.WELCOME]:   ['selfId', 'roster'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],

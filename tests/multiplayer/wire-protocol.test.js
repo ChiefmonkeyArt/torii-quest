@@ -51,6 +51,7 @@ describe('encode/decode round-trip', () => {
     const messages = [
       goodHello,
       goodAuth,
+      { t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) },
       { t: MSG.AUTH_FAIL, reason: 'bad sig' },
       { t: MSG.WELCOME, selfId: 'me1', roster: [{ id: 'p1', npub: 'npub1' + 'x'.repeat(58), pos: [0, 0, 0], rot: [0, 0], character: 'chiefmonkey' }] },
       { t: MSG.JOIN, id: 'p2', npub: 'npub1' + 'y'.repeat(58), pos: [1, 0, 1], rot: [0, 0], character: 'bot' },
@@ -142,6 +143,30 @@ describe('decode — malformed input is safe', () => {
   it('rejects chat exceeding CHAT_LEN', () => {
     const r = decode({ t: MSG.CHAT, msg: 'a'.repeat(LIMITS.CHAT_LEN + 1) });
     expect(r.ok).toBe(false);
+  });
+
+  // v0.2.375-alpha: AUTH_TOKEN is the session-token handshake frame.
+  it('accepts a well-formed AUTH_TOKEN', () => {
+    const r = decode({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) });
+    expect(r.ok).toBe(true);
+  });
+
+  it('rejects AUTH_TOKEN with a missing / non-string token', () => {
+    expect(decode({ t: MSG.AUTH_TOKEN }).code).toBe('BAD_FIELD');
+    expect(decode({ t: MSG.AUTH_TOKEN, token: 123 }).code).toBe('BAD_FIELD');
+  });
+
+  it('rejects AUTH_TOKEN exceeding TOKEN_LEN', () => {
+    const r = decode({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(LIMITS.TOKEN_LEN + 1) });
+    expect(r.ok).toBe(false);
+    expect(r.code).toBe('BAD_FIELD');
+  });
+
+  it('sanitize strips extra fields from AUTH_TOKEN', () => {
+    const parsed = decode({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64), godMode: true });
+    expect(parsed.ok).toBe(true);
+    const clean = sanitize(parsed.msg);
+    expect(clean).toEqual({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) });
   });
 });
 

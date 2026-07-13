@@ -34,6 +34,7 @@ import {
   decode, encode, sanitize,
 } from '../src/engine/multiplayer/wireProtocol.js';
 import { verifyNostrEventSig } from '../src/engine/crypto/nostrSig.js';
+import { createSessionTokens } from './auth/sessionTokens.js';
 import { createSnapshotRing, push as pushSnap } from './combat/snapshotRing.js';
 import { resolveShot, DEFAULT_LAG_COMP_MS } from './combat/hitResolver.js';
 import { damageFor } from './combat/damageTable.js';
@@ -50,7 +51,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.374-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.375-alpha';
 
 // MP-2 tunables.
 //   MP_MODE = 'authoritative' (default) — server resolves hits, emits HIT/KILL.
@@ -106,6 +107,11 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
+
+// Session-token authority (v0.2.375-alpha). Login signs a NIP-98 event ONCE
+// over a one-time challenge (POST /mp/session), receives an opaque bearer
+// token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
+const sessionTokens = createSessionTokens();
 
 // Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
 // on reconnect / LEFT we clear pending timers to avoid warping ghosts.
@@ -212,6 +218,40 @@ function verifyAuthEvent(sess, evt) {
   return { ok: true };
 }
 
+// Mark a session authed and run the shared post-auth setup: HP ledger + snapshot
+// ring bootstrap, score-ledger registration, WELCOME (with roster of other
+// authed peers), and JOIN broadcast. Reused by BOTH the NIP-42 AUTH path and the
+// v0.2.375 AUTH_TOKEN path so they converge on identical presence behaviour.
+function finishAuth(sess, { npub, pubkey }) {
+  sess.authed = true;
+  sess.npub = npub;
+  sess.pubkey = pubkey;
+  // MP-2: bootstrap ledger + ring at auth time.
+  hpRegister(hpLedger, sess.id);
+  snapshotRings.set(sess.id, createSnapshotRing());
+  // MP-3: register in score ledger keyed by pubkey (hex).
+  if (SCORE_ENABLED && typeof sess.pubkey === 'string' && /^[0-9a-f]{64}$/.test(sess.pubkey)) {
+    try { scoreLedger.register(sess.id, sess.pubkey); }
+    catch (e) { log.warn('scoreLedger register failed', sess.id, e.message); }
+  }
+  // Build roster of OTHER authed sessions.
+  const roster = [];
+  for (const other of sessions.values()) {
+    if (other.id === sess.id || !other.authed) continue;
+    roster.push({
+      id: other.id, npub: other.npub || 'npub1' + 'x'.repeat(58),
+      pos: other.pos, rot: other.rot, character: other.character,
+    });
+  }
+  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster });
+  // Announce this new peer to everyone else.
+  broadcastToOthers(sess.id, {
+    t: MSG.JOIN, id: sess.id, npub: sess.npub,
+    pos: sess.pos, rot: sess.rot, character: sess.character,
+  });
+  log.info('AUTH OK', sess.id, String(sess.npub).slice(0, 12) + '…');
+}
+
 // ---------- message handling ----------
 
 function handleMessage(sess, raw) {
@@ -229,6 +269,21 @@ function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
+    // v0.2.375-alpha: bearer-token auth (login signed once via NIP-98). No
+    // NIP-07 signature needed on arena entry / reconnect.
+    if (msg.t === MSG.AUTH_TOKEN) {
+      const pubkey = sessionTokens.verifyToken(msg.token);
+      if (!pubkey) {
+        sendTo(sess, { t: MSG.AUTH_FAIL, reason: 'bad or expired token' });
+        closeSession(sess, 'auth_fail');
+        return;
+      }
+      // No bech32 npub on the token path — the hex pubkey (64 chars) fits the
+      // wire npub field (NPUB_LEN=72) and is what the client's state uses too.
+      finishAuth(sess, { npub: pubkey, pubkey });
+      return;
+    }
+    // NIP-42 fallback: kind:22242 challenge/response (per-session, re-signed).
     if (msg.t !== MSG.AUTH) { closeSession(sess, 'unexpected_pre_auth'); return; }
     const v = verifyAuthEvent(sess, msg.event);
     if (!v.ok) {
@@ -236,33 +291,7 @@ function handleMessage(sess, raw) {
       closeSession(sess, 'auth_fail');
       return;
     }
-    sess.authed = true;
-    sess.npub = msg.npub;
-    sess.pubkey = msg.event.pubkey;
-    // MP-2: bootstrap ledger + ring at auth time.
-    hpRegister(hpLedger, sess.id);
-    snapshotRings.set(sess.id, createSnapshotRing());
-    // MP-3: register in score ledger keyed by pubkey (hex, from AUTH event).
-    if (SCORE_ENABLED && typeof sess.pubkey === 'string' && /^[0-9a-f]{64}$/.test(sess.pubkey)) {
-      try { scoreLedger.register(sess.id, sess.pubkey); }
-      catch (e) { log.warn('scoreLedger register failed', sess.id, e.message); }
-    }
-    // Build roster of OTHER authed sessions.
-    const roster = [];
-    for (const other of sessions.values()) {
-      if (other.id === sess.id || !other.authed) continue;
-      roster.push({
-        id: other.id, npub: other.npub || 'npub1' + 'x'.repeat(58),
-        pos: other.pos, rot: other.rot, character: other.character,
-      });
-    }
-    sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster });
-    // Announce this new peer to everyone else.
-    broadcastToOthers(sess.id, {
-      t: MSG.JOIN, id: sess.id, npub: sess.npub,
-      pos: sess.pos, rot: sess.rot, character: sess.character,
-    });
-    log.info('AUTH OK', sess.id, sess.npub.slice(0, 12) + '…');
+    finishAuth(sess, { npub: msg.npub, pubkey: msg.event.pubkey });
     return;
   }
 
@@ -426,19 +455,62 @@ function scheduleRespawn(victimId, killerPos) {
 
 // HTTP server: 200 OK on /healthz, 404 for everything else non-WS.
 // WebSocket upgrades are handled explicitly for WS_PATH only.
+const MAX_LOGIN_BODY = 8 * 1024; // NIP-98 event is small; cap to avoid abuse.
+
+function sendJson(res, code, obj) {
+  const body = JSON.stringify(obj);
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(body);
+}
+
 const httpServer = createServer((req, res) => {
-  if (req.url === '/healthz' || req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
+  // Path without query. The reverse proxy may prefix a mount (/quest, or the
+  // sandbox /port/5000), so match by suffix — same tolerance as the WS upgrade.
+  const path = (req.url || '').split('?')[0];
+
+  if (path === '/healthz' || path === '/health') {
+    return sendJson(res, 200, {
       ok: true,
       peers: sessions.size,
       maxPeers: MAX_PEERS,
       version: SERVER_VERSION,
       protocol: PROTOCOL_VERSION,
       mode: MP_MODE,
-    }));
+    });
+  }
+
+  // v0.2.375-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
+  //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
+  if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
+    return sendJson(res, 200, sessionTokens.issueChallenge());
+  }
+
+  if (req.method === 'POST' && path.endsWith('/mp/session')) {
+    let body = '';
+    let tooBig = false;
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > MAX_LOGIN_BODY) { tooBig = true; req.destroy(); }
+    });
+    req.on('end', () => {
+      if (tooBig) return sendJson(res, 413, { error: 'body too large' });
+      let parsed;
+      try { parsed = JSON.parse(body); }
+      catch { return sendJson(res, 400, { error: 'bad json' }); }
+      const pubkey = sessionTokens.verifyLoginEvent({
+        event: parsed && parsed.event,
+        challenge: parsed && parsed.challenge,
+      });
+      if (!pubkey) return sendJson(res, 401, { error: 'login verification failed' });
+      const token = sessionTokens.issueToken(pubkey);
+      if (!token) return sendJson(res, 401, { error: 'token issuance failed' });
+      return sendJson(res, 200, { token, npub: pubkey });
+    });
+    req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
     return;
   }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('arena-ws: not found');
 });
@@ -505,6 +577,8 @@ setInterval(() => {
       closeSession(sess, 'idle');
     }
   }
+  // Purge expired login challenges + session tokens.
+  sessionTokens.cleanup();
   log.info(`peers=${sessions.size}/${MAX_PEERS}`);
 }, 60_000);
 

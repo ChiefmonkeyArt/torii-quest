@@ -39,6 +39,8 @@ import { MSG } from './wireProtocol.js';
  * @param {object} deps.scene              THREE scene (or a fake with add/remove)
  * @param {Function} deps.avatarLoader     (peer) => Promise<Object3D>
  * @param {Function} deps.signAuth         async ({challenge}) => {npub, sig, event}
+ * @param {Function} [deps.getSessionToken]   () => string|null — when set, AUTH_TOKEN is sent instead of signing
+ * @param {Function} [deps.clearSessionToken] () => void — clears a rejected token so reconnect falls back to NIP-42
  * @param {string} [deps.origin]           overrides location.host (test seam)
  * @param {boolean} [deps.mpEnabled]       overrides MP_ENABLED (test seam)
  * @param {Function} [deps.WebSocketCtor]  overrides window.WebSocket (test seam)
@@ -50,6 +52,8 @@ export function createMultiplayerHost(deps) {
     scene,
     avatarLoader,
     signAuth,
+    getSessionToken = null,
+    clearSessionToken = null,
     origin,
     mpEnabled = MP_ENABLED,
     WebSocketCtor,
@@ -106,6 +110,8 @@ export function createMultiplayerHost(deps) {
       url,
       WebSocketCtor: WebSocketCtor || (typeof globalThis !== 'undefined' && globalThis.WebSocket),
       signAuth,
+      getSessionToken,
+      clearSessionToken,
       now,
       emit: (name, payload) => _onWsEvent(name, payload),
     });

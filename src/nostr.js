@@ -1,6 +1,7 @@
 // nostr.js — NIP-07 login, kind:0 profile fetch
 import { state } from './state.js';
 import { emit, EV } from './events.js';
+import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 
 const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
 export { RELAYS };
@@ -34,7 +35,21 @@ function _safeName(raw) {
 export async function nostrLogin() {
   if (!window.nostr) return 'NIP-07 extension not found';
   try {
-    const pk = await window.nostr.getPublicKey();
+    // v0.2.375-alpha — "1 sign at login, 0 signs in-game": sign ONE NIP-98
+    // (kind:27235) event and exchange it for a server-issued session token the
+    // arena WS reuses (no per-entry NIP-42 signature). The returned npub is the
+    // signer's hex pubkey. Fall back to a plain getPublicKey() (no token → the
+    // arena uses the NIP-42 challenge path) if token issuance is unavailable.
+    let pk = null;
+    const httpBase = resolveMpHttpBase();
+    if (httpBase && typeof window.nostr.signEvent === 'function') {
+      const res = await loginForSessionToken({
+        httpBase,
+        signEvent: (unsigned) => window.nostr.signEvent(unsigned),
+      });
+      if (res && /^[0-9a-f]{64}$/.test(res.npub || '')) pk = res.npub;
+    }
+    if (!pk) pk = await window.nostr.getPublicKey();
     state.nostrPubkey = pk;
     state.nostrName   = pk.slice(0,8).toUpperCase();
     emit(EV.NOSTR_LOGIN, { pubkey: pk });

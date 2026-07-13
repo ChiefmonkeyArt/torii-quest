@@ -37,6 +37,7 @@ import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNIN
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { assetUrl } from './assetUrl.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
@@ -394,7 +395,14 @@ export function createArenaRuntime(hooks = {}) {
     // §6); flipping it to TRUE dials wss://<origin>/mp, joins the presence roster,
     // and starts syncing our own MOVE + relaying peer moves through the roster.
     if (MP_ENABLED) {
+      // chiefmonkey6.glb is Draco-compressed, so the peer-avatar loader needs a
+      // DRACOLoader just like every other loader that touches it (playerModel.js,
+      // botModel.js, arena.js, firstPersonBody.js). Without it the load rejects and
+      // remoteAvatars.upsert() drops the roster entry → peers never render (H4).
+      const _mpDraco = new DRACOLoader();
+      _mpDraco.setDecoderPath(assetUrl('/draco/'));
       const _mpGltf = new GLTFLoader();
+      _mpGltf.setDRACOLoader(_mpDraco);
       // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed.
       // Handler warps the local body to the server-picked corner and heals to
       // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
@@ -427,7 +435,10 @@ export function createArenaRuntime(hooks = {}) {
               });
             };
             resolve(obj);
-          }, undefined, reject);
+          }, undefined, (err) => {
+            console.warn('[mp] avatar_load_error', peer?.id, err);
+            reject(err);
+          });
         }),
         // NIP-42 kind:22242 auth — the server verifies via nostr-tools. The client
         // signer is browser-only (window.nostr); the wire only carries the signed event.

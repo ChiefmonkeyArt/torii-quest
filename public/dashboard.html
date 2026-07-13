@@ -5,7 +5,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'sha256-LuHCRD7D19XircznJIAKE8dV4QcKG0v4gYFNX9Imzlg='" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Torii Quest · v0.2.370-alpha</title>
+<title>Torii Quest · v0.2.371-alpha</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0d1320; --panel2:#111a2b; --edge:#1d2a44;
@@ -112,10 +112,10 @@
 <body>
   <header>
     <div class="gate">⛩ TORII CONTINUUM</div>
-    <h1>Torii Quest <span class="v">v0.2.370-alpha</span></h1>
+    <h1>Torii Quest <span class="v">v0.2.371-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-07-13T16:51:03.261Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-07-13T18:14:55.752Z</span></div>
   </header>
   <main>
     <section>
@@ -128,12 +128,12 @@
       <div class="h2row"><h2>Handoff / release control panel</h2> <span class="pill pill-manual">HANDOFF READY · MVP BLOCKER PENDING (USER PLAYTEST + OK)</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">HANDOFF / RELEASE CONTROL PANEL · LOCAL · READ-ONLY · ONE-GLANCE PICKUP</span></div>
       <div class="lead">Read this FIRST. One read-only surface to pick up the project safely: current version + live URLs, the latest app-entry and oversight-dashboard cloud smokes, the one manual blocker (user runs the live-browser MVP playtest + explicitly approves), the next safe no-blocker task, the actions NOT to take without user input, and the project's practical operating principles. GREEN here means the handoff surface is complete — NOT that the MVP is approved.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Version</span><span class="metric-value">v0.2.370-alpha</span></div>
+        <div class="metric"><span class="metric-label">Version</span><span class="metric-value">v0.2.371-alpha</span></div>
         <div class="metric"><span class="metric-label">Live game</span><span class="metric-value">https://torii-quest.pplx.app</span></div>
         <div class="metric"><span class="metric-label">Live dashboard</span><span class="metric-value">https://torii-quest.pplx.app/dashboard.html</span></div>
         <div class="metric"><span class="metric-label">Entry smoke</span><span class="metric-value">PASS @ v0.2.230-alpha (3/3 checks; implies approval: no)</span></div>
         <div class="metric"><span class="metric-label">Dashboard smoke</span><span class="metric-value">PASS @ v0.2.231-alpha (4/4 checks; implies approval: no)</span></div>
-        <div class="metric"><span class="metric-label">Manual blocker</span><ul class="mini"><li>PENDING — LOCAL GATES GREEN</li><li>MANUAL PLAYTEST + APPROVAL PENDING</li></ul></div>
+        <div class="metric"><span class="metric-label">Manual blocker</span><span class="metric-value">PENDING — MANUAL VALIDATION OUTSTANDING</span></div>
         <div class="metric"><span class="metric-label">MVP approval</span><span class="metric-value">PENDING (explicit user OK required)</span></div>
         <div class="metric"><span class="metric-label">Next safe task</span><span class="metric-value">Continue the read-only oversight loop — next safe infra/dashboard slice</span></div>
         <div class="metric"><span class="metric-label">Do NOT (without user OK)</span><ul class="mini"><li>Do NOT deploy, publish, or push — the maintainer performs the manual deploy.</li><li>Do NOT create a git tag, GitHub release, or announcement.</li><li>Do NOT perform any live Nostr write (no signing, no relay publish) beyond the existing read-only NIP-07 reads.</li><li>Do NOT make a payment or move real value — alpha sats are fake.</li><li>Do NOT mark the MVP approved — only the user can, after running the live-browser playtest.</li><li>Do NOT enable godMode or any debug capability in shipped runtime — godMode stays false.</li><li>Do NOT add network calls, auto-update, or external redirects to the oversight surfaces.</li></ul></div>
@@ -145,34 +145,34 @@
     </section>
 
     <section>
-      <div class="h2row"><h2>Ship readiness</h2> <span class="pill pill-no-blocker">READY</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">SHIP READINESS · LAST GATE · READ-ONLY</span></div>
+      <div class="h2row"><h2>Ship readiness</h2> <span class="pill pill-gated">NOT READY</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">SHIP READINESS · LAST GATE · READ-ONLY</span></div>
       <div class="lead">The last local release-readiness verdict (npm run release:status) and the next safe task to pick up — read-only; the gate stays the authority.</div>
       <div class="focus"><b>Next safe task ▸</b> Continue the read-only oversight loop — next safe infra/dashboard slice<div class="ms-sub">Keep shipping no-runtime-risk tooling/docs that make AI handoff faster and the gate harder to get wrong (e.g. package the release:status verdict as a build artifact, or add a docs-freshness signal). SEC-gated live-relay / world-hop work stays parked behind SEC-1/2/3 and a manual deploy — not a safe pick yet.</div></div>
       <table>
         <thead><tr><th>Signal</th><th>State</th><th>Detail</th></tr></thead>
         <tbody>
-        <tr><td>Version sync</td><td><span class="pill pill-no-blocker">ok</span></td><td>config v0.2.370-alpha / pkg 0.2.370-alpha</td></tr>
+        <tr><td>Version sync</td><td><span class="pill pill-no-blocker">ok</span></td><td>config v0.2.371-alpha / pkg 0.2.371-alpha</td></tr>
         <tr><td>Test profiles</td><td><span class="pill pill-no-blocker">ok</span></td><td>fast 5 · foundation 25 file(s)</td></tr>
         <tr><td>Regression gate</td><td><span class="pill pill-no-blocker">ok</span></td><td>20 / 15 checks</td></tr>
         <tr><td>Bundle baseline</td><td><span class="pill pill-manual">advisory</span></td><td>advisory — over limit: rapier-DE6a0vmv.js</td></tr>
         <tr><td>/zone/* fallback</td><td><span class="pill pill-no-blocker">ok</span></td><td>docs + dist ok</td></tr>
-        <tr><td>Docs consistency</td><td><span class="pill pill-no-blocker">ok</span></td><td>continuity docs carry current version</td></tr>
+        <tr><td>Docs consistency</td><td><span class="pill pill-gated">blocked</span></td><td>torii-quest-todo.md does not reference current version v0.2.371-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.371-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.371-alpha (doc drift)</td></tr>
         </tbody>
       </table>
-      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.370-alpha</b> @ 9594987. Full gate: <b>npm run test:release</b>.</div>
+      <div class="focus"><b>Blockers:</b> docs</div>      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.371-alpha</b> @ 8a2f2f4. Full gate: <b>npm run test:release</b>.</div>
     </section>
 
     <section>
-      <div class="h2row"><h2>RC / release manifest</h2> <span class="pill pill-manual">LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">RC / RELEASE MANIFEST · LOCAL · READ-ONLY</span></div>
+      <div class="h2row"><h2>RC / release manifest</h2> <span class="pill pill-manual">NEAR · LOCAL GATES</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">RC / RELEASE MANIFEST · LOCAL · READ-ONLY</span></div>
       <div class="lead">Release-candidate artifact posture — manifest + RC-doc coverage, test count, and the manual validation still outstanding. Read-only; release/tag/publish stay manual + user-approved.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.370-alpha</span></div>
+        <div class="metric"><span class="metric-label">Source version</span><span class="metric-value">v0.2.371-alpha</span></div>
         <div class="metric"><span class="metric-label">Release manifest</span><ul class="mini"><li>COMPLETE</li><li>6/6 required present</li><li>6/6 optional present</li></ul></div>
         <div class="metric"><span class="metric-label">RC package docs</span><span class="metric-value">7/7 present</span></div>
         <div class="metric"><span class="metric-label">Tests</span><span class="metric-value">2269 passing / 139 files</span></div>
         <div class="metric"><span class="metric-label">Test profiles</span><ul class="mini"><li>fast ~5</li><li>foundation ~25</li><li>full</li></ul></div>
         <div class="metric"><span class="metric-label">Manual validation remaining</span><span class="metric-value">7 live-browser checks pending</span></div>
-        <div class="metric"><span class="metric-label">Last release gate</span><span class="metric-value">READY</span></div>
+        <div class="metric"><span class="metric-label">Last release gate</span><span class="metric-value">NOT READY</span></div>
       </div>
       <div class="focus">Release-candidate artifact posture — the release-artifact MANIFEST (required/optional present) and RC package-doc coverage, the curated test count, the manual validation still outstanding, and the last local release-gate verdict, folded into one read-only band. GENERATED at packaging time from on-disk artifact presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys NOTHING — manual live-browser validation and explicit user approval stay required (run: npm run rc:snapshot / npm run release:manifest).</div>
     </section>
@@ -182,7 +182,7 @@
       <div class="lead">The single auditable approval gate (MVP_APPROVAL_STATE.json). Local gates are green, but the MVP is NOT approved until a human runs the live-browser playtest and explicitly says "MVP approved". Read-only.</div>
       <div class="grid">
         <div class="metric"><span class="metric-label">Approval status</span><span class="metric-value">PENDING</span></div>
-        <div class="metric"><span class="metric-label">Version</span><span class="metric-value">v0.2.370-alpha</span></div>
+        <div class="metric"><span class="metric-label">Version</span><span class="metric-value">v0.2.371-alpha</span></div>
         <div class="metric"><span class="metric-label">Approved by</span><span class="metric-value">no approver yet</span></div>
         <div class="metric"><span class="metric-label">Approved at</span><span class="metric-value">—</span></div>
         <div class="metric"><span class="metric-label">Next step</span><span class="metric-value">User: run the live-browser MVP playtest, then explicitly say &quot;MVP approved&quot;</span></div>
@@ -191,11 +191,11 @@
     </section>
 
     <section>
-      <div class="h2row"><h2>MVP approval gate</h2> <span class="pill pill-manual">CONFIDENCE GREEN · AWAITING EXPLICIT USER PLAYTEST + OK</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL</span></div>
+      <div class="h2row"><h2>MVP approval gate</h2> <span class="pill pill-manual">AUTOMATED CONFIDENCE SIGNALS INCOMPLETE</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL</span></div>
       <div class="lead">The rubric for sign-off. Automated tests, the release gate, and the cloud smokes are CONFIDENCE signals — green means the code and deployed surfaces look healthy, NOT that the MVP is approved. Approval is a separate explicit step: a human runs the live-browser playtest and says "MVP approved". Read-only.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Gate verdict</span><span class="metric-value">awaiting-approval</span></div>
-        <div class="metric"><span class="metric-label">Release gate</span><span class="metric-value">green (confidence only, not approval)</span></div>
+        <div class="metric"><span class="metric-label">Gate verdict</span><span class="metric-value">signals-incomplete</span></div>
+        <div class="metric"><span class="metric-label">Release gate</span><span class="metric-value">not yet (confidence only, not approval)</span></div>
         <div class="metric"><span class="metric-label">Entry smoke</span><span class="metric-value">green (confidence only, not approval)</span></div>
         <div class="metric"><span class="metric-label">Dashboard smoke</span><span class="metric-value">green (confidence only, not approval)</span></div>
         <div class="metric"><span class="metric-label">Test suite</span><span class="metric-value">green — 2269 passing / 139 files</span></div>
@@ -234,10 +234,10 @@
     </section>
 
     <section>
-      <div class="h2row"><h2>Manual validation</h2> <span class="pill pill-manual">LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY</span></div>
+      <div class="h2row"><h2>Manual validation</h2> <span class="pill pill-manual">MANUAL VALIDATION OUTSTANDING</span> <span class="hk hk-gen">GENERATED</span> <span class="badge">MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY</span></div>
       <div class="lead">Local automated gates are green, but the MVP playtest is a human, live-browser task. This separates what is no-blocker (local gates) from what still needs manual input (the playtest + explicit approval). Read-only.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Local automated gates</span><ul class="mini"><li>READY</li><li>15/15 local checks green</li></ul></div>
+        <div class="metric"><span class="metric-label">Local automated gates</span><span class="metric-value">NOT READY</span></div>
         <div class="metric"><span class="metric-label">Manual playtest</span><ul class="mini"><li>PENDING</li><li>live-browser run + explicit user approval required</li></ul></div>
         <div class="metric"><span class="metric-label">Playtest checklist</span><ul class="mini"><li>13 sections</li><li>17 items</li></ul></div>
         <div class="metric"><span class="metric-label">Severity coverage</span><ul class="mini"><li>4 blocker</li><li>5 major</li><li>8 minor</li></ul></div>
@@ -390,14 +390,14 @@
       <div class="h2row"><h2>Engineering health</h2> <span class="count">8</span></div>
       <div class="lead">The efficiency loop in numbers — each card chipped GENERATED or LAST-KNOWN.</div>
       <div class="grid">
-        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.370-alpha</span></div>
+        <div class="metric"><span class="metric-label">Build version <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">v0.2.371-alpha</span></div>
         <div class="metric"><span class="metric-label">Test files / profiles <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>fast 5</li><li>foundation 25</li><li>full 139</li></ul></div>
         <div class="metric"><span class="metric-label">Total tests <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2269 passing / 139 files</span></div>
         <div class="metric"><span class="metric-label">Profile timings <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>fast ~1s</li><li>foundation ~6s</li><li>full suite ~44s</li></ul></div>
         <div class="metric"><span class="metric-label">Bundle baseline <span class="hk hk-lk">LAST-KNOWN</span></span><span class="metric-value">2.9 MB raw / ~1022 KB gzip (rapier chunk &gt;700 KB, expected)</span></div>
         <div class="metric"><span class="metric-label">Parser gaps <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>1</li><li>curated fallback used</li></ul></div>
-        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>16 / 16 regression checks GREEN</li><li>last green v0.2.370-alpha</li></ul></div>
-        <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><ul class="mini"><li>torii-quest-progress.md</li><li>torii-quest-todo.md</li><li>torii-quest-strategy.md carry this version</li></ul></div>
+        <div class="metric"><span class="metric-label">Release gate <span class="hk hk-lk">LAST-KNOWN</span></span><ul class="mini"><li>16 / 16 regression checks GREEN</li><li>last green v0.2.371-alpha</li></ul></div>
+        <div class="metric"><span class="metric-label">Source-of-truth docs <span class="hk hk-gen">GENERATED</span></span><span class="metric-value">doc/version drift — check the continuity docs</span></div>
       </div>
       <div class="rings">
         <figure class="donut">

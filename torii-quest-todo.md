@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.370-alpha`
+Current version: `v0.2.371-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### QA-MP-BLOCKER-1 / H4 — Two players can’t see each other in the live arena — root cause FOUND+FIXED v0.2.371-alpha (peer-avatar GLTFLoader was missing a DRACOLoader; awaiting Suite redeploy + real-browser retest)
+
+> **PEER-VISIBILITY UPDATE — 2026-07-13 (v0.2.371-alpha):** With the v0.2.370 base-aware fix DEPLOYED, anonymous ENTER ARENA now BOOTS on chiefmonkey.art/quest/ (CSP freeze cleared), but **two players still cannot see each other** in the arena. Root cause: `src/arenaRuntime.js` (~line 397, MP wiring seam) created the peer-avatar `GLTFLoader` (`_mpGltf`) WITHOUT a `DRACOLoader` — the ONLY loader touching `chiefmonkey6.glb` that lacked one (`playerModel.js:84-87`, `botModel.js:29-31`, `arena.js:178-181`, `firstPersonBody.js:35-38` all set one). `chiefmonkey6.glb` is Draco-compressed, so `_mpGltf.load(assetUrl('/chiefmonkey6.glb'))` REJECTED (Draco mesh can't decode) for every peer → `remoteAvatars.upsert()` caught the reject and DELETED the roster entry (`remoteAvatars.js:73-77`) → peer avatars never rendered. Wire-level peer discovery already works (`peerJoin`→`roster.upsert` at `multiplayerHost.js:138`; verified at protocol level below), so this was purely the loader. **FIXED in v0.2.371-alpha** (minimal, mirroring `playerModel.js:84-87`): import `DRACOLoader` alongside `GLTFLoader`, then `const _mpDraco = new DRACOLoader(); _mpDraco.setDecoderPath(assetUrl('/draco/')); const _mpGltf = new GLTFLoader(); _mpGltf.setDRACOLoader(_mpDraco);`. Also added `console.warn('[mp] avatar_load_error', peer?.id, err)` in the load-error handler so future GLB failures are visible; NO capsule fallback (kept targeted). No wire/protocol/gameplay/physics/CSP/Nostr change. Verified: check green, build green, tests green. **Source-only — LIVE v0.2.370-alpha stays peer-invisible until a Suite redeploy that includes v0.2.371; the maintainer must bump the Suite Quest ref to v0.2.371-alpha (or the merge commit) before a redeploy (Suite builds `--base=/quest/`) will include it; do NOT touch the VPS while the Continuum session is active.** H4 NOT closed until a real-browser two-npub retest on the redeployed build shows both avatars in-world.
 
 ### QA-ARENA-FREEZE-1 — ENTER ARENA froze the session under the `/quest/` mount — root cause FOUND+FIXED v0.2.370-alpha (base-aware pinned-entry import; awaiting Suite redeploy + real-browser retest)
 

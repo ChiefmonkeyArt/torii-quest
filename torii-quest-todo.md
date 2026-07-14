@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.380-alpha`
+Current version: `v0.2.381-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### BOSS — Augustink server-authoritative BOSS bot (v0.2.381-alpha) — per-bot stat archetype (kind/name/HP~60/slow/high-damage/bigger capsule) on the existing server-authoritative bot roster; 1 boss/arena, own GLB + nameplate, synced to all players, single-player byte-identical except the boss is present
+
+> **AUGUSTINK BOSS — 2026-07-14 (v0.2.381-alpha):** Brought back Augustink as a BOSS bot layered on the v0.2.377 server-authoritative bot roster (NOT a new AI). New per-bot stat profile stamped at spawn (`kind` 'regular'|'boss', name, hp/maxHp, speed, damage, radius, shootCdBase) in the pure brain `src/engine/entities/botSim.js`; `BOSS_*` constants in `src/config.js` (COUNT 1, HP 60, SPEED 1.0, DAMAGE 14, RADIUS 0.8, SHOOT_CD 3.5, NAME 'Augustink', TARGET_HEIGHT 3.2). `spawnAll` spawns `(count−BOSS_COUNT)` regulars + BOSS_COUNT boss at the last indices; with BOSS_COUNT=0 the roster is byte-identical. Server (`server/bots/arenaBotSim.js`) spawns the boss, resolves per-bot HP/damage, grows the hit capsule via `buildBotColliders(...,scale)`, and stamps additive `kind`/`name`/`scale` on the boss BOT_STATE row only (regular rows unchanged, `PROTOCOL_VERSION=1`); `server/arena-ws.js` carries the shooter's per-bot damage on bot→player fire. Client interpolator `botNetState.js` threads kind/name/scale (defaults regular/1×). Render: `src/botModel.js` gains a lazy-loaded (NOT precached) `augustink4.glb` boss template auto-scaled to ~3.2m with an "Augustink" nameplate + full-rate death anim; `src/bots.js` attaches the boss model kind-aware in MP + single-player. New tests: `tests/multiplayer/boss-bot.test.js`.
 
 ### LEADERBOARD — Live in-arena leaderboard wired end-to-end (v0.2.380-alpha) — server live SCORE broadcast + toggleable overlay (L/Tab) with LOCAL live tallies + GLOBAL relay read + opt-in publish
 

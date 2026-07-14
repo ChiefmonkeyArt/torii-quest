@@ -16,11 +16,14 @@
 // This module imports ONLY pure modules — no THREE, no Rapier, no scene. The
 // import-smoke test asserts that (tests/multiplayer/server-import-smoke.test.js).
 
-import { createBotSim, COVER_MARGIN, EYE_Y } from '../../src/engine/entities/botSim.js';
+import { createBotSim, COVER_MARGIN, EYE_Y, BOT_R } from '../../src/engine/entities/botSim.js';
 import { buildCoverPoints } from '../../src/engine/entities/bot-tactics.js';
 import { sampleArenaHeight } from '../../src/terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from '../../src/terrain/coastline.js';
-import { CRATES, OBSTACLES, NAP_X, BOT_COUNT, BOT_HP, BOT_SHOOT_CD } from '../../src/config.js';
+import {
+  CRATES, OBSTACLES, NAP_X, BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPEED, BOT_DAMAGE,
+  BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+} from '../../src/config.js';
 import { createHeadlessLos } from './headlessLos.js';
 import { buildBotColliders, rayVsBot } from './botColliders.js';
 
@@ -48,13 +51,16 @@ export function createArenaBotSim(opts = {}) {
     fenceBounds: coastlineBounds,
     arenaBoxes: ARENA_BOXES,
     coverPoints: COVER_POINTS,
-    config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
+    config: {
+      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+      BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+    },
     playerSafeCorner: NO_SAFE_CORNER,
     // v0.2.378 fix 2: lift the SIM-LOCAL origin (y = EYE_Y above feet) to the
     // bot's real world eye height and re-aim at the player world-eye `target`, so
     // the bot→player ray starts at the muzzle and reaches the capsule. The old
     // path forwarded a raw y≈0.9 that missed the player (sess.pos.y ≈ 3.1).
-    shotCallback: (origin, dir, target) => {
+    shotCallback: (origin, dir, target, shooter) => {
       if (!onBotShot) return;
       const footY = sampleArenaHeight(origin.x, origin.z);
       const worldOrigin = { x: origin.x, y: footY + origin.y, z: origin.z };
@@ -64,7 +70,9 @@ export function createArenaBotSim(opts = {}) {
         const len = Math.hypot(dx, dy, dz);
         if (len > 1e-6) worldDir = { x: dx / len, y: dy / len, z: dz / len };
       }
-      onBotShot(worldOrigin, worldDir);
+      // v0.2.381: forward the shooting bot's per-bot damage so bot→player applies
+      // the boss's higher hit (arena-ws uses it instead of the global BOT_DAMAGE).
+      onBotShot(worldOrigin, worldDir, shooter ? shooter.damage : undefined);
     },
     getPlayerCollider: () => null,
   });
@@ -77,15 +85,27 @@ export function createArenaBotSim(opts = {}) {
 
   // Compact continuous-state snapshot broadcast at ~15Hz (throttled by caller).
   function snapshot() {
-    return sim.bots.map((st) => ({
-      id: st.id,
-      x: round2(st.pos.x),
-      z: round2(st.pos.z),
-      rotY: round3(st.rotY),
-      hp: st.hp,
-      alive: st.alive,
-      animHint: st.animHint,
-    }));
+    return sim.bots.map((st) => {
+      const isBoss = st.kind === 'boss';
+      const s = {
+        id: st.id,
+        x: round2(st.pos.x),
+        z: round2(st.pos.z),
+        rotY: round3(st.rotY),
+        hp: st.hp,
+        alive: st.alive,
+        animHint: st.animHint,
+      };
+      // v0.2.381 additive fields (PROTOCOL_VERSION unchanged). Only stamped for
+      // the boss so regular-bot frames stay byte-identical on the wire; clients
+      // treat a missing kind as 'regular'.
+      if (isBoss) {
+        s.kind = 1;                              // 0=regular, 1=boss
+        s.name = st.name || BOSS_NAME;
+        s.scale = round2(st.radius / BOT_R);     // size multiplier vs a normal bot
+      }
+      return s;
+    });
   }
 
   // Resolve one player shot against ALL alive bots. Returns the NEAREST hit
@@ -96,7 +116,7 @@ export function createArenaBotSim(opts = {}) {
     for (const st of sim.bots) {
       if (!st.alive) continue;
       const footY = sampleArenaHeight(st.pos.x, st.pos.z);
-      const colliders = buildBotColliders(st.pos.x, st.pos.z, footY);
+      const colliders = buildBotColliders(st.pos.x, st.pos.z, footY, st.radius / BOT_R);
       const res = rayVsBot(origin, dir, colliders);
       if (!res.hit) continue;
       if (!best || res.t < best.t) best = { botId: st.id, zone: res.zone, t: res.t };

@@ -26,12 +26,17 @@ export const BOT_HEAD_CENTRE_Y = 1.55;
  * @returns {{ bodyCap:{p0:[number,number,number],p1:[number,number,number],r:number},
  *             headSphere:{c:[number,number,number],r:number} }}
  */
-export function buildBotColliders(x, z, footY) {
-  const p0y = footY + BOT_BODY_RADIUS;       // bottom cap centre (foot+0.26)
-  const p1y = footY + BOT_BODY_CENTRE_Y + 0.5; // top cap centre (foot+1.26)
+export function buildBotColliders(x, z, footY, scale = 1) {
+  // scale > 1 grows the whole capsule uniformly for a bigger/taller bot (the
+  // Augustink boss). All Y offsets are measured from the foot, so scaling them
+  // keeps the feet planted while the body + head grow upward (v0.2.381).
+  const bodyR = BOT_BODY_RADIUS * scale;
+  const headR = BOT_HEAD_RADIUS * scale;
+  const p0y = footY + bodyR;                          // bottom cap centre
+  const p1y = footY + (BOT_BODY_CENTRE_Y + 0.5) * scale; // top cap centre
   return {
-    bodyCap: { p0: [x, p0y, z], p1: [x, p1y, z], r: BOT_BODY_RADIUS },
-    headSphere: { c: [x, footY + BOT_HEAD_CENTRE_Y, z], r: BOT_HEAD_RADIUS },
+    bodyCap: { p0: [x, p0y, z], p1: [x, p1y, z], r: bodyR },
+    headSphere: { c: [x, footY + BOT_HEAD_CENTRE_Y * scale, z], r: headR },
   };
 }
 

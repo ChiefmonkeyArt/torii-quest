@@ -129,7 +129,7 @@ const _bUp = new THREE.Vector3(0,1,0);
 const _bQ  = new THREE.Quaternion();
 const _bN  = new THREE.Vector3();
 
-export function spawnBullet(origin, dir, isPlayer) {
+export function spawnBullet(origin, dir, isPlayer, dmg) {
   // Pool BY SHOOTER so a returned player bullet (small geo) can't be reused
   // as a bot bullet and silently revert the visibility upgrade. Costs one
   // linear scan; pool stays tiny in practice.
@@ -160,6 +160,9 @@ export function spawnBullet(origin, dir, isPlayer) {
     b = { mesh, tip, halo, vel: new THREE.Vector3(), prev: new THREE.Vector3(), life: 0, isPlayer };
   }
   b.isPlayer = isPlayer;
+  // Per-bullet damage (v0.2.381): a bot bullet carries its shooter's damage so
+  // the Augustink boss hits the player harder. undefined → global BOT_DAMAGE.
+  b.dmg = Number.isFinite(dmg) ? dmg : undefined;
   b.life = BULLET_LIFE;
   b.mesh.position.copy(origin);
   b.prev.copy(origin);
@@ -348,7 +351,7 @@ export function tickWeapons(dt, playerPos) {
         //    excluded from the static raycast, so the ray can't resolve it).
         if (_onPlayerHit && !isPlayerOutsideFence() &&
             b.mesh.position.distanceToSquared(playerPos) < 0.5) {
-          _onPlayerHit(BOT_DAMAGE);
+          _onPlayerHit(Number.isFinite(b.dmg) ? b.dmg : BOT_DAMAGE);
           remove = true;
         }
 

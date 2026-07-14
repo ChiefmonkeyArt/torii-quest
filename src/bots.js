@@ -15,9 +15,12 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
-import { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X } from './config.js';
+import {
+  BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+  BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+} from './config.js';
 import { playBotShoot } from './audio.js';
-import { BotModel, preloadBotModel } from './botModel.js';
+import { BotModel, preloadBotModel, preloadBossModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
@@ -86,12 +89,17 @@ const sim = createBotSim({
   fenceBounds: coastlineBounds,
   arenaBoxes: _arenaBoxes,
   coverPoints: _coverPoints,
-  config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
+  config: {
+    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+    BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+  },
   playerSafeCorner: PLAYER_SAFE_CORNER,
-  shotCallback: (origin, dir, target) => {
+  shotCallback: (origin, dir, target, shooter) => {
     if (_spawnBulletFn) {
       const [worldOrigin, worldDir] = _botShotToWorld(origin, dir, target);
-      _spawnBulletFn(worldOrigin, worldDir, false);
+      // Pass the shooting bot's per-bot damage so the boss's bullet hits harder
+      // (single-player). MP damage is server-authoritative regardless.
+      _spawnBulletFn(worldOrigin, worldDir, false, shooter ? shooter.damage : undefined);
     }
     playBotShoot();
   },
@@ -107,7 +115,22 @@ export function initBots(playerObj, spawnBulletFn) {
   preloadBotModel().then(() => {
     _modelsReady = true;
     sim.spawnAll(BOT_COUNT);
-    sim.bots.forEach(st => _attachModelBot(st));
+    // The roster now includes the Augustink boss (last index). Lazy-load its GLB
+    // (cache-on-use, NOT precached) before attaching; if it fails, the boss falls
+    // back to the regular banker model so the arena still populates.
+    const needBoss = sim.bots.some(st => st.kind === 'boss');
+    const bossReady = needBoss
+      ? preloadBossModel().then(() => true).catch(err => {
+          console.warn('[bots] boss GLB load failed, using regular model:', err);
+          return false;
+        })
+      : Promise.resolve(false);
+    return bossReady.then(bossOk => {
+      sim.bots.forEach(st => {
+        const renderKind = st.kind === 'boss' && bossOk ? 'boss' : 'regular';
+        _attachModelBot(st, renderKind);
+      });
+    });
   }).catch(err => {
     console.warn('[bots] GLB load failed, falling back to capsules:', err);
     _spawnCapsuleBots();
@@ -137,8 +160,8 @@ function _makeWrapper(st, model, capsuleMesh) {
   return bot;
 }
 
-function _attachModelBot(st) {
-  const model = new BotModel();
+function _attachModelBot(st, renderKind = 'regular') {
+  const model = new BotModel(renderKind);
   model.init({ x: st.pos.x, y: _footY(st.pos.x, st.pos.z), z: st.pos.z });
   const bot = _makeWrapper(st, model, null);
   bots.push(bot);

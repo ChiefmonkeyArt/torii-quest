@@ -56,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.380-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.381-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -143,7 +143,7 @@ const respawnTimers = new Map();
 // synchronously from inside the sim's tick when a bot pulls the trigger — we
 // broadcast the tracer to all clients AND resolve the shot against players.
 const arenaBotSim = createArenaBotSim({
-  onBotShot: (origin, dir) => onBotShot(origin, dir),
+  onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
 });
 if (BOT_SIM_ENABLED) arenaBotSim.spawn(BOT_COUNT);
 // Synthetic shooter id carried on bot→player HIT/KILL so the existing client
@@ -560,10 +560,13 @@ function resolvePlayerBotHit(shooter, botResult) {
 // tracer cue to every client immediately, then resolve the shot against players
 // authoritatively (bot → player damage reuses the peer HIT/KILL wire path with a
 // synthetic shooter id so the client's existing peerCombat handler applies it).
-function onBotShot(origin, dir) {
+function onBotShot(origin, dir, dmg) {
   const originArr = [origin.x, origin.y, origin.z];
   const dirArr = [dir.x, dir.y, dir.z];
   broadcastToAll({ t: MSG.BOT_SHOT, origin: originArr, dir: dirArr });
+  // Per-bot damage (v0.2.381): the boss hits harder. Falls back to the global
+  // BOT_DAMAGE for regular bots / callers that don't pass a per-bot value.
+  const shotDamage = Number.isFinite(dmg) ? dmg : BOT_DAMAGE;
 
   // Nearest player hit — bots use the CURRENT authoritative player positions
   // (no lag-comp rewind needed; the bot itself is server-side).
@@ -577,7 +580,7 @@ function onBotShot(origin, dir) {
   }
   if (!best) return;
 
-  const outcome = applyDamage(hpLedger, best.id, BOT_DAMAGE);
+  const outcome = applyDamage(hpLedger, best.id, shotDamage);
   if (outcome.applied <= 0) return; // target already dead — no wire event
   broadcastToAll({
     t: MSG.HIT,

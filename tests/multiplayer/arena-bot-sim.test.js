@@ -6,7 +6,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createArenaBotSim } from '../../server/bots/arenaBotSim.js';
 import { BOT_BODY_CENTRE_Y, BOT_HEAD_CENTRE_Y } from '../../server/bots/botColliders.js';
 import { sampleArenaHeight } from '../../src/terrain/heightmap.js';
-import { BOT_COUNT, BOT_HP } from '../../src/config.js';
+import { BOT_COUNT, BOT_HP, BOSS_COUNT, BOSS_HP, BOSS_NAME } from '../../src/config.js';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -21,7 +21,8 @@ describe('spawn + snapshot', () => {
       expect(typeof b.x).toBe('number');
       expect(typeof b.z).toBe('number');
       expect(typeof b.rotY).toBe('number');
-      expect(b.hp).toBe(BOT_HP);
+      // Regulars carry BOT_HP; the boss (kind===1) carries its own higher HP.
+      expect(b.hp).toBe(b.kind === 1 ? BOSS_HP : BOT_HP);
       expect(b.alive).toBe(true);
       expect(['walk', 'idle', 'shoot', 'hit', 'die']).toContain(b.animHint);
       // rounded for bandwidth: x/z to 2dp, rotY to 3dp.

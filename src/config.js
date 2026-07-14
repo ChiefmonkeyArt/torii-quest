@@ -1,5 +1,5 @@
 // config.js — ALL constants. Never scatter magic numbers.
-export const VERSION   = 'v0.2.380-alpha';
+export const VERSION   = 'v0.2.381-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -72,6 +72,17 @@ export const BOT_SHOOT_CD   = 2.6; // was 1.8 — bots were crack shots, give th
 export const BOT_SIGHT      = 14;
 export const BOT_DAMAGE     = 6;   // was 12 — player now dies in ~16 hits, not 9
 export const BOT_SPREAD     = 0.22; // was 0.08 — per-axis rad jitter, ~±6.3° cone
+// v0.2.381 — Augustink BOSS bot: one per arena, server-authoritative, part of the
+// bot roster. Big, slow, tanky, hits hard. Stats are per-bot at spawn (regular
+// vs boss profile); the boss reuses the exact same AI as regular bots.
+export const BOSS_COUNT         = 1;          // bosses per arena (subtracted from BOT_COUNT regulars)
+export const BOSS_HP            = 60;         // vs BOT_HP=5 → ~12 hits to kill
+export const BOSS_SPEED         = 1.0;        // vs BOT_SPEED=2.2 → ~half speed
+export const BOSS_DAMAGE        = 14;         // vs BOT_DAMAGE=6 → hits hard
+export const BOSS_SHOOT_CD      = 3.5;        // vs BOT_SHOOT_CD=2.6 → slower cadence
+export const BOSS_RADIUS        = 0.8;        // vs BOT_R=0.4 → bigger body + hit capsule
+export const BOSS_NAME          = 'Augustink';
+export const BOSS_TARGET_HEIGHT = 3.2;        // rendered boss height in metres (~2x a normal bot)
 export const MAX_AMMO       = 30;
 export const RELOAD_TIME    = 1.1;  // was 2.0 — felt dead-slow; snappier reload (v0.2.113)
 export const SHOOT_CD       = 0.06;
@@ -97,6 +108,7 @@ export const TUNING = Object.freeze({
   PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD,
   BULLET_SPEED, BULLET_LIFE,
   BOT_COUNT, BOT_HP, BOT_DAMAGE, BOT_SPEED, BOT_SHOOT_CD, BOT_SIGHT, BOT_SPREAD,
+  BOSS_COUNT, BOSS_HP, BOSS_DAMAGE, BOSS_SPEED, BOSS_SHOOT_CD, BOSS_RADIUS,
   ARENA_HALF, godMode, MP_ENABLED, MP_WS_PATH,
 });
 

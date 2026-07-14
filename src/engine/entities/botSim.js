@@ -86,7 +86,26 @@ export function createBotSim(deps) {
     arenaBoxes, coverPoints, config, playerSafeCorner,
     shotCallback, getPlayerCollider,
   } = deps;
-  const { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X } = config;
+  const {
+    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X,
+    // Per-bot stat sources. Defaults keep callers that only pass the regular
+    // config (and the pure unit tests) byte-identical: BOSS_COUNT=0 → no boss.
+    BOT_SPEED = 2.2, BOT_DAMAGE = 6,
+    BOSS_COUNT = 0, BOSS_HP = 60, BOSS_SPEED = 1.0, BOSS_DAMAGE = 14,
+    BOSS_SHOOT_CD = 3.5, BOSS_RADIUS = 0.8, BOSS_NAME = 'Augustink',
+  } = config;
+
+  // Per-bot stat profiles (v0.2.381). A regular bot is byte-identical to the
+  // pre-boss constants; the boss is big/slow/tanky/hard-hitting but reuses the
+  // exact same AI. Stats are stamped onto each bot state at spawn.
+  const REGULAR_PROFILE = Object.freeze({
+    kind: 'regular', name: '', hp: BOT_HP, speed: BOT_SPEED,
+    damage: BOT_DAMAGE, radius: BOT_R, shootCd: BOT_SHOOT_CD,
+  });
+  const BOSS_PROFILE = Object.freeze({
+    kind: 'boss', name: BOSS_NAME, hp: BOSS_HP, speed: BOSS_SPEED,
+    damage: BOSS_DAMAGE, radius: BOSS_RADIUS, shootCd: BOSS_SHOOT_CD,
+  });
 
   const bots = [];
 
@@ -114,13 +133,13 @@ export function createBotSim(deps) {
   function safeSpawnPos() { return _safeSpawnPos(); }
 
   // ── AABB pushout + coastline containment (kinematic bots ignore physics) ────
-  function _pushout(nx, nz) {
-    [nx, nz] = clampFence(nx, nz, BOT_R);
+  function _pushout(nx, nz, r = BOT_R) {
+    [nx, nz] = clampFence(nx, nz, r);
     if (!pointInFence(nx, nz)) { nx = 0; nz = 0; }
     for (const [cx, cz, hw, hd] of CRATES) {
       const dx = nx - cx, dz = nz - cz;
-      const ox = hw + BOT_R - Math.abs(dx);
-      const oz = hd + BOT_R - Math.abs(dz);
+      const ox = hw + r - Math.abs(dx);
+      const oz = hd + r - Math.abs(dz);
       if (ox > 0 && oz > 0) {
         if (ox < oz) nx += dx > 0 ? ox : -ox;
         else         nz += dz > 0 ? oz : -oz;
@@ -137,14 +156,21 @@ export function createBotSim(deps) {
   }
 
   // ── Spawn ─────────────────────────────────────────────────────────────────
-  function _spawnBot(i) {
+  function _spawnBot(i, profile = REGULAR_PROFILE) {
     const { x, z } = _safeSpawnPos();
     const state = {
       id: i,
+      kind: profile.kind,
+      name: profile.name,
       pos: { x, z },
-      hp: BOT_HP,
+      hp: profile.hp,
+      maxHp: profile.hp,
+      speed: profile.speed,
+      damage: profile.damage,
+      radius: profile.radius,
+      shootCdBase: profile.shootCd,
       alive: true,
-      shootCd: Math.random() * BOT_SHOOT_CD,
+      shootCd: Math.random() * profile.shootCd,
       respawnTimer: 0,
       tier: tierForIndex(i),
       _flankSlot: flankSlotForIndex(i),
@@ -164,11 +190,21 @@ export function createBotSim(deps) {
     return state;
   }
 
+  // Spawn `count` bots: (count - BOSS_COUNT) regulars + BOSS_COUNT bosses. The
+  // boss(es) take the last indices so the regular roster keeps its exact tier
+  // rotation + flank slots (byte-identical single-player when BOSS_COUNT=0).
   function spawnAll(count = BOT_COUNT) {
     bots.length = 0;
-    for (let i = 0; i < count; i++) _spawnBot(i);
+    const bossN = Math.max(0, Math.min(BOSS_COUNT, count));
+    const regularN = count - bossN;
+    for (let i = 0; i < regularN; i++) _spawnBot(i, REGULAR_PROFILE);
+    for (let i = regularN; i < count; i++) _spawnBot(i, BOSS_PROFILE);
     return bots;
   }
+
+  // Spawn a single boss (test/embed helper) at the given index. Also in `bots`
+  // so it ticks + syncs like any roster member.
+  function spawnBoss(i = bots.length) { return _spawnBot(i, BOSS_PROFILE); }
 
   // Derived animation label for the client wrapper. The wrapper still drives
   // BotModel.updateAnim() with the raw (dist, isShooting, isDeath, isHit) flags to
@@ -315,7 +351,7 @@ export function createBotSim(deps) {
       state._coverTimer -= dt;
       if (state._coverTimer <= 0) {
         state._coverTimer = COVER_EVAL_PERIOD;
-        const pressured = state.hp <= BOT_HP * 0.5 || state._isHit ||
+        const pressured = state.hp <= state.maxHp * 0.5 || state._isHit ||
                           tier.id === 'hard' || state.shootCd > 0;
         if (!playerSafe && pressured && Math.random() < tier.coverBias) {
           const ci = pickCover(px, pz, pp.x, pp.z, coverPoints, _coverBlocked, COVER_MAX_DIST);
@@ -347,7 +383,7 @@ export function createBotSim(deps) {
         const dx = px - o.pos.x;
         const dz = pz - o.pos.z;
         const d  = Math.sqrt(dx * dx + dz * dz);
-        if (d < BOT_R * 2.5 && d > 0) { _sep.x += dx / d; _sep.z += dz / d; }
+        if (d < state.radius * 2.5 && d > 0) { _sep.x += dx / d; _sep.z += dz / d; }
       });
 
       // Obstacle avoidance — analytic feelers around the static arena boxes.
@@ -359,11 +395,11 @@ export function createBotSim(deps) {
       const hx = steerComponent(dirx, _sep.x) + _avoid.x * AVOID_WEIGHT;
       const hz = steerComponent(dirz, _sep.z) + _avoid.z * AVOID_WEIGHT;
       const hlen = Math.hypot(hx, hz);
-      const spd = engageSpeed(dist) * tier.speedScale;
+      const spd = engageSpeed(dist, state.speed) * tier.speedScale;
       const vx = hlen > 1e-4 ? (hx / hlen) * spd : 0;
       const vz = hlen > 1e-4 ? (hz / hlen) * spd : 0;
 
-      const [nx, nz] = _pushout(px + vx * dt, pz + vz * dt);
+      const [nx, nz] = _pushout(px + vx * dt, pz + vz * dt, state.radius);
       state.pos.x = nx;
       state.pos.z = nz;
       const moving = hlen > 1e-4 && spd > 0;
@@ -380,7 +416,7 @@ export function createBotSim(deps) {
         state._losTimer += dt;
         state.shootCd   -= dt;
         if (state._losTimer >= tier.reaction && state.shootCd <= 0) {
-          state.shootCd = effectiveCooldown(tier) + Math.random() * 0.8;
+          state.shootCd = effectiveCooldown(tier, state.shootCdBase) + Math.random() * 0.8;
           const spread = effectiveSpread(tier);
           const ox = nx, oy = EYE_Y, oz = nz;
           let dx = pp.x - nx, dy = pp.y - EYE_Y, dz = pp.z - nz;
@@ -398,6 +434,10 @@ export function createBotSim(deps) {
               { x: ox, y: oy, z: oz },
               { x: dx, y: dy, z: dz },
               { x: pp.x, y: pp.y, z: pp.z },
+              // 4th arg (v0.2.381): the SHOOTING bot's identity + per-bot damage
+              // so bot→player applies the boss's higher damage. Additive; the
+              // single-player + prior-signature callers ignore it.
+              { id: state.id, kind: state.kind, damage: state.damage },
             );
           }
           isShooting = true;
@@ -450,7 +490,7 @@ export function createBotSim(deps) {
 
   function revive(state) {
     state.alive    = true;
-    state.hp       = BOT_HP;
+    state.hp       = state.maxHp;
     state._isHit   = false;
     state._isDying = false;
     state._blowVx  = state._blowVz = state._blowVy = state._blowY = 0;
@@ -465,5 +505,5 @@ export function createBotSim(deps) {
     return state;
   }
 
-  return { bots, spawnAll, safeSpawnPos, tick, hitBot, killBot, revive };
+  return { bots, spawnAll, spawnBoss, safeSpawnPos, tick, hitBot, killBot, revive };
 }

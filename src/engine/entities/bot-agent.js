@@ -34,8 +34,10 @@ export const BOT_ACTION = Object.freeze({
 
 // Speed for the current distance: full speed when chasing from afar, slower
 // once close so bots don't jitter on top of the player. Pure scalar.
-export function engageSpeed(dist) {
-  return BOT_SPEED * (dist > NEAR_DIST ? 1.0 : NEAR_SPEED_SCALE);
+// `baseSpeed` defaults to the global BOT_SPEED so existing callers are
+// byte-identical; the per-bot sim threads each bot's own speed (boss = slow).
+export function engageSpeed(dist, baseSpeed = BOT_SPEED) {
+  return baseSpeed * (dist > NEAR_DIST ? 1.0 : NEAR_SPEED_SCALE);
 }
 
 // Blend one axis of (normalised toward-player) and (bot-bot separation) into a

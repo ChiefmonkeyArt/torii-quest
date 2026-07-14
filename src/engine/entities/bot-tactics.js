@@ -56,7 +56,7 @@ export function tierForIndex(i) {
 // contract for `normal` (sightScale 1.0) — see the safe-zone regression guard.
 export function effectiveSight(tier) { return BOT_SIGHT * tier.sightScale; }
 // Effective cooldown / spread for a tier (pure) — used by the shoot block.
-export function effectiveCooldown(tier) { return BOT_SHOOT_CD * tier.cooldownScale; }
+export function effectiveCooldown(tier, baseCooldown = BOT_SHOOT_CD) { return baseCooldown * tier.cooldownScale; }
 export function effectiveSpread(tier) { return BOT_SPREAD * tier.aimError; }
 export function effectiveSpeed(tier, baseSpeed = BOT_SPEED) { return baseSpeed * tier.speedScale; }
 

@@ -34,9 +34,21 @@ export function createBotNetState(opts = {}) {
     for (const s of states) {
       let b = bots.get(s.id);
       if (!b) {
-        b = { samples: [], hp: s.hp, alive: s.alive, animHint: s.animHint, snap: true };
+        b = {
+          samples: [], hp: s.hp, alive: s.alive, animHint: s.animHint, snap: true,
+          // v0.2.381 additive identity fields. Absent on the wire for regular
+          // bots → default to regular/1× so old + regular frames are unchanged.
+          kind: s.kind === 1 ? 'boss' : 'regular',
+          name: s.name || '',
+          scale: Number.isFinite(s.scale) ? s.scale : 1,
+        };
         bots.set(s.id, b);
       }
+      // Identity fields can also arrive on a later frame (e.g. first boss frame
+      // after a plain one) — keep them latched once seen.
+      if (s.kind === 1) b.kind = 'boss';
+      if (s.name) b.name = s.name;
+      if (Number.isFinite(s.scale)) b.scale = s.scale;
       // Discontinuity checks vs the previous sample.
       const prev = b.samples[b.samples.length - 1];
       if (b.alive !== s.alive) b.snap = true;
@@ -70,6 +82,7 @@ export function createBotNetState(opts = {}) {
         x: pose.x, z: pose.z, rotY: pose.rotY,
         hp: b.hp, alive: b.alive, animHint: b.animHint,
         snap: b.snap,
+        kind: b.kind, name: b.name, scale: b.scale,
       });
       b.snap = false;
     }

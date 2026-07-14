@@ -3,8 +3,16 @@
 // NOSTR_LOGIN (initial pull) and HUD_UPDATE (live in-run reflection).
 import { state } from './state.js';
 import { on, EV } from './events.js';
+import { pickSelfRow } from './engine/multiplayer/scoreReporter.js';
 
 const LS_PREFIX = 'tq:stats:';   // per-pubkey lifetime stats key prefix
+
+// v0.2.384-alpha: the server-authoritative self tally from the latest SCORE
+// frame (MP only). When present it is the SAME source the LOCAL leaderboard
+// uses, so the KILLS shown here match the board exactly (no drifting local
+// counter). Null in single-player / before any SCORE frame → the local
+// lifetime+run fallback below is used unchanged.
+let _authSelf = null;
 
 // DOM refs (resolved lazily — index.html may not be ready at import time)
 let _el = null;
@@ -53,8 +61,10 @@ export function saveLifetime(stats) {
 // ── Rendering ────────────────────────────────────────────────────────────────
 function _renderFrom(lt) {
   const d = _dom();
-  // Live sats from current state; lifetime kills+current run; lifetime runs.
-  const liveKills = (lt.kills | 0) + (state.kills | 0);
+  // KILLS: prefer the server-authoritative session tally (MP) so it matches the
+  // leaderboard; fall back to lifetime + current run when there is no SCORE
+  // frame (single-player / pre-connect).
+  const liveKills = _authSelf ? (_authSelf.kills | 0) : ((lt.kills | 0) + (state.kills | 0));
   if (d.sats)  d.sats.textContent  = String(state.sats | 0);
   if (d.kills) d.kills.textContent = String(liveKills);
   if (d.runs)  d.runs.textContent  = String(lt.runs | 0);
@@ -95,6 +105,15 @@ export function initPlayerStats() {
   // Live updates from HUD ticks reflect kills/hits gained mid-run.
   on(EV.HUD_UPDATE, () => {
     if (state.nostrPubkey) _renderFrom(_currentLifetime);
+  });
+
+  // v0.2.384-alpha: server-authoritative SCORE frame (MP). Adopt our own tally
+  // row as the source of truth for KILLS, then re-render so the panel matches
+  // the leaderboard for this arena instance.
+  on(EV.SCORE_FRAME, (frame) => {
+    const tallies = frame && Array.isArray(frame.tallies) ? frame.tallies : [];
+    _authSelf = pickSelfRow(tallies, { selfPubkey: state.nostrPubkey || null });
+    _renderFrom(_currentLifetime);
   });
 }
 

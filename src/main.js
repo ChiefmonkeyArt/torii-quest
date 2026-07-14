@@ -21,7 +21,8 @@ import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 // + one real interaction — a LOCAL save keyed to the viewer's Nostr identity.
 import { productDetailView } from './engine/components/productDetail.js';
 import { isProductSaved, toggleProductSaved, savedCountFor } from './engine/components/savedProducts.js';
-import { leaderboardPreviewBlock } from './engine/nostr/leaderboardPreview.js';
+import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
+import { talliesToCurrentEvents } from './engine/multiplayer/arenaLeaderboard.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
@@ -541,28 +542,42 @@ function _toggleProductSave() {
 })();
 renderProductPreview();
 
+// v0.2.384-alpha: the side-panel leaderboard is now HONEST — it renders the
+// server-authoritative LOCAL tallies for this arena instance (the same SCORE
+// ledger the in-arena LOCAL leaderboard uses), never fabricated names/numbers.
+// Before any SCORE frame arrives (e.g. on the title screen, single-player) it
+// shows a plain empty state instead of mock rows.
+let _liveTallies = [];
+
 function renderLeaderboardPreview() {
   const body = document.getElementById('leaderboard-preview-body');
   if (!body) return;
-  const block = leaderboardPreviewBlock(
-    [
-      { runId: 'plebshot', score: 240, kills: 20, headshots: 11, accuracy: 0.71 },
-      { runId: 'nostrich', score: 180, kills: 16, headshots: 7, accuracy: 0.64 },
-      { runId: 'chiefmonkey', score: 120, kills: 12, headshots: 5, accuracy: 0.58 },
-    ],
-    { signerNpub: 'npub1demo0player0fixture0torii0quest0xxxxxxxxxxxxxxxxxxxx', limit: 3 },
+  const rows = renderLeaderboardRows(
+    { current: talliesToCurrentEvents(_liveTallies, null, Date.now()), history: [] },
+    5,
   );
-  body.replaceChildren(...block.lines.flatMap(({ label, value }) => {
+  if (rows.length === 0) {
+    const msg = document.createElement('div');
+    msg.className = 'lb-empty';
+    msg.textContent = 'No scores yet this session — play a match to get on the board.';
+    body.replaceChildren(msg);
+    return;
+  }
+  body.replaceChildren(...rows.flatMap((r) => {
     const l = document.createElement('div');
     l.className = 'lb-row-label';
-    l.textContent = label;
+    l.textContent = `#${r.rank} ${shortenNpub(r.npub)}`;
     const v = document.createElement('div');
     v.className = 'lb-row-value';
-    v.textContent = value;
+    v.textContent = `${r.kills}K · ${r.deaths}D · dmg ${r.damage}`;
     return [l, v];
   }));
 }
 renderLeaderboardPreview();
+on(EV.SCORE_FRAME, (frame) => {
+  _liveTallies = frame && Array.isArray(frame.tallies) ? frame.tallies : [];
+  renderLeaderboardPreview();
+});
 
 // ── LIVE leaderboard publish (M2, v0.2.285) ────────────────────────────────────
 // The promoted relay write. A consented, crypto-verified finalised score is signed

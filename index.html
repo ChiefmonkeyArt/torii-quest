@@ -114,6 +114,10 @@
       text-shadow: 0 0 60px rgba(139,92,246,0.5);
     }
     .title-logo-text span { color: #f7931a; }
+    /* v0.2.384-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+       monochrome via currentColor so it inherits the orange span colour. */
+    .logo-mark { display: inline-flex; align-items: center; }
+    .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; vertical-align: -0.08em; }
     .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #444; margin-top: 5px; }
 
     /* Three-column layout — half-height cards */
@@ -197,11 +201,19 @@
     }
     #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(107,142,90,0.5); opacity: 1; }
 
-    /* Login button in centre */
+    /* Login button in centre — v0.2.384-alpha: promoted to the primary CTA with a
+       solid mint/green fill (matches the on-brand green accent used elsewhere) so
+       it reads as clearly as ENTER ARENA. Overrides the .btn-secondary outline. */
     #btn-nostr-centre {
       margin-top: 12px; width: 220px; font-size: 10px; letter-spacing: 2px;
       padding: 9px 20px;
+      background: linear-gradient(135deg, #16a34a, #22c55e);
+      border: 1px solid #22c55e;
+      color: #eafff0;
+      box-shadow: 0 0 24px rgba(34,197,94,0.35);
+      font-weight: bold;
     }
+    #btn-nostr-centre:hover { opacity: 1; box-shadow: 0 0 40px rgba(34,197,94,0.55); }
 
     /* Controls cheatsheet */
     #title-controls {
@@ -355,6 +367,7 @@
     #leaderboard-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #a7f3d0; }
     #leaderboard-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
     #leaderboard-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+    #leaderboard-preview-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
     .lb-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
     .lb-row-value { font-size: 9px; color: #c4ecd9; word-break: break-all; }
     /* ── LIVE leaderboard publish control (M2, v0.2.294) ── */
@@ -616,7 +629,7 @@
 
   <!-- Header -->
   <div id="title-header">
-    <div class="title-logo-text">TORII<span>⚡</span>QUEST</div>
+    <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
     <div class="title-tagline-sm">SATS · SHOTS · SOVEREIGNTY</div>
   </div>
 
@@ -687,14 +700,15 @@
       </div>
     </div>
 
-      <!-- Leaderboard card. The rank rows remain a local/mock READ-ONLY preview
-           (LEAN-4, v0.2.141). v0.2.294 (M2) adds the LIVE publish control below
-           them: a real NIP-07 sign + relay fan-out, armed only when logged in and
-           gated by explicit consent AND the SEC-1 crypto-verified publishGate. -->
-      <div id="leaderboard-preview" aria-label="leaderboard — mock preview rows + live NIP-07 publish (SEC-1 gated)">
+      <!-- Leaderboard card. v0.2.384-alpha: the rank rows are now HONEST — the
+           server-authoritative LOCAL tallies for this arena instance (empty until
+           a SCORE frame arrives), never mock data. v0.2.294 (M2) adds the LIVE
+           publish control below: a real NIP-07 sign + relay fan-out, armed only
+           when logged in and gated by explicit consent AND the SEC-1 publishGate. -->
+      <div id="leaderboard-preview" aria-label="leaderboard — this server instance standings + live NIP-07 publish (SEC-1 gated)">
         <div id="leaderboard-preview-head">
-          <span id="leaderboard-preview-title">🏆 3 · SCORE — LEADERBOARD</span>
-          <span id="leaderboard-preview-badge">PREVIEW · LOCAL MOCK</span>
+          <span id="leaderboard-preview-title">🏆 SCORE — LEADERBOARD</span>
+          <span id="leaderboard-preview-badge">THIS SERVER · SESSION</span>
         </div>
         <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
         <div id="leaderboard-publish">
@@ -707,7 +721,7 @@
 
     <!-- CENTRE: boxed console -->
     <div id="title-centre">
-      <div id="centre-logo">TORII<span>⚡</span>QUEST</div>
+      <div id="centre-logo">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
       <div id="centre-sub">OPEN WORLD · FREE MARKET</div>
       <div id="centre-tag">SOVEREIGN · ATMOSPHERIC · ABUNDANT</div>
 
@@ -750,7 +764,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.383-alpha</div>
+      <div id="version-label">v0.2.384-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
@@ -934,7 +948,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.383-alpha · torii quest</div>
+  <div id="ver">v0.2.384-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

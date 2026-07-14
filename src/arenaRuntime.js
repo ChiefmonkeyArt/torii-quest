@@ -620,7 +620,7 @@ export function createArenaRuntime(hooks = {}) {
         // v0.2.380-alpha: server-authoritative live leaderboard tallies. Feed the
         // SCORE frame straight into the overlay; it re-renders only when open on
         // the LOCAL tab. Read-only — no signer, no prompts.
-        if (name === 'mp_score') { _arenaLb.setLiveScore(p); return; }
+        if (name === 'mp_score') { _arenaLb.setLiveScore(p); emit(EV.SCORE_FRAME, p); return; }
         if (name === 'mp_botState') { ingestBotState(p.bots); return; }
         if (name === 'mp_botShot')  { applyBotShot(p.origin, p.dir); return; }
         if (name === 'mp_botHit') {

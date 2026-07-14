@@ -21,6 +21,11 @@ export const EV = Object.freeze({
   PHASE_CHANGE:   'game:phase',   // emitted by state.transition(); payload {from,to,event}
   WS_PLAYER_HIT:  'ws:playerHit',
   WS_CHAT:        'ws:chat',
+  // v0.2.384-alpha: a server-authoritative SCORE frame arrived (MP). Payload is
+  // the raw frame { sessionId, endedAt, tallies }. Consumed by the homescreen
+  // leaderboard preview + the personal stats board so both reflect the same
+  // ledger the in-arena LOCAL leaderboard uses.
+  SCORE_FRAME:    'score:frame',
 });
 export function on(ev, fn)  { (_listeners[ev] ||= []).push(fn); }
 export function off(ev, fn) { _listeners[ev] = (_listeners[ev]||[]).filter(f=>f!==fn); }

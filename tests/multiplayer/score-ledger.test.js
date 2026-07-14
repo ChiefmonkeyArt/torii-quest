@@ -78,6 +78,57 @@ describe('scoreLedger — register/snapshot', () => {
   });
 });
 
+describe('scoreLedger — retire/reconnect/limit (v0.2.384-alpha)', () => {
+  it('retire keeps a disconnected peer on the board', () => {
+    const l = createScoreLedger();
+    l.register('p1', npubA);
+    l.register('p2', npubB);
+    l.addKill('p1', 'p2');
+    expect(l.retire('p1')).toBe(true);
+    // Row survives retire — LOCAL board still lists the player who left.
+    expect(l.has('p1')).toBe(true);
+    expect(l.size()).toBe(2);
+    const snap = l.snapshot();
+    expect(snap.find((r) => r.id === 'p1').kills).toBe(1);
+  });
+
+  it('retire on an unknown id returns false', () => {
+    const l = createScoreLedger();
+    expect(l.retire('nope')).toBe(false);
+  });
+
+  it('a reconnecting npub resumes its tally without double-counting', () => {
+    const l = createScoreLedger();
+    l.register('p1', npubA);
+    l.register('p2', npubB);
+    l.addKill('p1', 'p2');
+    l.addDamage('p1', 7);
+    l.retire('p1');
+    // Same human rejoins with a fresh peer id → re-keys onto the retired row.
+    l.register('p9', npubA);
+    expect(l.has('p1')).toBe(false); // old id gone
+    expect(l.has('p9')).toBe(true);
+    const r = l.get('p9');
+    expect(r.kills).toBe(1);    // resumed, not reset
+    expect(r.damage).toBe(7);
+    // No duplicate rows for this npub.
+    const snap = l.snapshot();
+    expect(snap.filter((row) => row.npub === npubA).length).toBe(1);
+  });
+
+  it('snapshot(limit) caps to the top N rows', () => {
+    const l = createScoreLedger();
+    l.register('p1', npubA);
+    l.register('p2', npubB);
+    l.register('p3', 'c'.repeat(64));
+    l.addKill('p2', 'p1'); // p2 leads
+    expect(l.snapshot().length).toBe(3);
+    const top = l.snapshot(2);
+    expect(top.length).toBe(2);
+    expect(top[0].id).toBe('p2');
+  });
+});
+
 describe('newSessionId', () => {
   it('produces 16 hex chars from randomFn', () => {
     const id = newSessionId((n) => new Uint8Array(n));

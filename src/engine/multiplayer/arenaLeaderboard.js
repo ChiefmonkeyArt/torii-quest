@@ -113,7 +113,7 @@ export function createArenaLeaderboard(opts = {}) {
   const localHost = doc.createElement('div');
   localHost.className = 'tq-arena-lb-local';
   root.appendChild(localHost);
-  const localPanel = mountLeaderboardPanel(localHost, { title: 'Live standings', limit });
+  const localPanel = mountLeaderboardPanel(localHost, { title: 'This server · session standings', limit });
 
   // GLOBAL: our own list (different row shape — score/kills/headshots/accuracy).
   const globalHost = doc.createElement('div');

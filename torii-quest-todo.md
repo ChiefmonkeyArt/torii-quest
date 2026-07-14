@@ -1,8 +1,10 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.383-alpha`
+Current version: `v0.2.384-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### UI / LEADERBOARD / STATS TRUTH PASS (v0.2.384-alpha) — boss render-scale ~2.5m; leaderboard title de-mocked + honest empty state; LOCAL board = every player on this server instance incl. disconnected (ledger `retire()` + reconnect-rekey + `snapshot(32)` cap); homescreen preview + personal stats wired to the authoritative SCORE frame (`EV.SCORE_FRAME`); LOGIN button solid mint CTA; homescreen bolt logo → torii-gate SVG (both places). UI + data-wiring only; combat path untouched.
 
 ### COMBAT FIX — player→bot damage now registers (v0.2.383-alpha) — client stale-snapshot clobber fixed; the REAL fix for the v0.2.382-diagnosed miss
 

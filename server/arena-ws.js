@@ -56,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.383-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.384-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -210,7 +210,7 @@ function closeSession(sess, reason) {
   // failures do not block session teardown.
   if (wasAuthed && SCORE_ENABLED) {
     try {
-      const tallies = scoreLedger.snapshot();
+      const tallies = scoreLedger.snapshot(32);
       if (tallies.length > 0) {
         try { sess.ws.send(encode({ t: MSG.SCORE, sessionId: SCORE_SESSION_ID, endedAt: Date.now(), tallies })); }
         catch { /* client already gone — ignore */ }
@@ -223,7 +223,9 @@ function closeSession(sess, reason) {
     sessions.delete(sess.id);
     snapshotRings.delete(sess.id);
     hpUnregister(hpLedger, sess.id);
-    if (SCORE_ENABLED) scoreLedger.drop(sess.id);
+    // v0.2.384-alpha: RETIRE (not drop) so a disconnected player stays on the
+    // LOCAL leaderboard for this arena instance until the server restarts.
+    if (SCORE_ENABLED) scoreLedger.retire(sess.id);
     const timer = respawnTimers.get(sess.id);
     if (timer) { clearTimeout(timer); respawnTimers.delete(sess.id); }
     if (sess.authed) {
@@ -502,7 +504,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
 // for client-signing / leaderboard publishing).
 function broadcastScoreFrame() {
   if (!SCORE_ENABLED) return;
-  const tallies = scoreLedger.snapshot();
+  const tallies = scoreLedger.snapshot(32);
   if (tallies.length === 0) return;
   broadcastToAll({
     t: MSG.SCORE,

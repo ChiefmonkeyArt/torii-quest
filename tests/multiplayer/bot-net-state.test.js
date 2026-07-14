@@ -108,6 +108,89 @@ describe('roster bookkeeping', () => {
   });
 });
 
+// v0.2.383 combat fix — the event-vs-snapshot staleness race. BOT_HIT/BOT_KILL
+// arrive out of band between ~15Hz BOT_STATE snapshots; hp/alive are the latest
+// snapshot values (NOT interpolated), so an event applied before the next
+// snapshot must NOT be reverted by re-reading the stale snapshot.
+describe('applyHit / applyKill — out-of-band event authority (v0.2.383)', () => {
+  it('applyHit drops the sampled hp immediately, before any new snapshot', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000); // consume spawn snap; latest snapshot hp = 5
+    // A player shot lands: server BOT_HIT says hp is now 2.
+    net.applyHit(1, 2);
+    // The very next sample (no new BOT_STATE yet) reflects the event, not hp=5.
+    expect(net.sample(1016)[0].hp).toBe(2);
+  });
+
+  it('the hit hp is NOT clobbered when the pre-hit snapshot is re-sampled', () => {
+    const net = createBotNetState({ interpDelayMs: 100, snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000);
+    net.applyHit(1, 3);
+    // Several render frames pass at ~60Hz while the ~67ms snapshot is still stale.
+    expect(net.sample(1016)[0].hp).toBe(3);
+    expect(net.sample(1033)[0].hp).toBe(3);
+    expect(net.sample(1050)[0].hp).toBe(3);
+  });
+
+  it('a later snapshot carrying the reduced hp keeps it (no revert)', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000);
+    net.applyHit(1, 2);
+    // Next authoritative BOT_STATE reflects the server hp (2), not the old 5.
+    net.ingest([row(1, 1, 0, 0, { hp: 2 })], 1067);
+    expect(net.sample(1100)[0].hp).toBe(2);
+  });
+
+  it('applyKill marks the bot dead + snaps immediately, before any new snapshot', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { alive: true })], 1000);
+    net.sample(1000); // latest snapshot still says alive=true
+    net.applyKill(1);
+    const [b] = net.sample(1016);
+    expect(b.alive).toBe(false);
+    expect(b.snap).toBe(true); // corpse hard-jumps, no slide
+  });
+
+  it('a killed bot STAYS dead across frames even while the stale snapshot says alive', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { alive: true })], 1000);
+    net.sample(1000);
+    net.applyKill(1);
+    // The last snapshot before the kill said alive=true; re-sampling must NOT
+    // un-kill the bot.
+    expect(net.sample(1016)[0].alive).toBe(false);
+    expect(net.sample(1033)[0].alive).toBe(false);
+    expect(net.sample(1050)[0].alive).toBe(false);
+  });
+
+  it('a genuine respawn snapshot (alive false→true after the timer) still reappears', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { alive: true })], 1000);
+    net.sample(1000);
+    net.applyKill(1);
+    expect(net.sample(1016)[0].alive).toBe(false);
+    // Server BOT_STATE reflects the kill (alive=false) for the 8s timer...
+    net.ingest([row(1, 0, 0, 0, { alive: false })], 2000);
+    expect(net.sample(2000)[0].alive).toBe(false);
+    // ...then the respawn: alive false→true must snap the bot back into view.
+    net.ingest([row(1, 12, 3, 0, { alive: true, hp: 5 })], 9000);
+    const [b] = net.sample(9000);
+    expect(b.alive).toBe(true);
+    expect(b.snap).toBe(true);
+    expect(b.hp).toBe(5);
+  });
+
+  it('applyHit / applyKill on an unknown bot id are no-ops (no throw)', () => {
+    const net = createBotNetState();
+    expect(() => net.applyHit(99, 1)).not.toThrow();
+    expect(() => net.applyKill(99)).not.toThrow();
+    expect(net.sample(1000)).toHaveLength(0);
+  });
+});
+
 describe('animHintToFlags', () => {
   it('maps each hint to the right BotModel flags', () => {
     expect(animHintToFlags('shoot')).toEqual({ isShooting: true, isDeath: false, isHit: false });

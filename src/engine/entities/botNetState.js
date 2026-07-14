@@ -68,6 +68,26 @@ export function createBotNetState(opts = {}) {
   // event arrived out of band, before the next BOT_STATE).
   function forceSnap(id) { const b = bots.get(id); if (b) b.snap = true; }
 
+  // v0.2.383 combat fix: fold an out-of-band authoritative combat event
+  // (BOT_HIT / BOT_KILL) that arrives BETWEEN BOT_STATE snapshots into the
+  // latest-snapshot hp/alive that sample() reports. hp/alive are NOT interpolated
+  // (only position is), so without this the next sample() would still return the
+  // STALE pre-event snapshot hp/alive and the render path would clobber the
+  // just-applied hit/kill for up to one snapshot interval (~67ms) — the bot's HP
+  // snaps back to full and a killed bot flickers alive. Position stays
+  // interpolated; only hp/alive become event-authoritative here.
+  function applyHit(id, hp) {
+    const b = bots.get(id);
+    if (b && Number.isFinite(hp)) b.hp = hp;
+  }
+  // A kill also snaps so the corpse hard-jumps to its last position (no slide).
+  function applyKill(id) {
+    const b = bots.get(id);
+    if (!b) return;
+    b.alive = false;
+    b.snap = true;
+  }
+
   // Produce the interpolated render pose for every known bot at `nowMs`.
   // Returns [{ id, x, z, rotY, hp, alive, animHint, snap }]. `snap` is true when
   // the caller should hard-set (not lerp) this frame; it is consumed (reset) here.
@@ -122,7 +142,7 @@ export function createBotNetState(opts = {}) {
   function clear() { bots.clear(); }
   function has(id) { return bots.has(id); }
 
-  return { ingest, sample, forceSnap, remove, clear, has, _bots: bots };
+  return { ingest, sample, forceSnap, applyHit, applyKill, remove, clear, has, _bots: bots };
 }
 
 // Shortest-arc angle lerp.

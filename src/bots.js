@@ -246,6 +246,9 @@ export function applyBotShot(originArr, dirArr) {
 
 // Server says a player's shot hit a bot — sync authoritative HP + hit flash.
 export function applyBotHit(botId, hp) {
+  // Fold the authoritative hp into botNetState FIRST so the next _syncNetBot
+  // frame samples the event hp — not the stale pre-hit snapshot (v0.2.383 fix).
+  _botNet.applyHit(botId, hp);
   const bot = _botById(botId);
   if (!bot) return;
   bot.state.hp = hp;
@@ -253,12 +256,13 @@ export function applyBotHit(botId, hp) {
   bot.state._hitTimer = 0.3;
 }
 
-// Server says a bot died — mark it dead so the render path hides it. Snap the
-// interpolation so the corpse doesn't slide.
+// Server says a bot died — mark it dead so the render path hides it. Fold the
+// kill into botNetState (sets alive=false + snaps) so the next _syncNetBot frame
+// sees dead — not the stale pre-kill snapshot that would un-kill it (v0.2.383).
 export function applyBotKill(botId) {
+  _botNet.applyKill(botId);
   const bot = _botById(botId);
   if (bot) bot.state.alive = false;
-  _botNet.forceSnap(botId);
 }
 
 function _tickNet(dt) {

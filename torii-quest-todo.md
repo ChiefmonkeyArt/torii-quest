@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.382-alpha`
+Current version: `v0.2.383-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### COMBAT FIX — player→bot damage now registers (v0.2.383-alpha) — client stale-snapshot clobber fixed; the REAL fix for the v0.2.382-diagnosed miss
+
+> **COMBAT FIX — 2026-07-14 (v0.2.383-alpha):** The REAL fix for player→bot "shots not registering / bots not dying". Server was resolving hits correctly (v0.2.382 diagnostic confirmed `botHit=3@t=4.95 dy≈1.67`). Bug was CLIENT-SIDE in `src/bots.js` `_syncNetBot`: `applyBotHit`/`applyBotKill` set `bot.state.hp`/`alive` immediately, but did NOT update `botNetState`'s `b.hp`/`b.alive` (owned by BOT_STATE snapshots), so the next frame re-sampled the STALE ~67ms-old snapshot and clobbered them (`st.hp = pose.hp` → HP back to full; `st.alive = true` → un-kills). hp/alive are latest-snapshot (not interpolated), so it was a pure event-vs-snapshot staleness race. Fix (Option A): new `botNetState.applyHit(id,hp)`/`applyKill(id)` fold the event into `b.hp`/`b.alive` (kill snaps) so `sample()` is event-authoritative — no clobber; position stays interpolated. Respawn (alive false→true) still snaps in; single-player (`_syncBot`), bot→player, boss unchanged; `[SHOT-RESOLVE]` diagnostic retained. New race tests in `tests/multiplayer/bot-net-state.test.js`; 7 v0.2.382 combat tests stay green. `PROTOCOL_VERSION=1`.
 
 ### COMBAT — player→bot damage diagnostic (v0.2.382-alpha) — DIAGNOSTIC-ONLY; reported miss not reproducible headlessly, awaiting live logs
 

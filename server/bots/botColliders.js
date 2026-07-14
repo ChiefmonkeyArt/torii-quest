@@ -3,9 +3,14 @@
 // Mirrors the shipped client bot colliders from src/engine/physics/bodies.js so
 // the server's player→bot ray tests line up with what players see:
 //
-//   Body capsule:  half-height 0.50, radius 0.26, centre 0.76 above foot.
-//                  Endpoints (cap centres): p0=foot+0.26, p1=foot+1.26.
-//   Head sphere:   radius 0.20, centre 1.55 above foot.
+//   Body capsule:  half-height 0.50, radius 0.30, centre 0.76 above foot.
+//                  Endpoints (cap centres): p0=foot+0.30, p1=foot+1.26.
+//   Head sphere:   radius 0.23, centre 1.55 above foot.
+//
+// v0.2.386-alpha: body/head radius widened (~+15%) for hitbox forgiveness — the
+// capsule was narrower than the visual bot model (arms/shoulders), so shots that
+// visually hit the body missed. Only the radii grow; centres stay put (foot stays
+// planted: bottom cap centre = foot + radius, so the sphere bottom is still foot).
 //
 // A bot's sim pos is a 2D {x,z} bag planted on the arena surface; foot height is
 // sampled server-side (heightmap.sampleArenaHeight) and passed in. Node-pure —
@@ -14,9 +19,9 @@
 import { rayVsPeer } from '../combat/rayVsCapsule.js';
 
 // Shipped constants from src/engine/physics/bodies.js — copied, not imported.
-export const BOT_BODY_RADIUS = 0.26;
-export const BOT_BODY_CENTRE_Y = 0.76; // radius + halfHeight
-export const BOT_HEAD_RADIUS = 0.20;
+export const BOT_BODY_RADIUS = 0.30;
+export const BOT_BODY_CENTRE_Y = 0.76; // unchanged — top cap stays at foot+1.26
+export const BOT_HEAD_RADIUS = 0.23;
 export const BOT_HEAD_CENTRE_Y = 1.55;
 
 /**

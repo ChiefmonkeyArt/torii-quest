@@ -1,8 +1,10 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.385-alpha`
+Current version: `v0.2.386-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### COMBAT-FEEL — Augustink shrink + hitbox forgiveness (v0.2.386-alpha) — `BOSS_TARGET_HEIGHT` 2.5→2.0m (render-only, boss combat stats unchanged); bot hit capsule widened ~+15% in parity across `server/bots/botColliders.js` + `src/engine/physics/bodies.js` (`BOT_BODY_RADIUS` 0.26→0.30, `BOT_HEAD_RADIUS` 0.20→0.23; centres 0.76/1.55 unchanged, foot stays planted) so shots that visually hit the model's arms/shoulders now register. No damage/HP/zone/parity-lock/lag-comp changes; `PROTOCOL_VERSION=1`.
 
 ### COMBAT — bot lag-compensation for player→bot shots (v0.2.385-alpha) — server now rewinds each bot to the shot ts before ray-testing, mirroring the peer lag-comp path, so shots landed on the ~100ms-old rendered (moving) bot register. New pure `server/bots/botSnapshotRing.js` (records `{ts, bots:[{id,x,z,footY,radius,alive}]}` at the sim tick); `arenaBotSim.resolvePlayerShot` accepts the shot ts and rewinds (clamped to the 300ms window, boss collider scaling preserved); `arena-ws.js` passes the same shot ts the peer path uses. No damage/HP/zone/parity changes; `PROTOCOL_VERSION=1`.
 

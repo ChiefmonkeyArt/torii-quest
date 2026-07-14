@@ -40,8 +40,11 @@ export const PLAYER_BODY_CENTRE_OFFSET = PLAYER_CAPSULE_HALF_H + PLAYER_CAPSULE_
 // wide. Centre sits at footY + 0.76 (radius + halfHeight). Head sits in a
 // SEPARATE sphere collider so headshots are detectable independently.
 export const BOT_BODY_HALF_H = 0.5;
-export const BOT_BODY_RADIUS = 0.26;
-export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.76 → body spans [0,1.52]
+// v0.2.386-alpha: radius widened 0.26 → 0.30 (~+15% hitbox forgiveness). Kept in
+// parity with server/bots/botColliders.js. Foot stays planted (centre − halfH −
+// radius = 0); the capsule grows outward + a touch taller ([0,1.60]).
+export const BOT_BODY_RADIUS = 0.30;
+export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.80 → body spans [0,1.60]
 // v0.2.112: head sphere enlarged 0.18 → 0.22 so clear headshots can't slip past
 // the small ball.
 // v0.2.128: head zone was sitting TOO HIGH. The Banker GLB tops out at y≈1.70
@@ -52,7 +55,7 @@ export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.
 // the radius 0.22 → 0.20, so the sphere now spans [1.35,1.75]: its top hugs the
 // model crown (only ~0.05 m over) and its bottom still OVERLAPS the body cap
 // (1.52) so there is no gap a bullet can thread between head and torso.
-export const BOT_HEAD_RADIUS = 0.20;
+export const BOT_HEAD_RADIUS = 0.23; // v0.2.386-alpha: widened 0.20 → 0.23 (parity with botColliders.js)
 // Head centre sits this far above the foot — at the visible face/eye line,
 // overlapping the body capsule cap below it.
 export const BOT_HEAD_CENTRE_Y_OFFSET = 1.55;

@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.388-alpha';
+export const VERSION   = 'v0.2.389-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -84,7 +84,7 @@ export const BOSS_DAMAGE        = 14;         // vs BOT_DAMAGE=6 → hits hard
 export const BOSS_SHOOT_CD      = 3.5;        // vs BOT_SHOOT_CD=2.6 → slower cadence
 export const BOSS_RADIUS        = 0.8;        // vs BOT_R=0.4 → bigger body + hit capsule
 export const BOSS_NAME          = 'Augustink';
-export const BOSS_TARGET_HEIGHT = 2.0;        // rendered boss height in metres (~1.2x the player; render-only, combat stats above are unchanged)
+export const BOSS_TARGET_HEIGHT = 3.0;        // rendered boss height in metres (~1.8x the player; render-only, combat stats above are unchanged). v0.2.389: 2.0→3.0, matching the 2× collider (radius/BOT_R) so the hitbox now envelopes the taller model.
 export const MAX_AMMO       = 30;
 export const RELOAD_TIME    = 1.1;  // was 2.0 — felt dead-slow; snappier reload (v0.2.113)
 export const SHOOT_CD       = 0.06;

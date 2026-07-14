@@ -55,7 +55,13 @@ export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.
 // the radius 0.22 → 0.20, so the sphere now spans [1.35,1.75]: its top hugs the
 // model crown (only ~0.05 m over) and its bottom still OVERLAPS the body cap
 // (1.52) so there is no gap a bullet can thread between head and torso.
-export const BOT_HEAD_RADIUS = 0.23; // v0.2.386-alpha: widened 0.20 → 0.23 (parity with botColliders.js)
+// v0.2.389-alpha: widened 0.23 → 0.30 (parity with botColliders.js). The body
+// cap radius is also 0.30, so through the lower-face region (~1.4–1.5) the body's
+// top hemisphere used to protrude FARTHER than the smaller head sphere — the
+// analytic ray (rayVsPeer) then resolved a face shot as 'body' (3 dmg, 2 shots to
+// kill a 5-HP bot) instead of 'head' (9 dmg, 1 shot). Matching the head radius to
+// the body radius makes the head sphere win those ties → face shots 1-shot again.
+export const BOT_HEAD_RADIUS = 0.30;
 // Head centre sits this far above the foot — at the visible face/eye line,
 // overlapping the body capsule cap below it.
 export const BOT_HEAD_CENTRE_Y_OFFSET = 1.55;

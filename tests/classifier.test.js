@@ -75,33 +75,32 @@ describe('classifyHeadshot', () => {
 });
 
 // v0.2.128 — head zone was sitting TOO HIGH (old centre 1.65 + r0.22 → top 1.87,
-// floating 0.17 m above the visible crown ≈1.70). Players had to aim OVER the
-// model to score a headshot. Lowered centre 1.65→1.55, tightened radius 0.22→0.20
-// so the sphere now spans [1.35,1.75], hugging the face/crown. These tests lock
-// that down: a face shot scores, an above-crown shot does NOT, and shoulder/torso
-// shots are never mis-promoted.
-describe('v0.2.128 head-zone realignment', () => {
-  it('scores a clear headshot on the face/eye line (new centre 1.55)', () => {
+// floating 0.17 m above the visible crown ≈1.70). Lowered centre 1.65→1.55 so it
+// hugs the face/eye line where players aim.
+// v0.2.389 — head radius widened 0.23 → 0.30 (== body radius) so the analytic ray
+// resolves face shots as 'head' instead of 'body' (see botColliders.js). The
+// backstop sphere (centre 1.55, r0.30 + 0.05 prox) now spans [1.20,1.90]. These
+// tests lock down: a face/crown shot scores, a point well above 1.90 does NOT, and
+// shoulder/torso shots are never mis-promoted.
+describe('head-zone realignment (v0.2.128 centre, v0.2.389 radius)', () => {
+  it('scores a clear headshot on the face/eye line (centre 1.55)', () => {
     expect(isInHeadSphere(0, BOT_HEAD_CENTRE_Y_OFFSET, 0, bot)).toBe(true);
     expect(classifyHeadshot(0, BOT_HEAD_CENTRE_Y_OFFSET, 0, 'body', bot)).toBe(true);
   });
-  it('still scores at the visible crown (~1.70, inside top 1.75)', () => {
+  it('still scores at the visible crown (~1.70, inside prox top 1.90)', () => {
     expect(isInHeadSphere(0, 1.70, 0, bot)).toBe(true);
   });
-  it('does NOT score above the crown — the old over-the-head zone is gone', () => {
-    // y=1.85 was INSIDE the old [1.43,1.87] sphere but is OUTSIDE the new [1.35,1.75].
-    expect(isInHeadSphere(0, 1.85, 0, bot)).toBe(false);
-    expect(classifyHeadshot(0, 1.85, 0, 'body', bot)).toBe(false);
-  });
-  it('does NOT score well above the head (1.95)', () => {
-    expect(classifyHeadshot(0, 1.95, 0, 'body', bot)).toBe(false);
+  it('does NOT score well above the head (2.0, above prox top 1.90)', () => {
+    // y=2.0 is above the widened sphere+prox ceiling → not a headshot.
+    expect(isInHeadSphere(0, 2.0, 0, bot)).toBe(false);
+    expect(classifyHeadshot(0, 2.0, 0, 'body', bot)).toBe(false);
   });
   it('keeps a centre-mass torso impact as a body shot', () => {
     expect(classifyHeadshot(0, 0.9, 0, 'body', bot)).toBe(false);
   });
   it('does not promote a lateral shoulder shot at the neck line', () => {
-    // shoulder out to the side at the sphere's bottom edge: dx≈0.30 at y≈1.35.
-    // dist² = 0.30² + (1.35-1.55)² = 0.09+0.04 = 0.13 > HEAD_PROX_SQ(0.0625).
+    // shoulder out to the side at the sphere's bottom edge: dx=0.30 at y=HEAD_BOTTOM(1.25).
+    // dist² = 0.30² + (1.25-1.55)² = 0.09+0.09 = 0.18 > HEAD_PROX_SQ(0.1225).
     expect(isInHeadSphere(0.30, HEAD_BOTTOM, 0, bot)).toBe(false);
     expect(classifyHeadshot(0.30, HEAD_BOTTOM, 0, 'body', bot)).toBe(false);
   });

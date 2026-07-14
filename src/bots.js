@@ -286,8 +286,17 @@ function _syncNetBot(bot, pose, dt) {
   if (!pose.alive) {
     st.alive = false;
     if (bot.model?.loaded) {
-      if (bot._prevAlive) bot.model.updateAnim(0, false, true, false); // death on transition
-      bot.model.syncTo(pose.x, fy, pose.z, pose.rotY);
+      if (bot._prevAlive) { bot.model.updateAnim(0, false, true, false); bot._deathT = 0; } // death on transition
+      // v0.2.389: restore the dramatic launch arc. The snapshot carries the
+      // horizontal blowback slide (pose.x/z move as the server integrates it) but
+      // NOT the vertical component, so a server-driven corpse used to stay pinned
+      // to the ground. Reconstruct the arc client-side from the death clock,
+      // mirroring botSim's integration (initial up-velocity 9 m/s, gravity
+      // −14 m/s²): height = 9t − 7t², a ~2.9 m peak at ~0.64 s, back to ground by
+      // ~1.3 s — the corpse now flies up and back across the arena as it did in SP.
+      bot._deathT = (bot._deathT || 0) + dt;
+      const arc = Math.max(0, 9.0 * bot._deathT - 7.0 * bot._deathT * bot._deathT);
+      bot.model.syncTo(pose.x, fy + arc, pose.z, pose.rotY);
       bot.model.tick(dt);
     } else if (bot._capsuleMesh) {
       bot._capsuleMesh.visible = false;

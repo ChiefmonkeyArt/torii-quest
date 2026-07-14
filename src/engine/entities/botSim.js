@@ -1,4 +1,4 @@
-// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.378-alpha).
+// engine/entities/botSim.js — PURE headless bot AI brain (v0.2.379-alpha).
 //
 // The single-player bot AI/sim extracted verbatim out of src/bots.js. This module
 // has ZERO render/audio/physics imports: no three, no scene, no audio, no Rapier,

@@ -14,7 +14,9 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass } from './scene.js';
+import { createQualityTier } from './engine/render/qualityTier.js';
+import { createPerfHud } from './engine/render/perfHud.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
@@ -196,6 +198,19 @@ export function createArenaRuntime(hooks = {}) {
   const MP_MOVE_HZ = 10;
   const MP_MOVE_INTERVAL = 1 / MP_MOVE_HZ;
 
+  // v0.2.379-alpha: adaptive render-quality tier — a rolling frame-time monitor
+  // that steps DPR + bloom down/up with hysteresis to keep the frame smooth on
+  // weaker hardware. Independent of MP (single-player + multiplayer behave the
+  // same); no gameplay effect — only DPR (≤ 1.5, the scene default) and the
+  // bloom gate change. The debug perf HUD reads its metrics snapshot but only
+  // touches the DOM when window.__toriiPerf (or ToriiDebug.perf) is set.
+  const _quality = createQualityTier({ renderer, composer, bloomPass, window });
+  const _perfHud = createPerfHud({
+    window,
+    getMetrics: () => _quality.metrics(),
+    getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
+  });
+
   // ── In-world GATEWAY PORTAL trigger (v0.2.181) ───────────────────────────────
   // The composition-root boundary: the ONE place a real `window` is injected into
   // the v0.2.180 portal-activation seam. Proximity only ARMS the inert boundary +
@@ -355,11 +370,18 @@ export function createArenaRuntime(hooks = {}) {
         });
       }
     }
+    // v0.2.379-alpha: feed the frame delta (ms) to the adaptive tier BEFORE the
+    // render so any DPR/bloom change lands on this frame; sample renderer.info +
+    // refresh the debug HUD AFTER (draw-call/triangle counts reflect the frame
+    // just drawn). Both are cheap; the HUD does nothing unless its flag is set.
+    _quality.update(dt * 1000);
     try {
       renderFrame(isLive());
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
     }
+    _quality.sampleRenderInfo();
+    _perfHud.update(performance.now());
   }
 
   // boot() — one-time synchronous three scene/loop bootstrap + handler wiring.
@@ -548,7 +570,7 @@ export function createArenaRuntime(hooks = {}) {
         if (_peerCombat(name, payload)) return;
         const p = payload || {};
 
-        // Bot milestone chunk 2 (v0.2.378-alpha): server-authoritative bots. In MP
+        // Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots. In MP
         // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
         // the local AI + ignore local damage) and drive it from the BOT_* stream.
         if (name === 'mp_state') {

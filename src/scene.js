@@ -13,7 +13,10 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { assetUrl } from './assetUrl.js';
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// v0.2.379-alpha: main renderer DPR cap lowered 2 → 1.5 (HIGH tier max). The
+// adaptive quality tier (engine/render/qualityTier.js) calls setPixelRatio()
+// dynamically at/below this. 1.5 matches the existing mirror cap (mirror.js:51).
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
@@ -273,6 +276,10 @@ const _bloomPass = new UnrealBloomPass(
 );
 _composer.addPass(_bloomPass);
 _composer.addPass(new OutputPass());
+
+// v0.2.379-alpha: exported so the adaptive quality tier can resize the composer
+// and toggle bloom (LOW tier disables it) without re-allocating passes.
+export { _composer as composer, _bloomPass as bloomPass };
 
 // ── Resize ────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {

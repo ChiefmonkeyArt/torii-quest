@@ -1,5 +1,5 @@
 // bots.js — thin render/collider/audio/LOD wrapper around the PURE headless bot
-// AI in engine/entities/botSim.js (v0.2.378-alpha).
+// AI in engine/entities/botSim.js (v0.2.379-alpha).
 //
 // The AI brain (spawn logic, per-frame steering/cover/LOS/shoot decision, and the
 // hit/kill/blowback/respawn state machine) lives in botSim.js with ZERO
@@ -32,7 +32,7 @@ import { createBotNetState, animHintToFlags } from './engine/entities/botNetStat
 
 export const bots = [];
 
-// Bot milestone chunk 2 (v0.2.378-alpha): in multiplayer the client is
+// Bot milestone chunk 2 (v0.2.379-alpha): in multiplayer the client is
 // RENDER-ONLY — the server runs the authoritative bot AI and streams BOT_STATE.
 // _netMode flips tickBots() from local-AI to interpolate-from-server, and makes
 // hitBot() a no-op (damage is resolved server-side via the SHOT path).

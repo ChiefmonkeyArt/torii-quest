@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.378-alpha",
-  "generatedAt": "2026-07-13T23:03:59.486Z",
+  "version": "v0.2.379-alpha",
+  "generatedAt": "2026-07-14T00:46:10.952Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.378-alpha"
+        "value": "v0.2.379-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.378-alpha"
+        "value": "16 / 16 regression checks GREEN · last green v0.2.379-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.378-alpha",
-    "gitCommit": "88f9243",
+    "version": "v0.2.379-alpha",
+    "gitCommit": "49e273b",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.378-alpha / pkg 0.2.378-alpha"
+        "detail": "config v0.2.379-alpha / pkg 0.2.379-alpha"
       },
       {
         "key": "tests",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.378-alpha",
+    "version": "v0.2.379-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -268,7 +268,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.378-alpha"
+        "value": "v0.2.379-alpha"
       },
       {
         "label": "Release manifest",
@@ -400,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.378-alpha",
+    "version": "v0.2.379-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.378-alpha"
+        "value": "v0.2.379-alpha"
       },
       {
         "label": "Approved by",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.378-alpha"
+        "value": "v0.2.379-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.378-alpha",
+    "version": "v0.2.379-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

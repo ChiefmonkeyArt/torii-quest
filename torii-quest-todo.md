@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.379-alpha`
+Current version: `v0.2.380-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### LEADERBOARD — Live in-arena leaderboard wired end-to-end (v0.2.380-alpha) — server live SCORE broadcast + toggleable overlay (L/Tab) with LOCAL live tallies + GLOBAL relay read + opt-in publish
+
+> **LIVE IN-ARENA LEADERBOARD — 2026-07-14 (v0.2.380-alpha):** Wired the existing (tested/pure) leaderboard scaffolding live end-to-end. (1) SERVER — `server/arena-ws.js` now broadcasts the authoritative `SCORE` frame DURING play (immediately after each player-kill `addKill`, plus a ~5s `SCORE_TICK_MS` `setInterval` gated on `SCORE_ENABLED`), not only on session close; `broadcastScoreFrame()` no-ops on empty tallies. (2) CLIENT — new pure `src/engine/multiplayer/arenaLeaderboard.js` (`talliesToCurrentEvents` + `createArenaLeaderboard`, all impure edges injected — document/fetchGlobal/onPublish/canPublish) mounted as a toggleable in-arena overlay bound to L / Tab in `src/arenaRuntime.js`; `mp_score` frames feed the LOCAL tab as the DEFAULT view (0 prompts, session-scoped, works with NO signer). (3) PUBLISH — the overlay footer proxies the existing `#leaderboard-publish-btn` (`_publishMyScore`) so the opt-in NIP-07 publish is one click, never auto. (4) GLOBAL tab reads signed score events back via `leaderboardRelayRead` + `fanoutReq` (read-only, 0 prompts, graceful empty/offline). Additive on `PROTOCOL_VERSION=1`. New tests: `tests/multiplayer/arena-leaderboard.test.js` + `tests/multiplayer/live-score-broadcast.test.js`.
 
 ### PERF — DPR cap + adaptive quality tier + bloom gate + perf HUD (v0.2.379-alpha) — GPU fill-rate reduction, gameplay byte-identical
 

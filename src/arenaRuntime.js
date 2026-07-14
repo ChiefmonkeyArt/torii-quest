@@ -40,6 +40,9 @@ import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
 import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
+import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
+import { RELAYS, fanoutReq } from './nostr.js';
 import { assetUrl } from './assetUrl.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
@@ -209,6 +212,30 @@ export function createArenaRuntime(hooks = {}) {
     window,
     getMetrics: () => _quality.metrics(),
     getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
+  });
+
+  // v0.2.380-alpha: live in-arena leaderboard overlay (toggle: L / Tab).
+  //  • LOCAL tab — server-authoritative live tallies fed from the mp_score frames
+  //    the server now broadcasts on kill + a ~5s tick. 0 signer prompts, session-
+  //    scoped, works with NO Nostr login (npubs come from the server).
+  //  • GLOBAL tab — read-only Nostr relay read-back of published kind-30000 score
+  //    events (fanoutReq over RELAYS → pure leaderboardRelayRead). No prompts.
+  //  • PUBLISH footer — a proxy click on the already-wired #leaderboard-publish-btn
+  //    (main.js). Opt-in only: one NIP-07 sign on click, never auto.
+  const _arenaLb = createArenaLeaderboard({
+    document,
+    onPublish: () => { try { document.getElementById('leaderboard-publish-btn')?.click(); } catch { /* noop */ } },
+    canPublish: () => /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
+    fetchGlobal: async () => {
+      try {
+        const filter = buildScoreFilter({ limit: 50 });
+        const { events, used } = await fanoutReq(RELAYS, filter, { timeoutMs: 4000, graceMs: 300 });
+        const report = readLeaderboardEvents({ events });
+        return { ok: used.length > 0 || report.rows.length > 0, rows: report.rows, count: report.count };
+      } catch {
+        return { ok: false, offline: true, rows: [] };
+      }
+    },
   });
 
   // ── In-world GATEWAY PORTAL trigger (v0.2.181) ───────────────────────────────
@@ -514,6 +541,17 @@ export function createArenaRuntime(hooks = {}) {
       }
     }, true);
 
+    // L / Tab — toggle the live in-arena leaderboard overlay (v0.2.380-alpha).
+    // No collision with movement/interact keys (WASD/arrows/shift/space/E/R/F/C).
+    // Tab's default focus-cycle is suppressed so it can't steal pointer focus.
+    document.addEventListener('keydown', e => {
+      if (e.repeat) return;
+      if (e.code !== 'KeyL' && e.code !== 'Tab') return;
+      if (!isPlaying() && !isPaused()) return;
+      if (e.code === 'Tab') e.preventDefault();
+      _arenaLb.toggle();
+    }, false);
+
     // KeyF — dual role, mutually exclusive so one press never does both:
     //  • in range of the gateway (armed): open the in-world gateway screen;
     //  • otherwise, while playing: toggle the dev free-fly camera.
@@ -579,6 +617,10 @@ export function createArenaRuntime(hooks = {}) {
           return;
         }
         if (name === 'mp_stopped' || name === 'mp_disabled') { setBotNetMode(false); return; }
+        // v0.2.380-alpha: server-authoritative live leaderboard tallies. Feed the
+        // SCORE frame straight into the overlay; it re-renders only when open on
+        // the LOCAL tab. Read-only — no signer, no prompts.
+        if (name === 'mp_score') { _arenaLb.setLiveScore(p); return; }
         if (name === 'mp_botState') { ingestBotState(p.bots); return; }
         if (name === 'mp_botShot')  { applyBotShot(p.origin, p.dir); return; }
         if (name === 'mp_botHit') {
@@ -708,6 +750,8 @@ export function createArenaRuntime(hooks = {}) {
   // peers see us LEFT immediately instead of after a ping-timeout gap.
   function stopMultiplayer(reason = 'travel') {
     if (_mp) { try { _mp.stop(reason); } catch {} _mp = null; }
+    // v0.2.380-alpha: tear the leaderboard overlay down on arena exit / travel.
+    try { _arenaLb.destroy(); } catch { /* noop */ }
   }
 
   return { boot, bootstrapPhysics, enter, setSpawnOverride, stopMultiplayer };

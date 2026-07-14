@@ -56,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.379-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.380-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -124,6 +124,10 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
+// v0.2.380-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// emit, broadcast the running tally on every kill and on this periodic tick so
+// clients see real-time standings. Additive on PROTOCOL_VERSION=1.
+const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
 // Session-token authority (v0.2.375-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
@@ -473,6 +477,9 @@ function resolveAndBroadcast(shooter, shotMsg) {
     });
     // MP-3: attribute kill → shooter, death → victim.
     if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
+    // v0.2.380-alpha: push the updated standings immediately on a kill so the
+    // live in-arena leaderboard reflects frags without waiting for the tick.
+    broadcastScoreFrame();
     scheduleRespawn(result.targetId, shooter.pos);
   }
 }
@@ -613,6 +620,14 @@ if (BOT_SIM_ENABLED) {
       broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
     }
   }, BOT_TICK_MS);
+}
+
+// v0.2.380-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// no-op when SCORE is disabled or no tallies exist, so this only emits once
+// combat has produced standings. The on-kill + on-close emits stay in place;
+// this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
+if (SCORE_ENABLED) {
+  setInterval(() => { broadcastScoreFrame(); }, SCORE_TICK_MS);
 }
 
 // ---------- server bring-up ----------

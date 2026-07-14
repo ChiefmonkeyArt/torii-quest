@@ -56,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.381-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.382-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -412,8 +412,21 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
   _shotLogAt.set(shooterId, now);
   const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
   const bot  = botResult ? `${botResult.botId}@t=${botResult.t.toFixed(2)}` : 'null';
+  // v0.2.382 combat hotfix diagnostic: the reported miss (player→bot shots not
+  // registering) could not be reproduced headlessly — server geometry HITS. This
+  // compact Y-frame line lets us confirm the vertical alignment on a LIVE server:
+  // origin.y is the shooter's camera/eye Y; botFootY is the nearest bot's collider
+  // base (sampleArenaHeight); dy is the delta. A large |dy| that isn't ~EYE(1.7)
+  // above the bot foot would explain rays passing over/under the bot capsule.
+  const oy = (BOT_SIM_ENABLED && shotMsg.origin) ? shotMsg.origin[1] : null;
+  const diag = BOT_SIM_ENABLED ? arenaBotSim.nearestBotDiag(shotMsg.origin) : null;
+  let yinfo = '';
+  if (diag && oy != null) {
+    const dy = oy - diag.footY;
+    yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
+  }
   log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}`);
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}`);
 }
 
 function resolveAndBroadcast(shooter, shotMsg) {

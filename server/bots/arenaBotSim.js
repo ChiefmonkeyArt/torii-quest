@@ -124,6 +124,25 @@ export function createArenaBotSim(opts = {}) {
     return best;
   }
 
+  // Diagnostic (v0.2.382): nearest alive bot to the shot ray in the XZ plane,
+  // with its collider footY, so [SHOT-RESOLVE] can log origin.y vs bot footY and
+  // the vertical delta while a player shoots bots on a live server. Never used
+  // for hit resolution — purely for the ≤1/sec log line. Returns null if no bots.
+  function nearestBotDiag(origin) {
+    if (!origin) return null;
+    const ox = origin[0], oz = origin[2];
+    let best = null;
+    for (const st of sim.bots) {
+      if (!st.alive) continue;
+      const dx = st.pos.x - ox, dz = st.pos.z - oz;
+      const d2 = dx * dx + dz * dz;
+      if (!best || d2 < best.d2) {
+        best = { d2, botId: st.id, footY: sampleArenaHeight(st.pos.x, st.pos.z), pos: { ...st.pos } };
+      }
+    }
+    return best;
+  }
+
   function getBot(botId) { return sim.bots.find((b) => b.id === botId) || null; }
 
   // Apply authoritative damage to a bot. playerPos ({x,z}) drives blowback dir.
@@ -136,7 +155,7 @@ export function createArenaBotSim(opts = {}) {
 
   return {
     spawn, tick, snapshot,
-    resolvePlayerShot, applyBotDamage, getBot,
+    resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag,
     get bots() { return sim.bots; },
   };
 }

@@ -1,8 +1,12 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.381-alpha`
+Current version: `v0.2.382-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### COMBAT — player→bot damage diagnostic (v0.2.382-alpha) — DIAGNOSTIC-ONLY; reported miss not reproducible headlessly, awaiting live logs
+
+> **COMBAT DIAGNOSTIC — 2026-07-14 (v0.2.382-alpha):** Investigated a reported one-directional break (player→bot shots not registering while bot→player works). Traced the full vertical coordinate chain and proved headlessly (`resolvePlayerShot` HITS torso+head for regular AND boss across shooter positions) that the peer capsule footY (`pos.y−EYE 1.7`), the bot collider footY (`sampleArenaHeight`), and the client's visual bot foot all resolve to the SAME world-Y, and the `MSG.SHOT` wire codec is y-pass-through — so the spec's hypothesised ~0.8m frame mismatch does NOT reproduce. Per the spec decision gate, shipped NO speculative fix; enriched the ≤1/sec `[SHOT-RESOLVE]` log in `server/arena-ws.js` with `originY`/`nearBot`/`botFootY`/`dy` (nearest-bot foot via new `arenaBotSim.nearestBotDiag`) so the maintainer can grep `journalctl -u torii-arena-ws` while shooting bots, plus regression tests `tests/multiplayer/player-bot-combat.test.js`. `PROTOCOL_VERSION=1`, single-player byte-identical. **NEXT:** collect a live `[SHOT-RESOLVE]` line while shooting a bot and report `dy` back to pin the real frame delta.
 
 ### BOSS — Augustink server-authoritative BOSS bot (v0.2.381-alpha) — per-bot stat archetype (kind/name/HP~60/slow/high-damage/bigger capsule) on the existing server-authoritative bot roster; 1 boss/arena, own GLB + nameplate, synced to all players, single-player byte-identical except the boss is present
 

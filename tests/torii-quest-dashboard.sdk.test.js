@@ -33,7 +33,7 @@ describe('SDK exposure', () => {
   it('re-exports the torii-quest module at the experimental tier (dashboard barrel)', () => {
     // R1, v0.2.262: continuum is exposed via the dashboard barrel, not the runtime SDK barrel,
     // so it does not get pulled into the app chunk on every page load.
-    expect(DashboardSDK.toriiQuestDashboard.TORII_QUEST_VERSION).toBe('v0.2.387-alpha');
+    expect(DashboardSDK.toriiQuestDashboard.TORII_QUEST_VERSION).toBe('v0.2.388-alpha');
     expect(typeof DashboardSDK.toriiQuestDashboard.renderToriiQuestPage).toBe('function');
     expect(DashboardSDK.DASHBOARD_SURFACE.toriiQuestDashboard.tier).toBe(DashboardSDK.STABILITY.EXPERIMENTAL);
     // Confirm the runtime SDK barrel no longer re-exports continuum.

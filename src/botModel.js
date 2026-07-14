@@ -73,8 +73,6 @@ function _loadTemplate(kind = 'regular') {
 }
 
 // ── Scale helper ──────────────────────────────────────────────────────────────
-const _BOX  = new THREE.Box3();
-const _SIZE = new THREE.Vector3();
 const TARGET_HEIGHT = 1.85;
 
 const FADE = 0.12;
@@ -104,19 +102,29 @@ export class BotModel {
     this.root = skeletonClone(tpl.scene);
 
     if (tpl.target) {
-      // Boss: augustink4 root scale is 0.01 (Blender cm export). Measure the real
-      // world-space height (setFromObject walks the full transform hierarchy so
-      // the baked 0.01 is included), then scale uniformly to the boss target
-      // height and lift so the feet sit at y=0.
-      this.root.updateWorldMatrix(true, true);
-      _BOX.setFromObject(this.root);
-      _BOX.getSize(_SIZE);
-      const naturalH = _SIZE.y || 1;
-      const s = tpl.target / naturalH;
+      // Boss (augustink4.glb): a rigged SkinnedMesh whose Armature root carries a
+      // 0.01 (Blender cm-export) scale. Box3.setFromObject measures the SkinnedMesh
+      // NODE's static geometry box collapsed into that 0.01 frame (~0.017m), but the
+      // mesh actually RENDERS at its LOCAL geometry size (~1.66m) because the
+      // inverse-bind matrices cancel the armature scale — the same SkinnedMesh
+      // "inflation" the peer-avatar path documents (arenaRuntime.js). Feeding
+      // setFromObject's tiny height into target/naturalH yielded s≈120 and a boss
+      // ~200m tall ("bigger than the arena"), and changing BOSS_TARGET_HEIGHT had no
+      // apparent effect since every value was absurdly huge. Measure geometry-only
+      // LOCAL bounds (the true rendered height), scale to the boss target, and lift
+      // so the feet sit at y=0 in the scaled frame.
+      let gMinY = Infinity, gMaxY = -Infinity;
+      this.root.traverse(o => {
+        if (o.isMesh && o.geometry) {
+          o.geometry.computeBoundingBox();
+          const b = o.geometry.boundingBox;
+          if (b) { gMinY = Math.min(gMinY, b.min.y); gMaxY = Math.max(gMaxY, b.max.y); }
+        }
+      });
+      const naturalH = (Number.isFinite(gMinY) && Number.isFinite(gMaxY)) ? (gMaxY - gMinY) : 0;
+      const s = tpl.target / (naturalH || 1);
       this.root.scale.multiplyScalar(s);
-      this.root.updateWorldMatrix(true, true);
-      _BOX.setFromObject(this.root);
-      this._footY = -_BOX.min.y;
+      this._footY = -(Number.isFinite(gMinY) ? gMinY : 0) * s;
     } else {
       // Banker GLB is metre-scale (min Y≈0, max Y≈1.70) — no scaling needed.
       this.root.scale.setScalar(1.0);

@@ -101,7 +101,9 @@ describe('liveStatusView', () => {
     expect(v.lines[0]).toMatchObject({ key: 'installed', label: 'Installed', highlight: false });
     expect(v.lines[0].value).toBe('v0.2.360-alpha');
     expect(v.lines[1]).toMatchObject({ key: 'latest', label: 'Latest', highlight: true });
-    expect(v.lines[1].value).toBe('0.2.361-alpha');
+    // v0.2.390-alpha (UPD-3): LATEST display is normalised to carry the 'v' prefix
+    // so it matches INSTALLED's format (the tags source strips it internally).
+    expect(v.lines[1].value).toBe('v0.2.361-alpha');
     expect(v.updateAvailable).toBe(true);
   });
   it('when up-to-date, the Latest row is NOT highlighted', () => {

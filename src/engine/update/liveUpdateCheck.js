@@ -125,6 +125,14 @@ export function liveStatusView({
   const current = String(currentVersion || VERSION);
   const { status, label, delta } = _statusFor(current, latestVersion);
   const updateAvailable = status === LIVE_STATUS.BEHIND;
+  // v0.2.390-alpha (UPD-3): the tags source strips the leading 'v' from the latest
+  // tag (githubReleaseSource.parseRelease), so the LATEST cell rendered as
+  // "0.2.389-alpha" while INSTALLED (config VERSION) shows "v0.2.389-alpha". Normalise
+  // the DISPLAYED value to carry the 'v' so both rows match; the root `latestVersion`
+  // stays raw for the compare/deploy-command paths that expect the bare version.
+  const latestDisplay = latestVersion
+    ? (/^v/i.test(latestVersion) ? latestVersion : `v${latestVersion}`)
+    : '—';
   // v0.2.361-alpha (UPD-1): panel is now titled 'Version' and shows two rows.
   // Row shape carries a `highlight` flag so the renderer can visually mark the
   // Latest cell when a newer release exists — status is encoded in that cue
@@ -133,7 +141,7 @@ export function liveStatusView({
   // could pick it up without another module round-trip.
   const lines = [
     { key: 'installed', label: 'Installed', value: current, highlight: false },
-    { key: 'latest',    label: 'Latest',    value: latestVersion || '—', highlight: updateAvailable },
+    { key: 'latest',    label: 'Latest',    value: latestDisplay, highlight: updateAvailable },
   ];
   return {
     title: 'Version',

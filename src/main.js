@@ -688,6 +688,43 @@ function _setUpdateStatusLine(text) {
   el.hidden = !t;
 }
 
+// v0.2.390-alpha (UPD-3): ordered deploy stages for the progress bar. The
+// connection-failure window (arena-ws restarting) maps to 'deploying'.
+const _UPDATE_STEPS = ['requested', 'building', 'deploying', 'done'];
+const _UPDATE_PCT = { requested: 20, building: 55, deploying: 80, done: 100, failed: 100, timeout: 90 };
+
+// Drive the animated progress bar + step labels + status text as one call.
+// `stage` ∈ requested|building|deploying|done|failed|timeout. Never throws.
+function _setUpdateProgress(stage, text) {
+  const wrap = document.getElementById('update-progress');
+  const fill = document.getElementById('update-progress-fill');
+  if (wrap) {
+    wrap.hidden = false;
+    wrap.classList.toggle('is-deploying', stage === 'deploying');
+    wrap.classList.toggle('is-done', stage === 'done');
+    wrap.classList.toggle('is-failed', stage === 'failed');
+    const idx = _UPDATE_STEPS.indexOf(stage);
+    wrap.querySelectorAll('#update-progress-steps span').forEach((el, i) => {
+      el.classList.toggle('is-active', i === idx);
+      el.classList.toggle('is-past', idx >= 0 && i < idx);
+    });
+  }
+  if (fill) {
+    const pct = _UPDATE_PCT[stage];
+    if (Number.isFinite(pct)) fill.style.width = `${pct}%`;
+  }
+  _setUpdateStatusLine(text);
+}
+
+// Reset + hide the progress bar (button re-arm / idle).
+function _clearUpdateProgress() {
+  const wrap = document.getElementById('update-progress');
+  const fill = document.getElementById('update-progress-fill');
+  if (wrap) { wrap.hidden = true; wrap.classList.remove('is-deploying', 'is-done', 'is-failed'); }
+  if (fill) fill.style.width = '0%';
+  _setUpdateStatusLine('');
+}
+
 // v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.
 // Fail-closed — nothing is shown unless the logged-in operator IS the configured
 // admin AND the latest probe says an update is available. When auto-update is
@@ -707,7 +744,7 @@ function _refreshUpdateButton() {
 
   btn.hidden = !show;
   if (fallback) fallback.hidden = true;
-  _setUpdateStatusLine('');
+  _clearUpdateProgress();
 
   if (!show) {
     btn.disabled = false;
@@ -739,29 +776,93 @@ async function _signIntent(unsigned) {
   return r.event;
 }
 
-// Poll the server's update-status every 2s until a terminal state. On 'succeeded'
-// prompt a hard reload; on 'failed'/'error' show the error + the SSH log hint.
-// setInterval (NOT setTimeout) per the regression-check scan policy.
+// v0.2.390-alpha (UPD-3): robust status poller that survives the arena-ws restart.
+// A single fixed-cadence setInterval drives a small state machine (setTimeout is
+// banned outside the allowlist per regression-check, so the reload delay and poll
+// backoff are counted in ticks here rather than nested timers).
+//
+// The deploy restarts arena-ws for ~9s, during which /admin/update-status is
+// unreachable and fetchStatus() returns { state:'unavailable' }. We treat that as
+// the 'deploying' stage and KEEP polling (gentle backoff), instead of giving up.
+// A terminal 'succeeded'/'failed' is only trusted once we've seen the NEW run make
+// progress (or a short grace elapses), so a stale 'succeeded' left over from the
+// previous deploy can't short-circuit the bar. On success we fill to 100%, show
+// "Done — reloading", then location.reload() so the new bundle loads with no manual
+// hard-refresh.
 function _pollUpdateStatus(httpBase, token) {
+  const TICK_MS = 500;
+  const MAX_MS = 5 * 60 * 1000;   // safety timeout
+  const GRACE_MS = 4000;          // ignore stale-terminal until a fresh run shows progress
+  const RELOAD_MS = 1500;         // pause on 100% so the user sees "Done" before reload
+  let elapsed = 0;
+  let sincePoll = 0;
+  let backoffMs = 1000;
+  let sawProgress = false;
+  let reloadCountdown = -1;
+
   const timer = setInterval(async () => {
+    elapsed += TICK_MS;
+
+    // Success → hold the full bar briefly, then hard reload.
+    if (reloadCountdown >= 0) {
+      reloadCountdown -= TICK_MS;
+      if (reloadCountdown <= 0) { clearInterval(timer); location.reload(); }
+      return;
+    }
+
+    if (elapsed >= MAX_MS) {
+      clearInterval(timer);
+      _updatePolling = false;
+      _setUpdateProgress('timeout', 'timed out — hard-refresh to check, or click to retry');
+      _armRetryButton();
+      return;
+    }
+
+    sincePoll += TICK_MS;
+    if (sincePoll < backoffMs) return; // wait out the current backoff window
+    sincePoll = 0;
+
     const status = await fetchStatus({ httpBase, token });
     const st = status && typeof status.state === 'string' ? status.state : 'unavailable';
-    if (st === 'running' || st === 'requested' || st === 'unavailable') {
-      _setUpdateStatusLine(st === 'unavailable' ? 'waiting for runner…' : 'updating… (do not close)');
+
+    if (st === 'unavailable') {
+      // arena-ws restarting (or briefly unreachable) — this IS the deploy, not a failure.
+      sawProgress = true;
+      backoffMs = Math.min(backoffMs + 500, 3000);
+      _setUpdateProgress('deploying', 'deploying — restarting arena (do not close)');
       return;
     }
-    clearInterval(timer);
-    _updatePolling = false;
-    if (st === 'succeeded') {
-      _setUpdateStatusLine('update complete — reloading…');
-      // Hard reload so the new bundle + SW cache take effect immediately.
-      location.reload();
+    backoffMs = 1000; // server answered — resume brisk polling
+
+    if (st === 'succeeded' && (sawProgress || elapsed >= GRACE_MS)) {
+      const ver = status && typeof status.targetRef === 'string' ? status.targetRef : '';
+      _setUpdateProgress('done', ver ? `done — reloading ${ver}` : 'done — reloading');
+      reloadCountdown = RELOAD_MS;
       return;
     }
-    const msg = (status && typeof status.error === 'string' && status.error) ? status.error : 'update failed';
-    _setUpdateStatusLine(`update ${st}: ${msg} — see /var/log/torii-quest-update.log on the host`);
-    _refreshUpdateButton();
-  }, 2000);
+    if (st === 'failed' && (sawProgress || elapsed >= GRACE_MS)) {
+      clearInterval(timer);
+      _updatePolling = false;
+      const msg = (status && typeof status.message === 'string' && status.message)
+        ? status.message : 'update failed on the host';
+      _setUpdateProgress('failed', `update failed: ${msg} — click to retry`);
+      _armRetryButton();
+      return;
+    }
+
+    // In-progress (running / requested / pending) — advance the bar.
+    if (st === 'running') { sawProgress = true; _setUpdateProgress('building', 'building the new version…'); }
+    else { _setUpdateProgress('requested', 'update requested — starting runner…'); }
+  }, TICK_MS);
+}
+
+// After a failed run, turn the Update Now button back into a live retry trigger.
+function _armRetryButton() {
+  const btn = document.getElementById('update-upgrade-btn');
+  if (!btn) return;
+  btn.hidden = false;
+  btn.disabled = false;
+  btn.textContent = '↻ RETRY UPDATE · CLICK HERE';
 }
 
 // v0.2.387-alpha (UPD-2): wire the Update Now click handler once. Idempotent.
@@ -781,17 +882,18 @@ function _pollUpdateStatus(httpBase, token) {
     }
     btn.disabled = true;
     btn.textContent = 'REQUESTING…';
-    _setUpdateStatusLine('signing update request…');
+    _setUpdateProgress('requested', 'signing update request…');
     const res = await requestUpdate({ httpBase, token, signEvent: _signIntent });
     if (!res || !res.ok) {
       btn.disabled = false;
       btn.textContent = '⬆ UPDATE NOW · CLICK HERE';
+      _clearUpdateProgress();
       _setUpdateStatusLine(`could not start update: ${(res && res.error) || 'unknown error'}`);
       return;
     }
     _updatePolling = true;
     btn.textContent = 'UPDATING…';
-    _setUpdateStatusLine('update requested — waiting for runner…');
+    _setUpdateProgress('requested', 'update requested — starting runner…');
     _pollUpdateStatus(httpBase, token);
   });
 })();

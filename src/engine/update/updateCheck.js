@@ -28,6 +28,11 @@ import { VERSION } from '../../config.js';
 export const RELEASE_SOURCE = Object.freeze({
   owner: 'ChiefmonkeyArt',
   repo: 'torii-quest',
+  // v0.2.387-alpha (UPD-2): this project ships git TAGS, not GitHub Releases, so
+  // the `releases/latest` endpoint 404s and every live probe fell through to
+  // "UNABLE TO CHECK". The live check now reads the TAGS endpoint instead; the
+  // release URLs are kept for documentation/reference and as the display link.
+  tagsUrl: 'https://api.github.com/repos/ChiefmonkeyArt/torii-quest/tags?per_page=100',
   // GitHub "latest release" REST endpoint shape — for documentation/reference.
   latestReleaseUrl: 'https://api.github.com/repos/ChiefmonkeyArt/torii-quest/releases/latest',
   releasesPageUrl: 'https://github.com/ChiefmonkeyArt/torii-quest/releases',

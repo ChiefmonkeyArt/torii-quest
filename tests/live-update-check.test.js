@@ -21,7 +21,11 @@ function memStorage(initial = {}) {
   };
 }
 
-const release = (tag) => ({ ok: true, status: 200, json: async () => ({ tag_name: tag, html_url: `https://gh/${tag}` }) });
+// v0.2.387-alpha (UPD-2): the live source is now the GitHub TAGS endpoint, which
+// returns an ARRAY of { name } objects (no tag_name, no html_url). fetchLatestTag
+// maps { name } → { tag_name } before evaluating, so a single-element array with
+// the tag under `name` is the minimal realistic payload.
+const release = (tag) => ({ ok: true, status: 200, json: async () => ([{ name: tag }]) });
 
 describe('versionDelta', () => {
   it('reports same for equal versions', () => {
@@ -38,6 +42,12 @@ describe('versionDelta', () => {
     const d = versionDelta('v0.2.280-alpha', 'v0.2.280-beta');
     expect(d.direction).not.toBe('same');
     expect(d.count).toBeNull();
+  });
+});
+
+describe('cache key', () => {
+  it('is bumped to v2 (source moved from releases/latest to tags)', () => {
+    expect(UPDATE_CACHE_KEY).toBe('torii.updateCheck.v2');
   });
 });
 

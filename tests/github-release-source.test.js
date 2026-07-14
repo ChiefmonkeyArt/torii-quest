@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeRelease, selectLatestRelease, evaluateFromSource, fetchLatestRelease,
-  SOURCE_KIND, SOURCE_STATUS, UPDATE_STATUS, RELEASE_SOURCE,
+  fetchLatestTag, SOURCE_KIND, SOURCE_STATUS, UPDATE_STATUS, RELEASE_SOURCE,
 } from '../src/engine/update/githubReleaseSource.js';
 import { VERSION } from '../src/config.js';
 import * as SDK from '../src/sdk/index.js';
@@ -211,10 +211,64 @@ describe('fetchLatestRelease — host-only, injected fetcher', () => {
   });
 });
 
+// v0.2.387-alpha (UPD-2): the tags source. GitHub's tags endpoint returns
+// [{ name, commit }] — a tag's version identifier is `name`. fetchLatestTag maps
+// name→tag_name at this seam ONLY, then reuses the shared selectLatestRelease fold.
+const GH_TAGS = Object.freeze([
+  { name: 'v0.2.100-alpha', commit: { sha: 'a' } },
+  { name: 'v0.2.387-alpha', commit: { sha: 'b' } },
+  { name: 'v0.2.200-alpha', commit: { sha: 'c' } },
+]);
+
+describe('fetchLatestTag — tags endpoint', () => {
+  it('defaults to the tags URL and picks the highest tag', async () => {
+    let seenUrl = null;
+    const fetcher = async (u) => { seenUrl = u; return { ok: true, status: 200, json: async () => GH_TAGS }; };
+    const r = await fetchLatestTag({ fetcher, currentVersion: 'v0.2.138-alpha' });
+    expect(seenUrl).toBe(RELEASE_SOURCE.tagsUrl);
+    expect(r.ok).toBe(true);
+    expect(r.status).toBe(SOURCE_STATUS.OK);
+    expect(r.url).toBe(RELEASE_SOURCE.tagsUrl);
+    expect(r.evaluation.status).toBe(UPDATE_STATUS.UPDATE_AVAILABLE);
+    expect(r.evaluation.latestVersion).toBe('0.2.387-alpha');
+  });
+
+  it('maps a tag object { name } → { tag_name } (does NOT need a release name)', async () => {
+    const fetcher = async () => ({ ok: true, status: 200, json: async () => [{ name: 'v0.3.0-alpha' }] });
+    const r = await fetchLatestTag({ fetcher, currentVersion: 'v0.2.999-alpha' });
+    expect(r.evaluation.latestVersion).toBe('0.3.0-alpha');
+    expect(r.evaluation.updateAvailable).toBe(true);
+  });
+
+  it('refuses (no throw, no wire) when no fetcher is injected', async () => {
+    const r = await fetchLatestTag({});
+    expect(r.ok).toBe(false);
+    expect(r.status).toBe(SOURCE_STATUS.MALFORMED);
+    expect(r.payload).toBeNull();
+    expect(r.errors[0]).toMatch(/no fetcher/);
+  });
+
+  it('captures a thrown fetcher error as a safe MALFORMED state', async () => {
+    const fetcher = async () => { throw new Error('network down'); };
+    const r = await fetchLatestTag({ fetcher });
+    expect(r.ok).toBe(false);
+    expect(r.status).toBe(SOURCE_STATUS.MALFORMED);
+    expect(r.errors.join(' ')).toMatch(/network down/);
+  });
+
+  it('notes a non-ok HTTP response and degrades to UNKNOWN', async () => {
+    const fetcher = async () => ({ ok: false, status: 404, json: async () => ([]) });
+    const r = await fetchLatestTag({ fetcher });
+    expect(r.errors.join(' ')).toMatch(/http 404/);
+    expect(r.evaluation.status).toBe(UPDATE_STATUS.UNKNOWN);
+  });
+});
+
 describe('SDK exposure', () => {
   it('exposes githubReleaseSource at the experimental tier', () => {
     expect(SDK.SDK_SURFACE.githubReleaseSource.tier).toBe(SDK.STABILITY.EXPERIMENTAL);
     expect(typeof SDK.githubReleaseSource.evaluateFromSource).toBe('function');
     expect(typeof SDK.githubReleaseSource.selectLatestRelease).toBe('function');
+    expect(typeof SDK.githubReleaseSource.fetchLatestTag).toBe('function');
   });
 });

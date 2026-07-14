@@ -205,3 +205,71 @@ export async function fetchLatestRelease(opts = {}) {
     errors: errors.concat(evaluation.source.errors),
   };
 }
+
+// mapTagsPayload(raw) → a `releases`-array-shaped payload the existing
+// selectLatestRelease()/evaluateFromSource() fold already understands. The GitHub
+// TAGS endpoint returns `[{ name, commit:{sha,url}, ... }]` — a tag object's
+// version identifier is its `name`, so each is mapped to `{ tag_name: name }`.
+// We deliberately do NOT teach normalizeRelease() to treat a generic `name` as a
+// tag: a GitHub *release* also carries a `name` field that is the human title,
+// NOT the tag, so widening normalizeRelease would mis-read releases. The mapping
+// lives here, at the tags seam, only. Non-array / malformed input passes through
+// unchanged so the downstream fold degrades to MALFORMED, never throws.
+function mapTagsPayload(raw) {
+  if (!Array.isArray(raw)) return raw;
+  return raw.map((t) => {
+    if (!isObj(t)) return t;
+    const name = t.name != null ? str(t.name) : '';
+    return { tag_name: name };
+  });
+}
+
+// fetchLatestTag(opts) → async, HOST-ONLY read-only GitHub TAGS fetch. This is the
+// live update-check source: torii-quest ships git tags, not GitHub Releases, so the
+// `releases/latest` endpoint 404s. Behaves EXACTLY like fetchLatestRelease (same
+// gating, same AbortSignal.timeout, same never-throws contract, same return shape
+// `{ ok, status, url, payload, evaluation, errors }`), but defaults to the tags URL
+// and maps the tag array `[{name}]` → `[{tag_name:name}]` before the shared fold.
+//   opts: { fetcher (required), url=RELEASE_SOURCE.tagsUrl, timeoutMs=8000, signal,
+//           init, currentVersion, includePrerelease, includeDraft }
+export async function fetchLatestTag(opts = {}) {
+  const url = opts.url || RELEASE_SOURCE.tagsUrl;
+  const errors = [];
+
+  if (typeof opts.fetcher !== 'function') {
+    errors.push('no fetcher injected — refusing to touch the network');
+    return { ok: false, status: SOURCE_STATUS.MALFORMED, url, payload: null, evaluation: null, errors };
+  }
+
+  let signal = opts.signal;
+  const timeoutMs = opts.timeoutMs != null ? opts.timeoutMs : 8000;
+  if (!signal && Number.isFinite(timeoutMs) && typeof AbortSignal !== 'undefined'
+      && typeof AbortSignal.timeout === 'function') {
+    try { signal = AbortSignal.timeout(timeoutMs); } catch { /* ignore — best-effort */ }
+  }
+
+  let raw = null;
+  try {
+    const res = await opts.fetcher(url, { ...(opts.init || {}), signal });
+    if (!res || typeof res !== 'object') {
+      errors.push('fetcher returned no response');
+      return { ok: false, status: SOURCE_STATUS.MALFORMED, url, payload: null, evaluation: null, errors };
+    }
+    if ('ok' in res && res.ok === false) errors.push(`http ${res.status != null ? res.status : 'error'}`);
+    raw = typeof res.json === 'function' ? await res.json() : res;
+  } catch (e) {
+    errors.push(`fetch failed: ${e && e.message ? e.message : 'error'}`);
+    return { ok: false, status: SOURCE_STATUS.MALFORMED, url, payload: null, evaluation: null, errors };
+  }
+
+  const payload = mapTagsPayload(raw);
+  const evaluation = evaluateFromSource(payload, opts);
+  return {
+    ok: evaluation.source.status === SOURCE_STATUS.OK,
+    status: evaluation.source.status,
+    url,
+    payload,
+    evaluation,
+    errors: errors.concat(evaluation.source.errors),
+  };
+}

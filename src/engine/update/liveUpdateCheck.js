@@ -1,14 +1,22 @@
 // src/engine/update/liveUpdateCheck.js — LIVE, cached update-check orchestration
-// (M2, v0.2.285). Promotes the host-only GitHub fetch seam (githubReleaseSource
-// .fetchLatestRelease) from "wired in tests only" to the surface the title-screen
-// UPDATE card actually consumes, so an installed copy self-reports its TRUE standing
-// against the latest published release instead of a hard-coded local fixture.
+// (M2, v0.2.285; TAGS source v0.2.387-alpha). Promotes the host-only GitHub fetch
+// seam (githubReleaseSource.fetchLatestTag) from "wired in tests only" to the surface
+// the title-screen VERSION card actually consumes, so an installed copy self-reports
+// its TRUE standing against the latest published git TAG instead of a hard-coded local
+// fixture.
+//
+// v0.2.387-alpha (UPD-2): switched the source from the GitHub `releases/latest`
+// endpoint to the `tags` endpoint. This project ships git tags, not GitHub Releases,
+// so `releases/latest` 404s and every live probe fell through to UNABLE TO CHECK. The
+// cache key is bumped v1 → v2 because the source shape changed. Everything else — the
+// cache, the 15-minute TTL, the fail-closed UNABLE fallback, and the view-model shape —
+// is unchanged.
 //
 // Safety boundary (mirrors UPDATE_CHECK.md / the LEAN-5 rule):
 //   - PURE + node-safe at import: no THREE/Rapier/DOM, no module-level network, never
 //     throws. Every I/O dependency (fetcher, storage, clock) is INJECTED — there is no
 //     global fetch/localStorage/Date fallback, so importing this never touches the wire.
-//   - The ONE network call is a read-only GET to https://api.github.com/.../releases/latest
+//   - The ONE network call is a read-only GET to https://api.github.com/.../tags
 //     via the injected fetcher; it is cached client-side (short TTL) so a busy title
 //     screen never hammers GitHub's 60-req/hr unauthenticated limit.
 //   - NO auto-update / install / shell / navigation. The result is a display-only
@@ -16,13 +24,14 @@
 //   - Fails CLOSED to "unable to check": any network error / rate-limit / 404 / malformed
 //     payload degrades to an inert UNABLE view, never an exception and never a broken card.
 
-import { fetchLatestRelease, RELEASE_SOURCE, UPDATE_STATUS } from './githubReleaseSource.js';
+import { fetchLatestTag, RELEASE_SOURCE, UPDATE_STATUS } from './githubReleaseSource.js';
 import { compareVersions } from './updateCheck.js';
 import { VERSION } from '../../config.js';
 
-// localStorage key + schema version for the cached latest-release probe. Bumping the
-// suffix invalidates every client's cache on a shape change.
-export const UPDATE_CACHE_KEY = 'torii.updateCheck.v1';
+// localStorage key + schema version for the cached latest-tag probe. Bumping the
+// suffix invalidates every client's cache on a shape change. v0.2.387-alpha: v1 → v2
+// because the source moved from releases/latest to the tags endpoint.
+export const UPDATE_CACHE_KEY = 'torii.updateCheck.v2';
 
 // Default cache lifetime — 15 minutes. Long enough that refreshes/route changes reuse
 // the probe (rate-limit friendly), short enough that a fresh deploy is noticed soon.
@@ -149,10 +158,10 @@ export function liveStatusView({
 
 // checkForUpdateLive(opts) → async, the live + cached update probe the UI consumes.
 //   opts: { fetcher (required for a real check), storage, now=()=>Date.now(),
-//           ttlMs=DEFAULT_TTL_MS, currentVersion=VERSION, url=RELEASE_SOURCE.latestReleaseUrl,
+//           ttlMs=DEFAULT_TTL_MS, currentVersion=VERSION, url=RELEASE_SOURCE.tagsUrl,
 //           includePrerelease=true, timeoutMs, init }
 // Flow: a FRESH cache entry short-circuits the network (fromCache:true, no fetch). Else it
-// does the one read-only GET via fetchLatestRelease, caches a usable result, and returns the
+// does the one read-only GET via fetchLatestTag, caches a usable result, and returns the
 // live view. Any failure (no fetcher / network / rate-limit / 404 / malformed) → UNABLE.
 // Pure-by-injection; never throws.
 export async function checkForUpdateLive(opts = {}) {
@@ -175,9 +184,9 @@ export async function checkForUpdateLive(opts = {}) {
     return liveStatusView({ currentVersion, latestVersion: null });
   }
 
-  const res = await fetchLatestRelease({
+  const res = await fetchLatestTag({
     fetcher: o.fetcher,
-    url: o.url || RELEASE_SOURCE.latestReleaseUrl,
+    url: o.url || RELEASE_SOURCE.tagsUrl,
     currentVersion,
     includePrerelease: o.includePrerelease,
     timeoutMs: o.timeoutMs,

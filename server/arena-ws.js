@@ -34,7 +34,9 @@ import {
   decode, encode, sanitize,
 } from '../src/engine/multiplayer/wireProtocol.js';
 import { verifyNostrEventSig } from '../src/engine/crypto/nostrSig.js';
+import { npubToHex } from '../src/engine/crypto/npub.js';
 import { createSessionTokens } from './auth/sessionTokens.js';
+import { createAdminUpdate } from './auth/adminUpdate.js';
 import { createSnapshotRing, push as pushSnap } from './combat/snapshotRing.js';
 import { resolveShot, DEFAULT_LAG_COMP_MS } from './combat/hitResolver.js';
 import { damageFor } from './combat/damageTable.js';
@@ -56,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.386-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.387-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -77,6 +79,15 @@ const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCase() !== 'false';
 const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
 const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
+
+// v0.2.387-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
+// unparseable) the admin gate denies everything and capability.autoUpdate is false.
+// arena-ws only ever WRITES an atomic request file — the root systemd runner (built
+// in torii-suite) resolves the latest tag itself and performs the reinstall.
+const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || '';
+const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
+const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
 // Per-session rate limits (msg / sec).
 const RATE = Object.freeze({
@@ -133,6 +144,15 @@ const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
+
+// v0.2.387-alpha (UPD-2): admin-update request authority. Writes atomic request
+// files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
+const adminUpdate = createAdminUpdate({
+  adminPubkeyHex: ADMIN_PUBKEY_HEX,
+  requestsDir: UPDATE_REQUESTS_DIR,
+  statusPath: UPDATE_STATUS_PATH,
+  installedVersion: SERVER_VERSION,
+});
 
 // Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
 // on reconnect / LEFT we clear pending timers to avoid warping ghosts.
@@ -673,6 +693,43 @@ function sendJson(res, code, obj) {
   res.end(body);
 }
 
+// Extract a bearer token from the Authorization header ("Bearer <token>"). Returns
+// the raw token string or null. The token itself is never logged.
+function bearerToken(req) {
+  const h = req.headers && req.headers.authorization;
+  if (typeof h !== 'string') return null;
+  const m = h.match(/^Bearer\s+(\S+)$/i);
+  return m ? m[1] : null;
+}
+
+// Resolve the admin pubkey behind a request's session token, or null. Fail-closed:
+// no token / unknown token / non-admin session all yield null.
+function adminFromRequest(req) {
+  const token = bearerToken(req);
+  if (!token) return null;
+  const pubkey = sessionTokens.verifyToken(token);
+  if (!pubkey || !adminUpdate.isAdmin(pubkey)) return null;
+  return pubkey;
+}
+
+// Read a size-capped JSON body, invoking cb(parsed) on success or replying an error.
+function readJsonBody(req, res, cb) {
+  let body = '';
+  let tooBig = false;
+  req.on('data', (chunk) => {
+    body += chunk;
+    if (body.length > MAX_LOGIN_BODY) { tooBig = true; req.destroy(); }
+  });
+  req.on('end', () => {
+    if (tooBig) return sendJson(res, 413, { error: 'body too large' });
+    let parsed;
+    try { parsed = JSON.parse(body); }
+    catch { return sendJson(res, 400, { error: 'bad json' }); }
+    return cb(parsed);
+  });
+  req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
+}
+
 const httpServer = createServer((req, res) => {
   // Path without query. The reverse proxy may prefix a mount (/quest, or the
   // sandbox /port/5000), so match by suffix — same tolerance as the WS upgrade.
@@ -718,6 +775,31 @@ const httpServer = createServer((req, res) => {
       return sendJson(res, 200, { token, npub: pubkey });
     });
     req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
+    return;
+  }
+
+  // v0.2.387-alpha (UPD-2) admin-update endpoints.
+  //   GET  /mp/admin/update-capability → { autoUpdate, adminPubkey }   (PUBLIC)
+  //   GET  /mp/admin/update-status     → status JSON                    (session+admin)
+  //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
+  if (req.method === 'GET' && path.endsWith('/mp/admin/update-capability')) {
+    return sendJson(res, 200, adminUpdate.capability());
+  }
+
+  if (req.method === 'GET' && path.endsWith('/mp/admin/update-status')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    return sendJson(res, 200, adminUpdate.readStatus());
+  }
+
+  if (req.method === 'POST' && path.endsWith('/mp/admin/update')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBody(req, res, (parsed) => {
+      const result = adminUpdate.requestUpdate({ event: parsed && parsed.event });
+      if (result.ok) return sendJson(res, 200, { ok: true, state: result.state });
+      return sendJson(res, result.code || 403, { ok: false, error: result.error || 'denied' });
+    });
     return;
   }
 

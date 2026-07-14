@@ -24,6 +24,14 @@ describe('updateCheck — RELEASE_SOURCE', () => {
     // The legacy placeholder must not resurface.
     expect(RELEASE_SOURCE.repo).not.toBe('torii-gate');
   });
+
+  // v0.2.387-alpha (UPD-2): this project ships git TAGS, not GitHub Releases, so
+  // the live probe reads the tags endpoint (releases/latest 404s here). per_page
+  // is capped at 100 so a single request covers the tag history.
+  it('exposes a tags endpoint URL for the live TAGS probe', () => {
+    expect(RELEASE_SOURCE.tagsUrl).toBe(
+      'https://api.github.com/repos/ChiefmonkeyArt/torii-quest/tags?per_page=100');
+  });
 });
 
 describe('updateCheck — compareVersions', () => {

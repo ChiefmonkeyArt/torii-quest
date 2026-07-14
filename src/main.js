@@ -30,11 +30,14 @@ import { summariseConsent } from './engine/consent/consentGate.js';
 // v0.2.285 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
 import { checkForUpdateLive, liveStatusView } from './engine/update/liveUpdateCheck.js';
-// v0.2.361-alpha (UPD-1): client-side upgrade primitive + admin identity check
-// for the Upgrade Now button. Both modules are pure/injectable — importing them
-// touches nothing (no SW touch, no reload, no globals).
-import { runUpgradeInPlace, browserUpgradeAdapter } from './engine/update/upgradeInPlace.js';
-import { isInstanceAdmin } from './engine/ui/instanceSettings.js';
+// v0.2.387-alpha (UPD-2): capability-driven server-side "Update Now" flow. The
+// client signs ONE fresh intent event and POSTs it; a root systemd runner does
+// the actual reinstall. This module is pure/injectable — importing it touches
+// nothing (no fetch, no DOM, no globals).
+import {
+  fetchCapability, requestUpdate, fetchStatus, isAdminOperator, deployCommand,
+} from './engine/update/adminUpdateClient.js';
+import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
@@ -652,11 +655,13 @@ async function _publishMyScore() {
   on(EV.NOSTR_LOGIN, _refreshLbPublishButton);
 })();
 
-// v0.2.361-alpha (UPD-1): the latest resolved view-model, cached at module scope
-// so `_refreshUpgradeButtonVisibility` can key off `updateAvailable` without re-
-// running a network probe on every login event. `null` until the first probe
-// resolves (or a synthetic "checking…" state is painted).
+// v0.2.387-alpha (UPD-2): the latest resolved view-model + the server capability
+// signal, cached at module scope so `_refreshUpdateButton` can key off both
+// without re-probing on every login event. Both `null` until their first probe
+// resolves. `_updatePolling` guards against re-entrant status polls.
 let _latestUpdateView = null;
+let _updateCapability = null; // { autoUpdate, adminPubkey }
+let _updatePolling = false;
 
 function _drawUpdateBlock(block) {
   const body = document.getElementById('update-preview-body');
@@ -673,57 +678,150 @@ function _drawUpdateBlock(block) {
   }));
 }
 
-// v0.2.361-alpha (UPD-1): Upgrade Now button visibility rule. Fail-closed —
-// button is hidden unless the caller is a logged-in admin AND the latest
-// probe says an update is available. Never throws; a missing button element
-// or an absent view-model is treated as "hide".
-function _refreshUpgradeButtonVisibility() {
+// Paint the inert status line under the button (hidden when empty). aria-live so
+// a screen reader announces poll transitions.
+function _setUpdateStatusLine(text) {
+  const el = document.getElementById('update-status-line');
+  if (!el) return;
+  const t = typeof text === 'string' ? text : '';
+  el.textContent = t;
+  el.hidden = !t;
+}
+
+// v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.
+// Fail-closed — nothing is shown unless the logged-in operator IS the configured
+// admin AND the latest probe says an update is available. When auto-update is
+// installed (capability.autoUpdate) the button is an ENABLED trigger; otherwise
+// it is disabled and the copy-command fallback is revealed. Never throws.
+function _refreshUpdateButton() {
   const btn = document.getElementById('update-upgrade-btn');
+  const fallback = document.getElementById('update-copy-fallback');
   if (!btn) return;
+  if (_updatePolling) return; // a run is in flight; leave the live UI untouched
+
   const view = _latestUpdateView;
-  const admin = isInstanceAdmin({
-    operatorPubkey: state.nostrPubkey || '',
-    hostPubkey: _hostIdentity(),
-  });
-  const show = admin && !!(view && view.updateAvailable === true);
+  const cap = _updateCapability;
+  const admin = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  const updateAvailable = !!(view && view.updateAvailable === true);
+  const show = admin && updateAvailable;
+
   btn.hidden = !show;
+  if (fallback) fallback.hidden = true;
+  _setUpdateStatusLine('');
+
   if (!show) {
-    // Re-enable so a subsequent visible state starts clickable again.
     btn.disabled = false;
-    btn.textContent = '⬆ UPGRADE NOW · CLICK HERE';
+    btn.textContent = '⬆ UPDATE NOW · CLICK HERE';
+    return;
+  }
+
+  const auto = !!(cap && cap.autoUpdate === true);
+  if (auto) {
+    btn.disabled = false;
+    btn.textContent = '⬆ UPDATE NOW · CLICK HERE';
+  } else {
+    // No auto-update installed on this instance — surface the manual command.
+    btn.disabled = true;
+    btn.textContent = 'AUTO-UPDATE NOT INSTALLED';
+    if (fallback) {
+      const cmd = document.getElementById('update-copy-cmd');
+      if (cmd) cmd.textContent = deployCommand(view && view.latestVersion);
+      fallback.hidden = false;
+    }
   }
 }
 
-// v0.2.361-alpha (UPD-1): wire the Upgrade Now click handler once. Idempotent —
-// re-imports of main.js would re-attach at most one listener. The handler
-// disables the button (so a double-click can't double-fire) and invokes the
-// pure `runUpgradeInPlace` primitive with the browser adapter. The reload
-// step never returns in a live browser; the disable is defensive.
-(function _wireUpgradeButton() {
+// Adapt nostr.js signEvent ({ok,event,error}) to the RETURN-or-throw contract the
+// adminUpdateClient expects.
+async function _signIntent(unsigned) {
+  const r = await signEvent(unsigned);
+  if (!r || !r.ok || !r.event) throw new Error(r && r.error ? r.error : 'sign failed');
+  return r.event;
+}
+
+// Poll the server's update-status every 2s until a terminal state. On 'succeeded'
+// prompt a hard reload; on 'failed'/'error' show the error + the SSH log hint.
+// setInterval (NOT setTimeout) per the regression-check scan policy.
+function _pollUpdateStatus(httpBase, token) {
+  const timer = setInterval(async () => {
+    const status = await fetchStatus({ httpBase, token });
+    const st = status && typeof status.state === 'string' ? status.state : 'unavailable';
+    if (st === 'running' || st === 'requested' || st === 'unavailable') {
+      _setUpdateStatusLine(st === 'unavailable' ? 'waiting for runner…' : 'updating… (do not close)');
+      return;
+    }
+    clearInterval(timer);
+    _updatePolling = false;
+    if (st === 'succeeded') {
+      _setUpdateStatusLine('update complete — reloading…');
+      // Hard reload so the new bundle + SW cache take effect immediately.
+      location.reload();
+      return;
+    }
+    const msg = (status && typeof status.error === 'string' && status.error) ? status.error : 'update failed';
+    _setUpdateStatusLine(`update ${st}: ${msg} — see /var/log/torii-quest-update.log on the host`);
+    _refreshUpdateButton();
+  }, 2000);
+}
+
+// v0.2.387-alpha (UPD-2): wire the Update Now click handler once. Idempotent.
+// On click it signs a fresh intent, POSTs it with the session bearer token, then
+// polls status. Disables the button so a double-click can't double-fire.
+(function _wireUpdateButton() {
   const btn = document.getElementById('update-upgrade-btn');
   if (!btn || btn.dataset.wired === '1') return;
   btn.dataset.wired = '1';
   btn.addEventListener('click', async () => {
-    if (btn.disabled) return;
-    btn.disabled = true;
-    btn.textContent = 'UPGRADING…';
-    try {
-      await runUpgradeInPlace({ adapter: browserUpgradeAdapter() });
-    } catch {
-      // runUpgradeInPlace never throws — defensive only.
-      btn.disabled = false;
-      btn.textContent = '⬆ UPGRADE NOW · CLICK HERE';
+    if (btn.disabled || _updatePolling) return;
+    const httpBase = resolveMpHttpBase();
+    const token = getStoredToken();
+    if (!httpBase || !token) {
+      _setUpdateStatusLine('log in first to authorise an update');
+      return;
     }
+    btn.disabled = true;
+    btn.textContent = 'REQUESTING…';
+    _setUpdateStatusLine('signing update request…');
+    const res = await requestUpdate({ httpBase, token, signEvent: _signIntent });
+    if (!res || !res.ok) {
+      btn.disabled = false;
+      btn.textContent = '⬆ UPDATE NOW · CLICK HERE';
+      _setUpdateStatusLine(`could not start update: ${(res && res.error) || 'unknown error'}`);
+      return;
+    }
+    _updatePolling = true;
+    btn.textContent = 'UPDATING…';
+    _setUpdateStatusLine('update requested — waiting for runner…');
+    _pollUpdateStatus(httpBase, token);
   });
 })();
 
-// Refresh the button visibility whenever the login identity changes. The
-// upstream NOSTR_LOGIN handler already fires on both admit + delayed-login.
-on(EV.NOSTR_LOGIN, _refreshUpgradeButtonVisibility);
+// Wire the COPY button (manual-command fallback). Idempotent.
+(function _wireCopyButton() {
+  const btn = document.getElementById('update-copy-btn');
+  if (!btn || btn.dataset.wired === '1') return;
+  btn.dataset.wired = '1';
+  btn.addEventListener('click', async () => {
+    const cmd = document.getElementById('update-copy-cmd');
+    const text = cmd ? cmd.textContent || '' : '';
+    if (!text) return;
+    try {
+      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(text);
+      }
+      btn.textContent = 'COPIED';
+    } catch { /* clipboard blocked — the command is visible for manual copy */ }
+  });
+})();
 
-// LIVE update-check: paint an immediate "checking…" row, then resolve against the real
-// GitHub releases/latest endpoint (cached client-side) and repaint. Failure / rate-limit /
-// 404 degrade to an inert "UNABLE TO CHECK" — the card never breaks. No auto-update.
+// Refresh button state whenever the login identity changes. The upstream
+// NOSTR_LOGIN handler already fires on both admit + delayed-login.
+on(EV.NOSTR_LOGIN, _refreshUpdateButton);
+
+// LIVE update-check: paint an immediate "checking…" row, then resolve against the
+// real GitHub TAGS endpoint (cached client-side) and repaint. In parallel, probe
+// the server capability endpoint (public, no auth). Failure degrades to an inert
+// "UNABLE TO CHECK" — the card never breaks.
 function renderUpdatePreview() {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
@@ -731,13 +829,21 @@ function renderUpdatePreview() {
   const fetcher = (typeof window !== 'undefined' && typeof window.fetch === 'function')
     ? window.fetch.bind(window) : null;
   const storage = (typeof window !== 'undefined') ? window.localStorage : null;
+
+  const httpBase = resolveMpHttpBase();
+  if (httpBase) {
+    fetchCapability({ httpBase })
+      .then((cap) => { _updateCapability = cap; _refreshUpdateButton(); })
+      .catch(() => { _updateCapability = { autoUpdate: false, adminPubkey: null }; });
+  }
+
   checkForUpdateLive({ fetcher, storage })
-    .then((view) => { _latestUpdateView = view; _drawUpdateBlock(view); _refreshUpgradeButtonVisibility(); })
+    .then((view) => { _latestUpdateView = view; _drawUpdateBlock(view); _refreshUpdateButton(); })
     .catch(() => {
       const view = liveStatusView({ latestVersion: null });
       _latestUpdateView = view;
       _drawUpdateBlock(view);
-      _refreshUpgradeButtonVisibility();
+      _refreshUpdateButton();
     });
 }
 renderUpdatePreview();

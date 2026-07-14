@@ -1,8 +1,10 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.386-alpha`
+Current version: `v0.2.387-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### UPD-2 — version/update box + admin server-side "Update Now" (v0.2.387-alpha) — three pillars. (1) TAGS check fixes the live 404: the live update-check now reads the GitHub `tags` endpoint (`RELEASE_SOURCE.tagsUrl` + a dedicated `fetchLatestTag` adapter mapping tag `{name}`→`{tag_name}`) instead of `releases/latest` (this repo ships tags, not GitHub Releases); cache key bumped `torii.updateCheck.v1`→`v2`. (2) `arena-ws` gains admin-gated HTTP endpoints: `POST /mp/admin/update` (session token whose pubkey === `QUEST_ADMIN_NPUB` hex + a FRESH signed intent event `torii-quest:update-now:<nonce>`, created_at ≤120s → writes ONE atomic request file to `/opt/torii-quest/mp/update-requests/`, single-flight, never runs a shell, never accepts a client ref), `GET /mp/admin/update-status` (admin-gated), `GET /mp/admin/update-capability` (PUBLIC). A separate root systemd runner (torii-suite) consumes the request and resolves the latest tag itself. (3) Client UI: the Version box shows Installed/Latest/status and, for the logged-in admin, an "Update Now" button (auto-update installed → sign intent → POST → poll status → hard reload on success) or a disabled button + copy-command fallback (auto-update not installed). New pure modules `src/engine/crypto/npub.js` (npub→hex) + `src/engine/update/adminUpdateClient.js` + `server/auth/adminUpdate.js`. `PROTOCOL_VERSION=1`.
 
 ### COMBAT-FEEL — Augustink shrink + hitbox forgiveness (v0.2.386-alpha) — `BOSS_TARGET_HEIGHT` 2.5→2.0m (render-only, boss combat stats unchanged); bot hit capsule widened ~+15% in parity across `server/bots/botColliders.js` + `src/engine/physics/bodies.js` (`BOT_BODY_RADIUS` 0.26→0.30, `BOT_HEAD_RADIUS` 0.20→0.23; centres 0.76/1.55 unchanged, foot stays planted) so shots that visually hit the model's arms/shoulders now register. No damage/HP/zone/parity-lock/lag-comp changes; `PROTOCOL_VERSION=1`.
 

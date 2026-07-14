@@ -33,6 +33,7 @@ import { MP_ENABLED, MP_WS_PATH } from '../../config.js';
 import { createWsClient, WS_STATE } from './wsClient.js';
 import { createRemoteAvatarRoster } from './remoteAvatars.js';
 import { MSG } from './wireProtocol.js';
+import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
 
 /**
  * @param {object} deps
@@ -80,7 +81,7 @@ export function createMultiplayerHost(deps) {
     _enabled: !!mpEnabled,
     start, stop,
     sendMove, sendShot, sendHit, sendKill, sendChat,
-    tick,
+    tick, viewLagMs,
   };
 
   function resolveUrl() {
@@ -177,6 +178,19 @@ export function createMultiplayerHost(deps) {
   function sendChat(msg) { return _send({ t: MSG.CHAT, msg }); }
 
   function tick(renderTime) { roster.tick(renderTime); }
+
+  // v0.2.391 hit-reg: how far BEHIND live the local player's view of the bots
+  // is, in ms. = the client interpolation delay (bots are rendered
+  // DEFAULT_INTERP_DELAY_MS in the past) + the network one-way (the snapshot
+  // that produced the current render arrived one-way ago). arenaRuntime rewinds
+  // a shot's ts by this much so the server lag-comp rewinds the bot ring to
+  // where the player actually SAW the bot, not where it currently is. Clamped
+  // to 250ms so it stays inside the server's 300ms lag-comp window.
+  function viewLagMs() {
+    const ow = ws && Number.isFinite(ws.oneWayMs) ? ws.oneWayMs : 0;
+    const v = DEFAULT_INTERP_DELAY_MS + ow;
+    return v > 250 ? 250 : v;
+  }
 
   return host;
 }

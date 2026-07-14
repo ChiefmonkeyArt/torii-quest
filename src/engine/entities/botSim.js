@@ -60,6 +60,12 @@ const TARGET_SWITCH_CLOSE   = 8;                          // m — this-close gr
 const TARGET_SWITCH_CLOSE_2 = TARGET_SWITCH_CLOSE ** 2;   // squared
 const TARGET_NEARER_RATIO_2 = 0.7 ** 2;                   // switch if new² < 0.49·cur²
 
+// v0.2.391 boss behaviour: the Augustink boss is a TANK, not a flanker. Regular
+// bots orbit a 6-7.6m flank ring and duck into cover when pressured — which on
+// the boss read as "fleeing". The boss instead marches straight at the player
+// and HOLDS at this standoff (metres), never seeking cover and never retreating.
+const BOSS_STANDOFF = 3.0;
+
 // createBotSim(deps) — build the headless bot brain.
 //
 // deps = {
@@ -347,23 +353,34 @@ export function createBotSim(deps) {
       const tier = state.tier;
       const dist = Math.hypot(pp.x - px, pp.z - pz);
 
+      const isBoss = state.kind === 'boss';
+
       // ── Cover eval — STAGGERED per bot, never every frame ────────────────────
-      state._coverTimer -= dt;
-      if (state._coverTimer <= 0) {
-        state._coverTimer = COVER_EVAL_PERIOD;
-        const pressured = state.hp <= state.maxHp * 0.5 || state._isHit ||
-                          tier.id === 'hard' || state.shootCd > 0;
-        if (!playerSafe && pressured && Math.random() < tier.coverBias) {
-          const ci = pickCover(px, pz, pp.x, pp.z, coverPoints, _coverBlocked, COVER_MAX_DIST);
-          state._coverPoint = ci >= 0 ? coverPoints[ci] : null;
-        } else if (Math.random() > tier.persistence) {
-          state._coverPoint = null; // low-persistence bots let cover lapse
+      // The boss NEVER seeks cover (a tank stands and fights) — skip entirely.
+      if (!isBoss) {
+        state._coverTimer -= dt;
+        if (state._coverTimer <= 0) {
+          state._coverTimer = COVER_EVAL_PERIOD;
+          const pressured = state.hp <= state.maxHp * 0.5 || state._isHit ||
+                            tier.id === 'hard' || state.shootCd > 0;
+          if (!playerSafe && pressured && Math.random() < tier.coverBias) {
+            const ci = pickCover(px, pz, pp.x, pp.z, coverPoints, _coverBlocked, COVER_MAX_DIST);
+            state._coverPoint = ci >= 0 ? coverPoints[ci] : null;
+          } else if (Math.random() > tier.persistence) {
+            state._coverPoint = null; // low-persistence bots let cover lapse
+          }
         }
       }
 
-      // ── Desired target: held cover point, else the flank anchor ──────────────
+      // ── Desired target ───────────────────────────────────────────────────────
+      // Boss: advance straight at the player until inside BOSS_STANDOFF, then hold
+      // (target = own position → zero heading). engageSpeed never reverses, so the
+      // boss never backs away. Regular bots: held cover point, else flank anchor.
       let tx, tz;
-      if (state._coverPoint) {
+      if (isBoss) {
+        if (dist > BOSS_STANDOFF) { tx = pp.x; tz = pp.z; }
+        else { tx = px; tz = pz; }
+      } else if (state._coverPoint) {
         tx = state._coverPoint[0]; tz = state._coverPoint[1];
       } else {
         flankAnchor(pp.x, pp.z, px, pz, state._flankSlot.angle, tier.flankBias, _anchor);

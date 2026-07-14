@@ -112,24 +112,34 @@ export function initBots(playerObj, spawnBulletFn) {
 
   // Pre-load the shared GLB template, then spawn all bots (sim owns spawn logic;
   // this wrapper attaches a model + colliders to each resulting sim state).
+  //
+  // v0.2.391 empty-arena fix: attach the REGULAR bots the instant the small
+  // regular GLB is ready — do NOT block them on the 7.6MB boss GLB. The old code
+  // attached every bot inside `bossReady.then(...)`, so the whole arena stayed
+  // empty for the several seconds the boss model took to stream. The boss model
+  // is fetched in PARALLEL and its single wrapper is attached whenever it lands
+  // (falling back to the regular model if the boss GLB fails).
   preloadBotModel().then(() => {
     _modelsReady = true;
     sim.spawnAll(BOT_COUNT);
-    // The roster now includes the Augustink boss (last index). Lazy-load its GLB
-    // (cache-on-use, NOT precached) before attaching; if it fails, the boss falls
-    // back to the regular banker model so the arena still populates.
-    const needBoss = sim.bots.some(st => st.kind === 'boss');
-    const bossReady = needBoss
+
+    const bossStates = sim.bots.filter(st => st.kind === 'boss');
+    // Kick off the boss GLB fetch NOW, in parallel with attaching regulars.
+    const bossReady = bossStates.length
       ? preloadBossModel().then(() => true).catch(err => {
           console.warn('[bots] boss GLB load failed, using regular model:', err);
           return false;
         })
       : Promise.resolve(false);
-    return bossReady.then(bossOk => {
-      sim.bots.forEach(st => {
-        const renderKind = st.kind === 'boss' && bossOk ? 'boss' : 'regular';
-        _attachModelBot(st, renderKind);
-      });
+
+    // Phase 1: regular bots populate the arena immediately.
+    sim.bots.forEach(st => {
+      if (st.kind !== 'boss') _attachModelBot(st, 'regular');
+    });
+
+    // Phase 2: attach the boss once its (parallel) GLB resolves.
+    bossReady.then(bossOk => {
+      bossStates.forEach(st => _attachModelBot(st, bossOk ? 'boss' : 'regular'));
     });
   }).catch(err => {
     console.warn('[bots] GLB load failed, falling back to capsules:', err);

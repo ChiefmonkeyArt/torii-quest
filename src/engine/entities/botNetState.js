@@ -16,7 +16,11 @@
 //
 // PURE: no THREE, no imports. Angles lerp the short way around the circle.
 
-const DEFAULT_INTERP_DELAY_MS = 100; // render ~1.5 server ticks in the past
+// render ~1.5 server ticks in the past. EXPORTED so the shot-timestamp
+// compensation (peerCombat / multiplayerHost) can rewind the shot ts by the
+// SAME amount the bots are rendered behind live — otherwise the server lag-comp
+// rewinds to where the bot IS, not where the player SAW it (v0.2.391 hit-reg).
+export const DEFAULT_INTERP_DELAY_MS = 100;
 const DEFAULT_SNAP_DIST = 3;         // metres; larger jump → snap, don't slide
 const MAX_SAMPLES = 6;               // ring depth per bot
 

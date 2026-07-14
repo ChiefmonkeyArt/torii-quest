@@ -88,6 +88,11 @@ export function createWsClient(opts) {
     _disconnected: false,
     // server-time offset estimate (server-clock ms - client-clock ms) — set on WELCOME
     serverTsOffset: 0,
+    // v0.2.391 hit-reg: smoothed one-way latency (ms), measured from the PONG
+    // echo of our own keepalive PING. Consumed by multiplayerHost.viewLagMs()
+    // so a shot's ts is rewound by (interp delay + network one-way) — the shot
+    // then indexes the server bot ring at where the player actually SAW the bot.
+    oneWayMs: 0,
     connect,
     disconnect,
     send,
@@ -244,7 +249,19 @@ export function createWsClient(opts) {
       case MSG.BOT_HIT:   emit('botHit', msg);   return;
       case MSG.BOT_KILL:  emit('botKill', msg);  return;
       case MSG.PING:  send({ t: MSG.PONG, ts: msg.ts }); return;
-      case MSG.PONG:  return; // measured elsewhere
+      case MSG.PONG: {
+        // The server echoes our PING ts verbatim, so now()-ts is a full RTT in
+        // the client clock domain (no clock-sync needed). Smooth it (EMA) and
+        // clamp one-way to 250ms so a spike can't push the shot ts past the
+        // server's 300ms lag-comp window (DEFAULT_LAG_COMP_MS).
+        const rtt = now() - msg.ts;
+        if (Number.isFinite(rtt) && rtt >= 0 && rtt < 5000) {
+          const ow = rtt / 2;
+          api.oneWayMs = api.oneWayMs ? api.oneWayMs * 0.7 + ow * 0.3 : ow;
+          if (api.oneWayMs > 250) api.oneWayMs = 250;
+        }
+        return;
+      }
       default: return;
     }
   }

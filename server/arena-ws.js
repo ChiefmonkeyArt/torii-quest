@@ -56,7 +56,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.384-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.385-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -427,8 +427,15 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const dy = oy - diag.footY;
     yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
   }
+  // v0.2.385-alpha: surface the lag-comp inputs — the shot ts and whether it fell
+  // outside the [now-LAG_COMP_MS, now] rewind window (so it was clamped).
+  let rw = '';
+  if (typeof shotMsg.ts === 'number') {
+    const clamped = shotMsg.ts < now - LAG_COMP_MS || shotMsg.ts > now;
+    rw = ` shotTs=${shotMsg.ts} rwClamp=${clamped}`;
+  }
   log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}`);
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}`);
 }
 
 function resolveAndBroadcast(shooter, shotMsg) {
@@ -439,19 +446,22 @@ function resolveAndBroadcast(shooter, shotMsg) {
     if (!other || !other.authed) continue;
     peerRings.push({ id, ring });
   }
+  const now = Date.now();
   const result = resolveShot({
     shooterId: shooter.id,
     shot: { origin: shotMsg.origin, dir: shotMsg.dir, ts: shotMsg.ts },
     peerRings,
-    now: Date.now(),
+    now,
     lagCompMs: LAG_COMP_MS,
   });
 
   // Bot milestone chunk 2: also resolve against server-authoritative bots and
   // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
   // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
+  // v0.2.385-alpha: bots are lag-compensated too — rewind to the SAME shot ts +
+  // LAG_COMP_MS window the peer resolver uses, so moving bots stop eating shots.
   const botResult = BOT_SIM_ENABLED
-    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir)
+    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, shotMsg.ts, now, LAG_COMP_MS)
     : null;
   const botNearer = botResult && (!result || botResult.t < result.t);
 
@@ -633,6 +643,9 @@ if (BOT_SIM_ENABLED) {
     }
     arenaBotSim.tick(dt, players);
     const now = Date.now();
+    // v0.2.385-alpha: record post-tick bot positions for lag-compensated
+    // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
+    arenaBotSim.recordSnapshot(now);
     if (players.length > 0 && now - _lastBotStateAt >= BOT_STATE_MS) {
       _lastBotStateAt = now;
       broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });

@@ -1,8 +1,10 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.384-alpha`
+Current version: `v0.2.385-alpha`
 
 ## 🚨 TOP OF QUEUE
+
+### COMBAT — bot lag-compensation for player→bot shots (v0.2.385-alpha) — server now rewinds each bot to the shot ts before ray-testing, mirroring the peer lag-comp path, so shots landed on the ~100ms-old rendered (moving) bot register. New pure `server/bots/botSnapshotRing.js` (records `{ts, bots:[{id,x,z,footY,radius,alive}]}` at the sim tick); `arenaBotSim.resolvePlayerShot` accepts the shot ts and rewinds (clamped to the 300ms window, boss collider scaling preserved); `arena-ws.js` passes the same shot ts the peer path uses. No damage/HP/zone/parity changes; `PROTOCOL_VERSION=1`.
 
 ### UI / LEADERBOARD / STATS TRUTH PASS (v0.2.384-alpha) — boss render-scale ~2.5m; leaderboard title de-mocked + honest empty state; LOCAL board = every player on this server instance incl. disconnected (ledger `retire()` + reconnect-rekey + `snapshot(32)` cap); homescreen preview + personal stats wired to the authoritative SCORE frame (`EV.SCORE_FRAME`); LOGIN button solid mint CTA; homescreen bolt logo → torii-gate SVG (both places). UI + data-wiring only; combat path untouched.
 

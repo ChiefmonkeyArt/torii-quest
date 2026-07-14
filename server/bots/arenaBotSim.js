@@ -26,6 +26,11 @@ import {
 } from '../../src/config.js';
 import { createHeadlessLos } from './headlessLos.js';
 import { buildBotColliders, rayVsBot } from './botColliders.js';
+import { createBotSnapshotRing, pushBotSnap, sampleBotsAt } from './botSnapshotRing.js';
+
+// Default lag-comp rewind window (ms). Mirrors hitResolver.DEFAULT_LAG_COMP_MS
+// for the peer path; the caller passes the live LAG_COMP_MS env override.
+const DEFAULT_LAG_COMP_MS = 300;
 
 // Arena-side static boxes (crates + obstacles west of the NAP plane; torii
 // pillars / bonsai east of it are irrelevant to combat cover). Mirrors src/bots.js.
@@ -42,6 +47,9 @@ const NO_SAFE_CORNER = Object.freeze({ x: 9999, z: 9999, radius: 0 });
  */
 export function createArenaBotSim(opts = {}) {
   const onBotShot = typeof opts.onBotShot === 'function' ? opts.onBotShot : null;
+
+  // v0.2.385-alpha: bot position history for lag-compensated player→bot shots.
+  const ring = createBotSnapshotRing();
 
   const sim = createBotSim({
     losFn: createHeadlessLos(ARENA_BOXES, EYE_Y),
@@ -108,18 +116,56 @@ export function createArenaBotSim(opts = {}) {
     });
   }
 
+  // v0.2.385-alpha: record every bot's position at the sim tick so player→bot
+  // shots can be rewound to the shot ts (lag-comp), exactly as peers are.
+  function currentRows() {
+    return sim.bots.map((st) => ({
+      id: st.id,
+      x: st.pos.x,
+      z: st.pos.z,
+      footY: sampleArenaHeight(st.pos.x, st.pos.z),
+      radius: st.radius,
+      alive: st.alive,
+    }));
+  }
+
+  function recordSnapshot(ts) {
+    const t = Number.isFinite(ts) ? ts : Date.now();
+    pushBotSnap(ring, { ts: t, bots: currentRows() });
+  }
+
+  // The bot rows to ray-test for a shot: rewound to the (clamped) shot ts when a
+  // finite ts + history are available, else the bots' CURRENT positions (the
+  // pre-lag-comp fallback, which also keeps the 2-arg call signature working).
+  function shotTimeRows(shotTs, now, lagCompMs) {
+    if (Number.isFinite(shotTs) && ring.size > 0) {
+      const nowMs = Number.isFinite(now) ? now : Date.now();
+      const lag = Number.isFinite(lagCompMs) ? lagCompMs : DEFAULT_LAG_COMP_MS;
+      // Same clamp the peer resolver uses: shot.ts ∈ [now - lagCompMs, now].
+      const rewindTs = Math.max(nowMs - lag, Math.min(shotTs, nowMs));
+      const sampled = sampleBotsAt(ring, rewindTs);
+      if (sampled) return sampled;
+    }
+    return currentRows();
+  }
+
   // Resolve one player shot against ALL alive bots. Returns the NEAREST hit
   // (smallest t) or null. Caller compares this t against the nearest peer hit
   // so a single bullet only ever applies one hit (no piercing).
-  function resolvePlayerShot(origin, dir) {
+  //
+  // v0.2.385-alpha: when a shot ts is supplied, bots are rewound to that ts
+  // (lag-comp) before building colliders — the same rewind peers already get —
+  // so a hit lands where the player aimed at the ~100ms-old rendered bot. Boss
+  // collider scaling (radius / BOT_R) is preserved on the rewound positions.
+  function resolvePlayerShot(origin, dir, shotTs, now, lagCompMs) {
+    const rows = shotTimeRows(shotTs, now, lagCompMs);
     let best = null;
-    for (const st of sim.bots) {
-      if (!st.alive) continue;
-      const footY = sampleArenaHeight(st.pos.x, st.pos.z);
-      const colliders = buildBotColliders(st.pos.x, st.pos.z, footY, st.radius / BOT_R);
+    for (const r of rows) {
+      if (!r.alive) continue;
+      const colliders = buildBotColliders(r.x, r.z, r.footY, r.radius / BOT_R);
       const res = rayVsBot(origin, dir, colliders);
       if (!res.hit) continue;
-      if (!best || res.t < best.t) best = { botId: st.id, zone: res.zone, t: res.t };
+      if (!best || res.t < best.t) best = { botId: r.id, zone: res.zone, t: res.t };
     }
     return best;
   }
@@ -154,7 +200,7 @@ export function createArenaBotSim(opts = {}) {
   }
 
   return {
-    spawn, tick, snapshot,
+    spawn, tick, snapshot, recordSnapshot,
     resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag,
     get bots() { return sim.bots; },
   };

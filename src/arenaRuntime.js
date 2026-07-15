@@ -27,7 +27,7 @@ import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } fro
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
+import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -425,7 +425,7 @@ export function createArenaRuntime(hooks = {}) {
     initPlayerStats();
     initPlayer();
     initBots(playerObj, spawnBullet);
-    initWeapons(bots, takeDamage, getPlayerCollider);
+    initWeapons(bots, takeDamage, getPlayerCollider, isBotNetMode);
     initTargetReticle({ bots, playerObj, getPlayerCollider });
 
     // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX. Suppressed

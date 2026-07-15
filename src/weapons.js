@@ -37,6 +37,10 @@ import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interact
 // from the old inline `isHead ? 9 : 3` so it is unit-testable and the
 // one-shot-headshot contract is locked by tests against BOT_HP.
 import { shotDamage } from './engine/combat/damage.js';
+// v0.2.397 — SP now resolves the local player's shot as HITSCAN on the aim ray
+// at fire time (matching the MP server path) instead of via the travelling
+// projectile. Pure resolver so the SP-only gate + damage/head rules are tested.
+import { resolveLocalHitscan } from './engine/combat/localShot.js';
 // v0.2.345 — safe-zone backstop. A live-bound import (read only at call time, never
 // during module init) so the player.js↔weapons.js cycle stays safe. Bot bullets
 // already in flight deal no damage once the player steps outside the fence.
@@ -199,11 +203,16 @@ let _bots        = null;
 // Getter (not the collider itself) — player collider is created async after
 // Rapier inits, so we resolve it lazily each shot.
 let _getPlayerCollider = () => null;
+// v0.2.397 — injected SP/MP gate (isBotNetMode from bots.js, wired via
+// arenaRuntime). weapons.js must NOT import bots.js directly (that would create
+// a weapons→bots→player→weapons cycle), so the flag arrives as a getter.
+let _isNetMode = () => false;
 
-export function initWeapons(bots, onPlayerHit, getPlayerCollider) {
+export function initWeapons(bots, onPlayerHit, getPlayerCollider, isNetMode) {
   _bots = bots;
   _onPlayerHit = onPlayerHit;
   if (getPlayerCollider) _getPlayerCollider = getPlayerCollider;
+  if (isNetMode) _isNetMode = isNetMode;
   _buildGun();
 }
 
@@ -222,6 +231,9 @@ const _diagDir = new THREE.Vector3();
 // snapshot on the bullet so resolution can finalise the miss reason. Per-shot.
 export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   if (!b) return null;
+  // v0.2.397 — the tracer is now COSMETIC. Damage is resolved here via hitscan
+  // on the aim ray; the travelling bullet must not double-apply it in tickWeapons.
+  b.noDamage = true;
   const d = _mkDiag();
   d.origin.x = b.prev.x; d.origin.y = b.prev.y; d.origin.z = b.prev.z;
   _diagDir.copy(b.vel);
@@ -233,6 +245,14 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   // Aim line (camera/crosshair) — what the reticle is on.
   const aimHit = raycastService.ray(ax, ay, az, adx, ady, adz, DIAG_RANGE, excl);
   _describeInto(d.aim, aimHit);
+  // v0.2.397 — resolve SP damage NOW, off the aim ray, while aimHit.point is
+  // still valid (the next cast overwrites the shared scratch). MP → null (the
+  // server is authoritative). Capture the impact point before it's clobbered.
+  const local = resolveLocalHitscan(aimHit, _isNetMode());
+  let localHitP = null;
+  if (local) {
+    localHitP = { x: aimHit.point.x, y: aimHit.point.y, z: aimHit.point.z, part: aimHit.bodyPart };
+  }
   // Bullet line (muzzle → convergence) — what the projectile would hit if static.
   const predHit = raycastService.ray(d.origin.x, d.origin.y, d.origin.z, d.dir.x, d.dir.y, d.dir.z, DIAG_RANGE, excl);
   _describeInto(d.pred, predHit);
@@ -240,6 +260,20 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   d.predicted = classifyShotOutcome(d.aim, d.pred);
   b._diag = d;
   _lastShot = d;
+
+  // v0.2.397 — apply the resolved SP hit: update the debug snapshot, finalise
+  // the per-shot diagnostic as a bot hit (so aim == outcome, no moved-or-offset),
+  // and publish on the bus. Same EV.BOT_HIT_BY_PLAYER → hitBot path as before.
+  if (local) {
+    const bot = local.bot;
+    const footY = bot.pos ? bot.pos.y : 0;
+    _lastHit.part = localHitP.part; _lastHit.classified = local.isHead ? 'head' : 'body';
+    _lastHit.impactY = localHitP.y; _lastHit.footY = footY; _lastHit.relY = localHitP.y - footY;
+    _lastHit.inHeadSphere = isInHeadSphere(localHitP.x, localHitP.y, localHitP.z, bot);
+    _lastHit.dmg = local.dmg; _lastHit.botName = bot.name || null; _lastHit.dist = local.toi;
+    _finalizeShot(b, 'bot', local.isHead, bot, local.toi);
+    emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg: local.dmg, isHead: local.isHead });
+  }
   return d;
 }
 
@@ -289,35 +323,38 @@ export function tickWeapons(dt, playerPos) {
           if (hit) {
             _rayHitP.set(hit.point.x, hit.point.y, hit.point.z);
             if (hit.bot && hit.bot.alive) {
-              // Bot hit — spark sprays back at shooter. Headshots deal 3× body
-              // damage (9 vs 3). v0.2.64 introduced the head sphere collider;
-              // hit.bodyPart === 'head' for the sphere, 'body' for the capsule.
+              // Bot hit — spark sprays back at shooter. The tracer FX still play
+              // for feedback, but damage is NOT applied here: v0.2.397 resolves
+              // the player's shot as hitscan on the aim ray at fire time (see
+              // recordPlayerShot). b.noDamage marks these cosmetic-only bullets.
               _bodyBurstNrm.copy(b.vel).normalize().negate();
               spawnSpark(_rayHitP, _bodyBurstNrm);
-              // Deterministic, geometry-consistent head classification (v0.2.113).
-              // Shared classifier (isInHeadSphere/classifyHeadshot) — same rule the
-              // on-screen target reticle uses, so preview matches outcome. Two-tier:
-              //   1) the ray resolved the head sphere collider outright; else
-              //   2) the impact lies inside the head sphere — proximity backstop for
-              //      the overlap frame where Rapier's closest pick says 'body'.
-              const footY  = hit.bot.pos ? hit.bot.pos.y : 0;
-              const relY   = _rayHitP.y - footY;
-              const inHeadSphere = isInHeadSphere(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bot);
-              const isHead = classifyHeadshot(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bodyPart, hit.bot);
-              const dmg    = shotDamage(isHead);
-              // Debug snapshot for ToriiDebug.combat.lastHit (no alloc).
-              _lastHit.part = hit.bodyPart; _lastHit.classified = isHead ? 'head' : 'body';
-              _lastHit.impactY = _rayHitP.y; _lastHit.footY = footY; _lastHit.relY = relY;
-              _lastHit.inHeadSphere = inHeadSphere; _lastHit.dmg = dmg;
-              _lastHit.botName = hit.bot.name || null; _lastHit.dist = hit.toi;
-              // v0.2.124 — resolve the per-shot diagnostic as a bot hit.
-              _finalizeShot(b, 'bot', isHead, hit.bot, hit.toi);
-              // Second spark on headshots so the hit reads as more impactful.
-              if (isHead) spawnSpark(_rayHitP, _bodyBurstNrm);
-              // Player bullet struck a bot — publish on the bus (v0.2.117). The
-              // subscriber in main.js applies damage + crosshair flash. Replaces
-              // the old `window._onBotHit` global bridge; per-shot, not per-frame.
-              emit(EV.BOT_HIT_BY_PLAYER, { bot: hit.bot, dmg, isHead });
+              if (!b.noDamage) {
+                // Deterministic, geometry-consistent head classification (v0.2.113).
+                // Shared classifier (isInHeadSphere/classifyHeadshot) — same rule the
+                // on-screen target reticle uses, so preview matches outcome. Two-tier:
+                //   1) the ray resolved the head sphere collider outright; else
+                //   2) the impact lies inside the head sphere — proximity backstop for
+                //      the overlap frame where Rapier's closest pick says 'body'.
+                const footY  = hit.bot.pos ? hit.bot.pos.y : 0;
+                const relY   = _rayHitP.y - footY;
+                const inHeadSphere = isInHeadSphere(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bot);
+                const isHead = classifyHeadshot(_rayHitP.x, _rayHitP.y, _rayHitP.z, hit.bodyPart, hit.bot);
+                const dmg    = shotDamage(isHead);
+                // Debug snapshot for ToriiDebug.combat.lastHit (no alloc).
+                _lastHit.part = hit.bodyPart; _lastHit.classified = isHead ? 'head' : 'body';
+                _lastHit.impactY = _rayHitP.y; _lastHit.footY = footY; _lastHit.relY = relY;
+                _lastHit.inHeadSphere = inHeadSphere; _lastHit.dmg = dmg;
+                _lastHit.botName = hit.bot.name || null; _lastHit.dist = hit.toi;
+                // v0.2.124 — resolve the per-shot diagnostic as a bot hit.
+                _finalizeShot(b, 'bot', isHead, hit.bot, hit.toi);
+                // Second spark on headshots so the hit reads as more impactful.
+                if (isHead) spawnSpark(_rayHitP, _bodyBurstNrm);
+                // Player bullet struck a bot — publish on the bus (v0.2.117). The
+                // subscriber in main.js applies damage + crosshair flash. Replaces
+                // the old `window._onBotHit` global bridge; per-shot, not per-frame.
+                emit(EV.BOT_HIT_BY_PLAYER, { bot: hit.bot, dmg, isHead });
+              }
             } else {
               // Wall / crate / obstacle / ground — use Rapier-provided normal.
               _impactNrm.set(hit.normal.x, hit.normal.y, hit.normal.z);

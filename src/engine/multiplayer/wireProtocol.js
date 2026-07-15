@@ -155,6 +155,12 @@ const validators = {
     if (!isVec3(m.origin, LIMITS.POS_ABS)) return fail('BAD_FIELD', 'origin');
     if (!isVec3(m.dir,    2))              return fail('BAD_FIELD', 'dir');
     if (!isFiniteNum(m.ts))                return fail('BAD_FIELD', 'ts');
+    // v0.2.392 hit-reg: optional, additive (no PROTOCOL_VERSION bump). When
+    // present it is the client's view-lag (ms); the server rewinds by it in its
+    // own clock frame. Legacy clients omit it. Rejected only if malformed.
+    if (m.viewLag !== undefined && (!isFiniteNum(m.viewLag) || m.viewLag < 0)) {
+      return fail('BAD_FIELD', 'viewLag');
+    }
     if (m.id !== undefined && !isStr(m.id, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'id');
     return ok(m);
   },
@@ -297,7 +303,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],
   [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel'],
-  [MSG.SHOT]:      ['id', 'origin', 'dir', 'ts'],
+  [MSG.SHOT]:      ['id', 'origin', 'dir', 'ts', 'viewLag'],
   [MSG.HIT]:       ['id', 'targetId', 'dmg', 'zone', 'shotTs'],
   [MSG.KILL]:      ['shooterId', 'victimId', 'weapon'],
   [MSG.CHAT]:      ['id', 'msg'],

@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.391-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.392-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -428,9 +428,13 @@ function handleMessage(sess, raw) {
 // Rate-limited (≤1/sec per shooter) SHOT-pipeline diagnostic. Tagged
 // [SHOT-RESOLVE] so a stuck combat loop is greppable in the server log.
 const _shotLogAt = new Map();
-function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decision) {
+function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decision, srvNow, rewindTs) {
   const now = Date.now();
-  if (now - (_shotLogAt.get(shooterId) || 0) < 1000) return;
+  // v0.2.392: force a log line for EVERY resolved hit/miss-with-nearby-bot so a
+  // live capture is not starved when shots come faster than 1/sec; otherwise
+  // keep the ≤1/sec floor to bound noise on rapid-fire misses.
+  const throttled = now - (_shotLogAt.get(shooterId) || 0) < 1000;
+  if (throttled && !result && !botResult) return;
   _shotLogAt.set(shooterId, now);
   const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
   const bot  = botResult ? `${botResult.botId}@t=${botResult.t.toFixed(2)}` : 'null';
@@ -447,15 +451,31 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const dy = oy - diag.footY;
     yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
   }
-  // v0.2.385-alpha: surface the lag-comp inputs — the shot ts and whether it fell
-  // outside the [now-LAG_COMP_MS, now] rewind window (so it was clamped).
+  // v0.2.392-alpha: surface the SERVER-time rewind inputs — the client-reported
+  // viewLag, the server-computed rewindTs, the shot age (server_now-rewindTs),
+  // and whether rewindTs fell outside the [now-LAG_COMP_MS, now] window (clamp).
+  // These are what the fix actually depends on; a live capture confirms the
+  // rewind lands inside history and matches where the shooter saw the target.
   let rw = '';
-  if (typeof shotMsg.ts === 'number') {
-    const clamped = shotMsg.ts < now - LAG_COMP_MS || shotMsg.ts > now;
-    rw = ` shotTs=${shotMsg.ts} rwClamp=${clamped}`;
+  if (Number.isFinite(srvNow) && Number.isFinite(rewindTs)) {
+    const vl = Number.isFinite(shotMsg.viewLag) ? Math.round(shotMsg.viewLag) : 'none';
+    const clamped = rewindTs < srvNow - LAG_COMP_MS || rewindTs > srvNow;
+    rw = ` viewLag=${vl} rewindAge=${srvNow - rewindTs} rwClamp=${clamped} clientTs=${shotMsg.ts}`;
+  }
+  // v0.2.392-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
+  // the crux of the fix. If dxz is large the bot moved between render and now, and
+  // the rewind is what makes the ray land on where the player actually aimed.
+  let bd = '';
+  if (BOT_SIM_ENABLED && shotMsg.origin && Number.isFinite(rewindTs) &&
+      typeof arenaBotSim.rewoundNearestDiag === 'function') {
+    const rd = arenaBotSim.rewoundNearestDiag(shotMsg.origin, rewindTs, srvNow, LAG_COMP_MS);
+    if (rd) {
+      bd = ` bot=${rd.botId} cur=(${rd.cur.x.toFixed(2)},${rd.cur.z.toFixed(2)})` +
+           ` rew=(${rd.rew.x.toFixed(2)},${rd.rew.z.toFixed(2)}) dxz=${rd.dxz.toFixed(2)}`;
+    }
   }
   log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}`);
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}`);
 }
 
 function resolveAndBroadcast(shooter, shotMsg) {
@@ -467,9 +487,21 @@ function resolveAndBroadcast(shooter, shotMsg) {
     peerRings.push({ id, ring });
   }
   const now = Date.now();
+  // v0.2.392 hit-reg ROOT-CAUSE FIX: the rewind time is computed in the SERVER
+  // clock frame. The client reports `viewLag` (render-interp delay + network
+  // one-way, ms); server_now − viewLag is the server-time instant the shooter
+  // visually saw the target, which lines up with the snapshot rings (stamped in
+  // server time). The client's Date.now() is NOT clock-synced to the server, so
+  // shotMsg.ts must never drive the rewind. one-way is counted exactly once (it
+  // is already inside viewLag) — do NOT subtract it again here. Legacy clients
+  // that omit viewLag fall back to the old client-ts path. viewLag is clamped to
+  // the lag-comp window so a bad client cannot rewind outside history.
+  const rewindTs = Number.isFinite(shotMsg.viewLag)
+    ? now - Math.max(0, Math.min(shotMsg.viewLag, LAG_COMP_MS))
+    : shotMsg.ts;
   const result = resolveShot({
     shooterId: shooter.id,
-    shot: { origin: shotMsg.origin, dir: shotMsg.dir, ts: shotMsg.ts },
+    shot: { origin: shotMsg.origin, dir: shotMsg.dir, ts: rewindTs },
     peerRings,
     now,
     lagCompMs: LAG_COMP_MS,
@@ -478,17 +510,17 @@ function resolveAndBroadcast(shooter, shotMsg) {
   // Bot milestone chunk 2: also resolve against server-authoritative bots and
   // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
   // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
-  // v0.2.385-alpha: bots are lag-compensated too — rewind to the SAME shot ts +
-  // LAG_COMP_MS window the peer resolver uses, so moving bots stop eating shots.
+  // v0.2.392-alpha: bots rewind to the SAME server-time rewindTs the peer
+  // resolver uses, so moving bots stop eating shots.
   const botResult = BOT_SIM_ENABLED
-    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, shotMsg.ts, now, LAG_COMP_MS)
+    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, rewindTs, now, LAG_COMP_MS)
     : null;
   const botNearer = botResult && (!result || botResult.t < result.t);
 
-  // v0.2.378 fix 4: low-noise diagnostic (≤1/sec per shooter). If player→player
-  // damage still fails after fix 1, the next play session leaves a signal here.
+  // v0.2.378 fix 4: low-noise diagnostic (≤1/sec per shooter). v0.2.392: also
+  // logs the server-time rewind inputs so a live capture can confirm the fix.
   _logShotResolve(shooter.id, shotMsg, peerRings.length, result, botResult,
-    botNearer ? 'bot-hit' : (result ? 'peer-hit' : 'miss'));
+    botNearer ? 'bot-hit' : (result ? 'peer-hit' : 'miss'), now, rewindTs);
 
   if (botNearer) {
     resolvePlayerBotHit(shooter, botResult);

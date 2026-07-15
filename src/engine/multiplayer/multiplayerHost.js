@@ -168,7 +168,7 @@ export function createMultiplayerHost(deps) {
     return ws.send(msg);
   }
   function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel }); }
-  function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts }); }
+  function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts, viewLag: m.viewLag }); }
   // MP-2 (v0.2.366-alpha): server is authoritative on hits. This is now a
   // no-op export kept for regression compat with callers that were wired in
   // MP-1. Under MP_MODE=advisory the server still relays if a client sends
@@ -179,13 +179,15 @@ export function createMultiplayerHost(deps) {
 
   function tick(renderTime) { roster.tick(renderTime); }
 
-  // v0.2.391 hit-reg: how far BEHIND live the local player's view of the bots
+  // v0.2.392 hit-reg: how far BEHIND live the local player's view of the bots
   // is, in ms. = the client interpolation delay (bots are rendered
   // DEFAULT_INTERP_DELAY_MS in the past) + the network one-way (the snapshot
-  // that produced the current render arrived one-way ago). arenaRuntime rewinds
-  // a shot's ts by this much so the server lag-comp rewinds the bot ring to
-  // where the player actually SAW the bot, not where it currently is. Clamped
-  // to 250ms so it stays inside the server's 300ms lag-comp window.
+  // that produced the current render arrived one-way ago). Sent on the SHOT as
+  // `viewLag`; the SERVER rewinds its bot/peer rings to (server_now - viewLag)
+  // in its own clock frame, testing the collider where the player actually SAW
+  // the bot, not where it currently is. Clamped to 250ms so it stays inside the
+  // server's 300ms lag-comp window. one-way is counted exactly ONCE here — the
+  // server does NOT subtract it again.
   function viewLagMs() {
     const ow = ws && Number.isFinite(ws.oneWayMs) ? ws.oneWayMs : 0;
     const v = DEFAULT_INTERP_DELAY_MS + ow;

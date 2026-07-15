@@ -445,13 +445,14 @@ export function createArenaRuntime(hooks = {}) {
       // shooter saw). Bot hits stay a separate client-side path — a shot may both
       // hit a bot locally AND resolve a peer hit server-side; that is expected.
       if (_mp && shouldSendShot({ playerX: playerObj.position.x, napX: NAP_X, selfId: _mp.selfId })) {
-        // v0.2.391 hit-reg: stamp the shot at the render time the player was
-        // actually looking at (now - viewLag), not raw now(). The server rewinds
-        // its bot/peer snapshot rings to this ts, so it tests the collider where
-        // the shooter SAW the target rather than where it currently is —
-        // otherwise moving bots eat shots (intermittent zero-damage).
+        // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
+        // client's measured viewLag. The server rewinds in its OWN clock frame
+        // (server_now - viewLag) — the client clock is not synced to the server,
+        // so a client timestamp can never index the server's snapshot rings.
+        // viewLag = render interp delay + network one-way; rewinding by it tests
+        // the collider where the shooter SAW the target, not where it now is.
         const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
-        const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now() - viewLag);
+        const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
         if (shot) _mp.sendShot(shot);
       }
     });

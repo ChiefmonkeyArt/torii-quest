@@ -189,6 +189,22 @@ export function createArenaBotSim(opts = {}) {
     return best;
   }
 
+  // Diagnostic (v0.2.392): for the nearest alive bot to the shot origin (XZ),
+  // return its CURRENT position and the position it was REWOUND to at rewindTs
+  // (server time), plus the XZ distance between them. Purely for the ≤1/sec
+  // [SHOT-RESOLVE] log so a live capture can confirm the server-time rewind
+  // lands the collider where the player saw the bot. Never used for resolution.
+  function rewoundNearestDiag(origin, rewindTs, now, lagCompMs) {
+    const near = nearestBotDiag(origin);
+    if (!near) return null;
+    const rows = shotTimeRows(rewindTs, now, lagCompMs);
+    const r = rows.find((row) => row.id === near.botId);
+    const cur = { x: near.pos.x, z: near.pos.z };
+    const rew = r ? { x: r.x, z: r.z } : cur;
+    const dxz = Math.hypot(cur.x - rew.x, cur.z - rew.z);
+    return { botId: near.botId, cur, rew, dxz };
+  }
+
   function getBot(botId) { return sim.bots.find((b) => b.id === botId) || null; }
 
   // Apply authoritative damage to a bot. playerPos ({x,z}) drives blowback dir.
@@ -201,7 +217,7 @@ export function createArenaBotSim(opts = {}) {
 
   return {
     spawn, tick, snapshot, recordSnapshot,
-    resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag,
+    resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag, rewoundNearestDiag,
     get bots() { return sim.bots; },
   };
 }

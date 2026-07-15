@@ -23,11 +23,19 @@ export function shouldSendShot({ playerX, napX, selfId }) {
 // fall back to the muzzle origin/dir when no aim ray is present. Vectors are
 // serialised to [x,y,z] arrays (the wire format). Returns null when neither ray
 // is available — the caller then sends nothing.
-export function buildShotPayload({ origin, dir, aimOrigin, aimDir }, now) {
+//
+// v0.2.392 hit-reg: `ts` is the client's RAW Date.now() (kept for logging only —
+// the client clock is NOT synced to the server, so the server must never use it
+// to rewind). `viewLag` (ms) is how far behind live the shooter's view is (render
+// interp delay + network one-way); the server rewinds in ITS OWN clock frame as
+// server_now − viewLag. See multiplayerHost.viewLagMs().
+export function buildShotPayload({ origin, dir, aimOrigin, aimDir }, now, viewLag) {
   const o = aimOrigin || origin;
   const d = aimDir || dir;
   if (!o || !d) return null;
-  return { origin: [o.x, o.y, o.z], dir: [d.x, d.y, d.z], ts: now };
+  const shot = { origin: [o.x, o.y, o.z], dir: [d.x, d.y, d.z], ts: now };
+  if (Number.isFinite(viewLag)) shot.viewLag = viewLag;
+  return shot;
 }
 
 // Inbound dispatcher for the relayed/broadcast combat events. `deps` injects the

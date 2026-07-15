@@ -1,6 +1,7 @@
 // hud.js — ALL DOM updates live here. Nothing else touches the DOM.
 import { state } from './state.js';
 import { on, EV } from './events.js';
+import { decideBossBarUpdate } from './bossBarState.js';
 
 // DOM refs — cached once
 const $ = id => document.getElementById(id);
@@ -11,7 +12,14 @@ const elKillFeed= $('killfeed');
 
 // Prev-value guards — skip DOM write if unchanged
 let _ph=-1,_pk=-1,_pp=-1,_pa='',_ps=-1;
-let _hitTimer=0, _crossTimer=0;
+let _hitTimer=0, _crossTimer=0, _bossFlashTimer=0;
+let _bossBarEl = null, _bossBarNameEl = null, _bossBarTrackEl = null, _bossBarFillEl = null, _bossBarHpEl = null;
+let _bossBarState = null;
+let _prevBossHp = null;
+let _bossId = '';
+const BOSS_BAR_FILL = 'linear-gradient(90deg, rgba(150,20,24,0.98), rgba(218,54,28,0.99) 58%, rgba(255,154,60,0.99))';
+const BOSS_BAR_FLASH = 'linear-gradient(90deg, rgba(255,245,214,0.98), rgba(255,140,78,0.99) 40%, rgba(255,72,36,0.99))';
+const BOSS_FLASH_SECS = 0.18;
 
 export function initHUD() {
   on(EV.HUD_UPDATE,    updateHUD);
@@ -54,6 +62,125 @@ export function flashHit(dmg=25) {
 
 export function flashCross() { elCross.classList.add('hit'); _crossTimer = 0.12; }
 
+function _bossBarDom() {
+  if (_bossBarEl) return _bossBarEl;
+  _bossBarEl = document.createElement('div');
+  _bossBarEl.id = 'boss-hp-bar';
+  Object.assign(_bossBarEl.style, {
+    position: 'fixed',
+    top: '12px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '520px',
+    maxWidth: '90vw',
+    padding: '10px 14px 12px',
+    background: 'linear-gradient(180deg, rgba(30,7,8,0.92), rgba(12,4,5,0.84))',
+    border: '1px solid rgba(255,120,88,0.52)',
+    borderRadius: '14px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.42), 0 0 24px rgba(130,18,18,0.22)',
+    pointerEvents: 'none',
+    opacity: '0',
+    transition: 'opacity 0.22s ease',
+    zIndex: '50',
+  });
+  const head = document.createElement('div');
+  Object.assign(head.style, {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginBottom: '8px',
+  });
+  _bossBarNameEl = document.createElement('div');
+  Object.assign(_bossBarNameEl.style, {
+    color: '#ffd8c8',
+    fontFamily: 'monospace',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    letterSpacing: '2.8px',
+    textTransform: 'uppercase',
+    textShadow: '0 0 12px rgba(255,124,96,0.72), 0 1px 2px rgba(0,0,0,0.82)',
+    whiteSpace: 'nowrap',
+  });
+  _bossBarHpEl = document.createElement('div');
+  Object.assign(_bossBarHpEl.style, {
+    color: '#ffe7de',
+    fontFamily: 'monospace',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    letterSpacing: '1.2px',
+    textShadow: '0 0 10px rgba(255,140,112,0.42), 0 1px 2px rgba(0,0,0,0.82)',
+    whiteSpace: 'nowrap',
+  });
+  head.appendChild(_bossBarNameEl);
+  head.appendChild(_bossBarHpEl);
+  _bossBarTrackEl = document.createElement('div');
+  Object.assign(_bossBarTrackEl.style, {
+    position: 'relative',
+    height: '18px',
+    overflow: 'hidden',
+    background: 'rgba(18, 4, 5, 0.84)',
+    border: '1px solid rgba(255,132,84,0.36)',
+    borderRadius: '999px',
+    boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(255,92,48,0.08)',
+  });
+  _bossBarFillEl = document.createElement('div');
+  Object.assign(_bossBarFillEl.style, {
+    position: 'absolute',
+    inset: '0',
+    background: BOSS_BAR_FILL,
+    transform: 'scaleX(1)',
+    transformOrigin: 'left center',
+    boxShadow: '0 0 14px rgba(255,98,54,0.28)',
+  });
+  _bossBarTrackEl.appendChild(_bossBarFillEl);
+  _bossBarEl.appendChild(head);
+  _bossBarEl.appendChild(_bossBarTrackEl);
+  document.body.appendChild(_bossBarEl);
+  return _bossBarEl;
+}
+function _clearBossFlash() {
+  if (!_bossBarFillEl || !_bossBarTrackEl) return;
+  _bossBarFillEl.style.background = BOSS_BAR_FILL;
+  _bossBarFillEl.style.boxShadow = '0 0 14px rgba(255,98,54,0.28)';
+  _bossBarTrackEl.style.borderColor = 'rgba(255,132,84,0.36)';
+  _bossBarTrackEl.style.boxShadow = 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(255,92,48,0.08)';
+}
+export function setBossBar({ id = null, name, hp, maxHp, alive } = {}) {
+  const prevHp = _prevBossHp;
+  const prevBossId = _bossId;
+  const next = decideBossBarUpdate(_bossBarState, { id, name, hp, maxHp, alive });
+  if (!next.visible) { hideBossBar(); return; }
+  _bossBarState = next;
+  if (!next.changed) {
+    _prevBossHp = next.hp;
+    _bossId = next.identity;
+    return;
+  }
+  const el = _bossBarDom();
+  _bossBarNameEl.textContent = next.name.toUpperCase();
+  _bossBarHpEl.textContent = `${next.hp} / ${next.maxHp}`;
+  _bossBarFillEl.style.transform = `scaleX(${next.pct})`;
+  el.style.opacity = '1';
+  if (next.shouldFlash && prevBossId === next.identity && prevHp != null && next.hp < prevHp) {
+    _bossFlashTimer = BOSS_FLASH_SECS;
+    _bossBarFillEl.style.background = BOSS_BAR_FLASH;
+    _bossBarFillEl.style.boxShadow = '0 0 18px rgba(255,158,96,0.95), 0 0 30px rgba(255,68,36,0.55)';
+    _bossBarTrackEl.style.borderColor = 'rgba(255,224,176,0.86)';
+    _bossBarTrackEl.style.boxShadow = 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 22px rgba(255,124,72,0.36)';
+  }
+  _prevBossHp = next.hp;
+  _bossId = next.identity;
+}
+export function hideBossBar() {
+  if (_bossFlashTimer > 0) _bossFlashTimer = 0;
+  _clearBossFlash();
+  if (_bossBarEl) _bossBarEl.style.opacity = '0';
+  _bossBarState = null;
+  _prevBossHp = null;
+  _bossId = '';
+}
+
 // v0.2.113 — live aim/target reticle state, driven each frame by
 // targetReticle.js. One of: 'none' | 'close' | 'on' | 'headshot'.
 //   close    → orange crosshair (a bot is near the line of fire)
@@ -87,6 +214,10 @@ export function addKill(text, color = '#f7931a') {
 export function tickHUD(dt) {
   if (_hitTimer>0)   { _hitTimer=Math.max(0,_hitTimer-dt);   if(_hitTimer<=0) elHitFlash.style.opacity='0'; }
   if (_crossTimer>0) { _crossTimer=Math.max(0,_crossTimer-dt); if(_crossTimer<=0) elCross.classList.remove('hit'); }
+  if (_bossFlashTimer>0) {
+    _bossFlashTimer = Math.max(0, _bossFlashTimer - dt);
+    if (_bossFlashTimer <= 0) _clearBossFlash();
+  }
 }
 
 // ── NAP Zone indicator ──────────────────────────────────────────

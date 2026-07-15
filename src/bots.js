@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
+import { setBossBar, hideBossBar } from './hud.js';
 import {
   BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X, BOT_SPEED, BOT_DAMAGE,
   BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
@@ -43,7 +44,10 @@ let _netMode = false;
 const _botNet = createBotNetState();
 const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-export function setBotNetMode(on) { _netMode = !!on; }
+export function setBotNetMode(on) {
+  _netMode = !!on;
+  if (!_netMode) hideBossBar();
+}
 export function isBotNetMode() { return _netMode; }
 
 // Foot ground height for a bot at arena (x,z). Stage 3 (v0.2.329): the arena is a
@@ -277,9 +281,22 @@ export function applyBotKill(botId) {
 
 function _tickNet(dt) {
   const poses = _botNet.sample(_nowMs());
+  let bossPose = null;
   for (const p of poses) {
     const bot = _botById(p.id);
     if (bot) _syncNetBot(bot, p, dt);
+    if (!bossPose && p.kind === 'boss') bossPose = p;
+  }
+  if (bossPose && bossPose.alive) {
+    setBossBar({
+      id: bossPose.id,
+      name: bossPose.name || 'BOSS',
+      hp: bossPose.hp,
+      maxHp: BOSS_HP,
+      alive: true,
+    });
+  } else {
+    hideBossBar();
   }
 }
 

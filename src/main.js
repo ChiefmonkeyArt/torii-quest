@@ -36,6 +36,7 @@ import { checkForUpdateLive, liveStatusView } from './engine/update/liveUpdateCh
 // nothing (no fetch, no DOM, no globals).
 import {
   fetchCapability, requestUpdate, fetchStatus, isAdminOperator, deployCommand,
+  DEPLOY_STALL_MS,
 } from './engine/update/adminUpdateClient.js';
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
@@ -799,6 +800,7 @@ function _pollUpdateStatus(httpBase, token) {
   let backoffMs = 1000;
   let sawProgress = false;
   let reloadCountdown = -1;
+  let deployingSince = -1;        // elapsed when the DEPLOYING stall clock started
 
   const timer = setInterval(async () => {
     elapsed += TICK_MS;
@@ -824,14 +826,26 @@ function _pollUpdateStatus(httpBase, token) {
 
     const status = await fetchStatus({ httpBase, token });
     const st = status && typeof status.state === 'string' ? status.state : 'unavailable';
+    const code = status && typeof status.code === 'number' ? status.code : 0;
 
     if (st === 'unavailable') {
       // arena-ws restarting (or briefly unreachable) — this IS the deploy, not a failure.
       sawProgress = true;
+      if (deployingSince < 0) deployingSince = elapsed;
+      // v0.2.393-alpha: recover instead of sticking. A 403 after we've seen progress
+      // means a legacy gated server restarted and dropped our in-memory token — the
+      // deploy almost certainly finished, so flip to DONE and reload. Likewise, if
+      // DEPLOYING has run past the hard ceiling, assume the restart is done.
+      if ((code === 403 && sawProgress) || (elapsed - deployingSince) >= DEPLOY_STALL_MS) {
+        _setUpdateProgress('done', 'deploy complete — reloading');
+        reloadCountdown = RELOAD_MS;
+        return;
+      }
       backoffMs = Math.min(backoffMs + 500, 3000);
       _setUpdateProgress('deploying', 'deploying — restarting arena (do not close)');
       return;
     }
+    deployingSince = -1; // server answered cleanly — reset the stall clock
     backoffMs = 1000; // server answered — resume brisk polling
 
     if (st === 'succeeded' && (sawProgress || elapsed >= GRACE_MS)) {

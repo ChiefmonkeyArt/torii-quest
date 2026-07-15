@@ -132,11 +132,21 @@ describe('fetchStatus', () => {
     expect(url).toBe('https://h/mp/admin/update-status');
     expect(init.headers.Authorization).toBe('Bearer tok');
   });
-  it('degrades to { state:"unavailable" } on any failure', async () => {
-    expect(await fetchStatus({ httpBase: 'https://h/mp', token: 't', fetchImpl: async () => ({ ok: false }) }))
-      .toEqual({ state: 'unavailable' });
+  it('v0.2.393: degrades to { state:"unavailable", code } on failure, surfacing the HTTP status', async () => {
+    // ok:false with an HTTP status → code carries it (e.g. a post-restart 403)
+    expect(await fetchStatus({ httpBase: 'https://h/mp', token: 't', fetchImpl: async () => ({ ok: false, status: 403 }) }))
+      .toEqual({ state: 'unavailable', code: 403 });
+    // thrown / network error → code 0
     expect(await fetchStatus({ httpBase: 'https://h/mp', token: 't', fetchImpl: async () => { throw new Error('x'); } }))
-      .toEqual({ state: 'unavailable' });
-    expect(await fetchStatus({})).toEqual({ state: 'unavailable' });
+      .toEqual({ state: 'unavailable', code: 0 });
+    // missing httpBase → code 0
+    expect(await fetchStatus({})).toEqual({ state: 'unavailable', code: 0 });
+  });
+  it('v0.2.393: status read is PUBLIC — works without a token and sends no Authorization header', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ state: 'succeeded' }) }));
+    const s = await fetchStatus({ httpBase: 'https://h/mp', fetchImpl }); // no token
+    expect(s).toEqual({ state: 'succeeded' });
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(init.headers.Authorization).toBeUndefined();
   });
 });

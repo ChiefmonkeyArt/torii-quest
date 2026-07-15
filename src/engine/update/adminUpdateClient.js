@@ -15,6 +15,11 @@
 
 export const INTENT_KIND = 1;
 
+// v0.2.393-alpha: hard wall-clock ceiling for the DEPLOYING stage. The deploy
+// restarts arena-ws (~9s); if the poller has seen no terminal state after this
+// long it assumes the restart finished and auto-reloads rather than sticking.
+export const DEPLOY_STALL_MS = 30000;
+
 // The exact human deploy command, with the latest tag inlined, for the copy-command
 // fallback shown when auto-update is not installed on the instance.
 export function deployCommand(latestTag) {
@@ -129,23 +134,28 @@ export async function requestUpdate({
 }
 
 // fetchStatus({ httpBase, token, fetchImpl }) → the status JSON, or
-//   { state:'unavailable' } on any failure. Never throws.
+//   { state:'unavailable', code } on any failure. Never throws.
+//
+// v0.2.393-alpha: the status read is now PUBLIC, so `token` is OPTIONAL (sent as a
+// bearer only when present). On failure the HTTP status is surfaced as `code` so
+// the poller can tell a post-restart 403 (deploy almost certainly done) apart from
+// a genuine network error. `code` is 0 for non-HTTP failures.
 export async function fetchStatus({ httpBase, token, fetchImpl } = {}) {
   const f = fetchImpl || (typeof globalThis !== 'undefined' ? globalThis.fetch : null);
-  if (typeof httpBase !== 'string' || !httpBase || typeof token !== 'string' || !token
-      || typeof f !== 'function') {
-    return { state: 'unavailable' };
+  if (typeof httpBase !== 'string' || !httpBase || typeof f !== 'function') {
+    return { state: 'unavailable', code: 0 };
   }
   try {
-    const res = await f(`${httpBase}/admin/update-status`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res || !res.ok) return { state: 'unavailable' };
+    const headers = {};
+    if (typeof token === 'string' && token) headers.Authorization = `Bearer ${token}`;
+    const res = await f(`${httpBase}/admin/update-status`, { method: 'GET', headers });
+    if (!res || !res.ok) return { state: 'unavailable', code: res ? res.status : 0 };
     const body = await res.json();
-    if (!body || typeof body !== 'object' || typeof body.state !== 'string') return { state: 'unavailable' };
+    if (!body || typeof body !== 'object' || typeof body.state !== 'string') {
+      return { state: 'unavailable', code: res.status };
+    }
     return body;
   } catch {
-    return { state: 'unavailable' };
+    return { state: 'unavailable', code: 0 };
   }
 }

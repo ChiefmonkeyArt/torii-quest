@@ -23,6 +23,31 @@ export function bossBarIdentity(sample) {
   return `name:${name}`;
 }
 
+export function decideBossEngagement({
+  dist,
+  bossHp,
+  prevBossHp,
+  now,
+  lastHitMs,
+  engageRange,
+  recentHitMs,
+} = {}) {
+  const hp = normaliseHp(bossHp);
+  const prevHp = Number.isFinite(prevBossHp) ? normaliseHp(prevBossHp) : null;
+  const stampNow = Number.isFinite(now) ? now : 0;
+  const priorHitMs = Number.isFinite(lastHitMs) ? lastHitMs : -Infinity;
+  const dropped = prevHp != null && hp < prevHp;
+  const newLastHitMs = dropped ? stampNow : priorHitMs;
+  const recent = hp > 0
+    && Number.isFinite(newLastHitMs)
+    && (stampNow - newLastHitMs) <= (Number.isFinite(recentHitMs) ? recentHitMs : 0);
+  const engaged = hp > 0 && (
+    (Number.isFinite(dist) ? dist : Infinity) <= (Number.isFinite(engageRange) ? engageRange : 0)
+    || recent
+  );
+  return { engaged, newLastHitMs };
+}
+
 export function decideBossBarUpdate(prev, next) {
   if (!next || next.alive !== true) {
     return {

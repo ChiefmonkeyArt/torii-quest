@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.394-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.395-alpha';
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -818,7 +818,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.394-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.395-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.

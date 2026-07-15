@@ -68,15 +68,15 @@ function _bossBarDom() {
   _bossBarEl.id = 'boss-hp-bar';
   Object.assign(_bossBarEl.style, {
     position: 'fixed',
-    top: '12px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '520px',
-    maxWidth: '90vw',
-    padding: '10px 14px 12px',
+    top: '0px',
+    left: '0px',
+    transform: 'translate(-50%, -100%)',
+    width: '360px',
+    maxWidth: '72vw',
+    padding: '7px 10px 8px',
     background: 'linear-gradient(180deg, rgba(30,7,8,0.92), rgba(12,4,5,0.84))',
     border: '1px solid rgba(255,120,88,0.52)',
-    borderRadius: '14px',
+    borderRadius: '10px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.42), 0 0 24px rgba(130,18,18,0.22)',
     pointerEvents: 'none',
     opacity: '0',
@@ -88,16 +88,16 @@ function _bossBarDom() {
     display: 'flex',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    gap: '12px',
-    marginBottom: '8px',
+    gap: '8px',
+    marginBottom: '6px',
   });
   _bossBarNameEl = document.createElement('div');
   Object.assign(_bossBarNameEl.style, {
     color: '#ffd8c8',
     fontFamily: 'monospace',
-    fontSize: '16px',
+    fontSize: '11px',
     fontWeight: 'bold',
-    letterSpacing: '2.8px',
+    letterSpacing: '2px',
     textTransform: 'uppercase',
     textShadow: '0 0 12px rgba(255,124,96,0.72), 0 1px 2px rgba(0,0,0,0.82)',
     whiteSpace: 'nowrap',
@@ -106,9 +106,9 @@ function _bossBarDom() {
   Object.assign(_bossBarHpEl.style, {
     color: '#ffe7de',
     fontFamily: 'monospace',
-    fontSize: '14px',
+    fontSize: '10px',
     fontWeight: 'bold',
-    letterSpacing: '1.2px',
+    letterSpacing: '1px',
     textShadow: '0 0 10px rgba(255,140,112,0.42), 0 1px 2px rgba(0,0,0,0.82)',
     whiteSpace: 'nowrap',
   });
@@ -117,7 +117,7 @@ function _bossBarDom() {
   _bossBarTrackEl = document.createElement('div');
   Object.assign(_bossBarTrackEl.style, {
     position: 'relative',
-    height: '18px',
+    height: '13px',
     overflow: 'hidden',
     background: 'rgba(18, 4, 5, 0.84)',
     border: '1px solid rgba(255,132,84,0.36)',
@@ -146,22 +146,28 @@ function _clearBossFlash() {
   _bossBarTrackEl.style.borderColor = 'rgba(255,132,84,0.36)';
   _bossBarTrackEl.style.boxShadow = 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(255,92,48,0.08)';
 }
-export function setBossBar({ id = null, name, hp, maxHp, alive } = {}) {
+function _positionBossBar(el, { screenX, screenY, anchored } = {}) {
+  if (Number.isFinite(screenX)) el.style.left = `${Math.round(screenX)}px`;
+  if (Number.isFinite(screenY)) el.style.top = `${Math.round(screenY)}px`;
+  el.style.opacity = anchored === true ? '1' : '0';
+}
+export function setBossBar({ id = null, name, hp, maxHp, alive, screenX = null, screenY = null, anchored = false } = {}) {
   const prevHp = _prevBossHp;
   const prevBossId = _bossId;
   const next = decideBossBarUpdate(_bossBarState, { id, name, hp, maxHp, alive });
   if (!next.visible) { hideBossBar(); return; }
   _bossBarState = next;
+  const el = _bossBarDom();
+  _positionBossBar(el, { screenX, screenY, anchored });
   if (!next.changed) {
     _prevBossHp = next.hp;
     _bossId = next.identity;
     return;
   }
-  const el = _bossBarDom();
   _bossBarNameEl.textContent = next.name.toUpperCase();
   _bossBarHpEl.textContent = `${next.hp} / ${next.maxHp}`;
   _bossBarFillEl.style.transform = `scaleX(${next.pct})`;
-  el.style.opacity = '1';
+  el.style.opacity = anchored === true ? '1' : '0';
   if (next.shouldFlash && prevBossId === next.identity && prevHp != null && next.hp < prevHp) {
     _bossFlashTimer = BOSS_FLASH_SECS;
     _bossBarFillEl.style.background = BOSS_BAR_FLASH;

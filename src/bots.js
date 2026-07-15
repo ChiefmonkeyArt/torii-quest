@@ -12,13 +12,14 @@
 // initBots(playerObj, spawnBulletFn), tickBots(dt) and hitBot(bot, dmg) keep their
 // exact signatures + externally observable behaviour — this is a pure refactor.
 import * as THREE from 'three';
-import { scene } from './scene.js';
+import { scene, camera } from './scene.js';
 import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
 import { setBossBar, hideBossBar } from './hud.js';
 import {
   BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X, BOT_SPEED, BOT_DAMAGE,
   BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+  BOSS_TARGET_HEIGHT,
 } from './config.js';
 import { playBotShoot } from './audio.js';
 import { BotModel, preloadBotModel, preloadBossModel } from './botModel.js';
@@ -33,6 +34,7 @@ import { sampleArenaHeight } from './terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
+import { decideBossEngagement } from './bossBarState.js';
 
 export const bots = [];
 
@@ -43,10 +45,52 @@ export const bots = [];
 let _netMode = false;
 const _botNet = createBotNetState();
 const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+const ARENA_HALF = 20;
+const BOSS_BAR_ENGAGE_RANGE = 14;
+const BOSS_BAR_RECENT_HIT_MS = 4000;
+const BOSS_BAR_VIEWPORT_MARGIN = 24;
+const _bossBarAnchorV = new THREE.Vector3();
+let _bossLastHitMs = -Infinity;
+let _prevBossNetHp = null;
+let _bossNetId = '';
+
+function _resetBossBarTracking() {
+  _bossLastHitMs = -Infinity;
+  _prevBossNetHp = null;
+  _bossNetId = '';
+}
+
+function _projectBossBarAnchor(pose) {
+  const width = typeof innerWidth === 'number' ? innerWidth : 0;
+  const height = typeof innerHeight === 'number' ? innerHeight : 0;
+  if (!(width > 0 && height > 0) || !pose) {
+    return { visible: false, screenX: 0, screenY: 0 };
+  }
+  _bossBarAnchorV.set(
+    pose.x,
+    _footY(pose.x, pose.z) + BOSS_TARGET_HEIGHT + 0.4,
+    pose.z,
+  );
+  _bossBarAnchorV.project(camera);
+  const screenX = (_bossBarAnchorV.x * 0.5 + 0.5) * width;
+  const screenY = (-_bossBarAnchorV.y * 0.5 + 0.5) * height;
+  const margin = BOSS_BAR_VIEWPORT_MARGIN;
+  const visible = Number.isFinite(screenX)
+    && Number.isFinite(screenY)
+    && _bossBarAnchorV.z <= 1
+    && screenX >= -margin
+    && screenX <= width + margin
+    && screenY >= -margin
+    && screenY <= height + margin;
+  return { visible, screenX, screenY };
+}
 
 export function setBotNetMode(on) {
   _netMode = !!on;
-  if (!_netMode) hideBossBar();
+  if (!_netMode) {
+    _resetBossBarTracking();
+    hideBossBar();
+  }
 }
 export function isBotNetMode() { return _netMode; }
 
@@ -287,17 +331,50 @@ function _tickNet(dt) {
     if (bot) _syncNetBot(bot, p, dt);
     if (!bossPose && p.kind === 'boss') bossPose = p;
   }
-  if (bossPose && bossPose.alive) {
-    setBossBar({
-      id: bossPose.id,
-      name: bossPose.name || 'BOSS',
-      hp: bossPose.hp,
-      maxHp: BOSS_HP,
-      alive: true,
-    });
-  } else {
+  if (!bossPose || !bossPose.alive) {
+    _resetBossBarTracking();
     hideBossBar();
+    return;
   }
+
+  const bossId = bossPose.id == null ? '' : String(bossPose.id);
+  if (_bossNetId !== bossId) {
+    _bossNetId = bossId;
+    _prevBossNetHp = null;
+    _bossLastHitMs = -Infinity;
+  }
+
+  const playerPos = _playerObj?.position;
+  const dist = playerPos
+    ? Math.hypot(playerPos.x - bossPose.x, playerPos.z - bossPose.z)
+    : Infinity;
+  const engagement = decideBossEngagement({
+    dist,
+    bossHp: bossPose.hp,
+    prevBossHp: _prevBossNetHp,
+    now: _nowMs(),
+    lastHitMs: _bossLastHitMs,
+    engageRange: Math.min(BOSS_BAR_ENGAGE_RANGE, ARENA_HALF),
+    recentHitMs: BOSS_BAR_RECENT_HIT_MS,
+  });
+  _bossLastHitMs = engagement.newLastHitMs;
+  _prevBossNetHp = bossPose.hp;
+  if (!engagement.engaged) {
+    hideBossBar();
+    return;
+  }
+
+  const anchor = _projectBossBarAnchor(bossPose);
+  setBossBar({
+    id: bossPose.id,
+    name: bossPose.name || 'BOSS',
+    hp: bossPose.hp,
+    maxHp: BOSS_HP,
+    alive: true,
+    screenX: anchor.screenX,
+    screenY: anchor.screenY,
+    anchored: anchor.visible,
+  });
 }
 
 function _syncNetBot(bot, pose, dt) {

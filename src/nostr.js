@@ -4,7 +4,9 @@ import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 
 const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
-export { RELAYS };
+const PROFILE_TIMEOUT_MS = 5000;
+const PROFILE_SETTLE_MS = 1800;
+export { RELAYS, PROFILE_SETTLE_MS };
 
 // A nostrich profile's `picture` is attacker-controlled (anyone can sign a
 // kind:0 with any string). Only accept a well-formed https URL before it ever
@@ -62,36 +64,146 @@ export async function nostrLogin() {
   }
 }
 
-// v0.2.260 audit S5: fan out the kind:0 profile lookup across every relay in
-// parallel via fanoutReq() and pick the freshest event (highest created_at).
-// The previous implementation only contacted RELAYS[0] (break after the first
-// successful WebSocket construction), so a single offline lead relay left the
-// player as "PUBKEY12" forever even though their profile was happily on the
-// other three. Sanitises name + picture through the existing safe-* helpers.
-async function _fetchProfile(pubkey) {
-  const { events } = await fanoutReq(
-    RELAYS,
-    [{ kinds: [0], authors: [pubkey], limit: 1 }],
-    { timeoutMs: 5000 },
-  );
-  if (!events.length) return;
-  // Pick the latest signed kind:0 across relays — replaceable events follow
-  // "latest created_at wins" semantics (NIP-01).
-  let latest = events[0];
-  for (const e of events) {
-    if (e && Number.isFinite(e.created_at) && e.created_at > (latest.created_at | 0)) {
-      latest = e;
-    }
-  }
+// v0.2.394-alpha: profile cards now fill progressively. Keep the profile-only
+// kind:0 read scoped here so fanoutReq()/relayReq() stay byte-identical for the
+// other callers that intentionally wait for all-relay EOSE (leaderboard union,
+// arena presence). We open every relay concurrently, apply the FIRST valid
+// profile immediately, then keep the remaining sockets alive for a short settle
+// window so a fresher replaceable event can overwrite a stale early hit.
+function _extractProfileMeta(event) {
+  if (!event || event.kind !== 0) return null;
   let meta;
-  try { meta = JSON.parse(latest.content); } catch { return; }
-  if (!meta || typeof meta !== 'object') return;
-  const safeName = _safeName(meta.name);
-  const safePic  = _safeImageUrl(meta.picture);
-  if (safeName) { state.nostrName = safeName; }
-  if (safePic)  { state.nostrAvatar = safePic; }
-  emit(EV.NOSTR_LOGIN, { pubkey, name: safeName, avatar: safePic });
+  try { meta = JSON.parse(event.content); } catch { return null; }
+  if (!meta || typeof meta !== 'object') return null;
+  return {
+    createdAt: Number.isFinite(event.created_at) ? event.created_at : 0,
+    name: _safeName(meta.name),
+    avatar: _safeImageUrl(meta.picture),
+  };
+}
+
+function _applyProfileMeta(pubkey, meta) {
+  if (!meta) return false;
+  if (meta.name) { state.nostrName = meta.name; }
+  if (meta.avatar) { state.nostrAvatar = meta.avatar; }
+  emit(EV.NOSTR_LOGIN, { pubkey, name: meta.name, avatar: meta.avatar });
   _updateTitleUI();
+  return true;
+}
+
+export function fetchProfileProgressive(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const relays = Array.isArray(o.relays) ? o.relays : RELAYS;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : PROFILE_TIMEOUT_MS;
+  const settleMs = Number.isFinite(o.settleMs) && o.settleMs >= 0 ? Math.floor(o.settleMs) : PROFILE_SETTLE_MS;
+  const WebSocketCtor = o.WebSocketCtor || (typeof WebSocket !== 'undefined' ? WebSocket : null);
+  return new Promise((resolve) => {
+    if (!WebSocketCtor) {
+      resolve({ ok: false, applied: false, error: 'no-websocket' });
+      return;
+    }
+    const sockets = [];
+    const filters = [{ kinds: [0], authors: [pubkey], limit: 1 }];
+    let pending = 0;
+    let finished = false;
+    let settled = false;
+    let bestCreatedAt = -Infinity;
+    let noEventTimer = null;
+    let settleTimer = null;
+
+    const cleanup = () => {
+      if (noEventTimer) clearTimeout(noEventTimer);
+      if (settleTimer) clearTimeout(settleTimer);
+      for (const entry of sockets) {
+        const ws = entry.ws;
+        if (!ws) continue;
+        try {
+          if (ws.readyState === 1) ws.send(JSON.stringify(['CLOSE', entry.subId]));
+        } catch { /* best-effort close */ }
+        try {
+          if (ws.readyState === 0 || ws.readyState === 1) ws.close();
+        } catch { /* best-effort close */ }
+      }
+    };
+
+    const finish = (ok, error) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      resolve({ ok, applied: settled, error: ok ? null : (error || 'failed') });
+    };
+
+    const maybeFinish = () => {
+      if (!pending) finish(settled, settled ? null : 'timeout');
+    };
+
+    const markDone = (entry) => {
+      if (!entry || entry.done) return;
+      entry.done = true;
+      pending--;
+      if (settled && !pending) finish(true, null);
+      else if (!settled) maybeFinish();
+    };
+
+    const scheduleSettle = () => {
+      if (settleTimer || settleMs <= 0) {
+        if (settleMs <= 0) finish(true, null);
+        return;
+      }
+      settleTimer = setTimeout(() => finish(true, null), settleMs);
+    };
+
+    const handleEvent = (event) => {
+      const meta = _extractProfileMeta(event);
+      if (!meta) return;
+      if (!settled) {
+        settled = _applyProfileMeta(pubkey, meta);
+        if (!settled) return;
+        bestCreatedAt = meta.createdAt;
+        if (noEventTimer) clearTimeout(noEventTimer);
+        scheduleSettle();
+        return;
+      }
+      if (meta.createdAt > bestCreatedAt && _applyProfileMeta(pubkey, meta)) {
+        bestCreatedAt = meta.createdAt;
+      }
+    };
+
+    for (const relay of relays) {
+      let ws;
+      try { ws = new WebSocketCtor(relay); }
+      catch { continue; }
+      const entry = { relay, ws, subId: 'rq' + Math.random().toString(36).slice(2, 9), done: false };
+      sockets.push(entry);
+      pending++;
+      ws.onopen = () => {
+        try { ws.send(JSON.stringify(['REQ', entry.subId, ...filters])); }
+        catch { markDone(entry); maybeFinish(); }
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const frame = JSON.parse(ev.data);
+          if (!Array.isArray(frame)) return;
+          const [verb, sid, payload] = frame;
+          if (sid !== entry.subId) return;
+          if (verb === 'EVENT' && payload) handleEvent(payload);
+          else if (verb === 'EOSE' || verb === 'NOTICE') markDone(entry);
+        } catch { /* ignore a malformed frame */ }
+      };
+      ws.onerror = () => { markDone(entry); maybeFinish(); };
+      ws.onclose = () => { markDone(entry); maybeFinish(); };
+    }
+
+    if (!pending) {
+      finish(false, 'bad-url');
+      return;
+    }
+    noEventTimer = setTimeout(() => finish(false, 'timeout'), timeoutMs);
+  });
+}
+
+async function _fetchProfile(pubkey) {
+  await fetchProfileProgressive(pubkey);
 }
 
 function _updateTitleUI() {

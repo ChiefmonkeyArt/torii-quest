@@ -22,8 +22,8 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 2528,
-    "files": 143
+    "passing": 2532,
+    "files": 144
   },
   "manualBlocker": {
     "pending": true,

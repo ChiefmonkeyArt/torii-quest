@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.398-alpha — visual punch pass. Arena-only UnrealBloom is now guarded by a pure `src/engine/bloomPlan.js` plan and a safe composer bootstrap in `src/scene.js`: if composer init/render fails, Quest falls straight back to direct `renderer.render(scene,camera)` so ENTER ARENA never blacks out. Resize + DPR changes now update renderer AND composer together. HUD SATS/KILLS/HP were restyled into higher-contrast pills with larger type, and the top-left TORII QUEST mark got extra safe-area padding/background so it no longer crops. R2 remains intact: shell/first-paint files stay free of EffectComposer/UnrealBloom imports; `tests/app-boundary.test.js` locks that.
+**Current version:** v0.2.399-alpha — ACC-2a follows-only arrival. Cross-host arrival now keeps SEC-2 schnorr verification as the floor and adds an additive restricted mode: `window.__toriiAccessMode='follows-only'` requires the VISITOR'S latest kind:3 follow list to contain the OWNER before identity seating is allowed. Relay error / timeout / missing follow list fail closed to ACCESS DENIED (not anon-seated), the default policy direction remains "visitor follows owner," and the read-only Instance Settings Access panel now reflects the deployed arrival mode.
 
 ---
 

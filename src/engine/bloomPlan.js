@@ -1,4 +1,4 @@
-// bloomPlan.js — pure, node-safe bloom tuning plan for the arena path (v0.2.398).
+// bloomPlan.js — pure, node-safe bloom tuning plan for the arena path (v0.2.399).
 //
 // Centralises the UnrealBloom tuning so scene.js does not carry hand-tuned magic
 // numbers inline. Pure data + clamps only: no THREE / DOM / window imports.

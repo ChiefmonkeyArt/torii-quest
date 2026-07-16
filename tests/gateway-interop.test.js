@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { createHandshakeController } from '../src/engine/gateway/handshakeController.js';
 import { appendTraveller, hardenSpawnUrl } from '../src/engine/gateway/urlHarden.js';
 import { nostrEventId } from '../src/engine/crypto/nostrSig.js';
+import { ARRIVAL_MODE_FOLLOWS_ONLY } from '../src/engine/gateway/handoffArrival.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { hexToBytes, bytesToHex } from '@noble/hashes/utils.js';
 
@@ -64,6 +65,17 @@ function makeInstance(relay, sk) {
   });
 }
 
+function followEvent(author, followed = [], createdAt = 1) {
+  return {
+    id: `${author.slice(0, 8)}-follow-${createdAt}`,
+    kind: 3,
+    pubkey: author,
+    created_at: createdAt,
+    tags: followed.map((pk) => ['p', pk]),
+    content: '',
+  };
+}
+
 // Drive the handshake A→B up to A's armed accept. Returns { A, B }.
 async function runHandshake(relay) {
   const A = makeInstance(relay, A_SK); // traveller
@@ -100,7 +112,7 @@ describe('P3 cross-host interop — traveller A jumps to host B carrying its npu
 
     // B receives the inbound hop URL. B has A's signed request in its accepted set
     // (same session) — seat A by its crypto-verified nostr identity.
-    const admit = B.admitArrival(jump.url);
+    const admit = await B.admitArrival(jump.url);
     expect(admit.seated).toBe(true);
     expect(admit.trust).toBe('crypto-verified');
     expect(admit.npub).toBe(A_PUB);
@@ -121,7 +133,7 @@ describe('P3 cross-host interop — traveller A jumps to host B carrying its npu
     const request = readTravelRequests(events).requests.find((r) => r.travellerPubkey === A_PUB);
     expect(request).toBeTruthy();
 
-    const admit = Bcold.admitArrival(jumpUrl, { request });
+    const admit = await Bcold.admitArrival(jumpUrl, { request });
     expect(admit.seated).toBe(true);
     expect(admit.npub).toBe(A_PUB);
   });
@@ -131,7 +143,7 @@ describe('P3 cross-host interop — traveller A jumps to host B carrying its npu
     const { B } = await runHandshake(relay);
     // EVIL crafts a URL claiming to be a pubkey B never accepted.
     const EVIL = bytesToHex(schnorr.getPublicKey(hexToBytes('33'.repeat(32))));
-    const admit = B.admitArrival(`${B_SPAWN}/?torii-traveller=${EVIL}`);
+    const admit = await B.admitArrival(`${B_SPAWN}/?torii-traveller=${EVIL}`);
     expect(admit.seated).toBe(false);
     expect(admit.anon).toBe(true);
     expect(admit.npub).toBe(null);
@@ -146,9 +158,40 @@ describe('P3 cross-host interop — traveller A jumps to host B carrying its npu
     const req = readTravelRequests(events).requests.find((r) => r.travellerPubkey === A_PUB);
     // Tamper the signed content so the id no longer binds → schnorr verify fails.
     const tampered = { ...req, signed: { ...req.signed, content: JSON.stringify({ to: 'evil' }) } };
-    const admit = Bcold.admitArrival(`${B_SPAWN}/?torii-traveller=${A_PUB}`, { request: tampered });
+    const admit = await Bcold.admitArrival(`${B_SPAWN}/?torii-traveller=${A_PUB}`, { request: tampered });
     expect(admit.seated).toBe(false);
     expect(admit.anon).toBe(true);
+  });
+
+  it('follows-only seats a visitor who follows the owner and denies one who does not', async () => {
+    const relay = createSharedRelay();
+    const { A, B } = await runHandshake(relay);
+    relay.store.push(followEvent(A_PUB, [B_PUB], 50));
+
+    const armed = A.snapshot().armed;
+    const jump = appendTraveller(hardenSpawnUrl(armed.spawn).url, A_PUB);
+    const admitFollowing = await B.admitArrival(jump.url, { arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY });
+    expect(admitFollowing.seated).toBe(true);
+    expect(admitFollowing.denied).toBe(false);
+    expect(admitFollowing.npub).toBe(A_PUB);
+
+    const C_SK = hexToBytes('44'.repeat(32));
+    const C_PUB = bytesToHex(schnorr.getPublicKey(C_SK));
+    const relay2 = createSharedRelay();
+    const C = makeInstance(relay2, C_SK);
+    const B2 = makeInstance(relay2, B_SK);
+    const reqRes = await C.requestTravel({ pubkey: B_PUB, zoneId: 'host-b-arena', title: 'Host B' });
+    expect(reqRes.ok).toBe(true);
+    await B2.tick();
+    const acc = await B2.respondIncoming(true, { spawn: B_SPAWN });
+    expect(acc.ok).toBe(true);
+    await C.tick();
+    const armed2 = C.snapshot().armed;
+    const jump2 = appendTraveller(hardenSpawnUrl(armed2.spawn).url, C_PUB);
+    const admitNotFollowing = await B2.admitArrival(jump2.url, { arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY });
+    expect(admitNotFollowing.seated).toBe(false);
+    expect(admitNotFollowing.denied).toBe(true);
+    expect(admitNotFollowing.anon).toBe(false);
   });
 
   it('host B refuses to ACCEPT an unsigned/forged incoming request (gate before seating)', async () => {

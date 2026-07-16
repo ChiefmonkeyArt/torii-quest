@@ -112,6 +112,8 @@ describe('buildInstanceSettingsModel', () => {
     expect(access.key).toBe('access');
     expect(access.title).toBe('Access');
     expect(access.current).toBe('public');
+    expect(m.arrivalMode).toBe('public');
+    expect(m.followPolicy).toBe('visitor-follows-owner');
     expect(Array.isArray(access.comingSoon)).toBe(true);
     expect(access.comingSoon.map((x) => x.key)).toEqual(['follow-me', 'whitelist', 'invite-only']);
     expect(typeof access.note).toBe('string');
@@ -137,6 +139,20 @@ describe('buildInstanceSettingsModel', () => {
     expect(mp.current).toBe('enabled');
     expect(m.mpEnabled).toBe(true);
     expect(mp.note.toLowerCase()).toContain('mp-1');
+  });
+
+  it('accepts an explicit follows-only override for the read-only Access section', () => {
+    const m = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      arrivalMode: 'follows-only',
+      followPolicy: 'mutual',
+    });
+    const access = m.sections[0];
+    expect(access.current).toBe('follows-only');
+    expect(m.arrivalMode).toBe('follows-only');
+    expect(m.followPolicy).toBe('mutual');
+    expect(access.note.toLowerCase()).toContain('sec-2 crypto verification');
   });
 
   it('accepts an explicit mpEnabled=false override (rollback seam)', () => {

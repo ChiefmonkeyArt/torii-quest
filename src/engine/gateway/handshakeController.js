@@ -22,7 +22,7 @@ import {
   readTravelRequests, readTravelResponses,
 } from './travelRequest.js';
 import { verifyHandoff } from './handoffVerify.js';
-import { verifyArrival, readArrivingTraveller, seatArrivalDecision } from './handoffArrival.js';
+import { verifyArrival, readArrivingTraveller, decideArrivalAdmission } from './handoffArrival.js';
 import { buildGatewayFilter } from './gatewayRead.js';
 
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -142,40 +142,42 @@ export function createHandshakeController(opts = {}) {
     return { ok: true, error: null };
   }
 
-  // admitArrival(url, opts?) → the P2 host-side seating decision for an inbound hop.
-  //   { ok, seated, npub, trust, anon, error }. Never throws.
-  // Reads the arriving npub from the spawn URL (`?torii-traveller=`), then re-runs
-  // the BIP-340 schnorr verify (handoffArrival.verifyArrival) against the traveller's
-  // signed request — taken from `opts.request` if injected (e.g. a fresh relay re-read
-  // on a cold page load), else from the in-session accepted-traveller record. Seats
-  // ONLY on a crypto-verified match; every other outcome fails CLOSED to anon.
-  function admitArrival(url, opts = {}) {
+  // admitArrival(url, opts?) → the host-side seating decision for an inbound hop.
+  //   { ok, seated, npub, trust, anon, denied, error }. Never throws.
+  // Reads the arriving npub from the spawn URL (`?torii-traveller=`), re-runs the
+  // SEC-2 crypto verify against the traveller's signed request, then applies the
+  // additive arrival-mode policy. In public mode, an unverified arrival stays anon;
+  // in restricted modes, any miss (including follow-graph failure) DENIES.
+  async function admitArrival(url, opts = {}) {
+    const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
     const arriving = readArrivingTraveller(url);
     if (!arriving.ok) {
-      return { ok: false, seated: false, npub: null, trust: 'unverified', anon: true, error: arriving.error };
+      return { ok: false, seated: false, npub: null, trust: 'unverified', anon: true, denied: false, error: arriving.error };
     }
-    if (!HEX64.test(_ourPubkey)) {
-      return { ok: false, seated: false, npub: null, trust: 'unverified', anon: true, error: 'no-host-identity' };
-    }
-    const injected = opts && typeof opts === 'object' ? opts.request : null;
+    const injected = o.request;
     const request = (injected && typeof injected === 'object') ? injected : _acceptedTravellers.get(arriving.pubkey);
-    if (!request) {
-      return { ok: true, seated: false, npub: null, trust: 'unverified', anon: true, error: 'no-verified-request' };
-    }
-    const verdict = verifyArrival({
-      arrivingPubkey: arriving.pubkey,
-      request,
-      expectedHostPubkey: _ourPubkey,
+    const verdict = (!HEX64.test(_ourPubkey))
+      ? { ok: true, seated: false, trust: 'unverified', npub: null, errors: ['no-host-identity'] }
+      : (!request)
+        ? { ok: true, seated: false, trust: 'unverified', npub: null, errors: ['no-verified-request'] }
+        : verifyArrival({
+          arrivingPubkey: arriving.pubkey,
+          request,
+          expectedHostPubkey: _ourPubkey,
+        });
+    return decideArrivalAdmission({
+      verdict,
+      ownerPubkey: _ourPubkey,
+      arrivalMode: o.arrivalMode,
+      followPolicy: o.followPolicy,
+      request: _request,
+      relays: _relays,
+      timeoutMs: o.timeoutMs,
+      graceMs: o.graceMs,
+      retries: o.retries,
+      cacheTtlMs: o.cacheTtlMs,
+      nowMs: o.nowMs,
     });
-    const decision = seatArrivalDecision(verdict);
-    return {
-      ok: true,
-      seated: verdict.seated === true,
-      npub: decision.identity,
-      trust: verdict.trust,
-      anon: decision.anon,
-      error: verdict.seated ? null : (verdict.errors[0] || 'unverified'),
-    };
   }
 
   function clearArmed() { _armed = null; }

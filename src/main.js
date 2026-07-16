@@ -48,7 +48,11 @@ import { createHandshakeController } from './engine/gateway/handshakeController.
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
 import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
-import { readArrivingTraveller } from './engine/gateway/handoffArrival.js';
+import {
+  readArrivingTraveller,
+  ARRIVAL_MODE_PUBLIC,
+  FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
+} from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
@@ -261,6 +265,20 @@ function _hostIdentity() {
   return HEX64.test(v || '') ? v : '';
 }
 
+function _arrivalMode() {
+  if (typeof window === 'undefined') return ARRIVAL_MODE_PUBLIC;
+  return typeof window.__toriiAccessMode === 'string' && window.__toriiAccessMode.trim()
+    ? window.__toriiAccessMode.trim().toLowerCase()
+    : ARRIVAL_MODE_PUBLIC;
+}
+
+function _followPolicy() {
+  if (typeof window === 'undefined') return FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER;
+  return typeof window.__toriiAccessFollowPolicy === 'string' && window.__toriiAccessFollowPolicy.trim()
+    ? window.__toriiAccessFollowPolicy.trim().toLowerCase()
+    : FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER;
+}
+
 async function _admitInboundTraveller() {
   if (!_inboundTraveller) return;
   // Do not hijack a logged-in operator's session — only an anonymous arrival seats.
@@ -282,7 +300,11 @@ async function _admitInboundTraveller() {
   } catch { /* relay best-effort; no request → stay anon */ }
   const href = (window.location && window.location.href) || '';
   _handshake.setOurPubkey(hostPubkey);
-  const admit = _handshake.admitArrival(href, request ? { request } : {});
+  const admit = await _handshake.admitArrival(href, {
+    ...(request ? { request } : {}),
+    arrivalMode: _arrivalMode(),
+    followPolicy: _followPolicy(),
+  });
   if (admit.seated && HEX64.test(admit.npub || '')) {
     state.nostrPubkey = admit.npub;
     state.nostrName = admit.npub.slice(0, 8).toUpperCase();
@@ -380,6 +402,8 @@ function _currentInstanceSettingsModel() {
   return buildInstanceSettingsModel({
     operatorPubkey: state.nostrPubkey || '',
     hostPubkey: _hostIdentity(),
+    arrivalMode: _arrivalMode(),
+    followPolicy: _followPolicy(),
   });
 }
 

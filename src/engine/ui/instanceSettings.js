@@ -35,6 +35,12 @@
 //   - Panel is same-origin and inert — no navigation, no relay call, no sign.
 
 import { MP_ENABLED } from '../../config.js';
+import {
+  ARRIVAL_MODE_PUBLIC,
+  FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
+  normaliseArrivalMode,
+  normaliseFollowPolicy,
+} from '../gateway/handoffArrival.js';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -82,10 +88,12 @@ export const COMING_SOON_ARRIVAL_MODES = Object.freeze([
 /**
  * Build the pure view-model for the Instance Settings panel.
  *
- * @param {{ operatorPubkey?: string, hostPubkey?: string }} [opts]
+ * @param {{ operatorPubkey?: string, hostPubkey?: string, arrivalMode?: string, followPolicy?: string }} [opts]
  * @returns {{
  *   visible: boolean,
  *   operatorPubkey: string,
+ *   arrivalMode: string,
+ *   followPolicy: string,
  *   sections: Array<{
  *     key: string,
  *     title: string,
@@ -101,6 +109,8 @@ export function buildInstanceSettingsModel(opts) {
   const op = typeof o.operatorPubkey === 'string' ? o.operatorPubkey.toLowerCase() : '';
   const host = typeof o.hostPubkey === 'string' ? o.hostPubkey.toLowerCase() : '';
   const visible = isInstanceAdmin({ operatorPubkey: op, hostPubkey: host });
+  const arrivalMode = normaliseArrivalMode(o.arrivalMode).mode || ARRIVAL_MODE_PUBLIC;
+  const followPolicy = normaliseFollowPolicy(o.followPolicy).policy || FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER;
 
   // MP-1: allow tests / future runtime override to force the reported flag.
   // Reads `mpEnabled` from opts; falls back to the build-time constant.
@@ -111,9 +121,11 @@ export function buildInstanceSettingsModel(opts) {
       key: 'access',
       title: 'Access',
       status: 'placeholder',
-      current: 'public',
+      current: arrivalMode,
       comingSoon: COMING_SOON_ARRIVAL_MODES.map((m) => ({ ...m })),
-      note: 'Travel between instances is public by default. Admin-set restrictions are coming soon.',
+      note: arrivalMode === ARRIVAL_MODE_PUBLIC
+        ? 'Travel between instances is public by default. Admin-set restrictions are coming soon.'
+        : `Follow gate: ${followPolicy}. Travel still requires SEC-2 crypto verification before any access rule runs.`,
     },
     {
       key: 'multiplayer',
@@ -130,7 +142,7 @@ export function buildInstanceSettingsModel(opts) {
     },
   ];
 
-  return { visible, operatorPubkey: op, sections, mpEnabled };
+  return { visible, operatorPubkey: op, arrivalMode, followPolicy, sections, mpEnabled };
 }
 
 // ── HTML rendering (pure string; injected as-is into a hidden panel) ─────────

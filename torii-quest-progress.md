@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.398-alpha** (visual punch, GitHub-only/no live deploy: arena-only bloom is now composer-driven with a direct `renderer.render` fallback if post-processing init/render fails; resize + DPR changes keep the composer in lockstep with the renderer; HUD SATS/KILLS/HP got larger higher-contrast pill styling; the top-left TORII QUEST mark no longer crops. New pure `src/engine/bloomPlan.js` + tests lock the tuning and keep the shell/R2 boundary clean.)
+> Current version: **v0.2.399-alpha** (ACC-2a follows-only arrival, GitHub-only/no live deploy: `window.__toriiAccessMode='follows-only'` now adds a post-SEC-2 follow gate that reads the VISITOR'S latest kind:3 via the existing relay pool, seats only when the visitor follows the owner, and fails closed to ACCESS DENIED — not anon — on relay error / timeout / missing follow list. The read-only Instance Settings Access section now reflects the deployed arrival mode, and new tests lock parse/cache TTL, admit/deny/fail-closed behaviour, policy direction, and interop.)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

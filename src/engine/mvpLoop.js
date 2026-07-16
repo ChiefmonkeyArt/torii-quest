@@ -1,12 +1,14 @@
-// engine/mvpLoop.js — pure, node-safe framing for the four title-screen PoC
-// preview cards (LEAN-2..5, v0.2.143). Names the single proof-of-concept loop the
-// cards form — Travel → Market → Score → Update — and produces a render-ready
-// header block a title-screen card can draw directly so the four previews read as
-// one MVP loop instead of four unrelated panels.
+// engine/mvpLoop.js — pure, node-safe framing for the four MVP/proof surfaces
+// (LEAN-2..5, v0.2.143). Names the single proof-of-concept loop they form —
+// Travel → Market → Score → Update — and produces a render-ready header block a
+// title-screen card can draw directly so the four proof surfaces read as one MVP
+// loop instead of four unrelated panels. As of v0.2.403-alpha the MARKET surface
+// lives in the in-world NAP zone (the title-screen product card was removed); the
+// remaining surfaces are framed here regardless of where each is presented.
 //
 // Pure + node-safe: NO Three/Rapier/DOM, NO network, NO navigation, NO I/O. This
 // is content/labelling ONLY — it describes the loop; it never performs any of the
-// four steps. The cards it frames are all inert previews
+// four steps. The surfaces it frames are all inert previews
 // (gatewayPreview/productPreview/leaderboardPreview/updatePreview): the block is
 // `actionable:false` / `readOnly:true` by construction.
 
@@ -53,7 +55,7 @@ export function mvpLoopSummary({ currentVersion = VERSION } = {}) {
     title: 'TORII QUEST · MVP LOOP',
     badge: MVP_LOOP_BADGE,
     flow: MVP_LOOP_FLOW,
-    note: 'All four cards below are inert previews — no live external actions.',
+    note: 'All four MVP surfaces are inert previews (Market lives in the NAP zone) — no live external actions.',
     version: currentVersion,
     steps,
     lines,

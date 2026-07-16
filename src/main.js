@@ -17,10 +17,6 @@ import './engine/ui/loginBootstrap.js';
 import { showZoneNotice, hideZoneNotice } from './hud.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
-// v0.2.283 (M2): product surface promoted from read-only proof to a detail view
-// + one real interaction — a LOCAL save keyed to the viewer's Nostr identity.
-import { productDetailView } from './engine/components/productDetail.js';
-import { isProductSaved, toggleProductSaved, savedCountFor } from './engine/components/savedProducts.js';
 import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
 import { talliesToCurrentEvents } from './engine/multiplayer/arenaLeaderboard.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
@@ -43,6 +39,13 @@ import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
+// v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
+// follows) + "arenas" (everything else, created_at DESC). main.js fetches the
+// kind:3 contact lists; this classifies + sorts.
+import {
+  partitionGatewaySections, candidateFriendOwners, contactSetFromEvent,
+  newestContactEvent, SECTION_ROW_CAP,
+} from './engine/gateway/gatewaySections.js';
 // v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
@@ -125,6 +128,12 @@ const _handshake = createHandshakeController({
 });
 let _worldsCache = [];
 let _worldsScan = 'idle';
+// Friend-detection cache, refreshed on the _worldsScan cadence. `_userContacts`
+// is the logged-in user's follow set (newest kind:3); `_ownerContacts` maps each
+// candidate world-owner to their follow set. Empty when logged out or on relay
+// failure — arenas still renders, friends just degrades to empty.
+let _userContacts = new Set();
+let _ownerContacts = new Map();
 let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
 
@@ -156,14 +165,42 @@ function renderGatewayCard() {
   }
   const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
   body.replaceChildren();
+  const { friends, arenas } = partitionGatewaySections({
+    worlds: _worldsCache,
+    userPubkey: canTravel ? state.nostrPubkey : '',
+    userContacts: _userContacts,
+    ownerContacts: _ownerContacts,
+  });
+  // "your friends" — mutual-follow worlds. Logged out: a safe login hint instead.
+  if (canTravel) {
+    _renderGatewaySection(body, 'your friends', friends, canTravel,
+      friends.length ? '' : 'no mutual friends online');
+  } else {
+    _renderGatewaySectionHeader(body, 'your friends', 'login to see friends');
+  }
+  // "arenas" — everything else, latest signal first.
+  _renderGatewaySection(body, 'arenas', arenas, canTravel,
+    arenas.length ? '' : 'no arenas online');
+  _renderGatewayActions(body, []);
+}
+
+// Section header row (label + value), full pair in the 2-col grid. Pure DOM.
+function _renderGatewaySectionHeader(body, title, hint) {
   const head = document.createElement('div');
-  head.className = 'gw-row-label';
-  head.textContent = `WORLDS · ${_worldsCache.length}`;
+  head.className = 'gw-section-title';
+  head.textContent = title;
   const headV = document.createElement('div');
   headV.className = 'gw-row-value';
-  headV.textContent = canTravel ? 'click to travel' : 'online';
+  headV.textContent = hint;
   body.append(head, headV);
-  for (const w of _worldsCache.slice(0, 24)) {
+}
+
+// Render one section: a header, up to SECTION_ROW_CAP travel rows, and a "+N more"
+// overflow summary line when the section has more worlds than the cap.
+function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
+  _renderGatewaySectionHeader(body, title, emptyHint || `${worlds.length}`);
+  const shown = worlds.slice(0, SECTION_ROW_CAP);
+  for (const w of shown) {
     const label = w.title || w.shortPubkey || w.zoneId || 'world';
     const row = document.createElement('div');
     row.className = canTravel ? 'gw-world-row gw-world-clickable' : 'gw-world-row';
@@ -183,7 +220,13 @@ function renderGatewayCard() {
     type.textContent = w.zoneType || 'world';
     body.append(row, type);
   }
-  _renderGatewayActions(body, []);
+  const overflow = worlds.length - shown.length;
+  if (overflow > 0) {
+    const more = document.createElement('div');
+    more.className = 'gw-more';
+    more.textContent = `+${overflow} more`;
+    body.append(more);
+  }
 }
 
 function _renderGatewayActions(body, actions) {
@@ -350,6 +393,43 @@ async function refreshOnlineWorlds() {
   _worldsCache = r.worlds || [];
   _worldsScan = 'idle';
   renderGatewayCard();
+  // Friend detection rides the same scan cadence. Fail-soft: any relay error
+  // leaves the friend caches empty so arenas still renders every world.
+  await _refreshFriendData();
+  renderGatewayCard();
+}
+
+// _refreshFriendData() — the cheapest correct mutual-follow detection (v0.2.403):
+//   (1) fetch the user's newest kind:3 contact list;
+//   (2) intersect its follows with online-world owners → candidate owners;
+//   (3) fetch the newest kind:3 for ONLY those candidates;
+//   (4) partitionGatewaySections marks a world a "friend" iff the user follows the
+//       owner AND the owner follows the user back.
+// No broad {#p:[user]} follower fanout. Never throws; relay errors → empty caches.
+async function _refreshFriendData() {
+  _userContacts = new Set();
+  _ownerContacts = new Map();
+  const me = state.nostrPubkey || '';
+  if (!HEX64.test(me)) return; // logged out: no friends section
+  try {
+    const mineRaw = await fanoutReq(RELAYS, [{ kinds: [3], authors: [me], limit: 4 }],
+      { timeoutMs: 5000, graceMs: 250, retries: 1 });
+    const mineEvents = mineRaw && Array.isArray(mineRaw.events) ? mineRaw.events : [];
+    _userContacts = contactSetFromEvent(newestContactEvent(mineEvents, me));
+  } catch { return; } // no contact list → no friends, arenas unaffected
+  const candidates = candidateFriendOwners({
+    worlds: _worldsCache, userContacts: _userContacts, userPubkey: me,
+  });
+  if (!candidates.length) return;
+  try {
+    const ownersRaw = await fanoutReq(RELAYS,
+      [{ kinds: [3], authors: candidates, limit: candidates.length * 4 }],
+      { timeoutMs: 5000, graceMs: 250, retries: 1 });
+    const ownerEvents = ownersRaw && Array.isArray(ownersRaw.events) ? ownersRaw.events : [];
+    for (const owner of candidates) {
+      _ownerContacts.set(owner, contactSetFromEvent(newestContactEvent(ownerEvents, owner)));
+    }
+  } catch { /* owners unreachable → mutual unconfirmed → they fall to arenas */ }
 }
 
 let _presencePublishedPubkey = '';
@@ -638,102 +718,11 @@ _applyZoneRoute();
 window.addEventListener('popstate', _applyZoneRoute);
 window.addEventListener('hashchange', _applyZoneRoute);
 
-// ── Title-screen proof cards (product / leaderboard / update) ───────────────────
-// The product card (M2, v0.2.283) is now interactive: it shows a DETAIL view of
-// the listing a traveller reaches through a gateway and offers ONE real action —
-// a LOCAL save keyed to the viewer's verified Nostr identity (the arriving npub
-// from the P2 gate, or a logged-in pubkey). Anon viewers see it read-only with a
-// connect prompt. The save is client-side only (savedProducts.js): NOT a relay
-// write, sign, or payment — so it needs no consent/sign gate. Marketplace checkout
-// stays out-of-band (readOnly preserved).
-const PRODUCT_FIXTURE = Object.freeze({
-  title: 'Sticker Gun Skin',
-  sellerNpub: 'npub1demo0seller0fixture0pleb0market0xxxxxxxxxxxxxxxxxxxx',
-  priceSats: 2100,
-  url: 'https://plebeian.market/listing/sticker-gun',
-  reward: 'Sticker Gun skin',
-  description: 'A bright Bitcoin-orange sticker wrap for your in-arena sidearm. '
-    + 'Cosmetic only — owning the listing hints the skin; no entitlement is granted here.',
-});
-
-let _productDetailOpen = false;
-
-function _drawRows(container, lines, labelCls, valueCls) {
-  container.replaceChildren(...lines.flatMap(({ label, value }) => {
-    const l = document.createElement('div');
-    l.className = labelCls;
-    l.textContent = label;
-    const v = document.createElement('div');
-    v.className = valueCls;
-    v.textContent = value;
-    return [l, v];
-  }));
-}
-
-function renderProductPreview() {
-  const body = document.getElementById('product-preview-body');
-  if (!body) return;
-  const viewer = HEX64.test(state.nostrPubkey || '') ? state.nostrPubkey : null;
-  const storage = (typeof window !== 'undefined' && window.localStorage) || null;
-  const saved = viewer ? isProductSaved(storage, viewer, PRODUCT_FIXTURE) : false;
-  const view = productDetailView(PRODUCT_FIXTURE, { viewer, saved });
-
-  // Summary rows (always visible): product / price / seller / marketplace link.
-  const summary = view.lines.filter((l) => l.label !== 'About');
-  _drawRows(body, summary, 'pp-row-label', 'pp-row-value');
-
-  // Detail region (expandable): the full About description when present.
-  const detail = document.getElementById('product-detail');
-  if (detail) {
-    const detailRows = view.lines.filter((l) => l.label === 'About' || l.label === 'Reward');
-    _drawRows(detail, detailRows.length ? detailRows : [{ label: 'About', value: '—' }],
-      'pp-row-label', 'pp-row-value');
-    detail.hidden = !_productDetailOpen;
-  }
-
-  // Save button reflects the interaction view-model (enabled only for an identity).
-  const saveBtn = document.getElementById('product-save-btn');
-  if (saveBtn) {
-    saveBtn.disabled = !view.interaction.enabled;
-    saveBtn.textContent = view.interaction.label;
-    saveBtn.setAttribute('aria-pressed', String(view.interaction.saved));
-  }
-  const statusEl = document.getElementById('product-save-status');
-  if (statusEl) {
-    if (!view.interaction.enabled) {
-      statusEl.textContent = view.interaction.hint;
-      statusEl.dataset.tone = 'muted';
-    } else {
-      const n = savedCountFor(storage, viewer);
-      statusEl.textContent = view.interaction.saved
-        ? `✓ saved · ${n} in your list` : (n ? `${n} saved in your list` : '');
-      statusEl.dataset.tone = view.interaction.saved ? 'ok' : '';
-    }
-  }
-}
-
-function _toggleProductSave() {
-  const viewer = HEX64.test(state.nostrPubkey || '') ? state.nostrPubkey : null;
-  if (!viewer) return; // anon: button is disabled, but fail closed anyway
-  const storage = (typeof window !== 'undefined' && window.localStorage) || null;
-  toggleProductSaved(storage, viewer, PRODUCT_FIXTURE, Date.now());
-  renderProductPreview();
-}
-
-(function wireProductCard() {
-  const detailsBtn = document.getElementById('product-details-btn');
-  if (detailsBtn) detailsBtn.addEventListener('click', () => {
-    _productDetailOpen = !_productDetailOpen;
-    detailsBtn.setAttribute('aria-expanded', String(_productDetailOpen));
-    detailsBtn.textContent = _productDetailOpen ? 'HIDE DETAILS' : 'VIEW DETAILS';
-    const detail = document.getElementById('product-detail');
-    if (detail) detail.hidden = !_productDetailOpen;
-  });
-  const saveBtn = document.getElementById('product-save-btn');
-  if (saveBtn) saveBtn.addEventListener('click', _toggleProductSave);
-  on(EV.NOSTR_LOGIN, renderProductPreview);
-})();
-renderProductPreview();
+// ── Title-screen proof cards (leaderboard / update) ─────────────────────────────
+// v0.2.403-alpha: the MARKET/product preview card was removed from the title
+// screen. The product proof-surface now lives only in the in-world NAP zone
+// (see src/world/napZone.js + the productPreview/product-panel modules). The
+// pure product view-model modules stay intact and are exercised by that panel.
 
 // v0.2.384-alpha: the side-panel leaderboard is now HONEST — it renders the
 // server-authoritative LOCAL tallies for this arena instance (the same SCORE

@@ -551,9 +551,11 @@ UNKNOWN, and exposes NO fetch/install/update/navigate/href/onClick/autoUpdate ke
 
 ## 2. The four MVP proof surfaces + the loop
 
-The 15-hour proof-of-concept route renders four inert title-screen preview cards,
-framed as one **Travel → Market → Score → Update** loop. Each card is fed by a pure
-SDK preview module and mirrored read-only on `ToriiDebug.shells`.
+The 15-hour proof-of-concept route renders four inert MVP/proof surfaces,
+framed as one **Travel → Market → Score → Update** loop. As of v0.2.403-alpha the
+MARKET surface lives in the in-world NAP zone (the title-screen product card was
+removed); the other surfaces render on the title screen. Each surface is fed by a
+pure SDK preview module and mirrored read-only on `ToriiDebug.shells`.
 
 | Step | LEAN | Card / SDK namespace | `ToriiDebug.shells` report | Inert invariants |
 |---|---|---|---|---|

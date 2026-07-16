@@ -1,4 +1,4 @@
-// instanceSettings.js (v0.2.401-alpha) — instance-admin access settings surface.
+// instanceSettings.js (v0.2.402-alpha) — instance-admin access settings surface.
 //
 // Pure, node-safe view-model + HTML renderer for the title-screen Instance
 // Settings panel. DOM wiring + relay/sign interactions live in main.js; this file

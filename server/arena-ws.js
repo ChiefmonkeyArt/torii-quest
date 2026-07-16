@@ -62,7 +62,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.401-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.402-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 

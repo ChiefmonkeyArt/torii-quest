@@ -34,7 +34,7 @@ describe('renderToriiQuestPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.401-alpha');
+    expect(html).toContain('v0.2.402-alpha');
     expect(html).toContain('Torii Quest');
   });
 
@@ -179,8 +179,12 @@ describe('test-count freshness (v0.2.200 — single source of truth)', () => {
   });
 
   it('the curated file count matches the real number of test files on disk (drift guard)', () => {
+    const countTestFiles = (dir) => readdirSync(dir, { withFileTypes: true }).reduce((sum, entry) => {
+      if (entry.isDirectory()) return sum + countTestFiles(join(dir, entry.name));
+      return sum + (entry.name.endsWith('.test.js') ? 1 : 0);
+    }, 0);
     const testsDir = dirname(fileURLToPath(import.meta.url));
-    const onDisk = readdirSync(testsDir).filter((f) => f.endsWith('.test.js')).length;
+    const onDisk = countTestFiles(testsDir);
     expect(CURRENT_TEST_STATUS.files).toBe(onDisk);
   });
 

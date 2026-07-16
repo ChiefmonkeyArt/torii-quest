@@ -71,9 +71,17 @@ const { overrides, taskTotals, parsed, gaps } = deriveToriiQuestData({ progressM
 // count from this run, and a real version/doc-sync check), then let buildHealthModel layer
 // the LAST-KNOWN values (total tests, timings, bundle baseline, last green gate) under
 // clear provenance chips. Falls back to the curated CONTINUUM.health if anything is absent.
-function countTestFiles() {
-  try { return readdirSync(join(ROOT, 'tests')).filter((f) => f.endsWith('.test.js')).length; }
-  catch { return null; }
+function countTestFiles(dir = join(ROOT, 'tests')) {
+  try {
+    let total = 0;
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      const st = statSync(p);
+      if (st.isDirectory()) total += countTestFiles(p) || 0;
+      else if (name.endsWith('.test.js')) total += 1;
+    }
+    return total;
+  } catch { return null; }
 }
 const docsInSync = [progressMd, todoMd].every((d) => d.includes(VERSION));
 const health = buildHealthModel({

@@ -15,10 +15,10 @@ import { versionAgreement } from './handoffStatus.mjs';
 import { PROFILES, validateProfiles } from './testProfiles.mjs';
 import { formatBytes } from './bundleSizes.mjs';
 
-// The number of static/runtime guardrails tools/regression-check.mjs runs ([1]–[15]). The
+// The number of static/runtime guardrails tools/regression-check.mjs currently runs. The
 // summary surfaces the gate's PRESENCE + count read-only; the gate itself is the authority
 // (`npm run check`). If a check is added/removed there, bump this so the summary stays honest.
-export const REGRESSION_CHECK_COUNT = 15;
+export const REGRESSION_CHECK_COUNT = 20;
 
 // Badge naming the section as read-only oversight, never a deploy/publish action.
 export const RELEASE_READINESS_BADGE = 'RELEASE READINESS · LOCAL · READ-ONLY';

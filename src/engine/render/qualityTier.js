@@ -69,6 +69,7 @@ export function createQualityTier({
       const w = win ? win.innerWidth : (renderer.domElement ? renderer.domElement.width : 0);
       const h = win ? win.innerHeight : (renderer.domElement ? renderer.domElement.height : 0);
       if (typeof renderer.setSize === 'function') renderer.setSize(w, h);
+      if (composer && typeof composer.setPixelRatio === 'function') composer.setPixelRatio(def.dpr);
       if (composer && typeof composer.setSize === 'function') composer.setSize(w, h);
     }
     if (bloomPass) bloomPass.enabled = def.bloom;

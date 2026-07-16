@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-07-09T23:24:46.151Z",
+  "generatedAt": "2026-07-16T10:27:58.174Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.397-alpha",
-  "packageVersion": "0.2.397-alpha",
-  "gitCommit": "8d0cbc0",
+  "version": "v0.2.398-alpha",
+  "packageVersion": "0.2.398-alpha",
+  "gitCommit": "347f20a",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -14,7 +14,7 @@
     "blockers": [],
     "regression": {
       "count": 20,
-      "expected": 15
+      "expected": 20
     }
   },
   "readiness": {
@@ -35,7 +35,7 @@
     "approved": false,
     "approvedBy": null,
     "approvedAt": null,
-    "version": "v0.2.397-alpha"
+    "version": "v0.2.398-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -81,7 +81,7 @@
   "liveSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.230-alpha",
     "smokedAt": "2026-06-26",
     "checks": 3,
     "passed": 3,
@@ -91,7 +91,7 @@
   "dashboardSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.231-alpha",
     "surface": "dashboard.html",
     "smokedAt": "2026-06-26",
     "checks": 4,
@@ -102,18 +102,18 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.398-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.397-alpha"
+      "version": "v0.2.230-alpha"
     },
     "dashboardSmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.397-alpha"
+      "version": "v0.2.231-alpha"
     },
     "manualBlockerPending": true,
     "nextSafeTask": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -171,10 +171,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
-    "torii-v0.2.231-live-smoke-status-report.md",
-    "torii-v0.2.232-dashboard-smoke-status-report.md",
-    "torii-v0.2.233-handoff-release-control-report.md",
-    "torii-v0.2.234-mvp-approval-gate-report.md"
+    "torii-v0.2.223-playtest-results-dashboard-report.md",
+    "torii-v0.2.224-playtest-note-capture-report.md",
+    "torii-v0.2.225-playtest-capture-path-hardening-report.md",
+    "torii-v0.2.226-entry-flow-button-fix-report.md"
   ],
   "safety": {
     "deploy": false,

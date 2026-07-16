@@ -8,13 +8,16 @@ import { createQualityTier, TIERS } from '../../src/engine/render/qualityTier.js
 
 // Fake THREE handles that record what the tier applied.
 function makeDeps() {
-  const calls = { setPixelRatio: [], setSize: [], composerSetSize: [] };
+  const calls = { setPixelRatio: [], setSize: [], composerSetPixelRatio: [], composerSetSize: [] };
   const renderer = {
     setPixelRatio: (r) => calls.setPixelRatio.push(r),
     setSize: (w, h) => calls.setSize.push([w, h]),
     info: { render: { calls: 0, triangles: 0 } },
   };
-  const composer = { setSize: (w, h) => calls.composerSetSize.push([w, h]) };
+  const composer = {
+    setPixelRatio: (r) => calls.composerSetPixelRatio.push(r),
+    setSize: (w, h) => calls.composerSetSize.push([w, h]),
+  };
   const bloomPass = { enabled: true };
   const win = { innerWidth: 1280, innerHeight: 720 };
   return { renderer, composer, bloomPass, window: win, calls };
@@ -68,6 +71,7 @@ describe('createQualityTier', () => {
     expect(q.dpr()).toBe(TIERS.NORMAL.dpr);
     expect(d.calls.setPixelRatio.at(-1)).toBe(1.25);
     expect(d.calls.setSize.at(-1)).toEqual([1280, 720]);
+    expect(d.calls.composerSetPixelRatio.at(-1)).toBe(1.25);
     expect(d.calls.composerSetSize.at(-1)).toEqual([1280, 720]);
     expect(d.bloomPass.enabled).toBe(true); // NORMAL keeps bloom
   });

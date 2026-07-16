@@ -1,22 +1,26 @@
 // scene.js — renderer, camera, lights, aurora sky dome, bitcoin sun sprite.
 import * as THREE from 'three';
-// Post-processing (v0.2.347): UnrealBloom pass so emissive/neon elements (fence,
-// aurora, cyan paths, torii glow) read as luminous. These addons live in the
-// ARENA path only — scene.js is imported solely via arenaRuntime.js (the lazy
-// three chunk behind ENTER ARENA), so R2 stays intact: nothing here is pulled
-// into main.js / the shell / first-paint bundle. Same `three/addons/*` import
-// style as the GLTF/DRACO loaders elsewhere in the repo.
+// Post-processing (v0.2.398): UnrealBloom stays on the deferred ARENA path only.
+// scene.js is imported solely via arenaRuntime.js (the lazy ENTER ARENA chunk),
+// so these addons never ride into the shell / first-paint bundle.
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { assetUrl } from './assetUrl.js';
+import { bloomPlanForTier } from './engine/bloomPlan.js';
+
+const DEFAULT_DPR = Math.min(globalThis.devicePixelRatio || 1, 1.5);
+const BLOOM_PLAN = bloomPlanForTier('HIGH');
+
+export let composer = null;
+export let bloomPass = null;
 
 export const renderer = new THREE.WebGLRenderer({ antialias: true });
 // v0.2.379-alpha: main renderer DPR cap lowered 2 → 1.5 (HIGH tier max). The
 // adaptive quality tier (engine/render/qualityTier.js) calls setPixelRatio()
 // dynamically at/below this. 1.5 matches the existing mirror cap (mirror.js:51).
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setPixelRatio(DEFAULT_DPR);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
@@ -42,6 +46,58 @@ camera.layers.enable(2);
 export const gunScene  = new THREE.Scene();
 export const gunCamera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.01, 10);
 gunScene.add(new THREE.AmbientLight(0xffffff, 1.4));
+
+function currentRendererDpr() {
+  return typeof renderer.getPixelRatio === 'function' ? renderer.getPixelRatio() : DEFAULT_DPR;
+}
+
+function syncComposerViewportSize() {
+  if (!composer) return;
+  const dpr = currentRendererDpr();
+  if (typeof composer.setPixelRatio === 'function') composer.setPixelRatio(dpr);
+  if (typeof composer.setSize === 'function') composer.setSize(innerWidth, innerHeight);
+}
+
+function initBloomComposer() {
+  try {
+    const nextComposer = new EffectComposer(renderer);
+    nextComposer.addPass(new RenderPass(scene, camera));
+    const nextBloomPass = new UnrealBloomPass(
+      new THREE.Vector2(innerWidth, innerHeight),
+      BLOOM_PLAN.strength,
+      BLOOM_PLAN.radius,
+      BLOOM_PLAN.threshold,
+    );
+    nextBloomPass.enabled = BLOOM_PLAN.enabled;
+    nextComposer.addPass(nextBloomPass);
+    nextComposer.addPass(new OutputPass());
+    composer = nextComposer;
+    bloomPass = nextBloomPass;
+    syncComposerViewportSize();
+  } catch (err) {
+    composer = null;
+    bloomPass = null;
+    console.warn('[render] bloom composer init failed; using direct renderer fallback', err);
+  }
+}
+
+function renderArenaScene() {
+  if (composer && typeof composer.render === 'function') {
+    try {
+      composer.render();
+      return;
+    } catch (err) {
+      console.warn('[render] bloom composer render failed; falling back to direct renderer', err);
+      composer = null;
+      bloomPass = null;
+    }
+  }
+  renderer.render(scene, camera);
+}
+
+initBloomComposer();
+
+export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffd9a0, 0.9)); // warm morning ambient
@@ -258,45 +314,21 @@ export function tickAurora(dt) {
   _auroraMat.uniforms.uTime.value += dt;
 }
 
-// ── Bloom post-processing composer ──────────────────────────────────────────
-// Allocated ONCE (never per-frame): RenderPass draws the scene, UnrealBloomPass
-// adds a threshold-gated glow so only bright/emissive pixels bloom, OutputPass
-// applies tone-mapping + sRGB so colours match the direct-render look. Bloom is
-// tuned low (threshold 0.85) so the sky/terrain don't wash out — only the neon
-// fence, aurora highlights, cyan paths and torii glow lift. The DOM HUD is an
-// overlay outside the WebGL canvas, so it is never touched by bloom.
-const BLOOM_STRENGTH  = 0.75; // overall glow intensity (0.6–0.9 band)
-const BLOOM_RADIUS    = 0.4;  // glow spread
-const BLOOM_THRESHOLD = 0.85; // only pixels brighter than this bloom
-const _composer  = new EffectComposer(renderer);
-_composer.addPass(new RenderPass(scene, camera));
-const _bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(innerWidth, innerHeight),
-  BLOOM_STRENGTH, BLOOM_RADIUS, BLOOM_THRESHOLD,
-);
-_composer.addPass(_bloomPass);
-_composer.addPass(new OutputPass());
-
-// v0.2.379-alpha: exported so the adaptive quality tier can resize the composer
-// and toggle bloom (LOW tier disables it) without re-allocating passes.
-export { _composer as composer, _bloomPass as bloomPass };
-
 // ── Resize ────────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
+  const dpr = currentRendererDpr();
+  renderer.setPixelRatio(dpr);
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth/innerHeight;
   camera.updateProjectionMatrix();
   gunCamera.aspect = innerWidth/innerHeight;
   gunCamera.updateProjectionMatrix();
-  // Keep the composer + bloom targets in lockstep with the canvas.
-  _composer.setSize(innerWidth, innerHeight);
+  syncComposerViewportSize();
 });
 
 export function renderFrame(showGun) {
   renderer.clear();
-  // Composer renders the bloomed scene to the canvas (RenderPass clears its own
-  // target; OutputPass writes the final image to screen).
-  _composer.render();
+  renderArenaScene();
   // Gun viewmodel draws on top afterwards (separate scene, always-on-top, no
   // bloom) — clear only depth so it composites over the bloomed frame.
   if (showGun) { renderer.clearDepth(); renderer.render(gunScene, gunCamera); }

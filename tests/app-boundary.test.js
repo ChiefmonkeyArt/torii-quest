@@ -72,6 +72,18 @@ describe('Quest game-runtime does not reach into Continuum', () => {
   }
 });
 
+describe('Arena bloom stays behind the R2 lazy boundary', () => {
+  const FIRST_PAINT_FILES = ['index.html', 'src/main.js', 'src/engine/ui/loginBootstrap.js'];
+  const POSTPROCESSING_TOKENS = /(EffectComposer|UnrealBloomPass|RenderPass|OutputPass|postprocessing\/)/;
+
+  for (const f of FIRST_PAINT_FILES) {
+    it(`${f} imports no bloom/post-processing addon`, () => {
+      const src = read(f);
+      expect(src, `${f} must stay free of post-processing imports`).not.toMatch(POSTPROCESSING_TOKENS);
+    });
+  }
+});
+
 describe('BotAgent decision seam stays pure', () => {
   it('engine/entities/bot-agent.js imports only the config tuning constants', () => {
     const src = read('src/engine/entities/bot-agent.js');

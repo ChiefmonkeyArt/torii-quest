@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.397-alpha",
-  "generatedAt": "2026-07-15T16:49:39.400Z",
+  "version": "v0.2.398-alpha",
+  "generatedAt": "2026-07-16T10:28:15.207Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.397-alpha"
+        "value": "v0.2.398-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "16 / 16 regression checks GREEN · last green v0.2.397-alpha"
+        "value": "20 / 20 regression checks GREEN · last green v0.2.398-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -96,7 +96,7 @@
       {
         "pct": 100,
         "label": "Regression checks",
-        "sub": "16 / 16"
+        "sub": "20 / 20"
       },
       {
         "pct": 17,
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.397-alpha",
-    "gitCommit": "44fb0b2",
+    "version": "v0.2.398-alpha",
+    "gitCommit": "347f20a",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.397-alpha / pkg 0.2.397-alpha"
+        "detail": "config v0.2.398-alpha / pkg 0.2.398-alpha"
       },
       {
         "key": "tests",
@@ -214,7 +214,7 @@
         "label": "Regression gate",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "20 / 15 checks"
+        "detail": "20 / 20 checks"
       },
       {
         "key": "bundle",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.398-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -268,7 +268,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.397-alpha"
+        "value": "v0.2.398-alpha"
       },
       {
         "label": "Release manifest",
@@ -324,7 +324,7 @@
     "metrics": [
       {
         "label": "Local automated gates",
-        "value": "READY · 15/15 local checks green"
+        "value": "READY · 20/20 local checks green"
       },
       {
         "label": "Manual playtest",
@@ -400,7 +400,7 @@
     "pill": "manual",
     "status": "pending",
     "approved": false,
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.398-alpha",
     "approvedBy": null,
     "approvedAt": null,
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.397-alpha"
+        "value": "v0.2.398-alpha"
       },
       {
         "label": "Approved by",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.397-alpha"
+        "value": "v0.2.398-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.397-alpha",
+    "version": "v0.2.398-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

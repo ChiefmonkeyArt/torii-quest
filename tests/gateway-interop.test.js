@@ -15,6 +15,7 @@ import { createHandshakeController } from '../src/engine/gateway/handshakeContro
 import { appendTraveller, hardenSpawnUrl } from '../src/engine/gateway/urlHarden.js';
 import { nostrEventId } from '../src/engine/crypto/nostrSig.js';
 import { ARRIVAL_MODE_FOLLOWS_ONLY } from '../src/engine/gateway/handoffArrival.js';
+import { ACCESS_SETTINGS_KIND, ACCESS_SETTINGS_SCHEMA_VERSION, buildAccessSettingsDTag } from '../src/nostr.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { hexToBytes, bytesToHex } from '@noble/hashes/utils.js';
 
@@ -45,17 +46,34 @@ function createSharedRelay() {
   // tag index: an event addressed (#p) to the querying pubkey is returned.
   const request = async (_relays, filters) => {
     const f = (filters && filters[0]) || {};
+    const wantKinds = Array.isArray(f.kinds) ? f.kinds : null;
     const wantP = Array.isArray(f['#p']) ? f['#p'] : null;
+    const wantD = Array.isArray(f['#d']) ? f['#d'] : null;
     const wantAuthors = Array.isArray(f.authors) ? f.authors : null;
     const events = store.filter((ev) => {
+      if (wantKinds && !wantKinds.includes(ev.kind)) return false;
       if (wantAuthors && !wantAuthors.includes(ev.pubkey)) return false;
-      if (!wantP) return true;
-      const pTags = (ev.tags || []).filter((t) => t[0] === 'p').map((t) => t[1]);
-      return wantP.some((p) => pTags.includes(p));
+      if (wantP) {
+        const pTags = (ev.tags || []).filter((t) => t[0] === 'p').map((t) => t[1]);
+        if (!wantP.some((p) => pTags.includes(p))) return false;
+      }
+      if (wantD) {
+        const dTags = (ev.tags || []).filter((t) => t[0] === 'd').map((t) => t[1]);
+        if (!wantD.some((d) => dTags.includes(d))) return false;
+      }
+      return true;
     });
     return { events, used: _relays, failed: [] };
   };
   return { store, signerFor, publish, request };
+}
+
+function relaylessSign(sk, unsigned) {
+  const pubkey = bytesToHex(schnorr.getPublicKey(sk));
+  const evt = { ...unsigned, pubkey };
+  const id = nostrEventId(evt);
+  const sig = bytesToHex(schnorr.sign(hexToBytes(id), sk));
+  return { ...evt, id, sig };
 }
 
 function makeInstance(relay, sk) {
@@ -74,6 +92,22 @@ function followEvent(author, followed = [], createdAt = 1) {
     tags: followed.map((pk) => ['p', pk]),
     content: '',
   };
+}
+
+function accessEvent({ instanceId = 'host-b.example.com/', arrivalMode = 'public', followPolicy = 'visitor-follows-owner', createdAt = 1 } = {}) {
+  return relaylessSign(B_SK, {
+    kind: ACCESS_SETTINGS_KIND,
+    created_at: createdAt,
+    tags: [['d', buildAccessSettingsDTag(instanceId)]],
+    content: JSON.stringify({
+      schemaVersion: ACCESS_SETTINGS_SCHEMA_VERSION,
+      instanceId,
+      ownerPubkey: B_PUB,
+      arrivalMode,
+      followPolicy,
+      updatedAt: new Date(createdAt * 1000).toISOString(),
+    }),
+  });
 }
 
 // Drive the handshake A→B up to A's armed accept. Returns { A, B }.
@@ -192,6 +226,28 @@ describe('P3 cross-host interop — traveller A jumps to host B carrying its npu
     expect(admitNotFollowing.seated).toBe(false);
     expect(admitNotFollowing.denied).toBe(true);
     expect(admitNotFollowing.anon).toBe(false);
+  });
+
+  it('persisted follows-only denies a non-follower across hosts', async () => {
+    const relay = createSharedRelay();
+    const C_SK = hexToBytes('44'.repeat(32));
+    const C_PUB = bytesToHex(schnorr.getPublicKey(C_SK));
+    const C = makeInstance(relay, C_SK);
+    const B = makeInstance(relay, B_SK);
+    relay.store.push(accessEvent({ instanceId: 'host-b.example.com/', arrivalMode: 'follows-only', createdAt: 90 }));
+    const reqRes = await C.requestTravel({ pubkey: B_PUB, zoneId: 'host-b-arena', title: 'Host B' });
+    expect(reqRes.ok).toBe(true);
+    await B.tick();
+    const acc = await B.respondIncoming(true, { spawn: B_SPAWN });
+    expect(acc.ok).toBe(true);
+    await C.tick();
+    const armed = C.snapshot().armed;
+    const jump = appendTraveller(hardenSpawnUrl(armed.spawn).url, C_PUB);
+    const admit = await B.admitArrival(jump.url, { instanceId: 'host-b.example.com/', arrivalMode: 'public' });
+    expect(admit.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(admit.seated).toBe(false);
+    expect(admit.denied).toBe(true);
+    expect(admit.anon).toBe(false);
   });
 
   it('host B refuses to ACCEPT an unsigned/forged incoming request (gate before seating)', async () => {

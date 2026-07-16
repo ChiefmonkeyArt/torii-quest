@@ -1,6 +1,6 @@
 // scene.js — renderer, camera, lights, aurora sky dome, bitcoin sun sprite.
 import * as THREE from 'three';
-// Post-processing (v0.2.399): UnrealBloom stays on the deferred ARENA path only.
+// Post-processing (v0.2.400): UnrealBloom stays on the deferred ARENA path only.
 // scene.js is imported solely via arenaRuntime.js (the lazy ENTER ARENA chunk),
 // so these addons never ride into the shell / first-paint bundle.
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';

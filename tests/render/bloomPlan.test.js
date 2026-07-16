@@ -1,4 +1,4 @@
-// tests/render/bloomPlan.test.js — locks the v0.2.399 arena bloom tuning plan.
+// tests/render/bloomPlan.test.js — locks the v0.2.400 arena bloom tuning plan.
 // Pure node-safe coverage only: clamps + tier presets, no THREE/WebGL required.
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_BLOOM_PLAN, createBloomPlan, bloomPlanForTier } from '../../src/engine/bloomPlan.js';

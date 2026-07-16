@@ -41,7 +41,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
@@ -58,7 +58,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
 // Settings shell (INERT: shown only to the logged-in instance admin; the Access
 // section is a read-only "public + coming soon" placeholder).
-import { buildInstanceSettingsModel, renderInstanceSettingsPanel } from './engine/ui/instanceSettings.js';
+import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode } from './engine/ui/instanceSettings.js';
 import { NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW } from './config.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
@@ -265,6 +265,19 @@ function _hostIdentity() {
   return HEX64.test(v || '') ? v : '';
 }
 
+function _instanceId() {
+  if (typeof window !== 'undefined' && typeof window.__toriiInstanceId === 'string' && window.__toriiInstanceId.trim()) {
+    return window.__toriiInstanceId.trim();
+  }
+  const meta = typeof document !== 'undefined' ? document.querySelector('meta[name="torii-instance-id"]') : null;
+  const v = meta && meta.getAttribute('content');
+  if (typeof v === 'string' && v.trim()) return v.trim();
+  const loc = (typeof window !== 'undefined' && window.location) ? window.location : null;
+  const host = loc && typeof loc.host === 'string' ? loc.host.trim() : '';
+  const path = loc && typeof loc.pathname === 'string' ? loc.pathname.replace(/\/+$/, '') || '/' : '/';
+  return host ? `${host}${path}` : '';
+}
+
 function _arrivalMode() {
   if (typeof window === 'undefined') return ARRIVAL_MODE_PUBLIC;
   return typeof window.__toriiAccessMode === 'string' && window.__toriiAccessMode.trim()
@@ -302,6 +315,7 @@ async function _admitInboundTraveller() {
   _handshake.setOurPubkey(hostPubkey);
   const admit = await _handshake.admitArrival(href, {
     ...(request ? { request } : {}),
+    instanceId: _instanceId(),
     arrivalMode: _arrivalMode(),
     followPolicy: _followPolicy(),
   });
@@ -386,44 +400,160 @@ on(EV.NOSTR_LOGIN, () => {
   refreshInstanceSettingsVisibility();
 });
 
-// ── Instance Settings (ACC-1, v0.2.358) ────────────────────────────────────────
-// Title-screen admin surface. The entry-point link (`#instance-settings-link`)
-// is shown ONLY when the logged-in operator's npub matches this deployment's
-// configured host pubkey (`_hostIdentity()`), so a visitor / anon session /
-// mismatched login sees no admin UI. Clicking the link opens an inert panel
-// (`#instance-settings-panel`) rendered from the pure `instanceSettings.js`
-// view-model — no gate change, no relay call, no navigation. The Access
-// section is a read-only "public + coming soon" placeholder.
+// ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────
+// Title-screen admin surface. The entry-point link stays UI-gated by
+// isInstanceAdmin(); the saved access mode itself is secured by the signed
+// kind:30078 settings event, verified on read before it can affect arrival.
 const _elInstanceSettingsLink  = typeof document !== 'undefined' ? document.getElementById('instance-settings-link')  : null;
 const _elInstanceSettingsPanel = typeof document !== 'undefined' ? document.getElementById('instance-settings-panel') : null;
 const _elInstanceSettingsBackdrop = typeof document !== 'undefined' ? document.getElementById('instance-settings-backdrop') : null;
+const _instanceSettingsState = {
+  loading: false,
+  saving: false,
+  persisted: null,
+  draftArrivalMode: null,
+  statusMessage: '',
+  statusTone: '',
+};
+
+function _syncInstanceSettingsDraft() {
+  const fallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.arrivalMode === 'string'
+    ? _instanceSettingsState.persisted.arrivalMode
+    : _arrivalMode();
+  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
+    _instanceSettingsState.draftArrivalMode,
+    coerceEditableArrivalMode(fallback, _arrivalMode()),
+  );
+}
 
 function _currentInstanceSettingsModel() {
+  _syncInstanceSettingsDraft();
   return buildInstanceSettingsModel({
     operatorPubkey: state.nostrPubkey || '',
     hostPubkey: _hostIdentity(),
     arrivalMode: _arrivalMode(),
     followPolicy: _followPolicy(),
+    persistedArrivalMode: _instanceSettingsState.persisted && _instanceSettingsState.persisted.arrivalMode,
+    persistedFollowPolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.followPolicy,
+    selectedArrivalMode: _instanceSettingsState.draftArrivalMode,
+    hasSigner: typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function',
+    loading: _instanceSettingsState.loading,
+    saving: _instanceSettingsState.saving,
+    statusMessage: _instanceSettingsState.statusMessage,
+    statusTone: _instanceSettingsState.statusTone,
   });
+}
+
+function _rerenderInstanceSettingsPanel() {
+  if (!_elInstanceSettingsPanel || _elInstanceSettingsPanel.hidden) return;
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible) {
+    _closeInstanceSettingsPanel();
+    return;
+  }
+  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
+}
+
+async function _refreshInstanceSettingsAccessState() {
+  const instanceId = _instanceId();
+  const hostPubkey = _hostIdentity();
+  _instanceSettingsState.loading = true;
+  _instanceSettingsState.statusTone = 'muted';
+  _instanceSettingsState.statusMessage = 'Reading saved access setting…';
+  _rerenderInstanceSettingsPanel();
+  if (!instanceId || !HEX64.test(hostPubkey)) {
+    _instanceSettingsState.loading = false;
+    _instanceSettingsState.persisted = null;
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = 'No valid instance identity found — using this deploy default.';
+    _syncInstanceSettingsDraft();
+    _rerenderInstanceSettingsPanel();
+    return;
+  }
+  const res = await readLatestAccessSettings({
+    request: fanoutReq,
+    relays: RELAYS,
+    instanceId,
+    ownerPubkey: hostPubkey,
+    timeoutMs: 5000,
+    graceMs: 250,
+    retries: 1,
+  });
+  _instanceSettingsState.loading = false;
+  if (res.ok && res.settings) {
+    _instanceSettingsState.persisted = res.settings;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings.arrivalMode, _arrivalMode());
+    _instanceSettingsState.statusTone = res.stale ? 'warn' : 'ok';
+    _instanceSettingsState.statusMessage = res.stale
+      ? 'Relay read failed — using the cached signed access setting.'
+      : 'Loaded the latest valid signed access setting.';
+  } else if (res.ok) {
+    _instanceSettingsState.persisted = null;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(_arrivalMode(), _arrivalMode());
+    _instanceSettingsState.statusTone = 'muted';
+    _instanceSettingsState.statusMessage = 'No saved access setting yet — using this deploy default.';
+  } else {
+    _instanceSettingsState.persisted = res.settings || null;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
+      (res.settings && res.settings.arrivalMode) || _arrivalMode(),
+      _arrivalMode(),
+    );
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = res.stale
+      ? 'Relay read failed — using the cached signed access setting.'
+      : 'Could not read a signed access setting — using this deploy default.';
+  }
+  _rerenderInstanceSettingsPanel();
+}
+
+async function _saveInstanceSettingsAccess() {
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible || !model.canEditAccess) return;
+  _instanceSettingsState.saving = true;
+  _instanceSettingsState.statusTone = 'muted';
+  _instanceSettingsState.statusMessage = 'Signing and publishing the access setting…';
+  _rerenderInstanceSettingsPanel();
+  const res = await publishAccessSettings({
+    instanceId: _instanceId(),
+    ownerPubkey: _hostIdentity(),
+    arrivalMode: _instanceSettingsState.draftArrivalMode,
+    followPolicy: _followPolicy(),
+    relays: RELAYS,
+    sign: signEvent,
+    publish: fanoutPublish,
+    timeoutMs: 5000,
+  });
+  _instanceSettingsState.saving = false;
+  if (!res.ok) {
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = res.error === 'nip-07-unavailable'
+      ? 'Connect a Nostr signer to save access changes.'
+      : `Could not save access setting: ${(res && res.error) || 'unknown error'}`;
+    _rerenderInstanceSettingsPanel();
+    return;
+  }
+  _instanceSettingsState.persisted = res.settings;
+  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings && res.settings.arrivalMode, _arrivalMode());
+  _instanceSettingsState.statusTone = 'ok';
+  _instanceSettingsState.statusMessage = `Saved the signed access setting to ${res.accepted} relay${res.accepted === 1 ? '' : 's'}.`;
+  _rerenderInstanceSettingsPanel();
 }
 
 function refreshInstanceSettingsVisibility() {
   if (!_elInstanceSettingsLink) return;
   const model = _currentInstanceSettingsModel();
   _elInstanceSettingsLink.hidden = !model.visible;
-  // If the panel was left open when the operator logged out / switched to a
-  // non-admin identity, hide it immediately (defence in depth — the panel is
-  // inert, but we do not want stale admin UI lingering).
   if (!model.visible) _closeInstanceSettingsPanel();
 }
 
 function _openInstanceSettingsPanel() {
   if (!_elInstanceSettingsPanel) return;
   const model = _currentInstanceSettingsModel();
-  if (!model.visible) return; // shell-side gate; renderer also returns '' when hidden.
+  if (!model.visible) return;
   _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
   _elInstanceSettingsPanel.hidden = false;
   if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = false;
+  _refreshInstanceSettingsAccessState();
 }
 
 function _closeInstanceSettingsPanel() {
@@ -441,9 +571,6 @@ if (_elInstanceSettingsLink) {
   });
 }
 if (_elInstanceSettingsPanel) {
-  // Delegated close: bind to the panel root so a re-rendered close button
-  // still works. Only the `data-action="close"` element triggers a close;
-  // clicks elsewhere inside the panel are ignored.
   _elInstanceSettingsPanel.addEventListener('click', (e) => {
     const t = e && e.target;
     if (t && t.getAttribute && t.getAttribute('data-action') === 'close') {
@@ -451,12 +578,24 @@ if (_elInstanceSettingsPanel) {
       _closeInstanceSettingsPanel();
     }
   });
+  _elInstanceSettingsPanel.addEventListener('change', (e) => {
+    const t = e && e.target;
+    if (!t || !t.matches || !t.matches('input[name="arrival-mode"]')) return;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
+    _instanceSettingsState.statusMessage = '';
+    _instanceSettingsState.statusTone = '';
+    _rerenderInstanceSettingsPanel();
+  });
+  _elInstanceSettingsPanel.addEventListener('submit', (e) => {
+    const t = e && e.target;
+    if (!t || !t.getAttribute || t.getAttribute('data-form') !== 'access-settings') return;
+    e.preventDefault();
+    _saveInstanceSettingsAccess();
+  });
 }
 if (_elInstanceSettingsBackdrop) {
   _elInstanceSettingsBackdrop.addEventListener('click', _closeInstanceSettingsPanel);
 }
-// Initial visibility pass (covers the case where the operator is already
-// seated at load, e.g. a returning admin or a P2 arrival that matches host).
 refreshInstanceSettingsVisibility();
 
 // ── Canonical /#/zone/<slug> hash route resolution (inert notice only) ──────────

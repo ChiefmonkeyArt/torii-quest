@@ -2,6 +2,7 @@
 import { state } from './state.js';
 import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
+import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 
 const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
 const PROFILE_TIMEOUT_MS = 5000;
@@ -414,4 +415,299 @@ export async function fanoutPublish(relays, event, opts = {}) {
     else failed.push(r.relay);
   }
   return { accepted, used, failed };
+}
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const ACCESS_SETTINGS_KIND = 30078;
+const ACCESS_SETTINGS_SCHEMA_VERSION = 1;
+const ACCESS_SETTINGS_CACHE_TTL_MS = 5000;
+const ACCESS_SETTINGS_CACHE = new Map();
+const ACCESS_SETTINGS_EVENT_LIMIT = 50;
+const ACCESS_SUPPORTED_MODES = new Set(['public', 'follows-only', 'whitelist', 'invite-only']);
+const ACCESS_EDITABLE_MODES = new Set(['public', 'follows-only']);
+const ACCESS_SUPPORTED_POLICIES = new Set(['visitor-follows-owner', 'mutual', 'owner-follows-visitor']);
+
+export {
+  ACCESS_SETTINGS_KIND,
+  ACCESS_SETTINGS_SCHEMA_VERSION,
+  ACCESS_SETTINGS_CACHE_TTL_MS,
+};
+
+function _accessPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function _normaliseAccessRelays(relays) {
+  const list = Array.isArray(relays) ? relays : (typeof relays === 'string' ? [relays] : []);
+  return [...new Set(list.filter((r) => typeof r === 'string' && r.trim()).map((r) => r.trim()))].sort();
+}
+
+function _normaliseAccessMode(raw) {
+  const mode = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return ACCESS_SUPPORTED_MODES.has(mode) ? mode : '';
+}
+
+function _normaliseAccessPolicy(raw) {
+  const policy = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return ACCESS_SUPPORTED_POLICIES.has(policy) ? policy : '';
+}
+
+function _normaliseInstanceId(raw) {
+  const value = typeof raw === 'string' ? raw.trim() : '';
+  if (!value || value.length > 200) return '';
+  return value;
+}
+
+function _readDTag(tags) {
+  const list = Array.isArray(tags) ? tags : [];
+  for (const tag of list) {
+    if (Array.isArray(tag) && tag[0] === 'd' && typeof tag[1] === 'string') return tag[1];
+  }
+  return '';
+}
+
+function _accessCacheKey({ instanceId, ownerPubkey, relays }) {
+  return JSON.stringify([instanceId, ownerPubkey, _normaliseAccessRelays(relays)]);
+}
+
+function _cloneAccessSettings(settings) {
+  return settings ? { ...settings } : null;
+}
+
+export function buildAccessSettingsDTag(instanceId) {
+  const normalised = _normaliseInstanceId(instanceId);
+  return normalised ? `torii:quest:access:${normalised}` : '';
+}
+
+export function parseAccessSettingsContent(content) {
+  if (typeof content !== 'string' || !content.trim()) {
+    return { ok: false, settings: null, error: 'access-settings-content-required' };
+  }
+  let parsed;
+  try { parsed = JSON.parse(content); }
+  catch {
+    return { ok: false, settings: null, error: 'access-settings-json-invalid' };
+  }
+  const obj = _accessPlainObject(parsed);
+  const schemaVersion = Number.isInteger(obj.schemaVersion) ? obj.schemaVersion : NaN;
+  const instanceId = _normaliseInstanceId(obj.instanceId);
+  const ownerPubkey = typeof obj.ownerPubkey === 'string' ? obj.ownerPubkey.trim().toLowerCase() : '';
+  const arrivalMode = _normaliseAccessMode(obj.arrivalMode);
+  const followPolicy = _normaliseAccessPolicy(obj.followPolicy);
+  const updatedAt = (typeof obj.updatedAt === 'string' && obj.updatedAt.trim())
+    ? obj.updatedAt.trim()
+    : (Number.isFinite(obj.updatedAt) ? String(obj.updatedAt) : '');
+  if (schemaVersion !== ACCESS_SETTINGS_SCHEMA_VERSION) {
+    return { ok: false, settings: null, error: 'access-settings-schema-invalid' };
+  }
+  if (!instanceId) return { ok: false, settings: null, error: 'access-settings-instance-invalid' };
+  if (!HEX64.test(ownerPubkey)) return { ok: false, settings: null, error: 'access-settings-owner-invalid' };
+  if (!arrivalMode) return { ok: false, settings: null, error: 'access-settings-mode-invalid' };
+  if (!followPolicy) return { ok: false, settings: null, error: 'access-settings-policy-invalid' };
+  if (!updatedAt) return { ok: false, settings: null, error: 'access-settings-updated-at-invalid' };
+  return {
+    ok: true,
+    settings: { schemaVersion, instanceId, ownerPubkey, arrivalMode, followPolicy, updatedAt },
+    error: null,
+  };
+}
+
+export function verifyAccessSettingsEvent(event, opts = {}) {
+  const o = _accessPlainObject(opts);
+  const expectedOwnerPubkey = typeof o.ownerPubkey === 'string' ? o.ownerPubkey.trim().toLowerCase() : '';
+  const expectedInstanceId = _normaliseInstanceId(o.instanceId);
+  const expectedDTag = buildAccessSettingsDTag(expectedInstanceId);
+  if (!event || event.kind !== ACCESS_SETTINGS_KIND) {
+    return { ok: false, settings: null, error: 'access-settings-kind-invalid' };
+  }
+  if (!HEX64.test(expectedOwnerPubkey) || !expectedInstanceId || !expectedDTag) {
+    return { ok: false, settings: null, error: 'access-settings-target-invalid' };
+  }
+  if (typeof event.pubkey !== 'string' || event.pubkey.toLowerCase() !== expectedOwnerPubkey) {
+    return { ok: false, settings: null, error: 'access-settings-owner-mismatch' };
+  }
+  if (_readDTag(event.tags) !== expectedDTag) {
+    return { ok: false, settings: null, error: 'access-settings-d-tag-invalid' };
+  }
+  if (!verifyNostrEventSig(event)) {
+    return { ok: false, settings: null, error: 'access-settings-sig-invalid' };
+  }
+  const parsed = parseAccessSettingsContent(event.content);
+  if (!parsed.ok) return parsed;
+  if (parsed.settings.instanceId !== expectedInstanceId) {
+    return { ok: false, settings: null, error: 'access-settings-instance-mismatch' };
+  }
+  if (parsed.settings.ownerPubkey !== expectedOwnerPubkey) {
+    return { ok: false, settings: null, error: 'access-settings-owner-mismatch' };
+  }
+  return {
+    ok: true,
+    settings: {
+      ...parsed.settings,
+      createdAt: Number.isFinite(event.created_at) ? event.created_at : 0,
+      eventId: typeof event.id === 'string' ? event.id : '',
+      dTag: expectedDTag,
+    },
+    error: null,
+  };
+}
+
+export async function readLatestAccessSettings(opts = {}) {
+  const o = _accessPlainObject(opts);
+  const request = typeof o.request === 'function' ? o.request : null;
+  const instanceId = _normaliseInstanceId(o.instanceId);
+  const ownerPubkey = typeof o.ownerPubkey === 'string' ? o.ownerPubkey.trim().toLowerCase() : '';
+  const relays = _normaliseAccessRelays(o.relays);
+  const nowMs = Number.isFinite(o.nowMs) ? Math.floor(o.nowMs) : Date.now();
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
+  const graceMs = Number.isFinite(o.graceMs) && o.graceMs >= 0 ? Math.floor(o.graceMs) : 250;
+  const retries = Number.isFinite(o.retries) && o.retries >= 0 ? Math.floor(o.retries) : 1;
+  const cacheTtlMs = Number.isFinite(o.cacheTtlMs) && o.cacheTtlMs >= 0 ? Math.floor(o.cacheTtlMs) : ACCESS_SETTINGS_CACHE_TTL_MS;
+  const key = _accessCacheKey({ instanceId, ownerPubkey, relays });
+  const cached = ACCESS_SETTINGS_CACHE.get(key);
+  const cachedOut = cached && cached.settings
+    ? {
+        ok: true,
+        settings: _cloneAccessSettings(cached.settings),
+        cached: true,
+        stale: true,
+        error: null,
+        used: cached.used.slice(),
+        failed: cached.failed.slice(),
+      }
+    : null;
+
+  if (!instanceId || !HEX64.test(ownerPubkey)) {
+    return { ok: false, settings: null, cached: false, stale: false, error: 'access-settings-target-invalid', used: [], failed: relays };
+  }
+  if (cached && cached.expiresAt > nowMs && cached.settings) {
+    return {
+      ok: true,
+      settings: _cloneAccessSettings(cached.settings),
+      cached: true,
+      stale: false,
+      error: null,
+      used: cached.used.slice(),
+      failed: cached.failed.slice(),
+    };
+  }
+  if (!request || relays.length === 0) {
+    return cachedOut || { ok: false, settings: null, cached: false, stale: false, error: 'access-settings-unavailable', used: [], failed: relays };
+  }
+
+  let raw;
+  try {
+    raw = await request(relays, [{ kinds: [ACCESS_SETTINGS_KIND], authors: [ownerPubkey], '#d': [buildAccessSettingsDTag(instanceId)], limit: ACCESS_SETTINGS_EVENT_LIMIT }], {
+      timeoutMs,
+      graceMs,
+      retries,
+    });
+  } catch {
+    return cachedOut || { ok: false, settings: null, cached: false, stale: false, error: 'access-settings-unavailable', used: [], failed: relays };
+  }
+
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const used = raw && Array.isArray(raw.used) ? raw.used.slice() : [];
+  const failed = raw && Array.isArray(raw.failed) ? raw.failed.slice() : [];
+  let latest = null;
+  for (const event of events) {
+    const verified = verifyAccessSettingsEvent(event, { instanceId, ownerPubkey });
+    if (!verified.ok) continue;
+    const createdAt = Number.isFinite(verified.settings.createdAt) ? verified.settings.createdAt : -Infinity;
+    const latestCreatedAt = latest && Number.isFinite(latest.settings.createdAt) ? latest.settings.createdAt : -Infinity;
+    const isNewer = !latest
+      || createdAt > latestCreatedAt
+      || (createdAt === latestCreatedAt && String(verified.settings.eventId) > String(latest.settings.eventId));
+    if (isNewer) latest = verified;
+  }
+  if (!latest) {
+    ACCESS_SETTINGS_CACHE.delete(key);
+    return { ok: true, settings: null, cached: false, stale: false, error: null, used, failed };
+  }
+  ACCESS_SETTINGS_CACHE.set(key, {
+    settings: _cloneAccessSettings(latest.settings),
+    used,
+    failed,
+    expiresAt: nowMs + cacheTtlMs,
+  });
+  return { ok: true, settings: _cloneAccessSettings(latest.settings), cached: false, stale: false, error: null, used, failed };
+}
+
+export async function publishAccessSettings(opts = {}) {
+  const o = _accessPlainObject(opts);
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const publish = typeof o.publish === 'function' ? o.publish : fanoutPublish;
+  const instanceId = _normaliseInstanceId(o.instanceId);
+  const ownerPubkey = typeof o.ownerPubkey === 'string' ? o.ownerPubkey.trim().toLowerCase() : '';
+  const arrivalMode = _normaliseAccessMode(o.arrivalMode);
+  const followPolicy = _normaliseAccessPolicy(o.followPolicy || 'visitor-follows-owner');
+  const relays = _normaliseAccessRelays(o.relays);
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
+  const nowMs = Number.isFinite(o.nowMs) ? Math.floor(o.nowMs) : Date.now();
+  const updatedAt = typeof o.updatedAt === 'string' && o.updatedAt.trim()
+    ? o.updatedAt.trim()
+    : new Date(nowMs).toISOString();
+  const out = { ok: false, accepted: 0, used: [], failed: [], settings: null, error: null };
+  if (!instanceId || !HEX64.test(ownerPubkey)) { out.error = 'access-settings-target-invalid'; return out; }
+  if (!ACCESS_EDITABLE_MODES.has(arrivalMode)) { out.error = 'access-settings-mode-not-editable'; return out; }
+  if (!followPolicy) { out.error = 'access-settings-policy-invalid'; return out; }
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof publish !== 'function') { out.error = 'publish-transport-required'; return out; }
+  if (!relays.length) { out.error = 'at-least-one-relay-required'; return out; }
+
+  const payload = {
+    schemaVersion: ACCESS_SETTINGS_SCHEMA_VERSION,
+    instanceId,
+    ownerPubkey,
+    arrivalMode,
+    followPolicy,
+    updatedAt,
+  };
+  const unsigned = {
+    kind: ACCESS_SETTINGS_KIND,
+    created_at: Math.floor(nowMs / 1000),
+    tags: [['d', buildAccessSettingsDTag(instanceId)]],
+    content: JSON.stringify(payload),
+  };
+  let signed;
+  try { signed = await sign(unsigned); }
+  catch {
+    out.error = 'nip-07-threw';
+    return out;
+  }
+  if (!signed || !signed.ok || !signed.event) {
+    out.error = (signed && signed.error) || 'nip-07-failed';
+    return out;
+  }
+  const verified = verifyAccessSettingsEvent(signed.event, { instanceId, ownerPubkey });
+  if (!verified.ok) {
+    out.error = verified.error || 'signed-event-invalid';
+    return out;
+  }
+  let res;
+  try { res = await publish(relays, signed.event, { timeoutMs }); }
+  catch {
+    out.error = 'publish-threw';
+    return out;
+  }
+  out.accepted = (res && res.accepted) || 0;
+  out.used = Array.isArray(res && res.used) ? res.used : [];
+  out.failed = Array.isArray(res && res.failed) ? res.failed : [];
+  out.settings = _cloneAccessSettings(verified.settings);
+  out.ok = out.accepted > 0;
+  if (!out.ok) {
+    out.error = 'no-relay-accepted';
+    return out;
+  }
+  ACCESS_SETTINGS_CACHE.set(_accessCacheKey({ instanceId, ownerPubkey, relays }), {
+    settings: _cloneAccessSettings(verified.settings),
+    used: out.used.slice(),
+    failed: out.failed.slice(),
+    expiresAt: nowMs + ACCESS_SETTINGS_CACHE_TTL_MS,
+  });
+  return out;
+}
+
+export function __resetAccessSettingsCache() {
+  ACCESS_SETTINGS_CACHE.clear();
 }

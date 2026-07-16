@@ -168,6 +168,7 @@ export function createHandshakeController(opts = {}) {
     return decideArrivalAdmission({
       verdict,
       ownerPubkey: _ourPubkey,
+      instanceId: o.instanceId,
       arrivalMode: o.arrivalMode,
       followPolicy: o.followPolicy,
       request: _request,

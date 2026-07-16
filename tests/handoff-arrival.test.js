@@ -1,9 +1,4 @@
-// tests/handoff-arrival.test.js — locks the arrival crypto gate + ACC-2a follow gate (v0.2.399).
-// Proves readArrivingTraveller parses the spawn-URL npub, verifyArrival seats ONLY a
-// real BIP-340-signed request authored by the arriving npub and addressed to this host,
-// public mode preserves the old anon fallback, and follows-only mode is additive:
-// the visitor must be crypto-verified AND follow the owner, with relay/missing-list
-// failures denying closed rather than silently seating as anon.
+// tests/handoff-arrival.test.js — locks the arrival crypto gate + ACC-2b effective access mode.
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   readArrivingTraveller,
@@ -12,12 +7,20 @@ import {
   TRAVELLER_PARAM,
   ARRIVAL_MODE_PUBLIC,
   ARRIVAL_MODE_FOLLOWS_ONLY,
+  ARRIVAL_MODE_WHITELIST,
   FOLLOW_POLICY_OWNER_FOLLOWS_VISITOR,
   extractFollowedPubkeys,
   readLatestFollowSet,
+  resolveEffectiveAccessSettings,
   decideArrivalAdmission,
   __resetFollowGraphCache,
 } from '../src/engine/gateway/handoffArrival.js';
+import {
+  ACCESS_SETTINGS_KIND,
+  ACCESS_SETTINGS_SCHEMA_VERSION,
+  buildAccessSettingsDTag,
+  __resetAccessSettingsCache,
+} from '../src/nostr.js';
 import { buildTravelRequest, extractTravelRequest } from '../src/engine/gateway/travelRequest.js';
 import { nostrEventId } from '../src/engine/crypto/nostrSig.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
@@ -30,6 +33,7 @@ const TRAV = bytesToHex(schnorr.getPublicKey(TRAV_SK));
 const HOST = bytesToHex(schnorr.getPublicKey(HOST_SK));
 const EVIL = bytesToHex(schnorr.getPublicKey(EVIL_SK));
 const RELAYS = ['wss://relay.one', 'wss://relay.two'];
+const INSTANCE_ID = 'host-b.example.com/quest';
 
 function realSign(unsigned, sk) {
   const pubkey = bytesToHex(schnorr.getPublicKey(sk));
@@ -61,8 +65,34 @@ function followEvent(author, followed = [], createdAt = 1) {
   };
 }
 
+function accessEvent({
+  sk = HOST_SK,
+  instanceId = INSTANCE_ID,
+  ownerPubkey = HOST,
+  arrivalMode = 'public',
+  followPolicy = 'visitor-follows-owner',
+  createdAt = 10,
+  updatedAt = '2026-07-16T12:00:00.000Z',
+  dTag = buildAccessSettingsDTag(instanceId),
+} = {}) {
+  return realSign({
+    kind: ACCESS_SETTINGS_KIND,
+    created_at: createdAt,
+    tags: [['d', dTag]],
+    content: JSON.stringify({
+      schemaVersion: ACCESS_SETTINGS_SCHEMA_VERSION,
+      instanceId,
+      ownerPubkey,
+      arrivalMode,
+      followPolicy,
+      updatedAt,
+    }),
+  }, sk);
+}
+
 beforeEach(() => {
   __resetFollowGraphCache();
+  __resetAccessSettingsCache();
 });
 
 describe('readArrivingTraveller', () => {
@@ -236,6 +266,115 @@ describe('follow graph parsing + cache', () => {
   });
 });
 
+describe('resolveEffectiveAccessSettings', () => {
+  it('latest valid settings event wins', async () => {
+    const request = async () => ({
+      events: [
+        accessEvent({ arrivalMode: 'public', createdAt: 100 }),
+        accessEvent({ arrivalMode: 'follows-only', createdAt: 200 }),
+      ],
+      used: RELAYS,
+      failed: [],
+    });
+    const result = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      followPolicy: 'visitor-follows-owner',
+      request,
+      relays: RELAYS,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.arrivalMode).toBe('follows-only');
+    expect(result.persisted.arrivalMode).toBe('follows-only');
+  });
+
+  it('invalid newest settings event is ignored and older restricted setting still applies', async () => {
+    const olderRestricted = accessEvent({ arrivalMode: 'follows-only', createdAt: 150 });
+    const tamperedNewest = { ...accessEvent({ arrivalMode: 'public', createdAt: 250 }), content: JSON.stringify({ nope: true }) };
+    const request = async () => ({ events: [tamperedNewest, olderRestricted], used: RELAYS, failed: [] });
+    const result = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      followPolicy: 'visitor-follows-owner',
+      request,
+      relays: RELAYS,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.arrivalMode).toBe('follows-only');
+    expect(result.persisted.arrivalMode).toBe('follows-only');
+  });
+
+  it('no persisted settings event uses the deploy default', async () => {
+    const request = async () => ({ events: [], used: RELAYS, failed: [] });
+    const result = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY,
+      followPolicy: 'visitor-follows-owner',
+      request,
+      relays: RELAYS,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(result.persisted).toBe(null);
+  });
+
+  it('deploy follows-only plus persisted public does not downgrade to public', async () => {
+    const request = async () => ({ events: [accessEvent({ arrivalMode: 'public', createdAt: 300 })], used: RELAYS, failed: [] });
+    const result = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY,
+      followPolicy: 'visitor-follows-owner',
+      request,
+      relays: RELAYS,
+    });
+    expect(result.ok).toBe(true);
+    expect(result.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(result.persisted.arrivalMode).toBe('public');
+  });
+
+  it('relay error or timeout uses cached settings or the deploy seam, never a hardcoded public', async () => {
+    const warm = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      followPolicy: 'visitor-follows-owner',
+      request: async () => ({ events: [accessEvent({ arrivalMode: 'follows-only', createdAt: 350 })], used: RELAYS, failed: [] }),
+      relays: RELAYS,
+      nowMs: 100,
+      cacheTtlMs: 10,
+    });
+    expect(warm.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    const cached = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      followPolicy: 'visitor-follows-owner',
+      request: async () => { throw new Error('timeout'); },
+      relays: RELAYS,
+      nowMs: 2000,
+      cacheTtlMs: 10,
+    });
+    expect(cached.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(cached.cached).toBe(true);
+    expect(cached.stale).toBe(true);
+
+    __resetAccessSettingsCache();
+    const deployOnly = await resolveEffectiveAccessSettings({
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY,
+      followPolicy: 'visitor-follows-owner',
+      request: async () => { throw new Error('timeout'); },
+      relays: RELAYS,
+    });
+    expect(deployOnly.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+  });
+});
+
 describe('decideArrivalAdmission', () => {
   const verifiedVerdict = () => verifyArrival({ arrivingPubkey: TRAV, request: signedRequest(), expectedHostPubkey: HOST });
 
@@ -309,6 +448,7 @@ describe('decideArrivalAdmission', () => {
   it('visitor-follows-owner does not pass when only the owner follows the visitor', async () => {
     const request = async (_relays, filters) => {
       const author = filters[0].authors[0];
+      if (filters[0].kinds && filters[0].kinds[0] === ACCESS_SETTINGS_KIND) return { events: [], used: RELAYS, failed: [] };
       if (author === TRAV) return { events: [followEvent(TRAV, [EVIL], 40)], used: RELAYS, failed: [] };
       if (author === HOST) return { events: [followEvent(HOST, [TRAV], 40)], used: RELAYS, failed: [] };
       return { events: [], used: RELAYS, failed: [] };
@@ -320,6 +460,7 @@ describe('decideArrivalAdmission', () => {
       arrivalMode: ARRIVAL_MODE_FOLLOWS_ONLY,
       request,
       relays: RELAYS,
+      instanceId: INSTANCE_ID,
     });
     expect(defaultPolicy.seated).toBe(false);
     expect(defaultPolicy.denied).toBe(true);
@@ -332,8 +473,61 @@ describe('decideArrivalAdmission', () => {
       followPolicy: FOLLOW_POLICY_OWNER_FOLLOWS_VISITOR,
       request,
       relays: RELAYS,
+      instanceId: INSTANCE_ID,
     });
     expect(ownerPolicy.seated).toBe(true);
     expect(ownerPolicy.denied).toBe(false);
+  });
+
+  it('persisted follows-only plus deploy public admits follower and denies non-follower', async () => {
+    const request = async (_relays, filters) => {
+      const filter = filters[0] || {};
+      if (filter.kinds && filter.kinds[0] === ACCESS_SETTINGS_KIND) {
+        return { events: [accessEvent({ arrivalMode: 'follows-only', createdAt: 500 })], used: RELAYS, failed: [] };
+      }
+      if (filter.authors && filter.authors[0] === TRAV) {
+        return { events: [followEvent(TRAV, [HOST], 60)], used: RELAYS, failed: [] };
+      }
+      if (filter.authors && filter.authors[0] === EVIL) {
+        return { events: [followEvent(EVIL, [], 60)], used: RELAYS, failed: [] };
+      }
+      return { events: [], used: RELAYS, failed: [] };
+    };
+    const follower = await decideArrivalAdmission({
+      verdict: verifiedVerdict(),
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      request,
+      relays: RELAYS,
+    });
+    expect(follower.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(follower.seated).toBe(true);
+
+    const nonFollowerVerdict = verifyArrival({ arrivingPubkey: EVIL, request: signedRequest({ travellerSk: EVIL_SK }), expectedHostPubkey: HOST });
+    const nonFollower = await decideArrivalAdmission({
+      verdict: nonFollowerVerdict,
+      ownerPubkey: HOST,
+      instanceId: INSTANCE_ID,
+      arrivalMode: ARRIVAL_MODE_PUBLIC,
+      request,
+      relays: RELAYS,
+    });
+    expect(nonFollower.arrivalMode).toBe(ARRIVAL_MODE_FOLLOWS_ONLY);
+    expect(nonFollower.seated).toBe(false);
+    expect(nonFollower.denied).toBe(true);
+  });
+
+  it('unsupported restrictive modes fail closed to deny-all rather than silently public', async () => {
+    const admit = await decideArrivalAdmission({
+      verdict: verifiedVerdict(),
+      ownerPubkey: HOST,
+      arrivalMode: ARRIVAL_MODE_WHITELIST,
+      request: async () => ({ events: [followEvent(TRAV, [HOST], 60)], used: RELAYS, failed: [] }),
+      relays: RELAYS,
+    });
+    expect(admit.seated).toBe(false);
+    expect(admit.denied).toBe(true);
+    expect(admit.arrivalMode).toBe(ARRIVAL_MODE_WHITELIST);
   });
 });

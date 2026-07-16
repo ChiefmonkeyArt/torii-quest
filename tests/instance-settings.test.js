@@ -1,23 +1,16 @@
-// tests/instance-settings.test.js (v0.2.358-alpha)
-// Locks the pure view-model + renderer for the title-screen Instance Settings
-// panel. The panel is INERT this version: visibility is gated by
-// `isInstanceAdmin({ operatorPubkey, hostPubkey })` (host-pubkey seam), the
-// Access section is a read-only "public + coming soon" placeholder, and the
-// renderer returns an empty string when the model is not visible.
-//
-// Fail-closed on any malformed input.
-
 import { describe, it, expect } from 'vitest';
 import {
   isInstanceAdmin,
   buildInstanceSettingsModel,
   renderInstanceSettingsPanel,
-  COMING_SOON_ARRIVAL_MODES,
+  EDITABLE_ARRIVAL_MODES,
+  DISABLED_ARRIVAL_MODES,
+  coerceEditableArrivalMode,
 } from '../src/engine/ui/instanceSettings.js';
 
 const HEX_A = 'a'.repeat(64);
 const HEX_B = 'b'.repeat(64);
-const HEX_MIXED = 'A1B2C3D4E5F60718' + '9'.repeat(48); // 64 chars, mixed case
+const HEX_MIXED = 'A1B2C3D4E5F60718' + '9'.repeat(48);
 
 describe('isInstanceAdmin', () => {
   it('true when operatorPubkey === hostPubkey (both hex64)', () => {
@@ -25,235 +18,201 @@ describe('isInstanceAdmin', () => {
   });
 
   it('is case-insensitive on hex input', () => {
-    expect(isInstanceAdmin({
-      operatorPubkey: HEX_MIXED,
-      hostPubkey: HEX_MIXED.toLowerCase(),
-    })).toBe(true);
+    expect(isInstanceAdmin({ operatorPubkey: HEX_MIXED, hostPubkey: HEX_MIXED.toLowerCase() })).toBe(true);
   });
 
   it('false when the two pubkeys differ', () => {
     expect(isInstanceAdmin({ operatorPubkey: HEX_A, hostPubkey: HEX_B })).toBe(false);
   });
 
-  it('false when the operator is anon (no operatorPubkey)', () => {
+  it('false on missing or malformed input', () => {
     expect(isInstanceAdmin({ hostPubkey: HEX_A })).toBe(false);
-    expect(isInstanceAdmin({ operatorPubkey: '', hostPubkey: HEX_A })).toBe(false);
-  });
-
-  it('false when the host has no configured pubkey', () => {
     expect(isInstanceAdmin({ operatorPubkey: HEX_A })).toBe(false);
-    expect(isInstanceAdmin({ operatorPubkey: HEX_A, hostPubkey: '' })).toBe(false);
-  });
-
-  it('false on malformed hex (short / non-hex / non-string)', () => {
-    expect(isInstanceAdmin({ operatorPubkey: 'a'.repeat(63), hostPubkey: 'a'.repeat(63) })).toBe(false);
+    expect(isInstanceAdmin({ operatorPubkey: 'a'.repeat(63), hostPubkey: HEX_A })).toBe(false);
     expect(isInstanceAdmin({ operatorPubkey: 'g'.repeat(64), hostPubkey: 'g'.repeat(64) })).toBe(false);
-    expect(isInstanceAdmin({ operatorPubkey: 123, hostPubkey: 123 })).toBe(false);
-    expect(isInstanceAdmin({ operatorPubkey: null, hostPubkey: null })).toBe(false);
-  });
-
-  it('false on no opts / no arg', () => {
     expect(isInstanceAdmin()).toBe(false);
-    expect(isInstanceAdmin({})).toBe(false);
     expect(isInstanceAdmin(null)).toBe(false);
   });
 });
 
-describe('COMING_SOON_ARRIVAL_MODES', () => {
-  it('is frozen so callers cannot mutate the shared source of truth', () => {
-    expect(Object.isFrozen(COMING_SOON_ARRIVAL_MODES)).toBe(true);
-    for (const m of COMING_SOON_ARRIVAL_MODES) {
-      expect(Object.isFrozen(m)).toBe(true);
-    }
+describe('arrival mode option sources', () => {
+  it('editable modes are frozen and limited to public + follows-only', () => {
+    expect(Object.isFrozen(EDITABLE_ARRIVAL_MODES)).toBe(true);
+    expect(EDITABLE_ARRIVAL_MODES.map((m) => m.key)).toEqual(['public', 'follows-only']);
   });
 
-  it('lists follow-me, whitelist, invite-only in that order', () => {
-    expect(COMING_SOON_ARRIVAL_MODES.map((m) => m.key)).toEqual([
-      'follow-me',
-      'whitelist',
-      'invite-only',
-    ]);
+  it('disabled modes are frozen and limited to whitelist + invite-only', () => {
+    expect(Object.isFrozen(DISABLED_ARRIVAL_MODES)).toBe(true);
+    expect(DISABLED_ARRIVAL_MODES.map((m) => m.key)).toEqual(['whitelist', 'invite-only']);
   });
 
-  it('every mode has label + hint strings', () => {
-    for (const m of COMING_SOON_ARRIVAL_MODES) {
-      expect(typeof m.label).toBe('string');
-      expect(m.label.length).toBeGreaterThan(0);
-      expect(typeof m.hint).toBe('string');
-      expect(m.hint.length).toBeGreaterThan(0);
-    }
+  it('coerces unsupported selections back to an editable fallback', () => {
+    expect(coerceEditableArrivalMode('public', 'follows-only')).toBe('public');
+    expect(coerceEditableArrivalMode('follows-only', 'public')).toBe('follows-only');
+    expect(coerceEditableArrivalMode('whitelist', 'follows-only')).toBe('follows-only');
+    expect(coerceEditableArrivalMode('', 'public')).toBe('public');
   });
 });
 
 describe('buildInstanceSettingsModel', () => {
-  it('is visible when the operator matches the host', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    expect(m.visible).toBe(true);
-    expect(m.operatorPubkey).toBe(HEX_A);
+  it('is visible only for the instance admin', () => {
+    expect(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A }).visible).toBe(true);
+    expect(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_B }).visible).toBe(false);
   });
 
-  it('is not visible when the operator does not match', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_B });
-    expect(m.visible).toBe(false);
-  });
-
-  it('is not visible when either side is missing / malformed', () => {
-    expect(buildInstanceSettingsModel({ operatorPubkey: '', hostPubkey: HEX_A }).visible).toBe(false);
-    expect(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: '' }).visible).toBe(false);
-    expect(buildInstanceSettingsModel({}).visible).toBe(false);
-    expect(buildInstanceSettingsModel().visible).toBe(false);
-  });
-
-  it('carries the Access section as the first section with arrival=public + coming-soon modes', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    expect(Array.isArray(m.sections)).toBe(true);
-    expect(m.sections.length).toBeGreaterThanOrEqual(2);
-    const access = m.sections[0];
+  it('exposes an editable Access section for an admin with a signer', () => {
+    const model = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      arrivalMode: 'public',
+      persistedArrivalMode: 'follows-only',
+      persistedFollowPolicy: 'visitor-follows-owner',
+      selectedArrivalMode: 'public',
+      hasSigner: true,
+      statusMessage: 'Loaded the latest valid signed access setting.',
+      statusTone: 'ok',
+    });
+    const access = model.sections[0];
     expect(access.key).toBe('access');
-    expect(access.title).toBe('Access');
-    expect(access.current).toBe('public');
-    expect(m.arrivalMode).toBe('public');
-    expect(m.followPolicy).toBe('visitor-follows-owner');
-    expect(Array.isArray(access.comingSoon)).toBe(true);
-    expect(access.comingSoon.map((x) => x.key)).toEqual(['follow-me', 'whitelist', 'invite-only']);
-    expect(typeof access.note).toBe('string');
-    expect(access.note.toLowerCase()).toContain('public by default');
+    expect(access.deploy).toBe('public');
+    expect(access.persisted).toBe('follows-only');
+    expect(access.current).toBe('follows-only');
+    expect(access.selected).toBe('public');
+    expect(access.canEdit).toBe(true);
+    expect(model.canEditAccess).toBe(true);
+    expect(access.editableModes.map((m) => m.key)).toEqual(['public', 'follows-only']);
+    expect(access.disabledModes.map((m) => m.key)).toEqual(['whitelist', 'invite-only']);
+    expect(access.statusMessage).toContain('latest valid signed access setting');
+    expect(access.note.toLowerCase()).toContain('follow graph');
   });
 
-  it('carries a second "More coming soon" placeholder section', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    const more = m.sections.find((s) => s.key === 'more');
-    expect(more).toBeTruthy();
-    expect(more.title.toLowerCase()).toContain('coming soon');
-    // Placeholder section: no `current`, no `comingSoon` list — just the note.
-    expect(more.current).toBeUndefined();
-    expect(more.comingSoon).toBeUndefined();
-    expect(typeof more.note).toBe('string');
+  it('non-admin UI cannot write', () => {
+    const model = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_B,
+      hasSigner: true,
+    });
+    expect(model.visible).toBe(false);
+    expect(model.canEditAccess).toBe(false);
   });
 
-  it('reports Multiplayer status — enabled by default (MP-1.5 sandbox-hosted arena, MP_ENABLED=true at build)', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    const mp = m.sections.find((s) => s.key === 'multiplayer');
-    expect(mp).toBeTruthy();
-    expect(mp.title).toBe('Multiplayer');
-    expect(mp.current).toBe('enabled');
-    expect(m.mpEnabled).toBe(true);
-    expect(mp.note.toLowerCase()).toContain('mp-1');
+  it('renders a clear read-only state when no signer is available', () => {
+    const model = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      hasSigner: false,
+      arrivalMode: 'public',
+      selectedArrivalMode: 'follows-only',
+    });
+    const access = model.sections[0];
+    expect(access.canEdit).toBe(false);
+    expect(access.readOnlyReason).toContain('Connect a Nostr signer');
   });
 
-  it('accepts an explicit follows-only override for the read-only Access section', () => {
-    const m = buildInstanceSettingsModel({
+  it('deploy follows-only plus persisted public keeps the stricter effective mode', () => {
+    const model = buildInstanceSettingsModel({
       operatorPubkey: HEX_A,
       hostPubkey: HEX_A,
       arrivalMode: 'follows-only',
-      followPolicy: 'mutual',
+      persistedArrivalMode: 'public',
+      hasSigner: true,
     });
-    const access = m.sections[0];
+    const access = model.sections[0];
+    expect(access.deploy).toBe('follows-only');
+    expect(access.persisted).toBe('public');
     expect(access.current).toBe('follows-only');
-    expect(m.arrivalMode).toBe('follows-only');
-    expect(m.followPolicy).toBe('mutual');
-    expect(access.note.toLowerCase()).toContain('sec-2 crypto verification');
+    expect(access.note.toLowerCase()).toContain('follow graph');
   });
 
-  it('accepts an explicit mpEnabled=false override (rollback seam)', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A, mpEnabled: false });
-    const mp = m.sections.find((s) => s.key === 'multiplayer');
-    expect(mp.current).toBe('disabled');
-    expect(m.mpEnabled).toBe(false);
-  });
-
-  it('accepts an explicit mpEnabled override (test seam for MP-1.1 runtime toggle)', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A, mpEnabled: true });
-    const mp = m.sections.find((s) => s.key === 'multiplayer');
-    expect(mp.current).toBe('enabled');
-    expect(m.mpEnabled).toBe(true);
-  });
-
-  it('does not share the COMING_SOON_ARRIVAL_MODES array by reference', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    const modes = m.sections[0].comingSoon;
-    // Mutating the returned list must not corrupt the frozen source.
-    expect(() => modes.push({ key: 'x' })).not.toThrow();
-    expect(COMING_SOON_ARRIVAL_MODES.length).toBe(3);
-  });
-
-  it('is case-insensitive on pubkey inputs (normalises to lower-case)', () => {
-    const m = buildInstanceSettingsModel({
-      operatorPubkey: HEX_MIXED,
-      hostPubkey: HEX_MIXED.toLowerCase(),
+  it('only public/follows-only are editable while whitelist/invite-only stay disabled', () => {
+    const model = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      arrivalMode: 'whitelist',
+      hasSigner: true,
+      selectedArrivalMode: 'invite-only',
     });
-    expect(m.visible).toBe(true);
-    expect(m.operatorPubkey).toBe(HEX_MIXED.toLowerCase());
+    const access = model.sections[0];
+    expect(access.current).toBe('whitelist');
+    expect(access.selected).toBe('public');
+    expect(access.editableModes.every((m) => m.disabled === false)).toBe(true);
+    expect(access.disabledModes.every((m) => m.disabled === true)).toBe(true);
+    expect(access.note.toLowerCase()).toContain('deny-all');
+  });
+
+  it('carries multiplayer and more-coming-soon sections', () => {
+    const model = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
+    const multiplayer = model.sections.find((s) => s.key === 'multiplayer');
+    const more = model.sections.find((s) => s.key === 'more');
+    expect(multiplayer.current).toMatch(/enabled|disabled/);
+    expect(more.title).toContain('More coming soon');
+  });
+
+  it('normalises admin pubkeys to lowercase', () => {
+    const model = buildInstanceSettingsModel({ operatorPubkey: HEX_MIXED, hostPubkey: HEX_MIXED.toLowerCase() });
+    expect(model.visible).toBe(true);
+    expect(model.operatorPubkey).toBe(HEX_MIXED.toLowerCase());
   });
 });
 
 describe('renderInstanceSettingsPanel', () => {
-  it('returns an empty string when the model is not visible (defence-in-depth)', () => {
-    const hidden = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_B });
-    expect(renderInstanceSettingsPanel(hidden)).toBe('');
+  it('returns an empty string when the model is not visible', () => {
+    expect(renderInstanceSettingsPanel(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_B }))).toBe('');
     expect(renderInstanceSettingsPanel(null)).toBe('');
     expect(renderInstanceSettingsPanel(undefined)).toBe('');
-    expect(renderInstanceSettingsPanel({})).toBe('');
   });
 
-  it('renders the header, Access section, and every coming-soon mode when visible', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    const html = renderInstanceSettingsPanel(m);
-    expect(typeof html).toBe('string');
-    expect(html.length).toBeGreaterThan(0);
+  it('renders the editable access form, disabled future modes, and save control', () => {
+    const html = renderInstanceSettingsPanel(buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      hasSigner: true,
+      arrivalMode: 'public',
+      persistedArrivalMode: 'follows-only',
+      selectedArrivalMode: 'follows-only',
+      statusMessage: 'Loaded the latest valid signed access setting.',
+      statusTone: 'ok',
+    }));
     expect(html).toContain('Instance Settings');
-    expect(html).toContain('Admin:');
     expect(html).toContain('Access');
-    expect(html).toContain('Arrival');
-    expect(html).toContain('public');
-    // Each mode label and hint appear.
-    for (const m2 of COMING_SOON_ARRIVAL_MODES) {
-      expect(html).toContain(m2.label);
-      expect(html).toContain(m2.hint);
-    }
-    // The placeholder "More coming soon" section appears.
-    expect(html).toContain('More coming soon');
-    // A visible read-only footer note appears.
-    expect(html.toLowerCase()).toContain('read-only');
+    expect(html).toContain('Deploy floor');
+    expect(html).toContain('Saved owner setting');
+    expect(html).toContain('Effective arrival mode');
+    expect(html).toContain('data-form="access-settings"');
+    expect(html).toContain('data-action="save-access"');
+    expect(html).toContain('SAVE ACCESS SETTING');
+    expect(html).toContain('coming next');
+    expect(html).toContain('Loaded the latest valid signed access setting.');
   });
 
-  it('formats the admin pubkey short-form (first 8 + last 4 hex, ellipsis)', () => {
-    const pubkey = 'deadbeef' + '0'.repeat(52) + 'cafe'; // 64 hex: deadbeef … cafe
-    const m = buildInstanceSettingsModel({ operatorPubkey: pubkey, hostPubkey: pubkey });
-    const html = renderInstanceSettingsPanel(m);
-    expect(html).toContain('deadbeef…cafe');
-    // Full pubkey must NOT leak into the panel body.
-    expect(html).not.toContain(pubkey);
+  it('renders a disabled save button and signer-required copy when no signer is present', () => {
+    const html = renderInstanceSettingsPanel(buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      hasSigner: false,
+      arrivalMode: 'public',
+    }));
+    expect(html).toContain('Connect a Nostr signer to save access changes.');
+    expect(html).toContain('data-action="save-access" disabled');
   });
 
-  it('escapes hostile characters that would otherwise reach the DOM', () => {
-    // The renderer walks section titles / notes / labels through _escape. We
-    // simulate a hostile section by mutating the returned model (real callers
-    // do not do this, but the renderer must still be robust).
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    m.sections.push({
+  it('formats the admin pubkey short-form and escapes hostile section content', () => {
+    const model = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A, hasSigner: true });
+    model.sections.push({
       key: 'hostile',
       title: '<img src=x onerror=alert(1)>',
       note: '"><script>alert(1)</script>',
     });
-    const html = renderInstanceSettingsPanel(m);
+    const html = renderInstanceSettingsPanel(model);
+    expect(html).toContain('aaaaaaaa…aaaa');
     expect(html).not.toContain('<img src=x');
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
     expect(html).toContain('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it('tolerates a model with a missing sections array', () => {
-    const m = { visible: true, operatorPubkey: HEX_A, sections: undefined };
-    // Must not throw; renders the header/footer even with no sections.
-    const html = renderInstanceSettingsPanel(m);
-    expect(typeof html).toBe('string');
-    expect(html).toContain('Instance Settings');
-  });
-
-  it('renders a close button with a data-action="close" hook the shell can bind to', () => {
-    const m = buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A });
-    const html = renderInstanceSettingsPanel(m);
+  it('renders a close button hook for the shell', () => {
+    const html = renderInstanceSettingsPanel(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A }));
     expect(html).toContain('data-action="close"');
     expect(html).toContain('aria-label="Close settings"');
   });

@@ -1,4 +1,4 @@
-// instanceSettings.js (v0.2.400-alpha) — instance-admin access settings surface.
+// instanceSettings.js (v0.2.401-alpha) — instance-admin access settings surface.
 //
 // Pure, node-safe view-model + HTML renderer for the title-screen Instance
 // Settings panel. DOM wiring + relay/sign interactions live in main.js; this file
@@ -14,6 +14,12 @@ import {
   normaliseArrivalMode,
   normaliseFollowPolicy,
 } from '../gateway/handoffArrival.js';
+import {
+  WRITE_POLICY_OWNER_ONLY,
+  WRITE_POLICY_DELEGATES,
+  WRITE_POLICY_FOLLOWS_WRITE,
+  normaliseWritePolicy,
+} from '../gateway/writeAuthority.js';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -40,6 +46,32 @@ export const DISABLED_ARRIVAL_MODES = Object.freeze([
     key: ARRIVAL_MODE_INVITE_ONLY,
     label: 'Invite only',
     hint: 'Coming next — unsupported in v0.2.400. If encountered on read, arrival fails closed to deny-all.',
+  }),
+]);
+
+export const EDITABLE_WRITE_POLICIES = Object.freeze([
+  Object.freeze({
+    key: WRITE_POLICY_OWNER_ONLY,
+    label: 'Owner only',
+    hint: 'Default. Only the instance owner may mutate world state.',
+  }),
+  Object.freeze({
+    key: WRITE_POLICY_DELEGATES,
+    label: 'Delegates',
+    hint: 'Owner plus the saved delegate set may write. Missing delegate set fails closed to owner-only behaviour.',
+  }),
+  Object.freeze({
+    key: WRITE_POLICY_FOLLOWS_WRITE,
+    label: 'Follows write',
+    hint: 'Crypto-verified followers may write. Relay failure resolving follow state denies visitor writes.',
+  }),
+]);
+
+export const DISABLED_WRITE_POLICIES = Object.freeze([
+  Object.freeze({
+    key: 'open',
+    label: 'Open',
+    hint: 'Coming later — unsupported in v0.2.401. Read-path fail-closed keeps visitor writes denied.',
   }),
 ]);
 
@@ -71,6 +103,12 @@ export function coerceEditableArrivalMode(raw, fallback = ARRIVAL_MODE_PUBLIC) {
   return fallback;
 }
 
+export function coerceEditableWritePolicy(raw, fallback = WRITE_POLICY_OWNER_ONLY) {
+  const policy = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (policy === WRITE_POLICY_OWNER_ONLY || policy === WRITE_POLICY_DELEGATES || policy === WRITE_POLICY_FOLLOWS_WRITE) return policy;
+  return fallback;
+}
+
 /**
  * Is the current logged-in operator the admin of this instance?
  * Returns `true` iff BOTH pubkeys are the same hex64 string. Anything else fails
@@ -89,7 +127,10 @@ function _buildAccessSection({
   deployFollowPolicy,
   persistedArrivalMode,
   persistedFollowPolicy,
+  persistedWritePolicy,
+  persistedDelegateSet,
   selectedArrivalMode,
+  selectedWritePolicy,
   hasSigner,
   loading,
   saving,
@@ -103,11 +144,16 @@ function _buildAccessSection({
   const effective = _effectiveArrivalMode(deploy.mode || ARRIVAL_MODE_PUBLIC, persisted.mode || null);
   const fallbackSelected = persisted.ok ? persisted.mode : (deploy.ok ? deploy.mode : ARRIVAL_MODE_PUBLIC);
   const selected = coerceEditableArrivalMode(selectedArrivalMode, coerceEditableArrivalMode(fallbackSelected, ARRIVAL_MODE_PUBLIC));
+  const persistedWrite = normaliseWritePolicy(persistedWritePolicy);
+  const effectiveWritePolicy = persistedWrite.policy || WRITE_POLICY_OWNER_ONLY;
+  const selectedWrite = coerceEditableWritePolicy(selectedWritePolicy, coerceEditableWritePolicy(effectiveWritePolicy, WRITE_POLICY_OWNER_ONLY));
+  const delegateCount = Array.isArray(persistedDelegateSet) ? persistedDelegateSet.length : 0;
   const canEdit = !!hasSigner && !loading && !saving;
   const readOnlyReason = hasSigner
     ? (loading ? 'Loading the saved owner setting…' : '')
     : 'Connect a Nostr signer to save access changes.';
   const ownerSetting = persisted.ok ? persisted.mode : 'none saved';
+  const savedWriteSetting = persistedWritePolicy ? effectiveWritePolicy : 'none saved';
   let note = 'The deploy seam is the local security floor. A saved public setting can never loosen a follows-only deploy.';
   if (effective.ok && effective.mode === ARRIVAL_MODE_FOLLOWS_ONLY) {
     const policy = persisted.ok && persisted.mode === ARRIVAL_MODE_FOLLOWS_ONLY && persistedPolicy.ok
@@ -117,6 +163,14 @@ function _buildAccessSection({
   }
   if (effective.ok && (effective.mode === ARRIVAL_MODE_WHITELIST || effective.mode === ARRIVAL_MODE_INVITE_ONLY)) {
     note = 'Effective mode is unsupported in v0.2.400, so arrival fails closed to deny-all until a future slice adds the full engine path.';
+  }
+  let writeNote = 'Write authority is fail-closed. Missing, unreadable, or unsupported write policy defaults to owner-only; visitor writes never silently open.';
+  if (effectiveWritePolicy === WRITE_POLICY_DELEGATES) {
+    writeNote = delegateCount
+      ? `Delegates mode is selected. ${delegateCount} saved delegate${delegateCount === 1 ? '' : 's'} may write alongside the owner.`
+      : 'Delegates mode is selected, but no delegate set is saved yet — visitor writes still fail closed to owner-only behaviour.';
+  } else if (effectiveWritePolicy === WRITE_POLICY_FOLLOWS_WRITE) {
+    writeNote = 'Follows-write is selected. Only crypto-verified followers may write, and relay failure resolving the follow graph denies visitor writes.';
   }
   return {
     key: 'access',
@@ -137,6 +191,17 @@ function _buildAccessSection({
       disabled: !canEdit,
     })),
     disabledModes: DISABLED_ARRIVAL_MODES.map((m) => ({ ...m, disabled: true })),
+    writePolicy: effectiveWritePolicy,
+    persistedWritePolicy: savedWriteSetting,
+    selectedWritePolicy: selectedWrite,
+    delegateCount,
+    editableWritePolicies: EDITABLE_WRITE_POLICIES.map((policy) => ({
+      ...policy,
+      checked: policy.key === selectedWrite,
+      disabled: !canEdit,
+    })),
+    disabledWritePolicies: DISABLED_WRITE_POLICIES.map((policy) => ({ ...policy, disabled: true })),
+    writeNote,
     canEdit,
     hasSigner: !!hasSigner,
     loading: !!loading,
@@ -161,6 +226,8 @@ export function buildInstanceSettingsModel(opts) {
   const deployFollowPolicy = normaliseFollowPolicy(o.followPolicy).policy || FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER;
   const persistedArrivalMode = typeof o.persistedArrivalMode === 'string' ? o.persistedArrivalMode : '';
   const persistedFollowPolicy = typeof o.persistedFollowPolicy === 'string' ? o.persistedFollowPolicy : '';
+  const persistedWritePolicy = typeof o.persistedWritePolicy === 'string' ? o.persistedWritePolicy : '';
+  const persistedDelegateSet = Array.isArray(o.persistedDelegateSet) ? o.persistedDelegateSet.slice() : [];
 
   const mpEnabled = typeof o.mpEnabled === 'boolean' ? o.mpEnabled : !!MP_ENABLED;
   const access = _buildAccessSection({
@@ -168,7 +235,10 @@ export function buildInstanceSettingsModel(opts) {
     deployFollowPolicy,
     persistedArrivalMode,
     persistedFollowPolicy,
+    persistedWritePolicy,
+    persistedDelegateSet,
     selectedArrivalMode: o.selectedArrivalMode,
+    selectedWritePolicy: o.selectedWritePolicy,
     hasSigner: o.hasSigner,
     loading: o.loading,
     saving: o.saving,
@@ -189,7 +259,7 @@ export function buildInstanceSettingsModel(opts) {
       key: 'more',
       title: 'More coming soon',
       status: 'placeholder',
-      note: 'Additional admin sections (identity, appearance, moderation, write-authority admin group) will land here in future updates.',
+      note: 'Additional admin sections (identity, appearance, moderation, delegate-set editing) will land here in future updates.',
     },
   ];
 
@@ -201,6 +271,8 @@ export function buildInstanceSettingsModel(opts) {
     persistedArrivalMode: access.persisted,
     selectedArrivalMode: access.selected,
     followPolicy: access.followPolicy,
+    writePolicy: access.writePolicy,
+    selectedWritePolicy: access.selectedWritePolicy,
     sections,
     mpEnabled,
     canEditAccess: visible && access.canEdit,
@@ -235,6 +307,8 @@ export function renderInstanceSettingsPanel(model) {
     if (s && s.key === 'access') {
       const editableModes = Array.isArray(s.editableModes) ? s.editableModes : [];
       const disabledModes = Array.isArray(s.disabledModes) ? s.disabledModes : [];
+      const editableWritePolicies = Array.isArray(s.editableWritePolicies) ? s.editableWritePolicies : [];
+      const disabledWritePolicies = Array.isArray(s.disabledWritePolicies) ? s.disabledWritePolicies : [];
       const editableHtml = editableModes.map((mode) => `
         <label class="is-mode-option${mode.disabled ? ' is-mode-disabled' : ''}">
           <input type="radio" name="arrival-mode" value="${_escape(mode.key)}"${mode.checked ? ' checked' : ''}${mode.disabled ? ' disabled' : ''}>
@@ -251,6 +325,22 @@ export function renderInstanceSettingsPanel(model) {
             <span class="is-mode-hint">${_escape(mode.hint)}</span>
           </span>
         </label>`).join('');
+      const editableWriteHtml = editableWritePolicies.map((policy) => `
+        <label class="is-mode-option${policy.disabled ? ' is-mode-disabled' : ''}">
+          <input type="radio" name="write-policy" value="${_escape(policy.key)}"${policy.checked ? ' checked' : ''}${policy.disabled ? ' disabled' : ''}>
+          <span class="is-mode-copy">
+            <span class="is-mode-label">${_escape(policy.label)}</span>
+            <span class="is-mode-hint">${_escape(policy.hint)}</span>
+          </span>
+        </label>`).join('');
+      const disabledWriteHtml = disabledWritePolicies.map((policy) => `
+        <label class="is-mode-option is-mode-disabled" data-mode-state="coming-later">
+          <input type="radio" name="write-policy-disabled" value="${_escape(policy.key)}" disabled>
+          <span class="is-mode-copy">
+            <span class="is-mode-label">${_escape(policy.label)} <span class="is-coming-next-chip">coming later</span></span>
+            <span class="is-mode-hint">${_escape(policy.hint)}</span>
+          </span>
+        </label>`).join('');
       const status = s.statusMessage
         ? `<p class="is-status" data-tone="${_escape(s.statusTone || '')}">${_escape(s.statusMessage)}</p>`
         : '';
@@ -258,13 +348,22 @@ export function renderInstanceSettingsPanel(model) {
         ? `<p class="is-readonly">${_escape(s.readOnlyReason)}</p>`
         : '';
       body = `
+        <div class="is-subhead">Arrival authority</div>
         <div class="is-row"><span class="is-row-label">Deploy floor</span><span class="is-row-value">${_escape(s.deploy || 'public')}</span></div>
         <div class="is-row"><span class="is-row-label">Saved owner setting</span><span class="is-row-value">${_escape(s.persisted || 'none saved')}</span></div>
         <div class="is-row"><span class="is-row-label">Effective arrival mode</span><span class="is-row-value">${_escape(s.current || 'public')}</span></div>
         <form class="is-access-form" data-form="access-settings">
           <div class="is-mode-group" data-group="editable-modes">${editableHtml}</div>
           <div class="is-mode-group" data-group="disabled-modes">${disabledHtml}</div>
-          <button type="submit" class="is-save" data-action="save-access"${s.canEdit ? '' : ' disabled'}>${s.saving ? 'SAVING…' : 'SAVE ACCESS SETTING'}</button>
+          <p class="is-note">${_escape(s.note || '')}</p>
+          <div class="is-subhead">Write authority</div>
+          <div class="is-row"><span class="is-row-label">Saved write policy</span><span class="is-row-value">${_escape(s.persistedWritePolicy || 'owner-only')}</span></div>
+          <div class="is-row"><span class="is-row-label">Effective write policy</span><span class="is-row-value">${_escape(s.writePolicy || 'owner-only')}</span></div>
+          <div class="is-row"><span class="is-row-label">Saved delegates</span><span class="is-row-value">${_escape(String(s.delegateCount || 0))}</span></div>
+          <div class="is-mode-group" data-group="editable-write-policies">${editableWriteHtml}</div>
+          <div class="is-mode-group" data-group="disabled-write-policies">${disabledWriteHtml}</div>
+          <p class="is-note">${_escape(s.writeNote || '')}</p>
+          <button type="submit" class="is-save" data-action="save-access"${s.canEdit ? '' : ' disabled'}>${s.saving ? 'SAVING…' : 'SAVE ACCESS SETTINGS'}</button>
         </form>
         ${readOnly}
         ${status}`;

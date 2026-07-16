@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.400-alpha — ACC-2a follows-only arrival. Cross-host arrival now keeps SEC-2 schnorr verification as the floor and adds an additive restricted mode: `window.__toriiAccessMode='follows-only'` requires the VISITOR'S latest kind:3 follow list to contain the OWNER before identity seating is allowed. Relay error / timeout / missing follow list fail closed to ACCESS DENIED (not anon-seated), the default policy direction remains "visitor follows owner," and the read-only Instance Settings Access panel now reflects the deployed arrival mode.
+**Current version:** v0.2.401-alpha — ACC-2a follows-only arrival. Cross-host arrival now keeps SEC-2 schnorr verification as the floor and adds an additive restricted mode: `window.__toriiAccessMode='follows-only'` requires the VISITOR'S latest kind:3 follow list to contain the OWNER before identity seating is allowed. Relay error / timeout / missing follow list fail closed to ACCESS DENIED (not anon-seated), the default policy direction remains "visitor follows owner," and the read-only Instance Settings Access panel now reflects the deployed arrival mode.
 
 ---
 

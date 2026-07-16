@@ -5,7 +5,10 @@ import {
   renderInstanceSettingsPanel,
   EDITABLE_ARRIVAL_MODES,
   DISABLED_ARRIVAL_MODES,
+  EDITABLE_WRITE_POLICIES,
+  DISABLED_WRITE_POLICIES,
   coerceEditableArrivalMode,
+  coerceEditableWritePolicy,
 } from '../src/engine/ui/instanceSettings.js';
 
 const HEX_A = 'a'.repeat(64);
@@ -35,7 +38,7 @@ describe('isInstanceAdmin', () => {
   });
 });
 
-describe('arrival mode option sources', () => {
+describe('arrival + write policy option sources', () => {
   it('editable modes are frozen and limited to public + follows-only', () => {
     expect(Object.isFrozen(EDITABLE_ARRIVAL_MODES)).toBe(true);
     expect(EDITABLE_ARRIVAL_MODES.map((m) => m.key)).toEqual(['public', 'follows-only']);
@@ -46,11 +49,19 @@ describe('arrival mode option sources', () => {
     expect(DISABLED_ARRIVAL_MODES.map((m) => m.key)).toEqual(['whitelist', 'invite-only']);
   });
 
-  it('coerces unsupported selections back to an editable fallback', () => {
+  it('coerces unsupported arrival selections back to an editable fallback', () => {
     expect(coerceEditableArrivalMode('public', 'follows-only')).toBe('public');
     expect(coerceEditableArrivalMode('follows-only', 'public')).toBe('follows-only');
     expect(coerceEditableArrivalMode('whitelist', 'follows-only')).toBe('follows-only');
     expect(coerceEditableArrivalMode('', 'public')).toBe('public');
+  });
+
+  it('exposes editable write policies and keeps open disabled', () => {
+    expect(EDITABLE_WRITE_POLICIES.map((m) => m.key)).toEqual(['owner-only', 'delegates', 'follows-write']);
+    expect(DISABLED_WRITE_POLICIES.map((m) => m.key)).toEqual(['open']);
+    expect(coerceEditableWritePolicy('delegates', 'owner-only')).toBe('delegates');
+    expect(coerceEditableWritePolicy('open', 'owner-only')).toBe('owner-only');
+    expect(coerceEditableWritePolicy('garbage', 'follows-write')).toBe('follows-write');
   });
 });
 
@@ -68,6 +79,9 @@ describe('buildInstanceSettingsModel', () => {
       persistedArrivalMode: 'follows-only',
       persistedFollowPolicy: 'visitor-follows-owner',
       selectedArrivalMode: 'public',
+      persistedWritePolicy: 'delegates',
+      persistedDelegateSet: [HEX_B],
+      selectedWritePolicy: 'follows-write',
       hasSigner: true,
       statusMessage: 'Loaded the latest valid signed access setting.',
       statusTone: 'ok',
@@ -82,6 +96,11 @@ describe('buildInstanceSettingsModel', () => {
     expect(model.canEditAccess).toBe(true);
     expect(access.editableModes.map((m) => m.key)).toEqual(['public', 'follows-only']);
     expect(access.disabledModes.map((m) => m.key)).toEqual(['whitelist', 'invite-only']);
+    expect(access.writePolicy).toBe('delegates');
+    expect(access.selectedWritePolicy).toBe('follows-write');
+    expect(access.delegateCount).toBe(1);
+    expect(access.editableWritePolicies.map((m) => m.key)).toEqual(['owner-only', 'delegates', 'follows-write']);
+    expect(access.disabledWritePolicies.map((m) => m.key)).toEqual(['open']);
     expect(access.statusMessage).toContain('latest valid signed access setting');
     expect(access.note.toLowerCase()).toContain('follow graph');
   });
@@ -103,10 +122,12 @@ describe('buildInstanceSettingsModel', () => {
       hasSigner: false,
       arrivalMode: 'public',
       selectedArrivalMode: 'follows-only',
+      selectedWritePolicy: 'delegates',
     });
     const access = model.sections[0];
     expect(access.canEdit).toBe(false);
     expect(access.readOnlyReason).toContain('Connect a Nostr signer');
+    expect(access.editableWritePolicies.every((m) => m.disabled === true)).toBe(true);
   });
 
   it('deploy follows-only plus persisted public keeps the stricter effective mode', () => {
@@ -124,19 +145,22 @@ describe('buildInstanceSettingsModel', () => {
     expect(access.note.toLowerCase()).toContain('follow graph');
   });
 
-  it('only public/follows-only are editable while whitelist/invite-only stay disabled', () => {
+  it('only public/follows-only are editable while whitelist/invite-only stay disabled and open stays off', () => {
     const model = buildInstanceSettingsModel({
       operatorPubkey: HEX_A,
       hostPubkey: HEX_A,
       arrivalMode: 'whitelist',
       hasSigner: true,
       selectedArrivalMode: 'invite-only',
+      selectedWritePolicy: 'open',
     });
     const access = model.sections[0];
     expect(access.current).toBe('whitelist');
     expect(access.selected).toBe('public');
     expect(access.editableModes.every((m) => m.disabled === false)).toBe(true);
     expect(access.disabledModes.every((m) => m.disabled === true)).toBe(true);
+    expect(access.selectedWritePolicy).toBe('owner-only');
+    expect(access.disabledWritePolicies.every((m) => m.disabled === true)).toBe(true);
     expect(access.note.toLowerCase()).toContain('deny-all');
   });
 
@@ -170,6 +194,8 @@ describe('renderInstanceSettingsPanel', () => {
       arrivalMode: 'public',
       persistedArrivalMode: 'follows-only',
       selectedArrivalMode: 'follows-only',
+      persistedWritePolicy: 'owner-only',
+      selectedWritePolicy: 'delegates',
       statusMessage: 'Loaded the latest valid signed access setting.',
       statusTone: 'ok',
     }));
@@ -178,9 +204,13 @@ describe('renderInstanceSettingsPanel', () => {
     expect(html).toContain('Deploy floor');
     expect(html).toContain('Saved owner setting');
     expect(html).toContain('Effective arrival mode');
+    expect(html).toContain('Write authority');
+    expect(html).toContain('Saved write policy');
+    expect(html).toContain('Effective write policy');
+    expect(html).toContain('coming later');
     expect(html).toContain('data-form="access-settings"');
     expect(html).toContain('data-action="save-access"');
-    expect(html).toContain('SAVE ACCESS SETTING');
+    expect(html).toContain('SAVE ACCESS SETTINGS');
     expect(html).toContain('coming next');
     expect(html).toContain('Loaded the latest valid signed access setting.');
   });

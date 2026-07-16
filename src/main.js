@@ -58,7 +58,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
 // Settings shell (INERT: shown only to the logged-in instance admin; the Access
 // section is a read-only "public + coming soon" placeholder).
-import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode } from './engine/ui/instanceSettings.js';
+import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
 import { NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW } from './config.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
@@ -412,17 +412,25 @@ const _instanceSettingsState = {
   saving: false,
   persisted: null,
   draftArrivalMode: null,
+  draftWritePolicy: null,
   statusMessage: '',
   statusTone: '',
 };
 
 function _syncInstanceSettingsDraft() {
-  const fallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.arrivalMode === 'string'
+  const arrivalFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.arrivalMode === 'string'
     ? _instanceSettingsState.persisted.arrivalMode
     : _arrivalMode();
+  const writeFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.writePolicy === 'string'
+    ? _instanceSettingsState.persisted.writePolicy
+    : 'owner-only';
   _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
     _instanceSettingsState.draftArrivalMode,
-    coerceEditableArrivalMode(fallback, _arrivalMode()),
+    coerceEditableArrivalMode(arrivalFallback, _arrivalMode()),
+  );
+  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
+    _instanceSettingsState.draftWritePolicy,
+    coerceEditableWritePolicy(writeFallback, 'owner-only'),
   );
 }
 
@@ -435,7 +443,10 @@ function _currentInstanceSettingsModel() {
     followPolicy: _followPolicy(),
     persistedArrivalMode: _instanceSettingsState.persisted && _instanceSettingsState.persisted.arrivalMode,
     persistedFollowPolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.followPolicy,
+    persistedWritePolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.writePolicy,
+    persistedDelegateSet: _instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet,
     selectedArrivalMode: _instanceSettingsState.draftArrivalMode,
+    selectedWritePolicy: _instanceSettingsState.draftWritePolicy,
     hasSigner: typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function',
     loading: _instanceSettingsState.loading,
     saving: _instanceSettingsState.saving,
@@ -483,6 +494,7 @@ async function _refreshInstanceSettingsAccessState() {
   if (res.ok && res.settings) {
     _instanceSettingsState.persisted = res.settings;
     _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings.arrivalMode, _arrivalMode());
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings.writePolicy, 'owner-only');
     _instanceSettingsState.statusTone = res.stale ? 'warn' : 'ok';
     _instanceSettingsState.statusMessage = res.stale
       ? 'Relay read failed — using the cached signed access setting.'
@@ -490,6 +502,7 @@ async function _refreshInstanceSettingsAccessState() {
   } else if (res.ok) {
     _instanceSettingsState.persisted = null;
     _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(_arrivalMode(), _arrivalMode());
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy('owner-only', 'owner-only');
     _instanceSettingsState.statusTone = 'muted';
     _instanceSettingsState.statusMessage = 'No saved access setting yet — using this deploy default.';
   } else {
@@ -497,6 +510,10 @@ async function _refreshInstanceSettingsAccessState() {
     _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
       (res.settings && res.settings.arrivalMode) || _arrivalMode(),
       _arrivalMode(),
+    );
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
+      (res.settings && res.settings.writePolicy) || 'owner-only',
+      'owner-only',
     );
     _instanceSettingsState.statusTone = 'warn';
     _instanceSettingsState.statusMessage = res.stale
@@ -518,6 +535,8 @@ async function _saveInstanceSettingsAccess() {
     ownerPubkey: _hostIdentity(),
     arrivalMode: _instanceSettingsState.draftArrivalMode,
     followPolicy: _followPolicy(),
+    writePolicy: _instanceSettingsState.draftWritePolicy,
+    delegateSet: (_instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet) || [],
     relays: RELAYS,
     sign: signEvent,
     publish: fanoutPublish,
@@ -534,6 +553,7 @@ async function _saveInstanceSettingsAccess() {
   }
   _instanceSettingsState.persisted = res.settings;
   _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings && res.settings.arrivalMode, _arrivalMode());
+  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings && res.settings.writePolicy, 'owner-only');
   _instanceSettingsState.statusTone = 'ok';
   _instanceSettingsState.statusMessage = `Saved the signed access setting to ${res.accepted} relay${res.accepted === 1 ? '' : 's'}.`;
   _rerenderInstanceSettingsPanel();
@@ -580,8 +600,14 @@ if (_elInstanceSettingsPanel) {
   });
   _elInstanceSettingsPanel.addEventListener('change', (e) => {
     const t = e && e.target;
-    if (!t || !t.matches || !t.matches('input[name="arrival-mode"]')) return;
-    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
+    if (!t || !t.matches) return;
+    if (t.matches('input[name="arrival-mode"]')) {
+      _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
+    } else if (t.matches('input[name="write-policy"]')) {
+      _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(t.value, 'owner-only');
+    } else {
+      return;
+    }
     _instanceSettingsState.statusMessage = '';
     _instanceSettingsState.statusTone = '';
     _rerenderInstanceSettingsPanel();

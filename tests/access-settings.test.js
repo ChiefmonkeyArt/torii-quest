@@ -10,6 +10,11 @@ import {
   __resetAccessSettingsCache,
 } from '../src/nostr.js';
 import { nostrEventId } from '../src/engine/crypto/nostrSig.js';
+import {
+  WRITE_POLICY_OWNER_ONLY,
+  WRITE_POLICY_DELEGATES,
+  WRITE_POLICY_FOLLOWS_WRITE,
+} from '../src/engine/gateway/writeAuthority.js';
 import { schnorr } from '@noble/curves/secp256k1.js';
 import { hexToBytes, bytesToHex } from '@noble/hashes/utils.js';
 
@@ -34,6 +39,8 @@ function accessEvent({
   ownerPubkey = OWNER,
   arrivalMode = 'public',
   followPolicy = 'visitor-follows-owner',
+  writePolicy = WRITE_POLICY_OWNER_ONLY,
+  delegateSet = [],
   createdAt = 100,
   updatedAt = '2026-07-16T12:00:00.000Z',
   dTag = buildAccessSettingsDTag(instanceId),
@@ -48,6 +55,8 @@ function accessEvent({
       ownerPubkey,
       arrivalMode,
       followPolicy,
+      writePolicy,
+      delegateSet,
       updatedAt,
     }),
   }, sk);
@@ -65,11 +74,49 @@ describe('access settings content + event verification', () => {
       ownerPubkey: OWNER,
       arrivalMode: 'follows-only',
       followPolicy: 'visitor-follows-owner',
+      writePolicy: WRITE_POLICY_DELEGATES,
+      delegateSet: [OTHER, OWNER],
       updatedAt: '2026-07-16T12:00:00.000Z',
     }));
     expect(parsed.ok).toBe(true);
     expect(parsed.settings.arrivalMode).toBe('follows-only');
     expect(parsed.settings.ownerPubkey).toBe(OWNER);
+    expect(parsed.settings.writePolicy).toBe(WRITE_POLICY_DELEGATES);
+    expect(parsed.settings.delegateSet).toEqual([OTHER, OWNER].sort());
+  });
+
+
+
+  it('keeps existing ACC-2b v1 events readable by defaulting missing write policy to owner-only', () => {
+    const parsed = parseAccessSettingsContent(JSON.stringify({
+      schemaVersion: ACCESS_SETTINGS_SCHEMA_VERSION,
+      instanceId: INSTANCE_ID,
+      ownerPubkey: OWNER,
+      arrivalMode: 'public',
+      followPolicy: 'visitor-follows-owner',
+      updatedAt: '2026-07-16T12:00:00.000Z',
+    }));
+    expect(parsed.ok).toBe(true);
+    expect(parsed.settings.writePolicy).toBe(WRITE_POLICY_OWNER_ONLY);
+    expect(parsed.settings.delegateSet).toEqual([]);
+  });
+
+  it('defaults missing unknown malformed and open write policies to owner-only', () => {
+    for (const writePolicy of [undefined, null, '', 'open', 'unsupported', 7]) {
+      const parsed = parseAccessSettingsContent(JSON.stringify({
+        schemaVersion: ACCESS_SETTINGS_SCHEMA_VERSION,
+        instanceId: INSTANCE_ID,
+        ownerPubkey: OWNER,
+        arrivalMode: 'public',
+        followPolicy: 'visitor-follows-owner',
+        writePolicy,
+        delegateSet: ['not-a-pubkey', OTHER],
+        updatedAt: '2026-07-16T12:00:00.000Z',
+      }));
+      expect(parsed.ok).toBe(true);
+      expect(parsed.settings.writePolicy).toBe(WRITE_POLICY_OWNER_ONLY);
+      expect(parsed.settings.delegateSet).toEqual([OTHER]);
+    }
   });
 
   it('verifies owner pubkey, exact d-tag, id binding, and signature', () => {
@@ -95,6 +142,7 @@ describe('readLatestAccessSettings', () => {
     expect(result.ok).toBe(true);
     expect(result.settings.arrivalMode).toBe('follows-only');
     expect(result.settings.createdAt).toBe(200);
+    expect(result.settings.writePolicy).toBe(WRITE_POLICY_OWNER_ONLY);
   });
 
   it('ignores an invalid tampered newest event and keeps the older valid restricted setting', async () => {
@@ -131,6 +179,23 @@ describe('readLatestAccessSettings', () => {
     const result = await readLatestAccessSettings({ request, relays: RELAYS, instanceId: INSTANCE_ID, ownerPubkey: OWNER });
     expect(result.ok).toBe(true);
     expect(result.settings).toBe(null);
+  });
+
+
+
+  it('reads delegates and follows-write settings while keeping open fail-closed', async () => {
+    const request = async () => ({
+      events: [
+        accessEvent({ writePolicy: WRITE_POLICY_DELEGATES, delegateSet: [OTHER], createdAt: 201, updatedAt: '2026-07-16T12:05:00.000Z' }),
+        accessEvent({ writePolicy: 'open', createdAt: 150, updatedAt: '2026-07-16T12:04:00.000Z' }),
+      ],
+      used: RELAYS,
+      failed: [],
+    });
+    const result = await readLatestAccessSettings({ request, relays: RELAYS, instanceId: INSTANCE_ID, ownerPubkey: OWNER });
+    expect(result.ok).toBe(true);
+    expect(result.settings.writePolicy).toBe(WRITE_POLICY_DELEGATES);
+    expect(result.settings.delegateSet).toEqual([OTHER]);
   });
 
   it('returns a cached valid mode on relay error, otherwise reports unavailable', async () => {
@@ -177,11 +242,12 @@ describe('readLatestAccessSettings', () => {
 });
 
 describe('publishAccessSettings', () => {
-  it('signs and publishes only editable public/follows-only modes', async () => {
+  it('signs and publishes editable write policies while blocking open', async () => {
     const result = await publishAccessSettings({
       instanceId: INSTANCE_ID,
       ownerPubkey: OWNER,
       arrivalMode: 'follows-only',
+      writePolicy: WRITE_POLICY_FOLLOWS_WRITE,
       relays: RELAYS,
       sign: async (unsigned) => ({ ok: true, event: signEvent(unsigned) }),
       publish: async (_relays, event) => ({ accepted: 2, used: _relays, failed: event ? [] : _relays }),
@@ -189,16 +255,18 @@ describe('publishAccessSettings', () => {
     expect(result.ok).toBe(true);
     expect(result.accepted).toBe(2);
     expect(result.settings.arrivalMode).toBe('follows-only');
+    expect(result.settings.writePolicy).toBe(WRITE_POLICY_FOLLOWS_WRITE);
 
     const blocked = await publishAccessSettings({
       instanceId: INSTANCE_ID,
       ownerPubkey: OWNER,
-      arrivalMode: 'whitelist',
+      arrivalMode: 'public',
+      writePolicy: 'open',
       relays: RELAYS,
       sign: async () => ({ ok: true, event: null }),
       publish: async () => ({ accepted: 0, used: [], failed: RELAYS }),
     });
     expect(blocked.ok).toBe(false);
-    expect(blocked.error).toBe('access-settings-mode-not-editable');
+    expect(blocked.error).toBe('access-settings-write-policy-not-editable');
   });
 });

@@ -106,7 +106,7 @@ describe('selectLatestRelease — array (releases list)', () => {
   it('skips drafts/prereleases when selecting the latest', () => {
     const list = [
       { tag_name: 'v0.2.500-alpha', draft: true },
-      { tag_name: 'v0.2.400-alpha', prerelease: true },
+      { tag_name: 'v0.2.401-alpha', prerelease: true },
       { tag_name: 'v0.2.300-alpha' },
     ];
     const s = selectLatestRelease(list, { includePrerelease: false });

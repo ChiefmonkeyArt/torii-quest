@@ -3,6 +3,12 @@ import { state } from './state.js';
 import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
+import {
+  WRITE_POLICY_OWNER_ONLY,
+  WRITE_POLICY_DELEGATES,
+  WRITE_POLICY_FOLLOWS_WRITE,
+  normaliseWritePolicy,
+} from './engine/gateway/writeAuthority.js';
 
 const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
 const PROFILE_TIMEOUT_MS = 5000;
@@ -426,6 +432,7 @@ const ACCESS_SETTINGS_EVENT_LIMIT = 50;
 const ACCESS_SUPPORTED_MODES = new Set(['public', 'follows-only', 'whitelist', 'invite-only']);
 const ACCESS_EDITABLE_MODES = new Set(['public', 'follows-only']);
 const ACCESS_SUPPORTED_POLICIES = new Set(['visitor-follows-owner', 'mutual', 'owner-follows-visitor']);
+const ACCESS_EDITABLE_WRITE_POLICIES = new Set([WRITE_POLICY_OWNER_ONLY, WRITE_POLICY_DELEGATES, WRITE_POLICY_FOLLOWS_WRITE]);
 
 export {
   ACCESS_SETTINGS_KIND,
@@ -470,8 +477,15 @@ function _accessCacheKey({ instanceId, ownerPubkey, relays }) {
   return JSON.stringify([instanceId, ownerPubkey, _normaliseAccessRelays(relays)]);
 }
 
+function _normaliseDelegateSet(raw) {
+  const list = Array.isArray(raw) ? raw : (raw instanceof Set ? [...raw] : []);
+  return [...new Set(list
+    .map((value) => typeof value === 'string' ? value.trim().toLowerCase() : '')
+    .filter((value) => HEX64.test(value)))].sort();
+}
+
 function _cloneAccessSettings(settings) {
-  return settings ? { ...settings } : null;
+  return settings ? { ...settings, delegateSet: _normaliseDelegateSet(settings.delegateSet) } : null;
 }
 
 export function buildAccessSettingsDTag(instanceId) {
@@ -494,6 +508,8 @@ export function parseAccessSettingsContent(content) {
   const ownerPubkey = typeof obj.ownerPubkey === 'string' ? obj.ownerPubkey.trim().toLowerCase() : '';
   const arrivalMode = _normaliseAccessMode(obj.arrivalMode);
   const followPolicy = _normaliseAccessPolicy(obj.followPolicy);
+  const writePolicy = normaliseWritePolicy(obj.writePolicy).policy;
+  const delegateSet = _normaliseDelegateSet(obj.delegateSet);
   const updatedAt = (typeof obj.updatedAt === 'string' && obj.updatedAt.trim())
     ? obj.updatedAt.trim()
     : (Number.isFinite(obj.updatedAt) ? String(obj.updatedAt) : '');
@@ -507,7 +523,7 @@ export function parseAccessSettingsContent(content) {
   if (!updatedAt) return { ok: false, settings: null, error: 'access-settings-updated-at-invalid' };
   return {
     ok: true,
-    settings: { schemaVersion, instanceId, ownerPubkey, arrivalMode, followPolicy, updatedAt },
+    settings: { schemaVersion, instanceId, ownerPubkey, arrivalMode, followPolicy, writePolicy, delegateSet, updatedAt },
     error: null,
   };
 }
@@ -641,6 +657,9 @@ export async function publishAccessSettings(opts = {}) {
   const ownerPubkey = typeof o.ownerPubkey === 'string' ? o.ownerPubkey.trim().toLowerCase() : '';
   const arrivalMode = _normaliseAccessMode(o.arrivalMode);
   const followPolicy = _normaliseAccessPolicy(o.followPolicy || 'visitor-follows-owner');
+  const writePolicyMeta = normaliseWritePolicy(o.writePolicy);
+  const writePolicy = writePolicyMeta.policy;
+  const delegateSet = _normaliseDelegateSet(o.delegateSet);
   const relays = _normaliseAccessRelays(o.relays);
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
   const nowMs = Number.isFinite(o.nowMs) ? Math.floor(o.nowMs) : Date.now();
@@ -651,6 +670,8 @@ export async function publishAccessSettings(opts = {}) {
   if (!instanceId || !HEX64.test(ownerPubkey)) { out.error = 'access-settings-target-invalid'; return out; }
   if (!ACCESS_EDITABLE_MODES.has(arrivalMode)) { out.error = 'access-settings-mode-not-editable'; return out; }
   if (!followPolicy) { out.error = 'access-settings-policy-invalid'; return out; }
+  if (o.writePolicy != null && !writePolicyMeta.editable) { out.error = 'access-settings-write-policy-not-editable'; return out; }
+  if (!ACCESS_EDITABLE_WRITE_POLICIES.has(writePolicy)) { out.error = 'access-settings-write-policy-not-editable'; return out; }
   if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
   if (typeof publish !== 'function') { out.error = 'publish-transport-required'; return out; }
   if (!relays.length) { out.error = 'at-least-one-relay-required'; return out; }
@@ -661,6 +682,8 @@ export async function publishAccessSettings(opts = {}) {
     ownerPubkey,
     arrivalMode,
     followPolicy,
+    writePolicy,
+    delegateSet,
     updatedAt,
   };
   const unsigned = {

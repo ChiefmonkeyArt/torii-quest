@@ -25,7 +25,7 @@
 // Run: node server/arena-ws.js
 // Env: PORT (default 8787), MAX_PEERS (default 32), LOG_LEVEL (default 'info')
 
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { randomBytes } from 'crypto';
 
@@ -50,6 +50,10 @@ import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
 import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
+import {
+  assertResolvedWriteAuthority,
+  deriveWriteAuthorityInstanceId,
+} from './access/writeMutationGuard.js';
 
 // ---------- config ----------
 
@@ -58,7 +62,13 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.400-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.401-alpha';
+
+globalThis.WebSocket ??= WebSocket;
+
+const WRITE_AUTH_OWNER_PUBKEY_HEX = npubToHex(process.env.QUEST_OWNER_NPUB || process.env.QUEST_ADMIN_NPUB || '') || '';
+const WRITE_AUTH_INSTANCE_ID = deriveWriteAuthorityInstanceId(process.env);
+const WRITE_AUTH_RELAYS = [...new Set(String(process.env.QUEST_ACCESS_RELAYS || '').split(',').map((value) => value.trim()).filter(Boolean))];
 
 // MP-2 tunables.
 //   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
@@ -223,6 +233,33 @@ function broadcastToAll(msg) {
   }
 }
 
+async function assertSessionWriteAuthority(sess, mutationType) {
+  const ownerPubkey = WRITE_AUTH_OWNER_PUBKEY_HEX;
+  const instanceId = WRITE_AUTH_INSTANCE_ID;
+  const relays = WRITE_AUTH_RELAYS.length ? WRITE_AUTH_RELAYS : undefined;
+  try {
+    return await assertResolvedWriteAuthority({
+      actorPubkey: sess && sess.pubkey,
+      ownerPubkey,
+      instanceId,
+      relays,
+    });
+  } catch (error) {
+    if (error && error.code === 'WRITE_AUTHORITY_DENIED') {
+      log.warn('[write-auth] denied', {
+        id: sess && sess.id,
+        mutationType,
+        reason: error.reason || 'write-authority-denied',
+        actorPubkey: sess && sess.pubkey ? `${sess.pubkey.slice(0, 8)}…${sess.pubkey.slice(-4)}` : '',
+        ownerConfigured: !!ownerPubkey,
+        instanceConfigured: !!instanceId,
+      });
+      return null;
+    }
+    throw error;
+  }
+}
+
 function closeSession(sess, reason) {
   const wasAuthed = sess.authed && sessions.has(sess.id);
   // MP-3: emit final SCORE to the departing peer BEFORE we close the socket,
@@ -320,7 +357,7 @@ function finishAuth(sess, { npub, pubkey }) {
 
 // ---------- message handling ----------
 
-function handleMessage(sess, raw) {
+async function handleMessage(sess, raw) {
   sess.lastActivity = Date.now();
 
   const parsed = decode(raw);
@@ -365,6 +402,7 @@ function handleMessage(sess, raw) {
   switch (msg.t) {
     case MSG.MOVE: {
       if (!checkRate(sess, 'MOVE', RATE.MOVE)) return;
+      if (!(await assertSessionWriteAuthority(sess, 'MOVE'))) return;
       sess.pos = msg.pos; sess.rot = msg.rot;
       // MP-2: record every accepted MOVE for lag-compensated hit resolution.
       const ring = snapshotRings.get(sess.id);
@@ -380,6 +418,7 @@ function handleMessage(sess, raw) {
     }
     case MSG.SHOT: {
       if (!checkRate(sess, 'SHOT', RATE.SHOT)) return;
+      if (!(await assertSessionWriteAuthority(sess, 'SHOT'))) return;
       broadcastToOthers(sess.id, { ...msg, id: sess.id });
       // MP-2: after relaying the muzzle/tracer cue, resolve the hit ourselves.
       // v0.2.378 fix 1: unconditional — advisory is retired, so every SHOT is
@@ -889,7 +928,7 @@ wss.on('connection', (ws, req) => {
     if (!sess.authed) closeSession(sess, 'auth_timeout');
   }, AUTH_TIMEOUT_MS);
 
-  ws.on('message', (data) => handleMessage(sess, data.toString('utf8')));
+  ws.on('message', (data) => { void handleMessage(sess, data.toString('utf8')); });
   ws.on('close', () => { clearTimeout(authTimer); closeSession(sess, 'ws_closed'); });
   ws.on('error', (err) => { log.warn('ws error', sess.id, err.message); });
 });

@@ -34,6 +34,12 @@ function spawnSim() {
 // A horizontal shot from `dist` metres away, at world-Y = bot foot + `aimY`,
 // aimed straight at the bot along -X. Mirrors a player standing near a bot with
 // the crosshair on it (origin at eye height, dir horizontal).
+function frontRegularBot(sim) {
+  return [...sim.bots]
+    .filter((b) => b.alive && b.kind !== 'boss')
+    .sort((a, b) => b.pos.x - a.pos.x)[0] || null;
+}
+
 function shootHorizontal(bot, aimY, dist = 3) {
   const footY = sampleArenaHeight(bot.pos.x, bot.pos.z);
   const origin = [bot.pos.x + dist, footY + aimY, bot.pos.z];
@@ -44,7 +50,7 @@ function shootHorizontal(bot, aimY, dist = 3) {
 describe('v0.2.382 player→bot combat — server geometry in the live Y frame', () => {
   it('a torso-height shot from player eye registers a body HIT on a regular bot', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive && b.kind !== 'boss');
+    const bot = frontRegularBot(sim);
     // Aim at chest (body capsule centre) — the frame the player actually shoots in.
     const { origin, dir } = shootHorizontal(bot, BOT_BODY_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
@@ -55,7 +61,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a head-height shot from player eye registers a HEAD HIT on a regular bot', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive && b.kind !== 'boss');
+    const bot = frontRegularBot(sim);
     const { origin, dir } = shootHorizontal(bot, BOT_HEAD_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
     expect(res).not.toBeNull();
@@ -65,7 +71,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a realistic player-eye shot (foot + 1.7) still intersects the bot capsule', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive && b.kind !== 'boss');
+    const bot = frontRegularBot(sim);
     // Origin at true player eye height, aimed slightly DOWN at the bot torso from
     // a short distance — the exact live scenario the hotfix targets.
     const footY = sampleArenaHeight(bot.pos.x, bot.pos.z);
@@ -80,7 +86,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a regular bot takes damage and DIES from player shots', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive && b.kind !== 'boss');
+    const bot = frontRegularBot(sim);
     const { origin, dir } = shootHorizontal(bot, BOT_BODY_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
     expect(res).not.toBeNull();
@@ -105,7 +111,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a clearly-off shot (well above the head, aimed away) still MISSES', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive && b.kind !== 'boss');
+    const bot = frontRegularBot(sim);
     const footY = sampleArenaHeight(bot.pos.x, bot.pos.z);
     // High above every capsule AND pointing up-and-away: no bot can be hit.
     const origin = [bot.pos.x + 3, footY + 10, bot.pos.z];
@@ -115,7 +121,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('nearestBotDiag reports the nearest bot foot in the sampleArenaHeight frame', () => {
     const sim = spawnSim();
-    const bot = sim.bots.find((b) => b.alive);
+    const bot = frontRegularBot(sim) || sim.bots.find((b) => b.alive);
     const origin = [bot.pos.x, sampleArenaHeight(bot.pos.x, bot.pos.z) + PLAYER_EYE, bot.pos.z];
     const diag = sim.nearestBotDiag(origin);
     expect(diag).not.toBeNull();

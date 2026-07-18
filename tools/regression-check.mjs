@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.403-alpha';
+const EXPECTED_VERSION = 'v0.2.404-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',

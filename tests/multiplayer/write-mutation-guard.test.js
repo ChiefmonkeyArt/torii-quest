@@ -138,7 +138,7 @@ describe('resolveWriteAuthorityFacts', () => {
 });
 
 describe('assertResolvedWriteAuthority', () => {
-  it('the arena-ws MOVE mutation seam rejects an unauthorized visitor under owner-only', async () => {
+  it('rejects an unauthorized visitor under owner-only', async () => {
     await expect(assertResolvedWriteAuthority({
       actorPubkey: VISITOR,
       ownerPubkey: OWNER,
@@ -148,7 +148,7 @@ describe('assertResolvedWriteAuthority', () => {
     })).rejects.toMatchObject({ code: 'WRITE_AUTHORITY_DENIED', reason: 'owner-only' });
   });
 
-  it('the arena-ws SHOT mutation seam rejects an unauthorized non-delegate visitor', async () => {
+  it('rejects an unauthorized non-delegate visitor under delegates policy', async () => {
     await expect(assertResolvedWriteAuthority({
       actorPubkey: VISITOR,
       ownerPubkey: OWNER,
@@ -170,9 +170,12 @@ describe('assertResolvedWriteAuthority', () => {
 });
 
 describe('arena-ws wiring', () => {
-  it('guards the authoritative MOVE and SHOT handlers with assertSessionWriteAuthority', () => {
+  // v0.2.404-alpha: presence (MOVE) and combat (SHOT) are ephemeral per-frame peer
+  // actions, NOT owner-controlled instance mutations. Gating them behind owner write
+  // authority (ACC-3) froze every non-owner peer at spawn and starved the owner's
+  // client of peer movement. Access is enforced at AUTH; MOVE/SHOT must NOT be gated.
+  it('does NOT gate the MOVE or SHOT handlers behind owner write authority', () => {
     const code = readFileSync(ARENA_WS_PATH, 'utf8');
-    expect(code).toMatch(/case MSG\.MOVE:[\s\S]*assertSessionWriteAuthority\(sess, 'MOVE'\)/);
-    expect(code).toMatch(/case MSG\.SHOT:[\s\S]*assertSessionWriteAuthority\(sess, 'SHOT'\)/);
+    expect(code).not.toMatch(/assertSessionWriteAuthority/);
   });
 });

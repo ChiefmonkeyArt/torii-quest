@@ -219,11 +219,38 @@ function _makeWrapper(st, model, capsuleMesh) {
 }
 
 function _attachModelBot(st, renderKind = 'regular') {
+  // A server BOT_STATE can arrive before either GLB has loaded. _tickNet creates
+  // a visible capsule for that authoritative row immediately; upgrade that same
+  // wrapper in place instead of adding a duplicate bot with the same id.
+  const existing = _botById(st.id);
+  const current = existing?.state;
   const model = new BotModel(renderKind);
-  model.init({ x: st.pos.x, y: _footY(st.pos.x, st.pos.z), z: st.pos.z });
+  const x = current?.pos?.x ?? st.pos.x;
+  const z = current?.pos?.z ?? st.pos.z;
+  model.init({ x, y: _footY(x, z), z });
+  if (existing) {
+    if (current) {
+      st.pos.x = x; st.pos.z = z;
+      st.rotY = current.rotY ?? st.rotY;
+      st.hp = current.hp ?? st.hp;
+      st.alive = current.alive ?? st.alive;
+      st.animHint = current.animHint ?? st.animHint;
+    }
+    if (existing._capsuleMesh) {
+      scene.remove(existing._capsuleMesh);
+      existing._capsuleMesh.material?.dispose?.();
+      existing._capsuleMesh = null;
+    }
+    existing.model = model;
+    existing.state = st;
+    existing.pos.set(x, 0, z);
+    if (!st.alive) model.hide();
+    return existing;
+  }
   const bot = _makeWrapper(st, model, null);
   bots.push(bot);
   if (physicsReady) _ensureBotColliders(bot, st.pos.x, st.pos.z);
+  return bot;
 }
 
 // Create (or re-position) both the body capsule AND head sphere for a bot.
@@ -249,16 +276,35 @@ function _ensureBotColliders(bot, x, z) {
 // Fallback if GLB fails — original capsule bots (still driven by the sim brain).
 const _botGeo  = new THREE.CapsuleGeometry(0.35, 1.1, 4, 8);
 const _colors  = [0x8b5cf6, 0xf7931a, 0x22d3ee, 0xf43f5e, 0x4ade80];
+function _makeCapsuleBot(st, i = st.id) {
+  const mesh = new THREE.Mesh(
+    _botGeo,
+    new THREE.MeshStandardMaterial({ color: _colors[i % _colors.length], roughness: 0.6 })
+  );
+  mesh.position.set(st.pos.x, 1.15 + _footY(st.pos.x, st.pos.z), st.pos.z);
+  scene.add(mesh);
+  const bot = _makeWrapper(st, null, mesh);
+  bots.push(bot);
+  return bot;
+}
+
 function _spawnCapsuleBots() {
   sim.spawnAll(BOT_COUNT);
   sim.bots.forEach((st, i) => {
-    const mesh = new THREE.Mesh(
-      _botGeo,
-      new THREE.MeshStandardMaterial({ color: _colors[i % _colors.length], roughness: 0.6 })
-    );
-    mesh.position.set(st.pos.x, 1.15 + _footY(st.pos.x, st.pos.z), st.pos.z);
-    scene.add(mesh);
-    bots.push(_makeWrapper(st, null, mesh));
+    const existing = _botById(st.id);
+    if (!existing) {
+      _makeCapsuleBot(st, i);
+      return;
+    }
+    // Net mode may already have created the authoritative placeholder. Keep its
+    // live pose/health while attaching the local sim state used after disconnect.
+    const current = existing.state;
+    st.pos.x = current.pos.x; st.pos.z = current.pos.z;
+    st.rotY = current.rotY ?? st.rotY;
+    st.hp = current.hp ?? st.hp;
+    st.alive = current.alive ?? st.alive;
+    st.animHint = current.animHint ?? st.animHint;
+    existing.state = st;
   });
 }
 
@@ -327,8 +373,28 @@ function _tickNet(dt) {
   const poses = _botNet.sample(_nowMs());
   let bossPose = null;
   for (const p of poses) {
-    const bot = _botById(p.id);
-    if (bot) _syncNetBot(bot, p, dt);
+    // Server authority starts before the asynchronous GLBs necessarily finish.
+    // Materialise every authoritative row as a correctly-positioned capsule so
+    // no bot can shoot or damage a player without a render-side counterpart.
+    let bot = _botById(p.id);
+    if (!bot) {
+      const st = {
+        id: p.id,
+        kind: p.kind || 'regular',
+        name: p.name || '',
+        pos: { x: p.x, z: p.z },
+        hp: p.hp,
+        alive: p.alive,
+        rotY: p.rotY,
+        animHint: p.animHint,
+        _isHit: false,
+        _hitTimer: 0,
+        _isDying: false,
+      };
+      bot = _makeCapsuleBot(st, p.id);
+      bot._prevAlive = p.alive;
+    }
+    _syncNetBot(bot, p, dt);
     if (!bossPose && p.kind === 'boss') bossPose = p;
   }
   if (!bossPose || !bossPose.alive) {

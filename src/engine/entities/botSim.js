@@ -20,7 +20,7 @@
 // wrapper can fire them.
 import { engageSpeed, steerComponent } from './bot-agent.js';
 import {
-  tierForIndex, flankSlotForIndex, flankAnchor,
+  tierForIndex, flankSlotForIndex,
   pickCover, obstacleAvoid,
   effectiveSight, effectiveCooldown, effectiveSpread,
 } from './bot-tactics.js';
@@ -65,6 +65,10 @@ const TARGET_NEARER_RATIO_2 = 0.7 ** 2;                   // switch if new² < 0
 // the boss read as "fleeing". The boss instead marches straight at the player
 // and HOLDS at this standoff (metres), never seeking cover and never retreating.
 const BOSS_STANDOFF = 3.0;
+// Regular bots visibly pursue their acquired player instead of defaulting to a
+// flank anchor or seeking cover while still out of combat. Once close they hold
+// a compact standoff; a genuinely pressured bot can still use existing cover.
+const REGULAR_STANDOFF = 4.0;
 
 // createBotSim(deps) — build the headless bot brain.
 //
@@ -118,7 +122,6 @@ export function createBotSim(deps) {
   // Scratch — plain {x,z} bags reused every tick (allocation-free hot path).
   const _sep    = { x: 0, z: 0 };
   const _avoid  = { x: 0, z: 0 };
-  const _anchor = { x: 0, z: 0 };
 
   // ── Safe random spawn position — never inside the player's safe corner ──────
   function _safeSpawnPos() {
@@ -361,8 +364,12 @@ export function createBotSim(deps) {
         state._coverTimer -= dt;
         if (state._coverTimer <= 0) {
           state._coverTimer = COVER_EVAL_PERIOD;
-          const pressured = state.hp <= state.maxHp * 0.5 || state._isHit ||
-                            tier.id === 'hard' || state.shootCd > 0;
+          // shootCd starts positive and only counts down with LOS. Treating that
+          // as "pressured" made distant bots choose cover before they had ever
+          // engaged, which looked like no player awareness.
+          const inCombatRange = dist <= effectiveSight(tier);
+          const pressured = inCombatRange &&
+            (state.hp <= state.maxHp * 0.5 || state._isHit || tier.id === 'hard');
           if (!playerSafe && pressured && Math.random() < tier.coverBias) {
             const ci = pickCover(px, pz, pp.x, pp.z, coverPoints, _coverBlocked, COVER_MAX_DIST);
             state._coverPoint = ci >= 0 ? coverPoints[ci] : null;
@@ -373,18 +380,19 @@ export function createBotSim(deps) {
       }
 
       // ── Desired target ───────────────────────────────────────────────────────
-      // Boss: advance straight at the player until inside BOSS_STANDOFF, then hold
-      // (target = own position → zero heading). engageSpeed never reverses, so the
-      // boss never backs away. Regular bots: held cover point, else flank anchor.
+      // Both archetypes visibly pursue their acquired player. The boss holds at
+      // BOSS_STANDOFF; regular bots hold at REGULAR_STANDOFF unless a genuinely
+      // pressured bot has selected cover.
       let tx, tz;
       if (isBoss) {
         if (dist > BOSS_STANDOFF) { tx = pp.x; tz = pp.z; }
         else { tx = px; tz = pz; }
       } else if (state._coverPoint) {
         tx = state._coverPoint[0]; tz = state._coverPoint[1];
+      } else if (dist > REGULAR_STANDOFF) {
+        tx = pp.x; tz = pp.z;
       } else {
-        flankAnchor(pp.x, pp.z, px, pz, state._flankSlot.angle, tier.flankBias, _anchor);
-        tx = _anchor.x; tz = _anchor.z;
+        tx = px; tz = pz;
       }
       const dtx = tx - px, dtz = tz - pz;
       const tlen = Math.hypot(dtx, dtz);

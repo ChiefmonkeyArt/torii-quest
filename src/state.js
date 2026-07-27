@@ -64,7 +64,7 @@ export function resetRun() {
 // Canonical transition events — the phase only ever changes via one of these.
 export const GAME_EVENT = Object.freeze({
   ENTER:   'enter',    // TITLE   → PLAYING  (Enter Arena)
-  PAUSE:   'pause',    // PLAYING → PAUSED   (ESC / pointer-lock loss)
+  PAUSE:   'pause',    // PLAYING → PAUSED   (explicit UI action)
   RESUME:  'resume',   // PAUSED  → PLAYING  (ESC / Resume button)
   HOME:    'home',     // PAUSED  → TITLE    (Home button)
   DIE:     'die',      // PLAYING → DEAD     (hp <= 0)

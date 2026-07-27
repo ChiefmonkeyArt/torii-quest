@@ -23,7 +23,7 @@ import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
 import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, onPointerLockLost, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -569,9 +569,6 @@ export function createArenaRuntime(hooks = {}) {
       // ground, stop-mid-air / glide handoff in the air).
       flyToggleFromInput();
     });
-
-    // Browser-forced pointer-lock loss still pauses a running game.
-    onPointerLockLost(() => { if (isPlaying()) _openPause(); });
 
     const elResumeBtn = document.getElementById('btn-resume');
     const elHomeBtn   = document.getElementById('btn-home');

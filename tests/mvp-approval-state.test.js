@@ -166,18 +166,17 @@ describe('summarizeApprovalForState — next-action fold', () => {
   });
 });
 
-// The committed artifact must stay PENDING + valid and track the live config VERSION — so this
-// slice can never accidentally ship an "approved" record, and a version bump can't leave it
-// behind.
+// The committed artifact carries the explicit human approval and must remain
+// valid while tracking the live config VERSION.
 describe('committed MVP_APPROVAL_STATE.json', () => {
-  it('is present, pending, valid, and tracks the config VERSION', () => {
+  it('is present, approved, valid, and tracks the config VERSION', () => {
     let raw = null;
     try { raw = readFileSync(join(process.cwd(), MVP_APPROVAL_FILE), 'utf8'); } catch { raw = null; }
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw);
-    expect(parsed.status).toBe(MVP_APPROVAL_STATUSES.PENDING);
+    expect(parsed.status).toBe(MVP_APPROVAL_STATUSES.APPROVED);
     expect(parsed.version).toBe(VERSION);
     expect(validateApprovalState(parsed).ok).toBe(true);
-    expect(isApproved(parsed)).toBe(false);
+    expect(isApproved(parsed)).toBe(true);
   });
 });

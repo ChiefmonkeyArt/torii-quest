@@ -19,6 +19,14 @@ import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
 import { talliesToCurrentEvents } from './engine/multiplayer/arenaLeaderboard.js';
+import {
+  createScoreReporter, SCORE_D_TAG, SCORE_HISTORY_T_TAG,
+  SCORE_KIND_ADDRESSABLE, SCORE_KIND_HISTORY,
+} from './engine/multiplayer/scoreReporter.js';
+import {
+  loadLatestScoreFrame, normaliseScoreFrame, saveLatestScoreFrame,
+} from './engine/multiplayer/scoreSessionStore.js';
+import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
@@ -724,18 +732,29 @@ window.addEventListener('hashchange', _applyZoneRoute);
 // (see src/world/napZone.js + the productPreview/product-panel modules). The
 // pure product view-model modules stay intact and are exercised by that panel.
 
-// v0.2.384-alpha: the side-panel leaderboard is now HONEST — it renders the
-// server-authoritative LOCAL tallies for this arena instance (the same SCORE
-// ledger the in-arena LOCAL leaderboard uses), never fabricated names/numbers.
-// Before any SCORE frame arrives (e.g. on the title screen, single-player) it
-// shows a plain empty state instead of mock rows.
-let _liveTallies = [];
+// The side-panel combines the latest server-authoritative local SCORE frame
+// with verified kind:30078/kind:1 relay history. The local frame is cached per
+// player so returning Home is immediate even while the relay read settles.
+let _latestScoreFrame = null;
+let _relayScoreEvents = { current: [], history: [] };
+let _scoreReadSeq = 0;
+let _scoreReportInFlight = false;
 
 function renderLeaderboardPreview() {
   const body = document.getElementById('leaderboard-preview-body');
   if (!body) return;
+  const localCurrent = _latestScoreFrame
+    ? talliesToCurrentEvents(
+      _latestScoreFrame.tallies,
+      _latestScoreFrame.sessionId,
+      _latestScoreFrame.endedAt,
+    )
+    : [];
   const rows = renderLeaderboardRows(
-    { current: talliesToCurrentEvents(_liveTallies, null, Date.now()), history: [] },
+    {
+      current: [..._relayScoreEvents.current, ...localCurrent],
+      history: _relayScoreEvents.history,
+    },
     5,
   );
   if (rows.length === 0) {
@@ -757,8 +776,79 @@ function renderLeaderboardPreview() {
 }
 renderLeaderboardPreview();
 on(EV.SCORE_FRAME, (frame) => {
-  _liveTallies = frame && Array.isArray(frame.tallies) ? frame.tallies : [];
+  _latestScoreFrame = normaliseScoreFrame(frame);
+  if (_latestScoreFrame && state.nostrPubkey) {
+    saveLatestScoreFrame(globalThis.localStorage, state.nostrPubkey, _latestScoreFrame);
+  }
   renderLeaderboardPreview();
+});
+
+function _isScoreEvent(event) {
+  if (!event || !verifyNostrEventSig(event)) return false;
+  if (event.kind === SCORE_KIND_ADDRESSABLE) {
+    return event.tags?.some((tag) => tag?.[0] === 'd' && tag[1] === SCORE_D_TAG);
+  }
+  return event.kind === SCORE_KIND_HISTORY
+    && event.tags?.some((tag) => tag?.[0] === 't' && tag[1] === SCORE_HISTORY_T_TAG);
+}
+
+async function _refreshPersistentScores() {
+  const seq = ++_scoreReadSeq;
+  try {
+    const filters = [
+      { kinds: [SCORE_KIND_ADDRESSABLE], '#d': [SCORE_D_TAG], limit: 50 },
+      { kinds: [SCORE_KIND_HISTORY], '#t': [SCORE_HISTORY_T_TAG], limit: 200 },
+    ];
+    const { events } = await fanoutReq(RELAYS, filters, { timeoutMs: 4000, graceMs: 300 });
+    if (seq !== _scoreReadSeq) return;
+    const valid = Array.isArray(events) ? events.filter(_isScoreEvent) : [];
+    _relayScoreEvents = {
+      current: valid.filter((event) => event.kind === SCORE_KIND_ADDRESSABLE),
+      history: valid.filter((event) => event.kind === SCORE_KIND_HISTORY),
+    };
+    renderLeaderboardPreview();
+  } catch {
+    // Keep the latest local SCORE frame visible when relays are unavailable.
+  }
+}
+
+async function _publishLatestScore() {
+  if (_scoreReportInFlight || !_latestScoreFrame || !HEX64.test(state.nostrPubkey || '')) return;
+  _scoreReportInFlight = true;
+  const reporter = createScoreReporter({
+    self: { selfPubkey: state.nostrPubkey },
+    signer: async (unsigned) => {
+      const result = await signEvent(unsigned);
+      if (!result?.ok || !result.event) throw new Error(result?.error || 'score signing failed');
+      return result.event;
+    },
+    publisher: async (event) => {
+      const result = await fanoutPublish(RELAYS, event);
+      if (!result || result.accepted < 1) throw new Error('no relay accepted score');
+      return { published: result.accepted, tried: RELAYS.length };
+    },
+    log: (message, error) => console.warn('[score]', message, error?.message || ''),
+  });
+  const result = await reporter.report(_latestScoreFrame);
+  _scoreReportInFlight = false;
+  if (result.published) {
+    _relayScoreEvents.current.push(result.addressable);
+    _relayScoreEvents.history.push(result.history);
+    renderLeaderboardPreview();
+    void _refreshPersistentScores();
+  }
+}
+
+on(EV.NOSTR_LOGIN, ({ pubkey }) => {
+  _latestScoreFrame = loadLatestScoreFrame(globalThis.localStorage, pubkey) || _latestScoreFrame;
+  renderLeaderboardPreview();
+  void _refreshPersistentScores();
+});
+on(EV.PHASE_CHANGE, ({ to }) => {
+  if (to !== 'title') return;
+  renderLeaderboardPreview();
+  void _publishLatestScore();
+  void _refreshPersistentScores();
 });
 
 // ── LIVE leaderboard publish (M2, v0.2.285) ────────────────────────────────────

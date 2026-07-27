@@ -4,6 +4,7 @@
 import { state } from './state.js';
 import { on, EV } from './events.js';
 import { pickSelfRow } from './engine/multiplayer/scoreReporter.js';
+import { loadLatestScoreFrame, saveLatestScoreFrame } from './engine/multiplayer/scoreSessionStore.js';
 
 const LS_PREFIX = 'tq:stats:';   // per-pubkey lifetime stats key prefix
 
@@ -99,6 +100,8 @@ export function initPlayerStats() {
   // On login (initial pubkey OR profile-meta refresh) — populate from storage.
   on(EV.NOSTR_LOGIN, ({ pubkey }) => {
     _currentLifetime = _loadLifetime(pubkey);
+    const frame = loadLatestScoreFrame(globalThis.localStorage, pubkey);
+    _authSelf = pickSelfRow(frame?.tallies, { selfPubkey: pubkey });
     _renderFrom(_currentLifetime);
   });
 
@@ -113,6 +116,9 @@ export function initPlayerStats() {
   on(EV.SCORE_FRAME, (frame) => {
     const tallies = frame && Array.isArray(frame.tallies) ? frame.tallies : [];
     _authSelf = pickSelfRow(tallies, { selfPubkey: state.nostrPubkey || null });
+    if (_authSelf && state.nostrPubkey) {
+      saveLatestScoreFrame(globalThis.localStorage, state.nostrPubkey, frame);
+    }
     _renderFrom(_currentLifetime);
   });
 }

@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.404-alpha",
-  "generatedAt": "2026-07-18T10:26:14.227Z",
+  "version": "v0.2.405-alpha",
+  "generatedAt": "2026-07-27T13:18:08.223Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.404-alpha"
+        "value": "v0.2.405-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 190"
+        "value": "fast 5 · foundation 25 · full 191"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2601 passing / 190 files"
+        "value": "2604 passing / 191 files"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "20 / 20 regression checks GREEN · last green v0.2.404-alpha"
+        "value": "20 / 20 regression checks GREEN · last green v0.2.405-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 13,
         "label": "Foundation coverage",
-        "sub": "25/190 files"
+        "sub": "25/191 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.404-alpha",
-    "gitCommit": "d6fa99a",
+    "version": "v0.2.405-alpha",
+    "gitCommit": "6c9ff39",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.404-alpha / pkg 0.2.404-alpha"
+        "detail": "config v0.2.405-alpha / pkg 0.2.405-alpha"
       },
       {
         "key": "tests",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.404-alpha",
+    "version": "v0.2.405-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -261,14 +261,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2601 passing / 190 files",
+    "testLabel": "2604 passing / 191 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.404-alpha"
+        "value": "v0.2.405-alpha"
       },
       {
         "label": "Release manifest",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "2601 passing / 190 files"
+        "value": "2604 passing / 191 files"
       },
       {
         "label": "Test profiles",
@@ -395,34 +395,34 @@
   "mvpApproval": {
     "badge": "MVP APPROVAL · LOCAL · READ-ONLY · PENDING UNTIL EXPLICIT USER OK",
     "kind": "generated",
-    "band": "pending",
-    "statusLabel": "MVP APPROVAL PENDING · USER PLAYTEST + EXPLICIT OK REQUIRED",
-    "pill": "manual",
-    "status": "pending",
-    "approved": false,
-    "version": "v0.2.404-alpha",
-    "approvedBy": null,
-    "approvedAt": null,
+    "band": "approved",
+    "statusLabel": "MVP APPROVED",
+    "pill": "no-blocker",
+    "status": "approved",
+    "approved": true,
+    "version": "v0.2.405-alpha",
+    "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
+    "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
       {
         "label": "Approval status",
-        "value": "PENDING"
+        "value": "APPROVED"
       },
       {
         "label": "Version",
-        "value": "v0.2.404-alpha"
+        "value": "v0.2.405-alpha"
       },
       {
         "label": "Approved by",
-        "value": "no approver yet"
+        "value": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6"
       },
       {
         "label": "Approved at",
-        "value": "—"
+        "value": "2026-07-27T13:05:00Z"
       },
       {
         "label": "Next step",
-        "value": "User: run the live-browser MVP playtest, then explicitly say \"MVP approved\""
+        "value": "none — MVP approved"
       }
     ],
     "note": "MVP approval state — the single auditable record (MVP_APPROVAL_STATE.json) of whether a human has EXPLICITLY approved the live-browser MVP. Local automated gates are green, but approval is a manual step: the user must run the playtest and say \"MVP approved\" (which also records approved_by + approved_at). Status stays PENDING until then and can never silently flip — there is no --approve path in the read-only CLI (npm run approval:state). GENERATED at packaging time from the on-disk record; LAST-KNOWN when not regenerated this build. It approves/releases/tags/publishes/deploys NOTHING."
@@ -430,15 +430,15 @@
   "mvpGate": {
     "badge": "MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL",
     "kind": "generated",
-    "band": "awaiting",
-    "statusLabel": "CONFIDENCE GREEN · AWAITING EXPLICIT USER PLAYTEST + OK",
-    "pill": "manual",
-    "approved": false,
-    "verdict": "awaiting-approval",
+    "band": "approved",
+    "statusLabel": "MVP APPROVED (EXPLICIT HUMAN OK RECORDED)",
+    "pill": "no-blocker",
+    "approved": true,
+    "verdict": "approved",
     "metrics": [
       {
         "label": "Gate verdict",
-        "value": "awaiting-approval"
+        "value": "APPROVED"
       },
       {
         "label": "Release gate",
@@ -454,11 +454,11 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2601 passing / 190 files"
+        "value": "green — 2604 passing / 191 files"
       },
       {
         "label": "Explicit approval",
-        "value": "PENDING — a human must run the live playtest and explicitly say \"MVP approved\""
+        "value": "APPROVED by npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6 @ 2026-07-27T13:05:00Z"
       },
       {
         "label": "How approval works",
@@ -517,17 +517,17 @@
   },
   "playtestVerdict": {
     "badge": "MVP PLAYTEST VERDICT · LOCAL · READ-ONLY · TESTER VERDICT ≠ MVP APPROVAL",
-    "kind": "last-known",
-    "band": "pending",
-    "statusLabel": "NO VERDICT RECORDED YET",
+    "kind": "generated",
+    "band": "ok",
+    "statusLabel": "TESTER REPORTS MVP OK · EXPLICIT APPROVAL STILL REQUIRED",
     "pill": "manual",
-    "verdict": "pending",
+    "verdict": "ok",
     "blockers": [],
     "blockerCount": 0,
     "metrics": [
       {
         "label": "Verdict",
-        "value": "pending (not reported)"
+        "value": "MVP OK (no blockers reported)"
       },
       {
         "label": "Blockers",
@@ -535,7 +535,7 @@
       },
       {
         "label": "Reported by",
-        "value": "(not recorded)"
+        "value": "chiefmonkey (npub1a3um269…) @ 2026-07-27"
       },
       {
         "label": "How to report",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.404-alpha"
+        "value": "v0.2.405-alpha"
       },
       {
         "label": "Live game",
@@ -586,7 +586,7 @@
       },
       {
         "label": "MVP approval",
-        "value": "PENDING (explicit user OK required)"
+        "value": "APPROVED"
       },
       {
         "label": "Next safe task",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.404-alpha",
+    "version": "v0.2.405-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

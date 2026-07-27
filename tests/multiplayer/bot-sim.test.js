@@ -101,6 +101,21 @@ describe('botSim movement', () => {
     const after = Math.hypot(player.x - bot.pos.x, player.z - bot.pos.z);
     expect(after).toBeLessThan(before);
   });
+
+  it('makes every regular tier pursue the acquired player directly from range', () => {
+    const { deps } = makeDeps();
+    const sim = createBotSim(deps);
+    const bots = sim.spawnAll(BOT_COUNT);
+    const bot = bots[1]; // hard tier previously defaulted to a left flank anchor
+    bots.forEach((b, i) => { if (i !== 1) b.alive = false; });
+    bot.pos.x = 0; bot.pos.z = 0;
+    bot._coverPoint = null;
+    bot._coverTimer = 999;
+    sim.tick(1 / 60, playerAt(15, 1.6, 0));
+    expect(bot.pos.x).toBeGreaterThan(0);
+    expect(bot.pos.z).toBeCloseTo(0, 8);
+    expect(bot.rotY).toBeCloseTo(Math.PI / 2, 2);
+  });
 });
 
 describe('botSim LOS gate', () => {

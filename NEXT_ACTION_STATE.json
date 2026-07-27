@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-07-16T15:14:34.479Z",
+  "generatedAt": "2026-07-27T13:08:10.954Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
   "version": "v0.2.404-alpha",
   "packageVersion": "0.2.404-alpha",
-  "gitCommit": "5a0e770",
+  "gitCommit": "8167da7",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -31,10 +31,10 @@
     "pill": "manual"
   },
   "mvpApproval": {
-    "status": "pending",
-    "approved": false,
-    "approvedBy": null,
-    "approvedAt": null,
+    "status": "approved",
+    "approved": true,
+    "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
+    "approvedAt": "2026-07-27T13:05:00Z",
     "version": "v0.2.404-alpha"
   },
   "playtestResults": {
@@ -61,12 +61,12 @@
     "schema": "torii.playtest-verdict",
     "schemaVersion": 1,
     "badge": "MVP PLAYTEST VERDICT · LOCAL · READ-ONLY · TESTER VERDICT ≠ MVP APPROVAL",
-    "verdict": "pending",
+    "verdict": "ok",
     "blockers": [],
     "blockerCount": 0,
-    "reported": false,
-    "reportedBy": null,
-    "reportedAt": null,
+    "reported": true,
+    "reportedBy": "chiefmonkey (npub1a3um269…)",
+    "reportedAt": "2026-07-27",
     "approvalImplied": false,
     "safety": {
       "deploy": false,
@@ -124,8 +124,8 @@
     "impliesPlaytestComplete": false
   },
   "mvpGate": {
-    "verdict": "awaiting-approval",
-    "approved": false,
+    "verdict": "approved",
+    "approved": true,
     "confidenceGreen": true,
     "confidenceSignals": {
       "releaseReady": true,
@@ -133,7 +133,7 @@
       "dashboardSmokePass": true,
       "suiteGreen": true
     },
-    "approvalStatus": "pending",
+    "approvalStatus": "approved",
     "focusCount": 11,
     "impliesApproval": false,
     "impliesPlaytestComplete": false

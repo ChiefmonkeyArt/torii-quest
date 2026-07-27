@@ -55,17 +55,10 @@ export function requestLock(el) {
   el.requestPointerLock();
 }
 
-// Callbacks fired when lock is lost (ESC or browser-forced release)
-const _lockLostCbs = [];
-export function onPointerLockLost(fn) { _lockLostCbs.push(fn); }
-
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement !== null;
   if (!locked) {
     _lockReleasedAt = performance.now();
-    // Fire lost-callbacks synchronously — this fires BEFORE keydown 'Escape'
-    // so pause triggers at the earliest possible moment
-    _lockLostCbs.forEach(fn => fn());
   }
   state.pointerLocked = locked;
 });

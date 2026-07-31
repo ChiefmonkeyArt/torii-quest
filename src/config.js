@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.407-alpha';
+export const VERSION   = 'v0.2.408-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -93,6 +93,9 @@ export const BULLET_LIFE    = 2.5;
 export const ENTRY_SATS     = 100;
 export const RESPAWN_TIME   = 4.0;
 export const godMode        = false; // NEVER deploy true
+// Development safety switch. Local/server SCORE frames and caches stay active,
+// but no score event may reach NIP-07 or a relay while this is false.
+export const SCORE_PUBLISH_ENABLED = false;
 
 // MP-1 multiplayer flag. FALSE = single-player, identical to pre-MP-1 behaviour;
 // TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.

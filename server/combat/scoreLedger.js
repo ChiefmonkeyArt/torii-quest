@@ -63,6 +63,22 @@ export function createScoreLedger() {
     return true;
   }
 
+  // Bot combat has only one player-side row. Keep its kill/death counters in the
+  // same authoritative ledger without inventing synthetic bot identities.
+  function addBotKill(shooterId) {
+    const row = rows.get(shooterId);
+    if (!row) return false;
+    row.kills = Math.min(1e6, row.kills + 1);
+    return true;
+  }
+
+  function addBotDeath(victimId) {
+    const row = rows.get(victimId);
+    if (!row) return false;
+    row.deaths = Math.min(1e6, row.deaths + 1);
+    return true;
+  }
+
   function get(id) {
     const r = rows.get(id);
     if (!r) return null;
@@ -99,7 +115,10 @@ export function createScoreLedger() {
 
   function clear() { rows.clear(); }
 
-  return { register, has, addDamage, addKill, get, snapshot, drop, retire, size, clear };
+  return {
+    register, has, addDamage, addKill, addBotKill, addBotDeath,
+    get, snapshot, drop, retire, size, clear,
+  };
 }
 
 /**

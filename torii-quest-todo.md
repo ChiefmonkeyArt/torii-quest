@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.407-alpha`
+Current version: `v0.2.408-alpha`
 
 ## 🚨 TOP OF QUEUE
 

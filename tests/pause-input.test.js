@@ -9,9 +9,10 @@ const RUNTIME = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 const INPUT = readFileSync(join(ROOT, 'src/input.js'), 'utf8');
 
 describe('pause modal input boundary', () => {
-  it('opens the pause modal only from a non-repeating Escape keydown', () => {
+  it('opens pause from Escape keydown or a browser-consumed pointer-lock Escape keyup', () => {
     expect(RUNTIME).toMatch(/if \(e\.code !== 'Escape' \|\| e\.repeat\) return;/);
-    expect(RUNTIME.match(/_openPause\(\);/g)).toHaveLength(1);
+    expect(RUNTIME).toMatch(/_escapeHandledOnKeyDown/);
+    expect(RUNTIME).toMatch(/!handled && isPlaying\(\) && !document\.pointerLockElement/);
     expect(RUNTIME).not.toMatch(/onPointerLockLost/);
     expect(INPUT).not.toMatch(/_lockLostCbs|onPointerLockLost/);
     // _openPause transitions out of PLAYING before pointer-lock release. The

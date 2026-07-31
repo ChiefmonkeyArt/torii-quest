@@ -70,7 +70,9 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // Settings shell (INERT: shown only to the logged-in instance admin; the Access
 // section is a read-only "public + coming soon" placeholder).
 import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
-import { NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW } from './config.js';
+import {
+  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED,
+} from './config.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
 const elTitle = document.getElementById('screen-title');
@@ -813,6 +815,7 @@ async function _refreshPersistentScores() {
 }
 
 async function _publishLatestScore() {
+  if (!SCORE_PUBLISH_ENABLED) return;
   if (_scoreReportInFlight || !_latestScoreFrame || !HEX64.test(state.nostrPubkey || '')) return;
   _scoreReportInFlight = true;
   const reporter = createScoreReporter({
@@ -874,6 +877,12 @@ function _setLbPublishStatus(msg, tone) {
 function _refreshLbPublishButton() {
   const btn = document.getElementById('leaderboard-publish-btn');
   if (!btn) return;
+  if (!SCORE_PUBLISH_ENABLED) {
+    btn.disabled = true;
+    btn.textContent = 'SCORE PUBLISHING DISABLED';
+    _setLbPublishStatus('scores are saved locally; relay publishing is disabled during development', 'muted');
+    return;
+  }
   const loggedIn = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
   btn.disabled = !loggedIn || _publishInFlight;
   btn.textContent = _publishInFlight ? 'PUBLISHING…' : 'PUBLISH MY SCORE';
@@ -884,6 +893,7 @@ function _refreshLbPublishButton() {
 }
 
 async function _publishMyScore() {
+  if (!SCORE_PUBLISH_ENABLED) return;
   if (_publishInFlight) return;
   const pubkey = state.nostrPubkey || '';
   if (!/^[0-9a-f]{64}$/.test(pubkey)) { _setLbPublishStatus('login with Nostr first', 'muted'); return; }

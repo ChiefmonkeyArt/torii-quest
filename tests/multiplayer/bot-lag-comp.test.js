@@ -124,4 +124,21 @@ describe('player→bot lag-compensation', () => {
     expect(res).not.toBeNull();
     expect(res.botId).toBe(b.id);
   });
+
+  it('lets a currently alive respawned bot take damage at its rendered rewind position', () => {
+    const sim = createArenaBotSim({});
+    sim.spawn(BOT_COUNT);
+    const b = sim.bots[0];
+    soloBot(sim, b);
+    b.pos.x = 10; b.pos.z = 0; b.alive = false; sim.recordSnapshot(1000);
+    b.alive = true;
+    b.hp = BOT_HP;
+    const { origin, dir } = bodyShotAt(10, 0);
+    const hit = sim.resolvePlayerShot(origin, dir, 1000, 1100, 300);
+    expect(hit?.botId).toBe(b.id);
+    expect(sim.applyBotDamage(hit.botId, 1, { x: 13, z: 0 })).toMatchObject({
+      hit: true,
+      hpAfter: BOT_HP - 1,
+    });
+  });
 });

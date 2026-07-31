@@ -48,6 +48,18 @@ describe('scoreLedger — register/snapshot', () => {
     expect(l.get('p2').deaths).toBe(1);
   });
 
+  it('records bot kills and bot-caused deaths on the player row', () => {
+    const l = createScoreLedger();
+    l.register('p1', npubA);
+    expect(l.addBotKill('p1')).toBe(true);
+    expect(l.addBotDeath('p1')).toBe(true);
+    expect(l.get('p1')).toEqual({
+      id: 'p1', npub: npubA, kills: 1, deaths: 1, damage: 0,
+    });
+    expect(l.addBotKill('missing')).toBe(false);
+    expect(l.addBotDeath('missing')).toBe(false);
+  });
+
   it('snapshot returns rows sorted by (kills desc, damage desc, id asc)', () => {
     const l = createScoreLedger();
     l.register('p1', npubA);

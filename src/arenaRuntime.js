@@ -35,7 +35,10 @@ import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenF
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
-import { ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING, MP_ENABLED, PLAYER_HP } from './config.js';
+import {
+  ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
+  MP_ENABLED, PLAYER_HP, SCORE_PUBLISH_ENABLED,
+} from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
@@ -224,8 +227,12 @@ export function createArenaRuntime(hooks = {}) {
   //    (main.js). Opt-in only: one NIP-07 sign on click, never auto.
   const _arenaLb = createArenaLeaderboard({
     document,
-    onPublish: () => { try { document.getElementById('leaderboard-publish-btn')?.click(); } catch { /* noop */ } },
-    canPublish: () => /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
+    onPublish: () => {
+      if (!SCORE_PUBLISH_ENABLED) return;
+      try { document.getElementById('leaderboard-publish-btn')?.click(); } catch { /* noop */ }
+    },
+    canPublish: () => SCORE_PUBLISH_ENABLED
+      && /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
     fetchGlobal: async () => {
       try {
         const filter = buildScoreFilter({ limit: 50 });
@@ -529,8 +536,10 @@ export function createArenaRuntime(hooks = {}) {
 
     // ESC — universal override: pause/resume both directions; closes the gateway
     // screen first when it is open. Capture phase so nothing swallows it first.
+    let _escapeHandledOnKeyDown = false;
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
+      _escapeHandledOnKeyDown = true;
       if (isGatewayScreenOpen()) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -545,6 +554,19 @@ export function createArenaRuntime(hooks = {}) {
         e.preventDefault();
         e.stopImmediatePropagation();
         _resume();
+      }
+    }, true);
+    // Some browsers reserve the first Escape while pointer-locked and expose
+    // only its keyup after releasing the lock. Treat that keyup as the same
+    // pause gesture, but only when no keydown handler already processed it.
+    document.addEventListener('keyup', e => {
+      if (e.code !== 'Escape') return;
+      const handled = _escapeHandledOnKeyDown;
+      _escapeHandledOnKeyDown = false;
+      if (!handled && isPlaying() && !document.pointerLockElement) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _openPause();
       }
     }, true);
 

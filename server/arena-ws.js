@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.407-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.408-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -635,6 +635,10 @@ function resolvePlayerBotHit(shooter, botResult) {
   });
   if (SCORE_ENABLED) scoreLedger.addDamage(shooter.id, dmg);
   if (res.killed) {
+    if (SCORE_ENABLED) {
+      scoreLedger.addBotKill(shooter.id);
+      broadcastScoreFrame();
+    }
     broadcastToAll({ t: MSG.BOT_KILL, botId: botResult.botId, shooterId: shooter.id });
   }
 }
@@ -674,6 +678,10 @@ function onBotShot(origin, dir, dmg) {
     shotTs: Date.now(),
   });
   if (outcome.killed) {
+    if (SCORE_ENABLED) {
+      scoreLedger.addBotDeath(best.id);
+      broadcastScoreFrame();
+    }
     broadcastToAll({
       t: MSG.KILL,
       shooterId: BOT_SHOOTER_ID,

@@ -161,7 +161,13 @@ export function createArenaBotSim(opts = {}) {
     const rows = shotTimeRows(shotTs, now, lagCompMs);
     let best = null;
     for (const r of rows) {
-      if (!r.alive) continue;
+      // Position is rewound to what the client rendered, but damage eligibility
+      // follows the current authoritative life state. The client applies
+      // BOT_KILL/BOT_STATE life changes immediately while rendering position
+      // behind live; using the older snapshot's `alive` flag made a freshly
+      // respawned bot visible but unhittable for the whole rewind window.
+      const live = getBot(r.id);
+      if (!live?.alive) continue;
       const colliders = buildBotColliders(r.x, r.z, r.footY, r.radius / BOT_R);
       const res = rayVsBot(origin, dir, colliders);
       if (!res.hit) continue;

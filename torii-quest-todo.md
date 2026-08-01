@@ -276,7 +276,7 @@ Goal: improve visual quality, readability, and feel once the MVP loop is already
 Goal: lift the game from a functional MVP into a distinctive, replayable arena shooter that leans into the cyberpunk-feudal + bitcoin/nostr identity. Each item is a thin vertical slice with a clear green checkpoint.
 
 ### Visuals
-- M4-V1 — HUD legibility pass: bump top-right stats (SATS/KILLS/HP) font size + contrast, add text-shadow / background pills, fix the top-left TORII QUEST logo crop. (Fast win; problem observed across multiple verification rounds.)
+- ~~M4-V1 — HUD legibility pass~~ **LANDED** — top-right scoreboard stats have pill-shaped backgrounds with backdrop blur, text-shadow, 28px bold values; top-left TORII QUEST logo has safe-area padding + gradient + text-shadow (v0.2.400). Crosshair has color-state glow, killfeed + ammo display functional.
 - ~~M4-V2 — Post-processing bloom~~ **LANDED v0.2.400** — `EffectComposer` + `UnrealBloomPass` wired in `src/scene.js`; pure tuning in `src/engine/bloomPlan.js` (strength 0.72, radius 0.33, threshold 0.86); gated by `qualityTier.js` (ON for HIGH/NORMAL, OFF for LOW).
 - M4-V3 — Dynamic muzzle/impact lighting: gunfire and bot hits cast short-lived point-light flashes. Adds punch to currently-static arena lighting.
 - M4-V4 — Player character model rig/animation pass: fix jagged collar/neck polygons visible in third-person; clean rig + idle/move animations (Blender/Meshy workflow).

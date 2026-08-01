@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.412-alpha - PORTAL GLB SATS SYMBOL. Replaced the box-primitive core with the crushed Draco-compressed Bitcoin-orange sats-symbol GLB while preserving its spin, approach glow, position, and inert behavior. Prior: v0.2.409-alpha - BOT HIT-REG ANGLE FIX.
+**Current version:** v0.2.413-alpha - PORTAL GLB MATERIAL PRESERVATION. Keeps the sats-symbol model's original PBR textures and emissive content while retaining the spin and approach glow. Prior: PORTAL GLB SATS SYMBOL.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

@@ -31,7 +31,7 @@ let _scene = null;
 let _spinMeshes = [];   // meshes/groups whose rotation.y advances each tick
 let _pulseMats = [];     // materials whose emissiveIntensity breathes each tick
 let _approachMats = [];  // marker materials the host brightens on approach
-let _approachBase = [];  // each approach material's plan emissiveIntensity (baseline)
+let _approachBase = [];  // each approach material's emissiveIntensity baseline
 let _geometries = [];    // every geometry created, for dispose
 let _materials = [];     // every material created, for dispose
 let _t = 0;              // accumulator for the pulse phase (seconds)
@@ -92,6 +92,7 @@ async function _loadSatsSymbol(part, group, buildId) {
 
     const geometries = new Set();
     const materials = new Set();
+    const approachBases = new Map();
     model.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = false;
@@ -99,12 +100,24 @@ async function _loadSatsSymbol(part, group, buildId) {
       if (object.geometry) geometries.add(object.geometry);
       const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of objectMaterials) {
-        if (!material) continue;
-        if (material.color) material.color.setHex(part.color);
-        if (material.emissive) material.emissive.setHex(part.color);
-        material.emissiveIntensity = part.emissiveIntensity;
+        if (!material || materials.has(material)) continue;
+        const hasEmissiveMap = !!material.emissiveMap;
+        const hasEmissiveColor = !!material.emissive && material.emissive.getHex() !== 0;
+        let baseEmissiveIntensity = 0.5;
+
+        // Preserve every PBR input supplied by the GLB. Existing emissive content is
+        // only given a visible scalar baseline; a material with none gets a subtle
+        // fallback so the host-driven approach glow still has something to modulate.
+        if (hasEmissiveMap || hasEmissiveColor) {
+          material.emissiveIntensity = baseEmissiveIntensity;
+        } else if (material.emissive) {
+          baseEmissiveIntensity = 0.15;
+          material.emissive.setHex(part.color);
+          material.emissiveIntensity = baseEmissiveIntensity;
+        }
         material.needsUpdate = true;
         materials.add(material);
+        approachBases.set(material, baseEmissiveIntensity);
       }
     });
 
@@ -136,7 +149,7 @@ async function _loadSatsSymbol(part, group, buildId) {
       if (part.pulse) _pulseMats.push(material);
       if (part.approach) {
         _approachMats.push(material);
-        _approachBase.push(part.emissiveIntensity);
+        _approachBase.push(approachBases.get(material));
       }
     });
     if (part.spin) _spinMeshes.push(wrapper);

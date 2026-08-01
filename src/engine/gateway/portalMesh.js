@@ -22,9 +22,9 @@ import { buildPortalMeshPlan, PORTAL_MESH_BADGE, PORTAL_MESH_GROUP } from './por
 let _built = false;
 let _group = null;
 let _scene = null;
-let _spinMeshes = [];   // meshes whose rotation.y advances each tick
+let _spinMeshes = [];   // meshes/groups whose rotation.y advances each tick
 let _pulseMats = [];     // materials whose emissiveIntensity breathes each tick
-let _approachMats = [];  // torii-frame materials the host brightens on approach
+let _approachMats = [];  // marker materials the host brightens on approach
 let _approachBase = [];  // each approach material's plan emissiveIntensity (baseline)
 let _geometries = [];    // every geometry created, for dispose
 let _materials = [];     // every material created, for dispose
@@ -45,13 +45,50 @@ function _geometryFor(g) {
       return new THREE.TorusGeometry(g.radius, g.tube, g.radialSegments, g.tubularSegments);
     case 'cylinder':
       return new THREE.CylinderGeometry(g.radiusTop, g.radiusBottom, g.height, g.radialSegments);
-    case 'octahedron':
-      return new THREE.OctahedronGeometry(g.radius, g.detail || 0);
     case 'box':
       return new THREE.BoxGeometry(g.width, g.height, g.depth);
     default:
       return new THREE.BoxGeometry(0.2, 0.2, 0.2);
   }
+}
+
+// _materialFor(part) → the shared glowing material for one plan part.
+function _materialFor(part) {
+  return new THREE.MeshStandardMaterial({
+    color: part.color,
+    emissive: part.color,
+    emissiveIntensity: part.emissiveIntensity,
+    roughness: 0.5,
+    metalness: 0.0,
+    transparent: !!part.transparent,
+    opacity: typeof part.opacity === 'number' ? part.opacity : 1,
+  });
+}
+
+// _satsSymbolFor(mat) → a compact 3D 丰 built from four boxes. The one material is
+// shared by every bar; only the four lightweight geometries require separate GPU
+// buffers. Dimensions preserve the original core's roughly 0.34-unit radius.
+function _satsSymbolFor(mat) {
+  const symbol = new THREE.Group();
+  const bars = [
+    // width, height, depth, y
+    [0.08, 0.60, 0.08, 0],
+    [0.50, 0.08, 0.08, 0.24],
+    [0.45, 0.08, 0.08, 0],
+    [0.35, 0.08, 0.08, -0.24],
+  ];
+
+  for (let i = 0; i < bars.length; i++) {
+    const bar = bars[i];
+    const geom = new THREE.BoxGeometry(bar[0], bar[1], bar[2]);
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.y = bar[3];
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    symbol.add(mesh);
+    _geometries.push(geom);
+  }
+  return symbol;
 }
 
 // buildPortalMesh(scene, opts?) → builds the inert portal marker in `scene` IF the
@@ -74,30 +111,27 @@ export function buildPortalMesh(scene, opts = {}) {
   group.position.set(plan.anchor.x, plan.anchor.y, plan.anchor.z);
 
   for (const part of plan.parts) {
-    const geom = _geometryFor(part.geometry);
     // A glowing emissive standard material — the same family the proof-surface boards
     // and arena floor use, so no new shader/asset is introduced.
-    const mat = new THREE.MeshStandardMaterial({
-      color: part.color,
-      emissive: part.color,
-      emissiveIntensity: part.emissiveIntensity,
-      roughness: 0.5,
-      metalness: 0.0,
-      transparent: !!part.transparent,
-      opacity: typeof part.opacity === 'number' ? part.opacity : 1,
-    });
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.position.set(part.position.x, part.position.y, part.position.z);
-    mesh.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
+    const mat = _materialFor(part);
+    let object;
+    if (part.geometry && part.geometry.type === 'sats-symbol') {
+      object = _satsSymbolFor(mat);
+    } else {
+      const geom = _geometryFor(part.geometry);
+      object = new THREE.Mesh(geom, mat);
+      object.castShadow = false;
+      object.receiveShadow = false;
+      _geometries.push(geom);
+    }
+    object.position.set(part.position.x, part.position.y, part.position.z);
+    object.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
     // INERT: no collider, no userData behaviour, no raycast layer change. It is a
     // pure visual; nothing reads input or ticks it except the scalar spin/pulse below.
-    group.add(mesh);
+    group.add(object);
 
-    _geometries.push(geom);
     _materials.push(mat);
-    if (part.spin) _spinMeshes.push(mesh);
+    if (part.spin) _spinMeshes.push(object);
     if (part.pulse) _pulseMats.push(mat);
     if (part.approach) { _approachMats.push(mat); _approachBase.push(mat.emissiveIntensity); }
   }
@@ -130,19 +164,19 @@ export function tickPortalMesh(dt) {
   }
 }
 
-// setPortalApproach(intensity) → drive the torii-frame glow as the player approaches.
+// setPortalApproach(intensity) → drive the marker glow as the player approaches.
 // `intensity` is a host-computed scalar (typically from the PURE `portalApproach.js`
 // view-model). Allocation-free: it scales each approach material's emissiveIntensity
 // around its plan baseline, so a near player makes the gate visibly "wake". A no-op
 // until the marker is built or when given a non-finite value. Adds NO capability —
-// the frame stays inert; only a display scalar changes.
+// the marker stays inert; only a display scalar changes.
 export function setPortalApproach(intensity) {
   if (!_built || !_approachMats.length) return;
   if (typeof intensity !== 'number' || !Number.isFinite(intensity)) return;
   const k = intensity < 0 ? 0 : intensity > 1.5 ? 1.5 : intensity;
   for (let i = 0; i < _approachMats.length; i++) {
     // Blend the baseline with the approach scalar so each part keeps its relative
-    // brightness while the whole frame lifts as one. Pure scalar write, no allocation.
+    // brightness while the marker lifts as one. Pure scalar write, no allocation.
     _approachMats[i].emissiveIntensity = _approachBase[i] * 0.5 + k;
   }
 }

@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.409-alpha",
-  "generatedAt": "2026-08-01T09:42:47.129Z",
+  "version": "v0.2.410-alpha",
+  "generatedAt": "2026-08-01T10:45:20.360Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -23,7 +23,7 @@
   },
   "taskTotals": {
     "isDerived": true,
-    "todoCompletedMarkers": 17,
+    "todoCompletedMarkers": 19,
     "next12": 12,
     "activeNow": null,
     "completed24h": 27,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.409-alpha"
+        "value": "v0.2.410-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "20 / 20 regression checks GREEN · last green v0.2.409-alpha"
+        "value": "20 / 20 regression checks GREEN · last green v0.2.410-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -156,8 +156,8 @@
   },
   "readiness": {
     "badge": "DEPLOY READINESS · STATIC HOST · READ-ONLY",
-    "status": "ready",
-    "statusLabel": "READY",
+    "status": "docs-ready",
+    "statusLabel": "DOCS READY · BUILD CHECK PENDING",
     "checks": [
       {
         "item": "SPA /zone/* fallback documented",
@@ -166,8 +166,8 @@
       },
       {
         "item": "Built dist route shape",
-        "state": "no-blocker",
-        "note": "dist/index.html present; no static file under /zone/* shadows the fallback"
+        "state": "deferred",
+        "note": "no dist/ this build — run npm run build then npm run zones:check"
       },
       {
         "item": "Host SPA fallback configured",
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.409-alpha",
-    "gitCommit": "aa94945",
+    "version": "v0.2.410-alpha",
+    "gitCommit": "f1edce7",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.409-alpha / pkg 0.2.409-alpha"
+        "detail": "config v0.2.410-alpha / pkg 0.2.410-alpha"
       },
       {
         "key": "tests",
@@ -219,16 +219,16 @@
       {
         "key": "bundle",
         "label": "Bundle baseline",
-        "state": "advisory",
-        "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
+        "state": "skipped",
+        "pill": "deferred",
+        "detail": "no dist/ — build then bundle:report"
       },
       {
         "key": "zoneFallback",
         "label": "/zone/* fallback",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "docs + dist ok"
+        "detail": "docs ok · dist check pending"
       },
       {
         "key": "docs",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.409-alpha",
+    "version": "v0.2.410-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -268,7 +268,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.409-alpha"
+        "value": "v0.2.410-alpha"
       },
       {
         "label": "Release manifest",
@@ -362,7 +362,7 @@
     "nextUp": 12,
     "archiveClusters": 11,
     "completed24h": 27,
-    "todoCompletedMarkers": 17,
+    "todoCompletedMarkers": 19,
     "manualPending": true,
     "metrics": [
       {
@@ -387,7 +387,7 @@
       },
       {
         "label": "Archive / done",
-        "value": "11 landed clusters · 27 done (24h) · 17 struck markers"
+        "value": "11 landed clusters · 27 done (24h) · 19 struck markers"
       }
     ],
     "note": "No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the active/next/archive counts are DERIVED from the same parsed torii-quest-todo.md/torii-quest-progress.md the rest of the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING."
@@ -400,7 +400,7 @@
     "pill": "no-blocker",
     "status": "approved",
     "approved": true,
-    "version": "v0.2.409-alpha",
+    "version": "v0.2.410-alpha",
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.409-alpha"
+        "value": "v0.2.410-alpha"
       },
       {
         "label": "Approved by",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.409-alpha"
+        "value": "v0.2.410-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.409-alpha",
+    "version": "v0.2.410-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

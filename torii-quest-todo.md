@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.414-alpha` - portal emissive baseline
+Current version: `v0.2.415-alpha` - portal GLB cache bust
 
 ## 🚨 TOP OF QUEUE
 

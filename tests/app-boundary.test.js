@@ -97,3 +97,25 @@ describe('BotAgent decision seam stays pure', () => {
     expect(src).not.toMatch(/engine\/(dashboard|status|host)\//);
   });
 });
+
+describe('bot placeholder hitbox alignment', () => {
+  it('centres every capsule placeholder on its registered Rapier body collider', () => {
+    const src = read('src/bots.js');
+    const makeCapsule = src.slice(
+      src.indexOf('function _makeCapsuleBot'),
+      src.indexOf('function _spawnCapsuleBots'),
+    );
+    const placeholderPositions = [...src.matchAll(
+      /(?:mesh|bot\._capsuleMesh)\.position\.set\([\s\S]*?\);/g,
+    )];
+
+    expect(placeholderPositions).toHaveLength(4);
+    for (const match of placeholderPositions) {
+      expect(match[0]).toContain('BOT_BODY_CENTRE_Y_OFFSET');
+    }
+    expect(makeCapsule).toContain(
+      'if (physicsReady) _ensureBotColliders(bot, st.pos.x, st.pos.z);',
+    );
+    expect(makeCapsule).not.toContain('1.15');
+  });
+});

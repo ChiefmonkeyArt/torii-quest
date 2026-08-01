@@ -18,13 +18,12 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v3 (v0.2.318):
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v4 (v0.2.410):
 // the redundant torii-gate frame (pillars + kasagi + nuki + shaft beam) is removed —
 // it read as a misaligned second torii clashing with the arena's real gate. The
-// marker is back to its clean 3-part form: outer range ring + inner accent ring + a
-// floating spinning core that glows on approach. The core keeps `approach:true`; the
-// rings stay inert (range-boundary + accent).
-export const PORTAL_MESH_PLAN_VERSION = 3;
+// marker is a clean 2-part form: outer range ring + a floating, spinning sats symbol
+// that glows on approach. The core keeps `approach:true`; the ring stays inert.
+export const PORTAL_MESH_PLAN_VERSION = 4;
 
 // Badge stamped on the plan + debug report: a visible marker, but inert + display-only.
 export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';
@@ -33,11 +32,10 @@ export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';
 // scene.getObjectByName for tests / debugging). Parity with the proof-surface group.
 export const PORTAL_MESH_GROUP = 'gateway-portal';
 
-// Display palette — matches the arena's turquoise gateway accent (C_TURQ 0x1ad6c4)
-// and the violet step colour (0x8b5cf6) already used elsewhere, so no new look is
-// introduced. Plain hex the adapter hands to a material.
-const COLOR_TURQ   = 0x1ad6c4;
-const COLOR_VIOLET = 0x8b5cf6;
+// Display palette — the arena's turquoise gateway accent (C_TURQ 0x1ad6c4) plus
+// Bitcoin orange for the sats marker. Plain hex the adapter hands to a material.
+const COLOR_TURQ = 0x1ad6c4;
+const COLOR_BITCOIN_ORANGE = 0xf7931a;
 
 // Default proximity radius (world units) — mirrors gatewayPortalActivation /
 // portalTrigger so a plan built without an explicit range still aligns with the gate.
@@ -120,29 +118,13 @@ export function buildPortalMeshPlan(opts = {}) {
       ...INERT,
     },
     {
-      id: 'inner-ring',
-      kind: 'ring',
-      role: 'accent',
-      geometry: { type: 'torus', radius: Math.max(0.4, ringRadius * 0.45), tube: 0.06, radialSegments: 8, tubularSegments: 36 },
-      position: { x: 0, y: 0.08, z: 0 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 },
-      color: COLOR_VIOLET,
-      emissiveIntensity: 0.45,
-      opacity: 1,
-      transparent: false,
-      spin: false,
-      pulse: false,
-      approach: false,
-      ...INERT,
-    },
-    {
       id: 'core',
       kind: 'core',
       role: 'marker',
-      geometry: { type: 'octahedron', radius: 0.34, detail: 0 },
+      geometry: { type: 'sats-symbol' },
       position: { x: 0, y: 1.7, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
-      color: COLOR_VIOLET,
+      color: COLOR_BITCOIN_ORANGE,
       emissiveIntensity: 0.85,
       opacity: 1,
       transparent: false,

@@ -1,6 +1,6 @@
 // tests/portal-mesh-plan.test.js — locks the v0.2.183 in-world GATEWAY PORTAL marker.
-// Covers the PURE render plan (portalMeshPlan.js): range-aligned outer ring, the three
-// inert marker parts (outer ring + inner ring + core), the inert flags pinned on every
+// Covers the PURE render plan (portalMeshPlan.js): range-aligned outer ring, the two
+// inert marker parts (outer ring + sats-symbol core), the inert flags pinned on every
 // part + the plan, and graceful degradation on bad input. Also exercises the browser-only adapter (portalMesh.js)
 // build/tick/dispose with a fake scene (no DOM/WebGL — the marker uses no textures),
 // the debug-shell report, and SDK exposure. Pure plan → node-safe.
@@ -19,7 +19,7 @@ const INERT_KEYS = ['navigated', 'performed', 'external', 'signed', 'published']
 
 describe('module shape', () => {
   it('pins version, badge, group, and demo opts', () => {
-    expect(PORTAL_MESH_PLAN_VERSION).toBe(3);
+    expect(PORTAL_MESH_PLAN_VERSION).toBe(4);
     expect(PORTAL_MESH_BADGE).toBe('PORTAL MESH · DISPLAY-ONLY · INERT');
     expect(PORTAL_MESH_GROUP).toBe('gateway-portal');
     expect(DEMO_PORTAL_MESH_OPTS).toEqual({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Plebeian Market Bazaar' });
@@ -27,11 +27,11 @@ describe('module shape', () => {
 });
 
 describe('buildPortalMeshPlan — happy path', () => {
-  it('builds the clean 3-part marker (rings + core), ok, anchored at the trigger position', () => {
+  it('builds the clean 2-part marker (ring + core), ok, anchored at the trigger position', () => {
     const p = buildPortalMeshPlan({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Bazaar' });
     expect(p.ok).toBe(true);
-    expect(p.count).toBe(3);
-    expect(p.parts).toHaveLength(3);
+    expect(p.count).toBe(2);
+    expect(p.parts).toHaveLength(2);
     expect(p.anchor).toEqual({ x: 20, y: 0, z: 0 });
     expect(p.title).toBe('Bazaar');
     expect(p.reasons).toEqual([]);
@@ -46,28 +46,26 @@ describe('buildPortalMeshPlan — happy path', () => {
     expect(outer.role).toBe('range-boundary');
   });
 
-  it('has the expected 3 part ids/kinds and spin/pulse assignment', () => {
+  it('has the expected 2 part ids/kinds and spin/pulse assignment', () => {
     const p = buildPortalMeshPlan({ position: { x: 0, y: 0, z: 0 }, range: 3 });
     expect(p.parts.map((x) => x.id)).toEqual(
-      ['outer-ring', 'inner-ring', 'core'],
+      ['outer-ring', 'core'],
     );
     expect(p.parts.find((x) => x.id === 'outer-ring').pulse).toBe(true);
     expect(p.parts.find((x) => x.id === 'core').spin).toBe(true);
     expect(p.parts.find((x) => x.id === 'outer-ring').transparent).toBe(false);
   });
 
-  it('lays the two rings flat on the ground and floats the core above them', () => {
+  it('lays the ring flat on the ground and floats the sats core above it', () => {
     const p = buildPortalMeshPlan({ position: { x: 0, y: 0, z: 0 }, range: 3 });
     const outer = p.parts.find((x) => x.id === 'outer-ring');
-    const inner = p.parts.find((x) => x.id === 'inner-ring');
     const core = p.parts.find((x) => x.id === 'core');
     expect(outer.geometry.type).toBe('torus');
-    expect(inner.geometry.type).toBe('torus');
-    // Rings lie flat (rotated -PI/2 about X) at ground level.
+    // Ring lies flat (rotated -PI/2 about X) at ground level.
     expect(outer.rotation.x).toBe(-Math.PI / 2);
-    expect(inner.rotation.x).toBe(-Math.PI / 2);
-    // Core is an octahedron diamond floating above the rings.
-    expect(core.geometry.type).toBe('octahedron');
+    // Core is a Bitcoin-orange sats symbol floating above the ring.
+    expect(core.geometry.type).toBe('sats-symbol');
+    expect(core.color).toBe(0xf7931a);
     expect(core.position.y).toBeGreaterThan(outer.position.y);
   });
 
@@ -76,7 +74,6 @@ describe('buildPortalMeshPlan — happy path', () => {
     const approachIds = p.parts.filter((x) => x.approach === true).map((x) => x.id).sort();
     expect(approachIds).toEqual(['core']);
     expect(p.parts.find((x) => x.id === 'outer-ring').approach).toBe(false);
-    expect(p.parts.find((x) => x.id === 'inner-ring').approach).toBe(false);
   });
 });
 
@@ -157,34 +154,57 @@ describe('portalMesh adapter — build/tick/dispose', () => {
     const s = buildPortalMesh(scene, { position: { x: 20, y: 0, z: 0 }, range: 3 });
     expect(s.rendered).toBe(true);
     expect(s.ok).toBe(true);
-    expect(s.count).toBe(3);
+    expect(s.count).toBe(2);
     expect(s.anchor).toEqual({ x: 20, y: 0, z: 0 });
     expect(s.ringRadius).toBe(3);
     expect(added).toBeTruthy();
     expect(added.name).toBe(PORTAL_MESH_GROUP);
+    expect(added.children).toHaveLength(2);
+    const sats = added.children[1];
+    expect(sats.type).toBe('Group');
+    expect(sats.children).toHaveLength(4);
+    expect(new Set(sats.children.map((bar) => bar.material)).size).toBe(1);
     // Idempotent: a second build is a no-op (still one group added).
     const again = buildPortalMesh({ add() { throw new Error('should not add twice'); }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
     expect(again.rendered).toBe(true);
   });
 
   it('tick is a safe no-op shape (does not throw, mutates only scalars)', () => {
-    buildPortalMesh({ add() {}, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+    let added = null;
+    buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+    const sats = added.children[1];
+    const before = sats.rotation.y;
     expect(() => { tickPortalMesh(0.016); tickPortalMesh(); tickPortalMesh(NaN); }).not.toThrow();
+    expect(sats.rotation.y).toBeGreaterThan(before);
   });
 
-  it('setPortalApproach drives the frame glow (scalar only) and ignores bad input', () => {
+  it('setPortalApproach drives the marker glow (scalar only) and ignores bad input', () => {
     // Safe before any build.
     expect(() => setPortalApproach(1)).not.toThrow();
-    buildPortalMesh({ add() {}, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+    let added = null;
+    buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+    const sharedSatsMat = added.children[1].children[0].material;
+    const before = sharedSatsMat.emissiveIntensity;
     expect(() => { setPortalApproach(0); setPortalApproach(1.05); setPortalApproach(NaN); setPortalApproach('x'); }).not.toThrow();
+    expect(sharedSatsMat.emissiveIntensity).toBeGreaterThan(before);
   });
 
-  it('dispose resets to a clean teardown state', () => {
-    buildPortalMesh({ add() {}, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+  it('dispose frees all geometries/materials and resets to a clean teardown state', () => {
+    let added = null;
+    buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
+    const sats = added.children[1];
+    const geometries = [added.children[0].geometry, ...sats.children.map((bar) => bar.geometry)];
+    const materials = [...new Set([added.children[0].material, ...sats.children.map((bar) => bar.material)])];
+    let disposedGeometries = 0;
+    let disposedMaterials = 0;
+    for (const geometry of geometries) geometry.addEventListener('dispose', () => { disposedGeometries += 1; });
+    for (const material of materials) material.addEventListener('dispose', () => { disposedMaterials += 1; });
     disposePortalMesh();
     const s = portalMeshRenderState();
     expect(s.rendered).toBe(false);
     expect(s.reasons).toContain('disposed');
+    expect(disposedGeometries).toBe(5);
+    expect(disposedMaterials).toBe(2);
   });
 });
 

@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.412-alpha`
+Current version: `v0.2.413-alpha` - portal GLB material preservation
 
 ## 🚨 TOP OF QUEUE
 

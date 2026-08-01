@@ -277,14 +277,18 @@ function _ensureBotColliders(bot, x, z) {
 const _botGeo  = new THREE.CapsuleGeometry(0.35, 1.1, 4, 8);
 const _colors  = [0x8b5cf6, 0xf7931a, 0x22d3ee, 0xf43f5e, 0x4ade80];
 function _makeCapsuleBot(st, i = st.id) {
+  const fy = _footY(st.pos.x, st.pos.z);
   const mesh = new THREE.Mesh(
     _botGeo,
     new THREE.MeshStandardMaterial({ color: _colors[i % _colors.length], roughness: 0.6 })
   );
-  mesh.position.set(st.pos.x, 1.15 + _footY(st.pos.x, st.pos.z), st.pos.z);
+  // Keep the fallback/streaming placeholder centred on the Rapier body capsule.
+  // A separate head sphere still covers the upper aim zone.
+  mesh.position.set(st.pos.x, fy + BOT_BODY_CENTRE_Y_OFFSET, st.pos.z);
   scene.add(mesh);
   const bot = _makeWrapper(st, null, mesh);
   bots.push(bot);
+  if (physicsReady) _ensureBotColliders(bot, st.pos.x, st.pos.z);
   return bot;
 }
 
@@ -504,7 +508,7 @@ function _syncNetBot(bot, pose, dt) {
       bot.model.tick(dt);
     }
   } else if (bot._capsuleMesh && !bot.model) {
-    bot._capsuleMesh.position.set(pose.x, 1.15 + fy, pose.z);
+    bot._capsuleMesh.position.set(pose.x, fy + BOT_BODY_CENTRE_Y_OFFSET, pose.z);
     bot._capsuleMesh.rotation.y = pose.rotY;
   }
   bot._prevAlive = true;
@@ -537,7 +541,11 @@ function _syncBot(bot, dt) {
       bot.model.syncTo(st.pos.x, _footY(st.pos.x, st.pos.z), st.pos.z, 0);
       bot.model.play('Walking', true);
     } else if (bot._capsuleMesh) {
-      bot._capsuleMesh.position.set(st.pos.x, 1.15 + _footY(st.pos.x, st.pos.z), st.pos.z);
+      bot._capsuleMesh.position.set(
+        st.pos.x,
+        _footY(st.pos.x, st.pos.z) + BOT_BODY_CENTRE_Y_OFFSET,
+        st.pos.z,
+      );
       bot._capsuleMesh.visible = true;
     }
     bot._prevDying = false;
@@ -570,7 +578,11 @@ function _syncBot(bot, dt) {
       bot.model.tick(dt);
     }
   } else if (bot._capsuleMesh && !bot.model) {
-    bot._capsuleMesh.position.set(st.pos.x, 1.15 + _footY(st.pos.x, st.pos.z), st.pos.z);
+    bot._capsuleMesh.position.set(
+      st.pos.x,
+      _footY(st.pos.x, st.pos.z) + BOT_BODY_CENTRE_Y_OFFSET,
+      st.pos.z,
+    );
     bot._capsuleMesh.rotation.y = st.rotY;
   }
 

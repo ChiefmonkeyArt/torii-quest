@@ -18,12 +18,12 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v5 (v0.2.411):
-// the floating sats core is now the crushed Draco-compressed GLB asset rather than
-// four box primitives. The marker remains a clean 2-part form: outer range ring +
-// a floating, spinning sats symbol that glows on approach. The core keeps
-// `approach:true`; the ring stays inert.
-export const PORTAL_MESH_PLAN_VERSION = 5;
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v6 (v0.2.415):
+// the floating sats core GLB URL includes this version as a query parameter so
+// release changes bypass stale cache-first service-worker entries. The marker remains
+// a clean 2-part form: outer range ring + a floating, spinning sats symbol that glows
+// on approach. The core keeps `approach:true`; the ring stays inert.
+export const PORTAL_MESH_PLAN_VERSION = 6;
 
 // Badge stamped on the plan + debug report: a visible marker, but inert + display-only.
 export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';
@@ -121,7 +121,7 @@ export function buildPortalMeshPlan(opts = {}) {
       id: 'core',
       kind: 'core',
       role: 'marker',
-      geometry: { type: 'sats-symbol-glb', src: 'models/sats-symbol.glb' },
+      geometry: { type: 'sats-symbol-glb', src: `models/sats-symbol.glb?v=${PORTAL_MESH_PLAN_VERSION}` },
       position: { x: 0, y: 1.7, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       color: COLOR_BITCOIN_ORANGE,

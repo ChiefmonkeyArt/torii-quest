@@ -70,7 +70,7 @@ export function playShoot() {
 
 // ── Footstep — soft thud, alternating L/R pitch ────────────────────────────
 // Called by main.js dt-accumulator while player is moving on the ground.
-// Two pitches alternate per step for natural cadence. Gain 0.06 — quiet but
+// Two pitches alternate per step for natural cadence. Gain 0.15 — clear and
 // audible. Low-passed noise burst is the body; tiny sine pluck adds heel.
 let _footFlip = false;
 export function playFootstep() {
@@ -91,7 +91,7 @@ export function playFootstep() {
   src.buffer = buf;
   lp.type = 'lowpass';
   lp.frequency.value = _footFlip ? 320 : 280;
-  ngain.gain.setValueAtTime(0.06, t);
+  ngain.gain.setValueAtTime(0.15, t);
   ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(lp);
   lp.connect(ngain);
@@ -104,7 +104,7 @@ export function playFootstep() {
   osc.type = 'sine';
   osc.frequency.setValueAtTime(_footFlip ? 120 : 95, t);
   osc.frequency.exponentialRampToValueAtTime(45, t + 0.05);
-  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.setValueAtTime(0.10, t);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
   osc.connect(gain);
   gain.connect(ctx.destination);
@@ -302,7 +302,7 @@ export function playJumpLand() {
   src.buffer = buf;
   lp.type = 'lowpass';
   lp.frequency.value = 200;
-  ngain.gain.setValueAtTime(0.10, t);
+  ngain.gain.setValueAtTime(0.22, t);
   ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(lp);
   lp.connect(ngain);
@@ -314,7 +314,7 @@ export function playJumpLand() {
   osc.type = 'sine';
   osc.frequency.setValueAtTime(140, t);
   osc.frequency.exponentialRampToValueAtTime(50, t + 0.10);
-  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.setValueAtTime(0.18, t);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.11);
   osc.connect(gain);
   gain.connect(ctx.destination);

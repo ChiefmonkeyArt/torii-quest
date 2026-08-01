@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.413-alpha - PORTAL GLB MATERIAL PRESERVATION. Keeps the sats-symbol model's original PBR textures and emissive content while retaining the spin and approach glow. Prior: PORTAL GLB SATS SYMBOL.
+**Current version:** v0.2.414-alpha - PORTAL EMISSIVE BASELINE. Reduces the sats-symbol GLB's emissive baseline so its original PBR textures dominate at idle while the approach glow still becomes bright. Prior: PORTAL GLB MATERIAL PRESERVATION.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

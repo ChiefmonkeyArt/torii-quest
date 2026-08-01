@@ -103,11 +103,12 @@ async function _loadSatsSymbol(part, group, buildId) {
         if (!material || materials.has(material)) continue;
         const hasEmissiveMap = !!material.emissiveMap;
         const hasEmissiveColor = !!material.emissive && material.emissive.getHex() !== 0;
-        let baseEmissiveIntensity = 0.5;
+        let baseEmissiveIntensity = 0.05;
 
         // Preserve every PBR input supplied by the GLB. Existing emissive content is
-        // only given a visible scalar baseline; a material with none gets a subtle
-        // fallback so the host-driven approach glow still has something to modulate.
+        // kept at a low baseline so it does not wash out the base color, normal, and
+        // metallic-roughness textures. A material with none gets a subtle fallback
+        // so the host-driven approach glow still has something to modulate.
         if (hasEmissiveMap || hasEmissiveColor) {
           material.emissiveIntensity = baseEmissiveIntensity;
         } else if (material.emissive) {

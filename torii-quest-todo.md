@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.413-alpha` - portal GLB material preservation
+Current version: `v0.2.414-alpha` - portal emissive baseline
 
 ## 🚨 TOP OF QUEUE
 

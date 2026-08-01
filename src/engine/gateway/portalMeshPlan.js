@@ -18,12 +18,12 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v4 (v0.2.410):
-// the redundant torii-gate frame (pillars + kasagi + nuki + shaft beam) is removed —
-// it read as a misaligned second torii clashing with the arena's real gate. The
-// marker is a clean 2-part form: outer range ring + a floating, spinning sats symbol
-// that glows on approach. The core keeps `approach:true`; the ring stays inert.
-export const PORTAL_MESH_PLAN_VERSION = 4;
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v5 (v0.2.411):
+// the floating sats core is now the crushed Draco-compressed GLB asset rather than
+// four box primitives. The marker remains a clean 2-part form: outer range ring +
+// a floating, spinning sats symbol that glows on approach. The core keeps
+// `approach:true`; the ring stays inert.
+export const PORTAL_MESH_PLAN_VERSION = 5;
 
 // Badge stamped on the plan + debug report: a visible marker, but inert + display-only.
 export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';
@@ -98,8 +98,8 @@ export function buildPortalMeshPlan(opts = {}) {
 
   // Parts are described relative to the group ORIGIN; the adapter mounts the group at
   // `anchor`, so a part's `position` is a local offset. Geometry is param-only — the
-  // adapter maps `geometry.type` → a THREE primitive. Small segment counts keep the
-  // marker light (no heavy assets, no high-poly geometry).
+  // adapter maps primitive types directly and loads the sats GLB asynchronously.
+  // Small segment counts keep the procedural outer ring light.
   const parts = [
     {
       id: 'outer-ring',
@@ -121,7 +121,7 @@ export function buildPortalMeshPlan(opts = {}) {
       id: 'core',
       kind: 'core',
       role: 'marker',
-      geometry: { type: 'sats-symbol' },
+      geometry: { type: 'sats-symbol-glb', src: 'models/sats-symbol.glb' },
       position: { x: 0, y: 1.7, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       color: COLOR_BITCOIN_ORANGE,

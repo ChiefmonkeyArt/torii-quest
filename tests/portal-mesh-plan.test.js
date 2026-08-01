@@ -1,6 +1,6 @@
 // tests/portal-mesh-plan.test.js — locks the v0.2.183 in-world GATEWAY PORTAL marker.
 // Covers the PURE render plan (portalMeshPlan.js): range-aligned outer ring, the two
-// inert marker parts (outer ring + sats-symbol core), the inert flags pinned on every
+// inert marker parts (outer ring + GLB sats-symbol core), the inert flags pinned on every
 // part + the plan, and graceful degradation on bad input. Also exercises the browser-only adapter (portalMesh.js)
 // build/tick/dispose with a fake scene (no DOM/WebGL — the marker uses no textures),
 // the debug-shell report, and SDK exposure. Pure plan → node-safe.
@@ -19,7 +19,7 @@ const INERT_KEYS = ['navigated', 'performed', 'external', 'signed', 'published']
 
 describe('module shape', () => {
   it('pins version, badge, group, and demo opts', () => {
-    expect(PORTAL_MESH_PLAN_VERSION).toBe(4);
+    expect(PORTAL_MESH_PLAN_VERSION).toBe(5);
     expect(PORTAL_MESH_BADGE).toBe('PORTAL MESH · DISPLAY-ONLY · INERT');
     expect(PORTAL_MESH_GROUP).toBe('gateway-portal');
     expect(DEMO_PORTAL_MESH_OPTS).toEqual({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Plebeian Market Bazaar' });
@@ -64,7 +64,7 @@ describe('buildPortalMeshPlan — happy path', () => {
     // Ring lies flat (rotated -PI/2 about X) at ground level.
     expect(outer.rotation.x).toBe(-Math.PI / 2);
     // Core is a Bitcoin-orange sats symbol floating above the ring.
-    expect(core.geometry.type).toBe('sats-symbol');
+    expect(core.geometry).toEqual({ type: 'sats-symbol-glb', src: 'models/sats-symbol.glb' });
     expect(core.color).toBe(0xf7931a);
     expect(core.position.y).toBeGreaterThan(outer.position.y);
   });
@@ -159,11 +159,9 @@ describe('portalMesh adapter — build/tick/dispose', () => {
     expect(s.ringRadius).toBe(3);
     expect(added).toBeTruthy();
     expect(added.name).toBe(PORTAL_MESH_GROUP);
-    expect(added.children).toHaveLength(2);
-    const sats = added.children[1];
-    expect(sats.type).toBe('Group');
-    expect(sats.children).toHaveLength(4);
-    expect(new Set(sats.children.map((bar) => bar.material)).size).toBe(1);
+    // The outer ring is synchronous; the GLB core is added later in the background.
+    expect(added.children).toHaveLength(1);
+    expect(added.children[0].geometry.type).toBe('TorusGeometry');
     // Idempotent: a second build is a no-op (still one group added).
     const again = buildPortalMesh({ add() { throw new Error('should not add twice'); }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
     expect(again.rendered).toBe(true);
@@ -172,29 +170,21 @@ describe('portalMesh adapter — build/tick/dispose', () => {
   it('tick is a safe no-op shape (does not throw, mutates only scalars)', () => {
     let added = null;
     buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
-    const sats = added.children[1];
-    const before = sats.rotation.y;
     expect(() => { tickPortalMesh(0.016); tickPortalMesh(); tickPortalMesh(NaN); }).not.toThrow();
-    expect(sats.rotation.y).toBeGreaterThan(before);
   });
 
   it('setPortalApproach drives the marker glow (scalar only) and ignores bad input', () => {
     // Safe before any build.
     expect(() => setPortalApproach(1)).not.toThrow();
-    let added = null;
-    buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
-    const sharedSatsMat = added.children[1].children[0].material;
-    const before = sharedSatsMat.emissiveIntensity;
+    buildPortalMesh({ add() {}, remove() {} }, DEMO_PORTAL_MESH_OPTS);
     expect(() => { setPortalApproach(0); setPortalApproach(1.05); setPortalApproach(NaN); setPortalApproach('x'); }).not.toThrow();
-    expect(sharedSatsMat.emissiveIntensity).toBeGreaterThan(before);
   });
 
   it('dispose frees all geometries/materials and resets to a clean teardown state', () => {
     let added = null;
     buildPortalMesh({ add(g) { added = g; }, remove() {} }, DEMO_PORTAL_MESH_OPTS);
-    const sats = added.children[1];
-    const geometries = [added.children[0].geometry, ...sats.children.map((bar) => bar.geometry)];
-    const materials = [...new Set([added.children[0].material, ...sats.children.map((bar) => bar.material)])];
+    const geometries = [added.children[0].geometry];
+    const materials = [added.children[0].material];
     let disposedGeometries = 0;
     let disposedMaterials = 0;
     for (const geometry of geometries) geometry.addEventListener('dispose', () => { disposedGeometries += 1; });
@@ -203,8 +193,8 @@ describe('portalMesh adapter — build/tick/dispose', () => {
     const s = portalMeshRenderState();
     expect(s.rendered).toBe(false);
     expect(s.reasons).toContain('disposed');
-    expect(disposedGeometries).toBe(5);
-    expect(disposedMaterials).toBe(2);
+    expect(disposedGeometries).toBe(1);
+    expect(disposedMaterials).toBe(1);
   });
 });
 

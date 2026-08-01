@@ -4,9 +4,10 @@
 // small set of inert marker meshes ONCE at the portal trigger position.
 //
 // DISPLAY-ONLY and INERT: no collider, no raycast/click handler, no input, no
-// navigation, no payments, no Nostr/relay/signing, no live data, no external fetch.
-// The marker is a visual landmark only; the safety model (proximity arms, KeyF
-// confirms, same-origin /zone/ only) is unchanged — this module adds NO capability.
+// navigation, no payments, no Nostr/relay/signing, and no live data. The only asset
+// request is the bundled sats-symbol GLB. The marker is a visual landmark only; the
+// safety model (proximity arms, KeyF confirms, same-origin /zone/ only) is unchanged
+// — this module adds NO capability.
 //
 // ALLOCATION DISCIPLINE: every THREE object is created EXACTLY ONCE in
 // `buildPortalMesh()` (scene-setup, not a hot path). `tickPortalMesh(dt)` mutates ONLY
@@ -15,11 +16,16 @@
 // `_built` guard makes re-entry a no-op; `disposePortalMesh()` frees the geometries +
 // materials and detaches the group for a clean teardown.
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { assetUrl } from '../../assetUrl.js';
 import { buildPortalMeshPlan, PORTAL_MESH_BADGE, PORTAL_MESH_GROUP } from './portalMeshPlan.js';
 
 // Module-scope handles, all created once. Refs kept so the tick can mutate scalars and
 // dispose can free GPU resources without re-querying the scene graph.
 let _built = false;
+let _glbLoaded = false;
+let _buildId = 0;        // invalidates an in-flight GLB load on dispose/rebuild
 let _group = null;
 let _scene = null;
 let _spinMeshes = [];   // meshes/groups whose rotation.y advances each tick
@@ -65,30 +71,81 @@ function _materialFor(part) {
   });
 }
 
-// _satsSymbolFor(mat) → a compact 3D 丰 built from four boxes. The one material is
-// shared by every bar; only the four lightweight geometries require separate GPU
-// buffers. Dimensions preserve the original core's roughly 0.34-unit radius.
-function _satsSymbolFor(mat) {
-  const symbol = new THREE.Group();
-  const bars = [
-    // width, height, depth, y
-    [0.08, 0.60, 0.08, 0],
-    [0.50, 0.08, 0.08, 0.24],
-    [0.45, 0.08, 0.08, 0],
-    [0.35, 0.08, 0.08, -0.24],
-  ];
+function _disposeLoaded(geometries, materials) {
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+}
 
-  for (let i = 0; i < bars.length; i++) {
-    const bar = bars[i];
-    const geom = new THREE.BoxGeometry(bar[0], bar[1], bar[2]);
-    const mesh = new THREE.Mesh(geom, mat);
-    mesh.position.y = bar[3];
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    symbol.add(mesh);
-    _geometries.push(geom);
+// _loadSatsSymbol(part, group, buildId) → loads the bundled Draco GLB in the
+// background. A wrapper remains at the exact plan position while the model is
+// uniformly centred/scaled inside it to the old core's approximate 0.7-unit height.
+async function _loadSatsSymbol(part, group, buildId) {
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath(assetUrl('/draco/'));
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(dracoLoader);
+
+  try {
+    const gltf = await loader.loadAsync(part.geometry.src);
+    const model = gltf && gltf.scene;
+    if (!model) return;
+
+    const geometries = new Set();
+    const materials = new Set();
+    model.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = false;
+      object.receiveShadow = false;
+      if (object.geometry) geometries.add(object.geometry);
+      const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of objectMaterials) {
+        if (!material) continue;
+        if (material.color) material.color.setHex(part.color);
+        if (material.emissive) material.emissive.setHex(part.color);
+        material.emissiveIntensity = part.emissiveIntensity;
+        material.needsUpdate = true;
+        materials.add(material);
+      }
+    });
+
+    // A disposed/rebuilt marker must never receive a stale asynchronous result.
+    if (!_built || buildId !== _buildId || group !== _group) {
+      _disposeLoaded(geometries, materials);
+      return;
+    }
+
+    const box = new THREE.Box3().setFromObject(model);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const scale = 0.7 / (size.y || 1);
+    model.scale.multiplyScalar(scale);
+    box.setFromObject(model);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    model.position.sub(center);
+
+    const wrapper = new THREE.Group();
+    wrapper.position.set(part.position.x, part.position.y, part.position.z);
+    wrapper.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
+    wrapper.add(model);
+    group.add(wrapper);
+
+    geometries.forEach((geometry) => _geometries.push(geometry));
+    materials.forEach((material) => {
+      _materials.push(material);
+      if (part.pulse) _pulseMats.push(material);
+      if (part.approach) {
+        _approachMats.push(material);
+        _approachBase.push(part.emissiveIntensity);
+      }
+    });
+    if (part.spin) _spinMeshes.push(wrapper);
+    _glbLoaded = true;
+  } catch {
+    // The outer ring remains usable if the optional visual asset cannot load.
+  } finally {
+    dracoLoader.dispose();
   }
-  return symbol;
 }
 
 // buildPortalMesh(scene, opts?) → builds the inert portal marker in `scene` IF the
@@ -110,20 +167,20 @@ export function buildPortalMesh(scene, opts = {}) {
   group.name = PORTAL_MESH_GROUP;
   group.position.set(plan.anchor.x, plan.anchor.y, plan.anchor.z);
 
+  const glbParts = [];
   for (const part of plan.parts) {
+    if (part.geometry && part.geometry.type === 'sats-symbol-glb') {
+      glbParts.push(part);
+      continue;
+    }
     // A glowing emissive standard material — the same family the proof-surface boards
     // and arena floor use, so no new shader/asset is introduced.
     const mat = _materialFor(part);
-    let object;
-    if (part.geometry && part.geometry.type === 'sats-symbol') {
-      object = _satsSymbolFor(mat);
-    } else {
-      const geom = _geometryFor(part.geometry);
-      object = new THREE.Mesh(geom, mat);
-      object.castShadow = false;
-      object.receiveShadow = false;
-      _geometries.push(geom);
-    }
+    const geom = _geometryFor(part.geometry);
+    const object = new THREE.Mesh(geom, mat);
+    object.castShadow = false;
+    object.receiveShadow = false;
+    _geometries.push(geom);
     object.position.set(part.position.x, part.position.y, part.position.z);
     object.rotation.set(part.rotation.x, part.rotation.y, part.rotation.z);
     // INERT: no collider, no userData behaviour, no raycast layer change. It is a
@@ -140,6 +197,9 @@ export function buildPortalMesh(scene, opts = {}) {
   _group = group;
   _scene = scene;
   _built = true;
+  _glbLoaded = false;
+  const buildId = ++_buildId;
+  for (const part of glbParts) void _loadSatsSymbol(part, group, buildId);
   _state = Object.freeze({ rendered: true, count: plan.parts.length, ok: true, badge: plan.badge, reasons: [], anchor: Object.freeze({ ...plan.anchor }), ringRadius: plan.ringRadius });
   return _state;
 }
@@ -152,8 +212,10 @@ export function tickPortalMesh(dt) {
   if (!_built) return;
   const d = typeof dt === 'number' && Number.isFinite(dt) ? dt : 0;
   _t += d;
-  for (let i = 0; i < _spinMeshes.length; i++) {
-    _spinMeshes[i].rotation.y += d * 0.8; // slow idle spin
+  if (_glbLoaded) {
+    for (let i = 0; i < _spinMeshes.length; i++) {
+      _spinMeshes[i].rotation.y += d * 0.8; // slow idle spin
+    }
   }
   if (_pulseMats.length) {
     // Gentle breathing in [0.4, 0.7]; a scalar sin, no allocation.
@@ -171,7 +233,7 @@ export function tickPortalMesh(dt) {
 // until the marker is built or when given a non-finite value. Adds NO capability —
 // the marker stays inert; only a display scalar changes.
 export function setPortalApproach(intensity) {
-  if (!_built || !_approachMats.length) return;
+  if (!_built || !_glbLoaded || !_approachMats.length) return;
   if (typeof intensity !== 'number' || !Number.isFinite(intensity)) return;
   const k = intensity < 0 ? 0 : intensity > 1.5 ? 1.5 : intensity;
   for (let i = 0; i < _approachMats.length; i++) {
@@ -185,6 +247,7 @@ export function setPortalApproach(intensity) {
 // the build guard so a later build can re-create the marker. For a clean teardown
 // (e.g. a future scene reset); the live app builds once and never disposes.
 export function disposePortalMesh() {
+  _buildId += 1;
   if (_group && _scene) _scene.remove(_group);
   for (let i = 0; i < _geometries.length; i++) _geometries[i].dispose();
   for (let i = 0; i < _materials.length; i++) _materials[i].dispose();
@@ -198,5 +261,6 @@ export function disposePortalMesh() {
   _materials = [];
   _t = 0;
   _built = false;
+  _glbLoaded = false;
   _state = Object.freeze({ rendered: false, count: 0, ok: false, badge: PORTAL_MESH_BADGE, reasons: ['disposed'] });
 }

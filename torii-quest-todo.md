@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.415-alpha` - portal GLB cache bust
+Current version: `v0.2.416-alpha` - sats PBR rendering
 
 ## 🚨 TOP OF QUEUE
 

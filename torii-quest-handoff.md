@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.415-alpha - PORTAL GLB CACHE BUST. Versions the sats-symbol GLB URL with the portal mesh plan version so each release bypasses stale service-worker cache entries. Prior: PORTAL EMISSIVE BASELINE.
+**Current version:** v0.2.416-alpha - SATS PBR RENDERING. Overrides the GLB's fully metallic material for the no-environment-map scene so the base color texture remains visible, with a subtle approach-glow baseline. Prior: PORTAL GLB CACHE BUST.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

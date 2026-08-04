@@ -101,19 +101,19 @@ async function _loadSatsSymbol(part, group, buildId) {
       const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
       for (const material of objectMaterials) {
         if (!material || materials.has(material)) continue;
-        const hasEmissiveMap = !!material.emissiveMap;
-        const hasEmissiveColor = !!material.emissive && material.emissive.getHex() !== 0;
-        let baseEmissiveIntensity = 0.05;
 
-        // Preserve every PBR input supplied by the GLB. Existing emissive content is
-        // kept at a low baseline so it does not wash out the base color, normal, and
-        // metallic-roughness textures. A material with none gets a subtle fallback
-        // so the host-driven approach glow still has something to modulate.
-        if (hasEmissiveMap || hasEmissiveColor) {
-          material.emissiveIntensity = baseEmissiveIntensity;
-        } else if (material.emissive) {
-          baseEmissiveIntensity = 0.15;
-          material.emissive.setHex(part.color);
+        // Preserve all PBR textures from the GLB. Override metalness/roughness
+        // because the scene has no environment map - fully metallic surfaces (the
+        // GLB default) render black without one. Low metalness lets the base
+        // color texture dominate; roughness gives specular response to scene lights.
+        material.metalness = 0.15;
+        material.roughness = 0.65;
+
+        // Subtle emissive baseline for the approach-glow mechanism (won't wash
+        // out the base color at this intensity).
+        const baseEmissiveIntensity = 0.02;
+        if (material.emissive) {
+          if (material.emissive.getHex() === 0) material.emissive.setHex(part.color);
           material.emissiveIntensity = baseEmissiveIntensity;
         }
         material.needsUpdate = true;

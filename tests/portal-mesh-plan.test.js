@@ -19,7 +19,7 @@ const INERT_KEYS = ['navigated', 'performed', 'external', 'signed', 'published']
 
 describe('module shape', () => {
   it('pins version, badge, group, and demo opts', () => {
-    expect(PORTAL_MESH_PLAN_VERSION).toBe(6);
+    expect(PORTAL_MESH_PLAN_VERSION).toBe(7);
     expect(PORTAL_MESH_BADGE).toBe('PORTAL MESH · DISPLAY-ONLY · INERT');
     expect(PORTAL_MESH_GROUP).toBe('gateway-portal');
     expect(DEMO_PORTAL_MESH_OPTS).toEqual({ position: { x: 20, y: 0, z: 0 }, range: 3, title: 'Plebeian Market Bazaar' });
@@ -64,7 +64,7 @@ describe('buildPortalMeshPlan — happy path', () => {
     // Ring lies flat (rotated -PI/2 about X) at ground level.
     expect(outer.rotation.x).toBe(-Math.PI / 2);
     // Core is a Bitcoin-orange sats symbol floating above the ring.
-    expect(core.geometry).toEqual({ type: 'sats-symbol-glb', src: 'models/sats-symbol.glb?v=6' });
+    expect(core.geometry).toEqual({ type: 'sats-symbol-glb', src: 'models/sats-symbol.glb?v=7' });
     expect(core.color).toBe(0xf7931a);
     expect(core.position.y).toBeGreaterThan(outer.position.y);
   });

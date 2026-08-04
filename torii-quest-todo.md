@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.416-alpha` - sats PBR rendering
+Current version: `v0.2.417-alpha` - sats env map + emissive
 
 ## 🚨 TOP OF QUEUE
 

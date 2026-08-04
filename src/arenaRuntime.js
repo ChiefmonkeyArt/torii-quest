@@ -532,7 +532,7 @@ export function createArenaRuntime(hooks = {}) {
       position: _portalTrigger.portalPos(),
       range: _portalTrigger.range(),
       title: 'Plebeian Market Bazaar',
-    });
+    }, renderer);
 
     // ESC — universal override: pause/resume both directions; closes the gateway
     // screen first when it is open. Capture phase so nothing swallows it first.

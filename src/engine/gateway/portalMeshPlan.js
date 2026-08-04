@@ -18,12 +18,12 @@
 //   - PURE + node-safe. Allocates only plain objects/numbers, never a THREE class, and
 //     never reads a global window/document. The host passes position + range in.
 
-// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v6 (v0.2.415):
+// PORTAL_MESH_PLAN_VERSION — bumped when the plan part shape changes. v7 (v0.2.417):
 // the floating sats core GLB URL includes this version as a query parameter so
 // release changes bypass stale cache-first service-worker entries. The marker remains
 // a clean 2-part form: outer range ring + a floating, spinning sats symbol that glows
 // on approach. The core keeps `approach:true`; the ring stays inert.
-export const PORTAL_MESH_PLAN_VERSION = 6;
+export const PORTAL_MESH_PLAN_VERSION = 7;
 
 // Badge stamped on the plan + debug report: a visible marker, but inert + display-only.
 export const PORTAL_MESH_BADGE = 'PORTAL MESH · DISPLAY-ONLY · INERT';

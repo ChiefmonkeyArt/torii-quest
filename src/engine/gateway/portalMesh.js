@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { assetUrl } from '../../assetUrl.js';
 import { buildPortalMeshPlan, PORTAL_MESH_BADGE, PORTAL_MESH_GROUP } from './portalMeshPlan.js';
 
@@ -34,6 +35,9 @@ let _approachMats = [];  // marker materials the host brightens on approach
 let _approachBase = [];  // each approach material's emissiveIntensity baseline
 let _geometries = [];    // every geometry created, for dispose
 let _materials = [];     // every material created, for dispose
+let _pmremGenerator = null;     // builds the sats symbol's lightweight reflection map
+let _envMapRenderTarget = null; // owns the PMREM texture's GPU resources
+let _envMap = null;             // texture assigned to the GLB's PBR materials
 let _t = 0;              // accumulator for the pulse phase (seconds)
 
 // Render state mirrored for the debug surface. Frozen so a reader can never mutate it.
@@ -76,19 +80,48 @@ function _disposeLoaded(geometries, materials) {
   materials.forEach((material) => material.dispose());
 }
 
-// _loadSatsSymbol(part, group, buildId) → loads the bundled Draco GLB in the
+function _disposeEnvironment(renderTarget, envMap, pmremGenerator) {
+  if (renderTarget) renderTarget.dispose();
+  else if (envMap) envMap.dispose();
+  if (pmremGenerator) pmremGenerator.dispose();
+}
+
+// _loadSatsSymbol(part, group, buildId, renderer) → loads the bundled Draco GLB in the
 // background. A wrapper remains at the exact plan position while the model is
 // uniformly centred/scaled inside it to the old core's approximate 0.7-unit height.
-async function _loadSatsSymbol(part, group, buildId) {
+async function _loadSatsSymbol(part, group, buildId, renderer) {
   const dracoLoader = new DRACOLoader();
   dracoLoader.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(dracoLoader);
+  let pmremGenerator = null;
+  let envMapRenderTarget = null;
+  let envMap = null;
+  let environmentAdopted = false;
 
   try {
     const gltf = await loader.loadAsync(part.geometry.src);
     const model = gltf && gltf.scene;
     if (!model) return;
+
+    // Generate a small, neutral reflection environment once for the GLB. Importing
+    // the renderer here would eagerly instantiate scene.js in node tests, so the
+    // browser runtime passes its existing renderer into this adapter explicitly.
+    if (renderer) {
+      const roomEnvironment = new RoomEnvironment();
+      try {
+        pmremGenerator = new THREE.PMREMGenerator(renderer);
+        envMapRenderTarget = pmremGenerator.fromScene(roomEnvironment, 0.04);
+        envMap = envMapRenderTarget.texture;
+      } catch {
+        _disposeEnvironment(envMapRenderTarget, envMap, pmremGenerator);
+        pmremGenerator = null;
+        envMapRenderTarget = null;
+        envMap = null;
+      } finally {
+        roomEnvironment.dispose();
+      }
+    }
 
     const geometries = new Set();
     const materials = new Set();
@@ -102,19 +135,15 @@ async function _loadSatsSymbol(part, group, buildId) {
       for (const material of objectMaterials) {
         if (!material || materials.has(material)) continue;
 
-        // Preserve all PBR textures from the GLB. Override metalness/roughness
-        // because the scene has no environment map - fully metallic surfaces (the
-        // GLB default) render black without one. Low metalness lets the base
-        // color texture dominate; roughness gives specular response to scene lights.
-        material.metalness = 0.15;
-        material.roughness = 0.65;
-
-        // Subtle emissive baseline for the approach-glow mechanism (won't wash
-        // out the base color at this intensity).
-        const baseEmissiveIntensity = 0.02;
+        // Preserve the GLB's original PBR values and textures. The PMREM environment
+        // gives its high-metalness, low-roughness gold surface proper reflections.
+        const baseEmissiveIntensity = 0.6;
         if (material.emissive) {
-          if (material.emissive.getHex() === 0) material.emissive.setHex(part.color);
           material.emissiveIntensity = baseEmissiveIntensity;
+        }
+        if (envMap) {
+          material.envMap = envMap;
+          material.envMapIntensity = 1.0;
         }
         material.needsUpdate = true;
         materials.add(material);
@@ -125,6 +154,7 @@ async function _loadSatsSymbol(part, group, buildId) {
     // A disposed/rebuilt marker must never receive a stale asynchronous result.
     if (!_built || buildId !== _buildId || group !== _group) {
       _disposeLoaded(geometries, materials);
+      _disposeEnvironment(envMapRenderTarget, envMap, pmremGenerator);
       return;
     }
 
@@ -154,19 +184,26 @@ async function _loadSatsSymbol(part, group, buildId) {
       }
     });
     if (part.spin) _spinMeshes.push(wrapper);
+    _pmremGenerator = pmremGenerator;
+    _envMapRenderTarget = envMapRenderTarget;
+    _envMap = envMap;
+    environmentAdopted = true;
     _glbLoaded = true;
   } catch {
+    if (!environmentAdopted) {
+      _disposeEnvironment(envMapRenderTarget, envMap, pmremGenerator);
+    }
     // The outer ring remains usable if the optional visual asset cannot load.
   } finally {
     dracoLoader.dispose();
   }
 }
 
-// buildPortalMesh(scene, opts?) → builds the inert portal marker in `scene` IF the
+// buildPortalMesh(scene, opts?, renderer?) → builds the inert portal marker in `scene` IF the
 // plan is ok, else builds NOTHING. `opts` is forwarded to the plan (position/range/
 // title — typically the live trigger's portalPos()/range()). Idempotent: only the
 // first successful build renders; later calls are no-ops. Returns the render state.
-export function buildPortalMesh(scene, opts = {}) {
+export function buildPortalMesh(scene, opts = {}, renderer = null) {
   if (_built) return _state;
 
   const plan = buildPortalMeshPlan(opts);
@@ -213,7 +250,7 @@ export function buildPortalMesh(scene, opts = {}) {
   _built = true;
   _glbLoaded = false;
   const buildId = ++_buildId;
-  for (const part of glbParts) void _loadSatsSymbol(part, group, buildId);
+  for (const part of glbParts) void _loadSatsSymbol(part, group, buildId, renderer);
   _state = Object.freeze({ rendered: true, count: plan.parts.length, ok: true, badge: plan.badge, reasons: [], anchor: Object.freeze({ ...plan.anchor }), ringRadius: plan.ringRadius });
   return _state;
 }
@@ -265,6 +302,7 @@ export function disposePortalMesh() {
   if (_group && _scene) _scene.remove(_group);
   for (let i = 0; i < _geometries.length; i++) _geometries[i].dispose();
   for (let i = 0; i < _materials.length; i++) _materials[i].dispose();
+  _disposeEnvironment(_envMapRenderTarget, _envMap, _pmremGenerator);
   _group = null;
   _scene = null;
   _spinMeshes = [];
@@ -273,6 +311,9 @@ export function disposePortalMesh() {
   _approachBase = [];
   _geometries = [];
   _materials = [];
+  _pmremGenerator = null;
+  _envMapRenderTarget = null;
+  _envMap = null;
   _t = 0;
   _built = false;
   _glbLoaded = false;

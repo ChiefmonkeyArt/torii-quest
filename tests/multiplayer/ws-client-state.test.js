@@ -46,6 +46,7 @@ function makeClient(overrides = {}) {
       event: { kind: 22242, tags: [['challenge', challenge]], content: '', created_at: 1 },
     })),
     emit: (name, payload) => emitted.push({ name, payload }),
+    now: overrides.now,
     setTimeoutFn,
     clearTimeoutFn,
   });
@@ -78,6 +79,21 @@ describe('wsClient state machine', () => {
     expect(client.state).toBe(WS_STATE.CONNECTED);
     expect(client.selfId).toBe('me1');
     expect(emitted.some((e) => e.name === 'roster')).toBe(true);
+  });
+
+  it('syncs the server clock offset from WELCOME and refines it from PONG', async () => {
+    let clock = 1000;
+    const { client } = makeClient({ now: () => clock });
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [], srv: 5000 });
+    expect(client.serverTsOffset).toBe(4000);
+
+    clock = 1100;
+    ws._message({ t: MSG.PONG, ts: 1000, srv: 5070 });
+    // RTT=100ms; new offset=5070-(1100-50)=4020; EMA=4006.
+    expect(client.oneWayMs).toBe(50);
+    expect(client.serverTsOffset).toBe(4006);
   });
 
   it('rejects a mismatched protocolVersion and closes', async () => {

@@ -150,9 +150,14 @@ export function createMultiplayerHost(deps) {
         return;
       }
       case 'move': {
+        // Translate the server timestamp into the shared client clock so
+        // interpolation follows send time instead of variable arrival time.
+        const srv = Number.isFinite(payload.srv) ? payload.srv : null;
+        const offset = ws && Number.isFinite(ws.serverTsOffset) ? ws.serverTsOffset : 0;
+        const clientTs = srv !== null ? srv - offset : now();
         roster.applyMove(payload.id, {
           pos: payload.pos, rot: payload.rot, vel: payload.vel,
-          clientTs: now(), // server->client relay is treated as arriving-now
+          clientTs,
         });
         return;
       }

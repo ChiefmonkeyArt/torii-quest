@@ -207,6 +207,9 @@ export function createWsClient(opts) {
       }
       case MSG.WELCOME: {
         api.selfId = msg.selfId;
+        if (Number.isFinite(msg.srv)) {
+          api.serverTsOffset = msg.srv - now();
+        }
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
         api.backoffMs = BACKOFF_MS_INITIAL; // reset on successful connect
         _startKeepalive();
@@ -259,6 +262,14 @@ export function createWsClient(opts) {
           const ow = rtt / 2;
           api.oneWayMs = api.oneWayMs ? api.oneWayMs * 0.7 + ow * 0.3 : ow;
           if (api.oneWayMs > 250) api.oneWayMs = 250;
+          if (Number.isFinite(msg.srv)) {
+            // Server time at mid-RTT = msg.srv. Client time at mid-RTT =
+            // now() - rtt/2, so offset = server - client.
+            const newOffset = msg.srv - (now() - rtt / 2);
+            api.serverTsOffset = api.serverTsOffset
+              ? api.serverTsOffset * 0.7 + newOffset * 0.3
+              : newOffset;
+          }
         }
         return;
       }

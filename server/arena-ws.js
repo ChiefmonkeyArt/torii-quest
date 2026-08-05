@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.417-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.418-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -305,7 +305,7 @@ function finishAuth(sess, { npub, pubkey }) {
       pos: other.pos, rot: other.rot, character: other.character,
     });
   }
-  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster });
+  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now() });
   // Announce this new peer to everyone else.
   broadcastToOthers(sess.id, {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,
@@ -380,7 +380,7 @@ async function handleMessage(sess, raw) {
           vel: Array.isArray(msg.vel) ? msg.vel : [0, 0, 0],
         });
       }
-      broadcastToOthers(sess.id, { ...msg, id: sess.id });
+      broadcastToOthers(sess.id, { ...msg, id: sess.id, srv: Date.now() });
       return;
     }
     case MSG.SHOT: {
@@ -420,7 +420,7 @@ async function handleMessage(sess, raw) {
       return;
     }
     case MSG.PING: {
-      sendTo(sess, { t: MSG.PONG, ts: msg.ts });
+      sendTo(sess, { t: MSG.PONG, ts: msg.ts, srv: Date.now() });
       return;
     }
     case MSG.PONG: return;

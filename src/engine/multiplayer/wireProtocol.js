@@ -121,6 +121,7 @@ const validators = {
   [MSG.WELCOME](m) {
     if (!isStr(m.selfId, LIMITS.ID_LEN))    return fail('BAD_FIELD', 'selfId');
     if (!Array.isArray(m.roster))           return fail('BAD_FIELD', 'roster');
+    if (m.srv !== undefined && !isFiniteNum(m.srv)) return fail('BAD_FIELD', 'srv');
     for (const p of m.roster) {
       if (!isStr(p.id, LIMITS.ID_LEN))      return fail('BAD_ROSTER', 'id');
       if (!isStr(p.npub, LIMITS.NPUB_LEN))  return fail('BAD_ROSTER', 'npub');
@@ -149,6 +150,7 @@ const validators = {
     if (!isVec3(m.vel, LIMITS.VEL_ABS)) return fail('BAD_FIELD', 'vel');
     // Server stamps `id` on rebroadcast; client-outbound MOVE omits id.
     if (m.id !== undefined && !isStr(m.id, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'id');
+    if (m.srv !== undefined && !isFiniteNum(m.srv)) return fail('BAD_FIELD', 'srv');
     return ok(m);
   },
   [MSG.SHOT](m) {
@@ -189,6 +191,7 @@ const validators = {
   },
   [MSG.PONG](m) {
     if (!isFiniteNum(m.ts)) return fail('BAD_FIELD', 'ts');
+    if (m.srv !== undefined && !isFiniteNum(m.srv)) return fail('BAD_FIELD', 'srv');
     return ok(m);
   },
   [MSG.RESPAWN](m) {
@@ -299,16 +302,16 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.AUTH]:      ['npub', 'sig', 'event'],
   [MSG.AUTH_TOKEN]:['token'],
   [MSG.AUTH_FAIL]: ['reason'],
-  [MSG.WELCOME]:   ['selfId', 'roster'],
+  [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],
-  [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel'],
+  [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel', 'srv'],
   [MSG.SHOT]:      ['id', 'origin', 'dir', 'ts', 'viewLag'],
   [MSG.HIT]:       ['id', 'targetId', 'dmg', 'zone', 'shotTs'],
   [MSG.KILL]:      ['shooterId', 'victimId', 'weapon'],
   [MSG.CHAT]:      ['id', 'msg'],
   [MSG.PING]:      ['ts'],
-  [MSG.PONG]:      ['ts'],
+  [MSG.PONG]:      ['ts', 'srv'],
   [MSG.RESPAWN]:   ['pos', 'rot', 'hp'],
   [MSG.SCORE]:     ['sessionId', 'endedAt', 'tallies'],
   [MSG.BOT_STATE]: ['bots'],

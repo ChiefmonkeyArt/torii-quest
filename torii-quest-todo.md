@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.418-alpha` - sats env map + emissive
+Current version: `v0.2.419-alpha` - M4-V3 muzzle/impact lighting
 
 ## 🚨 TOP OF QUEUE
 

@@ -199,6 +199,7 @@ const _cratePt       = { x: 0, y: 0, z: 0 };
 
 // ── Hit callbacks — set by main.js ───────────────────────────────────────────
 let _onPlayerHit = null;
+let _onImpact    = null;
 let _bots        = null;
 // Getter (not the collider itself) — player collider is created async after
 // Rapier inits, so we resolve it lazily each shot.
@@ -208,11 +209,12 @@ let _getPlayerCollider = () => null;
 // a weapons→bots→player→weapons cycle), so the flag arrives as a getter.
 let _isNetMode = () => false;
 
-export function initWeapons(bots, onPlayerHit, getPlayerCollider, isNetMode) {
+export function initWeapons(bots, onPlayerHit, getPlayerCollider, isNetMode, onImpact) {
   _bots = bots;
   _onPlayerHit = onPlayerHit;
   if (getPlayerCollider) _getPlayerCollider = getPlayerCollider;
   if (isNetMode) _isNetMode = isNetMode;
+  _onImpact = typeof onImpact === 'function' ? onImpact : null;
   _buildGun();
 }
 
@@ -358,6 +360,7 @@ export function tickWeapons(dt, playerPos) {
             } else {
               // Wall / crate / obstacle / ground — use Rapier-provided normal.
               _impactNrm.set(hit.normal.x, hit.normal.y, hit.normal.z);
+              if (_onImpact) _onImpact(_rayHitP);
               spawnSpark(_rayHitP, _impactNrm);
               const dot = b.vel.dot(_impactNrm);
               _reflDir.copy(b.vel).addScaledVector(_impactNrm, -2 * dot).normalize();

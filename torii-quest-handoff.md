@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.419-alpha - M4-V3 MUZZLE/IMPACT LIGHTING. Adds pooled, quality-gated point-light flashes for player/remote muzzle fire, geometry impacts, and player hits on bots. Prior: SATS ENV MAP + EMISSIVE.
+**Current version:** v0.2.420-alpha - M4-G1 BOT FLANKING. Wires deterministic flank-slot anchors into regular bot movement while preserving cover, close standoff, and boss behavior. Prior: M4-V3 MUZZLE/IMPACT LIGHTING.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

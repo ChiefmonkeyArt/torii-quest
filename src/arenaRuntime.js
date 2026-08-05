@@ -17,6 +17,7 @@ import { emit, on, EV } from './events.js';
 import { renderer, renderFrame, scene, camera, composer, bloomPass } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
+import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
@@ -211,6 +212,7 @@ export function createArenaRuntime(hooks = {}) {
   // bloom gate change. The debug perf HUD reads its metrics snapshot but only
   // touches the DOM when window.__toriiPerf (or ToriiDebug.perf) is set.
   const _quality = createQualityTier({ renderer, composer, bloomPass, window });
+  let _muzzleFlashes = null;
   const _perfHud = createPerfHud({
     window,
     getMetrics: () => _quality.metrics(),
@@ -385,6 +387,7 @@ export function createArenaRuntime(hooks = {}) {
     tickMirror(dt);
     tickFoliage(dt);
     tickSea(dt);
+    if (_muzzleFlashes) _muzzleFlashes.tick(dt);
     if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
@@ -432,7 +435,16 @@ export function createArenaRuntime(hooks = {}) {
     initPlayerStats();
     initPlayer();
     initBots(playerObj, spawnBullet);
-    initWeapons(bots, takeDamage, getPlayerCollider, isBotNetMode);
+    _muzzleFlashes = createMuzzleFlashPool(scene, {
+      getQualityTier: () => _quality.currentTier(),
+    });
+    initWeapons(
+      bots,
+      takeDamage,
+      getPlayerCollider,
+      isBotNetMode,
+      (impactPos) => _muzzleFlashes.trigger('impact', impactPos),
+    );
     initTargetReticle({ bots, playerObj, getPlayerCollider });
 
     // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX. Suppressed
@@ -440,6 +452,7 @@ export function createArenaRuntime(hooks = {}) {
     on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
       if (playerObj.position.x > NAP_X) return;
       const b = spawnBullet(origin, dir, true);
+      _muzzleFlashes.trigger('muzzle', origin);
       if (aimOrigin && aimDir) {
         recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
       }
@@ -465,7 +478,11 @@ export function createArenaRuntime(hooks = {}) {
     });
     on(EV.SHOOT, () => { _isShooting = true; });
 
-    on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => { hitBot(bot, dmg); flashCross(); });
+    on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
+      hitBot(bot, dmg);
+      if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
+      flashCross();
+    });
     window._onBotHit = (bot, dmg) => emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg });
 
     on(EV.PLAYER_HIT,    () => triggerHit());
@@ -625,6 +642,7 @@ export function createArenaRuntime(hooks = {}) {
         spawnPeerShotFx: (origin, dir) => {
           _mpShotOrigin.set(origin[0], origin[1], origin[2]);
           _mpShotDir.set(dir[0], dir[1], dir[2]);
+          _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
           if (_mpShotDir.lengthSq() > 1e-8) _mpShotDir.normalize();
           spawnSpark(_mpShotOrigin, _mpShotDir);
           spawnRicochet(_mpShotOrigin, _mpShotDir);
@@ -648,10 +666,25 @@ export function createArenaRuntime(hooks = {}) {
         // the LOCAL tab. Read-only — no signer, no prompts.
         if (name === 'mp_score') { _arenaLb.setLiveScore(p); emit(EV.SCORE_FRAME, p); return; }
         if (name === 'mp_botState') { ingestBotState(p.bots); return; }
-        if (name === 'mp_botShot')  { applyBotShot(p.origin, p.dir); return; }
+        if (name === 'mp_botShot') {
+          if (Array.isArray(p.origin)) {
+            _mpShotOrigin.set(p.origin[0], p.origin[1], p.origin[2]);
+            _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
+          }
+          applyBotShot(p.origin, p.dir);
+          return;
+        }
         if (name === 'mp_botHit') {
           applyBotHit(p.botId, p.hp);
-          if (_mp && p.shooterId === _mp.selfId) flashCross();
+          if (_mp && p.shooterId === _mp.selfId) {
+            for (let i = 0; i < bots.length; i++) {
+              if (bots[i].state?.id === p.botId) {
+                _muzzleFlashes.trigger('botHit', bots[i].pos);
+                break;
+              }
+            }
+            flashCross();
+          }
           return;
         }
         if (name === 'mp_botKill') {

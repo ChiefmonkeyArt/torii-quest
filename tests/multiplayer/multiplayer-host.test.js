@@ -192,6 +192,32 @@ describe('multiplayerHost — inbound wire', () => {
     expect(entry).not.toBeNull();
     expect(entry.buf.snaps.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('translates MOVE server timestamps into the shared client clock domain', async () => {
+    let clock = 1000;
+    const { host } = makeHost({ now: () => clock });
+    host.start();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [], srv: 5000 });
+    ws._message({
+      t: MSG.JOIN,
+      ...peerDesc('p1'),
+    });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+
+    clock = 1125;
+    ws._message({
+      t: MSG.MOVE,
+      id: 'p1',
+      pos: [1, 0, 0],
+      rot: [0, 0],
+      vel: [0, 0, 0],
+      srv: 5100,
+    });
+    const entry = host.roster._peek('p1');
+    expect(entry.buf.snaps.at(-1).clientTs).toBe(1100);
+  });
 });
 
 // ---------- outbound wire ----------

@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.417-alpha - SATS ENV MAP + EMISSIVE. Adds a lightweight RoomEnvironment PMREM for proper metallic gold reflections, restores the GLB's authored metallic/roughness textures, and preserves the green emissive texture at a visible baseline. Prior: SATS PBR RENDERING.
+**Current version:** v0.2.418-alpha - SATS ENV MAP + EMISSIVE. Adds a lightweight RoomEnvironment PMREM for proper metallic gold reflections, restores the GLB's authored metallic/roughness textures, and preserves the green emissive texture at a visible baseline. Prior: SATS PBR RENDERING.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

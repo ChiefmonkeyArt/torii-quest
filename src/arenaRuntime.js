@@ -201,7 +201,7 @@ export function createArenaRuntime(hooks = {}) {
   // roster; the render loop only calls `_mp.tick(now)` and (throttled) `_mp.sendMove()`.
   let _mp = null;
   let _mpMoveAccum = 0;
-  const MP_MOVE_HZ = 10;
+  const MP_MOVE_HZ = 20;
   const MP_MOVE_INTERVAL = 1 / MP_MOVE_HZ;
 
   // v0.2.379-alpha: adaptive render-quality tier — a rolling frame-time monitor
@@ -680,6 +680,7 @@ export function createArenaRuntime(hooks = {}) {
       _mp = createMultiplayerHost({
         scene,
         emit: _mpEmit,
+        now: () => performance.now(),
         // Load the shared chiefmonkey6 model for every peer (per-character skinning
         // lands in MP-1.5). Returns a wrapper THREE.Group (feet on ground, faced
         // -Z, IDLE mixer, obj.update(dt)) with position/rotation/dispose().

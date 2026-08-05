@@ -189,6 +189,18 @@ describe('sanitize — strips unknown fields', () => {
     expect(clean.id).toBe('peer-x');
   });
 
+  it('keeps optional server timestamps on WELCOME, MOVE, and PONG', () => {
+    expect(sanitize({ t: MSG.WELCOME, selfId: 'me', roster: [], srv: 100 }).srv).toBe(100);
+    expect(sanitize({ ...goodMove, srv: 101 }).srv).toBe(101);
+    expect(sanitize({ t: MSG.PONG, ts: 1, srv: 102 }).srv).toBe(102);
+  });
+
+  it('rejects malformed optional server timestamps', () => {
+    expect(decode({ t: MSG.WELCOME, selfId: 'me', roster: [], srv: '100' }).ok).toBe(false);
+    expect(decode({ ...goodMove, srv: NaN }).ok).toBe(false);
+    expect(decode({ t: MSG.PONG, ts: 1, srv: null }).ok).toBe(false);
+  });
+
   it('never carries fields for unknown t (defensive)', () => {
     // sanitize is only called on validated messages, but be defensive:
     // an unknown-t message returned as-is (caller's problem, not ours).

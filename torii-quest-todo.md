@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.417-alpha` - sats env map + emissive
+Current version: `v0.2.418-alpha` - sats env map + emissive
 
 ## 🚨 TOP OF QUEUE
 

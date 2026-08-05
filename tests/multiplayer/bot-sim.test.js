@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createBotSim, BOT_R, EYE_Y, FLY_TARGET_CEILING, COVER_MARGIN }
   from '../../src/engine/entities/botSim.js';
-import { buildCoverPoints } from '../../src/engine/entities/bot-tactics.js';
+import { buildCoverPoints, flankAnchor } from '../../src/engine/entities/bot-tactics.js';
 
 const BOT_COUNT = 5;
 const BOT_HP = 5;
@@ -102,19 +102,103 @@ describe('botSim movement', () => {
     expect(after).toBeLessThan(before);
   });
 
-  it('makes every regular tier pursue the acquired player directly from range', () => {
-    const { deps } = makeDeps();
+  it('targets the assigned flank anchor from beyond regular standoff', () => {
+    const { deps } = makeDeps({ arenaBoxes: [] });
     const sim = createBotSim(deps);
     const bots = sim.spawnAll(BOT_COUNT);
-    const bot = bots[1]; // hard tier previously defaulted to a left flank anchor
+    const bot = bots[1]; // hard tier, left flank slot
     bots.forEach((b, i) => { if (i !== 1) b.alive = false; });
     bot.pos.x = 0; bot.pos.z = 0;
     bot._coverPoint = null;
     bot._coverTimer = 999;
-    sim.tick(1 / 60, playerAt(15, 1.6, 0));
+    const player = playerAt(15, 1.6, 0);
+    const anchor = { x: 0, z: 0 };
+    flankAnchor(player.x, player.z, bot.pos.x, bot.pos.z,
+      bot._flankSlot.angle, bot.tier.flankBias, anchor);
+
+    sim.tick(1 / 60, player);
+
+    const moveX = bot.pos.x;
+    const moveZ = bot.pos.z;
+    const expectedLen = Math.hypot(anchor.x, anchor.z);
+    expect(moveX / Math.hypot(moveX, moveZ)).toBeCloseTo(anchor.x / expectedLen, 8);
+    expect(moveZ / Math.hypot(moveX, moveZ)).toBeCloseTo(anchor.z / expectedLen, 8);
+    expect(anchor).not.toEqual({ x: player.x, z: player.z });
     expect(bot.pos.x).toBeGreaterThan(0);
-    expect(bot.pos.z).toBeCloseTo(0, 8);
+    expect(bot.pos.z).toBeLessThan(0);
     expect(bot.rotY).toBeCloseTo(Math.PI / 2, 2);
+  });
+
+  it('assigns different flank targets to bots in different slots', () => {
+    const moveForIndex = (index) => {
+      const { deps } = makeDeps({ arenaBoxes: [] });
+      const sim = createBotSim(deps);
+      const bots = sim.spawnAll(BOT_COUNT);
+      bots.forEach((b, i) => { if (i !== index) b.alive = false; });
+      const bot = bots[index];
+      bot.pos.x = 0; bot.pos.z = 0;
+      bot._coverPoint = null;
+      bot._coverTimer = 999;
+      sim.tick(1 / 60, playerAt(15, 1.6, 0));
+      return { x: bot.pos.x, z: bot.pos.z };
+    };
+
+    const left = moveForIndex(1);
+    const right = moveForIndex(2);
+    expect(left.z).toBeLessThan(0);
+    expect(right.z).toBeGreaterThan(0);
+    expect(left).not.toEqual(right);
+  });
+
+  it('keeps cover as the desired target instead of flanking', () => {
+    const { deps } = makeDeps({ arenaBoxes: [] });
+    const sim = createBotSim(deps);
+    const bots = sim.spawnAll(BOT_COUNT);
+    const bot = bots[1];
+    bots.forEach((b, i) => { if (i !== 1) b.alive = false; });
+    bot.pos.x = 0; bot.pos.z = 0;
+    bot._coverPoint = [0, 10];
+    bot._coverTimer = 999;
+
+    sim.tick(1 / 60, playerAt(15, 1.6, 0));
+
+    expect(bot.pos.x).toBeCloseTo(0, 8);
+    expect(bot.pos.z).toBeGreaterThan(0);
+  });
+
+  it('keeps bosses walking straight at the player without flanking', () => {
+    const { deps } = makeDeps({
+      arenaBoxes: [],
+      config: {
+        BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X,
+        BOSS_COUNT: 1, BOSS_HP: 60, BOSS_SPEED: 1, BOSS_DAMAGE: 14,
+        BOSS_SHOOT_CD: 3.5, BOSS_RADIUS: 0.8, BOSS_NAME: 'Augustink',
+      },
+    });
+    const sim = createBotSim(deps);
+    const [boss] = sim.spawnAll(1);
+    boss.pos.x = 0; boss.pos.z = 0;
+
+    sim.tick(1 / 60, playerAt(15, 1.6, 0));
+
+    expect(boss.kind).toBe('boss');
+    expect(boss.pos.x).toBeGreaterThan(0);
+    expect(boss.pos.z).toBeCloseTo(0, 8);
+  });
+
+  it('holds position within regular standoff instead of flanking', () => {
+    const { deps } = makeDeps({ arenaBoxes: [] });
+    const sim = createBotSim(deps);
+    const bots = sim.spawnAll(BOT_COUNT);
+    const bot = bots[1];
+    bots.forEach((b, i) => { if (i !== 1) b.alive = false; });
+    bot.pos.x = 0; bot.pos.z = 0;
+    bot._coverPoint = null;
+    bot._coverTimer = 999;
+
+    sim.tick(1 / 60, playerAt(3.5, 1.6, 0));
+
+    expect(bot.pos).toEqual({ x: 0, z: 0 });
   });
 });
 

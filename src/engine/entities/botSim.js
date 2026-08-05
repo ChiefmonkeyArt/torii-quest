@@ -20,7 +20,7 @@
 // wrapper can fire them.
 import { engageSpeed, steerComponent } from './bot-agent.js';
 import {
-  tierForIndex, flankSlotForIndex,
+  tierForIndex, flankSlotForIndex, flankAnchor,
   pickCover, obstacleAvoid,
   effectiveSight, effectiveCooldown, effectiveSpread,
 } from './bot-tactics.js';
@@ -65,9 +65,9 @@ const TARGET_NEARER_RATIO_2 = 0.7 ** 2;                   // switch if new² < 0
 // the boss read as "fleeing". The boss instead marches straight at the player
 // and HOLDS at this standoff (metres), never seeking cover and never retreating.
 const BOSS_STANDOFF = 3.0;
-// Regular bots visibly pursue their acquired player instead of defaulting to a
-// flank anchor or seeking cover while still out of combat. Once close they hold
-// a compact standoff; a genuinely pressured bot can still use existing cover.
+// Regular bots approach their acquired player through deterministic flank
+// anchors. Once close they hold a compact standoff; a genuinely pressured bot
+// can still use existing cover.
 const REGULAR_STANDOFF = 4.0;
 
 // createBotSim(deps) — build the headless bot brain.
@@ -122,6 +122,7 @@ export function createBotSim(deps) {
   // Scratch — plain {x,z} bags reused every tick (allocation-free hot path).
   const _sep    = { x: 0, z: 0 };
   const _avoid  = { x: 0, z: 0 };
+  const _flank  = { x: 0, z: 0 };
 
   // ── Safe random spawn position — never inside the player's safe corner ──────
   function _safeSpawnPos() {
@@ -380,8 +381,8 @@ export function createBotSim(deps) {
       }
 
       // ── Desired target ───────────────────────────────────────────────────────
-      // Both archetypes visibly pursue their acquired player. The boss holds at
-      // BOSS_STANDOFF; regular bots hold at REGULAR_STANDOFF unless a genuinely
+      // The boss pursues directly and holds at BOSS_STANDOFF. Regular bots seek
+      // their assigned flank anchor until REGULAR_STANDOFF unless a genuinely
       // pressured bot has selected cover.
       let tx, tz;
       if (isBoss) {
@@ -390,7 +391,11 @@ export function createBotSim(deps) {
       } else if (state._coverPoint) {
         tx = state._coverPoint[0]; tz = state._coverPoint[1];
       } else if (dist > REGULAR_STANDOFF) {
-        tx = pp.x; tz = pp.z;
+        // Flank: circle the player at the bot's assigned slot angle instead of
+        // walking straight in. Bosses never flank (handled above). The flank
+        // anchor is a point on a ring around the player, offset by the slot angle.
+        flankAnchor(pp.x, pp.z, px, pz, state._flankSlot.angle, tier.flankBias, _flank);
+        tx = _flank.x; tz = _flank.z;
       } else {
         tx = px; tz = pz;
       }

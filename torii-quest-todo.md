@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.419-alpha` - M4-V3 muzzle/impact lighting
+Current version: `v0.2.420-alpha` - M4-G1 bot flanking
 
 ## 🚨 TOP OF QUEUE
 

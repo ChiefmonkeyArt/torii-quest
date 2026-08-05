@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.420-alpha';
+const EXPECTED_VERSION = 'v0.2.421-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -655,6 +655,48 @@ console.log('[20] MP-3 leaderboard reads only kind:30078#d=torii-quest + kind:1#
     else if (/kind\s*:\s*(?!30078|1\b)\d+/.test(a)) fail('leaderboardAgg reads a kind other than 30078 / 1');
     else pass('leaderboard read-path locked to 30078#d=torii-quest + 1#t=torii-quest-score');
   }
+}
+
+
+// 21. Service-worker deploy-base contract (issue #27). The emitted-build test is
+// the behavioural authority; this source guard keeps registration and precache
+// policy explicit without coupling to Vite plugin implementation details.
+console.log('[21] service-worker deploy-base contract');
+{
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const sw = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
+  let ok = true;
+
+  const registration = /navigator\.serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/;
+  if (!registration.test(html)) {
+    fail('index.html service-worker registration must use %BASE_URL% for script URL and scope');
+    ok = false;
+  }
+
+  if (!sw.includes('new URL(asset, self.registration.scope).href')) {
+    fail('public/sw.js precache URLs must resolve from self.registration.scope');
+    ok = false;
+  }
+
+  const manifest = sw.match(/const\s+PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\];/);
+  if (!manifest) {
+    fail('public/sw.js PRECACHE_ASSETS manifest is missing');
+    ok = false;
+  } else {
+    const entries = [...manifest[1].matchAll(/^\s*['"]([^'"]+)['"]\s*,?/gm)]
+      .map((match) => match[1]);
+    if (entries.length === 0) {
+      fail('public/sw.js PRECACHE_ASSETS has no string entries');
+      ok = false;
+    }
+    const rootRelative = entries.filter((entry) => entry.startsWith('/'));
+    if (rootRelative.length > 0) {
+      fail(`precache entries must be scope-relative: ${rootRelative.join(', ')}`);
+      ok = false;
+    }
+  }
+
+  if (ok) pass('service-worker registration and precache are deploy-base aware');
 }
 
 console.log(fails === 0 ? '\nALL GREEN' : `\n${fails} FAILURE(S)`);

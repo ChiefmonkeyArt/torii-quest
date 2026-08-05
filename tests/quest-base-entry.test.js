@@ -1,97 +1,149 @@
-// tests/quest-base-entry.test.js — deploy-base entry-import contract (v0.2.370-alpha).
+// tests/quest-base-entry.test.js — emitted deploy-base contracts.
 //
-// Freezes the v0.2.370-alpha production regression: on the Torii Suite the app is
-// mounted at a subpath (`/quest/`) and built with `vite build --base=/quest/`. The
-// vite CSP plugin pins the entry chunk and rewrites BOTH the inline bootstrap import
-// and every chunk's back-reference import of the entry to one versioned URL. Before
-// this fix those URLs were HARDCODED root-relative (`/assets/torii-entry.js?v=<stamp>`),
-// dropping the `/quest/` base. Under the mount that URL 404s — and because
-// arenaRuntime.js statically imports the entry, the ENTER ARENA
-// `import('./arenaRuntime.js')` graph load REJECTED and the arena never booted (live
-// symptom: click ENTER ARENA → session hangs / never renders a frame).
-//
-// This is a real `--base=/quest/` build into a throwaway outDir, asserting every
-// entry-import URL carries the deploy base. A root-relative regression fails here.
+// The Suite mounts Torii Quest at `/quest/`. Real production builds lock both
+// the versioned entry-import graph and service-worker registration to the
+// configured Vite base. A root-relative regression would escape the mount.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, '.tmp-quest-base-build');
-const BASE = '/quest/';
+const ROOT_OUT = join(ROOT, '.tmp-root-base-build');
+const QUEST_OUT = join(ROOT, '.tmp-quest-base-build');
+const QUEST_BASE = '/quest/';
 const VITE = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
 
 // Every specifier that targets the pinned entry chunk, from the inline bootstrap
-// `import('…torii-entry.js?v=…')` and from each chunk's `from"…torii-entry.js?v=…"`.
+// and from each chunk's back-reference import.
 const ENTRY_URL_RE = /['"]([^'"]*torii-entry\.js\?v=[^'"]*)['"]/g;
 
 function collectEntryUrls(text) {
   return [...text.matchAll(ENTRY_URL_RE)].map((m) => m[1]);
 }
 
-let indexHtml = '';
-let chunkUrls = [];
-let arenaChunk = '';
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-beforeAll(() => {
-  rmSync(OUT, { recursive: true, force: true });
-  // Real production build at the Suite mount base. --outDir inside ROOT so vite
-  // won't prompt about emptying a dir outside the project.
-  execFileSync('node', [VITE, 'build', '--base', BASE, '--outDir', OUT], {
+function buildAtBase(outDir, base = null) {
+  rmSync(outDir, { recursive: true, force: true });
+  const args = [VITE, 'build', '--outDir', outDir];
+  if (base !== null) args.push('--base', base);
+  execFileSync(process.execPath, args, {
     cwd: ROOT,
     stdio: 'pipe',
   });
-  indexHtml = readFileSync(join(OUT, 'index.html'), 'utf8');
-  const assetsDir = join(OUT, 'assets');
-  for (const f of readdirSync(assetsDir)) {
-    if (!f.endsWith('.js')) continue;
-    const src = readFileSync(join(assetsDir, f), 'utf8');
+
+  const indexHtml = readFileSync(join(outDir, 'index.html'), 'utf8');
+  const serviceWorker = readFileSync(join(outDir, 'sw.js'), 'utf8');
+  const headers = readFileSync(join(outDir, '_headers'), 'utf8');
+  const chunkUrls = [];
+  let arenaChunk = '';
+  const assetsDir = join(outDir, 'assets');
+  for (const file of readdirSync(assetsDir)) {
+    if (!file.endsWith('.js')) continue;
+    const src = readFileSync(join(assetsDir, file), 'utf8');
     chunkUrls.push(...collectEntryUrls(src));
-    if (f.startsWith('arenaRuntime')) arenaChunk = src;
+    if (file.startsWith('arenaRuntime')) arenaChunk = src;
   }
-}, 60000);
+  return { outDir, indexHtml, serviceWorker, headers, chunkUrls, arenaChunk };
+}
+
+function expectWorkerRegistration(indexHtml, scriptUrl, scope) {
+  const registration = new RegExp(
+    `navigator\\.serviceWorker\\.register\\(\\s*['"]${escapeRegExp(scriptUrl)}['"]\\s*,\\s*\\{\\s*scope:\\s*['"]${escapeRegExp(scope)}['"]\\s*,?\\s*\\}\\s*\\)`,
+  );
+  expect(indexHtml).toMatch(registration);
+  expect(indexHtml).not.toContain('%BASE_URL%');
+}
+
+function expectScopeRelativePrecache(serviceWorker) {
+  const manifest = serviceWorker.match(/const PRECACHE_ASSETS = \[([\s\S]*?)\];/);
+  expect(manifest).not.toBeNull();
+  const entries = [...manifest[1].matchAll(/^\s*['"]([^'"]+)['"]\s*,?/gm)]
+    .map((match) => match[1]);
+  expect(entries.length).toBeGreaterThan(0);
+  expect(entries.every((entry) => !entry.startsWith('/'))).toBe(true);
+  expect(serviceWorker).toContain('new URL(asset, self.registration.scope).href');
+}
+
+function expectCspMatchesFinalInline(build) {
+  const scripts = [...build.indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+    .map((match) => match[1]);
+  expect(scripts).toHaveLength(1);
+  const hash = 'sha256-' + createHash('sha256')
+    .update(scripts[0], 'utf8')
+    .digest('base64');
+  expect(build.headers).toContain(hash);
+}
+
+let rootBuild;
+let questBuild;
+
+beforeAll(() => {
+  rootBuild = buildAtBase(ROOT_OUT);
+  questBuild = buildAtBase(QUEST_OUT, QUEST_BASE);
+}, 120000);
 
 afterAll(() => {
-  rmSync(OUT, { recursive: true, force: true });
+  rmSync(ROOT_OUT, { recursive: true, force: true });
+  rmSync(QUEST_OUT, { recursive: true, force: true });
 });
 
-describe('quest-base entry-import — every torii-entry URL carries the /quest/ deploy base (v0.2.370)', () => {
-  it('the inline bootstrap imports the entry under the /quest/ base (not root-relative)', () => {
-    const urls = collectEntryUrls(indexHtml);
+describe('quest-base entry-import — every torii-entry URL carries the /quest/ deploy base', () => {
+  it('the inline bootstrap imports the entry under the /quest/ base', () => {
+    const urls = collectEntryUrls(questBuild.indexHtml);
     expect(urls.length).toBe(1);
     expect(urls[0]).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
   });
 
-  it('no dist artifact references the entry at the root-relative /assets/ path (the 404 bug)', () => {
-    const all = [...collectEntryUrls(indexHtml), ...chunkUrls];
-    for (const u of all) {
-      expect(u.startsWith('/assets/torii-entry.js')).toBe(false);
-      expect(u).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
+  it('no dist artifact references the entry at root-relative /assets/', () => {
+    const all = [...collectEntryUrls(questBuild.indexHtml), ...questBuild.chunkUrls];
+    for (const url of all) {
+      expect(url.startsWith('/assets/torii-entry.js')).toBe(false);
+      expect(url).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
     }
   });
 
-  it('the arenaRuntime chunk (ENTER ARENA graph) back-references the entry under /quest/', () => {
-    // arenaRuntime is the module the ENTER handler dynamically imports; its static
-    // entry import is what 404'd under the mount and rejected the whole graph load.
-    expect(arenaChunk.length).toBeGreaterThan(0);
-    const urls = collectEntryUrls(arenaChunk);
+  it('the arenaRuntime chunk back-references the entry under /quest/', () => {
+    expect(questBuild.arenaChunk.length).toBeGreaterThan(0);
+    const urls = collectEntryUrls(questBuild.arenaChunk);
     expect(urls.length).toBeGreaterThanOrEqual(1);
-    for (const u of urls) expect(u).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
+    for (const url of urls) expect(url).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
   });
 
-  it('the inline bootstrap and every chunk agree on ONE identical entry URL (single module instance)', () => {
-    // A mismatch would make the browser fetch two module instances for the same
-    // entry — the v0.2.285 "does not provide export" class of bug — as well as the
-    // base regression. All references must be byte-identical.
-    const all = [...collectEntryUrls(indexHtml), ...chunkUrls];
+  it('the inline bootstrap and every chunk agree on one entry URL', () => {
+    const all = [...collectEntryUrls(questBuild.indexHtml), ...questBuild.chunkUrls];
     expect(all.length).toBeGreaterThanOrEqual(2);
     expect(new Set(all).size).toBe(1);
   });
 
-  it('no static entry <script> tag survives (strict-dynamic loads it via the trusted inline import)', () => {
-    expect(existsSync(join(OUT, 'index.html'))).toBe(true);
-    expect(indexHtml).not.toMatch(/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/);
+  it('no static entry script tag survives', () => {
+    expect(existsSync(join(QUEST_OUT, 'index.html'))).toBe(true);
+    expect(questBuild.indexHtml).not.toMatch(/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/);
+  });
+});
+
+describe('service-worker deploy-base emitted artifacts', () => {
+  it('the default build registers /sw.js with root scope', () => {
+    expectWorkerRegistration(rootBuild.indexHtml, '/sw.js', '/');
+  });
+
+  it('the /quest/ build registers /quest/sw.js with matching scope', () => {
+    expectWorkerRegistration(questBuild.indexHtml, '/quest/sw.js', '/quest/');
+    expect(questBuild.indexHtml).not.toMatch(/serviceWorker\.register\(\s*['"]\/sw\.js['"]/);
+  });
+
+  it('precache entries remain relative and resolve from registration scope', () => {
+    expectScopeRelativePrecache(rootBuild.serviceWorker);
+    expectScopeRelativePrecache(questBuild.serviceWorker);
+  });
+
+  it('each build emits a CSP hash matching its final inline bootstrap', () => {
+    expectCspMatchesFinalInline(rootBuild);
+    expectCspMatchesFinalInline(questBuild);
   });
 });

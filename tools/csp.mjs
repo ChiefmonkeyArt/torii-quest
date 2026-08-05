@@ -20,14 +20,11 @@
 // in liveUpdateCheck.js). No script/style/font third-party origin appears anywhere: gstatic.com
 // is gone (S4) because the Draco decoder is vendored at /draco/ and fetched same-origin.
 
-// sha256 of the built inline bootstrap script. This is a FALLBACK used only by the
-// `vite preview` server when no built dist/index.html exists yet. The ACTUAL sha for a
-// shipped build is computed at build time from the emitted inline script (which now
-// carries a per-build cache-bust query on the entry import — see vite.config.js) and is
-// written into dist/_headers by the plugin. regression-check verifies that dist/_headers
-// carries the sha recomputed from dist/index.html (self-consistency), so a stale or
-// mismatched sha can't slip past the policy.
-export const INLINE_SCRIPT_SHA256 = "sha256-434PYYX1c2Tr6+CPmiAm+CckYnPDnRO31MIet6VpKv4=";
+// sha256 of the default-root fallback inline bootstrap after `%BASE_URL%` resolves
+// to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
+// dist/index.html is available. Shipped builds recompute the actual hash from final
+// emitted HTML and write it into dist/_headers, including path-prefix deployments.
+export const INLINE_SCRIPT_SHA256 = "sha256-Dh6z/mpA+CkubSWJoNSOwm5jd6jF6fmxFtXB52pIm+U=";
 
 export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],

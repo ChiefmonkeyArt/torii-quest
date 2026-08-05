@@ -13,9 +13,9 @@
 //   - HTML/JS must be served network-first (only binary assets are cache-first);
 //   - index.html must register the SW with a loop-guarded controllerchange→reload so an
 //     already-stranded client auto-heals when the fresh version-named SW claims the page;
-//   - the CSP sha256 (in tools/csp.mjs, shipped as an HTTP header) must still match the
-//     BUILT inline registration script — i.e. the source inline script + the entry import()
-//     line the build plugin appends — else strict-dynamic blocks the bootstrap.
+//   - the fallback CSP sha256 must match the default-root inline bootstrap after
+//     Vite resolves %BASE_URL% and the fallback entry import is appended. Real builds
+//     recompute their own hash from emitted HTML, including path-prefixed deployments.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -81,7 +81,9 @@ describe('index.html — service-worker registration self-heal', () => {
   it('registers the service worker', () => {
     const s = inlineRegistrationScript();
     expect(s).not.toBeNull();
-    expect(s).toMatch(/serviceWorker\.register\(\s*['"]\/sw\.js['"]\s*\)/);
+    expect(s).toMatch(
+      /serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/,
+    );
   });
 
   it('reloads once on controllerchange, guarded against a reload loop', () => {
@@ -92,13 +94,14 @@ describe('index.html — service-worker registration self-heal', () => {
     expect(s).toMatch(/if\s*\(\s*reloading\s*\)\s*return/);
   });
 
-  it('CSP sha256 (tools/csp.mjs) matches the BUILT inline registration script', () => {
-    // The CSP no longer lives in index.html (S3, v0.2.266) — it ships as an HTTP header
-    // derived from tools/csp.mjs. The hashed script is the BUILT bootstrap: the source
-    // inline script with the entry import() line the vite plugin appends before </script>.
+  it('CSP fallback sha256 matches the default-root inline bootstrap', () => {
+    // Shipped builds recompute the hash from final emitted HTML. This constant is the
+    // root-deploy fallback used before an emitted dist/index.html is available.
     const s = inlineRegistrationScript();
-    const built = s + ENTRY_IMPORT_LINE + '\n';
-    const hash = 'sha256-' + createHash('sha256').update(built, 'utf8').digest('base64');
+    const rootFallback = s.replaceAll('%BASE_URL%', '/') + ENTRY_IMPORT_LINE + '\n';
+    const hash = 'sha256-' + createHash('sha256')
+      .update(rootFallback, 'utf8')
+      .digest('base64');
     expect(hash).toBe(INLINE_SCRIPT_SHA256);
   });
 });

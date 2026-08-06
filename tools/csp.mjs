@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 // tools/csp.mjs — single source of truth for the Content-Security-Policy (S3, v0.2.266).
 //
 // The CSP ships as an HTTP RESPONSE HEADER, never a <meta> tag. It is emitted in three
@@ -25,6 +27,37 @@
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
 export const INLINE_SCRIPT_SHA256 = "sha256-Dh6z/mpA+CkubSWJoNSOwm5jd6jF6fmxFtXB52pIm+U=";
+
+const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+// Return the source text of the one real attribute-less inline bootstrap.
+// HTML comments are masked at equal UTF-16 length before tag selection so a
+// literal <script> token in comment prose cannot become a false opener.
+export function inlineBootstrapSourceOf(html) {
+  if (typeof html !== 'string') {
+    throw new TypeError('inlineBootstrapSourceOf: html must be a string');
+  }
+  const masked = html.replace(
+    HTML_COMMENT_RE,
+    (comment) => ' '.repeat(comment.length),
+  );
+  const matches = [...masked.matchAll(ATTRIBUTELESS_SCRIPT_RE)];
+  if (matches.length !== 1) {
+    throw new Error(
+      `inlineBootstrapSourceOf: expected exactly 1 attribute-less inline script, found ${matches.length}`,
+    );
+  }
+  const match = matches[0];
+  const bodyStart = match.index + match[0].indexOf('>') + 1;
+  return html.slice(bodyStart, bodyStart + match[1].length);
+}
+
+export function inlineBootstrapSha256Of(html) {
+  return 'sha256-' + createHash('sha256')
+    .update(inlineBootstrapSourceOf(html), 'utf8')
+    .digest('base64');
+}
 
 export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],

@@ -8,7 +8,10 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createHash } from 'node:crypto';
+import {
+  inlineBootstrapSha256Of,
+  inlineBootstrapSourceOf,
+} from '../tools/csp.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT_OUT = join(ROOT, '.tmp-root-base-build');
@@ -86,12 +89,11 @@ function scriptSrcTokens(headersBody) {
 }
 
 function expectCspMatchesFinalInline(build) {
-  const scripts = [...build.indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)]
-    .map((match) => match[1]);
-  expect(scripts).toHaveLength(1);
-  const hash = 'sha256-' + createHash('sha256')
-    .update(scripts[0], 'utf8')
-    .digest('base64');
+  const source = inlineBootstrapSourceOf(build.indexHtml);
+  const hash = inlineBootstrapSha256Of(build.indexHtml);
+  expect(source).toContain('navigator.serviceWorker.register');
+  expect(source).toContain("import('");
+  expect(source).not.toContain('Instance Settings overlay');
   const tokens = scriptSrcTokens(build.headers);
   const quotedHashes = tokens.filter((token) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(token));
   expect(quotedHashes).toEqual([`'${hash}'`]);

@@ -27,6 +27,7 @@ import {
   INLINE_SCRIPT_SHA256,
   ENTRY_IMPORT_LINE,
   cspValueForSha,
+  inlineBootstrapSourceOf,
 } from '../tools/csp.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,13 +41,9 @@ function precacheList() {
   return (m[1].match(/'([^']+)'|"([^"]+)"/g) || []).map((s) => s.replace(/['"]/g, ''));
 }
 
-// The exact text of the last attribute-less inline <script> (the SW registration).
+// The browser-executed text of the one real attribute-less inline bootstrap.
 function inlineRegistrationScript() {
-  const re = /<script>([\s\S]*?)<\/script>/g;
-  let m;
-  let last = null;
-  while ((m = re.exec(HTML)) !== null) last = m[1];
-  return last;
+  return inlineBootstrapSourceOf(HTML);
 }
 
 function scriptSrcTokens(cspValue) {
@@ -115,9 +112,15 @@ describe('index.html — service-worker registration self-heal', () => {
     expect(s).toMatch(/if\s*\(\s*reloading\s*\)\s*return/);
   });
 
-  it('CSP fallback sha256 matches the default-root inline bootstrap', () => {
+  it('CSP fallback sha256 matches the real default-root inline bootstrap', () => {
     // Shipped builds recompute the hash from final emitted HTML. This constant is the
     // root-deploy fallback used before an emitted dist/index.html is available.
+    // The decoy freezes the browser-found regression: comment prose containing a
+    // literal script tag must never be selected as executable source.
+    const decoy = '<!-- decoy <script>not executable</script> -->\n'
+      + '<script>\ntrusted();\n</script>';
+    expect(inlineBootstrapSourceOf(decoy)).toBe('\ntrusted();\n');
+
     const s = inlineRegistrationScript();
     const rootFallback = s.replaceAll('%BASE_URL%', '/') + ENTRY_IMPORT_LINE + '\n';
     const hash = 'sha256-' + createHash('sha256')

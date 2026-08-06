@@ -519,21 +519,32 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   if (rootAssetOk) pass('no bare root-relative static-asset loads in src/ (all base-aware via assetUrl)');
 
   // CSP single-source sanity (tools/csp.mjs).
-  let CSP_VALUE, INLINE_SHA, HEADERS_BODY;
+  let CSP_VALUE, INLINE_SHA, HEADERS_BODY, INLINE_SOURCE_OF, INLINE_SHA_OF;
   try {
     const csp = await import('./csp.mjs');
     CSP_VALUE = csp.CSP_VALUE; INLINE_SHA = csp.INLINE_SCRIPT_SHA256; HEADERS_BODY = csp.headersFileBody();
+    INLINE_SOURCE_OF = csp.inlineBootstrapSourceOf;
+    INLINE_SHA_OF = csp.inlineBootstrapSha256Of;
     const need = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "'strict-dynamic'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src', 'https://api.github.com'];
     const missing = need.filter((d) => !CSP_VALUE.includes(d));
     const fallbackHashOk = validateQuotedHashSource(CSP_VALUE, INLINE_SHA, 'tools/csp.mjs CSP_VALUE script-src');
     const suppliedHash = 'sha256-' + createHash('sha256').update('dynamic-csp-hash-source-check', 'utf8').digest('base64');
     const dynamicCsp = csp.cspValueForSha(suppliedHash);
     const dynamicHashOk = validateQuotedHashSource(dynamicCsp, suppliedHash, 'tools/csp.mjs cspValueForSha() script-src');
+    const selectorTrap = '<!-- decoy <script>not executable</script> -->\n'
+      + '<script>\ntrusted();\n</script>';
+    const selectorSource = '\ntrusted();\n';
+    const selectorSha = 'sha256-' + createHash('sha256')
+      .update(selectorSource, 'utf8')
+      .digest('base64');
+    const selectorOk = INLINE_SOURCE_OF(selectorTrap) === selectorSource
+      && INLINE_SHA_OF(selectorTrap) === selectorSha;
+    if (!selectorOk) fail('tools/csp.mjs inline bootstrap selector was confused by an HTML-comment script decoy');
     if (missing.length) fail(`tools/csp.mjs CSP_VALUE missing: ${missing.join(', ')}`);
     else if (/gstatic/.test(CSP_VALUE)) fail('tools/csp.mjs CSP_VALUE still references gstatic');
     else if (!/^sha256-[A-Za-z0-9+/]+=*$/.test(INLINE_SHA)) fail(`tools/csp.mjs INLINE_SCRIPT_SHA256 malformed: ${INLINE_SHA}`);
-    else if (!fallbackHashOk || !dynamicHashOk) { /* detailed failure emitted above */ }
-    else pass('tools/csp.mjs CSP has strict-dynamic + one quoted inline hash-source + required directives, no gstatic');
+    else if (!fallbackHashOk || !dynamicHashOk || !selectorOk) { /* detailed failure emitted above */ }
+    else pass('tools/csp.mjs CSP has strict-dynamic + one quoted inline hash-source + comment-safe bootstrap selection');
   } catch (e) {
     fail(`tools/csp.mjs failed to load: ${e.message}`);
   }
@@ -564,19 +575,22 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     // carries THAT sha (self-consistency). v0.2.294: the inline import now carries a
     // per-build ?v=<stamp> query, so the sha churns every build — comparing it to a
     // hardcoded constant would be wrong; instead we require _headers to match the emit.
-    const inlineScripts = [...distHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-    if (inlineScripts.length !== 1) fail(`expected exactly 1 attribute-less inline <script> in dist/index.html, found ${inlineScripts.length}`);
-    else {
-      const sha = 'sha256-' + createHash('sha256').update(inlineScripts[0], 'utf8').digest('base64');
+    try {
+      const sha = INLINE_SHA_OF(distHtml);
+      const source = INLINE_SOURCE_OF(distHtml);
       const headersBody = existsSync(headersP) ? readFileSync(headersP, 'utf8') : '';
       const cspLine = headersBody
         .split(/\r?\n/)
         .map((line) => line.trim())
         .find((line) => line.startsWith('Content-Security-Policy:'));
       const emittedCsp = cspLine ? cspLine.slice('Content-Security-Policy:'.length).trim() : '';
-      if (!emittedCsp) fail('dist/_headers is missing its Content-Security-Policy value');
+      if (!source.includes('navigator.serviceWorker.register') || !source.includes("import('")) {
+        fail('dist inline bootstrap selector did not return the executable registration/import source');
+      } else if (!emittedCsp) fail('dist/_headers is missing its Content-Security-Policy value');
       else if (!validateQuotedHashSource(emittedCsp, sha, 'dist/_headers script-src')) { /* detailed failure emitted above */ }
-      else pass(`inline-script quoted hash-source matches dist/_headers (${sha.slice(0, 24)}…)`);
+      else pass(`browser-source quoted hash matches dist/_headers (${sha.slice(0, 24)}…)`);
+    } catch (e) {
+      fail(`dist inline bootstrap selection failed: ${e.message}`);
     }
 
     if (/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (strict-dynamic needs it loaded by the trusted inline script)');

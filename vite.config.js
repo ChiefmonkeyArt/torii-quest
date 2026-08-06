@@ -1,8 +1,13 @@
 import { writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { defineConfig } from 'vite';
-import { CSP_VALUE, headersFileBody, headersFileBodyForSha, cspValueForSha } from './tools/csp.mjs';
+import {
+  CSP_VALUE,
+  headersFileBody,
+  headersFileBodyForSha,
+  cspValueForSha,
+  inlineBootstrapSha256Of,
+} from './tools/csp.mjs';
 
 // CSP via HTTP header (S3, v0.2.266). The policy lives in tools/csp.mjs (single source).
 // This plugin: (1) rewrites the BUILT index.html so the trusted classic inline bootstrap
@@ -41,13 +46,8 @@ function entryUrl(base) {
   return `${base}assets/${ENTRY_BASE}?v=${BUILD_STAMP}`;
 }
 
-// Recompute the sha256 of the single attribute-less inline <script> in dist/index.html.
-// Must match the extraction regex used by tools/regression-check.mjs (check 16c).
-function inlineScriptShaOf(html) {
-  const matches = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  if (!matches.length) return null;
-  return 'sha256-' + createHash('sha256').update(matches[0], 'utf8').digest('base64');
-}
+// Bootstrap selection and hashing are shared with check 16 and the emitted-build
+// tests so HTML-comment decoys cannot make the policy hash different source bytes.
 function cspHeaderPlugin() {
   // Deploy base ('/' at root, '/quest/' on the Suite mount). Captured from the
   // resolved Vite config so the emitted entry URL is base-correct.
@@ -112,7 +112,7 @@ function cspHeaderPlugin() {
       const htmlPath = join(dir, 'index.html');
       let body = headersFileBody(); // fallback to the hardcoded sha
       if (existsSync(htmlPath)) {
-        const sha = inlineScriptShaOf(readFileSync(htmlPath, 'utf8'));
+        const sha = inlineBootstrapSha256Of(readFileSync(htmlPath, 'utf8'));
         if (sha) body = headersFileBodyForSha(sha);
       }
       writeFileSync(join(dir, '_headers'), body);
@@ -123,7 +123,7 @@ function cspHeaderPlugin() {
       const distHtmlPath = join(process.cwd(), 'dist', 'index.html');
       let csp = CSP_VALUE;
       if (existsSync(distHtmlPath)) {
-        const sha = inlineScriptShaOf(readFileSync(distHtmlPath, 'utf8'));
+        const sha = inlineBootstrapSha256Of(readFileSync(distHtmlPath, 'utf8'));
         if (sha) csp = cspValueForSha(sha);
       }
       server.middlewares.use((_req, res, next) => {

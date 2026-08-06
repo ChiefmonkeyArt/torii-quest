@@ -30,7 +30,7 @@ export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],
   ["base-uri", "'self'"],
   ["form-action", "'self'"],
-  ["script-src", `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' ${INLINE_SCRIPT_SHA256}`],
+  ["script-src", `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' '${INLINE_SCRIPT_SHA256}'`],
   ["worker-src", "'self' blob:"],
   ["connect-src", "'self' blob: https://api.github.com wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"],
 ];
@@ -48,7 +48,7 @@ export const ENTRY_IMPORT_LINE = "  import('/assets/torii-entry.js');";
 export function cspValueForSha(inlineSha) {
   const dirs = CSP_DIRECTIVES.map(([k, v]) =>
     k === 'script-src'
-      ? [k, `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' ${inlineSha}`]
+      ? [k, `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' '${inlineSha}'`]
       : [k, v],
   );
   return dirs.map(([k, v]) => `${k} ${v}`).join("; ");

@@ -22,7 +22,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { VERSION } from '../src/config.js';
-import { INLINE_SCRIPT_SHA256, ENTRY_IMPORT_LINE } from '../tools/csp.mjs';
+import {
+  CSP_VALUE,
+  INLINE_SCRIPT_SHA256,
+  ENTRY_IMPORT_LINE,
+  cspValueForSha,
+} from '../tools/csp.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SW = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
@@ -42,6 +47,22 @@ function inlineRegistrationScript() {
   let last = null;
   while ((m = re.exec(HTML)) !== null) last = m[1];
   return last;
+}
+
+function scriptSrcTokens(cspValue) {
+  const directive = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part === 'script-src' || part.startsWith('script-src '));
+  expect(directive).toBeDefined();
+  return directive.split(/\s+/).slice(1);
+}
+
+function expectSingleQuotedHashSource(cspValue, expectedHash) {
+  const tokens = scriptSrcTokens(cspValue);
+  const quotedHashes = tokens.filter((token) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(token));
+  expect(quotedHashes).toEqual([`'${expectedHash}'`]);
+  expect(tokens.some((token) => /^sha256-[A-Za-z0-9+/]+=*$/.test(token))).toBe(false);
 }
 
 describe('service worker — app-shell precache guard (entry-flow regression)', () => {
@@ -103,5 +124,12 @@ describe('index.html — service-worker registration self-heal', () => {
       .update(rootFallback, 'utf8')
       .digest('base64');
     expect(hash).toBe(INLINE_SCRIPT_SHA256);
+    expectSingleQuotedHashSource(CSP_VALUE, INLINE_SCRIPT_SHA256);
+
+    const suppliedHash = 'sha256-' + createHash('sha256')
+      .update('dynamic-csp-hash-source-test', 'utf8')
+      .digest('base64');
+    expect(suppliedHash).not.toBe(INLINE_SCRIPT_SHA256);
+    expectSingleQuotedHashSource(cspValueForSha(suppliedHash), suppliedHash);
   });
 });

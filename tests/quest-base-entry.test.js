@@ -70,6 +70,21 @@ function expectScopeRelativePrecache(serviceWorker) {
   expect(serviceWorker).toContain('new URL(asset, self.registration.scope).href');
 }
 
+function scriptSrcTokens(headersBody) {
+  const cspLine = headersBody
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith('Content-Security-Policy:'));
+  expect(cspLine).toBeDefined();
+  const cspValue = cspLine.slice('Content-Security-Policy:'.length).trim();
+  const directive = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part === 'script-src' || part.startsWith('script-src '));
+  expect(directive).toBeDefined();
+  return directive.split(/\s+/).slice(1);
+}
+
 function expectCspMatchesFinalInline(build) {
   const scripts = [...build.indexHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)]
     .map((match) => match[1]);
@@ -77,7 +92,10 @@ function expectCspMatchesFinalInline(build) {
   const hash = 'sha256-' + createHash('sha256')
     .update(scripts[0], 'utf8')
     .digest('base64');
-  expect(build.headers).toContain(hash);
+  const tokens = scriptSrcTokens(build.headers);
+  const quotedHashes = tokens.filter((token) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(token));
+  expect(quotedHashes).toEqual([`'${hash}'`]);
+  expect(tokens).not.toContain(hash);
 }
 
 let rootBuild;

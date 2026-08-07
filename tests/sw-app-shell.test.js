@@ -13,16 +13,22 @@
 //   - HTML/JS must be served network-first (only binary assets are cache-first);
 //   - index.html must register the SW with a loop-guarded controllerchange→reload so an
 //     already-stranded client auto-heals when the fresh version-named SW claims the page;
-//   - the CSP sha256 (in tools/csp.mjs, shipped as an HTTP header) must still match the
-//     BUILT inline registration script — i.e. the source inline script + the entry import()
-//     line the build plugin appends — else strict-dynamic blocks the bootstrap.
+//   - the fallback CSP sha256 must match the default-root inline bootstrap after
+//     Vite resolves %BASE_URL% and the fallback entry import is appended. Real builds
+//     recompute their own hash from emitted HTML, including path-prefixed deployments.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { VERSION } from '../src/config.js';
-import { INLINE_SCRIPT_SHA256, ENTRY_IMPORT_LINE } from '../tools/csp.mjs';
+import {
+  CSP_VALUE,
+  INLINE_SCRIPT_SHA256,
+  ENTRY_IMPORT_LINE,
+  cspValueForSha,
+  inlineBootstrapSourceOf,
+} from '../tools/csp.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SW = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
@@ -35,13 +41,43 @@ function precacheList() {
   return (m[1].match(/'([^']+)'|"([^"]+)"/g) || []).map((s) => s.replace(/['"]/g, ''));
 }
 
-// The exact text of the last attribute-less inline <script> (the SW registration).
+// The browser-executed text of the one real attribute-less inline bootstrap.
 function inlineRegistrationScript() {
-  const re = /<script>([\s\S]*?)<\/script>/g;
-  let m;
-  let last = null;
-  while ((m = re.exec(HTML)) !== null) last = m[1];
-  return last;
+  return inlineBootstrapSourceOf(HTML);
+}
+
+function scriptSrcTokens(cspValue) {
+  const directive = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part === 'script-src' || part.startsWith('script-src '));
+  expect(directive).toBeDefined();
+  return directive.split(/\s+/).slice(1);
+}
+
+function expectSingleQuotedHashSource(cspValue, expectedHash) {
+  const tokens = scriptSrcTokens(cspValue);
+  const quotedHashes = tokens.filter((token) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(token));
+  expect(quotedHashes).toEqual([`'${expectedHash}'`]);
+  expect(tokens.some((token) => /^sha256-[A-Za-z0-9+/]+=*$/.test(token))).toBe(false);
+}
+
+function expectSameOriginModuleGraphPolicy(cspValue) {
+  const tokens = scriptSrcTokens(cspValue);
+  expect(tokens).toContain("'self'");
+  expect(tokens).not.toContain("'strict-dynamic'");
+  expect(tokens).not.toContain('blob:');
+}
+
+function expectWorkerBlobPolicy(cspValue) {
+  const directive = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part === 'worker-src' || part.startsWith('worker-src '));
+  expect(directive).toBeDefined();
+  const tokens = directive.split(/\s+/).slice(1);
+  expect(tokens).toContain("'self'");
+  expect(tokens).toContain('blob:');
 }
 
 describe('service worker — app-shell precache guard (entry-flow regression)', () => {
@@ -81,7 +117,9 @@ describe('index.html — service-worker registration self-heal', () => {
   it('registers the service worker', () => {
     const s = inlineRegistrationScript();
     expect(s).not.toBeNull();
-    expect(s).toMatch(/serviceWorker\.register\(\s*['"]\/sw\.js['"]\s*\)/);
+    expect(s).toMatch(
+      /serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/,
+    );
   });
 
   it('reloads once on controllerchange, guarded against a reload loop', () => {
@@ -92,13 +130,32 @@ describe('index.html — service-worker registration self-heal', () => {
     expect(s).toMatch(/if\s*\(\s*reloading\s*\)\s*return/);
   });
 
-  it('CSP sha256 (tools/csp.mjs) matches the BUILT inline registration script', () => {
-    // The CSP no longer lives in index.html (S3, v0.2.266) — it ships as an HTTP header
-    // derived from tools/csp.mjs. The hashed script is the BUILT bootstrap: the source
-    // inline script with the entry import() line the vite plugin appends before </script>.
+  it('CSP fallback sha256 matches the real default-root inline bootstrap', () => {
+    // Shipped builds recompute the hash from final emitted HTML. This constant is the
+    // root-deploy fallback used before an emitted dist/index.html is available.
+    // The decoy freezes the browser-found regression: comment prose containing a
+    // literal script tag must never be selected as executable source.
+    const decoy = '<!-- decoy <script>not executable</script> -->\n'
+      + '<script>\ntrusted();\n</script>';
+    expect(inlineBootstrapSourceOf(decoy)).toBe('\ntrusted();\n');
+
     const s = inlineRegistrationScript();
-    const built = s + ENTRY_IMPORT_LINE + '\n';
-    const hash = 'sha256-' + createHash('sha256').update(built, 'utf8').digest('base64');
+    const rootFallback = s.replaceAll('%BASE_URL%', '/') + ENTRY_IMPORT_LINE + '\n';
+    const hash = 'sha256-' + createHash('sha256')
+      .update(rootFallback, 'utf8')
+      .digest('base64');
     expect(hash).toBe(INLINE_SCRIPT_SHA256);
+    expectSingleQuotedHashSource(CSP_VALUE, INLINE_SCRIPT_SHA256);
+    expectSameOriginModuleGraphPolicy(CSP_VALUE);
+    expectWorkerBlobPolicy(CSP_VALUE);
+
+    const suppliedHash = 'sha256-' + createHash('sha256')
+      .update('dynamic-csp-hash-source-test', 'utf8')
+      .digest('base64');
+    expect(suppliedHash).not.toBe(INLINE_SCRIPT_SHA256);
+    const dynamicCsp = cspValueForSha(suppliedHash);
+    expectSingleQuotedHashSource(dynamicCsp, suppliedHash);
+    expectSameOriginModuleGraphPolicy(dynamicCsp);
+    expectWorkerBlobPolicy(dynamicCsp);
   });
 });

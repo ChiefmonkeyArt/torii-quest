@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.420-alpha` - M4-G1 bot flanking
+Current version: `v0.2.421-alpha` - service-worker deploy-base scope
 
 ## 🚨 TOP OF QUEUE
 

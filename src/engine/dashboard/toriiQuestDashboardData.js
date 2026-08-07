@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const TORII_QUEST_VERSION = 'v0.2.420-alpha';
+export const TORII_QUEST_VERSION = 'v0.2.421-alpha';
 export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,7 +51,7 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 2620,
+  passing: 2628,
   files: 194,
   fastProfile: 5,
   foundationProfile: 25,
@@ -79,7 +79,7 @@ export const HEALTH_LASTKNOWN = Object.freeze({
   totalTests: testCountLabel(),
   timings: 'fast ~1s · foundation ~6s · full suite ~44s',
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
-  regression: '20 / 20',
+  regression: '21 / 21',
   lastGreen: TORII_QUEST_VERSION,
 });
 
@@ -325,7 +325,7 @@ export const SHIP_LASTKNOWN = Object.freeze({
   signals: Object.freeze([
     { key: 'versionSync', label: 'Version sync', state: 'ok', detail: 'config + package.json agree' },
     { key: 'tests', label: 'Test profiles', state: 'ok', detail: 'fast 5 · foundation 25 file(s)' },
-    { key: 'regression', label: 'Regression gate', state: 'ok', detail: '20 / 20 checks' },
+    { key: 'regression', label: 'Regression gate', state: 'ok', detail: '21 / 21 checks' },
     { key: 'bundle', label: 'Bundle baseline', state: 'advisory', detail: 'advisory — rapier chunk over limit (tracked)' },
     { key: 'zoneFallback', label: '/zone/* fallback', state: 'ok', detail: 'docs + dist ok' },
     { key: 'docs', label: 'Docs consistency', state: 'ok', detail: 'continuity docs carry current version' },
@@ -1149,7 +1149,7 @@ export const CONTINUUM = Object.freeze({
   metrics: [
     { label: 'Source version', value: 'v0.2.349-alpha (build truth; live trails — manual deploy)' },
     { label: 'Tests', value: `${testCountLabel()} (profiles: test:fast ~${CURRENT_TEST_STATUS.fastProfile} curated · test:foundation:list ~${CURRENT_TEST_STATUS.foundationProfile} curated · test:foundation = vitest --changed origin/main)` },
-    { label: 'Regression check', value: '20 / 20 GREEN' },
+    { label: 'Regression check', value: '21 / 21 GREEN' },
     { label: 'Bundle (advisory)', value: '~2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)' },
     { label: 'Gates', value: 'SEC-1 / SEC-2 / SEC-3 intact · godMode false · torii-quest CSP enforced' },
     { label: 'Smoke (entry + dashboard)', value: 'Both cloud smokes consolidated into the Handoff / release control panel at the top of this page — app-entry v0.2.349-alpha PASS 3/3, oversight-dashboard v0.2.349-alpha PASS 4/4. A smoke pass does not imply MVP approval or a completed human playtest.' },

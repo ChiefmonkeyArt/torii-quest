@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 // tools/csp.mjs — single source of truth for the Content-Security-Policy (S3, v0.2.266).
 //
 // The CSP ships as an HTTP RESPONSE HEADER, never a <meta> tag. It is emitted in three
@@ -7,33 +9,60 @@
 //   2. the Vite preview server (production-parity local serving).
 //   3. the Caddy / Nginx server blocks documented in VPS_INSTALL.md (VPS deploy path).
 //
-// script-src uses `strict-dynamic` + a sha256 hash of the SINGLE trusted classic inline
-// bootstrap script. At build the vite plugin removes the static entry <script> tag and
-// has that bootstrap script `import('/assets/torii-entry.js')` instead; `strict-dynamic`
-// then propagates trust to the entry and every lazily-imported chunk (three-vendor,
-// rapier, arenaRuntime, …) without listing any of them. `'self'`/`blob:` are kept as a
-// CSP-Level-2 fallback for browsers that don't understand `strict-dynamic` (they ignore
-// `strict-dynamic` and load the same-origin entry via `'self'`).
+// script-src uses a sha256 hash for the SINGLE trusted classic inline bootstrap and
+// keeps `'self'` for the versioned same-origin ESM entry plus every lazily imported
+// chunk (three-vendor, rapier, arenaRuntime, …). At build the Vite plugin removes the
+// static entry <script> tag and has the bootstrap `import('/assets/torii-entry.js')`.
+// Do not add `'strict-dynamic'`: Chrome ignores host allowlists when it is present but
+// does not propagate the bootstrap hash trust through import() for this module graph.
 //
 // connect-src carries the Nostr relay sockets plus the ONE read-only HTTPS origin the
 // update-check needs — https://api.github.com (releases/latest, GET only, cached client-side
 // in liveUpdateCheck.js). No script/style/font third-party origin appears anywhere: gstatic.com
 // is gone (S4) because the Draco decoder is vendored at /draco/ and fetched same-origin.
 
-// sha256 of the built inline bootstrap script. This is a FALLBACK used only by the
-// `vite preview` server when no built dist/index.html exists yet. The ACTUAL sha for a
-// shipped build is computed at build time from the emitted inline script (which now
-// carries a per-build cache-bust query on the entry import — see vite.config.js) and is
-// written into dist/_headers by the plugin. regression-check verifies that dist/_headers
-// carries the sha recomputed from dist/index.html (self-consistency), so a stale or
-// mismatched sha can't slip past the policy.
-export const INLINE_SCRIPT_SHA256 = "sha256-434PYYX1c2Tr6+CPmiAm+CckYnPDnRO31MIet6VpKv4=";
+// sha256 of the default-root fallback inline bootstrap after `%BASE_URL%` resolves
+// to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
+// dist/index.html is available. Shipped builds recompute the actual hash from final
+// emitted HTML and write it into dist/_headers, including path-prefix deployments.
+export const INLINE_SCRIPT_SHA256 = "sha256-Dh6z/mpA+CkubSWJoNSOwm5jd6jF6fmxFtXB52pIm+U=";
+
+const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
+const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+
+// Return the source text of the one real attribute-less inline bootstrap.
+// HTML comments are masked at equal UTF-16 length before tag selection so a
+// literal <script> token in comment prose cannot become a false opener.
+export function inlineBootstrapSourceOf(html) {
+  if (typeof html !== 'string') {
+    throw new TypeError('inlineBootstrapSourceOf: html must be a string');
+  }
+  const masked = html.replace(
+    HTML_COMMENT_RE,
+    (comment) => ' '.repeat(comment.length),
+  );
+  const matches = [...masked.matchAll(ATTRIBUTELESS_SCRIPT_RE)];
+  if (matches.length !== 1) {
+    throw new Error(
+      `inlineBootstrapSourceOf: expected exactly 1 attribute-less inline script, found ${matches.length}`,
+    );
+  }
+  const match = matches[0];
+  const bodyStart = match.index + match[0].indexOf('>') + 1;
+  return html.slice(bodyStart, bodyStart + match[1].length);
+}
+
+export function inlineBootstrapSha256Of(html) {
+  return 'sha256-' + createHash('sha256')
+    .update(inlineBootstrapSourceOf(html), 'utf8')
+    .digest('base64');
+}
 
 export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],
   ["base-uri", "'self'"],
   ["form-action", "'self'"],
-  ["script-src", `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' ${INLINE_SCRIPT_SHA256}`],
+  ["script-src", `'self' 'wasm-unsafe-eval' '${INLINE_SCRIPT_SHA256}'`],
   ["worker-src", "'self' blob:"],
   ["connect-src", "'self' blob: https://api.github.com wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"],
 ];
@@ -51,7 +80,7 @@ export const ENTRY_IMPORT_LINE = "  import('/assets/torii-entry.js');";
 export function cspValueForSha(inlineSha) {
   const dirs = CSP_DIRECTIVES.map(([k, v]) =>
     k === 'script-src'
-      ? [k, `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' ${inlineSha}`]
+      ? [k, `'self' 'wasm-unsafe-eval' '${inlineSha}'`]
       : [k, v],
   );
   return dirs.map(([k, v]) => `${k} ${v}`).join("; ");

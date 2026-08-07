@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.420-alpha';
+const EXPECTED_VERSION = 'v0.2.421-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -446,6 +446,73 @@ console.log('[15] SPA /zone/* fallback readiness (zoneFallbackReadiness)');
 console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
 {
   const META_CSP_RE = /<meta[^>]+http-equiv=["']Content-Security-Policy["']/i;
+  const QUOTED_HASH_SOURCE_RE = /^'sha256-[A-Za-z0-9+/]+=*'$/;
+  const BARE_HASH_SOURCE_RE = /^sha256-[A-Za-z0-9+/]+=*$/;
+  const scriptSrcTokens = (cspValue) => {
+    const directive = cspValue
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part === 'script-src' || part.startsWith('script-src '));
+    return directive ? directive.split(/\s+/).slice(1) : null;
+  };
+  const validateQuotedHashSource = (cspValue, expectedHash, label) => {
+    const tokens = scriptSrcTokens(cspValue);
+    if (!tokens) {
+      fail(`${label} is missing script-src`);
+      return false;
+    }
+    const bareHashes = tokens.filter((token) => BARE_HASH_SOURCE_RE.test(token));
+    if (bareHashes.length > 0) {
+      fail(`${label} contains an invalid bare hash-source: ${bareHashes.join(', ')}`);
+      return false;
+    }
+    const quotedHashes = tokens.filter((token) => QUOTED_HASH_SOURCE_RE.test(token));
+    if (quotedHashes.length !== 1) {
+      fail(`${label} must contain exactly one quoted sha256 hash-source (found ${quotedHashes.length})`);
+      return false;
+    }
+    if (expectedHash && quotedHashes[0] !== `'${expectedHash}'`) {
+      fail(`${label} hash-source mismatch: expected '${expectedHash}', found ${quotedHashes[0]}`);
+      return false;
+    }
+    return true;
+  };
+  const validateSameOriginModuleGraphPolicy = (cspValue, label) => {
+    const tokens = scriptSrcTokens(cspValue);
+    if (!tokens) {
+      fail(`${label} is missing script-src`);
+      return false;
+    }
+    if (!tokens.includes("'self'")) {
+      fail(`${label} must retain the same-origin script source for the ESM graph`);
+      return false;
+    }
+    if (tokens.includes("'strict-dynamic'")) {
+      fail(`${label} must not contain 'strict-dynamic' because it disables the same-origin module allowlist`);
+      return false;
+    }
+    if (tokens.includes('blob:')) {
+      fail(`${label} must not contain blob: because script execution is limited to same-origin modules plus the quoted bootstrap hash`);
+      return false;
+    }
+    return true;
+  };
+  const validateWorkerBlobPolicy = (cspValue, label) => {
+    const directive = cspValue
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part === 'worker-src' || part.startsWith('worker-src '));
+    if (!directive) {
+      fail(`${label} is missing worker-src`);
+      return false;
+    }
+    const tokens = directive.split(/\s+/).slice(1);
+    if (!tokens.includes("'self'") || !tokens.includes('blob:')) {
+      fail(`${label} must retain worker-src 'self' blob:`);
+      return false;
+    }
+    return true;
+  };
   const indexHtml = readFileSync(join(ROOT, 'index.html'), 'utf8');
   if (META_CSP_RE.test(indexHtml)) fail('index.html still ships a <meta> CSP (must be an HTTP header — see tools/csp.mjs)');
   else pass('index.html has no <meta> CSP (delivered as HTTP header)');
@@ -488,16 +555,36 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   if (rootAssetOk) pass('no bare root-relative static-asset loads in src/ (all base-aware via assetUrl)');
 
   // CSP single-source sanity (tools/csp.mjs).
-  let CSP_VALUE, INLINE_SHA, HEADERS_BODY;
+  let CSP_VALUE, INLINE_SHA, HEADERS_BODY, INLINE_SOURCE_OF, INLINE_SHA_OF;
   try {
     const csp = await import('./csp.mjs');
     CSP_VALUE = csp.CSP_VALUE; INLINE_SHA = csp.INLINE_SCRIPT_SHA256; HEADERS_BODY = csp.headersFileBody();
-    const need = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "'strict-dynamic'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src', 'https://api.github.com', INLINE_SHA];
+    INLINE_SOURCE_OF = csp.inlineBootstrapSourceOf;
+    INLINE_SHA_OF = csp.inlineBootstrapSha256Of;
+    const need = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src', 'https://api.github.com'];
     const missing = need.filter((d) => !CSP_VALUE.includes(d));
+    const fallbackHashOk = validateQuotedHashSource(CSP_VALUE, INLINE_SHA, 'tools/csp.mjs CSP_VALUE script-src');
+    const suppliedHash = 'sha256-' + createHash('sha256').update('dynamic-csp-hash-source-check', 'utf8').digest('base64');
+    const dynamicCsp = csp.cspValueForSha(suppliedHash);
+    const dynamicHashOk = validateQuotedHashSource(dynamicCsp, suppliedHash, 'tools/csp.mjs cspValueForSha() script-src');
+    const fallbackModuleGraphOk = validateSameOriginModuleGraphPolicy(CSP_VALUE, 'tools/csp.mjs CSP_VALUE script-src');
+    const dynamicModuleGraphOk = validateSameOriginModuleGraphPolicy(dynamicCsp, 'tools/csp.mjs cspValueForSha() script-src');
+    const fallbackWorkerBlobOk = validateWorkerBlobPolicy(CSP_VALUE, 'tools/csp.mjs CSP_VALUE worker-src');
+    const dynamicWorkerBlobOk = validateWorkerBlobPolicy(dynamicCsp, 'tools/csp.mjs cspValueForSha() worker-src');
+    const selectorTrap = '<!-- decoy <script>not executable</script> -->\n'
+      + '<script>\ntrusted();\n</script>';
+    const selectorSource = '\ntrusted();\n';
+    const selectorSha = 'sha256-' + createHash('sha256')
+      .update(selectorSource, 'utf8')
+      .digest('base64');
+    const selectorOk = INLINE_SOURCE_OF(selectorTrap) === selectorSource
+      && INLINE_SHA_OF(selectorTrap) === selectorSha;
+    if (!selectorOk) fail('tools/csp.mjs inline bootstrap selector was confused by an HTML-comment script decoy');
     if (missing.length) fail(`tools/csp.mjs CSP_VALUE missing: ${missing.join(', ')}`);
     else if (/gstatic/.test(CSP_VALUE)) fail('tools/csp.mjs CSP_VALUE still references gstatic');
     else if (!/^sha256-[A-Za-z0-9+/]+=*$/.test(INLINE_SHA)) fail(`tools/csp.mjs INLINE_SCRIPT_SHA256 malformed: ${INLINE_SHA}`);
-    else pass('tools/csp.mjs CSP has strict-dynamic + inline sha + required directives, no gstatic');
+    else if (!fallbackHashOk || !dynamicHashOk || !fallbackModuleGraphOk || !dynamicModuleGraphOk || !fallbackWorkerBlobOk || !dynamicWorkerBlobOk || !selectorOk) { /* detailed failure emitted above */ }
+    else pass("tools/csp.mjs CSP has least-privilege 'self' module graph + one quoted inline hash-source; blob: remains worker-only");
   } catch (e) {
     fail(`tools/csp.mjs failed to load: ${e.message}`);
   }
@@ -518,7 +605,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
       // v0.2.294: _headers now carries the sha recomputed from the emitted inline script
       // (which has a per-build cache-bust query), so it no longer equals the legacy
       // headersFileBody() constant. Validate it carries the required directives instead.
-      const needHeaders = ["Content-Security-Policy", "object-src 'none'", "'strict-dynamic'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src'];
+      const needHeaders = ["Content-Security-Policy", "object-src 'none'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src'];
       const missingH = needHeaders.filter((d) => !body.includes(d));
       if (missingH.length) fail(`dist/_headers missing: ${missingH.join(', ')}`);
       else pass('dist/_headers carries a CSP with the required directives');
@@ -528,22 +615,33 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     // carries THAT sha (self-consistency). v0.2.294: the inline import now carries a
     // per-build ?v=<stamp> query, so the sha churns every build — comparing it to a
     // hardcoded constant would be wrong; instead we require _headers to match the emit.
-    const inlineScripts = [...distHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-    if (inlineScripts.length !== 1) fail(`expected exactly 1 attribute-less inline <script> in dist/index.html, found ${inlineScripts.length}`);
-    else {
-      const sha = 'sha256-' + createHash('sha256').update(inlineScripts[0], 'utf8').digest('base64');
+    try {
+      const sha = INLINE_SHA_OF(distHtml);
+      const source = INLINE_SOURCE_OF(distHtml);
       const headersBody = existsSync(headersP) ? readFileSync(headersP, 'utf8') : '';
-      if (!headersBody.includes(sha)) fail(`inline-script sha not found in dist/_headers: built ${sha} (plugin must recompute sha at writeBundle time)`);
-      else pass(`inline-script sha matches dist/_headers (${sha.slice(0, 24)}…)`);
+      const cspLine = headersBody
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.startsWith('Content-Security-Policy:'));
+      const emittedCsp = cspLine ? cspLine.slice('Content-Security-Policy:'.length).trim() : '';
+      if (!source.includes('navigator.serviceWorker.register') || !source.includes("import('")) {
+        fail('dist inline bootstrap selector did not return the executable registration/import source');
+      } else if (!emittedCsp) fail('dist/_headers is missing its Content-Security-Policy value');
+      else if (!validateQuotedHashSource(emittedCsp, sha, 'dist/_headers script-src')) { /* detailed failure emitted above */ }
+      else if (!validateSameOriginModuleGraphPolicy(emittedCsp, 'dist/_headers script-src')) { /* detailed failure emitted above */ }
+      else if (!validateWorkerBlobPolicy(emittedCsp, 'dist/_headers worker-src')) { /* detailed failure emitted above */ }
+      else pass(`browser-source quoted hash + least-privilege script/worker policy match dist/_headers (${sha.slice(0, 24)}…)`);
+    } catch (e) {
+      fail(`dist inline bootstrap selection failed: ${e.message}`);
     }
 
-    if (/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (strict-dynamic needs it loaded by the trusted inline script)');
+    if (/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (the trusted inline bootstrap must remain the single entry-loader path)');
     // Accept absolute (`/assets/`), depth-rewritten relative (`./assets/`), or
     // base-prefixed (`/quest/assets/`) — the plugin emits the deploy base
     // (v0.2.370-alpha), tools/relfix.mjs rewrites to relative post-build.
     else if (!/import\(['"][^'"]*\/assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('.../assets/torii-entry.js[?v=...]') in the inline bootstrap");
     else if (!/\?v=/.test(distHtml)) fail("dist/index.html entry import lacks a ?v= cache-bust query (CDN would serve stale entry)");
-    else pass('entry loaded via versioned import() from the trusted inline bootstrap (strict-dynamic + CDN cache-bust)');
+    else pass("entry loaded via versioned import() from the trusted inline bootstrap ('self' module graph + CDN cache-bust)");
 
     if (!existsSync(join(ROOT, 'dist/assets/torii-entry.js'))) fail('dist/assets/torii-entry.js (pinned entry) missing');
     else pass('pinned entry chunk dist/assets/torii-entry.js present');
@@ -655,6 +753,48 @@ console.log('[20] MP-3 leaderboard reads only kind:30078#d=torii-quest + kind:1#
     else if (/kind\s*:\s*(?!30078|1\b)\d+/.test(a)) fail('leaderboardAgg reads a kind other than 30078 / 1');
     else pass('leaderboard read-path locked to 30078#d=torii-quest + 1#t=torii-quest-score');
   }
+}
+
+
+// 21. Service-worker deploy-base contract (issue #27). The emitted-build test is
+// the behavioural authority; this source guard keeps registration and precache
+// policy explicit without coupling to Vite plugin implementation details.
+console.log('[21] service-worker deploy-base contract');
+{
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const sw = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
+  let ok = true;
+
+  const registration = /navigator\.serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/;
+  if (!registration.test(html)) {
+    fail('index.html service-worker registration must use %BASE_URL% for script URL and scope');
+    ok = false;
+  }
+
+  if (!sw.includes('new URL(asset, self.registration.scope).href')) {
+    fail('public/sw.js precache URLs must resolve from self.registration.scope');
+    ok = false;
+  }
+
+  const manifest = sw.match(/const\s+PRECACHE_ASSETS\s*=\s*\[([\s\S]*?)\];/);
+  if (!manifest) {
+    fail('public/sw.js PRECACHE_ASSETS manifest is missing');
+    ok = false;
+  } else {
+    const entries = [...manifest[1].matchAll(/^\s*['"]([^'"]+)['"]\s*,?/gm)]
+      .map((match) => match[1]);
+    if (entries.length === 0) {
+      fail('public/sw.js PRECACHE_ASSETS has no string entries');
+      ok = false;
+    }
+    const rootRelative = entries.filter((entry) => entry.startsWith('/'));
+    if (rootRelative.length > 0) {
+      fail(`precache entries must be scope-relative: ${rootRelative.join(', ')}`);
+      ok = false;
+    }
+  }
+
+  if (ok) pass('service-worker registration and precache are deploy-base aware');
 }
 
 console.log(fails === 0 ? '\nALL GREEN' : `\n${fails} FAILURE(S)`);

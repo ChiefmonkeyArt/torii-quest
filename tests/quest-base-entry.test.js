@@ -95,6 +95,9 @@ function expectCspMatchesFinalInline(build) {
   expect(source).toContain("import('");
   expect(source).not.toContain('Instance Settings overlay');
   const tokens = scriptSrcTokens(build.headers);
+  expect(tokens).toContain("'self'");
+  expect(tokens).not.toContain("'strict-dynamic'");
+  expect(tokens).not.toContain('blob:');
   const quotedHashes = tokens.filter((token) => /^'sha256-[A-Za-z0-9+/]+=*'$/.test(token));
   expect(quotedHashes).toEqual([`'${hash}'`]);
   expect(tokens).not.toContain(hash);

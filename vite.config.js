@@ -12,8 +12,9 @@ import {
 // CSP via HTTP header (S3, v0.2.266). The policy lives in tools/csp.mjs (single source).
 // This plugin: (1) rewrites the BUILT index.html so the trusted classic inline bootstrap
 // script `import()`s the pinned entry (assets/torii-entry.js) instead of a static
-// <script> tag — letting `strict-dynamic` cover the whole module graph; (2) writes
-// dist/_headers for the static host; (3) serves the same header from `vite preview`.
+// <script> tag — keeping one hash-authorized inline loader while script-src `'self'`
+// authorizes the same-origin ESM graph; (2) writes dist/_headers for the static host;
+// (3) serves the same header from `vite preview`.
 //
 // v0.2.285: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
 // Cloudflare's 4h edge cache can never serve a stale entry that points at a dead/old
@@ -65,7 +66,7 @@ function cspHeaderPlugin() {
         // Vite's own injected client/HMR scripts).
         if (!ctx.bundle) return html;
         // Drop the parser-inserted entry tag + any modulepreload hint for it; the
-        // trusted inline bootstrap loads it via import() so strict-dynamic applies.
+        // trusted inline bootstrap remains the single entry-loader path.
         // Base-agnostic: matches `/assets/…` and base-prefixed `/quest/assets/…`.
         let out = html
           .replace(/\s*<script\b[^>]*\bsrc="[^"]*\/assets\/torii-entry\.js"[^>]*><\/script>/, '')

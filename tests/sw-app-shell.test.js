@@ -62,6 +62,24 @@ function expectSingleQuotedHashSource(cspValue, expectedHash) {
   expect(tokens.some((token) => /^sha256-[A-Za-z0-9+/]+=*$/.test(token))).toBe(false);
 }
 
+function expectSameOriginModuleGraphPolicy(cspValue) {
+  const tokens = scriptSrcTokens(cspValue);
+  expect(tokens).toContain("'self'");
+  expect(tokens).not.toContain("'strict-dynamic'");
+  expect(tokens).not.toContain('blob:');
+}
+
+function expectWorkerBlobPolicy(cspValue) {
+  const directive = cspValue
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part === 'worker-src' || part.startsWith('worker-src '));
+  expect(directive).toBeDefined();
+  const tokens = directive.split(/\s+/).slice(1);
+  expect(tokens).toContain("'self'");
+  expect(tokens).toContain('blob:');
+}
+
 describe('service worker — app-shell precache guard (entry-flow regression)', () => {
   it('does NOT precache the HTML app shell', () => {
     const list = precacheList();
@@ -128,11 +146,16 @@ describe('index.html — service-worker registration self-heal', () => {
       .digest('base64');
     expect(hash).toBe(INLINE_SCRIPT_SHA256);
     expectSingleQuotedHashSource(CSP_VALUE, INLINE_SCRIPT_SHA256);
+    expectSameOriginModuleGraphPolicy(CSP_VALUE);
+    expectWorkerBlobPolicy(CSP_VALUE);
 
     const suppliedHash = 'sha256-' + createHash('sha256')
       .update('dynamic-csp-hash-source-test', 'utf8')
       .digest('base64');
     expect(suppliedHash).not.toBe(INLINE_SCRIPT_SHA256);
-    expectSingleQuotedHashSource(cspValueForSha(suppliedHash), suppliedHash);
+    const dynamicCsp = cspValueForSha(suppliedHash);
+    expectSingleQuotedHashSource(dynamicCsp, suppliedHash);
+    expectSameOriginModuleGraphPolicy(dynamicCsp);
+    expectWorkerBlobPolicy(dynamicCsp);
   });
 });

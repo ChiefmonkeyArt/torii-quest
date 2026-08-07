@@ -9,13 +9,12 @@ import { createHash } from 'node:crypto';
 //   2. the Vite preview server (production-parity local serving).
 //   3. the Caddy / Nginx server blocks documented in VPS_INSTALL.md (VPS deploy path).
 //
-// script-src uses `strict-dynamic` + a sha256 hash of the SINGLE trusted classic inline
-// bootstrap script. At build the vite plugin removes the static entry <script> tag and
-// has that bootstrap script `import('/assets/torii-entry.js')` instead; `strict-dynamic`
-// then propagates trust to the entry and every lazily-imported chunk (three-vendor,
-// rapier, arenaRuntime, …) without listing any of them. `'self'`/`blob:` are kept as a
-// CSP-Level-2 fallback for browsers that don't understand `strict-dynamic` (they ignore
-// `strict-dynamic` and load the same-origin entry via `'self'`).
+// script-src uses a sha256 hash for the SINGLE trusted classic inline bootstrap and
+// keeps `'self'` for the versioned same-origin ESM entry plus every lazily imported
+// chunk (three-vendor, rapier, arenaRuntime, …). At build the Vite plugin removes the
+// static entry <script> tag and has the bootstrap `import('/assets/torii-entry.js')`.
+// Do not add `'strict-dynamic'`: Chrome ignores host allowlists when it is present but
+// does not propagate the bootstrap hash trust through import() for this module graph.
 //
 // connect-src carries the Nostr relay sockets plus the ONE read-only HTTPS origin the
 // update-check needs — https://api.github.com (releases/latest, GET only, cached client-side
@@ -63,7 +62,7 @@ export const CSP_DIRECTIVES = [
   ["object-src", "'none'"],
   ["base-uri", "'self'"],
   ["form-action", "'self'"],
-  ["script-src", `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' '${INLINE_SCRIPT_SHA256}'`],
+  ["script-src", `'self' 'wasm-unsafe-eval' '${INLINE_SCRIPT_SHA256}'`],
   ["worker-src", "'self' blob:"],
   ["connect-src", "'self' blob: https://api.github.com wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"],
 ];
@@ -81,7 +80,7 @@ export const ENTRY_IMPORT_LINE = "  import('/assets/torii-entry.js');";
 export function cspValueForSha(inlineSha) {
   const dirs = CSP_DIRECTIVES.map(([k, v]) =>
     k === 'script-src'
-      ? [k, `'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' '${inlineSha}'`]
+      ? [k, `'self' 'wasm-unsafe-eval' '${inlineSha}'`]
       : [k, v],
   );
   return dirs.map(([k, v]) => `${k} ${v}`).join("; ");

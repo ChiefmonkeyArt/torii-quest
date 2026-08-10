@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.421-alpha` - MP net smoothness v1
+Current version: `v0.2.422-alpha` - service-worker deploy-base + CSP hardening (prior: v0.2.421-alpha MP net smoothness v1)
 
 ## 🚨 TOP OF QUEUE
 

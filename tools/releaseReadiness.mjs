@@ -18,7 +18,7 @@ import { formatBytes } from './bundleSizes.mjs';
 // The number of static/runtime guardrails tools/regression-check.mjs currently runs. The
 // summary surfaces the gate's PRESENCE + count read-only; the gate itself is the authority
 // (`npm run check`). If a check is added/removed there, bump this so the summary stays honest.
-export const REGRESSION_CHECK_COUNT = 20;
+export const REGRESSION_CHECK_COUNT = 21;
 
 // Badge naming the section as read-only oversight, never a deploy/publish action.
 export const RELEASE_READINESS_BADGE = 'RELEASE READINESS · LOCAL · READ-ONLY';

@@ -8,7 +8,7 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.421-alpha';
+const CACHE_VERSION = 'tq-v0.2.422-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
 // Static assets to precache on install — ONLY immutable binary assets whose URL never
@@ -33,9 +33,11 @@ const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 //   /banker-rigged.glb, /chiefmonkey6.glb, /chiefmonkey-headless.glb,
 //   /nostrich3.glb, /torii-gate.glb, /torii-gateway-experience.glb,
 //   /gun-steampunk.glb.
+// Keep names relative to the registration scope. Root deployments resolve these
+// under `/`; path-prefix deployments such as `/quest/` resolve them under that mount.
 const PRECACHE_ASSETS = [
-  '/wall-texture.webp', // arena floor — visible the instant the player loads in
-  '/bitcoin-b.png',     // sats HUD icon — visible on every frame in-arena
+  'wall-texture.webp', // arena floor — visible the instant the player loads in
+  'bitcoin-b.png',     // sats HUD icon — visible on every frame in-arena
 ];
 
 // ── Install — precache all static assets ─────────────────────────────────────
@@ -53,11 +55,12 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => Promise.all(
-        PRECACHE_ASSETS.map(asset =>
-          cache.add(asset).catch(err => {
-            console.warn('[sw] precache skipped (non-fatal):', asset, err);
-          })
-        )
+        PRECACHE_ASSETS.map(asset => {
+          const scopedAsset = new URL(asset, self.registration.scope).href;
+          return cache.add(scopedAsset).catch(err => {
+            console.warn('[sw] precache skipped (non-fatal):', scopedAsset, err);
+          });
+        })
       ))
       .then(() => self.skipWaiting()) // activate immediately, don't wait for tabs to close
   );

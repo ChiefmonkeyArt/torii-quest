@@ -237,6 +237,14 @@ describe('wsClient keepalive', () => {
     expect(timers.some((t) => t.ms === KEEPALIVE_MS)).toBe(true);
   });
 
+  it('sends a PING immediately after WELCOME without waiting for KEEPALIVE_MS', async () => {
+    const { client, timers } = makeClient({ now: () => 1234 });
+    const ws = await toConnected(client);
+    const frames = ws.sent.map((raw) => JSON.parse(raw));
+    expect(frames.at(-1)).toEqual({ t: MSG.PING, ts: 1234 });
+    expect(timers.some((t) => t.ms === KEEPALIVE_MS)).toBe(true);
+  });
+
   it('sends a PING on each keepalive tick and re-arms the timer', async () => {
     const { client, timers } = makeClient();
     const ws = await toConnected(client);

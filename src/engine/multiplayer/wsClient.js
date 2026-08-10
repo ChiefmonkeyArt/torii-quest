@@ -211,6 +211,9 @@ export function createWsClient(opts) {
           api.serverTsOffset = msg.srv - now();
         }
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
+        // Refine RTT/one-way latency immediately instead of leaving shot timing
+        // on the coarse WELCOME offset until the first 25-second keepalive tick.
+        send({ t: MSG.PING, ts: now() });
         api.backoffMs = BACKOFF_MS_INITIAL; // reset on successful connect
         _startKeepalive();
         emit('roster', { roster: msg.roster });

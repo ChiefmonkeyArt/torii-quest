@@ -42,6 +42,7 @@ import {
 } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
+import { computeMoveVelocity } from './engine/multiplayer/moveVelocity.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
 import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
@@ -202,6 +203,8 @@ export function createArenaRuntime(hooks = {}) {
   // roster; the render loop only calls `_mp.tick(now)` and (throttled) `_mp.sendMove()`.
   let _mp = null;
   let _mpMoveAccum = 0;
+  let _lastMovePos = null;
+  let _mpMoveDt = 0;
   const MP_MOVE_HZ = 20;
   const MP_MOVE_INTERVAL = 1 / MP_MOVE_HZ;
 
@@ -400,11 +403,23 @@ export function createArenaRuntime(hooks = {}) {
       _mpMoveAccum += dt;
       if (isPlaying() && _mpMoveAccum >= MP_MOVE_INTERVAL) {
         _mpMoveAccum = 0;
+        const px = playerObj.position.x;
+        const py = playerObj.position.y;
+        const pz = playerObj.position.z;
+        const [vx, vy, vz] = computeMoveVelocity(
+          [px, py, pz],
+          _lastMovePos,
+          _mpMoveDt,
+        );
+        _lastMovePos = [px, py, pz];
+        _mpMoveDt = 0;
         _mp.sendMove({
-          pos: [playerObj.position.x, playerObj.position.y, playerObj.position.z],
+          pos: [px, py, pz],
           rot: [playerObj.rotation.y, 0],
-          vel: [0, 0, 0], // velocity source lives in the character controller; MP-2 will read it.
+          vel: [vx, vy, vz],
         });
+      } else {
+        _mpMoveDt += dt;
       }
     }
     // v0.2.379-alpha: feed the frame delta (ms) to the adaptive tier BEFORE the

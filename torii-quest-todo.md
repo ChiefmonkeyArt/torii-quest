@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.420-alpha` - M4-G1 bot flanking
+Current version: `v0.2.421-alpha` - MP net smoothness v1
 
 ## 🚨 TOP OF QUEUE
 
@@ -307,6 +307,10 @@ Goal: lift the game from a functional MVP into a distinctive, replayable arena s
 3. M4-G1 bot AI / cover (biggest gameplay lever)
 4. M4-V4 character model rig pass
 5. M4-G2 weapon variety, M4-G3 pickups, then the rest in priority order.
+
+## Backlog: Level 2 Platform Architecture
+
+- [ ] Draft Level 2 platform architecture proposal: separate Torii engine (gate + runtime + networking) from world content (arena, NAP zone, game mode). Users can delete/replace the arena, build custom worlds (racing, gallery, shop), and changes survive updates. Only the Torii gate is permanent. Pluggable game mode interface.
 
 ## Torii Quest ToDo - Working rules
 

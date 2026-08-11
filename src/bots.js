@@ -619,6 +619,6 @@ function _applyKillRender(bot) {
 
   state.kills++;
   state.sats += 5;
-  emit(EV.BOT_KILLED, { sats: 5 });
+  emit(EV.BOT_KILLED, { bot, sats: 5 });
   emit(EV.HUD_UPDATE);
 }

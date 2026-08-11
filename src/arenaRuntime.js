@@ -25,11 +25,9 @@ import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
-import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
+import { initPlayer, tickPlayer, playerObj, setPlayerBody, spawnPlayerBody, setNextSpawn, getPlayerCollider, resetPlayerPos, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
@@ -66,6 +64,9 @@ import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
+import { loadWorld } from './engine/world/worldLoader.js';
+import { createArenaShooterMode } from './engine/modes/arena-shooter.js';
+import defaultWorldUrl from '../worlds/default/world.json?url';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -197,6 +198,8 @@ export function createArenaRuntime(hooks = {}) {
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
 
   let _booted = false;
+  let _world = null;
+  const _mode = createArenaShooterMode();
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
   // no scene mutations. When enabled, the host owns the ws lifecycle + peer avatar
@@ -233,7 +236,7 @@ export function createArenaRuntime(hooks = {}) {
   const _perfHud = createPerfHud({
     window,
     getMetrics: () => _quality.metrics(),
-    getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
+    getCounts: () => ({ bots: _mode.bots.length, peers: _mp ? _mp.roster.size : 0 }),
   });
 
   // v0.2.380-alpha: live in-arena leaderboard overlay (toggle: L / Tab).
@@ -344,10 +347,7 @@ export function createArenaRuntime(hooks = {}) {
     // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
-    tickDeath(dt, renderer);
-    tickBots(dt);
-    if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
-    tickWeapons(dt, playerObj.position);
+    _mode.tick(dt, performance.now());
     tickTargetReticle();
     // Grounded state comes straight from the Rapier character controller
     // (result.grounded), NOT an eye-height guess — the latter broke once the
@@ -405,7 +405,7 @@ export function createArenaRuntime(hooks = {}) {
     tickFoliage(dt);
     tickSea(dt);
     if (_muzzleFlashes) _muzzleFlashes.tick(dt);
-    if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
+    if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, _mode.bots); }
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
     // thus this loop) is ever booted. The game loop no longer polls them.
@@ -450,9 +450,9 @@ export function createArenaRuntime(hooks = {}) {
     _perfHud.update(performance.now());
   }
 
-  // boot() — one-time synchronous three scene/loop bootstrap + handler wiring.
+  // boot() — one-time world load, Three scene/loop bootstrap, and handler wiring.
   // Safe to call once; subsequent calls are a no-op.
-  function boot() {
+  async function boot() {
     if (_booted) return;
     _booted = true;
 
@@ -463,73 +463,51 @@ export function createArenaRuntime(hooks = {}) {
     initHUD();
     initPlayerStats();
     initPlayer();
-    initBots(playerObj, spawnBullet);
     _muzzleFlashes = createMuzzleFlashPool(scene, {
       getQualityTier: () => _quality.currentTier(),
     });
-    initWeapons(
-      bots,
-      takeDamage,
-      getPlayerCollider,
-      isBotNetMode,
-      (impactPos) => _muzzleFlashes.trigger('impact', impactPos),
-    );
-    initTargetReticle({ bots, playerObj, getPlayerCollider });
 
-    // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX. Suppressed
-    // entirely in the NAP zone (player.x > NAP_X) so the weapon reads as inert.
-    on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
-      if (playerObj.position.x > NAP_X) return;
-      const b = spawnBullet(origin, dir, true);
-      _muzzleFlashes.trigger('muzzle', origin);
-      if (aimOrigin && aimDir) {
-        recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
-      }
-      triggerRecoil();
-      playShoot();
-      // MP-2 peer combat (outbound): every arena shot reports to the authoritative
-      // server, which ray-resolves it against lag-compensated peer snapshots and
-      // no-ops when it hits no peer. Gate + payload live in the pure peerCombat
-      // module (prefers the AIM ray so server hit-detection matches what the
-      // shooter saw). Bot hits stay a separate client-side path — a shot may both
-      // hit a bot locally AND resolve a peer hit server-side; that is expected.
-      if (_mp && shouldSendShot({ playerX: playerObj.position.x, napX: NAP_X, selfId: _mp.selfId })) {
-        // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
-        // client's measured viewLag. The server rewinds in its OWN clock frame
-        // (server_now - viewLag) — the client clock is not synced to the server,
-        // so a client timestamp can never index the server's snapshot rings.
-        // viewLag = render interp delay + network one-way; rewinding by it tests
-        // the collider where the shooter SAW the target, not where it now is.
+    _world = await loadWorld(defaultWorldUrl);
+    if (_world.mode !== 'arena-shooter') {
+      throw new Error(`Unsupported game mode: ${_world.mode}`);
+    }
+    await _mode.init({
+      scene, camera, renderer, world: _world,
+      physics: { step: stepPhysics, world: getWorld, castRay, castRayStatic, hasLineOfSight },
+      getMultiplayerHost: () => _mp,
+      muzzleFlashes: _muzzleFlashes,
+      napX: NAP_X,
+      isPlaying,
+      stepPhysics,
+      tickDynamicCrates,
+      onShootAnimation: () => { _isShooting = true; },
+      onPlayerShot: ({ origin, dir, aimOrigin, aimDir }) => {
+        if (!_mp || !shouldSendShot({ playerX: playerObj.position.x, napX: NAP_X, selfId: _mp.selfId })) return;
         const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
         const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
         if (shot) _mp.sendShot(shot);
-      }
+      },
+      onPlayerDeath: () => triggerDeath(),
+      wsState: WS_STATE,
+      playerHp: PLAYER_HP,
+      onScoreFrame: (payload) => { _arenaLb.setLiveScore(payload); emit(EV.SCORE_FRAME, payload); },
+      onBotShot: (payload) => {
+        if (Array.isArray(payload.origin)) {
+          _mpShotOrigin.set(payload.origin[0], payload.origin[1], payload.origin[2]);
+          _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
+        }
+      },
     });
-    on(EV.SHOOT, () => { _isShooting = true; });
+    initTargetReticle({ bots: _mode.bots, playerObj, getPlayerCollider });
 
-    on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
-      hitBot(bot, dmg);
-      if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
-      flashCross();
-    });
-    window._onBotHit = (bot, dmg) => emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg });
-
-    on(EV.PLAYER_HIT,    () => triggerHit());
-    on(EV.PLAYER_KILLED, () => {
-      triggerDeath();
-      // Respawn as far from the live bots as possible — decision logic owned by the
-      // pure pickRespawnCorner in the player entity boundary (behaviour-identical to
-      // the former inline corner scan).
-      const best = pickRespawnCorner(bots.filter(b => b.alive).map(b => b.pos));
-      setNextSpawn(best.x, best.z, best.yaw);
-    });
-    on(EV.HUD_UPDATE,    () => { if (isReloading()) triggerReload(); });
+    on(EV.PLAYER_HIT, () => triggerHit());
+    on(EV.HUD_UPDATE, () => { if (isReloading()) triggerReload(); });
 
     installToriiDebug({
-      version: VERSION, bots, hitBot, playerObj, resetPlayerPos,
+      version: VERSION, bots: _mode.bots, hitBot: _mode.hitBot, playerObj, resetPlayerPos,
       camera, setPitch,
-      castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-      getLastShot, getLastMiss,
+      castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit: _mode.getLastHit,
+      getLastShot: _mode.getLastShot, getLastMiss: _mode.getLastMiss,
       getGrassMat, getFlowerMat, getMirror,
       getPhase: () => state.phase,
       getState: () => ({
@@ -662,8 +640,8 @@ export function createArenaRuntime(hooks = {}) {
       // three in this seam via spawnPeerShotFx.
       const _peerCombat = createPeerCombat({
         getSelfId: () => _mp && _mp.selfId,
-        takeDamage,
-        killPlayer,
+        takeDamage: _mode.takeDamage,
+        killPlayer: _mode.killPlayer,
         flashCross,
         addKill,
         state,
@@ -679,65 +657,7 @@ export function createArenaRuntime(hooks = {}) {
       });
       const _mpEmit = (name, payload) => {
         if (_peerCombat(name, payload)) return;
-        const p = payload || {};
-
-        // Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots. In MP
-        // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
-        // the local AI + ignore local damage) and drive it from the BOT_* stream.
-        if (name === 'mp_state') {
-          if (p.state === WS_STATE.CONNECTED) setBotNetMode(true);
-          else if (p.state === WS_STATE.CLOSED) setBotNetMode(false);
-          return;
-        }
-        if (name === 'mp_stopped' || name === 'mp_disabled') { setBotNetMode(false); return; }
-        // v0.2.380-alpha: server-authoritative live leaderboard tallies. Feed the
-        // SCORE frame straight into the overlay; it re-renders only when open on
-        // the LOCAL tab. Read-only — no signer, no prompts.
-        if (name === 'mp_score') { _arenaLb.setLiveScore(p); emit(EV.SCORE_FRAME, p); return; }
-        if (name === 'mp_botState') { ingestBotState(p.bots); return; }
-        if (name === 'mp_botShot') {
-          if (Array.isArray(p.origin)) {
-            _mpShotOrigin.set(p.origin[0], p.origin[1], p.origin[2]);
-            _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
-          }
-          applyBotShot(p.origin, p.dir);
-          return;
-        }
-        if (name === 'mp_botHit') {
-          applyBotHit(p.botId, p.hp);
-          if (_mp && p.shooterId === _mp.selfId) {
-            for (let i = 0; i < bots.length; i++) {
-              if (bots[i].state?.id === p.botId) {
-                _muzzleFlashes.trigger('botHit', bots[i].pos);
-                break;
-              }
-            }
-            flashCross();
-          }
-          return;
-        }
-        if (name === 'mp_botKill') {
-          applyBotKill(p.botId);
-          // Score a bot frag only when WE landed the killing shot — mirror the
-          // single-player kill side-effects (kills/sats/HUD) the sim doesn't own.
-          if (_mp && p.shooterId === _mp.selfId) {
-            state.kills++;
-            state.sats += 5;
-            emit(EV.BOT_KILLED, { sats: 5 });
-            emit(EV.HUD_UPDATE);
-          }
-          return;
-        }
-
-        // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed —
-        // warp the local body to the server-picked corner and heal to PLAYER_HP.
-        if (name !== 'mp_respawn') return;
-        if (!Array.isArray(p.pos)) return;
-        const yaw = Array.isArray(p.rot) ? p.rot[0] : 0;
-        setNextSpawn(p.pos[0], p.pos[2], yaw);
-        resetPlayerPos();
-        state.hp = typeof p.hp === 'number' ? p.hp : PLAYER_HP;
-        emit(EV.HUD_UPDATE);
+        _mode.handleMultiplayerEvent(name, payload || {});
       };
       _mp = createMultiplayerHost({
         scene,
@@ -838,10 +758,11 @@ export function createArenaRuntime(hooks = {}) {
   // window.location.href navigates away, so the server-side close is graceful and
   // peers see us LEFT immediately instead of after a ping-timeout gap.
   function stopMultiplayer(reason = 'travel') {
+    _mode.dispose();
     if (_mp) { try { _mp.stop(reason); } catch {} _mp = null; }
     // v0.2.380-alpha: tear the leaderboard overlay down on arena exit / travel.
     try { _arenaLb.destroy(); } catch { /* noop */ }
   }
 
-  return { boot, bootstrapPhysics, enter, setSpawnOverride, stopMultiplayer };
+  return { boot, bootstrapPhysics, enter, setSpawnOverride, stopMultiplayer, dispose: stopMultiplayer };
 }

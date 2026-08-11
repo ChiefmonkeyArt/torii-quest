@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.424-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
+Current version: `v0.2.425-alpha` - Level 2 Phase 3 game mode: pluggable lifecycle contract and extracted arena-shooter mode (prior: v0.2.424-alpha render budget v1)
 
 ## 🚨 TOP OF QUEUE
 

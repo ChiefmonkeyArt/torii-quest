@@ -104,7 +104,7 @@ export function getTulipMat()  { return _tulipMat; } // v0.2.263
 // lean, curve). Y-up: blade grows +Y, ground is XZ, bend plane is Y/Z, blade
 // yaw rotates X/Z. (Z-up→Y-up conversion applied to terra's original GLSL.)
 function _buildGrass() {
-  const BLADE_SEGS   = 5;
+  const BLADE_SEGS   = 4;
   const BLADE_VERTS  = (BLADE_SEGS + 1) * 2;
   const BLADE_INDICES = BLADE_SEGS * 12;
   const BLADE_WIDTH  = 0.050;
@@ -112,10 +112,10 @@ function _buildGrass() {
   const BLADE_HEIGHT_MAX = 0.58;
   // v0.2.314: doubled density to fill gaps. v0.2.329: grass now spans BOTH the NAP
   // footprint (~874 sq units) AND the arena footprint (~1444 sq units, ~2318 total).
-  // 110k blades ≈ 47 blades/sq unit across both zones → a continuous sward without
+  // 75k blades keep the shared footprint dense while reducing animated GPU work.
   // the huge instance count a full-density arena would need. Candidates from both
   // zones are interleaved then Fisher–Yates thinned to TARGET_BLADES.
-  const TARGET_BLADES = 110000;
+  const TARGET_BLADES = 75000;
   const CAND_SPACING  = 0.032;
 
   // ── Procedural grass blade texture (no asset file, DataTexture) ───────────

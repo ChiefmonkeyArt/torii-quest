@@ -12,6 +12,7 @@ function makeDeps() {
   const renderer = {
     setPixelRatio: (r) => calls.setPixelRatio.push(r),
     setSize: (w, h) => calls.setSize.push([w, h]),
+    shadowMap: { enabled: true },
     info: { render: { calls: 0, triangles: 0 } },
   };
   const composer = {
@@ -34,14 +35,27 @@ const MS_30FPS = 1000 / 30; // ~33.3  → avg FPS 30 (< FPS_LOW 45)
 const MS_50FPS = 1000 / 50; // 20     → dead band (45..55)
 
 describe('createQualityTier', () => {
-  it('starts at HIGH (DPR 1.5, bloom on) and does not force-apply on init', () => {
+  it('defines the aggressive NORMAL and LOW render budgets', () => {
+    expect(TIERS.NORMAL).toMatchObject({
+      bloom: false,
+      shadowMapSize: 512,
+      muzzleLights: 4,
+    });
+    expect(TIERS.LOW).toMatchObject({
+      shadowMapSize: 0,
+      muzzleLights: 0,
+    });
+  });
+
+  it('starts at NORMAL and immediately applies its cheaper budget', () => {
     const d = makeDeps();
     const q = createQualityTier(d);
-    expect(q.currentTier()).toBe('HIGH');
-    expect(q.dpr()).toBe(1.5);
-    expect(q.bloomOn()).toBe(true);
-    // No apply happened just from construction — scene already sits at HIGH.
-    expect(d.calls.setPixelRatio).toHaveLength(0);
+    expect(q.currentTier()).toBe('NORMAL');
+    expect(q.dpr()).toBe(1.25);
+    expect(q.bloomOn()).toBe(false);
+    expect(d.bloomPass.enabled).toBe(false);
+    expect(d.renderer.shadowMap.enabled).toBe(true);
+    expect(d.calls.setPixelRatio).toEqual([1.25]);
   });
 
   it('computes a rolling FPS average once the ring is warm', () => {
@@ -57,9 +71,9 @@ describe('createQualityTier', () => {
     const d = makeDeps();
     const q = createQualityTier(d);
     // Warm the ring at low FPS. RING frames @ 33.3ms = ~2000ms — the accumulator
-    // only starts once the ring is full, so right at warm we should still be HIGH.
+    // only starts once the ring is full, so right at warm we should still be NORMAL.
     run(q, MS_30FPS, RING);
-    expect(q.currentTier()).toBe('HIGH');
+    expect(q.currentTier()).toBe('NORMAL');
   });
 
   it('steps down a tier after sustained low FPS, applying DPR + bloom', () => {
@@ -67,22 +81,22 @@ describe('createQualityTier', () => {
     const q = createQualityTier(d);
     // Warm ring (60) + enough extra low frames to exceed DOWN_HOLD_MS (2000ms).
     run(q, MS_30FPS, RING + 70); // 70*33.3 ≈ 2333ms > 2000
-    expect(q.currentTier()).toBe('NORMAL');
-    expect(q.dpr()).toBe(TIERS.NORMAL.dpr);
-    expect(d.calls.setPixelRatio.at(-1)).toBe(1.25);
+    expect(q.currentTier()).toBe('LOW');
+    expect(q.dpr()).toBe(TIERS.LOW.dpr);
+    expect(d.calls.setPixelRatio.at(-1)).toBe(1.0);
     expect(d.calls.setSize.at(-1)).toEqual([1280, 720]);
-    expect(d.calls.composerSetPixelRatio.at(-1)).toBe(1.25);
+    expect(d.calls.composerSetPixelRatio.at(-1)).toBe(1.0);
     expect(d.calls.composerSetSize.at(-1)).toEqual([1280, 720]);
-    expect(d.bloomPass.enabled).toBe(true); // NORMAL keeps bloom
+    expect(d.bloomPass.enabled).toBe(false);
+    expect(d.renderer.shadowMap.enabled).toBe(false);
   });
 
-  it('steps all the way down to LOW and disables bloom (bloom gate)', () => {
+  it('stays at LOW under continued low FPS', () => {
     const d = makeDeps();
     const q = createQualityTier(d);
     // First step down.
     run(q, MS_30FPS, RING + 70);
-    expect(q.currentTier()).toBe('NORMAL');
-    // Second step down (accumulator reset on step, needs another >2000ms hold).
+    expect(q.currentTier()).toBe('LOW');
     run(q, MS_30FPS, 70);
     expect(q.currentTier()).toBe('LOW');
     expect(q.dpr()).toBe(1.0);
@@ -107,12 +121,21 @@ describe('createQualityTier', () => {
     expect(d.calls.setPixelRatio.at(-1)).toBe(1.25);
   });
 
+  it('calls onTierChange with the applied tier definition', () => {
+    const d = makeDeps();
+    const seen = [];
+    const q = createQualityTier({ ...d, startTier: 'LOW', onTierChange: (def) => seen.push(def) });
+    expect(seen).toEqual([TIERS.LOW]);
+    run(q, MS_60FPS, RING + 190);
+    expect(seen.at(-1)).toBe(TIERS.NORMAL);
+  });
+
   it('does not flap in the dead band (45..55 FPS)', () => {
     const d = makeDeps();
     const q = createQualityTier(d);
     run(q, MS_50FPS, RING + 500);
-    expect(q.currentTier()).toBe('HIGH'); // no change either way
-    expect(d.calls.setPixelRatio).toHaveLength(0);
+    expect(q.currentTier()).toBe('NORMAL'); // no change either way
+    expect(d.calls.setPixelRatio).toEqual([1.25]);
   });
 
   it('ignores stall / tab-switch spikes and bogus deltas', () => {
@@ -125,7 +148,7 @@ describe('createQualityTier', () => {
     q.update(-3);    // negative — ignored
     q.update(NaN);   // bogus — ignored
     expect(q._avgFps()).toBeCloseTo(fpsBefore, 5);
-    expect(q.currentTier()).toBe('HIGH');
+    expect(q.currentTier()).toBe('NORMAL');
   });
 
   it('sampleRenderInfo() stashes draw calls + triangles for the HUD', () => {
@@ -136,7 +159,7 @@ describe('createQualityTier', () => {
     const m = q.sampleRenderInfo();
     expect(m.drawCalls).toBe(42);
     expect(m.triangles).toBe(12345);
-    expect(m.tier).toBe('HIGH');
-    expect(m.dpr).toBe(1.5);
+    expect(m.tier).toBe('NORMAL');
+    expect(m.dpr).toBe(1.25);
   });
 });

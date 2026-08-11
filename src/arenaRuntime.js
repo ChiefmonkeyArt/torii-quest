@@ -14,7 +14,7 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera, composer, bloomPass } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass, sun } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
@@ -209,12 +209,26 @@ export function createArenaRuntime(hooks = {}) {
   const MP_MOVE_INTERVAL = 1 / MP_MOVE_HZ;
 
   // v0.2.379-alpha: adaptive render-quality tier — a rolling frame-time monitor
-  // that steps DPR + bloom down/up with hysteresis to keep the frame smooth on
+  // that steps DPR, bloom, shadows, and muzzle-light budgets with hysteresis to
   // weaker hardware. Independent of MP (single-player + multiplayer behave the
-  // same); no gameplay effect — only DPR (≤ 1.5, the scene default) and the
-  // bloom gate change. The debug perf HUD reads its metrics snapshot but only
-  // touches the DOM when window.__toriiPerf (or ToriiDebug.perf) is set.
-  const _quality = createQualityTier({ renderer, composer, bloomPass, window });
+  // same); no gameplay effect. The debug perf HUD reads its metrics snapshot but
+  // only touches the DOM when window.__toriiPerf (or ToriiDebug.perf) is set.
+  const _quality = createQualityTier({
+    renderer,
+    composer,
+    bloomPass,
+    window,
+    onTierChange: (def) => {
+      const size = def.shadowMapSize;
+      renderer.shadowMap.enabled = size > 0;
+      if (size <= 0) return;
+      sun.shadow.mapSize.set(size, size);
+      if (sun.shadow.map) {
+        sun.shadow.map.dispose();
+        sun.shadow.map = null;
+      }
+    },
+  });
   let _muzzleFlashes = null;
   const _perfHud = createPerfHud({
     window,

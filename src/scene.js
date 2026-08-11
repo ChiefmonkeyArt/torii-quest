@@ -101,7 +101,7 @@ export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffd9a0, 0.9)); // warm morning ambient
-const sun = new THREE.DirectionalLight(0xffe5b0, 1.8); // golden sunrise light
+export const sun = new THREE.DirectionalLight(0xffe5b0, 1.8); // golden sunrise light
 sun.position.set(40, 20, -30); // low angle — sunrise from east
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);

@@ -104,6 +104,7 @@ function _describeInto(t, hit) {
 // -- Bullet pool ----------------------------------------------------------
 const _pool   = [];
 const _active = [];
+export const bullets = _active;
 // Core tracer geometry - tapered cylinder pointing along +Y. Bots get a
 // thicker, longer cylinder + glow halo so incoming fire reads across the arena.
 const _geo    = new THREE.CylinderGeometry(0.06, 0.02, 0.4, 6);

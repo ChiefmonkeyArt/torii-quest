@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.424-alpha - RENDER BUDGET V1. Reduces animated grass geometry and starts with more aggressive bloom, shadow-map, and muzzle-light quality budgets. Prior: v0.2.422-alpha service-worker deploy-base + CSP hardening.
+**Current version:** v0.2.425-alpha - LEVEL 2 PHASE 3 GAME MODE. Arena shooter game logic now runs through a pluggable lifecycle module loaded from world.json; arenaRuntime.js remains the engine host. Prior: v0.2.424-alpha render budget v1.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

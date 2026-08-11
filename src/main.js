@@ -1308,7 +1308,7 @@ async function ensureArenaReady(loadingLabel) {
           onTravel: (w) => _gwTravel(w),
         }),
       });
-      _arena.boot();
+      await _arena.boot();
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
     }
     await _arena.bootstrapPhysics();

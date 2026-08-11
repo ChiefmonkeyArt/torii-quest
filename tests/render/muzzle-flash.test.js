@@ -67,4 +67,17 @@ describe('muzzle flash light pool', () => {
     expect(pool.trigger('muzzle', { x: 1, y: 2, z: 3 })).toBe(false);
     expect(scene.children[0].visible).toBe(false);
   });
+
+  it('caps simultaneously active lights at the tier budget', () => {
+    const scene = new THREE.Scene();
+    const pool = createMuzzleFlashPool(scene, {
+      getQualityTier: () => 'NORMAL',
+    });
+
+    for (let i = 0; i < 4; i++) {
+      expect(pool.trigger('muzzle', { x: i, y: 2, z: 3 })).toBe(true);
+    }
+    expect(pool.trigger('muzzle', { x: 5, y: 2, z: 3 })).toBe(false);
+    expect(scene.children.filter((light) => light.visible)).toHaveLength(4);
+  });
 });

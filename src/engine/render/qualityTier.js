@@ -4,9 +4,9 @@
 // smoothness on weaker hardware. Three tiers adjust the renderer device-pixel
 // ratio and gate the bloom pass:
 //
-//   HIGH:   DPR 1.5,  bloom ON   (matches scene.js default cap)
-//   NORMAL: DPR 1.25, bloom ON
-//   LOW:    DPR 1.0,  bloom OFF
+//   HIGH:   DPR 1.5,  bloom ON,  1024px shadows, 8 muzzle lights
+//   NORMAL: DPR 1.25, bloom OFF,  512px shadows,  4 muzzle lights
+//   LOW:    DPR 1.0,  bloom OFF,  shadows off,    muzzle lights off
 //
 // Step DOWN a tier when the rolling average FPS stays < FPS_LOW for DOWN_HOLD_MS.
 // Step UP a tier when it stays > FPS_HIGH for UP_HOLD_MS. The sustained-time
@@ -17,9 +17,9 @@
 // player and multiplayer behave identically — the tier is independent of MP.
 
 export const TIERS = {
-  HIGH:   { name: 'HIGH',   dpr: 1.5,  bloom: true },
-  NORMAL: { name: 'NORMAL', dpr: 1.25, bloom: true },
-  LOW:    { name: 'LOW',    dpr: 1.0,  bloom: false },
+  HIGH:   { name: 'HIGH',   dpr: 1.5,  bloom: true,  shadowMapSize: 1024, muzzleLights: 8 },
+  NORMAL: { name: 'NORMAL', dpr: 1.25, bloom: false, shadowMapSize: 512,  muzzleLights: 4 },
+  LOW:    { name: 'LOW',    dpr: 1.0,  bloom: false, shadowMapSize: 0,    muzzleLights: 0 },
 };
 
 // Ordered worst → best so index math (+1 up, -1 down) is unambiguous.
@@ -35,7 +35,8 @@ export function createQualityTier({
   DOWN_HOLD_MS = 2000,
   UP_HOLD_MS = 3000,
   RING = 60,
-  startTier = 'HIGH',
+  startTier = 'NORMAL',
+  onTierChange = null,
 } = {}) {
   // Ring buffer of recent frame times (ms). Allocated once — no per-frame alloc.
   const ring = new Float64Array(RING);
@@ -73,8 +74,14 @@ export function createQualityTier({
       if (composer && typeof composer.setSize === 'function') composer.setSize(w, h);
     }
     if (bloomPass) bloomPass.enabled = def.bloom;
+    // Shadow map resolution lives on the light, but the renderer gate can be
+    // applied here without importing THREE. The callback updates the light.
+    if (renderer && renderer.shadowMap) {
+      renderer.shadowMap.enabled = def.shadowMapSize > 0;
+    }
     _metrics.tier = def.name;
     _metrics.dpr = def.dpr;
+    if (typeof onTierChange === 'function') onTierChange(def);
   }
 
   function _stepDown() {
@@ -135,6 +142,10 @@ export function createQualityTier({
     }
     return _metrics;
   }
+
+  // Scene construction uses HIGH-safe defaults. Apply the requested starting
+  // tier immediately so a NORMAL cold start receives its cheaper render budget.
+  _apply();
 
   return {
     update,

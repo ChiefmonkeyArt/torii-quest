@@ -8,7 +8,7 @@ const FLASH_TYPES = {
 };
 
 export function createMuzzleFlashPool(scene, {
-  size = 8,
+  size = TIERS.HIGH.muzzleLights,
   getQualityTier = () => TIERS.HIGH.name,
 } = {}) {
   const count = Math.max(0, Math.floor(size));
@@ -24,7 +24,17 @@ export function createMuzzleFlashPool(scene, {
 
   function trigger(type, pos, opts) {
     const preset = FLASH_TYPES[type];
-    if (!preset || !pos || getQualityTier() === TIERS.LOW.name) return false;
+    if (!preset || !pos) return false;
+
+    const tierName = getQualityTier();
+    const tierDef = TIERS[tierName];
+    if (!tierDef || tierDef.muzzleLights === 0) return false;
+
+    let active = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].light.visible) active++;
+    }
+    if (active >= tierDef.muzzleLights) return false;
 
     let entry = null;
     for (let i = 0; i < entries.length; i++) {

@@ -19,7 +19,7 @@ function makeFakeScene() {
 }
 
 const peer = (id, pos = [0, 0, 0], rot = [0, 0]) => ({
-  id, npub: 'npub1' + 'a'.repeat(58), character: 'chiefmonkey', pos, rot,
+  id, npub: `npub1${id.padEnd(58, 'a').slice(0, 58)}`, character: 'chiefmonkey', pos, rot,
 });
 
 describe('remoteAvatarRoster', () => {
@@ -164,5 +164,32 @@ describe('remoteAvatarRoster', () => {
     expect(chief.disposed).toBe(true);
     expect(nostrich.id).toBe('p1:nostrich');
     expect(scene._added.has(nostrich)).toBe(true);
+  });
+
+  it('reuses avatar on reconnect with new session ID but same npub+character', async () => {
+    const scene = makeFakeScene();
+    const loader = vi.fn(async (p) => makeFakeObj(p.id));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    await roster.upsert(peer('s1'));
+    expect(roster.size).toBe(1);
+    const obj1 = roster._peek('s1').obj;
+    expect(obj1).toBeTruthy();
+    await roster.upsert({ ...peer('s2'), npub: peer('s1').npub });
+    expect(roster.size).toBe(1);
+    expect(roster._peek('s2')).toBeTruthy();
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(roster._peek('s2').obj).toBe(obj1);
+  });
+
+  it('LEFT for old session ID does not remove avatar after reconnect', async () => {
+    const scene = makeFakeScene();
+    const loader = vi.fn(async (p) => makeFakeObj(p.id));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    await roster.upsert(peer('s1'));
+    await roster.upsert({ ...peer('s2'), npub: peer('s1').npub });
+    expect(roster.size).toBe(1);
+    roster.remove('s1');
+    expect(roster.size).toBe(1);
+    expect(roster._peek('s2')).toBeTruthy();
   });
 });

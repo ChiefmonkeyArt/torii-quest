@@ -88,6 +88,37 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
       }
       return;
     }
+    // Reconnect dedup: if a peer with the same npub but different session ID
+    // already exists (WS reconnect caused a new server session), reuse the
+    // existing avatar instead of removing + re-creating it. This prevents
+    // the avatar from flickering (disappear → gap → reappear) on reconnect.
+    if (peer.npub) {
+      let reused = false;
+      for (const [oldId, entry] of roster) {
+        if (oldId === peer.id) continue;
+        if (entry.peer.npub === peer.npub) {
+          // Same player, new session ID. Update the peer data and swap the key.
+          roster.delete(oldId);
+          entry.peer = { ...entry.peer, ...peer };
+          // If the character also changed, reload the avatar; otherwise keep it.
+          if (entry.peer.character !== peer.character) {
+            entry.peer.character = peer.character;
+            if (entry.obj) {
+              try { scene.remove(entry.obj); } catch { /* noop */ }
+              try { entry.obj.dispose?.(); } catch { /* noop */ }
+              entry.obj = null;
+            }
+            roster.set(peer.id, entry);
+            await loadEntry(entry, entry.peer);
+          } else {
+            roster.set(peer.id, entry);
+          }
+          reused = true;
+          break;
+        }
+      }
+      if (reused) return;
+    }
     const entry = { peer, obj: null, buf: createSnapshotBuffer(), loading: true, generation: 0 };
     roster.set(peer.id, entry);
     await loadEntry(entry, peer);
@@ -96,6 +127,18 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
   function remove(peerId) {
     const entry = roster.get(peerId);
     if (!entry) return;
+    // Don't remove if this peer has already reconnected under a new session ID.
+    // The upsert handler already migrated the entry to the new ID.
+    const npub = entry.peer?.npub;
+    if (npub) {
+      for (const [otherId, other] of roster) {
+        if (otherId !== peerId && other.peer?.npub === npub) {
+          // Already migrated — just clean up the stale ID if it still exists.
+          roster.delete(peerId);
+          return;
+        }
+      }
+    }
     if (entry.obj) {
       try { scene.remove(entry.obj); } catch { /* noop */ }
       if (typeof entry.obj.dispose === 'function') {

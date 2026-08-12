@@ -32,7 +32,7 @@ export const CHARACTERS = Object.freeze({
   nostrich: {
     file: '/nostrich3.glb',
     anims: {
-      IDLE:       'idle_to_push_up',           // grounded combat-ready pose
+      IDLE:       'Stylish_Walk_inplace',           // best available idle substitute
       WALK:       'Walking',
       WALK_BACK:  'Walking',                   // no dedicated clip — reuse walk
       WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',

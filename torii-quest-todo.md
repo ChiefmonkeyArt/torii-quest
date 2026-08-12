@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.434-alpha` - MP character avatars: selected peer GLBs and idle/walk cross-fades (prior: v0.2.425-alpha Level 2 Phase 3 game mode)
+Current version: `v0.2.435-alpha` - MP character avatars: selected peer GLBs and idle/walk cross-fades (prior: v0.2.425-alpha Level 2 Phase 3 game mode)
 
 ## 🚨 TOP OF QUEUE
 

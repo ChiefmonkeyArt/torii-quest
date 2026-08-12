@@ -208,14 +208,23 @@ async function _createPeerAvatar(peer) {
   let moving = false;
   let hasLastPos = false;
   const lastPos = new THREE.Vector3();
+  // Hysteresis: higher threshold to ENTER walk, lower to EXIT. Prevents
+  // interpolation-speed jitter from rapidly flipping idle/walk.
+  const WALK_ENTER = 0.6;
+  const WALK_EXIT   = 0.2;
   obj.update = (dt) => {
     if (dt > 0 && hasLastPos && idleAction && walkAction) {
       const speed = obj.position.distanceTo(lastPos) / dt;
-      const nextMoving = speed > MP_WALK_THRESHOLD;
+      const nextMoving = moving ? speed > WALK_EXIT : speed > WALK_ENTER;
       if (nextMoving !== moving) {
         const next = nextMoving ? walkAction : idleAction;
         const prev = nextMoving ? idleAction : walkAction;
-        next.reset().fadeIn(MP_ANIM_FADE).play();
+        // Only reset if the action hasn't been played before — reset() snaps
+        // the clip to time 0 and weight 0, which causes a visual pop on
+        // every idle↔walk transition. If already running (was fading out),
+        // just fade it back in.
+        if (!next.isRunning()) next.reset().setEffectiveWeight(0).play();
+        next.fadeIn(MP_ANIM_FADE);
         prev.fadeOut(MP_ANIM_FADE);
         moving = nextMoving;
       }

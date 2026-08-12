@@ -164,8 +164,13 @@ export function loadPlayerModel(parentObj) {
     _clips = {};
     _actions = {};
     gltf.animations.forEach(clip => {
-      _clips[clip.name] = clip;
-      const a = _mixer.clipAction(clip);
+      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
+      // which causes visual blips during animation transitions and at
+      // loop boundaries (scale values interpolate through collapse states).
+      const stripped = clip.clone();
+      stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
+      _clips[clip.name] = stripped;
+      const a = _mixer.clipAction(stripped);
       a.clampWhenFinished = true;
       _actions[clip.name] = a;
     });

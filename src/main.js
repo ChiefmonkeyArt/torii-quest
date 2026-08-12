@@ -1308,8 +1308,12 @@ async function ensureArenaReady(loadingLabel) {
           onTravel: (w) => _gwTravel(w),
         }),
       });
-      await _arena.boot();
+      // setCharacter MUST be called before boot() — boot() calls _mp.start()
+      // which opens the WS and sends AUTH_TOKEN. If we set the character after
+      // boot(), the auth message carries the default 'chiefmonkey' instead of
+      // the selected character.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      await _arena.boot();
     }
     await _arena.bootstrapPhysics();
   } catch (e) {

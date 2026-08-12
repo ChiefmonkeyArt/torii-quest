@@ -105,7 +105,13 @@ function _loadPeerTemplate(characterKey) {
     loader.setDRACOLoader(draco);
     loader.load(assetUrl(CHARACTERS[characterKey].file), (gltf) => {
       template.scene = gltf.scene;
-      template.clips = gltf.animations || [];
+      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
+      // causing visual blips during transitions and at loop boundaries.
+      template.clips = (gltf.animations || []).map(clip => {
+        const stripped = clip.clone();
+        stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
+        return stripped;
+      });
       // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
       // SkinnedMesh) — playerModel.js:93-101.
       let gMinY = Infinity;

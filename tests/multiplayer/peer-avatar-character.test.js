@@ -12,7 +12,7 @@ describe('per-character peer avatar loader', () => {
     expect(playerModel).toMatch(/chiefmonkey:[\s\S]*?file:\s*['"]\/models\/chiefmonkey7\.glb['"]/);
     expect(playerModel).toMatch(/nostrich:[\s\S]*?file:\s*['"]\/nostrich3\.glb['"]/);
     expect(playerModel).toMatch(/IDLE:\s*['"]Idle_10['"][\s\S]*?WALK:\s*['"]Walking['"]/);
-    expect(playerModel).toMatch(/nostrich:[\s\S]*?IDLE:\s*['"]idle_to_push_up['"][\s\S]*?WALK:\s*['"]Walking['"]/);
+    expect(playerModel).toMatch(/nostrich:[\s\S]*?IDLE:\s*['"]Stylish_Walk_inplace['"][\s\S]*?WALK:\s*['"]Walking['"]/);
   });
 
   it('_createPeerAvatar resolves the GLB and clips from peer.character', () => {

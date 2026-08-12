@@ -191,8 +191,12 @@ function _play(name, loop = true) {
   if (_current === name) return;
   const next = _actions[name];
   next.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
-  next.reset().fadeIn(FADE).play();
-  if (_current && _actions[_current]) _actions[_current].fadeOut(FADE);
+  // Only reset if the action hasn't been played before — reset() snaps
+  // the clip to time 0 and weight 0, causing a visual pop on every
+  // transition. If already running (was fading out), just fade it back in.
+  if (!next.isRunning()) next.reset().setEffectiveWeight(0).play();
+  next.fadeIn(FADE);
+  if (_current && _actions[_current] && _current !== name) _actions[_current].fadeOut(FADE);
   _current = name;
 }
 

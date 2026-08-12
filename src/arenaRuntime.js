@@ -89,6 +89,8 @@ const MP_ANIM_FADE      = 0.2;
 const _mpShotOrigin = new THREE.Vector3();
 const _mpShotDir    = new THREE.Vector3();
 
+let _createPeerWorldGun = null; // lazy-loaded from weapons.js
+
 const _mpTemplateCache = new Map();
 
 function _loadPeerTemplate(characterKey) {
@@ -171,6 +173,25 @@ async function _createPeerAvatar(peer) {
   }
   if (walkAction) walkAction.setLoop(THREE.LoopRepeat, Infinity);
 
+  // Attach the world gun to the RightHand bone (same as playerModel.js does
+  // for the local player). The gun GLB loads async in weapons.js — if it
+  // hasn't loaded yet, createPeerWorldGun returns null and the peer just
+  // has no visible gun until a re-join triggers _createPeerAvatar again.
+  let peerGunWrap = null;
+  let _rh = null;
+  model.traverse(o => {
+    if (_rh || !o.isBone) return;
+    const n = (o.name || '').toLowerCase();
+    if (n.endsWith('righthand') || n.endsWith('right_hand') || n === 'righthand') _rh = o;
+  });
+  if (_rh) {
+    if (!_createPeerWorldGun) _createPeerWorldGun = (await import('./weapons.js')).createPeerWorldGun;
+    peerGunWrap = _createPeerWorldGun(_rh);
+    if (!peerGunWrap) console.warn('[mp] peer gun not attached yet — gun GLB still loading');
+  } else {
+    console.warn('[mp] RightHand bone not found for character', characterKey);
+  }
+
   const obj = new THREE.Group();
   obj.add(model);
   obj.userData.peerId = peer.id;
@@ -200,6 +221,7 @@ async function _createPeerAvatar(peer) {
     obj.update = null;
     mixer.stopAllAction();
     mixer.uncacheRoot(model);
+    if (peerGunWrap && peerGunWrap.parent) peerGunWrap.parent.remove(peerGunWrap);
   };
   return obj;
 }

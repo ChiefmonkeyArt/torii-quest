@@ -650,3 +650,48 @@ function _attachWorldGun() {
   });
   console.log('[weapons] world gun attached via normalizer (boneScale=', _wsScale.x.toFixed(4), 'inv=', inv.toFixed(2), ')');
 }
+
+/**
+ * Create a gun clone attached to a peer avatar's RightHand bone.
+ * Same normalizer-group technique as _attachWorldGun, but:
+ *   - Layer 0 (visible to all cameras, not mirror-only)
+ *   - No console spam (peers join frequently)
+ *   - Returns the wrapper so the caller can dispose it later
+ * Returns null if the gun GLB hasn't loaded yet.
+ */
+export function createPeerWorldGun(bone) {
+  if (!_worldGunSrc || !bone) return null;
+
+  bone.updateWorldMatrix(true, false);
+  bone.getWorldScale(_wsScale);
+  const inv = 1 / Math.max(_wsScale.x, 1e-6);
+
+  const wrap = new THREE.Group();
+  wrap.name = 'peer-gun-normalizer';
+  wrap.scale.setScalar(inv);
+  bone.add(wrap);
+
+  const gun = _worldGunSrc.clone(true);
+  gun.scale.setScalar(0.22);
+  gun.position.set(0.0, 0.16, -0.03);
+  gun.rotation.set(Math.PI, -Math.PI / 2, Math.PI / 2);
+  gun.rotateX(Math.PI);
+  gun.traverse(o => {
+    if (o.isMesh) {
+      o.layers.set(0); // visible to all (peer avatars are not mirror-only)
+      o.frustumCulled = false;
+      o.castShadow = true;
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          m.transparent = false;
+          m.depthWrite  = true;
+          m.alphaTest   = 0;
+          m.needsUpdate = true;
+        }
+      }
+    }
+  });
+  wrap.add(gun);
+  return wrap;
+}

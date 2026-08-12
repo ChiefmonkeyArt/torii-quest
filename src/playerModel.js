@@ -13,17 +13,17 @@ import { assetUrl } from './assetUrl.js';
 // 'null' = no clip available, fall back to IDLE or skip.
 export const CHARACTERS = Object.freeze({
   chiefmonkey: {
-    file: '/chiefmonkey6.glb',
+    file: '/models/chiefmonkey7.glb',
     anims: {
-      IDLE:       'Idle_03',
+      IDLE:       'Idle_10',
       WALK:       'Walking',
-      WALK_BACK:  'Walk_Backward_inplace',
-      WALK_LEFT:  'Walk_Left_with_Gun_inplace',
+      WALK_BACK:  'Walking',                  // no dedicated clip — reuse walk
+      WALK_LEFT:  'Walking',                  // no dedicated clip — reuse walk
       RUN:        'Running',
-      RUN_SHOOT:  'Run_and_Shoot',
-      JUMP:       'Jump_Over_Obstacle_1',
-      RELOAD:     'Running_Reload_inplace',
-      HIT:        'Hit_Reaction_to_Waist',
+      RUN_SHOOT:  'Boxing_Practice',           // closest combat animation
+      JUMP:       'Indoor_Swing',              // closest jump animation
+      RELOAD:     null,                        // no reload clip
+      HIT:        'Stand_Talking_Angry',       // closest hit reaction
       DEATH:      'Knock_Down',
       DANCE:      'FunnyDancing_02',
       STYLISH:    'Stylish_Walk_inplace',
@@ -32,7 +32,7 @@ export const CHARACTERS = Object.freeze({
   nostrich: {
     file: '/nostrich3.glb',
     anims: {
-      IDLE:       'Stylish_Walk_inplace',      // best available idle substitute
+      IDLE:       'idle_to_push_up',           // grounded combat-ready pose
       WALK:       'Walking',
       WALK_BACK:  'Walking',                   // no dedicated clip — reuse walk
       WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',

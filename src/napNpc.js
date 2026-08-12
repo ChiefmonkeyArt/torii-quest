@@ -24,7 +24,7 @@ export function buildNapNpc() {
   draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load(assetUrl('/chiefmonkey6.glb'), gltf => {
+  loader.load(assetUrl('/models/chiefmonkey7.glb'), gltf => {
     _root = gltf.scene;
 
     // Metre-scale GLB — render at 1.0 like the player model. Measure geometry-only

@@ -61,7 +61,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.431-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.432-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -288,13 +288,16 @@ function verifyAuthEvent(sess, evt) {
 // authed peers), and JOIN broadcast. Reused by BOTH the NIP-42 AUTH path and the
 // v0.2.375 AUTH_TOKEN path so they converge on identical presence behaviour.
 function finishAuth(sess, { npub, pubkey, character }) {
-  // Close any existing authed session with the same npub to prevent
-  // duplicate avatars on reconnect (old session lingers, new one spawns).
+  // Close any existing authed session with the same pubkey to prevent
+  // duplicate avatars on reconnect. Collect first, close after — never
+  // mutate the sessions Map while iterating it.
+  const stale = [];
   for (const other of sessions.values()) {
-    if (other.id !== sess.id && other.authed && other.npub === npub) {
-      closeSession(other, 'replaced');
+    if (other.id !== sess.id && other.authed && other.pubkey && other.pubkey === pubkey) {
+      stale.push(other);
     }
   }
+  for (const other of stale) closeSession(other, 'replaced');
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;

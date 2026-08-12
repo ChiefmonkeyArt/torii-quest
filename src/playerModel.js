@@ -16,9 +16,9 @@ export const CHARACTERS = Object.freeze({
     file: '/models/chiefmonkey7.glb',
     anims: {
       IDLE:       'Idle_10',
-      WALK:       'Walking',
-      WALK_BACK:  'Walking',                  // no dedicated clip — reuse walk
-      WALK_LEFT:  'Walking',                  // no dedicated clip — reuse walk
+      WALK:       'Stylish_Walk_inplace',
+      WALK_BACK:  'Stylish_Walk_inplace',       // no dedicated clip — reuse walk
+      WALK_LEFT:  'Stylish_Walk_inplace',       // no dedicated clip — reuse walk
       RUN:        'Running',
       RUN_SHOOT:  'Boxing_Practice',           // closest combat animation
       JUMP:       'Indoor_Swing',              // closest jump animation

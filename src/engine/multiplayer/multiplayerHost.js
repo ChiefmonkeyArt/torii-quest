@@ -115,6 +115,7 @@ export function createMultiplayerHost(deps) {
       signAuth,
       getSessionToken,
       clearSessionToken,
+      getCharacter,
       now,
       emit: (name, payload) => _onWsEvent(name, payload),
     });

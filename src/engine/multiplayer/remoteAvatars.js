@@ -38,24 +38,17 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
     throw new TypeError('remoteAvatars: scene must expose add/remove');
   }
 
-  /** @type {Map<string, { peer:object, obj:object|null, buf:object, loading:boolean }>} */
+  /** @type {Map<string, { peer:object, obj:object|null, buf:object, loading:boolean, generation:number }>} */
   const roster = new Map();
 
-  async function upsert(peer) {
-    if (!peer || typeof peer.id !== 'string') return;
-    const existing = roster.get(peer.id);
-    if (existing) {
-      // Update descriptor; keep buffer + scene object.
-      existing.peer = { ...existing.peer, ...peer };
-      emit('avatar_update', { id: peer.id });
-      return;
-    }
-    const entry = { peer, obj: null, buf: createSnapshotBuffer(), loading: true };
-    roster.set(peer.id, entry);
+  async function loadEntry(entry, peer) {
+    const generation = (entry.generation || 0) + 1;
+    entry.generation = generation;
+    entry.loading = true;
     try {
       const obj = await avatarLoader(peer);
-      // Peer might have left mid-load.
-      if (!roster.has(peer.id)) {
+      // Peer left, changed character again, or was replaced while this load ran.
+      if (roster.get(peer.id) !== entry || entry.generation !== generation) {
         if (obj && typeof obj.dispose === 'function') obj.dispose();
         return;
       }
@@ -71,10 +64,33 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
       scene.add(obj);
       emit('avatar_added', { id: peer.id });
     } catch (err) {
-      // Load failed — clear the entry so we don't leak a half-initialised slot.
+      if (roster.get(peer.id) !== entry || entry.generation !== generation) return;
+      // Load failed - clear the entry so we don't leak a half-initialised slot.
       roster.delete(peer.id);
       emit('avatar_load_error', { id: peer.id, error: String(err && err.message || err) });
     }
+  }
+
+  async function upsert(peer) {
+    if (!peer || typeof peer.id !== 'string') return;
+    const existing = roster.get(peer.id);
+    if (existing) {
+      const characterChanged = existing.peer.character !== peer.character;
+      existing.peer = { ...existing.peer, ...peer };
+      emit('avatar_update', { id: peer.id });
+      if (characterChanged) {
+        if (existing.obj) {
+          try { scene.remove(existing.obj); } catch { /* noop */ }
+          try { existing.obj.dispose?.(); } catch { /* noop */ }
+          existing.obj = null;
+        }
+        await loadEntry(existing, existing.peer);
+      }
+      return;
+    }
+    const entry = { peer, obj: null, buf: createSnapshotBuffer(), loading: true, generation: 0 };
+    roster.set(peer.id, entry);
+    await loadEntry(entry, peer);
   }
 
   function remove(peerId) {

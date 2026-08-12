@@ -42,6 +42,7 @@ import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
  * @param {Function} deps.signAuth         async ({challenge}) => {npub, sig, event}
  * @param {Function} [deps.getSessionToken]   () => string|null — when set, AUTH_TOKEN is sent instead of signing
  * @param {Function} [deps.clearSessionToken] () => void — clears a rejected token so reconnect falls back to NIP-42
+ * @param {Function} [deps.getCharacter]      () => string — selected local character key
  * @param {string} [deps.origin]           overrides location.host (test seam)
  * @param {boolean} [deps.mpEnabled]       overrides MP_ENABLED (test seam)
  * @param {Function} [deps.WebSocketCtor]  overrides window.WebSocket (test seam)
@@ -55,6 +56,7 @@ export function createMultiplayerHost(deps) {
     signAuth,
     getSessionToken = null,
     clearSessionToken = null,
+    getCharacter = () => 'chiefmonkey',
     origin,
     mpEnabled = MP_ENABLED,
     WebSocketCtor,
@@ -134,7 +136,10 @@ export function createMultiplayerHost(deps) {
     switch (name) {
       case 'state': {
         host.state = payload.state;
-        if (payload.state === WS_STATE.CONNECTED && payload.selfId) host.selfId = payload.selfId;
+        if (payload.state === WS_STATE.CONNECTED && payload.selfId) {
+          host.selfId = payload.selfId;
+          ws.send({ t: MSG.SET_CHAR, character: getCharacter() });
+        }
         return;
       }
       case 'roster': {

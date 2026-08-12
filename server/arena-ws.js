@@ -46,6 +46,7 @@ import {
 } from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
 import { createArenaBotSim } from './bots/arenaBotSim.js';
+import { applyCharacterSelection } from './presence/characterSelection.js';
 import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
@@ -58,7 +59,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.425-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.426-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -365,6 +366,14 @@ async function handleMessage(sess, raw) {
 
   // --- Authed phase ---
   switch (msg.t) {
+    case MSG.SET_CHAR: {
+      const peer = applyCharacterSelection(sess, msg.character);
+      if (!peer) return;
+      // Re-announce the peer so clients replace any avatar created from the
+      // default character sent during the auth/WELCOME round trip.
+      broadcastToOthers(sess.id, { t: MSG.JOIN, ...peer });
+      return;
+    }
     case MSG.MOVE: {
       if (!checkRate(sess, 'MOVE', RATE.MOVE)) return;
       // Presence (MOVE) is an ephemeral per-frame peer action, NOT an owner-

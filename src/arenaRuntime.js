@@ -26,7 +26,7 @@ import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, playerObj, setPlayerBody, spawnPlayerBody, setNextSpawn, getPlayerCollider, resetPlayerPos, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { CHARACTERS, getCharacter, loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -73,63 +73,70 @@ import defaultWorldUrl from '../worlds/default/world.json?url';
 export { setCharacter };
 
 // ── MP-1 peer-avatar template + factory ─────────────────────────────────────
-// The peer avatar is the shared chiefmonkey6 model. Loaded ONCE and cloned per
+// Each character model is loaded once and cloned per
 // peer (mirroring botModel.js): a single scene can't be added to multiple parents
 // and SkinnedMesh needs its own bone binding per instance. All per-peer setup that
 // playerModel.js/botModel.js apply (feet offset, π facing, opaque materials,
-// AnimationMixer + IDLE clip) is applied here — the raw gltf.scene is authored high
+// AnimationMixer + movement clips) is applied here — the raw gltf.scene is authored high
 // off its origin (large gMinY), faces +Z, and sits in bind-pose (T-pose), so a raw
 // return renders peers high in the sky, backwards, and un-animated.
-const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
 const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
+const MP_WALK_THRESHOLD = 0.5;
+const MP_ANIM_FADE      = 0.2;
 
 // Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
 // event so the inbound bridge stays allocation-free.
 const _mpShotOrigin = new THREE.Vector3();
 const _mpShotDir    = new THREE.Vector3();
 
-let _mpTemplateScene = null;
-let _mpTemplateClips = [];
-let _mpTemplateGMinY = 0;
-let _mpTemplatePromise = null;
+const _mpTemplateCache = new Map();
 
-function _loadPeerTemplate() {
-  if (_mpTemplatePromise) return _mpTemplatePromise;
-  _mpTemplatePromise = new Promise((resolve, reject) => {
+function _loadPeerTemplate(characterKey) {
+  const cached = _mpTemplateCache.get(characterKey);
+  if (cached) return cached.promise;
+
+  const template = { scene: null, clips: [], gMinY: 0, promise: null };
+  template.promise = new Promise((resolve, reject) => {
     const draco = new DRACOLoader();
     draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    loader.load(assetUrl('/chiefmonkey6.glb'), (gltf) => {
-      _mpTemplateScene = gltf.scene;
-      _mpTemplateClips = gltf.animations || [];
+    loader.load(assetUrl(CHARACTERS[characterKey].file), (gltf) => {
+      template.scene = gltf.scene;
+      template.clips = gltf.animations || [];
       // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
       // SkinnedMesh) — playerModel.js:93-101.
       let gMinY = Infinity;
-      _mpTemplateScene.traverse((o) => {
+      template.scene.traverse((o) => {
         if (o.isMesh && o.geometry) {
           o.geometry.computeBoundingBox();
           const b = o.geometry.boundingBox;
           if (b) gMinY = Math.min(gMinY, b.min.y);
         }
       });
-      _mpTemplateGMinY = Number.isFinite(gMinY) ? gMinY : 0;
-      resolve();
-    }, undefined, reject);
+      template.gMinY = Number.isFinite(gMinY) ? gMinY : 0;
+      resolve(template);
+    }, undefined, (err) => {
+      _mpTemplateCache.delete(characterKey);
+      reject(err);
+    });
   });
-  return _mpTemplatePromise;
+  _mpTemplateCache.set(characterKey, template);
+  return template.promise;
 }
 
 // Build one peer avatar: a wrapper Group (remoteAvatars sets its position/rotation)
 // containing a SkeletonUtils-cloned model offset so feet land on the ground given
 // the eye-height Y peers broadcast, faced game-forward (-Z), with an IDLE mixer.
 async function _createPeerAvatar(peer) {
-  await _loadPeerTemplate();
-  const model = skeletonClone(_mpTemplateScene);
+  const characterKey = CHARACTERS[peer.character] ? peer.character : 'chiefmonkey';
+  const character = CHARACTERS[characterKey];
+  const template = await _loadPeerTemplate(characterKey);
+  const model = skeletonClone(template.scene);
   model.scale.setScalar(1.0);
   // Feet on ground: peers broadcast eye-height Y (playerObj.position.y ≈ 1.7),
   // so the wrapper sits at eye height; drop the model by gMinY + eye offset.
-  model.position.y = -_mpTemplateGMinY - MP_EYE_OFFSET;
+  model.position.y = -template.gMinY - MP_EYE_OFFSET;
   model.rotation.y = Math.PI; // GLB faces +Z, game forward is -Z
 
   model.traverse((o) => {
@@ -149,35 +156,50 @@ async function _createPeerAvatar(peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  let clipName = MP_PEER_IDLE_CLIP;
-  let clip = _mpTemplateClips.find((c) => c.name === clipName);
-  if (!clip && _mpTemplateClips.length) {
-    clip = _mpTemplateClips[0];
-    clipName = clip.name;
-    console.warn('[mp] idle clip', MP_PEER_IDLE_CLIP, 'missing; falling back to', clipName);
+  let idleClip = template.clips.find((c) => c.name === character.anims.IDLE);
+  if (!idleClip && template.clips.length) {
+    idleClip = template.clips[0];
+    console.warn('[mp] idle clip', character.anims.IDLE, 'missing; falling back to', idleClip.name);
   }
-  if (clip) {
-    const action = mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, Infinity);
-    action.play();
+  const walkClip = template.clips.find((c) => c.name === character.anims.WALK);
+  const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
+  const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+  if (idleAction) {
+    idleAction.setLoop(THREE.LoopRepeat, Infinity);
+    idleAction.play();
     mixer.update(0.016); // tick once so the skeleton leaves bind-pose (no T-pose flash)
   }
-  // MP-1.5 future: switch to a WALK clip on movement (needs peer velocity/speed).
+  if (walkAction) walkAction.setLoop(THREE.LoopRepeat, Infinity);
 
   const obj = new THREE.Group();
   obj.add(model);
   obj.userData.peerId = peer.id;
-  // Driven per-frame by remoteAvatars.tick → advances the IDLE animation.
-  obj.update = (dt) => mixer.update(dt);
+  obj.userData.character = characterKey;
+  obj.userData.mixer = mixer;
+  obj.userData.idleAction = idleAction;
+  obj.userData.walkAction = walkAction;
+  let moving = false;
+  let hasLastPos = false;
+  const lastPos = new THREE.Vector3();
+  obj.update = (dt) => {
+    if (dt > 0 && hasLastPos && idleAction && walkAction) {
+      const speed = obj.position.distanceTo(lastPos) / dt;
+      const nextMoving = speed > MP_WALK_THRESHOLD;
+      if (nextMoving !== moving) {
+        const next = nextMoving ? walkAction : idleAction;
+        const prev = nextMoving ? idleAction : walkAction;
+        next.reset().play().crossFadeFrom(prev, MP_ANIM_FADE, true);
+        moving = nextMoving;
+      }
+    }
+    lastPos.copy(obj.position);
+    hasLastPos = true;
+    mixer.update(dt);
+  };
   obj.dispose = () => {
     obj.update = null;
-    model.traverse((n) => {
-      if (n.geometry) n.geometry.dispose();
-      if (n.material) {
-        const mats = Array.isArray(n.material) ? n.material : [n.material];
-        for (const m of mats) m.dispose?.();
-      }
-    });
+    mixer.stopAllAction();
+    mixer.uncacheRoot(model);
   };
   return obj;
 }
@@ -663,9 +685,9 @@ export function createArenaRuntime(hooks = {}) {
         scene,
         emit: _mpEmit,
         now: () => performance.now(),
-        // Load the shared chiefmonkey6 model for every peer (per-character skinning
-        // lands in MP-1.5). Returns a wrapper THREE.Group (feet on ground, faced
-        // -Z, IDLE mixer, obj.update(dt)) with position/rotation/dispose().
+        getCharacter,
+        // Load and cache the selected model per character. Returns a wrapper
+        // THREE.Group with movement-aware IDLE/WALK animation.
         avatarLoader: (peer) => _createPeerAvatar(peer).catch((err) => {
           console.warn('[mp] avatar_load_error', peer?.id, err);
           throw err;

@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.425-alpha` - Level 2 Phase 3 game mode: pluggable lifecycle contract and extracted arena-shooter mode (prior: v0.2.424-alpha render budget v1)
+Current version: `v0.2.426-alpha` - MP character avatars: selected peer GLBs and idle/walk cross-fades (prior: v0.2.425-alpha Level 2 Phase 3 game mode)
 
 ## 🚨 TOP OF QUEUE
 

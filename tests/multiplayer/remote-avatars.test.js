@@ -151,4 +151,18 @@ describe('remoteAvatarRoster', () => {
     expect(loader).toHaveBeenCalledTimes(1);
     expect(roster.size).toBe(1);
   });
+
+  it('replaces an existing avatar when a fresh JOIN changes character', async () => {
+    const scene = makeFakeScene();
+    const loader = vi.fn(async (p) => makeFakeObj(`${p.id}:${p.character}`));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    await roster.upsert(peer('p1'));
+    const chief = roster._peek('p1').obj;
+    await roster.upsert({ ...peer('p1'), character: 'nostrich' });
+    const nostrich = roster._peek('p1').obj;
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(chief.disposed).toBe(true);
+    expect(nostrich.id).toBe('p1:nostrich');
+    expect(scene._added.has(nostrich)).toBe(true);
+  });
 });

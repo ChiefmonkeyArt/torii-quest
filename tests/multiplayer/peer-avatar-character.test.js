@@ -26,6 +26,7 @@ describe('per-character peer avatar loader', () => {
   it('cross-fades between idle and walk based on per-frame position speed', () => {
     expect(runtime).toMatch(/distanceTo\(lastPos\)\s*\/\s*dt/);
     expect(runtime).toMatch(/speed\s*>\s*MP_WALK_THRESHOLD/);
-    expect(runtime).toMatch(/crossFadeFrom\(prev,\s*MP_ANIM_FADE,\s*true\)/);
+    expect(runtime).toMatch(/fadeIn\(MP_ANIM_FADE\)\.play\(\)/);
+    expect(runtime).toMatch(/prev\.fadeOut\(MP_ANIM_FADE\)/);
   });
 });

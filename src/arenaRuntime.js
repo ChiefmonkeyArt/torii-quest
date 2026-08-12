@@ -209,7 +209,8 @@ async function _createPeerAvatar(peer) {
       if (nextMoving !== moving) {
         const next = nextMoving ? walkAction : idleAction;
         const prev = nextMoving ? idleAction : walkAction;
-        next.reset().play().crossFadeFrom(prev, MP_ANIM_FADE, true);
+        next.reset().fadeIn(MP_ANIM_FADE).play();
+        prev.fadeOut(MP_ANIM_FADE);
         moving = nextMoving;
       }
     }

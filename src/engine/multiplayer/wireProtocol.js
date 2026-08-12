@@ -308,7 +308,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.AUTH]:      ['npub', 'sig', 'event', 'character'],
   [MSG.AUTH_TOKEN]:['token', 'character'],
   [MSG.AUTH_FAIL]: ['reason'],
-  [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
+  [MSG.WELCOME]:   ['selfId', 'roster', 'srv', 'token'],
   [MSG.SET_CHAR]:  ['character'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],

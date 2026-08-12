@@ -42,7 +42,7 @@ import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { computeMoveVelocity } from './engine/multiplayer/moveVelocity.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
-import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { getStoredToken, setStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
 import { RELAYS, fanoutReq } from './nostr.js';
@@ -734,6 +734,7 @@ export function createArenaRuntime(hooks = {}) {
         // once via NIP-98) so arena entry / reconnect needs no signature. A
         // rejected/expired token is cleared so the reconnect falls back to NIP-42.
         getSessionToken: () => getStoredToken(),
+        setSessionToken: (t) => setStoredToken(t),
         clearSessionToken: () => clearStoredToken(),
         // NIP-42 kind:22242 auth (FALLBACK) — the server verifies via nostr-tools.
         // The client signer is browser-only (window.nostr); only the signed event
@@ -748,8 +749,9 @@ export function createArenaRuntime(hooks = {}) {
             content: 'torii-quest-mp-1',
             tags: [['challenge', challenge]],
           });
-          const npub = await globalThis.nostr.getPublicKey?.();
-          return { npub, sig: event.sig, event };
+          // Use event.pubkey instead of calling getPublicKey() — avoids a
+          // second signer popup. The signed event already contains the pubkey.
+          return { npub: event.pubkey, sig: event.sig, event };
         },
       });
       _mp.start();

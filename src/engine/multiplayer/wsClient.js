@@ -58,6 +58,7 @@ export function createWsClient(opts) {
     WebSocketCtor,
     signAuth,
     getSessionToken = null,
+    setSessionToken = null,
     getCharacter = () => 'chiefmonkey',
     clearSessionToken = null,
     emit = () => {},
@@ -210,6 +211,10 @@ export function createWsClient(opts) {
         api.selfId = msg.selfId;
         if (Number.isFinite(msg.srv)) {
           api.serverTsOffset = msg.srv - now();
+        }
+        // Store the server-issued token so reconnects use AUTH_TOKEN (no signer).
+        if (typeof msg.token === 'string' && msg.token && setSessionToken) {
+          setSessionToken(msg.token);
         }
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
         // Refine RTT/one-way latency immediately instead of leaving shot timing

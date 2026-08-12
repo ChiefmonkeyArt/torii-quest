@@ -41,6 +41,7 @@ import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
  * @param {Function} deps.avatarLoader     (peer) => Promise<Object3D>
  * @param {Function} deps.signAuth         async ({challenge}) => {npub, sig, event}
  * @param {Function} [deps.getSessionToken]   () => string|null — when set, AUTH_TOKEN is sent instead of signing
+ * @param {Function} [deps.setSessionToken]   (token) => void — stores a server-issued token from WELCOME
  * @param {Function} [deps.clearSessionToken] () => void — clears a rejected token so reconnect falls back to NIP-42
  * @param {Function} [deps.getCharacter]      () => string — selected local character key
  * @param {string} [deps.origin]           overrides location.host (test seam)
@@ -55,6 +56,7 @@ export function createMultiplayerHost(deps) {
     avatarLoader,
     signAuth,
     getSessionToken = null,
+    setSessionToken = null,
     clearSessionToken = null,
     getCharacter = () => 'chiefmonkey',
     origin,
@@ -114,6 +116,7 @@ export function createMultiplayerHost(deps) {
       WebSocketCtor: WebSocketCtor || (typeof globalThis !== 'undefined' && globalThis.WebSocket),
       signAuth,
       getSessionToken,
+      setSessionToken,
       clearSessionToken,
       getCharacter,
       now,

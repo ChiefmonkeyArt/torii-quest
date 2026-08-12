@@ -61,7 +61,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.435-alpha';
+const SERVER_VERSION = process.env.SERVER_VERSION || 'v0.2.436-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -321,7 +321,11 @@ function finishAuth(sess, { npub, pubkey, character }) {
       pos: other.pos, rot: other.rot, character: other.character,
     });
   }
-  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now() });
+  // Issue a session token so the client can reconnect without re-signing.
+  // On the AUTH_TOKEN path the client already has a token; issue a fresh one
+  // anyway so it rotates (the old one may be near expiry).
+  const welcomeToken = sessionTokens.issueToken(pubkey);
+  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now(), token: welcomeToken });
   // Announce this new peer to everyone else.
   broadcastToOthers(sess.id, {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,

@@ -11,7 +11,7 @@ describe('per-character peer avatar loader', () => {
     expect(playerModel).toMatch(/export const CHARACTERS/);
     expect(playerModel).toMatch(/chiefmonkey:[\s\S]*?file:\s*['"]\/models\/chiefmonkey7\.glb['"]/);
     expect(playerModel).toMatch(/nostrich:[\s\S]*?file:\s*['"]\/nostrich3\.glb['"]/);
-    expect(playerModel).toMatch(/IDLE:\s*['"]Idle_10['"][\s\S]*?WALK:\s*['"]Walking['"]/);
+    expect(playerModel).toMatch(/IDLE:\s*['"]Idle_10['"][\s\S]*?WALK:\s*['"]Stylish_Walk_inplace['"]/);
     expect(playerModel).toMatch(/nostrich:[\s\S]*?IDLE:\s*['"]Stylish_Walk_inplace['"][\s\S]*?WALK:\s*['"]Walking['"]/);
   });
 

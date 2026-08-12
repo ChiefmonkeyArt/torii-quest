@@ -11,7 +11,7 @@ import { assetUrl } from './assetUrl.js';
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
 // 'null' = no clip available, fall back to IDLE or skip.
-const CHARACTERS = {
+export const CHARACTERS = Object.freeze({
   chiefmonkey: {
     file: '/chiefmonkey6.glb',
     anims: {
@@ -46,7 +46,7 @@ const CHARACTERS = {
       STYLISH:    'Stylish_Walk_inplace',
     },
   },
-};
+});
 
 // ── Active character ──────────────────────────────────────────────────────────
 let _charKey = 'chiefmonkey'; // default

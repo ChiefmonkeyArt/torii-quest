@@ -56,6 +56,7 @@ function makeHost(overrides = {}) {
     origin: 'example.test',
     mpEnabled: overrides.mpEnabled !== undefined ? overrides.mpEnabled : true,
     WebSocketCtor: FakeWS,
+    getCharacter: overrides.getCharacter,
     emit: (name, payload) => emitted.push({ name, payload }),
     now: overrides.now || (() => 1000),
   });
@@ -223,6 +224,15 @@ describe('multiplayerHost — inbound wire', () => {
 // ---------- outbound wire ----------
 
 describe('multiplayerHost — outbound wire', () => {
+  it('sends the selected character immediately after auth completes', async () => {
+    const { host } = makeHost({ getCharacter: () => 'nostrich' });
+    host.start();
+    const ws = FakeWS.instances[0];
+    await handshake(ws);
+    const frames = ws.sent.map((raw) => JSON.parse(raw));
+    expect(frames).toContainEqual({ t: MSG.SET_CHAR, character: 'nostrich' });
+  });
+
   it('sendMove/Shot/Hit/Kill/Chat are dropped when not CONNECTED', () => {
     const { host } = makeHost();
     host.start();

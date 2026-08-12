@@ -29,6 +29,7 @@ export const MSG = Object.freeze({
   AUTH_TOKEN: 'AUTH_TOKEN',
   AUTH_FAIL: 'AUTH_FAIL',
   WELCOME:   'WELCOME',
+  SET_CHAR:  'SET_CHAR',
   JOIN:      'JOIN',
   LEFT:      'LEFT',
   MOVE:      'MOVE',
@@ -129,6 +130,10 @@ const validators = {
       if (!isRot2(p.rot))                   return fail('BAD_ROSTER', 'rot');
       if (!isStr(p.character, 64))          return fail('BAD_ROSTER', 'character');
     }
+    return ok(m);
+  },
+  [MSG.SET_CHAR](m) {
+    if (!isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.JOIN](m) {
@@ -303,6 +308,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.AUTH_TOKEN]:['token'],
   [MSG.AUTH_FAIL]: ['reason'],
   [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
+  [MSG.SET_CHAR]:  ['character'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],
   [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel', 'srv'],

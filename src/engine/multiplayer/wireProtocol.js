@@ -113,6 +113,7 @@ const validators = {
   },
   [MSG.AUTH_TOKEN](m) {
     if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
+    if (m.character != null && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {
@@ -304,8 +305,8 @@ export function sanitize(msg) {
 
 const ALLOWED_FIELDS = Object.freeze({
   [MSG.HELLO]:     ['challenge', 'serverVersion', 'protocolVersion'],
-  [MSG.AUTH]:      ['npub', 'sig', 'event'],
-  [MSG.AUTH_TOKEN]:['token'],
+  [MSG.AUTH]:      ['npub', 'sig', 'event', 'character'],
+  [MSG.AUTH_TOKEN]:['token', 'character'],
   [MSG.AUTH_FAIL]: ['reason'],
   [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
   [MSG.SET_CHAR]:  ['character'],

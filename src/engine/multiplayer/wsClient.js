@@ -58,6 +58,7 @@ export function createWsClient(opts) {
     WebSocketCtor,
     signAuth,
     getSessionToken = null,
+    getCharacter = () => 'chiefmonkey',
     clearSessionToken = null,
     emit = () => {},
     now = () => Date.now(),
@@ -189,7 +190,7 @@ export function createWsClient(opts) {
         if (token) {
           api._usedToken = true;
           if (!api.ws) return;
-          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token })); }
+          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token, character: getCharacter() })); }
           catch (err) { api.lastError = err; disconnect('auth_error'); }
           return;
         }
@@ -197,7 +198,7 @@ export function createWsClient(opts) {
         try {
           const auth = await signAuth({ challenge: msg.challenge });
           if (!api.ws) return;
-          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event }));
+          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event, character: getCharacter() }));
         } catch (err) {
           api.lastError = err;
           emit('auth_error', { error: String(err && err.message || err) });

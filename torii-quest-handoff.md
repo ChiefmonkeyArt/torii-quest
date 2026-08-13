@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.437-alpha - MP CHARACTER AVATARS. Remote peers now publish their selected character, load the matching cached GLB, and cross-fade between idle and walk animations. Prior: v0.2.425-alpha Level 2 Phase 3 game mode.
+**Current version:** v0.2.438-alpha - MP CHARACTER AVATARS. Remote peers now publish their selected character, load the matching cached GLB, and cross-fade between idle and walk animations. Prior: v0.2.425-alpha Level 2 Phase 3 game mode.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

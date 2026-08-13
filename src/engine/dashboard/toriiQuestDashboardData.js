@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const TORII_QUEST_VERSION = 'v0.2.437-alpha';
+export const TORII_QUEST_VERSION = 'v0.2.438-alpha';
 export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,8 +51,8 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 2656,
-  files: 200,
+  passing: 2660,
+  files: 201,
   fastProfile: 5,
   foundationProfile: 25,
 });

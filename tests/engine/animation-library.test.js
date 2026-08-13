@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GAME_STATE_TO_CLIP } from '../../src/engine/animationLibrary.js';
 
@@ -34,8 +35,11 @@ describe('shared animation library GLB', () => {
 
     for (const clip of gltf.animations) {
       expect(clip.tracks).toHaveLength(72);
-      const strippedTracks = clip.tracks.filter((track) => !track.name.endsWith('.scale'));
-      expect(strippedTracks).toHaveLength(48);
+      const rotationOnly = clip.tracks.filter((track) =>
+        track.name.endsWith('.quaternion'),
+      );
+      expect(rotationOnly).toHaveLength(24);
+      expect(rotationOnly.every((t) => t instanceof THREE.QuaternionKeyframeTrack)).toBe(true);
     }
   });
 });

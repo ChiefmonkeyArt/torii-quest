@@ -117,7 +117,10 @@ function _loadPeerTemplate(characterKey) {
         stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
         return [stripped.name, stripped];
       }));
-      libraryClips.forEach((clip, name) => availableClips.set(name, clip));
+      // Library clips fill gaps — don't override embedded clips (different model proportions)
+      libraryClips.forEach((clip, name) => {
+        if (!availableClips.has(name)) availableClips.set(name, clip);
+      });
       template.clips = [...availableClips.values()];
       template.libraryClips = libraryClips;
       // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
@@ -172,14 +175,15 @@ async function _createPeerAvatar(peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  let idleClip = template.libraryClips.get(GAME_STATE_TO_CLIP.IDLE)
-    || template.clips.find((c) => c.name === character.anims.IDLE);
+  // Prefer embedded clips (correct position+rotation for this character's skeleton)
+  let idleClip = template.clips.find((c) => c.name === character.anims.IDLE)
+    || template.libraryClips.get(GAME_STATE_TO_CLIP.IDLE);
   if (!idleClip && template.clips.length) {
     idleClip = template.clips[0];
     console.warn('[mp] idle clip', character.anims.IDLE, 'missing; falling back to', idleClip.name);
   }
-  const walkClip = template.libraryClips.get(GAME_STATE_TO_CLIP.WALK)
-    || template.clips.find((c) => c.name === character.anims.WALK);
+  const walkClip = template.clips.find((c) => c.name === character.anims.WALK)
+    || template.libraryClips.get(GAME_STATE_TO_CLIP.WALK);
   const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
   const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
   if (idleAction) {

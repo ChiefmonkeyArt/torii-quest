@@ -176,30 +176,33 @@ export async function loadPlayerModel(parentObj) {
       stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
       availableClips.set(stripped.name, stripped);
     });
-    // Shared clips take priority; embedded character clips remain available as
-    // fallbacks for logical states that the library does not provide.
-    libraryClips.forEach((clip, name) => availableClips.set(name, clip));
+    // Library clips fill gaps — they do NOT override embedded clips with the
+    // same name. Embedded clips have correct position+rotation data for this
+    // character's skeleton; library clips are rotation-only from a different
+    // Meshy model and would deform the mesh if used as replacements.
+    libraryClips.forEach((clip, name) => {
+      if (!availableClips.has(name)) availableClips.set(name, clip);
+    });
     availableClips.forEach((clip, name) => {
       _clips[name] = clip;
       const a = _mixer.clipAction(clip);
       a.clampWhenFinished = true;
       _actions[name] = a;
     });
+    // Embedded character clips take priority; library clips fill gaps for
+    // states the character doesn't have (e.g. RELOAD, MELEE).
     _anims = {};
     for (const stateName of new Set([
       ...Object.keys(char.anims),
       ...Object.keys(GAME_STATE_TO_CLIP),
     ])) {
       const libraryName = GAME_STATE_TO_CLIP[stateName];
-      _anims[stateName] = (libraryName && libraryClips.has(libraryName))
-        ? libraryName
-        : char.anims[stateName] || null;
+      _anims[stateName] = char.anims[stateName]
+        || (libraryName && libraryClips.has(libraryName) ? libraryName : null);
     }
-    // The existing state machine calls this slot WALK_LEFT; use the library's
-    // strafe clip without changing animation transition logic.
-    _anims.WALK_LEFT = libraryClips.has(GAME_STATE_TO_CLIP.STRAFE_LEFT)
-      ? GAME_STATE_TO_CLIP.STRAFE_LEFT
-      : char.anims.WALK_LEFT;
+    // WALK_LEFT: prefer embedded clip, fall back to library strafe clip.
+    _anims.WALK_LEFT = char.anims.WALK_LEFT
+      || (libraryClips.has(GAME_STATE_TO_CLIP.STRAFE_LEFT) ? GAME_STATE_TO_CLIP.STRAFE_LEFT : null);
 
     _current = null;
     _play(_anims.IDLE, true);

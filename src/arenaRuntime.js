@@ -47,7 +47,6 @@ import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
 import { RELAYS, fanoutReq } from './nostr.js';
 import { assetUrl } from './assetUrl.js';
-import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -99,30 +98,20 @@ function _loadPeerTemplate(characterKey) {
   if (cached) return cached.promise;
 
   const template = { scene: null, clips: [], gMinY: 0, promise: null };
-  template.promise = (async () => {
+  template.promise = new Promise((resolve, reject) => {
     const draco = new DRACOLoader();
     draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    try {
-      const [gltf, libraryClips] = await Promise.all([
-        loader.loadAsync(assetUrl(CHARACTERS[characterKey].file)),
-        loadAnimationLibrary(loader),
-      ]);
+    loader.load(assetUrl(CHARACTERS[characterKey].file), (gltf) => {
       template.scene = gltf.scene;
       // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
       // causing visual blips during transitions and at loop boundaries.
-      const availableClips = new Map((gltf.animations || []).map(clip => {
+      template.clips = (gltf.animations || []).map(clip => {
         const stripped = clip.clone();
         stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
-        return [stripped.name, stripped];
-      }));
-      // Library clips fill gaps — don't override embedded clips (different model proportions)
-      libraryClips.forEach((clip, name) => {
-        if (!availableClips.has(name)) availableClips.set(name, clip);
+        return stripped;
       });
-      template.clips = [...availableClips.values()];
-      template.libraryClips = libraryClips;
       // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
       // SkinnedMesh) — playerModel.js:93-101.
       let gMinY = Infinity;
@@ -134,12 +123,12 @@ function _loadPeerTemplate(characterKey) {
         }
       });
       template.gMinY = Number.isFinite(gMinY) ? gMinY : 0;
-      return template;
-    } catch (err) {
+      resolve(template);
+    }, undefined, (err) => {
       _mpTemplateCache.delete(characterKey);
-      throw err;
-    }
-  })();
+      reject(err);
+    });
+  });
   _mpTemplateCache.set(characterKey, template);
   return template.promise;
 }
@@ -175,15 +164,12 @@ async function _createPeerAvatar(peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  // Prefer embedded clips (correct position+rotation for this character's skeleton)
-  let idleClip = template.clips.find((c) => c.name === character.anims.IDLE)
-    || template.libraryClips.get(GAME_STATE_TO_CLIP.IDLE);
+  let idleClip = template.clips.find((c) => c.name === character.anims.IDLE);
   if (!idleClip && template.clips.length) {
     idleClip = template.clips[0];
     console.warn('[mp] idle clip', character.anims.IDLE, 'missing; falling back to', idleClip.name);
   }
-  const walkClip = template.clips.find((c) => c.name === character.anims.WALK)
-    || template.libraryClips.get(GAME_STATE_TO_CLIP.WALK);
+  const walkClip = template.clips.find((c) => c.name === character.anims.WALK);
   const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
   const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
   if (idleAction) {

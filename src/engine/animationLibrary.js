@@ -34,7 +34,12 @@ export async function loadAnimationLibrary(loader) {
     _clips = new Map();
     for (const clip of gltf.animations || []) {
       const stripped = clip.clone();
-      stripped.tracks = stripped.tracks.filter((track) => !track.name.endsWith('.scale'));
+      // Keep rotation (quaternion) tracks only — scale causes visual blips and
+      // position values are model-specific (different character proportions), so
+      // sharing them across characters deforms the mesh.
+      stripped.tracks = stripped.tracks.filter(
+        (track) => track.name.endsWith('.quaternion'),
+      );
       _clips.set(stripped.name, stripped);
     }
     return _clips;

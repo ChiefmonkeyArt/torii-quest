@@ -17,9 +17,7 @@ describe('per-character peer avatar loader', () => {
 
   it('_createPeerAvatar resolves the GLB and clips from peer.character', () => {
     expect(runtime).toMatch(/CHARACTERS\[peer\.character\]\s*\?\s*peer\.character\s*:\s*['"]chiefmonkey['"]/);
-    expect(runtime).toMatch(/loader\.loadAsync\(assetUrl\(CHARACTERS\[characterKey\]\.file\)/);
-    expect(runtime).toMatch(/loadAnimationLibrary\(loader\)/);
-    expect(runtime).toMatch(/Promise\.all/);
+    expect(runtime).toMatch(/loader\.load\(assetUrl\(CHARACTERS\[characterKey\]\.file\)/);
     expect(runtime).toMatch(/character\.anims\.IDLE/);
     expect(runtime).toMatch(/character\.anims\.WALK/);
     expect(runtime).toMatch(/const _mpTemplateCache = new Map\(\)/);

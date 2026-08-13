@@ -7,7 +7,6 @@ import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
-import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -75,21 +74,18 @@ const TARGET_HEIGHT = 1.8;
 const FADE = 0.15;
 
 // ── Load ──────────────────────────────────────────────────────────────────────
-export async function loadPlayerModel(parentObj) {
+export function loadPlayerModel(parentObj) {
   // Remove previous model if switching characters mid-session
   if (_root) { parentObj.remove(_root); _root = null; _loaded = false; }
 
   const char = CHARACTERS[_charKey];
+  _anims = char.anims;
 
   const _draco = new DRACOLoader();
   _draco.setDecoderPath(assetUrl('/draco/'));
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
-  try {
-    const [gltf, libraryClips] = await Promise.all([
-      _loader.loadAsync(assetUrl(char.file)),
-      loadAnimationLibrary(_loader),
-    ]);
+  _loader.load(assetUrl(char.file), gltf => {
     _root = gltf.scene;
 
     // Scale to TARGET_HEIGHT using geometry-only bounds (Box3.setFromObject includes
@@ -167,52 +163,26 @@ export async function loadPlayerModel(parentObj) {
     _mixer = new THREE.AnimationMixer(_root);
     _clips = {};
     _actions = {};
-    const availableClips = new Map();
     gltf.animations.forEach(clip => {
       // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
       // which causes visual blips during animation transitions and at
       // loop boundaries (scale values interpolate through collapse states).
       const stripped = clip.clone();
       stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
-      availableClips.set(stripped.name, stripped);
-    });
-    // Library clips fill gaps — they do NOT override embedded clips with the
-    // same name. Embedded clips have correct position+rotation data for this
-    // character's skeleton; library clips are rotation-only from a different
-    // Meshy model and would deform the mesh if used as replacements.
-    libraryClips.forEach((clip, name) => {
-      if (!availableClips.has(name)) availableClips.set(name, clip);
-    });
-    availableClips.forEach((clip, name) => {
-      _clips[name] = clip;
-      const a = _mixer.clipAction(clip);
+      _clips[clip.name] = stripped;
+      const a = _mixer.clipAction(stripped);
       a.clampWhenFinished = true;
-      _actions[name] = a;
+      _actions[clip.name] = a;
     });
-    // Embedded character clips take priority; library clips fill gaps for
-    // states the character doesn't have (e.g. RELOAD, MELEE).
-    _anims = {};
-    for (const stateName of new Set([
-      ...Object.keys(char.anims),
-      ...Object.keys(GAME_STATE_TO_CLIP),
-    ])) {
-      const libraryName = GAME_STATE_TO_CLIP[stateName];
-      _anims[stateName] = char.anims[stateName]
-        || (libraryName && libraryClips.has(libraryName) ? libraryName : null);
-    }
-    // WALK_LEFT: prefer embedded clip, fall back to library strafe clip.
-    _anims.WALK_LEFT = char.anims.WALK_LEFT
-      || (libraryClips.has(GAME_STATE_TO_CLIP.STRAFE_LEFT) ? GAME_STATE_TO_CLIP.STRAFE_LEFT : null);
 
     _current = null;
     _play(_anims.IDLE, true);
     _loaded = true;
 
     console.log(`[playerModel] loaded "${_charKey}". clips:`, Object.keys(_clips));
-  } catch (err) {
+  }, undefined, err => {
     console.warn('[playerModel] load failed:', err);
-    throw err;
-  }
+  });
 }
 
 // ── Playback helpers ──────────────────────────────────────────────────────────

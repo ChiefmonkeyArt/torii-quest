@@ -105,13 +105,7 @@ function _loadPeerTemplate(characterKey) {
     loader.setDRACOLoader(draco);
     loader.load(assetUrl(CHARACTERS[characterKey].file), (gltf) => {
       template.scene = gltf.scene;
-      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
-      // causing visual blips during transitions and at loop boundaries.
-      template.clips = (gltf.animations || []).map(clip => {
-        const stripped = clip.clone();
-        stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
-        return stripped;
-      });
+      template.clips = gltf.animations || [];
       // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
       // SkinnedMesh) — playerModel.js:93-101.
       let gMinY = Infinity;
@@ -172,6 +166,9 @@ async function _createPeerAvatar(peer) {
   const walkClip = template.clips.find((c) => c.name === character.anims.WALK);
   const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
   const walkAction = walkClip ? mixer.clipAction(walkClip) : null;
+  console.log(`[mp] peer avatar: character=${characterKey}, clips=${template.clips.length}, idleFound=${!!idleClip}, walkFound=${!!walkClip}`);
+  if (!idleClip) console.warn(`[mp] IDLE clip "${character.anims.IDLE}" not found for ${characterKey}. Available:`, template.clips.map(c => c.name));
+  if (!walkClip) console.warn(`[mp] WALK clip "${character.anims.WALK}" not found for ${characterKey}. Available:`, template.clips.map(c => c.name));
   if (idleAction) {
     idleAction.setLoop(THREE.LoopRepeat, Infinity);
     idleAction.play();
@@ -219,12 +216,8 @@ async function _createPeerAvatar(peer) {
       if (nextMoving !== moving) {
         const next = nextMoving ? walkAction : idleAction;
         const prev = nextMoving ? idleAction : walkAction;
-        // Only reset if the action hasn't been played before — reset() snaps
-        // the clip to time 0 and weight 0, which causes a visual pop on
-        // every idle↔walk transition. If already running (was fading out),
-        // just fade it back in.
-        if (!next.isRunning()) next.reset().setEffectiveWeight(0).play();
-        next.fadeIn(MP_ANIM_FADE);
+        // Simple reset+fadeIn+play (matches v0.2.423 playerModel._play).
+        next.reset().fadeIn(MP_ANIM_FADE).play();
         prev.fadeOut(MP_ANIM_FADE);
         moving = nextMoving;
       }

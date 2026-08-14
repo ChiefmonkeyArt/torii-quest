@@ -99,10 +99,12 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
         if (entry.peer.npub === peer.npub) {
           // Same player, new session ID. Update the peer data and swap the key.
           roster.delete(oldId);
+          // Check character change BEFORE merge — otherwise entry.peer.character
+          // is already overwritten and the comparison is always false.
+          const characterChanged = entry.peer.character !== peer.character;
           entry.peer = { ...entry.peer, ...peer };
           // If the character also changed, reload the avatar; otherwise keep it.
-          if (entry.peer.character !== peer.character) {
-            entry.peer.character = peer.character;
+          if (characterChanged) {
             if (entry.obj) {
               try { scene.remove(entry.obj); } catch { /* noop */ }
               try { entry.obj.dispose?.(); } catch { /* noop */ }

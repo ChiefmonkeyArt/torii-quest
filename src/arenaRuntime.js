@@ -83,10 +83,22 @@ export { setCharacter, getCharacter };
 const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
 const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
 
-// Per-character remote avatar config: GLB file + IDLE/WALK clip names.
+// Per-character remote avatar config: GLB file + all clip names.
 const MP_PEER_CHARACTERS = Object.freeze({
-  chiefmonkey: { file: '/chiefmonkey6.glb', idle: 'Idle_03',  walk: 'Walking' },
-  nostrich:    { file: '/nostrich3.glb',  idle: 'Stylish_Walk_inplace', walk: 'Walking' },
+  chiefmonkey: {
+    file: '/models/chiefmonkey7.glb',
+    idle: 'Idle_10', walk: 'Stylish_Walk_inplace', run: 'Running',
+    back: 'Stylish_Walk_inplace', strafeL: 'Stylish_Walk_inplace', strafeR: 'Stylish_Walk_inplace',
+    jump: 'Indoor_Swing',
+    shoot: 'Boxing_Practice', hit: 'Stand_Talking_Angry', death: 'Knock_Down',
+  },
+  nostrich: {
+    file: '/nostrich3.glb',
+    idle: 'Stylish_Walk_inplace', walk: 'Walking', run: 'Running',
+    back: 'Walking', strafeL: 'Crouch_Walk_Left_with_Gun_inplace', strafeR: 'Crouch_Walk_Left_with_Gun_inplace',
+    jump: 'Jump_Over_Obstacle_1',
+    shoot: 'Run_and_Shoot', hit: 'Shot_and_Blown_Back', death: 'Knock_Down',
+  },
 });
 
 // Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
@@ -185,9 +197,17 @@ async function _createPeerAvatar(peer) {
     actions[c.name].setLoop(THREE.LoopRepeat, Infinity);
   }
 
-  // Resolve idle + walk actions (walk falls back to idle if clip missing).
+  // Resolve idle + walk + run/back/strafe + one-shot actions (shoot/hit/death).
   const idleAction = actions[cfg.idle] || (tpl.clips.length ? actions[tpl.clips[0].name] : null);
   const walkAction = actions[cfg.walk] || idleAction;
+  const runAction = actions[cfg.run] || null;
+  const backAction = actions[cfg.back] || null;
+  const strafeLAction = actions[cfg.strafeL] || null;
+  const strafeRAction = actions[cfg.strafeR] || null;
+  const jumpAction = actions[cfg.jump] || null;
+  const shootAction = actions[cfg.shoot] || null;
+  const hitAction = actions[cfg.hit] || null;
+  const deathAction = actions[cfg.death] || null;
   if (!idleAction) {
     console.warn('[mp] no clips for', character);
   } else {
@@ -195,20 +215,46 @@ async function _createPeerAvatar(peer) {
     mixer.update(0.016); // leave bind-pose
   }
 
-  // Locomotion state — switch between idle/walk based on horizontal speed
-  // from the MOVE velocity (passed via remoteAvatars.tick → obj.update).
+  // Locomotion state — switch between idle/walk/run/back/strafe based on
+  // the anim hint from the MOVE message (mirrors local player's keyboard state).
   let currentClip = 'idle';
-  const IDLE_THRESHOLD = 0.5; // m/s — below this, idle
+  let oneShot = null; // when set, overrides locomotion until it finishes
 
-  function _playRemote(name) {
-    if (name === currentClip) return;
-    const next = name === 'walk' ? walkAction : idleAction;
-    if (!next) return;
-    const prev = currentClip === 'walk' ? walkAction : idleAction;
-    if (prev) prev.fadeOut(FADE);
-    next.reset().fadeIn(FADE).play();
-    currentClip = name;
+  // Map anim hint → action. Falls back to idle if the clip doesn't exist.
+  function _actionFor(anim) {
+    if (anim === 'walk' || anim === 'runShoot') return walkAction;
+    if (anim === 'run') return runAction || walkAction;
+    if (anim === 'back') return backAction || walkAction;
+    if (anim === 'strafeL') return strafeLAction || walkAction;
+    if (anim === 'strafeR') return strafeRAction || walkAction;
+    if (anim === 'jump') return jumpAction || idleAction;
+    return idleAction;
   }
+
+  function _playRemote(anim) {
+    if (oneShot || anim === currentClip) return;
+    const next = _actionFor(anim);
+    if (!next) return;
+    const prev = _actionFor(currentClip);
+    if (prev && prev !== next) prev.fadeOut(FADE);
+    next.reset().fadeIn(FADE).play();
+    currentClip = anim;
+  }
+
+  // One-shot animation (shoot/hit/death) — plays once, then returns to locomotion.
+  function _playOneShot(action, returnTo) {
+    if (!action) return;
+    if (oneShot) { oneShot.fadeOut(0.1); }
+    // Fade out locomotion
+    const loco = currentClip === 'walk' ? walkAction : idleAction;
+    if (loco) loco.fadeOut(FADE);
+    action.reset().setLoop(THREE.LoopOnce, 1).fadeIn(FADE).play();
+    oneShot = action;
+    // Schedule return to locomotion after the clip finishes (mixer.update will
+    // eventually stop it; we check in obj.update via action.isRunning()).
+    _oneShotReturn = returnTo || 'idle';
+  }
+  let _oneShotReturn = 'idle';
 
   // Find RightHand bone and attach a gun clone (same logic as playerModel.js
   // + weapons.js _attachWorldGun, but self-contained for remote avatars).
@@ -255,15 +301,27 @@ async function _createPeerAvatar(peer) {
   // Driven per-frame by remoteAvatars.tick: position is set BEFORE update(),
   // and the sampled snapshot (with vel) is passed as the second arg.
   obj.update = (dt, snap) => {
-    if (dt > 0 && idleAction && walkAction && snap && snap.vel) {
-      const vx = snap.vel[0], vz = snap.vel[2];
-      const speed = Math.sqrt(vx * vx + vz * vz);
-      _playRemote(speed > IDLE_THRESHOLD ? 'walk' : 'idle');
+    // Check if one-shot has finished → return to locomotion.
+    if (oneShot && !oneShot.isRunning()) {
+      oneShot = null;
+      const ret = _oneShotReturn;
+      currentClip = ''; // force re-evaluation
+      _playRemote(snap && snap.anim ? snap.anim : ret);
+    }
+    if (dt > 0 && !oneShot && snap && snap.anim) {
+      _playRemote(snap.anim);
     }
     mixer.update(dt);
   };
+  // Event-driven one-shot animation triggers (called from _mpEmit).
+  obj.triggerAnim = (type) => {
+    if (type === 'shoot') _playOneShot(shootAction, 'idle');
+    else if (type === 'hit') _playOneShot(hitAction, 'idle');
+    else if (type === 'death') _playOneShot(deathAction, 'idle');
+  };
   obj.dispose = () => {
     obj.update = null;
+    obj.triggerAnim = null;
     model.traverse((n) => {
       if (n.geometry) n.geometry.dispose();
       if (n.material) {
@@ -521,10 +579,27 @@ export function createArenaRuntime(hooks = {}) {
         );
         _lastMovePos = [px, py, pz];
         _mpMoveDt = 0;
+        // Compute local animation hint for remote peers (mirrors tickPlayerModel logic).
+        const _fwd   = keys['KeyW'] || keys['ArrowUp'];
+        const _back  = keys['KeyS'] || keys['ArrowDown'];
+        const _left  = keys['KeyA'] || keys['ArrowLeft'];
+        const _right = keys['KeyD'] || keys['ArrowRight'];
+        const _run   = keys['ShiftLeft'] || keys['ShiftRight'];
+        const _moving = _fwd || _back || _left || _right;
+        let _anim = 'idle';
+        if (_isJumping) _anim = 'jump';
+        else if (_moving) {
+          if (_isShooting && (_fwd || _run)) _anim = 'runShoot';
+          else if (_back) _anim = 'back';
+          else if ((_left || _right) && !_fwd && !_back) _anim = _left ? 'strafeL' : 'strafeR';
+          else if (_run) _anim = 'run';
+          else _anim = 'walk';
+        }
         _mp.sendMove({
           pos: [px, py, pz],
           rot: [playerObj.rotation.y, 0],
           vel: [vx, vy, vz],
+          anim: _anim,
         });
       } else {
         _mpMoveDt += dt;
@@ -772,6 +847,20 @@ export function createArenaRuntime(hooks = {}) {
         },
       });
       const _mpEmit = (name, payload) => {
+        // Trigger remote avatar animations for combat events.
+        if (_mp && payload) {
+          const p0 = payload;
+          if (name === 'mp_shot' && p0.id && p0.id !== _mp.selfId) {
+            const entry = _mp.roster._peek(p0.id);
+            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('shoot');
+          } else if (name === 'mp_hit' && p0.targetId && p0.targetId !== _mp.selfId) {
+            const entry = _mp.roster._peek(p0.targetId);
+            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('hit');
+          } else if (name === 'mp_kill' && p0.victimId && p0.victimId !== _mp.selfId) {
+            const entry = _mp.roster._peek(p0.victimId);
+            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('death');
+          }
+        }
         if (_peerCombat(name, payload)) return;
         const p = payload || {};
 

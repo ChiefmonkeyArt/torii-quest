@@ -154,6 +154,7 @@ const validators = {
     // Server stamps `id` on rebroadcast; client-outbound MOVE omits id.
     if (m.id !== undefined && !isStr(m.id, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'id');
     if (m.srv !== undefined && !isFiniteNum(m.srv)) return fail('BAD_FIELD', 'srv');
+    if (m.anim !== undefined && !MP_ANIM_HINTS.has(m.anim)) return fail('BAD_FIELD', 'anim');
     return ok(m);
   },
   [MSG.SHOT](m) {
@@ -300,6 +301,8 @@ export function sanitize(msg) {
   return out;
 }
 
+const MP_ANIM_HINTS = new Set(['idle', 'walk', 'run', 'back', 'strafeL', 'strafeR', 'jump', 'runShoot']);
+
 const ALLOWED_FIELDS = Object.freeze({
   [MSG.HELLO]:     ['challenge', 'serverVersion', 'protocolVersion'],
   [MSG.AUTH]:      ['npub', 'sig', 'event', 'character'],
@@ -308,7 +311,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],
-  [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel', 'srv'],
+  [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel', 'srv', 'anim'],
   [MSG.SHOT]:      ['id', 'origin', 'dir', 'ts', 'viewLag'],
   [MSG.HIT]:       ['id', 'targetId', 'dmg', 'zone', 'shotTs'],
   [MSG.KILL]:      ['shooterId', 'victimId', 'weapon'],

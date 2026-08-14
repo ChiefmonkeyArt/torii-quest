@@ -13,17 +13,17 @@ import { assetUrl } from './assetUrl.js';
 // 'null' = no clip available, fall back to IDLE or skip.
 const CHARACTERS = {
   chiefmonkey: {
-    file: '/chiefmonkey6.glb',
+    file: '/models/chiefmonkey7.glb',
     anims: {
-      IDLE:       'Idle_03',
-      WALK:       'Walking',
-      WALK_BACK:  'Walk_Backward_inplace',
-      WALK_LEFT:  'Walk_Left_with_Gun_inplace',
+      IDLE:       'Idle_10',
+      WALK:       'Stylish_Walk_inplace',
+      WALK_BACK:  'Stylish_Walk_inplace',
+      WALK_LEFT:  'Stylish_Walk_inplace',
       RUN:        'Running',
-      RUN_SHOOT:  'Run_and_Shoot',
-      JUMP:       'Jump_Over_Obstacle_1',
-      RELOAD:     'Running_Reload_inplace',
-      HIT:        'Hit_Reaction_to_Waist',
+      RUN_SHOOT:  'Boxing_Practice',
+      JUMP:       'Indoor_Swing',
+      RELOAD:     null,
+      HIT:        'Stand_Talking_Angry',
       DEATH:      'Knock_Down',
       DANCE:      'FunnyDancing_02',
       STYLISH:    'Stylish_Walk_inplace',

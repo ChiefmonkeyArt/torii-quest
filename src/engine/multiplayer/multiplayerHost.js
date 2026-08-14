@@ -160,6 +160,7 @@ export function createMultiplayerHost(deps) {
         const clientTs = srv !== null ? srv - offset : now();
         roster.applyMove(payload.id, {
           pos: payload.pos, rot: payload.rot, vel: payload.vel,
+          anim: payload.anim,
           clientTs,
         });
         return;
@@ -175,7 +176,7 @@ export function createMultiplayerHost(deps) {
     if (!ws || host.state !== WS_STATE.CONNECTED) return false;
     return ws.send(msg);
   }
-  function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel }); }
+  function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel, anim: m.anim }); }
   function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts, viewLag: m.viewLag }); }
   // MP-2 (v0.2.366-alpha): server is authoritative on hits. This is now a
   // no-op export kept for regression compat with callers that were wired in

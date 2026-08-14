@@ -119,7 +119,7 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
           entry.obj.rotation.set(0, s.rot[0], 0);
         }
       }
-      if (dt > 0 && typeof entry.obj.update === 'function') entry.obj.update(dt);
+      if (dt > 0 && typeof entry.obj.update === 'function') entry.obj.update(dt, s);
     }
   }
 

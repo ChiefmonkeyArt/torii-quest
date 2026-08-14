@@ -97,6 +97,24 @@ const _mpShotDir    = new THREE.Vector3();
 // Cache: character key → { scene, clips, gMinY, promise }
 const _mpTemplateCache = new Map();
 
+// Shared gun GLB for remote avatars (loaded once, cloned per peer).
+let _gunTemplate = null;
+let _gunPromise = null;
+function _loadGunTemplate() {
+  if (_gunPromise) return _gunPromise;
+  _gunPromise = new Promise((resolve, reject) => {
+    const draco = new DRACOLoader();
+    draco.setDecoderPath(assetUrl('/draco/'));
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load(assetUrl('/gun-steampunk.glb'), (gltf) => {
+      _gunTemplate = gltf.scene;
+      resolve();
+    }, undefined, reject);
+  });
+  return _gunPromise;
+}
+
 function _loadPeerTemplate(character) {
   character = character || 'chiefmonkey';
   if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
@@ -177,9 +195,9 @@ async function _createPeerAvatar(peer) {
     mixer.update(0.016); // leave bind-pose
   }
 
-  // Locomotion state — switch between idle/walk based on horizontal speed.
+  // Locomotion state — switch between idle/walk based on horizontal speed
+  // from the MOVE velocity (passed via remoteAvatars.tick → obj.update).
   let currentClip = 'idle';
-  let lastX = 0, lastZ = 0, firstTick = true;
   const IDLE_THRESHOLD = 0.5; // m/s — below this, idle
 
   function _playRemote(name) {
@@ -192,21 +210,55 @@ async function _createPeerAvatar(peer) {
     currentClip = name;
   }
 
+  // Find RightHand bone and attach a gun clone (same logic as playerModel.js
+  // + weapons.js _attachWorldGun, but self-contained for remote avatars).
+  _loadGunTemplate().then(() => {
+    let rhBone = null;
+    model.traverse(o => {
+      if (rhBone || !o.isBone) return;
+      const n = (o.name || '').toLowerCase();
+      if (n.endsWith('righthand') || n.endsWith('right_hand') || n === 'righthand') rhBone = o;
+    });
+    if (!rhBone || !_gunTemplate) return;
+    rhBone.updateWorldMatrix(true, false);
+    const ws = new THREE.Vector3();
+    rhBone.getWorldScale(ws);
+    const inv = 1 / Math.max(ws.x, 1e-6);
+    const wrap = new THREE.Group();
+    wrap.scale.setScalar(inv);
+    rhBone.add(wrap);
+    const gun = _gunTemplate.clone(true);
+    gun.scale.setScalar(0.22);
+    gun.position.set(0.0, 0.16, -0.03);
+    gun.rotation.set(Math.PI, -Math.PI / 2, Math.PI / 2);
+    gun.rotateX(Math.PI);
+    gun.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.frustumCulled = false;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          if (!m) continue;
+          m.transparent = false;
+          m.depthWrite = true;
+          m.alphaTest = 0;
+          m.needsUpdate = true;
+        }
+      }
+    });
+    wrap.add(gun);
+  }).catch(() => { /* gun is cosmetic — ignore load errors */ });
+
   const obj = new THREE.Group();
   obj.add(model);
   obj.userData.peerId = peer.id;
   // Driven per-frame by remoteAvatars.tick: position is set BEFORE update(),
-  // so we compute horizontal speed from position delta and switch locomotion.
-  obj.update = (dt) => {
-    if (dt > 0 && idleAction && walkAction) {
-      const px = obj.position.x, pz = obj.position.z;
-      if (firstTick) { firstTick = false; }
-      else {
-        const dx = px - lastX, dz = pz - lastZ;
-        const speed = Math.sqrt(dx * dx + dz * dz) / dt;
-        _playRemote(speed > IDLE_THRESHOLD ? 'walk' : 'idle');
-      }
-      lastX = px; lastZ = pz;
+  // and the sampled snapshot (with vel) is passed as the second arg.
+  obj.update = (dt, snap) => {
+    if (dt > 0 && idleAction && walkAction && snap && snap.vel) {
+      const vx = snap.vel[0], vz = snap.vel[2];
+      const speed = Math.sqrt(vx * vx + vz * vz);
+      _playRemote(speed > IDLE_THRESHOLD ? 'walk' : 'idle');
     }
     mixer.update(dt);
   };

@@ -63,7 +63,7 @@ export function sample(buf, renderTime) {
 
   // Below the earliest snapshot → hold at the earliest.
   if (target <= snaps[0].clientTs) {
-    return { pos: snaps[0].pos.slice(), rot: snaps[0].rot.slice() };
+    return { pos: snaps[0].pos.slice(), rot: snaps[0].rot.slice(), vel: snaps[0].vel.slice() };
   }
   // Above the latest → extrapolate with last known velocity, capped.
   const newest = snaps[snaps.length - 1];
@@ -77,6 +77,7 @@ export function sample(buf, renderTime) {
         newest.pos[2] + newest.vel[2] * dt,
       ],
       rot: newest.rot.slice(),
+      vel: newest.vel.slice(),
     };
   }
   // In-buffer: find the bracketing pair and lerp.
@@ -95,11 +96,16 @@ export function sample(buf, renderTime) {
           lerpAngle(a.rot[0], b.rot[0], alpha),
           a.rot[1] + (b.rot[1] - a.rot[1]) * alpha,
         ],
+        vel: [
+          a.vel[0] + (b.vel[0] - a.vel[0]) * alpha,
+          a.vel[1] + (b.vel[1] - a.vel[1]) * alpha,
+          a.vel[2] + (b.vel[2] - a.vel[2]) * alpha,
+        ],
       };
     }
   }
   // Fallback (shouldn't happen): return newest.
-  return { pos: newest.pos.slice(), rot: newest.rot.slice() };
+  return { pos: newest.pos.slice(), rot: newest.rot.slice(), vel: newest.vel.slice() };
 }
 
 /** Shortest-path angle lerp — handles yaw wrapping across ±π. */

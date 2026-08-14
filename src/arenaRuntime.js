@@ -853,5 +853,5 @@ export function createArenaRuntime(hooks = {}) {
     try { _arenaLb.destroy(); } catch { /* noop */ }
   }
 
-  return { boot, bootstrapPhysics, enter, setSpawnOverride, stopMultiplayer };
+  return { boot, bootstrapPhysics, enter, setCharacter, setSpawnOverride, stopMultiplayer };
 }

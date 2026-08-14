@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.447-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
+Current version: `v0.2.448-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
 
 ## 🚨 TOP OF QUEUE
 

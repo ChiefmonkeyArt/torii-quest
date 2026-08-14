@@ -83,10 +83,10 @@ export { setCharacter, getCharacter };
 const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
 const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
 
-// Per-character remote avatar config: GLB file + IDLE clip.
+// Per-character remote avatar config: GLB file + IDLE/WALK clip names.
 const MP_PEER_CHARACTERS = Object.freeze({
-  chiefmonkey: { file: '/chiefmonkey6.glb', idle: 'Idle_03' },
-  nostrich:    { file: '/nostrich3.glb',  idle: 'Stylish_Walk_inplace' },
+  chiefmonkey: { file: '/chiefmonkey6.glb', idle: 'Idle_03',  walk: 'Walking' },
+  nostrich:    { file: '/nostrich3.glb',  idle: 'Stylish_Walk_inplace', walk: 'Walking' },
 });
 
 // Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
@@ -157,25 +157,59 @@ async function _createPeerAvatar(peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  const idleClipName = (MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey).idle;
-  let clip = tpl.clips.find((c) => c.name === idleClipName);
-  if (!clip && tpl.clips.length) {
-    clip = tpl.clips[0];
-    console.warn('[mp] idle clip', idleClipName, 'missing for', character, '; falling back to', clip.name);
+  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const FADE = 0.15;
+
+  // Build action map from available clips.
+  const actions = {};
+  for (const c of tpl.clips) {
+    actions[c.name] = mixer.clipAction(c);
+    actions[c.name].setLoop(THREE.LoopRepeat, Infinity);
   }
-  if (clip) {
-    const action = mixer.clipAction(clip);
-    action.setLoop(THREE.LoopRepeat, Infinity);
-    action.play();
-    mixer.update(0.016); // tick once so the skeleton leaves bind-pose (no T-pose flash)
+
+  // Resolve idle + walk actions (walk falls back to idle if clip missing).
+  const idleAction = actions[cfg.idle] || (tpl.clips.length ? actions[tpl.clips[0].name] : null);
+  const walkAction = actions[cfg.walk] || idleAction;
+  if (!idleAction) {
+    console.warn('[mp] no clips for', character);
+  } else {
+    idleAction.play();
+    mixer.update(0.016); // leave bind-pose
   }
-  // MP-1.5 future: switch to a WALK clip on movement (needs peer velocity/speed).
+
+  // Locomotion state — switch between idle/walk based on horizontal speed.
+  let currentClip = 'idle';
+  let lastX = 0, lastZ = 0, firstTick = true;
+  const IDLE_THRESHOLD = 0.5; // m/s — below this, idle
+
+  function _playRemote(name) {
+    if (name === currentClip) return;
+    const next = name === 'walk' ? walkAction : idleAction;
+    if (!next) return;
+    const prev = currentClip === 'walk' ? walkAction : idleAction;
+    if (prev) prev.fadeOut(FADE);
+    next.reset().fadeIn(FADE).play();
+    currentClip = name;
+  }
 
   const obj = new THREE.Group();
   obj.add(model);
   obj.userData.peerId = peer.id;
-  // Driven per-frame by remoteAvatars.tick → advances the IDLE animation.
-  obj.update = (dt) => mixer.update(dt);
+  // Driven per-frame by remoteAvatars.tick: position is set BEFORE update(),
+  // so we compute horizontal speed from position delta and switch locomotion.
+  obj.update = (dt) => {
+    if (dt > 0 && idleAction && walkAction) {
+      const px = obj.position.x, pz = obj.position.z;
+      if (firstTick) { firstTick = false; }
+      else {
+        const dx = px - lastX, dz = pz - lastZ;
+        const speed = Math.sqrt(dx * dx + dz * dz) / dt;
+        _playRemote(speed > IDLE_THRESHOLD ? 'walk' : 'idle');
+      }
+      lastX = px; lastZ = pz;
+    }
+    mixer.update(dt);
+  };
   obj.dispose = () => {
     obj.update = null;
     model.traverse((n) => {

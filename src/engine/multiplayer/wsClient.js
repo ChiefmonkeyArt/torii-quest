@@ -58,8 +58,6 @@ export function createWsClient(opts) {
     WebSocketCtor,
     signAuth,
     getSessionToken = null,
-    setSessionToken = null,
-    getCharacter = () => 'chiefmonkey',
     clearSessionToken = null,
     emit = () => {},
     now = () => Date.now(),
@@ -191,7 +189,7 @@ export function createWsClient(opts) {
         if (token) {
           api._usedToken = true;
           if (!api.ws) return;
-          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token, character: getCharacter() })); }
+          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token })); }
           catch (err) { api.lastError = err; disconnect('auth_error'); }
           return;
         }
@@ -199,7 +197,7 @@ export function createWsClient(opts) {
         try {
           const auth = await signAuth({ challenge: msg.challenge });
           if (!api.ws) return;
-          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event, character: getCharacter() }));
+          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event }));
         } catch (err) {
           api.lastError = err;
           emit('auth_error', { error: String(err && err.message || err) });
@@ -211,10 +209,6 @@ export function createWsClient(opts) {
         api.selfId = msg.selfId;
         if (Number.isFinite(msg.srv)) {
           api.serverTsOffset = msg.srv - now();
-        }
-        // Store the server-issued token so reconnects use AUTH_TOKEN (no signer).
-        if (typeof msg.token === 'string' && msg.token && setSessionToken) {
-          setSessionToken(msg.token);
         }
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
         // Refine RTT/one-way latency immediately instead of leaving shot timing

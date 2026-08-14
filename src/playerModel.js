@@ -11,19 +11,19 @@ import { assetUrl } from './assetUrl.js';
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
 // 'null' = no clip available, fall back to IDLE or skip.
-export const CHARACTERS = Object.freeze({
+const CHARACTERS = {
   chiefmonkey: {
-    file: '/models/chiefmonkey7.glb',
+    file: '/chiefmonkey6.glb',
     anims: {
-      IDLE:       'Idle_10',
-      WALK:       'Stylish_Walk_inplace',
-      WALK_BACK:  'Stylish_Walk_inplace',           // no dedicated back-walk — reuse walk
-      WALK_LEFT:  'Stylish_Walk_inplace',           // no dedicated strafe — reuse walk
+      IDLE:       'Idle_03',
+      WALK:       'Walking',
+      WALK_BACK:  'Walk_Backward_inplace',
+      WALK_LEFT:  'Walk_Left_with_Gun_inplace',
       RUN:        'Running',
-      RUN_SHOOT:  'Boxing_Practice',
-      JUMP:       'Indoor_Swing',
-      RELOAD:     null,                             // no reload clip
-      HIT:        'Stand_Talking_Angry',
+      RUN_SHOOT:  'Run_and_Shoot',
+      JUMP:       'Jump_Over_Obstacle_1',
+      RELOAD:     'Running_Reload_inplace',
+      HIT:        'Hit_Reaction_to_Waist',
       DEATH:      'Knock_Down',
       DANCE:      'FunnyDancing_02',
       STYLISH:    'Stylish_Walk_inplace',
@@ -46,7 +46,7 @@ export const CHARACTERS = Object.freeze({
       STYLISH:    'Stylish_Walk_inplace',
     },
   },
-});
+};
 
 // ── Active character ──────────────────────────────────────────────────────────
 let _charKey = 'chiefmonkey'; // default

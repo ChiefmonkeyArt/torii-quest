@@ -54,9 +54,7 @@ export function createMultiplayerHost(deps) {
     avatarLoader,
     signAuth,
     getSessionToken = null,
-    setSessionToken = null,
     clearSessionToken = null,
-    getCharacter = () => 'chiefmonkey',
     origin,
     mpEnabled = MP_ENABLED,
     WebSocketCtor,
@@ -114,9 +112,7 @@ export function createMultiplayerHost(deps) {
       WebSocketCtor: WebSocketCtor || (typeof globalThis !== 'undefined' && globalThis.WebSocket),
       signAuth,
       getSessionToken,
-      setSessionToken,
       clearSessionToken,
-      getCharacter,
       now,
       emit: (name, payload) => _onWsEvent(name, payload),
     });
@@ -138,10 +134,7 @@ export function createMultiplayerHost(deps) {
     switch (name) {
       case 'state': {
         host.state = payload.state;
-        if (payload.state === WS_STATE.CONNECTED && payload.selfId) {
-          host.selfId = payload.selfId;
-          ws.send({ t: MSG.SET_CHAR, character: getCharacter() });
-        }
+        if (payload.state === WS_STATE.CONNECTED && payload.selfId) host.selfId = payload.selfId;
         return;
       }
       case 'roster': {

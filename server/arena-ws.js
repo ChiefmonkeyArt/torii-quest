@@ -46,9 +46,6 @@ import {
 } from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
 import { createArenaBotSim } from './bots/arenaBotSim.js';
-import { applyCharacterSelection, SUPPORTED_CHARACTERS } from './presence/characterSelection.js';
-
-const SUPPORTED_CHARACTER_SET = new Set(SUPPORTED_CHARACTERS);
 import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
@@ -61,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.444-alpha';
+const SERVER_VERSION = 'v0.2.445-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -287,22 +284,10 @@ function verifyAuthEvent(sess, evt) {
 // ring bootstrap, score-ledger registration, WELCOME (with roster of other
 // authed peers), and JOIN broadcast. Reused by BOTH the NIP-42 AUTH path and the
 // v0.2.375 AUTH_TOKEN path so they converge on identical presence behaviour.
-function finishAuth(sess, { npub, pubkey, character }) {
-  // Close any existing authed session with the same pubkey to prevent
-  // duplicate avatars on reconnect.
-  const stale = [];
-  for (const other of sessions.values()) {
-    if (other.id !== sess.id && other.authed && other.pubkey && other.pubkey === pubkey) {
-      stale.push(other);
-    }
-  }
-  for (const other of stale) closeSession(other, 'replaced');
+function finishAuth(sess, { npub, pubkey }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  if (typeof character === 'string' && SUPPORTED_CHARACTER_SET.has(character)) {
-    sess.character = character;
-  }
   // MP-2: bootstrap ledger + ring at auth time.
   hpRegister(hpLedger, sess.id);
   snapshotRings.set(sess.id, createSnapshotRing());
@@ -320,8 +305,7 @@ function finishAuth(sess, { npub, pubkey, character }) {
       pos: other.pos, rot: other.rot, character: other.character,
     });
   }
-  const welcomeToken = sessionTokens.issueToken(pubkey);
-  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now(), token: welcomeToken });
+  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now() });
   // Announce this new peer to everyone else.
   broadcastToOthers(sess.id, {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,
@@ -362,12 +346,9 @@ async function handleMessage(sess, raw) {
         closeSession(sess, 'auth_fail');
         return;
       }
-      if (typeof msg.character === 'string' && SUPPORTED_CHARACTER_SET.has(msg.character)) {
-        sess.character = msg.character;
-      }
       // No bech32 npub on the token path — the hex pubkey (64 chars) fits the
       // wire npub field (NPUB_LEN=72) and is what the client's state uses too.
-      finishAuth(sess, { npub: pubkey, pubkey, character: sess.character });
+      finishAuth(sess, { npub: pubkey, pubkey });
       return;
     }
     // NIP-42 fallback: kind:22242 challenge/response (per-session, re-signed).
@@ -378,19 +359,12 @@ async function handleMessage(sess, raw) {
       closeSession(sess, 'auth_fail');
       return;
     }
-    finishAuth(sess, { npub: msg.npub, pubkey: msg.event.pubkey, character: msg.character });
+    finishAuth(sess, { npub: msg.npub, pubkey: msg.event.pubkey });
     return;
   }
 
   // --- Authed phase ---
   switch (msg.t) {
-    case MSG.SET_CHAR: {
-      if (sess.character === msg.character) return;
-      const peer = applyCharacterSelection(sess, msg.character);
-      if (!peer) return;
-      broadcastToOthers(sess.id, { t: MSG.JOIN, ...peer });
-      return;
-    }
     case MSG.MOVE: {
       if (!checkRate(sess, 'MOVE', RATE.MOVE)) return;
       // Presence (MOVE) is an ephemeral per-frame peer action, NOT an owner-

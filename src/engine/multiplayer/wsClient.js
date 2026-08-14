@@ -49,6 +49,7 @@ export const KEEPALIVE_MS = 25_000;
  *                                                    token (AUTH_FAIL) so the reconnect falls back to NIP-42.
  * @param {Function} [opts.emit]                   - event sink: (name, payload) => void
  * @param {Function} [opts.now]                    - () => ms clock (defaults Date.now)
+ * @param {Function} [opts.getCharacter]           - () => string. Active character key sent in AUTH/AUTH_TOKEN.
  * @param {Function} [opts.setTimeoutFn]           - injectable setTimeout (test seam)
  * @param {Function} [opts.clearTimeoutFn]         - injectable clearTimeout
  */
@@ -61,6 +62,7 @@ export function createWsClient(opts) {
     clearSessionToken = null,
     emit = () => {},
     now = () => Date.now(),
+    getCharacter = () => 'chiefmonkey',
     setTimeoutFn = setTimeout,
     clearTimeoutFn = clearTimeout,
   } = opts;
@@ -189,7 +191,7 @@ export function createWsClient(opts) {
         if (token) {
           api._usedToken = true;
           if (!api.ws) return;
-          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token })); }
+          try { api.ws.send(encode({ t: MSG.AUTH_TOKEN, token, character: getCharacter() })); }
           catch (err) { api.lastError = err; disconnect('auth_error'); }
           return;
         }
@@ -197,7 +199,7 @@ export function createWsClient(opts) {
         try {
           const auth = await signAuth({ challenge: msg.challenge });
           if (!api.ws) return;
-          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event }));
+          api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event, character: getCharacter() }));
         } catch (err) {
           api.lastError = err;
           emit('auth_error', { error: String(err && err.message || err) });

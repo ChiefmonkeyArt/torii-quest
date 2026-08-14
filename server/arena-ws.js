@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.445-alpha';
+const SERVER_VERSION = 'v0.2.446-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -102,6 +102,9 @@ const RATE = Object.freeze({
 const IDLE_DISCONNECT_MS = 60_000;
 const AUTH_TIMEOUT_MS    = 10_000;
 const CHALLENGE_TTL_MS   = 60_000; // an AUTH event's created_at must be within this window
+
+// v0.2.446-alpha: valid character keys the client may send in AUTH/AUTH_TOKEN.
+const VALID_CHARACTERS = new Set(['chiefmonkey', 'nostrich']);
 
 // ---------- server state ----------
 
@@ -284,10 +287,13 @@ function verifyAuthEvent(sess, evt) {
 // ring bootstrap, score-ledger registration, WELCOME (with roster of other
 // authed peers), and JOIN broadcast. Reused by BOTH the NIP-42 AUTH path and the
 // v0.2.375 AUTH_TOKEN path so they converge on identical presence behaviour.
-function finishAuth(sess, { npub, pubkey }) {
+function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
+  // v0.2.446-alpha: accept client-sent character key (validated against the
+  // known set). Falls back to the existing default if absent/invalid.
+  if (character && VALID_CHARACTERS.has(character)) sess.character = character;
   // MP-2: bootstrap ledger + ring at auth time.
   hpRegister(hpLedger, sess.id);
   snapshotRings.set(sess.id, createSnapshotRing());
@@ -348,7 +354,7 @@ async function handleMessage(sess, raw) {
       }
       // No bech32 npub on the token path — the hex pubkey (64 chars) fits the
       // wire npub field (NPUB_LEN=72) and is what the client's state uses too.
-      finishAuth(sess, { npub: pubkey, pubkey });
+      finishAuth(sess, { npub: pubkey, pubkey, character: msg.character });
       return;
     }
     // NIP-42 fallback: kind:22242 challenge/response (per-session, re-signed).
@@ -359,7 +365,7 @@ async function handleMessage(sess, raw) {
       closeSession(sess, 'auth_fail');
       return;
     }
-    finishAuth(sess, { npub: msg.npub, pubkey: msg.event.pubkey });
+    finishAuth(sess, { npub: msg.npub, pubkey: msg.event.pubkey, character: msg.character });
     return;
   }
 

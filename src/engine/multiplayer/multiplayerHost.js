@@ -47,6 +47,7 @@ import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
  * @param {Function} [deps.WebSocketCtor]  overrides window.WebSocket (test seam)
  * @param {Function} [deps.emit]           observability sink
  * @param {Function} [deps.now]            () => ms clock
+ * @param {Function} [deps.getCharacter]    () => string — active character key, sent in AUTH/AUTH_TOKEN
  */
 export function createMultiplayerHost(deps) {
   const {
@@ -60,6 +61,7 @@ export function createMultiplayerHost(deps) {
     WebSocketCtor,
     emit = () => {},
     now = () => Date.now(),
+    getCharacter = () => 'chiefmonkey',
   } = deps || {};
 
   if (!scene || typeof scene.add !== 'function') {
@@ -113,6 +115,7 @@ export function createMultiplayerHost(deps) {
       signAuth,
       getSessionToken,
       clearSessionToken,
+      getCharacter,
       now,
       emit: (name, payload) => _onWsEvent(name, payload),
     });

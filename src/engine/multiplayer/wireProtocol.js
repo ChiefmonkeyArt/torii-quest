@@ -106,12 +106,15 @@ const validators = {
     if (!isStr(m.npub, LIMITS.NPUB_LEN))           return fail('BAD_FIELD', 'npub');
     if (!isStr(m.sig, LIMITS.SIG_HEX_LEN))         return fail('BAD_FIELD', 'sig');
     if (typeof m.event !== 'object' || m.event === null) return fail('BAD_FIELD', 'event');
+    // Optional character key (v0.2.446-alpha): client tells server which skin to use.
+    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
     // Full nostr-event verification happens on the server via nostr-tools;
     // wire-level only asserts shape.
     return ok(m);
   },
   [MSG.AUTH_TOKEN](m) {
     if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
+    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {
@@ -299,8 +302,8 @@ export function sanitize(msg) {
 
 const ALLOWED_FIELDS = Object.freeze({
   [MSG.HELLO]:     ['challenge', 'serverVersion', 'protocolVersion'],
-  [MSG.AUTH]:      ['npub', 'sig', 'event'],
-  [MSG.AUTH_TOKEN]:['token'],
+  [MSG.AUTH]:      ['npub', 'sig', 'event', 'character'],
+  [MSG.AUTH_TOKEN]:['token', 'character'],
   [MSG.AUTH_FAIL]: ['reason'],
   [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],

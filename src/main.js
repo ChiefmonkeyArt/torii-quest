@@ -1308,8 +1308,10 @@ async function ensureArenaReady(loadingLabel) {
           onTravel: (w) => _gwTravel(w),
         }),
       });
-      _arena.boot();
+      // Apply character selection BEFORE boot so the MP host sends the
+      // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      _arena.boot();
     }
     await _arena.bootstrapPhysics();
   } catch (e) {

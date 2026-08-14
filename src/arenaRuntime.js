@@ -26,7 +26,7 @@ import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
@@ -69,73 +69,82 @@ import { createToriiGateway } from './engine/components/toriiGateway.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
-export { setCharacter };
+// getCharacter is re-exported so main.js can apply the selection before boot(),
+// and the MP host can read it when sending AUTH.
+export { setCharacter, getCharacter };
 
 // ── MP-1 peer-avatar template + factory ─────────────────────────────────────
-// The peer avatar is the shared chiefmonkey6 model. Loaded ONCE and cloned per
-// peer (mirroring botModel.js): a single scene can't be added to multiple parents
-// and SkinnedMesh needs its own bone binding per instance. All per-peer setup that
-// playerModel.js/botModel.js apply (feet offset, π facing, opaque materials,
-// AnimationMixer + IDLE clip) is applied here — the raw gltf.scene is authored high
-// off its origin (large gMinY), faces +Z, and sits in bind-pose (T-pose), so a raw
-// return renders peers high in the sky, backwards, and un-animated.
+// The peer avatar is loaded per-character (chiefmonkey6.glb or nostrich3.glb).
+// Each character's template is loaded ONCE and cloned per peer (mirroring
+// botModel.js): a single scene can't be added to multiple parents simultaneously,
+// and SkinnedMesh needs its own bone binding per instance. All per-peer setup
+// (feet offset, π facing, opaque materials, AnimationMixer + IDLE clip) is
+// applied here.
 const MP_PEER_IDLE_CLIP = 'Idle_03'; // chiefmonkey6 IDLE (see playerModel.js CHARACTERS.chiefmonkey)
 const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model feet to ground
+
+// Per-character remote avatar config: GLB file + IDLE clip.
+const MP_PEER_CHARACTERS = Object.freeze({
+  chiefmonkey: { file: '/chiefmonkey6.glb', idle: 'Idle_03' },
+  nostrich:    { file: '/nostrich3.glb',  idle: 'Stylish_Walk_inplace' },
+});
 
 // Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
 // event so the inbound bridge stays allocation-free.
 const _mpShotOrigin = new THREE.Vector3();
 const _mpShotDir    = new THREE.Vector3();
 
-let _mpTemplateScene = null;
-let _mpTemplateClips = [];
-let _mpTemplateGMinY = 0;
-let _mpTemplatePromise = null;
+// Cache: character key → { scene, clips, gMinY, promise }
+const _mpTemplateCache = new Map();
 
-function _loadPeerTemplate() {
-  if (_mpTemplatePromise) return _mpTemplatePromise;
-  _mpTemplatePromise = new Promise((resolve, reject) => {
+function _loadPeerTemplate(character) {
+  character = character || 'chiefmonkey';
+  if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
+  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const entry = { scene: null, clips: [], gMinY: 0, promise: null };
+  _mpTemplateCache.set(character, entry);
+  entry.promise = new Promise((resolve, reject) => {
     const draco = new DRACOLoader();
     draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    loader.load(assetUrl('/chiefmonkey6.glb'), (gltf) => {
-      _mpTemplateScene = gltf.scene;
-      _mpTemplateClips = gltf.animations || [];
-      // Geometry-only bounds (Box3.setFromObject inflates via bone hierarchy on
-      // SkinnedMesh) — playerModel.js:93-101.
+    loader.load(assetUrl(cfg.file), (gltf) => {
+      entry.scene = gltf.scene;
+      entry.clips = gltf.animations || [];
       let gMinY = Infinity;
-      _mpTemplateScene.traverse((o) => {
+      entry.scene.traverse((o) => {
         if (o.isMesh && o.geometry) {
           o.geometry.computeBoundingBox();
           const b = o.geometry.boundingBox;
           if (b) gMinY = Math.min(gMinY, b.min.y);
         }
       });
-      _mpTemplateGMinY = Number.isFinite(gMinY) ? gMinY : 0;
+      entry.gMinY = Number.isFinite(gMinY) ? gMinY : 0;
       resolve();
     }, undefined, reject);
   });
-  return _mpTemplatePromise;
+  return entry.promise;
 }
 
 // Build one peer avatar: a wrapper Group (remoteAvatars sets its position/rotation)
 // containing a SkeletonUtils-cloned model offset so feet land on the ground given
 // the eye-height Y peers broadcast, faced game-forward (-Z), with an IDLE mixer.
 async function _createPeerAvatar(peer) {
-  await _loadPeerTemplate();
-  const model = skeletonClone(_mpTemplateScene);
+  const character = (peer && peer.character) || 'chiefmonkey';
+  await _loadPeerTemplate(character);
+  const tpl = _mpTemplateCache.get(character);
+  const model = skeletonClone(tpl.scene);
   model.scale.setScalar(1.0);
   // Feet on ground: peers broadcast eye-height Y (playerObj.position.y ≈ 1.7),
   // so the wrapper sits at eye height; drop the model by gMinY + eye offset.
-  model.position.y = -_mpTemplateGMinY - MP_EYE_OFFSET;
+  model.position.y = -tpl.gMinY - MP_EYE_OFFSET;
   model.rotation.y = Math.PI; // GLB faces +Z, game forward is -Z
 
   model.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true;
     o.receiveShadow = true;
-    o.frustumCulled = false; // bind-pose cull box clips animated SkinnedMesh
+    o.frustumCulled = false;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (!m) continue;
@@ -148,12 +157,11 @@ async function _createPeerAvatar(peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  let clipName = MP_PEER_IDLE_CLIP;
-  let clip = _mpTemplateClips.find((c) => c.name === clipName);
-  if (!clip && _mpTemplateClips.length) {
-    clip = _mpTemplateClips[0];
-    clipName = clip.name;
-    console.warn('[mp] idle clip', MP_PEER_IDLE_CLIP, 'missing; falling back to', clipName);
+  const idleClipName = (MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey).idle;
+  let clip = tpl.clips.find((c) => c.name === idleClipName);
+  if (!clip && tpl.clips.length) {
+    clip = tpl.clips[0];
+    console.warn('[mp] idle clip', idleClipName, 'missing for', character, '; falling back to', clip.name);
   }
   if (clip) {
     const action = mixer.clipAction(clip);
@@ -743,8 +751,8 @@ export function createArenaRuntime(hooks = {}) {
         scene,
         emit: _mpEmit,
         now: () => performance.now(),
-        // Load the shared chiefmonkey6 model for every peer (per-character skinning
-        // lands in MP-1.5). Returns a wrapper THREE.Group (feet on ground, faced
+        // Load the per-character model for each peer (chiefmonkey6.glb or
+        // nostrich3.glb). Returns a wrapper THREE.Group (feet on ground, faced
         // -Z, IDLE mixer, obj.update(dt)) with position/rotation/dispose().
         avatarLoader: (peer) => _createPeerAvatar(peer).catch((err) => {
           console.warn('[mp] avatar_load_error', peer?.id, err);
@@ -758,6 +766,8 @@ export function createArenaRuntime(hooks = {}) {
         // NIP-42 kind:22242 auth (FALLBACK) — the server verifies via nostr-tools.
         // The client signer is browser-only (window.nostr); only the signed event
         // is carried on the wire. Reached only when no session token is present.
+        // getCharacter provides the active character key for AUTH/AUTH_TOKEN.
+        getCharacter: () => getCharacter(),
         signAuth: async ({ challenge }) => {
           if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
             throw new Error('multiplayer: NIP-07 signer unavailable');

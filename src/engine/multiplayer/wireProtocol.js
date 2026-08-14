@@ -29,6 +29,7 @@ export const MSG = Object.freeze({
   AUTH_TOKEN: 'AUTH_TOKEN',
   AUTH_FAIL: 'AUTH_FAIL',
   WELCOME:   'WELCOME',
+  SET_CHAR:  'SET_CHAR',
   JOIN:      'JOIN',
   LEFT:      'LEFT',
   MOVE:      'MOVE',
@@ -112,6 +113,7 @@ const validators = {
   },
   [MSG.AUTH_TOKEN](m) {
     if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
+    if (m.character != null && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {
@@ -129,6 +131,10 @@ const validators = {
       if (!isRot2(p.rot))                   return fail('BAD_ROSTER', 'rot');
       if (!isStr(p.character, 64))          return fail('BAD_ROSTER', 'character');
     }
+    return ok(m);
+  },
+  [MSG.SET_CHAR](m) {
+    if (!isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.JOIN](m) {
@@ -299,10 +305,11 @@ export function sanitize(msg) {
 
 const ALLOWED_FIELDS = Object.freeze({
   [MSG.HELLO]:     ['challenge', 'serverVersion', 'protocolVersion'],
-  [MSG.AUTH]:      ['npub', 'sig', 'event'],
-  [MSG.AUTH_TOKEN]:['token'],
+  [MSG.AUTH]:      ['npub', 'sig', 'event', 'character'],
+  [MSG.AUTH_TOKEN]:['token', 'character'],
   [MSG.AUTH_FAIL]: ['reason'],
-  [MSG.WELCOME]:   ['selfId', 'roster', 'srv'],
+  [MSG.WELCOME]:   ['selfId', 'roster', 'srv', 'token'],
+  [MSG.SET_CHAR]:  ['character'],
   [MSG.JOIN]:      ['id', 'npub', 'pos', 'rot', 'character'],
   [MSG.LEFT]:      ['id', 'reason'],
   [MSG.MOVE]:      ['id', 'pos', 'rot', 'vel', 'srv'],

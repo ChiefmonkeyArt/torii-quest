@@ -87,10 +87,10 @@ const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model 
 const MP_PEER_CHARACTERS = Object.freeze({
   chiefmonkey: {
     file: '/models/chiefmonkey7.glb',
-    idle: 'Idle_10', walk: 'Stylish_Walk_inplace', run: 'Running',
+    idle: 'Idle_10', walk: 'Walking', run: 'Running',
     back: 'Stylish_Walk_inplace', strafeL: 'Stylish_Walk_inplace', strafeR: 'Stylish_Walk_inplace',
     jump: 'Indoor_Swing',
-    shoot: 'Boxing_Practice', hit: 'Stand_Talking_Angry', death: 'Knock_Down',
+    shoot: 'mage_soell_cast_3', hit: 'Stand_Talking_Angry', death: 'Knock_Down',
   },
   nostrich: {
     file: '/nostrich3.glb',
@@ -222,7 +222,8 @@ async function _createPeerAvatar(peer) {
 
   // Map anim hint → action. Falls back to idle if the clip doesn't exist.
   function _actionFor(anim) {
-    if (anim === 'walk' || anim === 'runShoot') return walkAction;
+    if (anim === 'walk') return walkAction;
+    if (anim === 'runShoot') return shootAction || walkAction;
     if (anim === 'run') return runAction || walkAction;
     if (anim === 'back') return backAction || walkAction;
     if (anim === 'strafeL') return strafeLAction || walkAction;

@@ -16,11 +16,11 @@ const CHARACTERS = {
     file: '/models/chiefmonkey7.glb',
     anims: {
       IDLE:       'Idle_10',
-      WALK:       'Stylish_Walk_inplace',
+      WALK:       'Walking',
       WALK_BACK:  'Stylish_Walk_inplace',
       WALK_LEFT:  'Stylish_Walk_inplace',
       RUN:        'Running',
-      RUN_SHOOT:  'Boxing_Practice',
+      RUN_SHOOT:  'mage_soell_cast_3',
       JUMP:       'Indoor_Swing',
       RELOAD:     null,
       HIT:        'Stand_Talking_Angry',

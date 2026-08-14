@@ -1245,7 +1245,7 @@ renderUpdatePreview();
 // ── Character selector ──────────────────────────────────────────────────────────
 // Stash the chosen character key (default 'chiefmonkey') so the arena runtime can
 // apply it after it is lazily imported — selecting a model must NOT pull THREE in.
-let _selectedCharacter = null;
+let _selectedCharacter = 'chiefmonkey'; // matches the default active char-btn in HTML
 document.querySelectorAll('.char-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.char-btn').forEach(b => {
@@ -1308,8 +1308,12 @@ async function ensureArenaReady(loadingLabel) {
           onTravel: (w) => _gwTravel(w),
         }),
       });
-      _arena.boot();
-      if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      // setCharacter MUST be called before boot() — boot() calls _mp.start()
+      // which opens the WS and sends AUTH_TOKEN. If we set the character after
+      // boot(), the auth message carries the default 'chiefmonkey' instead of
+      // the selected character.
+      _arena.setCharacter(_selectedCharacter);
+      await _arena.boot();
     }
     await _arena.bootstrapPhysics();
   } catch (e) {

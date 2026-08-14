@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.423-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
+Current version: `v0.2.442-alpha` - MP character avatars: selected peer GLBs and idle/walk cross-fades (prior: v0.2.425-alpha Level 2 Phase 3 game mode)
 
 ## 🚨 TOP OF QUEUE
 

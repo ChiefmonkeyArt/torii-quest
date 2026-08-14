@@ -50,14 +50,22 @@ export async function nostrLogin() {
     // signer's hex pubkey. Fall back to a plain getPublicKey() (no token → the
     // arena uses the NIP-42 challenge path) if token issuance is unavailable.
     let pk = null;
+    let signedPubkey = null;
     const httpBase = resolveMpHttpBase();
     if (httpBase && typeof window.nostr.signEvent === 'function') {
       const res = await loginForSessionToken({
         httpBase,
-        signEvent: (unsigned) => window.nostr.signEvent(unsigned),
+        signEvent: async (unsigned) => {
+          const event = await window.nostr.signEvent(unsigned);
+          if (event && typeof event.pubkey === 'string') signedPubkey = event.pubkey;
+          return event;
+        },
       });
       if (res && /^[0-9a-f]{64}$/.test(res.npub || '')) pk = res.npub;
     }
+    // If signing succeeded but token exchange failed, use the signed event's
+    // pubkey instead of prompting again via getPublicKey() (double signer popup).
+    if (!pk && signedPubkey) pk = signedPubkey;
     if (!pk) pk = await window.nostr.getPublicKey();
     state.nostrPubkey = pk;
     state.nostrName   = pk.slice(0,8).toUpperCase();

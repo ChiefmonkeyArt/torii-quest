@@ -54,12 +54,12 @@
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 196"
+        "value": "fast 5 · foundation 25 · full 201"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2637 passing / 196 files"
+        "value": "2660 passing / 201 files"
       },
       {
         "label": "Profile timings",
@@ -99,9 +99,9 @@
         "sub": "21 / 21"
       },
       {
-        "pct": 13,
+        "pct": 12,
         "label": "Foundation coverage",
-        "sub": "25/196 files"
+        "sub": "25/201 files"
       }
     ]
   },
@@ -263,7 +263,7 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2637 passing / 196 files",
+    "testLabel": "2660 passing / 201 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "NOT READY",
@@ -282,7 +282,7 @@
       },
       {
         "label": "Tests",
-        "value": "2637 passing / 196 files"
+        "value": "2660 passing / 201 files"
       },
       {
         "label": "Test profiles",
@@ -456,7 +456,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2637 passing / 196 files"
+        "value": "green — 2660 passing / 201 files"
       },
       {
         "label": "Explicit approval",

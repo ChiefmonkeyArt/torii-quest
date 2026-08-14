@@ -174,7 +174,7 @@ export function loadPlayerModel(parentObj) {
     _play(_anims.IDLE, true);
     _loaded = true;
 
-    console.log(`[playerModel] loaded "${_charKey}". clips:`, Object.keys(_clips));
+    console.log(`[playerModel] loaded "${_charKey}" from ${char.file}. clips:`, Object.keys(_clips));
   }, undefined, err => {
     console.warn('[playerModel] load failed:', err);
   });

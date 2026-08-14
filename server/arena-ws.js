@@ -320,7 +320,11 @@ function finishAuth(sess, { npub, pubkey, character }) {
       pos: other.pos, rot: other.rot, character: other.character,
     });
   }
-  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now() });
+  // Issue a session token so the client can reconnect without re-signing.
+  // On the AUTH_TOKEN path the client already has a token; issue a fresh one
+  // anyway so it rotates (the old one may be near expiry).
+  const welcomeToken = sessionTokens.issueToken(pubkey);
+  sendTo(sess, { t: MSG.WELCOME, selfId: sess.id, roster, srv: Date.now(), token: welcomeToken });
   // Announce this new peer to everyone else.
   broadcastToOthers(sess.id, {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,

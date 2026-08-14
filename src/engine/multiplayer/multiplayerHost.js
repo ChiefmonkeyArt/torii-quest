@@ -41,7 +41,9 @@ import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
  * @param {Function} deps.avatarLoader     (peer) => Promise<Object3D>
  * @param {Function} deps.signAuth         async ({challenge}) => {npub, sig, event}
  * @param {Function} [deps.getSessionToken]   () => string|null — when set, AUTH_TOKEN is sent instead of signing
+ * @param {Function} [deps.setSessionToken]   (token) => void — stores a server-issued token from WELCOME
  * @param {Function} [deps.clearSessionToken] () => void — clears a rejected token so reconnect falls back to NIP-42
+ * @param {Function} [deps.getCharacter]      () => string — selected local character key
  * @param {string} [deps.origin]           overrides location.host (test seam)
  * @param {boolean} [deps.mpEnabled]       overrides MP_ENABLED (test seam)
  * @param {Function} [deps.WebSocketCtor]  overrides window.WebSocket (test seam)

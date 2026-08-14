@@ -54,6 +54,7 @@ describe('encode/decode round-trip', () => {
       { t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) },
       { t: MSG.AUTH_FAIL, reason: 'bad sig' },
       { t: MSG.WELCOME, selfId: 'me1', roster: [{ id: 'p1', npub: 'npub1' + 'x'.repeat(58), pos: [0, 0, 0], rot: [0, 0], character: 'chiefmonkey' }] },
+      { t: MSG.SET_CHAR, character: 'nostrich' },
       { t: MSG.JOIN, id: 'p2', npub: 'npub1' + 'y'.repeat(58), pos: [1, 0, 1], rot: [0, 0], character: 'bot' },
       { t: MSG.LEFT, id: 'p2', reason: 'closed' },
       goodMove,
@@ -167,6 +168,15 @@ describe('decode — malformed input is safe', () => {
     expect(parsed.ok).toBe(true);
     const clean = sanitize(parsed.msg);
     expect(clean).toEqual({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) });
+  });
+
+  it('encodes, decodes, validates, and sanitizes SET_CHAR', () => {
+    const raw = encode({ t: MSG.SET_CHAR, character: 'nostrich', ignored: true });
+    const parsed = decode(raw);
+    expect(parsed.ok).toBe(true);
+    expect(sanitize(parsed.msg)).toEqual({ t: MSG.SET_CHAR, character: 'nostrich' });
+    expect(decode({ t: MSG.SET_CHAR }).code).toBe('BAD_FIELD');
+    expect(decode({ t: MSG.SET_CHAR, character: 42 }).code).toBe('BAD_FIELD');
   });
 });
 

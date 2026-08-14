@@ -17,13 +17,13 @@ export const CHARACTERS = Object.freeze({
     anims: {
       IDLE:       'Idle_10',
       WALK:       'Stylish_Walk_inplace',
-      WALK_BACK:  'Stylish_Walk_inplace',       // no dedicated clip — reuse walk
-      WALK_LEFT:  'Stylish_Walk_inplace',       // no dedicated clip — reuse walk
+      WALK_BACK:  'Stylish_Walk_inplace',           // no dedicated back-walk — reuse walk
+      WALK_LEFT:  'Stylish_Walk_inplace',           // no dedicated strafe — reuse walk
       RUN:        'Running',
-      RUN_SHOOT:  'Boxing_Practice',           // closest combat animation
-      JUMP:       'Indoor_Swing',              // closest jump animation
-      RELOAD:     null,                        // no reload clip
-      HIT:        'Stand_Talking_Angry',       // closest hit reaction
+      RUN_SHOOT:  'Boxing_Practice',
+      JUMP:       'Indoor_Swing',
+      RELOAD:     null,                             // no reload clip
+      HIT:        'Stand_Talking_Angry',
       DEATH:      'Knock_Down',
       DANCE:      'FunnyDancing_02',
       STYLISH:    'Stylish_Walk_inplace',
@@ -32,7 +32,7 @@ export const CHARACTERS = Object.freeze({
   nostrich: {
     file: '/nostrich3.glb',
     anims: {
-      IDLE:       'Stylish_Walk_inplace',           // best available idle substitute
+      IDLE:       'Stylish_Walk_inplace',      // best available idle substitute
       WALK:       'Walking',
       WALK_BACK:  'Walking',                   // no dedicated clip — reuse walk
       WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',
@@ -164,13 +164,8 @@ export function loadPlayerModel(parentObj) {
     _clips = {};
     _actions = {};
     gltf.animations.forEach(clip => {
-      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
-      // which causes visual blips during animation transitions and at
-      // loop boundaries (scale values interpolate through collapse states).
-      const stripped = clip.clone();
-      stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
-      _clips[clip.name] = stripped;
-      const a = _mixer.clipAction(stripped);
+      _clips[clip.name] = clip;
+      const a = _mixer.clipAction(clip);
       a.clampWhenFinished = true;
       _actions[clip.name] = a;
     });
@@ -179,7 +174,7 @@ export function loadPlayerModel(parentObj) {
     _play(_anims.IDLE, true);
     _loaded = true;
 
-    console.log(`[playerModel] loaded "${_charKey}". clips:`, Object.keys(_clips));
+    console.log(`[playerModel] loaded "${_charKey}" from ${char.file}. clips:`, Object.keys(_clips));
   }, undefined, err => {
     console.warn('[playerModel] load failed:', err);
   });
@@ -191,12 +186,8 @@ function _play(name, loop = true) {
   if (_current === name) return;
   const next = _actions[name];
   next.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, Infinity);
-  // Only reset if the action hasn't been played before — reset() snaps
-  // the clip to time 0 and weight 0, causing a visual pop on every
-  // transition. If already running (was fading out), just fade it back in.
-  if (!next.isRunning()) next.reset().setEffectiveWeight(0).play();
-  next.fadeIn(FADE);
-  if (_current && _actions[_current] && _current !== name) _actions[_current].fadeOut(FADE);
+  next.reset().fadeIn(FADE).play();
+  if (_current && _actions[_current]) _actions[_current].fadeOut(FADE);
   _current = name;
 }
 

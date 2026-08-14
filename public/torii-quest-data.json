@@ -1,6 +1,6 @@
 {
   "version": "v0.2.444-alpha",
-  "generatedAt": "2026-08-14T15:50:10.517Z",
+  "generatedAt": "2026-08-14T15:52:10.921Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.444-alpha",
-    "gitCommit": "ee55bd9",
+    "gitCommit": "fa019ca",
     "signals": [
       {
         "key": "versionSync",

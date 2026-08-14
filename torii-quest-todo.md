@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.423-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
+Current version: `v0.2.444-alpha` - Two-character MP rebuild from v0.2.423 (transplanted wire protocol + per-character GLB loading only)
 
 ## 🚨 TOP OF QUEUE
 

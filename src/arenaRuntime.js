@@ -606,6 +606,7 @@ export function createArenaRuntime(hooks = {}) {
     if (_mp) {
       _mp.tick(performance.now());
       _mpMoveAccum += dt;
+      _mpMoveDt += dt; // count EVERY frame so velocity = displacement / true elapsed
       if (isPlaying() && _mpMoveAccum >= MP_MOVE_INTERVAL) {
         _mpMoveAccum = 0;
         const px = playerObj.position.x;
@@ -640,8 +641,6 @@ export function createArenaRuntime(hooks = {}) {
           vel: [vx, vy, vz],
           anim: _anim,
         });
-      } else {
-        _mpMoveDt += dt;
       }
     }
     // v0.2.379-alpha: feed the frame delta (ms) to the adaptive tier BEFORE the

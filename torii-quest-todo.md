@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.453-alpha` - render budget v1: reduced grass geometry and aggressive quality tiers (prior: v0.2.422-alpha service-worker deploy-base + CSP hardening)
+Current version: `v0.2.456-alpha` - MP lag fix: extrapolation cap 200->500ms (avatars kept dead-reckoning through jitter instead of freezing) + exact velocity dt (was 1.5x hot, caused rubber-banding) (prior: v0.2.455-alpha Z-up quaternion avatar fix)
 
 ## 🚨 TOP OF QUEUE
 

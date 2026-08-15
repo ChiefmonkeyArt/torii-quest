@@ -17,7 +17,7 @@
 // the last known velocity for up to EXTRAP_CAP_MS, then hold the last position.
 
 export const INTERP_DELAY_MS = 100;   // render this far in the past for smoothness
-export const EXTRAP_CAP_MS   = 200;   // clamp dead-reckoning to this
+export const EXTRAP_CAP_MS   = 500;   // clamp dead-reckoning to this — 200ms froze avatars on any jittery link (gap > interp+cap = hold, then catch-up lurch)
 export const BUF_MAX         = 32;    // ring buffer size — ~1.6s at 20 Hz
 
 /** Create an empty snapshot buffer. */

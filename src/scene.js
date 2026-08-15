@@ -177,47 +177,50 @@ const _auroraMat = new THREE.ShaderMaterial({
       // Bias the mix so the far side occupies more of the dome. smoothstep
       // (-0.4, 0.8) means: from 30% far-side outward we're already fully in
       // deep-blue territory; only pixels genuinely aimed near the sun get warm.
-      float sunSide    = smoothstep(-0.4, 0.8, toSun);
+      float sunSide    = smoothstep(-0.8, 0.9, toSun);  // wider, softer transition
       // Deep-blue side (opposite sun): dark navy zenith, deeper blue horizon.
       vec3 farZenith   = vec3(0.04, 0.10, 0.28);          // deep navy
       vec3 farHorizon  = vec3(0.14, 0.26, 0.48);          // deep sky blue
       // Sun side: pale blue up top, warm hazy horizon (like the reference).
       vec3 nearZenith  = vec3(0.35, 0.55, 0.78);          // clear day blue
       vec3 nearHorizon = vec3(0.82, 0.72, 0.55);          // warm haze at horizon
-      // Vertical blend within each side.
-      vec3 farCol      = mix(farHorizon,  farZenith,  smoothstep(0.0, 0.6, up));
-      vec3 nearCol     = mix(nearHorizon, nearZenith, smoothstep(0.0, 0.4, up));
+      // Vertical blend uses the FULL up range so there is no flat plateau
+      // near the zenith and thus no visible wedge where the two azimuthal
+      // sides meet. v0.2.474 used smoothstep(0, 0.4/0.6) which produced a
+      // wedge because everything above that elevation was one flat color.
+      vec3 farCol      = mix(farHorizon,  farZenith,  pow(up, 0.5));
+      vec3 nearCol     = mix(nearHorizon, nearZenith, pow(up, 0.5));
       vec3 base        = mix(farCol, nearCol, sunSide);
 
-      // Stars (v0.2.474) — spherical projection, no zenith singularity.
-      // Old code used xz/y which pinched all cells to a point near zenith,
-      // creating the vortex artifact. Now uses (theta = atan2(x,z), phi =
-      // acos(y)) — a proper equirectangular UV with no pole convergence.
+      // Stars (v0.2.475) — dense fine points. Cell scales bumped up so each
+      // star is a small pinpoint (~2-3 px), not the fat blobs from v0.2.474.
+      // Also cell wraps in theta must be seamless; scaling theta by an
+      // integer multiple of pi keeps the wrap continuous.
       vec3 starCol = vec3(0.0);
-      float theta  = atan(dir.z, dir.x);                       // -pi..pi around axis
-      float phi    = acos(clamp(dir.y, -1.0, 1.0));            // 0 at zenith .. pi at nadir
+      float theta  = atan(dir.z, dir.x);                       // -pi..pi
+      float phi    = acos(clamp(dir.y, -1.0, 1.0));            // 0 at zenith
       for (int layer = 0; layer < 2; layer++) {
-        float scale  = layer == 0 ? 6.0 : 9.5;
-        float bright = layer == 0 ? 1.8 : 1.1;
+        float scale  = layer == 0 ? 60.0 : 90.0;               // v0.2.475: much denser
+        float bright = layer == 0 ? 0.9  : 0.6;
         vec2 starUV  = vec2(theta * scale, phi * scale)
                        + vec2(float(layer) * 37.3, float(layer) * 19.7);
         vec2 cell    = floor(starUV);
         vec2 frac    = fract(starUV);
-        vec2 starPos = vec2(hash(cell), hash(cell + vec2(31.4, 71.9))) * 0.7 + 0.15;
+        vec2 starPos = vec2(hash(cell), hash(cell + vec2(31.4, 71.9))) * 0.6 + 0.2;
         float dist   = length(frac - starPos);
         float thresh = hash(cell + vec2(53.1, 97.3));
-        float vis    = step(0.85, thresh);
-        float disc   = 1.0 - smoothstep(0.0, 0.05, dist);
+        float vis    = step(0.90, thresh);                     // rarer (was 0.85)
+        float disc   = 1.0 - smoothstep(0.0, 0.02, dist);      // tighter (was 0.05)
         float phase  = hash(cell + vec2(11.7, 43.1)) * 6.28;
-        float twinkle = 0.7 + 0.3 * sin(t * (1.5 + thresh) + phase);
+        float twinkle = 0.6 + 0.4 * sin(t * (1.5 + thresh) + phase);
         float hue    = hash(cell + vec2(73.1, 17.3));
         vec3 sColor  = hue > 0.85 ? vec3(1.0, 0.85, 0.6)
                      : hue > 0.70 ? vec3(0.85, 0.9, 1.0)
                      :              vec3(0.95, 0.97, 1.0);
-        float starFade = smoothstep(0.22, 0.48, dir.y);
+        float starFade = smoothstep(0.15, 0.45, dir.y);
         starCol += sColor * disc * vis * twinkle * bright * starFade;
       }
-      base += starCol * 0.55;
+      base += starCol * 0.65;
 
       // v0.2.473 — sun disc, corona, and Japanese rays REMOVED. The horizon
       // gradient toward the sun's azimuth is the only cue of where the sun is.

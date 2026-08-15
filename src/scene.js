@@ -34,7 +34,7 @@ document.body.appendChild(renderer.domElement);
 
 export const scene  = new THREE.Scene();
 // Sunrise morning mist fog — peach haze (was cool 0xc8dde8, which read as white glare)
-scene.fog = new THREE.FogExp2(0xe6c4a4, 0.007);
+scene.fog = new THREE.FogExp2(0xe6c4a4, 0.008);
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -101,9 +101,9 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffd9a0, 0.72)); // warm morning ambient
+scene.add(new THREE.AmbientLight(0xffd9a0, 0.85)); // warm morning ambient — sunrise glow
 export const sun = new THREE.DirectionalLight(0xffc878, 1.15); // amber sunrise, not white
-// Matches the sky-shader sunDir (0.85, 0.28, -0.45) — low eastern dawn.
+// Matches the sky-shader sunDir (0.85, 0.18, -0.45) — low eastern dawn, disc behind peaks.
 sun.position.set(40, 13, -21);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
@@ -168,8 +168,8 @@ const _auroraMat = new THREE.ShaderMaterial({
       // Base sky gradient — sunrise: deep lilac zenith → peach horizon
       vec3 zenith   = vec3(0.32, 0.42, 0.72); // soft periwinkle blue
       vec3 midCol   = vec3(0.55, 0.62, 0.85); // lavender mid
-      vec3 horizCol = mix(vec3(0.98, 0.72, 0.40), vec3(0.98, 0.88, 0.60),
-                          0.5 + 0.5 * sin(t * 0.06)); // peach-gold horizon
+      vec3 horizCol = mix(vec3(0.96, 0.62, 0.34), vec3(0.98, 0.82, 0.54),
+                          0.5 + 0.5 * sin(t * 0.06)); // deep peach-amber horizon
       vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
                       horizCol, smoothstep(0.35, 0.0, up));
 
@@ -238,9 +238,9 @@ const _auroraMat = new THREE.ShaderMaterial({
       base += starCol * 0.55;
 
       // Sunrise sun disc — low on eastern horizon, warm gold (not white)
-      vec3 sunDir    = normalize(vec3(0.85, 0.28, -0.45)); // east, low angle
+      vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45)); // east, right on the ridgeline
       float sunAngle = max(0.0, dot(dir, sunDir));
-      base += vec3(1.0, 0.78, 0.42) * pow(sunAngle, 90.0) * 2.2;  // amber disc
+      base += vec3(1.0, 0.78, 0.42) * pow(sunAngle, 90.0) * 1.4;  // amber disc
       base += vec3(1.0, 0.58, 0.22) * pow(sunAngle, 14.0) * 0.7;  // inner corona
       base += vec3(0.98, 0.48, 0.18) * pow(sunAngle,  4.0) * 0.35; // wide glow
       base += vec3(0.95, 0.70, 0.42) * pow(sunAngle,  2.0) * 0.18; // horizon flush
@@ -267,7 +267,7 @@ scene.add(_auroraDome);
 
   // Corona glow
   const glow = c1.createRadialGradient(cx, cy, r * 0.18, cx, cy, r);
-  glow.addColorStop(0.0,  'rgba(255, 200, 110, 0.70)');
+  glow.addColorStop(0.0,  'rgba(255, 175,  95, 0.60)');
   glow.addColorStop(0.25, 'rgba(255, 140,  50, 0.45)');
   glow.addColorStop(0.55, 'rgba(200,  70,  10, 0.22)');
   glow.addColorStop(1.0,  'rgba(0, 0, 0, 0.0)');
@@ -276,7 +276,7 @@ scene.add(_auroraDome);
 
   // Inner disc
   const disc = c1.createRadialGradient(cx, cy, 0, cx, cy, r * 0.20);
-  disc.addColorStop(0.0, 'rgba(255, 220, 160, 0.85)');
+  disc.addColorStop(0.0, 'rgba(255, 195, 130, 0.75)');
   disc.addColorStop(0.6, 'rgba(255, 180,  70, 0.75)');
   disc.addColorStop(1.0, 'rgba(255, 140,  20, 0.0)');
   c1.beginPath();
@@ -285,17 +285,21 @@ scene.add(_auroraDome);
   c1.fill();
 
   const tex1 = new THREE.CanvasTexture(cv1);
+  // depthTest ON (v0.2.465): the sprite sits at ~420 (camera far 600), so the
+  // real mountain geometry occludes the lower half of the disc — the sun reads
+  // as rising from behind the ridgeline instead of pasted over it.
   const mat1 = new THREE.SpriteMaterial({
     map: tex1, transparent: true,
     blending: THREE.AdditiveBlending,
-    depthWrite: false, depthTest: false, fog: false,
+    depthWrite: false, depthTest: true, fog: false,
   });
   const sunSprite = new THREE.Sprite(mat1);
-  // Same low-east dawn vector as the sky shader — the old (0.3, 0.65, -0.8)
-  // parked a huge white disc high in the sky and bloomed it into glare.
-  const sd = new THREE.Vector3(0.85, 0.28, -0.45).normalize();
+  // Same low-east dawn vector as the sky shader — lowered to y=0.18 (v0.2.465)
+  // so the peaks cross the disc; the old (0.3, 0.65, -0.8) parked a huge white
+  // disc high in the sky and bloomed it into glare.
+  const sd = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
   sunSprite.position.copy(sd.clone().multiplyScalar(420));
-  sunSprite.scale.set(48, 48, 1);
+  sunSprite.scale.set(38, 38, 1);
   sunSprite.renderOrder = 1;
   scene.add(sunSprite);
 
@@ -303,11 +307,11 @@ scene.add(_auroraDome);
     const mat2 = new THREE.SpriteMaterial({
       map: tex2, transparent: true, opacity: 0.30,
       blending: THREE.NormalBlending,
-      depthWrite: false, depthTest: false, fog: false,
+      depthWrite: false, depthTest: true, fog: false,
     });
     const btcSprite = new THREE.Sprite(mat2);
     btcSprite.position.set(sd.x * 422, sd.y * 422, sd.z * 422);
-    btcSprite.scale.set(72, 72, 1);
+    btcSprite.scale.set(55, 55, 1);
     btcSprite.renderOrder = 2;
     scene.add(btcSprite);
   });

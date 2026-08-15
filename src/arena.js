@@ -81,12 +81,12 @@ const _glassMat = new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide, depthWrite: false,
 });
 const _neonMat = new THREE.MeshStandardMaterial({
-  color: 0x061418, emissive: C_NEON, emissiveIntensity: 0.95, roughness: 0.4,
+  color: 0x061418, emissive: C_NEON, emissiveIntensity: 1.4, roughness: 0.4,
 });
 // Ground wash: additive ribbon on the soil just inside the wall so the neon
 // reads as an uplight on the ground, not a bloom spray into the sky (v0.2.464).
 const _groundGlowMat = new THREE.MeshBasicMaterial({
-  color: C_NEON, transparent: true, opacity: 0.22,
+  color: C_NEON, transparent: true, opacity: 0.28,
   blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
 });
 function _buildCoastlineWall() {

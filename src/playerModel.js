@@ -7,6 +7,7 @@ import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
+import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -77,18 +78,21 @@ const TARGET_HEIGHT = 1.8;
 const FADE = 0.15;
 
 // ── Load ──────────────────────────────────────────────────────────────────────
-export function loadPlayerModel(parentObj) {
+export async function loadPlayerModel(parentObj) {
   // Remove previous model if switching characters mid-session
   if (_root) { parentObj.remove(_root); _root = null; _loaded = false; }
 
   const char = CHARACTERS[_charKey];
-  _anims = char.anims;
 
   const _draco = new DRACOLoader();
   _draco.setDecoderPath(assetUrl('/draco/'));
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
-  _loader.load(assetUrl(char.file), gltf => {
+  try {
+    const [gltf, libraryClips] = await Promise.all([
+      _loader.loadAsync(assetUrl(char.file)),
+      loadAnimationLibrary(_loader),
+    ]);
     _root = gltf.scene;
 
     // Scale to TARGET_HEIGHT using geometry-only bounds (Box3.setFromObject includes
@@ -166,21 +170,49 @@ export function loadPlayerModel(parentObj) {
     _mixer = new THREE.AnimationMixer(_root);
     _clips = {};
     _actions = {};
+    const availableClips = new Map();
     gltf.animations.forEach(clip => {
-      _clips[clip.name] = clip;
+      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
+      // which causes visual blips during animation transitions and at
+      // loop boundaries (scale values interpolate through collapse states).
+      const stripped = clip.clone();
+      stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
+      availableClips.set(stripped.name, stripped);
+    });
+    // Shared library clips take priority; embedded character clips remain
+    // available as fallbacks for logical states that the library does not provide.
+    libraryClips.forEach((clip, name) => availableClips.set(name, clip));
+    availableClips.forEach((clip, name) => {
+      _clips[name] = clip;
       const a = _mixer.clipAction(clip);
       a.clampWhenFinished = true;
-      _actions[clip.name] = a;
+      _actions[name] = a;
     });
+    // Resolve _anims: library clip names take priority, then character fallbacks.
+    _anims = {};
+    for (const stateName of new Set([
+      ...Object.keys(char.anims),
+      ...Object.keys(GAME_STATE_TO_CLIP),
+    ])) {
+      const libraryName = GAME_STATE_TO_CLIP[stateName];
+      _anims[stateName] = (libraryName && libraryClips.has(libraryName))
+        ? libraryName
+        : char.anims[stateName] || null;
+    }
+    // The state machine calls this slot WALK_LEFT; use the library's strafe clip.
+    _anims.WALK_LEFT = libraryClips.has(GAME_STATE_TO_CLIP.STRAFE_LEFT)
+      ? GAME_STATE_TO_CLIP.STRAFE_LEFT
+      : char.anims.WALK_LEFT;
 
     _current = null;
     _play(_anims.IDLE, true);
     _loaded = true;
 
     console.log(`[playerModel] loaded "${_charKey}". clips:`, Object.keys(_clips));
-  }, undefined, err => {
+  } catch (err) {
     console.warn('[playerModel] load failed:', err);
-  });
+    throw err;
+  }
 }
 
 // ── Playback helpers ──────────────────────────────────────────────────────────

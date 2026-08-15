@@ -172,15 +172,22 @@ const _auroraMat = new THREE.ShaderMaterial({
       vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
                       horizCol, smoothstep(0.35, 0.0, up));
 
-      // Atmospheric band 1 — soft rose/coral clouds near horizon
-      float w1a = sin(dir.x * 3.0 + dir.z * 2.0 + t * 0.12) * 0.5 + 0.5;
-      float w1b = sin(dir.x * 1.5 - dir.z * 2.8 - t * 0.09) * 0.5 + 0.5;
-      float band1  = smoothstep(0.3, 0.6, w1a * w1b);
-      float shape1 = exp(-pow((up - 0.12) / 0.18, 2.0)); // low on horizon
-      float fbm1   = fbm(vec2(dir.x * 2.5 + t * 0.02, dir.z * 2.5 - t * 0.015));
-      vec3  rose   = mix(vec3(0.98, 0.60, 0.45), vec3(0.95, 0.75, 0.55),
-                         0.5 + 0.5 * sin(t * 0.08));
-      base += rose * band1 * shape1 * fbm1 * 0.35; // v0.2.467: 0.9 -> 0.35, killed left-side bloom
+      // Sunrise horizon glow (v0.2.468) — warm orange/bronze emanating FROM
+      // the sun and wrapping ~40-50% of the mountain range. Replaces the old
+      // random rose/coral cloud band (which hot-spotted at arbitrary positions
+      // and bloomed into a second sun). Now keyed to sunAngle so the glow is
+      // CENTERED on the sun and fades symmetrically along the horizon.
+      // pow(sunAngle, 2.0) gives the wide wrap; shape1 keeps it on the horizon;
+      // fbm1 adds organic texture so it's not a perfect cone.
+      // NOTE: sunDir is defined further down — hoisted here for the glow.
+      vec3 sunDirEarly = normalize(vec3(0.85, 0.18, -0.45));
+      float sunAngleEarly = max(0.0, dot(dir, sunDirEarly));
+      float horizonGlow = pow(sunAngleEarly, 2.0);              // wide wrap (40-50% of dome)
+      float glowShape   = exp(-pow((up - 0.10) / 0.20, 2.0));   // hugging the horizon
+      float glowFbm     = fbm(vec2(dir.x * 2.5 + t * 0.02, dir.z * 2.5 - t * 0.015));
+      vec3  warmGlow    = mix(vec3(0.98, 0.55, 0.25), vec3(0.95, 0.68, 0.38),
+                             0.5 + 0.5 * sin(t * 0.08));         // orange -> bronze
+      base += warmGlow * horizonGlow * glowShape * glowFbm * 0.45;
 
       // Atmospheric band 2 — soft lilac/mauve mid-sky
       float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;
@@ -246,7 +253,7 @@ const _auroraMat = new THREE.ShaderMaterial({
       float sunDisc  = pow(sunAngle, 40.0);                 // wider, bigger disc (was 90)
       base = mix(base, vec3(1.0, 0.50, 0.18), sunDisc * 0.8); // deep-orange core, no white clamp
       base += vec3(1.0, 0.40, 0.12) * pow(sunAngle, 8.0) * 0.25;  // inner corona (v0.2.467: 0.4 -> 0.25)
-      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.06; // hint of wide glow (v0.2.467: 0.12 -> 0.06)
+      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.10; // wide glow (v0.2.468: 0.06 -> 0.10, emanate warmth
 
       // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
       // of the disc. Basis built with cross products around sunDir (not raw world

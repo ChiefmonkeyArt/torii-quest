@@ -281,6 +281,9 @@ async function _createPeerAvatar(peer) {
     if (!next) return;
     const prev = _actionFor(currentClip);
     if (prev && prev !== next) prev.fadeOut(FADE);
+    // Restore LoopRepeat: a clip previously used as a one-shot (shoot/hit)
+    // keeps LoopOnce on its action and would freeze on its last frame here.
+    next.setLoop(THREE.LoopRepeat, Infinity);
     next.reset().fadeIn(FADE).play();
     currentClip = anim;
   }
@@ -351,6 +354,20 @@ async function _createPeerAvatar(peer) {
       const ret = _oneShotReturn;
       currentClip = ''; // force re-evaluation
       _playRemote(snap && snap.anim ? snap.anim : ret);
+    }
+    // Non-death one-shots (shoot/hit) yield INSTANTLY to the peer's locomotion
+    // hint — the avatar must track the peer's keyboard state, not play out its
+    // full duration while the peer has already moved elsewhere. Death (and an
+    // idle peer's hit reaction) still plays to completion. A hint that maps to
+    // the SAME action (runShoot while the shoot one-shot runs) is left alone.
+    if (oneShot && oneShot !== deathAction && snap && snap.anim && snap.anim !== 'idle') {
+      const hinted = _actionFor(snap.anim);
+      if (hinted && hinted !== oneShot) {
+        oneShot.fadeOut(FADE);
+        oneShot = null;
+        currentClip = ''; // force re-evaluation
+        _playRemote(snap.anim);
+      }
     }
     if (dt > 0 && !oneShot && snap && snap.anim) {
       _playRemote(snap.anim);

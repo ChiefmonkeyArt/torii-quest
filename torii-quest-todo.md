@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.457-alpha` - nostrich now uses the SAME master clip table as chiefmonkey: all 18 animation-library.glb clips baked onto the dense nostrich rig via offline world-delta retargeting (tools/glb_retarget.py), Draco-compressed to /models/nostrich-master.glb. Validated numerically (FK: head/feet/no-explosion/gait) before wiring. (prior: v0.2.456-alpha MP lag fix)
+Current version: `v0.2.458-alpha` - IN-PLACE ANIMATIONS + INSTANT ANIM RESPONSE. All 36 clips (18 per GLB) stripped of horizontal Hips root motion via tools/glb_strip_rootmotion.py so locomotion animates in place and the mesh matches the physics entity position (vertical bob/fall preserved; mesh bytes untouched, Draco hash-identical). One-shot blocking removed: playerModel.js reads keyboard FIRST and movement/jump cancels hit/reload one-shots instantly (death still plays out); arenaRuntime.js peer one-shots yield to locomotion anim hints and _playRemote restores LoopRepeat (fixes avatar freeze when a one-shot clip is reused as locomotion). (prior: v0.2.457-alpha nostrich master retarget)
 
 ## 🚨 TOP OF QUEUE
 

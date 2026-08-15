@@ -300,21 +300,31 @@ export function tickPlayerModel(dt, isShooting, isReloading, isJumping) {
   if (!_loaded || !_mixer) return;
   _mixer.update(dt);
 
-  // One-shot timer — dt-accumulator, no setTimeout
-  if (_oneshotTimer > 0) {
-    _oneshotTimer -= dt;
-    if (_oneshotTimer <= 0 && _oneshotFade) { _play(_oneshotFade, true); _oneshotFade = ''; }
-    return; // don't interrupt one-shot
-  }
-
-  if (isJumping) { _play(_anims.JUMP, false); return; }
-
+  // Keyboard state is read FIRST so one-shots can never block locomotion:
+  // the animation must run in time with the keyboard, not play out its full
+  // duration while the player has already moved on to doing something else.
   const fwd   = keys['KeyW'] || keys['ArrowUp'];
   const back  = keys['KeyS'] || keys['ArrowDown'];
   const left  = keys['KeyA'] || keys['ArrowLeft'];
   const right = keys['KeyD'] || keys['ArrowRight'];
   const run   = keys['ShiftLeft'] || keys['ShiftRight'];
   const moving = fwd || back || left || right;
+
+  // One-shot timer — dt-accumulator, no setTimeout. Death always plays out
+  // fully; hit/reload are cancelled the instant the player moves or jumps.
+  if (_oneshotTimer > 0) {
+    if (_current !== _anims.DEATH && (moving || isJumping)) {
+      _oneshotTimer = 0;
+      _oneshotFade  = '';
+      // fall through — _play() below fades the interrupted one-shot out
+    } else {
+      _oneshotTimer -= dt;
+      if (_oneshotTimer <= 0 && _oneshotFade) { _play(_oneshotFade, true); _oneshotFade = ''; }
+      return; // don't interrupt one-shot
+    }
+  }
+
+  if (isJumping) { _play(_anims.JUMP, false); return; }
 
   _setMirror(right && !fwd && !back); // mirror strafe-left clip for right strafe
 

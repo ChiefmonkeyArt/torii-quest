@@ -172,22 +172,28 @@ const _auroraMat = new THREE.ShaderMaterial({
       vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
                       horizCol, smoothstep(0.35, 0.0, up));
 
-      // Sunrise horizon glow (v0.2.468) — warm orange/bronze emanating FROM
-      // the sun and wrapping ~40-50% of the mountain range. Replaces the old
-      // random rose/coral cloud band (which hot-spotted at arbitrary positions
-      // and bloomed into a second sun). Now keyed to sunAngle so the glow is
-      // CENTERED on the sun and fades symmetrically along the horizon.
-      // pow(sunAngle, 2.0) gives the wide wrap; shape1 keeps it on the horizon;
-      // fbm1 adds organic texture so it's not a perfect cone.
-      // NOTE: sunDir is defined further down — hoisted here for the glow.
-      vec3 sunDirEarly = normalize(vec3(0.85, 0.18, -0.45));
-      float sunAngleEarly = max(0.0, dot(dir, sunDirEarly));
-      float horizonGlow = pow(sunAngleEarly, 2.0);              // wide wrap (40-50% of dome)
-      float glowShape   = exp(-pow((up - 0.10) / 0.20, 2.0));   // hugging the horizon
-      float glowFbm     = fbm(vec2(dir.x * 2.5 + t * 0.02, dir.z * 2.5 - t * 0.015));
-      vec3  warmGlow    = mix(vec3(0.98, 0.55, 0.25), vec3(0.95, 0.68, 0.38),
-                             0.5 + 0.5 * sin(t * 0.08));         // orange -> bronze
-      base += warmGlow * horizonGlow * glowShape * glowFbm * 0.45;
+      // Sunrise horizon glow (v0.2.469) — a wide warm orange/bronze BAND
+      // stretching horizontally behind the mountains, centered on the sun's
+      // azimuth but much wider than the sun disc (covers ~50% of the world).
+      // The old v0.2.468 used pow(sunAngle, 2.0) which created a cone around
+      // the sun direction — that read as a second sun. This version separates
+      // the HORIZONTAL spread (azimuth angle to sun, wide) from the VERTICAL
+      // shape (horizon band, taller than before) so it reads as atmosphere
+      // behind the peaks, not a glowing orb.
+      vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));    // sun azimuth (flat, no y)
+      vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));    // view dir flattened to horizon
+      float horizAng   = dot(dirH, sunDirH);                   // 1.0 = facing sun, -1.0 = opposite
+      // pow(horizAng, 1.5) gives a wide horizontal spread: at 60deg from sun
+      // it's still ~0.4, covering ~50% of the dome. Clamped to front hemisphere.
+      float glowSpread = pow(max(0.0, horizAng), 1.5);
+      // Vertical shape: taller band sitting behind the mountains (up ~0.05-0.35)
+      float glowShape  = exp(-pow((up - 0.12) / 0.28, 2.0));    // wider vertically (was 0.20)
+      // Organic texture so it's not a flat gradient
+      float glowFbm    = fbm(vec2(dir.x * 2.0 + t * 0.015, dir.z * 2.0 - t * 0.012));
+      // Warm orange -> bronze, brighter near sun, fading to warm haze at edges
+      vec3  warmGlow   = mix(vec3(0.98, 0.50, 0.18), vec3(0.92, 0.60, 0.32),
+                            glowSpread);                        // hotter near sun
+      base += warmGlow * glowSpread * glowShape * glowFbm * 0.55;
 
       // Atmospheric band 2 — soft lilac/mauve mid-sky
       float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;

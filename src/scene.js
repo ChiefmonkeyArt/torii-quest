@@ -36,7 +36,7 @@ export const scene  = new THREE.Scene();
 // direction. Peach at density 0.008 was lit by the amber sun and pushed past
 // bloom threshold (0.86) at the horizon, producing a huge white blob to the
 // right of the actual sun.
-scene.fog = new THREE.FogExp2(0xbcc8d4, 0.0035); // soft dawn blue-grey, thinner
+scene.fog = new THREE.FogExp2(0x9fb8d0, 0.0035); // v0.2.473: cool dawn blue, matches sky gradient
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -167,60 +167,25 @@ const _auroraMat = new THREE.ShaderMaterial({
         return;
       }
 
-      // Base sky (v0.2.471) — real morning blue zenith, warm only at the
-      // very bottom. v0.2.470 kept peach up to 35% of the dome which read
-      // as smog. Zenith is now a clean sky blue; the peach only bleeds
-      // through in the bottom 15% where the sun actually is.
-      vec3 zenith   = vec3(0.35, 0.55, 0.82);   // clean morning blue
-      vec3 midCol   = vec3(0.62, 0.75, 0.90);   // light sky blue
-      vec3 horizCol = mix(vec3(0.85, 0.72, 0.55), vec3(0.90, 0.80, 0.65),
-                          0.5 + 0.5 * sin(t * 0.06)); // pale warm haze, not saturated peach
-      vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
-                      horizCol, smoothstep(0.15, 0.0, up));
-
-      // Sunrise horizon glow (v0.2.470) — smooth warm BAND behind mountains.
-      // v0.2.469 still read as two suns because fbm noise created a bright
-      // hotspot inside the band, and the sun disc core was still white.
-      // Fix: (1) NO fbm inside the glow, just a smooth gradient. (2) The sun
-      // core is now saturated orange (below), matching the glow color so
-      // they read as one continuous warm atmosphere, not two objects.
+      // v0.2.473 — CLEAN WIPE. All previous sky layers (horizon glow, lilac
+      // band, golden band, shimmer, sun disc, Japanese rays) removed. Sky is
+      // now a two-axis gradient:
+      //   • vertical: darker at zenith, lighter at horizon (natural sky)
+      //   • azimuthal: deep blue on the far side (away from sun), lighter
+      //     blue toward the sun's compass direction (0.85, -, -0.45)
+      // Stars remain (rendered below).
       vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));
       vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));
-      float horizAng   = dot(dirH, sunDirH);
-      float glowSpread = pow(max(0.0, horizAng), 1.2);           // wider than 1.5, softer falloff
-      float glowShape  = exp(-pow((up - 0.06) / 0.14, 2.0));     // v0.2.471: 0.24 -> 0.14, hugs mountains only
-      // Uniform warm orange across the whole band — same hue as the sun core,
-      // so the sun and its glow blend into one continuous mass.
-      vec3  warmGlow   = vec3(0.98, 0.52, 0.22);                 // single warm orange
-      base += warmGlow * glowSpread * glowShape * 0.40;          // v0.2.471: 0.55 -> 0.40, don't overpaint peaks
-
-      // Atmospheric band 2 — soft lilac/mauve mid-sky
-      float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;
-      float w2b = sin(dir.z * 3.5 + dir.x * 1.8 + t * 0.11) * 0.5 + 0.5;
-      float band2  = smoothstep(0.25, 0.55, w2a * w2b);
-      float shape2 = exp(-pow((up - 0.38) / 0.22, 2.0));
-      float fbm2   = fbm(vec2(dir.z * 2.0 - t * 0.025, dir.x * 2.0 + t * 0.018));
-      vec3  lilac  = mix(vec3(0.72, 0.58, 0.88), vec3(0.60, 0.50, 0.82),
-                          0.5 + 0.5 * sin(t * 0.10 + 1.0));
-      base += lilac * band2 * shape2 * fbm2 * 0.10; // v0.2.471: 0.35 -> 0.10, kill mid-sky haze
-
-      // Atmospheric band 3 — golden light rays near zenith
-      float w3a = sin(dir.x * 2.5 + dir.z * 3.5 + t * 0.09 + 3.14) * 0.5 + 0.5;
-      float w3b = sin(dir.z * 4.5 - dir.x * 2.0 - t * 0.14) * 0.5 + 0.5;
-      float band3  = smoothstep(0.35, 0.65, w3a * w3b);
-      float shape3 = exp(-pow((up - 0.65) / 0.28, 2.0));
-      float fbm3   = fbm(vec2(dir.x * 1.8 + t * 0.015, dir.z * 1.8 - t * 0.012));
-      vec3  golden = mix(vec3(0.98, 0.88, 0.50), vec3(0.95, 0.78, 0.35),
-                         0.5 + 0.5 * sin(t * 0.07 + 2.0));
-      base += golden * band3 * shape3 * fbm3 * 0.05; // v0.2.471: 0.20 -> 0.05, clear blue zenith
-
-      // Soft shimmer — morning light scatter
-      float shimmer = fbm(vec2(dir.x * 5.0 + t * 0.12, dir.z * 5.0 - t * 0.10));
-      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.02; // v0.2.471: 0.04 -> 0.02
-
-      // Neon grid removed (v0.2.344): the fract()-based horizon grid produced two
-      // straight great-circle "X" strips visible across the sky in aerial/fly
-      // views. Sky already has aurora bands, sun glow, and stars for richness.
+      float toSun      = dot(dirH, sunDirH);              // -1 opposite, +1 toward sun
+      float sunSide    = 0.5 + 0.5 * toSun;               // 0 far, 1 near
+      // Two anchor palettes: far side deep blue, sun side lighter blue.
+      vec3 farZenith   = vec3(0.06, 0.14, 0.34);          // deep navy at zenith opposite sun
+      vec3 farHorizon  = vec3(0.28, 0.42, 0.62);          // muted blue horizon opposite sun
+      vec3 nearZenith  = vec3(0.24, 0.42, 0.68);          // brighter blue at zenith toward sun
+      vec3 nearHorizon = vec3(0.62, 0.78, 0.92);          // pale sky blue horizon toward sun
+      vec3 farCol      = mix(farHorizon,  farZenith,  smoothstep(0.0, 0.9, up));
+      vec3 nearCol     = mix(nearHorizon, nearZenith, smoothstep(0.0, 0.9, up));
+      vec3 base = mix(farCol, nearCol, sunSide);
 
       // Stars — seam-free horizontal projection
       vec3 starCol = vec3(0.0);
@@ -248,32 +213,8 @@ const _auroraMat = new THREE.ShaderMaterial({
       }
       base += starCol * 0.55;
 
-      // Sunrise sun — ONE big warm orange disc, low on the eastern ridgeline.
-      // v0.2.466: the old stack (pow 90 * 1.4 disc + pow 2 * 0.18 horizon flush)
-      // clamped to white under bloom and flushed the whole dome. The core now
-      // uses mix() so it saturates toward deep orange instead of white, and the
-      // dome-wide pow(sunAngle, 2.0) flush is gone entirely.
-      vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45));
-      float sunAngle = max(0.0, dot(dir, sunDir));
-      float sunDisc  = pow(sunAngle, 55.0);        // v0.2.471: tighter disc so it doesn't overpaint mountains
-      base = mix(base, vec3(1.0, 0.48, 0.15), sunDisc);
-      // Corona: only contributes AWAY from the disc so no white clamp.
-      float coronaOnly = max(0.0, pow(sunAngle, 12.0) - sunDisc);
-      base += vec3(1.0, 0.42, 0.14) * coronaOnly * 0.20; // v0.2.471: tighter (was pow 8 * 0.35)
-
-      // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
-      // of the disc. Basis built with cross products around sunDir (not raw world
-      // x/z), then atan() for the angle around the sun axis. The mask fades rays
-      // away from the sun and high in the sky so the dome never stripes.
-      vec3 upRef     = abs(sunDir.y) > 0.95 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
-      vec3 sunTan    = normalize(cross(upRef, sunDir));
-      vec3 sunBitan  = cross(sunDir, sunTan);
-      float rayAngle = atan(dot(dir, sunBitan), dot(dir, sunTan));
-      float rays     = 0.5 + 0.5 * sin(rayAngle * 14.0 + t * 0.03); // 14 beams, slow drift
-      float rayMask  = smoothstep(0.0, 0.15, sunAngle)
-                     * smoothstep(0.6, 0.2, sunAngle)
-                     * (1.0 - smoothstep(0.3, 0.7, up));
-      base += vec3(1.0, 0.55, 0.20) * rays * rayMask * 0.12;
+      // v0.2.473 — sun disc, corona, and Japanese rays REMOVED. The horizon
+      // gradient toward the sun's azimuth is the only cue of where the sun is.
 
       base = clamp(base, 0.0, 1.0);
       gl_FragColor = vec4(base, 1.0);

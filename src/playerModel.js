@@ -13,20 +13,23 @@ import { assetUrl } from './assetUrl.js';
 // 'null' = no clip available, fall back to IDLE or skip.
 const CHARACTERS = {
   chiefmonkey: {
-    file: '/models/chiefmonkey7.glb',
+    file: '/models/animation-library.glb',
     anims: {
-      IDLE:       'Idle_10',
-      WALK:       'Walking',
-      WALK_BACK:  'Stylish_Walk_inplace',
-      WALK_LEFT:  'Stylish_Walk_inplace',
+      IDLE:       'Idle_02',
+      WALK:       'Stylish_Walk_inplace',
+      WALK_BACK:  'Walk_Backward',
+      WALK_LEFT:  'Run_Forward_Firing',
       RUN:        'Running',
-      RUN_SHOOT:  'mage_soell_cast_3',
-      JUMP:       'Indoor_Swing',
-      RELOAD:     null,
-      HIT:        'Stand_Talking_Angry',
+      RUN_SHOOT:  'Run_Forward_Firing',
+      JUMP:       'Jump_Over_Obstacle_2',
+      RELOAD:     'Reload_Hand_Gun',
+      HIT:        'Hit_Reaction_to_Waist',
       DEATH:      'Knock_Down',
       DANCE:      'FunnyDancing_02',
-      STYLISH:    'Stylish_Walk_inplace',
+      VICTORY:    'Victory_Cheer',
+      MELEE:      'Melee_Left_Hand',
+      LAND:       'Fall_from_Bar',
+      FALL:       'Fall2',
     },
   },
   nostrich: {
@@ -34,15 +37,15 @@ const CHARACTERS = {
     anims: {
       IDLE:       'Stylish_Walk_inplace',      // best available idle substitute
       WALK:       'Walking',
-      WALK_BACK:  'Walking',                   // no dedicated clip — reuse walk
+      WALK_BACK:  'Walk_Backward',              // from animation library
       WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',
       RUN:        'Running',
       RUN_SHOOT:  'Run_and_Shoot',
       JUMP:       'Jump_Over_Obstacle_1',
-      RELOAD:     null,                        // no reload clip
-      HIT:        'Shot_and_Blown_Back',       // best available hit sub
+      RELOAD:     null,
+      HIT:        'Shot_and_Blown_Back',
       DEATH:      'Knock_Down',
-      DANCE:      'idle_to_push_up',           // fun idle animation
+      DANCE:      'idle_to_push_up',
       STYLISH:    'Stylish_Walk_inplace',
     },
   },

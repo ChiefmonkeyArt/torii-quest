@@ -86,16 +86,18 @@ const MP_EYE_OFFSET     = 1.7;       // sendMove sends eye-height Y; drop model 
 // Per-character remote avatar config: GLB file + all clip names.
 const MP_PEER_CHARACTERS = Object.freeze({
   chiefmonkey: {
-    file: '/models/chiefmonkey7.glb',
-    idle: 'Idle_10', walk: 'Walking', run: 'Running',
-    back: 'Stylish_Walk_inplace', strafeL: 'Stylish_Walk_inplace', strafeR: 'Stylish_Walk_inplace',
-    jump: 'Indoor_Swing',
-    shoot: 'mage_soell_cast_3', hit: 'Stand_Talking_Angry', death: 'Knock_Down',
+    file: '/models/animation-library.glb',
+    idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running',
+    back: 'Walk_Backward', strafeL: 'Run_Forward_Firing', strafeR: 'Run_Forward_Firing',
+    jump: 'Jump_Over_Obstacle_2',
+    shoot: 'Run_Forward_Firing', hit: 'Hit_Reaction_to_Waist', death: 'Knock_Down',
+    reload: 'Reload_Hand_Gun', melee: 'Melee_Left_Hand',
+    victory: 'Victory_Cheer', land: 'Fall_from_Bar', fall: 'Fall2',
   },
   nostrich: {
     file: '/nostrich3.glb',
     idle: 'Stylish_Walk_inplace', walk: 'Walking', run: 'Running',
-    back: 'Walking', strafeL: 'Crouch_Walk_Left_with_Gun_inplace', strafeR: 'Crouch_Walk_Left_with_Gun_inplace',
+    back: 'Walk_Backward', strafeL: 'Crouch_Walk_Left_with_Gun_inplace', strafeR: 'Crouch_Walk_Left_with_Gun_inplace',
     jump: 'Jump_Over_Obstacle_1',
     shoot: 'Run_and_Shoot', hit: 'Shot_and_Blown_Back', death: 'Knock_Down',
   },

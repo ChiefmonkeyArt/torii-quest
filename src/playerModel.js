@@ -329,7 +329,10 @@ export function tickPlayerModel(dt, isShooting, isReloading, isJumping) {
   _setMirror(right && !fwd && !back); // mirror strafe-left clip for right strafe
 
   if (!moving)                          { _play(_anims.IDLE, true);      return; }
-  if (isShooting && moving)             { _play(_anims.RUN_SHOOT, true); return; }
+  // RUN_SHOOT only for forward/run movement — mirrors the MP anim-hint
+  // priority so remote peers see the same clip the local player sees.
+  // Backpedal/strafe keep their own clips (shooting reads via recoil there).
+  if (isShooting && (fwd || run))       { _play(_anims.RUN_SHOOT, true); return; }
   if (back)                             { _play(_anims.WALK_BACK, true); return; }
   if ((left || right) && !fwd && !back) { _play(_anims.WALK_LEFT, true); return; }
   if (run)                              { _play(_anims.RUN, true);       return; }

@@ -235,7 +235,8 @@ def retarget(master, target, anim, fps=30):
     # world space (the game stands it up externally with a quaternion). The
     # target is natively Y-up standing. Conjugate every world delta by the
     # Z-up -> Y-up rotation so 'lean toward -Z' becomes 'stand along +Y'.
-    Fm = np.array([[1,0,0],[0,0,1],[0,-1,0]], float)   # (x,y,z) -> (x,-z,y)
+    # RotX(+90deg): (x,y,z) -> (x,-z,y); maps -Z (body axis) to +Y (up).
+    Fm = np.array([[1,0,0],[0,0,-1],[0,1,0]], float)
     F4 = np.eye(4); F4[:3,:3] = Fm
     F4inv = np.linalg.inv(F4)
 
@@ -254,6 +255,54 @@ def retarget(master, target, anim, fps=30):
 
     # precompute inverse binds for master
     inv_bind_world_l = {n: np.linalg.inv(master.bind_world[i]) for i, n in enumerate(master.names)}
+
+    # Per-bone bind alignment A_b (shortest-arc) mapping the target's bind
+    # bone axis onto the source's (frame-mapped) bind bone axis. Both rigs use
+    # the Meshy convention: bone axis = local +Y. Without this, twist mismatch
+    # between the two bind poses swings the target's limbs (arms crossing the
+    # body); with it, bone DIRECTIONS track the source exactly.
+    def ortho(M):
+        return M / np.linalg.norm(M, axis=0)
+    def shortest_arc(a, b):
+        a = a / np.linalg.norm(a); b = b / np.linalg.norm(b)
+        c = float(np.dot(a, b))
+        if c > 0.999999: return np.eye(3)
+        if c < -0.999999:
+            axis = np.cross(a, [1.0, 0, 0])
+            if np.linalg.norm(axis) < 1e-6: axis = np.cross(a, [0, 1.0, 0])
+            axis /= np.linalg.norm(axis)
+            x, y, z = axis
+            return np.array([[2*x*x-1, 2*x*y, 2*x*z],[2*x*y, 2*y*y-1, 2*y*z],[2*x*z, 2*y*z, 2*z*z-1]])
+        v = np.cross(a, b)
+        s = math.sqrt((1 + c) * 2)
+        vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        return np.eye(3) + vx + vx @ vx * (1 / (1 + c))
+    # Bone axes: parent -> child joint POSITION direction (world, bind).
+    # Leaf bones (Head, Hands, ToeBase) have no child: keep A = identity for
+    # them (pure delta; their bind orientation is preserved).
+    child_of = {}
+    for i, name in enumerate(target.names):
+        nid = target.joint_ids[i]
+        for c in target.nodes[nid].get('children', []):
+            if c in target.node2jid:
+                child_of[name] = target.names[target.node2jid[c]]
+                break
+    A_bone = {}
+    for i, name in enumerate(target.names):
+        if name not in master.name2jid:
+            continue
+        mi = master.name2jid[name]
+        cname = child_of.get(name)
+        A4 = np.eye(4)
+        if cname is not None and cname in master.name2jid:
+            mci = master.name2jid[cname]
+            tci = target.name2jid[cname]
+            d_s = master.bind_world[mci][:3, 3] - master.bind_world[mi][:3, 3]
+            d_t = target.bind_world[tci][:3, 3] - target.bind_world[i][:3, 3]
+            if np.linalg.norm(d_s) > 1e-9 and np.linalg.norm(d_t) > 1e-9:
+                d_s_f = Fm @ d_s                  # source bind axis in target frame
+                A4[:3, :3] = shortest_arc(d_t, d_s_f)
+        A_bone[name] = A4
 
     # output buffers
     rots = {n: np.zeros((nfr,4)) for n in target.names}
@@ -275,6 +324,14 @@ def retarget(master, target, anim, fps=30):
             locals_l.append(trs(tt, q, s))
         world_l = master._fk(locals_l)
 
+        # World-delta retarget, direct formulation.
+        #   Target baked world rotation:  W_b = D_b @ B_b
+        #     D_b = F-mapped source world delta from bind (rotation only)
+        #     B_b = target bind world rotation
+        #   Baked local:  L_b = inv(W_parent) @ W_b   (parent's BAKED world,
+        #   computed this frame; joint order is parent-first so it exists).
+        # This is exact: FK playback of L_b reproduces W_b by construction.
+        world_t_frame = {}  # bone name -> this frame's baked world rotation (4x4)
         for i, name in enumerate(target.names):
             if name not in master.name2jid:
                 continue
@@ -283,10 +340,14 @@ def retarget(master, target, anim, fps=30):
             dw = F4 @ delta @ F4inv                      # Z-up world -> Y-up world
             dw[:3,3] = 0.0                                # rotation only
             dw[:3,:3] = dw[:3,:3] / np.linalg.norm(dw[:3,:3], axis=0)
-            wt = dw @ target.bind_world[i]
-            local = np.linalg.inv(t_parent_world[name]) @ wt
+            wt = dw @ A_bone[name] @ target.bind_world[i]
+            pnid = target.parent.get(target.joint_ids[i])
+            pname = target.names[target.node2jid[pnid]] if pnid in target.node2jid else None
+            parent_w = world_t_frame[pname] if pname is not None else t_parent_world[name]
+            local = np.linalg.inv(parent_w) @ wt
             lr = local[:3,:3] / np.linalg.norm(local[:3,:3], axis=0)
             rots[name][fi] = mat2q(lr)
+            world_t_frame[name] = wt
 
         # Hips translation: world delta mapped Z-up -> Y-up, then height-scaled
         mi = master.name2jid[hips_l]
@@ -326,6 +387,14 @@ def main():
     for anim in mg.get('animations', []):
         name = anim.get('name', 'clip')
         times, rots, hips_t = retarget(master, target, anim, fps)
+        # Hemisphere continuity: flip each key's sign so consecutive quaternions
+        # stay in the same hemisphere (dot >= 0). Without this the mixer
+        # interpolates the long way round at sign flips -> glitchy limb motion.
+        for bname in rots:
+            q = rots[bname]
+            for k in range(1, len(q)):
+                if np.dot(q[k], q[k - 1]) < 0:
+                    q[k] = -q[k]
         samplers, channels = [], []
         t_acc = append_accessor(og, ob, times, 'SCALAR')
         for bname in target.names:

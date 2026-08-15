@@ -543,7 +543,12 @@ export function createArenaRuntime(hooks = {}) {
 
   // ── Game loop state ──────────────────────────────────────────────────────────
   let _minimapTick = 0;
-  let _isShooting  = false;
+  // Sticky shoot-anim window: EV.SHOOT pushes this timestamp forward; the
+  // shooting flag stays up for SHOOT_ANIM_WINDOW_MS after the last shot so
+  // RUN_SHOOT actually reads (a single-frame flag was preempted by run/walk
+  // on the very next frame, so the clip never played).
+  let _shootUntil  = 0;
+  const SHOOT_ANIM_WINDOW_MS = 400;
   let _isJumping   = false;
   let _prevOnGround = true;
   let _footAccum  = 0;
@@ -596,10 +601,10 @@ export function createArenaRuntime(hooks = {}) {
       _footAccum = 0;
     }
 
-    tickPlayerModel(dt, _isShooting, isReloading(), _isJumping, !_isJumping);
+    const shootingNow = performance.now() < _shootUntil;
+    tickPlayerModel(dt, shootingNow, isReloading(), _isJumping, !_isJumping);
     tickFirstPersonBody(dt);
     tickNapNpc(dt);
-    _isShooting = false;
     setNapMode(playerObj.position.x > NAP_X);
     if (isPlaying()) {
       _portalTrigger.tick(playerObj.position);
@@ -651,7 +656,7 @@ export function createArenaRuntime(hooks = {}) {
         let _anim = 'idle';
         if (_isJumping) _anim = 'jump';
         else if (_moving) {
-          if (_isShooting && (_fwd || _run)) _anim = 'runShoot';
+          if (shootingNow && (_fwd || _run)) _anim = 'runShoot';
           else if (_back) _anim = 'back';
           else if ((_left || _right) && !_fwd && !_back) _anim = _left ? 'strafeL' : 'strafeR';
           else if (_run) _anim = 'run';
@@ -734,7 +739,7 @@ export function createArenaRuntime(hooks = {}) {
         if (shot) _mp.sendShot(shot);
       }
     });
-    on(EV.SHOOT, () => { _isShooting = true; });
+    on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
 
     on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
       hitBot(bot, dmg);

@@ -164,13 +164,16 @@ const _auroraMat = new THREE.ShaderMaterial({
         return;
       }
 
-      // Base sky gradient — sunrise: deep lilac zenith → peach horizon
-      vec3 zenith   = vec3(0.32, 0.42, 0.72); // soft periwinkle blue
-      vec3 midCol   = vec3(0.55, 0.62, 0.85); // lavender mid
-      vec3 horizCol = mix(vec3(0.96, 0.62, 0.34), vec3(0.98, 0.82, 0.54),
-                          0.5 + 0.5 * sin(t * 0.06)); // deep peach-amber horizon
+      // Base sky (v0.2.471) — real morning blue zenith, warm only at the
+      // very bottom. v0.2.470 kept peach up to 35% of the dome which read
+      // as smog. Zenith is now a clean sky blue; the peach only bleeds
+      // through in the bottom 15% where the sun actually is.
+      vec3 zenith   = vec3(0.35, 0.55, 0.82);   // clean morning blue
+      vec3 midCol   = vec3(0.62, 0.75, 0.90);   // light sky blue
+      vec3 horizCol = mix(vec3(0.85, 0.72, 0.55), vec3(0.90, 0.80, 0.65),
+                          0.5 + 0.5 * sin(t * 0.06)); // pale warm haze, not saturated peach
       vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
-                      horizCol, smoothstep(0.35, 0.0, up));
+                      horizCol, smoothstep(0.15, 0.0, up));
 
       // Sunrise horizon glow (v0.2.470) — smooth warm BAND behind mountains.
       // v0.2.469 still read as two suns because fbm noise created a bright
@@ -182,11 +185,11 @@ const _auroraMat = new THREE.ShaderMaterial({
       vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));
       float horizAng   = dot(dirH, sunDirH);
       float glowSpread = pow(max(0.0, horizAng), 1.2);           // wider than 1.5, softer falloff
-      float glowShape  = exp(-pow((up - 0.10) / 0.24, 2.0));     // hugs horizon, taller
+      float glowShape  = exp(-pow((up - 0.06) / 0.14, 2.0));     // v0.2.471: 0.24 -> 0.14, hugs mountains only
       // Uniform warm orange across the whole band — same hue as the sun core,
       // so the sun and its glow blend into one continuous mass.
       vec3  warmGlow   = vec3(0.98, 0.52, 0.22);                 // single warm orange
-      base += warmGlow * glowSpread * glowShape * 0.55;
+      base += warmGlow * glowSpread * glowShape * 0.40;          // v0.2.471: 0.55 -> 0.40, don't overpaint peaks
 
       // Atmospheric band 2 — soft lilac/mauve mid-sky
       float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;
@@ -196,7 +199,7 @@ const _auroraMat = new THREE.ShaderMaterial({
       float fbm2   = fbm(vec2(dir.z * 2.0 - t * 0.025, dir.x * 2.0 + t * 0.018));
       vec3  lilac  = mix(vec3(0.72, 0.58, 0.88), vec3(0.60, 0.50, 0.82),
                           0.5 + 0.5 * sin(t * 0.10 + 1.0));
-      base += lilac * band2 * shape2 * fbm2 * 0.35; // v0.2.467: 0.55 -> 0.35
+      base += lilac * band2 * shape2 * fbm2 * 0.10; // v0.2.471: 0.35 -> 0.10, kill mid-sky haze
 
       // Atmospheric band 3 — golden light rays near zenith
       float w3a = sin(dir.x * 2.5 + dir.z * 3.5 + t * 0.09 + 3.14) * 0.5 + 0.5;
@@ -206,11 +209,11 @@ const _auroraMat = new THREE.ShaderMaterial({
       float fbm3   = fbm(vec2(dir.x * 1.8 + t * 0.015, dir.z * 1.8 - t * 0.012));
       vec3  golden = mix(vec3(0.98, 0.88, 0.50), vec3(0.95, 0.78, 0.35),
                          0.5 + 0.5 * sin(t * 0.07 + 2.0));
-      base += golden * band3 * shape3 * fbm3 * 0.20; // v0.2.466: 0.45 → 0.20, sun is the star
+      base += golden * band3 * shape3 * fbm3 * 0.05; // v0.2.471: 0.20 -> 0.05, clear blue zenith
 
       // Soft shimmer — morning light scatter
       float shimmer = fbm(vec2(dir.x * 5.0 + t * 0.12, dir.z * 5.0 - t * 0.10));
-      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.04; // v0.2.466: 0.08 → 0.04
+      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.02; // v0.2.471: 0.04 -> 0.02
 
       // Neon grid removed (v0.2.344): the fract()-based horizon grid produced two
       // straight great-circle "X" strips visible across the sky in aerial/fly
@@ -249,15 +252,11 @@ const _auroraMat = new THREE.ShaderMaterial({
       // dome-wide pow(sunAngle, 2.0) flush is gone entirely.
       vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45));
       float sunAngle = max(0.0, dot(dir, sunDir));
-      float sunDisc  = pow(sunAngle, 40.0);
-      // v0.2.470: full replacement at the core so the sun is unambiguously
-      // orange, not white. No additive layers on top of the disc — the horizon
-      // glow above already provides the surrounding warmth.
+      float sunDisc  = pow(sunAngle, 55.0);        // v0.2.471: tighter disc so it doesn't overpaint mountains
       base = mix(base, vec3(1.0, 0.48, 0.15), sunDisc);
-      // Corona: only contributes AWAY from the disc (sunAngle^8 minus disc)
-      // so it can't push the core past 1.0 and clamp to white.
-      float coronaOnly = max(0.0, pow(sunAngle, 8.0) - sunDisc);
-      base += vec3(1.0, 0.42, 0.14) * coronaOnly * 0.35;
+      // Corona: only contributes AWAY from the disc so no white clamp.
+      float coronaOnly = max(0.0, pow(sunAngle, 12.0) - sunDisc);
+      base += vec3(1.0, 0.42, 0.14) * coronaOnly * 0.20; // v0.2.471: tighter (was pow 8 * 0.35)
 
       // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
       // of the disc. Basis built with cross products around sunDir (not raw world

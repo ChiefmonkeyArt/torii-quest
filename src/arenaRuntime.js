@@ -184,25 +184,40 @@ function _loadPeerTemplate(character) {
   return entry.promise;
 }
 
-// Pre-warm every peer character template in the background as soon as MP is up.
-// Without this the FIRST time a peer joins we fetch + Draco-decode their GLB
-// (~3.6MB) synchronously inside the JOIN handler, so the new peer is invisible
-// for several seconds. Kicking both loads off at connect time means the
-// template is already cached when a JOIN lands, so the avatar pops in on the
-// next frame. Fire-and-forget: failures are logged but never block the arena.
+// Pre-warm every peer character as soon as MP is up: fetch + Draco-decode the
+// GLB (via _loadPeerTemplate) AND fully build one avatar into _mpWarmPool so a
+// peer JOIN is shown on the very next frame instead of after seconds of
+// clone/material/mixer/gun work. Fire-and-forget: a failure just leaves the
+// pool empty and the join path builds cold (the pre-refactor behaviour).
 function _prewarmPeerTemplates() {
   for (const key of Object.keys(MP_PEER_CHARACTERS)) {
-    _loadPeerTemplate(key).catch((err) => {
-      console.warn('[mp] template prewarm failed for', key, err);
-    });
+    if (_mpWarmPool.has(key)) continue;
+    _mpWarmPool.set(key, _buildPeerAvatarObject(key, null).catch((err) => {
+      console.warn('[mp] avatar prewarm failed for', key, err);
+      _mpWarmPool.delete(key); // let the join path build cold
+      throw err;
+    }));
   }
 }
+
+// Warm pool of FULLY-BUILT peer avatars (one per character), assembled in the
+// background during _prewarmPeerTemplates so a peer JOIN can be shown on the
+// very next frame. The expensive part of showing a peer is NOT the GLB fetch
+// (SW cache-first, and warm after the first load) — it's the per-avatar build
+// that used to run synchronously on the join path: skeletonClone, a full
+// traverse re-materialising every mesh, computeBoundingBox, mixer.clipAction()
+// for all 18 clips, and the gun bone-attach. That is several seconds of main-
+// thread work AFTER the download. Pooling the built avatar moves it off the
+// critical path; _createPeerAvatar then just hands the pooled instance over.
+const _mpWarmPool = new Map(); // character -> ready Promise<obj>
 
 // Build one peer avatar: a wrapper Group (remoteAvatars sets its position/rotation)
 // containing a SkeletonUtils-cloned model offset so feet land on the ground given
 // the eye-height Y peers broadcast, faced game-forward (-Z), with an IDLE mixer.
-async function _createPeerAvatar(peer) {
-  const character = (peer && peer.character) || 'chiefmonkey';
+// peer is used ONLY for obj.userData.peerId; omit it for the anonymous warm
+// instance (the join path stamps the real id in _createPeerAvatar).
+async function _buildPeerAvatarObject(character, peer) {
+  character = character || 'chiefmonkey';
   await _loadPeerTemplate(character);
   const tpl = _mpTemplateCache.get(character);
   const model = skeletonClone(tpl.scene);
@@ -358,7 +373,7 @@ async function _createPeerAvatar(peer) {
 
   const obj = new THREE.Group();
   obj.add(model);
-  obj.userData.peerId = peer.id;
+  obj.userData.peerId = peer ? peer.id : null;
   // Driven per-frame by remoteAvatars.tick: position is set BEFORE update(),
   // and the sampled snapshot (with vel) is passed as the second arg.
   obj.update = (dt, snap) => {
@@ -406,6 +421,22 @@ async function _createPeerAvatar(peer) {
     });
   };
   return obj;
+}
+
+// Hand a peer avatar to the roster. Prefer a fully-built warm instance (built
+// during prewarm) so the peer appears THIS frame; only build cold when the pool
+// for that character is empty (two peers sharing one character, or prewarm still
+// in flight). peerId is stamped onto the pooled object here.
+async function _createPeerAvatar(peer) {
+  const character = (peer && peer.character) || 'chiefmonkey';
+  const warm = _mpWarmPool.get(character);
+  if (warm) {
+    _mpWarmPool.delete(character);
+    const obj = await warm;
+    obj.userData.peerId = peer.id;
+    return obj;
+  }
+  return _buildPeerAvatarObject(character, peer);
 }
 
 // createArenaRuntime(hooks) — build the arena runtime. `boot()` runs the one-time

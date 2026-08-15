@@ -32,8 +32,11 @@ renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
 export const scene  = new THREE.Scene();
-// Sunrise morning mist fog — peach haze (was cool 0xc8dde8, which read as white glare)
-scene.fog = new THREE.FogExp2(0xe6bc94, 0.008); // v0.2.466: nudged more golden
+// v0.2.472: fog cooled + thinned so it no longer bloom-clamps in the sun
+// direction. Peach at density 0.008 was lit by the amber sun and pushed past
+// bloom threshold (0.86) at the horizon, producing a huge white blob to the
+// right of the actual sun.
+scene.fog = new THREE.FogExp2(0xbcc8d4, 0.0035); // soft dawn blue-grey, thinner
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -100,8 +103,8 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffd090, 0.85)); // warm amber morning ambient — sunrise glow (v0.2.466)
-export const sun = new THREE.DirectionalLight(0xffc878, 1.15); // amber sunrise, not white
+scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
+export const sun = new THREE.DirectionalLight(0xffc878, 0.95); // v0.2.472: 1.15 -> 0.95, less fog-lighting bloom
 // Matches the sky-shader sunDir (0.85, 0.18, -0.45) — low eastern dawn, disc behind peaks.
 sun.position.set(40, 13, -21);
 sun.castShadow = true;

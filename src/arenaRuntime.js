@@ -49,6 +49,7 @@ import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
 import { RELAYS, fanoutReq } from './nostr.js';
 import { assetUrl } from './assetUrl.js';
+import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -131,16 +132,28 @@ function _loadPeerTemplate(character) {
   character = character || 'chiefmonkey';
   if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
   const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
-  const entry = { scene: null, clips: [], gMinY: 0, promise: null };
+  const entry = { scene: null, clips: [], libraryClips: null, gMinY: 0, promise: null };
   _mpTemplateCache.set(character, entry);
-  entry.promise = new Promise((resolve, reject) => {
+  entry.promise = (async () => {
     const draco = new DRACOLoader();
     draco.setDecoderPath(assetUrl('/draco/'));
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
-    loader.load(assetUrl(cfg.file), (gltf) => {
+    try {
+      const [gltf, libraryClips] = await Promise.all([
+        loader.loadAsync(assetUrl(cfg.file)),
+        loadAnimationLibrary(loader),
+      ]);
       entry.scene = gltf.scene;
-      entry.clips = gltf.animations || [];
+      // Strip scale tracks from character clips; library clips take priority.
+      const availableClips = new Map((gltf.animations || []).map(clip => {
+        const stripped = clip.clone();
+        stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
+        return [stripped.name, stripped];
+      }));
+      libraryClips.forEach((clip, name) => availableClips.set(name, clip));
+      entry.clips = [...availableClips.values()];
+      entry.libraryClips = libraryClips;
       let gMinY = Infinity;
       entry.scene.traverse((o) => {
         if (o.isMesh && o.geometry) {
@@ -150,9 +163,12 @@ function _loadPeerTemplate(character) {
         }
       });
       entry.gMinY = Number.isFinite(gMinY) ? gMinY : 0;
-      resolve();
-    }, undefined, reject);
-  });
+    } catch (err) {
+      _mpTemplateCache.delete(character);
+      throw err;
+    }
+  })();
+  _mpTemplateCache.set(character, entry);
   return entry.promise;
 }
 
@@ -198,16 +214,17 @@ async function _createPeerAvatar(peer) {
   }
 
   // Resolve idle + walk + run/back/strafe + one-shot actions (shoot/hit/death).
-  const idleAction = actions[cfg.idle] || (tpl.clips.length ? actions[tpl.clips[0].name] : null);
-  const walkAction = actions[cfg.walk] || idleAction;
-  const runAction = actions[cfg.run] || null;
-  const backAction = actions[cfg.back] || null;
-  const strafeLAction = actions[cfg.strafeL] || null;
-  const strafeRAction = actions[cfg.strafeR] || null;
-  const jumpAction = actions[cfg.jump] || null;
-  const shootAction = actions[cfg.shoot] || null;
-  const hitAction = actions[cfg.hit] || null;
-  const deathAction = actions[cfg.death] || null;
+  // Library clips (GAME_STATE_TO_CLIP) take priority; cfg fallbacks are character's own.
+  const idleAction = actions[GAME_STATE_TO_CLIP.IDLE] || actions[cfg.idle] || (tpl.clips.length ? actions[tpl.clips[0].name] : null);
+  const walkAction = actions[GAME_STATE_TO_CLIP.WALK] || actions[cfg.walk] || idleAction;
+  const runAction = actions[GAME_STATE_TO_CLIP.RUN] || actions[cfg.run] || null;
+  const backAction = actions[GAME_STATE_TO_CLIP.WALK_BACK] || actions[cfg.back] || null;
+  const strafeLAction = actions[GAME_STATE_TO_CLIP.STRAFE_LEFT] || actions[cfg.strafeL] || null;
+  const strafeRAction = actions[GAME_STATE_TO_CLIP.STRAFE_RIGHT] || actions[cfg.strafeR] || null;
+  const jumpAction = actions[GAME_STATE_TO_CLIP.JUMP] || actions[cfg.jump] || null;
+  const shootAction = actions[GAME_STATE_TO_CLIP.RUN_SHOOT] || actions[cfg.shoot] || null;
+  const hitAction = actions[GAME_STATE_TO_CLIP.HIT] || actions[cfg.hit] || null;
+  const deathAction = actions[GAME_STATE_TO_CLIP.DEATH] || actions[cfg.death] || null;
   if (!idleAction) {
     console.warn('[mp] no clips for', character);
   } else {
@@ -222,7 +239,8 @@ async function _createPeerAvatar(peer) {
 
   // Map anim hint → action. Falls back to idle if the clip doesn't exist.
   function _actionFor(anim) {
-    if (anim === 'walk' || anim === 'runShoot') return walkAction;
+    if (anim === 'walk') return walkAction;
+    if (anim === 'runShoot') return shootAction || walkAction;
     if (anim === 'run') return runAction || walkAction;
     if (anim === 'back') return backAction || walkAction;
     if (anim === 'strafeL') return strafeLAction || walkAction;

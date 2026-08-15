@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.456-alpha - MP LAG FIX. Remote avatars no longer freeze-then-catch-up: EXTRAP_CAP_MS 200->500 (dead-reckon through jittery gaps instead of holding position) and MOVE velocity now uses true elapsed time (send frame's dt was excluded, making velocity ~1.5x hot = rubber-band on reversals). Prior: v0.2.455-alpha Z-up quaternion avatar fix.
+**Current version:** v0.2.457-alpha - NOSTRICH MASTER RETARGET. nostrich now runs the SAME master clip table as chiefmonkey. All 18 animation-library.glb clips were baked onto the dense nostrich rig via offline world-delta retargeting (tools/glb_retarget.py): per-bone world-space rotation delta conjugated by the Z-up->Y-up frame change, Hips root-motion height-scaled (96cm->70cm). Output Draco-compressed to /models/nostrich-master.glb (3.49MB, still lighter than chiefmonkey's 6.67MB library). Validated numerically before wiring: FK checks for head height, feet-on-ground, no limb explosions, gait continuity. playerModel.js CHARACTERS.nostrich + arenaRuntime.js MP_PEER_CHARACTERS.nostrich now point at the new file and resolve through GAME_STATE_TO_CLIP (identical table). The baked GLB is natively Y-up so the isZUp quaternion fix stays OFF for nostrich. Prior: v0.2.456-alpha MP lag fix.
 
 **Deployed live:** v0.2.409-alpha is DEPLOYED at chiefmonkey.art/quest via update-runner (Suite v0.8.1-alpha). MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 

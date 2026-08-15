@@ -33,21 +33,29 @@ const CHARACTERS = {
       FALL:       'Fall2',
     },
   },
+  // nostrich runs the SAME master clip table as chiefmonkey. nostrich-master.glb
+  // is the dense nostrich mesh with all 18 animation-library.glb clips baked onto
+  // its rig via offline world-delta retargeting (tools/glb_retarget.py), so every
+  // GAME_STATE_TO_CLIP name resolves directly. Unlike chiefmonkey's Z-up library
+  // GLB, this file is natively Y-up, so the isZUp quaternion fix stays OFF.
   nostrich: {
-    file: '/nostrich3.glb',
+    file: '/models/nostrich-master.glb',
     anims: {
-      IDLE:       'Stylish_Walk_inplace',      // best available idle substitute
-      WALK:       'Walking',
-      WALK_BACK:  'Walk_Turn_Left',             // nostrich3.glb clip (no Walk_Backward in this GLB)
-      WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',
+      IDLE:       'Idle_02',
+      WALK:       'Stylish_Walk_inplace',
+      WALK_BACK:  'Walk_Backward',
+      WALK_LEFT:  'Run_Forward_Firing',
       RUN:        'Running',
-      RUN_SHOOT:  'Run_and_Shoot',
-      JUMP:       'Jump_Over_Obstacle_1',
-      RELOAD:     null,
-      HIT:        'Shot_and_Blown_Back',
+      RUN_SHOOT:  'Run_Forward_Firing',
+      JUMP:       'Jump_Over_Obstacle_2',
+      RELOAD:     'Reload_Hand_Gun',
+      HIT:        'Hit_Reaction_to_Waist',
       DEATH:      'Knock_Down',
-      DANCE:      'idle_to_push_up',
-      STYLISH:    'Stylish_Walk_inplace',
+      DANCE:      'FunnyDancing_02',
+      VICTORY:    'Victory_Cheer',
+      MELEE:      'Melee_Left_Hand',
+      LAND:       'Fall_from_Bar',
+      FALL:       'Fall2',
     },
   },
 };
@@ -206,11 +214,11 @@ export async function loadPlayerModel(parentObj) {
       a.clampWhenFinished = true;
       _actions[name] = a;
     });
-    // Resolve _anims: for chiefmonkey, GAME_STATE_TO_CLIP provides the
-    // canonical mapping (clips are in the character GLB). For other
-    // characters (e.g. nostrich), use their own char.anims mapping.
+    // Resolve _anims: for chiefmonkey AND nostrich, GAME_STATE_TO_CLIP provides
+    // the canonical mapping (both GLBs carry the master clip names). Any future
+    // character baked onto the master template joins this branch.
     _anims = {};
-    if (_charKey === 'chiefmonkey') {
+    if (_charKey === 'chiefmonkey' || _charKey === 'nostrich') {
       for (const stateName of new Set([
         ...Object.keys(char.anims),
         ...Object.keys(GAME_STATE_TO_CLIP),

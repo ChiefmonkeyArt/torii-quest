@@ -95,12 +95,17 @@ const MP_PEER_CHARACTERS = Object.freeze({
     reload: 'Reload_Hand_Gun', melee: 'Melee_Left_Hand',
     victory: 'Victory_Cheer', land: 'Fall_from_Bar', fall: 'Fall2',
   },
+  // nostrich uses the SAME master clip names as chiefmonkey: nostrich-master.glb
+  // carries all 18 animation-library.glb clips retargeted onto the dense nostrich
+  // rig (tools/glb_retarget.py). Natively Y-up, so no zup-to-yup axisFix applies.
   nostrich: {
-    file: '/nostrich3.glb',
-    idle: 'Stylish_Walk_inplace', walk: 'Walking', run: 'Running',
-    back: 'Walk_Turn_Left', strafeL: 'Crouch_Walk_Left_with_Gun_inplace', strafeR: 'Crouch_Walk_Right_with_Torch_inplace',
-    jump: 'Jump_Over_Obstacle_1',
-    shoot: 'Run_and_Shoot', hit: 'Shot_and_Blown_Back', death: 'Knock_Down',
+    file: '/models/nostrich-master.glb',
+    idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running',
+    back: 'Walk_Backward', strafeL: 'Run_Forward_Firing', strafeR: 'Run_Forward_Firing',
+    jump: 'Jump_Over_Obstacle_2',
+    shoot: 'Run_Forward_Firing', hit: 'Hit_Reaction_to_Waist', death: 'Knock_Down',
+    reload: 'Reload_Hand_Gun', melee: 'Melee_Left_Hand',
+    victory: 'Victory_Cheer', land: 'Fall_from_Bar', fall: 'Fall2',
   },
 });
 
@@ -229,11 +234,11 @@ async function _createPeerAvatar(peer) {
   }
 
   // Resolve idle + walk + run/back/strafe + one-shot actions (shoot/hit/death).
-  // For chiefmonkey, GAME_STATE_TO_CLIP provides canonical clip names (same GLB).
-  // For other characters, cfg provides character-specific clip names.
-  const isChiefmonkey = character === 'chiefmonkey';
+  // chiefmonkey AND nostrich both carry the master clip names, so both resolve
+  // through GAME_STATE_TO_CLIP; cfg is the fallback for any clip not present.
+  const useMasterTable = character === 'chiefmonkey' || character === 'nostrich';
   const resolveClip = (state) => {
-    const libName = isChiefmonkey ? GAME_STATE_TO_CLIP[state] : null;
+    const libName = useMasterTable ? GAME_STATE_TO_CLIP[state] : null;
     return (libName && actions[libName]) || null;
   };
   const idleAction = resolveClip('IDLE') || actions[cfg.idle] || (tpl.clips.length ? actions[tpl.clips[0].name] : null);

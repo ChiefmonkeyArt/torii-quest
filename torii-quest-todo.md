@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.456-alpha` - MP lag fix: extrapolation cap 200->500ms (avatars kept dead-reckoning through jitter instead of freezing) + exact velocity dt (was 1.5x hot, caused rubber-banding) (prior: v0.2.455-alpha Z-up quaternion avatar fix)
+Current version: `v0.2.457-alpha` - nostrich now uses the SAME master clip table as chiefmonkey: all 18 animation-library.glb clips baked onto the dense nostrich rig via offline world-delta retargeting (tools/glb_retarget.py), Draco-compressed to /models/nostrich-master.glb. Validated numerically (FK: head/feet/no-explosion/gait) before wiring. (prior: v0.2.456-alpha MP lag fix)
 
 ## 🚨 TOP OF QUEUE
 

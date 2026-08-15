@@ -1,4 +1,4 @@
-// scene.js — renderer, camera, lights, aurora sky dome, bitcoin sun sprite.
+// scene.js — renderer, camera, lights, aurora sky dome (single warm shader sun).
 import * as THREE from 'three';
 // Post-processing (v0.2.400): UnrealBloom stays on the deferred ARENA path only.
 // scene.js is imported solely via arenaRuntime.js (the lazy ENTER ARENA chunk),
@@ -7,7 +7,6 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { assetUrl } from './assetUrl.js';
 import { bloomPlanForTier } from './engine/bloomPlan.js';
 
 const DEFAULT_DPR = Math.min(globalThis.devicePixelRatio || 1, 1.5);
@@ -34,7 +33,7 @@ document.body.appendChild(renderer.domElement);
 
 export const scene  = new THREE.Scene();
 // Sunrise morning mist fog — peach haze (was cool 0xc8dde8, which read as white glare)
-scene.fog = new THREE.FogExp2(0xe6c4a4, 0.008);
+scene.fog = new THREE.FogExp2(0xe6bc94, 0.008); // v0.2.466: nudged more golden
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -101,7 +100,7 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffd9a0, 0.85)); // warm morning ambient — sunrise glow
+scene.add(new THREE.AmbientLight(0xffd090, 0.85)); // warm amber morning ambient — sunrise glow (v0.2.466)
 export const sun = new THREE.DirectionalLight(0xffc878, 1.15); // amber sunrise, not white
 // Matches the sky-shader sunDir (0.85, 0.18, -0.45) — low eastern dawn, disc behind peaks.
 sun.position.set(40, 13, -21);
@@ -201,11 +200,11 @@ const _auroraMat = new THREE.ShaderMaterial({
       float fbm3   = fbm(vec2(dir.x * 1.8 + t * 0.015, dir.z * 1.8 - t * 0.012));
       vec3  golden = mix(vec3(0.98, 0.88, 0.50), vec3(0.95, 0.78, 0.35),
                          0.5 + 0.5 * sin(t * 0.07 + 2.0));
-      base += golden * band3 * shape3 * fbm3 * 0.45;
+      base += golden * band3 * shape3 * fbm3 * 0.20; // v0.2.466: 0.45 → 0.20, sun is the star
 
       // Soft shimmer — morning light scatter
       float shimmer = fbm(vec2(dir.x * 5.0 + t * 0.12, dir.z * 5.0 - t * 0.10));
-      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.08;
+      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.04; // v0.2.466: 0.08 → 0.04
 
       // Neon grid removed (v0.2.344): the fract()-based horizon grid produced two
       // straight great-circle "X" strips visible across the sky in aerial/fly
@@ -237,13 +236,31 @@ const _auroraMat = new THREE.ShaderMaterial({
       }
       base += starCol * 0.55;
 
-      // Sunrise sun disc — low on eastern horizon, warm gold (not white)
+      // Sunrise sun — ONE big warm orange disc, low on the eastern ridgeline.
+      // v0.2.466: the old stack (pow 90 * 1.4 disc + pow 2 * 0.18 horizon flush)
+      // clamped to white under bloom and flushed the whole dome. The core now
+      // uses mix() so it saturates toward deep orange instead of white, and the
+      // dome-wide pow(sunAngle, 2.0) flush is gone entirely.
       vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45)); // east, right on the ridgeline
       float sunAngle = max(0.0, dot(dir, sunDir));
-      base += vec3(1.0, 0.78, 0.42) * pow(sunAngle, 90.0) * 1.4;  // amber disc
-      base += vec3(1.0, 0.58, 0.22) * pow(sunAngle, 14.0) * 0.7;  // inner corona
-      base += vec3(0.98, 0.48, 0.18) * pow(sunAngle,  4.0) * 0.35; // wide glow
-      base += vec3(0.95, 0.70, 0.42) * pow(sunAngle,  2.0) * 0.18; // horizon flush
+      float sunDisc  = pow(sunAngle, 40.0);                 // wider, bigger disc (was 90)
+      base = mix(base, vec3(1.0, 0.50, 0.18), sunDisc * 0.8); // deep-orange core, no white clamp
+      base += vec3(1.0, 0.40, 0.12) * pow(sunAngle, 8.0) * 0.4;   // inner corona (was 14 / 0.7)
+      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.12; // hint of wide glow (was 0.35)
+
+      // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
+      // of the disc. Basis built with cross products around sunDir (not raw world
+      // x/z), then atan() for the angle around the sun axis. The mask fades rays
+      // away from the sun and high in the sky so the dome never stripes.
+      vec3 upRef     = abs(sunDir.y) > 0.95 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+      vec3 sunTan    = normalize(cross(upRef, sunDir));
+      vec3 sunBitan  = cross(sunDir, sunTan);
+      float rayAngle = atan(dot(dir, sunBitan), dot(dir, sunTan));
+      float rays     = 0.5 + 0.5 * sin(rayAngle * 14.0 + t * 0.03); // 14 beams, slow drift
+      float rayMask  = smoothstep(0.0, 0.15, sunAngle)
+                     * smoothstep(0.6, 0.2, sunAngle)
+                     * (1.0 - smoothstep(0.3, 0.7, up));
+      base += vec3(1.0, 0.55, 0.20) * rays * rayMask * 0.12;
 
       base = clamp(base, 0.0, 1.0);
       gl_FragColor = vec4(base, 1.0);
@@ -256,66 +273,12 @@ _auroraDome.renderOrder = -1;
 _auroraDome.frustumCulled = false; // camera is inside — Three.js culls incorrectly without this
 scene.add(_auroraDome);
 
-// ── Bitcoin ₿ sun sprite ──────────────────────────────────────────────────────
-// Two-layer: canvas corona + PNG ₿ overlay, matching v1 positions.
-(function _buildBitcoinSun() {
-  const size = 512;
-  const cv1 = document.createElement('canvas');
-  cv1.width = cv1.height = size;
-  const c1 = cv1.getContext('2d');
-  const cx = size / 2, cy = size / 2, r = size / 2;
-
-  // Corona glow
-  const glow = c1.createRadialGradient(cx, cy, r * 0.18, cx, cy, r);
-  glow.addColorStop(0.0,  'rgba(255, 175,  95, 0.60)');
-  glow.addColorStop(0.25, 'rgba(255, 140,  50, 0.45)');
-  glow.addColorStop(0.55, 'rgba(200,  70,  10, 0.22)');
-  glow.addColorStop(1.0,  'rgba(0, 0, 0, 0.0)');
-  c1.fillStyle = glow;
-  c1.fillRect(0, 0, size, size);
-
-  // Inner disc
-  const disc = c1.createRadialGradient(cx, cy, 0, cx, cy, r * 0.20);
-  disc.addColorStop(0.0, 'rgba(255, 195, 130, 0.75)');
-  disc.addColorStop(0.6, 'rgba(255, 180,  70, 0.75)');
-  disc.addColorStop(1.0, 'rgba(255, 140,  20, 0.0)');
-  c1.beginPath();
-  c1.arc(cx, cy, r * 0.20, 0, Math.PI * 2);
-  c1.fillStyle = disc;
-  c1.fill();
-
-  const tex1 = new THREE.CanvasTexture(cv1);
-  // depthTest ON (v0.2.465): the sprite sits at ~420 (camera far 600), so the
-  // real mountain geometry occludes the lower half of the disc — the sun reads
-  // as rising from behind the ridgeline instead of pasted over it.
-  const mat1 = new THREE.SpriteMaterial({
-    map: tex1, transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false, depthTest: true, fog: false,
-  });
-  const sunSprite = new THREE.Sprite(mat1);
-  // Same low-east dawn vector as the sky shader — lowered to y=0.18 (v0.2.465)
-  // so the peaks cross the disc; the old (0.3, 0.65, -0.8) parked a huge white
-  // disc high in the sky and bloomed it into glare.
-  const sd = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
-  sunSprite.position.copy(sd.clone().multiplyScalar(420));
-  sunSprite.scale.set(38, 38, 1);
-  sunSprite.renderOrder = 1;
-  scene.add(sunSprite);
-
-  new THREE.TextureLoader().load(assetUrl('/bitcoin-b.png'), tex2 => {
-    const mat2 = new THREE.SpriteMaterial({
-      map: tex2, transparent: true, opacity: 0.30,
-      blending: THREE.NormalBlending,
-      depthWrite: false, depthTest: true, fog: false,
-    });
-    const btcSprite = new THREE.Sprite(mat2);
-    btcSprite.position.set(sd.x * 422, sd.y * 422, sd.z * 422);
-    btcSprite.scale.set(55, 55, 1);
-    btcSprite.renderOrder = 2;
-    scene.add(btcSprite);
-  });
-}());
+// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
+// The additive canvas-corona sprite (scale 38) + NormalBlending PNG ₿ overlay
+// (scale 55) at (0.85, 0.18, -0.45)*420 stacked on the shader sun disc and
+// bloomed (strength 0.72 / threshold 0.86) into a massive white glare on the
+// right side of the sky. The shader sun above is now the only sun — bigger,
+// warmer, and bloom-safe. The brand ₿ overlay was noise for a sunrise scene.
 
 // ── Aurora tick — call once per frame ────────────────────────────────────────
 export function tickAurora(dt) {

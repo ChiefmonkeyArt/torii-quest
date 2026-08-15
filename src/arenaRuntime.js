@@ -184,6 +184,20 @@ function _loadPeerTemplate(character) {
   return entry.promise;
 }
 
+// Pre-warm every peer character template in the background as soon as MP is up.
+// Without this the FIRST time a peer joins we fetch + Draco-decode their GLB
+// (~3.6MB) synchronously inside the JOIN handler, so the new peer is invisible
+// for several seconds. Kicking both loads off at connect time means the
+// template is already cached when a JOIN lands, so the avatar pops in on the
+// next frame. Fire-and-forget: failures are logged but never block the arena.
+function _prewarmPeerTemplates() {
+  for (const key of Object.keys(MP_PEER_CHARACTERS)) {
+    _loadPeerTemplate(key).catch((err) => {
+      console.warn('[mp] template prewarm failed for', key, err);
+    });
+  }
+}
+
 // Build one peer avatar: a wrapper Group (remoteAvatars sets its position/rotation)
 // containing a SkeletonUtils-cloned model offset so feet land on the ground given
 // the eye-height Y peers broadcast, faced game-forward (-Z), with an IDLE mixer.
@@ -933,7 +947,10 @@ export function createArenaRuntime(hooks = {}) {
         // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
         // the local AI + ignore local damage) and drive it from the BOT_* stream.
         if (name === 'mp_state') {
-          if (p.state === WS_STATE.CONNECTED) setBotNetMode(true);
+          if (p.state === WS_STATE.CONNECTED) {
+            setBotNetMode(true);
+            _prewarmPeerTemplates(); // kill the join-time GLB fetch delay
+          }
           else if (p.state === WS_STATE.CLOSED) setBotNetMode(false);
           return;
         }

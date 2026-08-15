@@ -9,7 +9,7 @@
 //                                      → closed (any state can enter closed)
 //
 // On close, if MP_ENABLED is still true and disconnect() wasn't called, the
-// client reconnects with exponential backoff capped at 30s.
+// client reconnects with exponential backoff capped at 2s (BACKOFF_MS_CAP).
 //
 // This module only relays events — it does NOT own the scene, avatars, or hit
 // application. Those live in remoteAvatars.js and main.js subscribers.
@@ -25,15 +25,21 @@ export const WS_STATE = Object.freeze({
 });
 
 export const BACKOFF_MS_INITIAL = 500;
-export const BACKOFF_MS_CAP     = 30_000;
+// Option A (idle players stay connected): cap reconnect backoff low so a rare
+// drop (network blip, proxy reset) rejoins in ~2s rather than up to 30s. The
+// keepalive below makes a genuine idle drop a non-event, so the cap only ever
+// fires on a REAL disconnect, where fast rejoin is what we want.
+export const BACKOFF_MS_CAP     = 2_000;
 
 // Client-initiated keepalive. The server idle-drops silent sessions after 60s
 // (IDLE_DISCONNECT_MS in server/arena-ws.js) and never initiates its own PING,
-// so a paused client that sends no MOVE frames goes quiet and gets dropped —
-// which triggers reconnect + a fresh NIP-42 challenge + a NIP-07 signer prompt,
-// looping every ~60s on the pause screen. Sending a PING every 25s keeps the
-// session alive well inside that window.
-export const KEEPALIVE_MS = 25_000;
+// so a client that sends no MOVE frames goes quiet and gets dropped. Option A:
+// an idle-but-present player must NEVER be dropped, so we PING every 15s —
+// 4x inside the 60s sweep window, giving ~3 missed-timer margins of safety
+// against tab-throttled setTimeout coalescing (background tabs clamp timers to
+// >=1s and can batch them). At 15s a paused/backgrounded tab still heartbeats
+// well inside the sweep, so the peer avatar never vanishes on the other screen.
+export const KEEPALIVE_MS = 15_000;
 
 /**
  * Create a WS client.
@@ -214,7 +220,7 @@ export function createWsClient(opts) {
         }
         setState(WS_STATE.CONNECTED, { selfId: msg.selfId });
         // Refine RTT/one-way latency immediately instead of leaving shot timing
-        // on the coarse WELCOME offset until the first 25-second keepalive tick.
+        // on the coarse WELCOME offset until the first 15-second keepalive tick.
         send({ t: MSG.PING, ts: now() });
         api.backoffMs = BACKOFF_MS_INITIAL; // reset on successful connect
         _startKeepalive();

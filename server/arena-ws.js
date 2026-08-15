@@ -8,7 +8,7 @@
 //   * Presence: JOIN / LEFT / MOVE fan-out
 //   * Advisory combat relay: SHOT / HIT / KILL untouched
 //   * Chat relay (rate-limited)
-//   * PING/PONG keepalive; 60s idle disconnect
+//   * PING/PONG keepalive; 90s idle disconnect (client heartbeats every 15s)
 //   * Per-message wire validation via wireProtocol.js (shared with the client)
 //
 // Explicitly NOT in this file (see MP_1_SPEC.md §2/§3):
@@ -58,7 +58,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.459-alpha';
+const SERVER_VERSION = 'v0.2.460-alpha';
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -99,7 +99,13 @@ const RATE = Object.freeze({
   CHAT: 1,
 });
 
-const IDLE_DISCONNECT_MS = 60_000;
+// Option A (idle players stay connected): the client PINGs every 15s
+// (KEEPALIVE_MS in wsClient.js). 90s = 6 missed pings before we reap, so a
+// background-tab timer clamp (>=1s, batched) or a loaded event loop can delay
+// several heartbeats without the peer ever vanishing from the other screen.
+// A genuinely dead socket is still reaped here; the wider window only costs a
+// little extra lingering for a hard-dropped connection.
+const IDLE_DISCONNECT_MS = 90_000;
 const AUTH_TIMEOUT_MS    = 10_000;
 const CHALLENGE_TTL_MS   = 60_000; // an AUTH event's created_at must be within this window
 

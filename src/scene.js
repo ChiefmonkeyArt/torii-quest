@@ -24,7 +24,8 @@ renderer.setPixelRatio(DEFAULT_DPR);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
-renderer.toneMappingExposure = 1.8;
+// v0.2.464: 1.8 blew the dawn disc + Bitcoin sprite into white glare.
+renderer.toneMappingExposure = 1.2;
 renderer.autoClear = false;
 // Local clipping lets firstPersonBody.js slice the neck stump off just below the
 // camera so looking down never reveals the inside of the headless body.
@@ -32,8 +33,8 @@ renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
 export const scene  = new THREE.Scene();
-// Sunrise morning mist fog — warm haze at distance
-scene.fog = new THREE.FogExp2(0xc8dde8, 0.008);
+// Sunrise morning mist fog — peach haze (was cool 0xc8dde8, which read as white glare)
+scene.fog = new THREE.FogExp2(0xe6c4a4, 0.007);
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -100,16 +101,17 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffd9a0, 0.9)); // warm morning ambient
-export const sun = new THREE.DirectionalLight(0xffe5b0, 1.8); // golden sunrise light
-sun.position.set(40, 20, -30); // low angle — sunrise from east
+scene.add(new THREE.AmbientLight(0xffd9a0, 0.72)); // warm morning ambient
+export const sun = new THREE.DirectionalLight(0xffc878, 1.15); // amber sunrise, not white
+// Matches the sky-shader sunDir (0.85, 0.28, -0.45) — low eastern dawn.
+sun.position.set(40, 13, -21);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
 sun.shadow.camera.left = sun.shadow.camera.bottom = -25;
 sun.shadow.camera.right = sun.shadow.camera.top = 25;
 scene.add(sun);
-const fill = new THREE.PointLight(0xffa060, 1.2, 60); // warm fill
+const fill = new THREE.PointLight(0xffa060, 0.7, 60); // warm fill
 fill.position.set(-10, 8, 10);
 scene.add(fill);
 
@@ -203,7 +205,7 @@ const _auroraMat = new THREE.ShaderMaterial({
 
       // Soft shimmer — morning light scatter
       float shimmer = fbm(vec2(dir.x * 5.0 + t * 0.12, dir.z * 5.0 - t * 0.10));
-      base += vec3(0.98, 0.92, 0.70) * shimmer * up * 0.15;
+      base += vec3(0.98, 0.78, 0.48) * shimmer * up * 0.08;
 
       // Neon grid removed (v0.2.344): the fract()-based horizon grid produced two
       // straight great-circle "X" strips visible across the sky in aerial/fly
@@ -230,18 +232,18 @@ const _auroraMat = new THREE.ShaderMaterial({
         vec3 sColor  = hue > 0.85 ? vec3(1.0, 0.85, 0.6)
                      : hue > 0.70 ? vec3(0.85, 0.9, 1.0)
                      :              vec3(0.95, 0.97, 1.0);
-        float starFade = smoothstep(0.12, 0.28, dir.y);
+        float starFade = smoothstep(0.22, 0.48, dir.y);
         starCol += sColor * disc * vis * twinkle * bright * starFade;
       }
-      base += starCol * 1.4;
+      base += starCol * 0.55;
 
-      // Sunrise sun disc — low on eastern horizon, warm gold
+      // Sunrise sun disc — low on eastern horizon, warm gold (not white)
       vec3 sunDir    = normalize(vec3(0.85, 0.28, -0.45)); // east, low angle
       float sunAngle = max(0.0, dot(dir, sunDir));
-      base += vec3(1.0, 0.92, 0.60) * pow(sunAngle, 80.0) * 6.0;  // bright disc
-      base += vec3(1.0, 0.65, 0.25) * pow(sunAngle, 12.0) * 1.2;  // inner corona
-      base += vec3(0.98, 0.50, 0.15) * pow(sunAngle,  4.0) * 0.5; // wide glow
-      base += vec3(0.95, 0.80, 0.50) * pow(sunAngle,  2.0) * 0.2; // horizon flush
+      base += vec3(1.0, 0.78, 0.42) * pow(sunAngle, 90.0) * 2.2;  // amber disc
+      base += vec3(1.0, 0.58, 0.22) * pow(sunAngle, 14.0) * 0.7;  // inner corona
+      base += vec3(0.98, 0.48, 0.18) * pow(sunAngle,  4.0) * 0.35; // wide glow
+      base += vec3(0.95, 0.70, 0.42) * pow(sunAngle,  2.0) * 0.18; // horizon flush
 
       base = clamp(base, 0.0, 1.0);
       gl_FragColor = vec4(base, 1.0);
@@ -265,18 +267,18 @@ scene.add(_auroraDome);
 
   // Corona glow
   const glow = c1.createRadialGradient(cx, cy, r * 0.18, cx, cy, r);
-  glow.addColorStop(0.0,  'rgba(255, 230, 120, 1.0)');
-  glow.addColorStop(0.25, 'rgba(255, 150,  50, 0.90)');
-  glow.addColorStop(0.55, 'rgba(200,  70,  10, 0.45)');
+  glow.addColorStop(0.0,  'rgba(255, 200, 110, 0.70)');
+  glow.addColorStop(0.25, 'rgba(255, 140,  50, 0.45)');
+  glow.addColorStop(0.55, 'rgba(200,  70,  10, 0.22)');
   glow.addColorStop(1.0,  'rgba(0, 0, 0, 0.0)');
   c1.fillStyle = glow;
   c1.fillRect(0, 0, size, size);
 
   // Inner disc
   const disc = c1.createRadialGradient(cx, cy, 0, cx, cy, r * 0.20);
-  disc.addColorStop(0.0, 'rgba(255, 255, 245, 1.0)');
-  disc.addColorStop(0.6, 'rgba(255, 230,  90, 1.0)');
-  disc.addColorStop(1.0, 'rgba(255, 160,  20, 0.0)');
+  disc.addColorStop(0.0, 'rgba(255, 220, 160, 0.85)');
+  disc.addColorStop(0.6, 'rgba(255, 180,  70, 0.75)');
+  disc.addColorStop(1.0, 'rgba(255, 140,  20, 0.0)');
   c1.beginPath();
   c1.arc(cx, cy, r * 0.20, 0, Math.PI * 2);
   c1.fillStyle = disc;
@@ -289,9 +291,11 @@ scene.add(_auroraDome);
     depthWrite: false, depthTest: false, fog: false,
   });
   const sunSprite = new THREE.Sprite(mat1);
-  const sd = new THREE.Vector3(0.3, 0.65, -0.8).normalize();
+  // Same low-east dawn vector as the sky shader — the old (0.3, 0.65, -0.8)
+  // parked a huge white disc high in the sky and bloomed it into glare.
+  const sd = new THREE.Vector3(0.85, 0.28, -0.45).normalize();
   sunSprite.position.copy(sd.clone().multiplyScalar(420));
-  sunSprite.scale.set(90, 90, 1);
+  sunSprite.scale.set(48, 48, 1);
   sunSprite.renderOrder = 1;
   scene.add(sunSprite);
 
@@ -303,7 +307,7 @@ scene.add(_auroraDome);
     });
     const btcSprite = new THREE.Sprite(mat2);
     btcSprite.position.set(sd.x * 422, sd.y * 422, sd.z * 422);
-    btcSprite.scale.set(135, 135, 1);
+    btcSprite.scale.set(72, 72, 1);
     btcSprite.renderOrder = 2;
     scene.add(btcSprite);
   });

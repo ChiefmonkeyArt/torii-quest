@@ -81,7 +81,13 @@ const _glassMat = new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide, depthWrite: false,
 });
 const _neonMat = new THREE.MeshStandardMaterial({
-  color: 0x061418, emissive: C_NEON, emissiveIntensity: 2.2, roughness: 0.4,
+  color: 0x061418, emissive: C_NEON, emissiveIntensity: 0.95, roughness: 0.4,
+});
+// Ground wash: additive ribbon on the soil just inside the wall so the neon
+// reads as an uplight on the ground, not a bloom spray into the sky (v0.2.464).
+const _groundGlowMat = new THREE.MeshBasicMaterial({
+  color: C_NEON, transparent: true, opacity: 0.22,
+  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
 });
 function _buildCoastlineWall() {
   const ring = fenceRing();
@@ -134,6 +140,33 @@ function _buildCoastlineWall() {
   const neon = new THREE.Mesh(neonGeo, _neonMat);
   neon.name = 'coastline-neon';
   scene.add(neon);
+
+  // Ground-hugging wash: two verts per ring point (outer on the wall, inner
+  // inset toward the arena) so the glow sits on the dirt under the glass.
+  const INSET = 0.7, Y_LIFT = 0.06;
+  const gpos = new Float32Array(n * 2 * 3);
+  for (let i = 0; i < n; i++) {
+    const x = ring[i][0], z = ring[i][1];
+    const len = Math.hypot(x, z) || 1;
+    const scale = Math.max(0.2, (len - INSET) / len);
+    const ix = x * scale, iz = z * scale;
+    gpos[i * 6 + 0] = x;  gpos[i * 6 + 1] = sampleArenaHeight(x, z) + Y_LIFT;   gpos[i * 6 + 2] = z;
+    gpos[i * 6 + 3] = ix; gpos[i * 6 + 4] = sampleArenaHeight(ix, iz) + Y_LIFT; gpos[i * 6 + 5] = iz;
+  }
+  const gidx = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    if (inGap[i] || inGap[j]) continue;
+    const oi = i * 2, ii = i * 2 + 1, oj = j * 2, ij = j * 2 + 1;
+    gidx.push(oi, ii, ij, oi, ij, oj);
+  }
+  const ggeo = new THREE.BufferGeometry();
+  ggeo.setAttribute('position', new THREE.BufferAttribute(gpos, 3));
+  ggeo.setIndex(gidx);
+  const glow = new THREE.Mesh(ggeo, _groundGlowMat);
+  glow.name = 'coastline-ground-glow';
+  glow.renderOrder = 1;
+  scene.add(glow);
 }
 
 // ── Crates ────────────────────────────────────────────────────────────────────

@@ -111,8 +111,7 @@ export async function loadPlayerModel(parentObj) {
     // Z-up detection: Z range significantly exceeds Y range.
     const isZUp = (gMaxZ - gMinZ) > (gMaxY - gMinY) * 1.2;
     if (isZUp) {
-      _root.rotation.x = Math.PI / 2;   // +90° X: (x,y,z) → (x,-z,y)
-      // After rotation the old Z range becomes the new Y range (negated).
+      // After +90 deg X rotation the old Z range becomes the new Y range (negated).
       gMinY = -gMaxZ;
     }
     const geoH = (gMinY < gMaxY) ? (gMaxY - gMinY) : 1;
@@ -128,8 +127,17 @@ export async function loadPlayerModel(parentObj) {
     const EYE_OFFSET = 1.7;
     _root.position.y = (-gMinY * s) - EYE_OFFSET;
 
-    // Face -Z (camera forward direction)
-    _root.rotation.y = Math.PI;
+    // Face -Z (camera forward direction).
+    // When the Z-up fix is active we MUST use quaternions, not Euler angles,
+    // because Euler XYZ applies the Y rotation in the local (post-X) frame,
+    // which rotates around the wrong axis and flips the character back down.
+    if (isZUp) {
+      const standUp  = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI/2);
+      const turnAround = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+      _root.quaternion.copy(turnAround).multiply(standUp);
+    } else {
+      _root.rotation.y = Math.PI;
+    }
 
     // Layer 1 — hidden from player's own FPS camera, visible in mirror.
     // Also force transparent=false, depthWrite=true, frustumCulled=false on every

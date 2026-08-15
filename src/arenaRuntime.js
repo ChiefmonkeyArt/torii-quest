@@ -188,12 +188,18 @@ async function _createPeerAvatar(peer) {
   const tpl = _mpTemplateCache.get(character);
   const model = skeletonClone(tpl.scene);
   model.scale.setScalar(1.0);
-  // Apply Z-up to Y-up rotation if the template requires it.
-  if (tpl.axisFix === 'zup-to-yup') model.rotation.x = Math.PI / 2;
-  // Feet on ground: peers broadcast eye-height Y (playerObj.position.y ≈ 1.7),
+  // Feet on ground: peers broadcast eye-height Y (playerObj.position.y ~= 1.7),
   // so the wrapper sits at eye height; drop the model by gMinY + eye offset.
   model.position.y = -tpl.gMinY - MP_EYE_OFFSET;
-  model.rotation.y = Math.PI; // GLB faces +Z, game forward is -Z
+  // Face -Z (game forward). Use quaternions when Z-up fix is needed to avoid
+  // Euler XYZ applying Y rotation in the wrong (post-X) frame.
+  if (tpl.axisFix === 'zup-to-yup') {
+    const standUp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI/2);
+    const turnAround = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
+    model.quaternion.copy(turnAround).multiply(standUp);
+  } else {
+    model.rotation.y = Math.PI; // GLB faces +Z, game forward is -Z
+  }
 
   model.traverse((o) => {
     if (!o.isMesh) return;

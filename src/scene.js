@@ -180,7 +180,7 @@ const _auroraMat = new THREE.ShaderMaterial({
       float fbm1   = fbm(vec2(dir.x * 2.5 + t * 0.02, dir.z * 2.5 - t * 0.015));
       vec3  rose   = mix(vec3(0.98, 0.60, 0.45), vec3(0.95, 0.75, 0.55),
                          0.5 + 0.5 * sin(t * 0.08));
-      base += rose * band1 * shape1 * fbm1 * 0.9;
+      base += rose * band1 * shape1 * fbm1 * 0.35; // v0.2.467: 0.9 -> 0.35, killed left-side bloom
 
       // Atmospheric band 2 — soft lilac/mauve mid-sky
       float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;
@@ -190,7 +190,7 @@ const _auroraMat = new THREE.ShaderMaterial({
       float fbm2   = fbm(vec2(dir.z * 2.0 - t * 0.025, dir.x * 2.0 + t * 0.018));
       vec3  lilac  = mix(vec3(0.72, 0.58, 0.88), vec3(0.60, 0.50, 0.82),
                           0.5 + 0.5 * sin(t * 0.10 + 1.0));
-      base += lilac * band2 * shape2 * fbm2 * 0.55;
+      base += lilac * band2 * shape2 * fbm2 * 0.35; // v0.2.467: 0.55 -> 0.35
 
       // Atmospheric band 3 — golden light rays near zenith
       float w3a = sin(dir.x * 2.5 + dir.z * 3.5 + t * 0.09 + 3.14) * 0.5 + 0.5;
@@ -245,8 +245,8 @@ const _auroraMat = new THREE.ShaderMaterial({
       float sunAngle = max(0.0, dot(dir, sunDir));
       float sunDisc  = pow(sunAngle, 40.0);                 // wider, bigger disc (was 90)
       base = mix(base, vec3(1.0, 0.50, 0.18), sunDisc * 0.8); // deep-orange core, no white clamp
-      base += vec3(1.0, 0.40, 0.12) * pow(sunAngle, 8.0) * 0.4;   // inner corona (was 14 / 0.7)
-      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.12; // hint of wide glow (was 0.35)
+      base += vec3(1.0, 0.40, 0.12) * pow(sunAngle, 8.0) * 0.25;  // inner corona (v0.2.467: 0.4 -> 0.25)
+      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.06; // hint of wide glow (v0.2.467: 0.12 -> 0.06)
 
       // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
       // of the disc. Basis built with cross products around sunDir (not raw world

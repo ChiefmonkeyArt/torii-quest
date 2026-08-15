@@ -167,33 +167,39 @@ const _auroraMat = new THREE.ShaderMaterial({
         return;
       }
 
-      // v0.2.473 — CLEAN WIPE. All previous sky layers (horizon glow, lilac
-      // band, golden band, shimmer, sun disc, Japanese rays) removed. Sky is
-      // now a two-axis gradient:
-      //   • vertical: darker at zenith, lighter at horizon (natural sky)
-      //   • azimuthal: deep blue on the far side (away from sun), lighter
-      //     blue toward the sun's compass direction (0.85, -, -0.45)
-      // Stars remain (rendered below).
+      // v0.2.474 — reference: warm hazy horizon on the sun side, deep blue
+      // dominating the opposite side. The old (v0.2.473) gradient was too
+      // uniformly pale. Now the far side covers ~30% of the dome in deep
+      // blue, gradiating through mid-blue to warm haze only near the sun.
       vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));
       vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));
       float toSun      = dot(dirH, sunDirH);              // -1 opposite, +1 toward sun
-      float sunSide    = 0.5 + 0.5 * toSun;               // 0 far, 1 near
-      // Two anchor palettes: far side deep blue, sun side lighter blue.
-      vec3 farZenith   = vec3(0.06, 0.14, 0.34);          // deep navy at zenith opposite sun
-      vec3 farHorizon  = vec3(0.28, 0.42, 0.62);          // muted blue horizon opposite sun
-      vec3 nearZenith  = vec3(0.24, 0.42, 0.68);          // brighter blue at zenith toward sun
-      vec3 nearHorizon = vec3(0.62, 0.78, 0.92);          // pale sky blue horizon toward sun
-      vec3 farCol      = mix(farHorizon,  farZenith,  smoothstep(0.0, 0.9, up));
-      vec3 nearCol     = mix(nearHorizon, nearZenith, smoothstep(0.0, 0.9, up));
-      vec3 base = mix(farCol, nearCol, sunSide);
+      // Bias the mix so the far side occupies more of the dome. smoothstep
+      // (-0.4, 0.8) means: from 30% far-side outward we're already fully in
+      // deep-blue territory; only pixels genuinely aimed near the sun get warm.
+      float sunSide    = smoothstep(-0.4, 0.8, toSun);
+      // Deep-blue side (opposite sun): dark navy zenith, deeper blue horizon.
+      vec3 farZenith   = vec3(0.04, 0.10, 0.28);          // deep navy
+      vec3 farHorizon  = vec3(0.14, 0.26, 0.48);          // deep sky blue
+      // Sun side: pale blue up top, warm hazy horizon (like the reference).
+      vec3 nearZenith  = vec3(0.35, 0.55, 0.78);          // clear day blue
+      vec3 nearHorizon = vec3(0.82, 0.72, 0.55);          // warm haze at horizon
+      // Vertical blend within each side.
+      vec3 farCol      = mix(farHorizon,  farZenith,  smoothstep(0.0, 0.6, up));
+      vec3 nearCol     = mix(nearHorizon, nearZenith, smoothstep(0.0, 0.4, up));
+      vec3 base        = mix(farCol, nearCol, sunSide);
 
-      // Stars — seam-free horizontal projection
+      // Stars (v0.2.474) — spherical projection, no zenith singularity.
+      // Old code used xz/y which pinched all cells to a point near zenith,
+      // creating the vortex artifact. Now uses (theta = atan2(x,z), phi =
+      // acos(y)) — a proper equirectangular UV with no pole convergence.
       vec3 starCol = vec3(0.0);
+      float theta  = atan(dir.z, dir.x);                       // -pi..pi around axis
+      float phi    = acos(clamp(dir.y, -1.0, 1.0));            // 0 at zenith .. pi at nadir
       for (int layer = 0; layer < 2; layer++) {
-        float scale  = layer == 0 ? 18.0 : 28.0;
-        float bright = layer == 0 ? 1.8  : 1.1;
-        float safeY  = max(dir.y, 0.08);
-        vec2 starUV  = vec2(dir.x, dir.z) / safeY * scale
+        float scale  = layer == 0 ? 6.0 : 9.5;
+        float bright = layer == 0 ? 1.8 : 1.1;
+        vec2 starUV  = vec2(theta * scale, phi * scale)
                        + vec2(float(layer) * 37.3, float(layer) * 19.7);
         vec2 cell    = floor(starUV);
         vec2 frac    = fract(starUV);

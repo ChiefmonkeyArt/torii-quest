@@ -37,7 +37,7 @@ const _MTN_DAWN = Object.freeze({
   foothill: Object.freeze({ r: 0.55, g: 0.60, b: 0.50 }), // soft sage-green for low foothills
   valleyFloor: Object.freeze({ r: 0.40, g: 0.44, b: 0.36 }), // muted lowland green-grey for valley dips
   snow:     Object.freeze({ r: 0.96, g: 0.94, b: 0.90 }), // snow
-  snowLit:  Object.freeze({ r: 1.00, g: 0.90, b: 0.74 }), // gold-kissed dawn snow
+  snowLit:  Object.freeze({ r: 0.82, g: 0.76, b: 0.66 }), // v0.2.474: dimmed below bloom threshold
   crevice:  Object.freeze({ r: 0.08, g: 0.07, b: 0.10 }), // near-black fissure
   water:    Object.freeze({ r: 0.74, g: 0.93, b: 1.00 }), // bright meltwater cyan-white
   river:    Object.freeze({ r: 0.43, g: 0.72, b: 0.86 }), // glacial runoff blue
@@ -186,8 +186,8 @@ function _buildMtnPeak(i, count, ring, opts) {
     if (facing >= 0) {
       // Dawn-lit slope. Snow gets the gold kiss; rock gets warm dawn light.
       col = aboveSnow
-        ? _mtnLerp(baseCol, _MTN_DAWN.snowLit, facing * 0.7)
-        : _mtnLerp(baseCol, _MTN_DAWN.lit,     facing * 0.7);
+        ? _mtnLerp(baseCol, _MTN_DAWN.snowLit, facing * 0.5)  // v0.2.474: 0.7 -> 0.5
+        : _mtnLerp(baseCol, _MTN_DAWN.lit,     facing * 0.6);  // v0.2.474: 0.7 -> 0.6
     } else {
       // Shadowed slope — pulled toward cool shadowed rock.
       col = _mtnLerp(baseCol, _MTN_DAWN.base, -facing * 0.5);

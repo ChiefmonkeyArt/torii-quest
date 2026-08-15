@@ -328,6 +328,12 @@ export function tickPlayerModel(dt, isShooting, isReloading, isJumping) {
 
   _setMirror(right && !fwd && !back); // mirror strafe-left clip for right strafe
 
+  // Standing fire: peers already read as 'firing in place' because their shoot
+  // one-shot (Run_Forward_Firing, in-place since the root-motion strip)
+  // overrides idle. Play the SAME clip here so your own mirror reflection shows
+  // you firing when stationary, instead of plain IDLE. Precedes the !moving
+  // early-return so it wins over idle but stays below the moving branch.
+  if (isShooting && !moving)            { _play(_anims.RUN_SHOOT, true); return; }
   if (!moving)                          { _play(_anims.IDLE, true);      return; }
   // RUN_SHOOT only for forward/run movement — mirrors the MP anim-hint
   // priority so remote peers see the same clip the local player sees.

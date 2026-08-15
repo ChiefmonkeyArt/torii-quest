@@ -172,28 +172,21 @@ const _auroraMat = new THREE.ShaderMaterial({
       vec3 base = mix(mix(zenith, midCol, smoothstep(0.0, 0.5, up)),
                       horizCol, smoothstep(0.35, 0.0, up));
 
-      // Sunrise horizon glow (v0.2.469) — a wide warm orange/bronze BAND
-      // stretching horizontally behind the mountains, centered on the sun's
-      // azimuth but much wider than the sun disc (covers ~50% of the world).
-      // The old v0.2.468 used pow(sunAngle, 2.0) which created a cone around
-      // the sun direction — that read as a second sun. This version separates
-      // the HORIZONTAL spread (azimuth angle to sun, wide) from the VERTICAL
-      // shape (horizon band, taller than before) so it reads as atmosphere
-      // behind the peaks, not a glowing orb.
-      vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));    // sun azimuth (flat, no y)
-      vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));    // view dir flattened to horizon
-      float horizAng   = dot(dirH, sunDirH);                   // 1.0 = facing sun, -1.0 = opposite
-      // pow(horizAng, 1.5) gives a wide horizontal spread: at 60deg from sun
-      // it's still ~0.4, covering ~50% of the dome. Clamped to front hemisphere.
-      float glowSpread = pow(max(0.0, horizAng), 1.5);
-      // Vertical shape: taller band sitting behind the mountains (up ~0.05-0.35)
-      float glowShape  = exp(-pow((up - 0.12) / 0.28, 2.0));    // wider vertically (was 0.20)
-      // Organic texture so it's not a flat gradient
-      float glowFbm    = fbm(vec2(dir.x * 2.0 + t * 0.015, dir.z * 2.0 - t * 0.012));
-      // Warm orange -> bronze, brighter near sun, fading to warm haze at edges
-      vec3  warmGlow   = mix(vec3(0.98, 0.50, 0.18), vec3(0.92, 0.60, 0.32),
-                            glowSpread);                        // hotter near sun
-      base += warmGlow * glowSpread * glowShape * glowFbm * 0.55;
+      // Sunrise horizon glow (v0.2.470) — smooth warm BAND behind mountains.
+      // v0.2.469 still read as two suns because fbm noise created a bright
+      // hotspot inside the band, and the sun disc core was still white.
+      // Fix: (1) NO fbm inside the glow, just a smooth gradient. (2) The sun
+      // core is now saturated orange (below), matching the glow color so
+      // they read as one continuous warm atmosphere, not two objects.
+      vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));
+      vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));
+      float horizAng   = dot(dirH, sunDirH);
+      float glowSpread = pow(max(0.0, horizAng), 1.2);           // wider than 1.5, softer falloff
+      float glowShape  = exp(-pow((up - 0.10) / 0.24, 2.0));     // hugs horizon, taller
+      // Uniform warm orange across the whole band — same hue as the sun core,
+      // so the sun and its glow blend into one continuous mass.
+      vec3  warmGlow   = vec3(0.98, 0.52, 0.22);                 // single warm orange
+      base += warmGlow * glowSpread * glowShape * 0.55;
 
       // Atmospheric band 2 — soft lilac/mauve mid-sky
       float w2a = sin(dir.x * 4.0 - dir.z * 1.5 - t * 0.18 + 1.57) * 0.5 + 0.5;
@@ -254,12 +247,17 @@ const _auroraMat = new THREE.ShaderMaterial({
       // clamped to white under bloom and flushed the whole dome. The core now
       // uses mix() so it saturates toward deep orange instead of white, and the
       // dome-wide pow(sunAngle, 2.0) flush is gone entirely.
-      vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45)); // east, right on the ridgeline
+      vec3 sunDir    = normalize(vec3(0.85, 0.18, -0.45));
       float sunAngle = max(0.0, dot(dir, sunDir));
-      float sunDisc  = pow(sunAngle, 40.0);                 // wider, bigger disc (was 90)
-      base = mix(base, vec3(1.0, 0.50, 0.18), sunDisc * 0.8); // deep-orange core, no white clamp
-      base += vec3(1.0, 0.40, 0.12) * pow(sunAngle, 8.0) * 0.25;  // inner corona (v0.2.467: 0.4 -> 0.25)
-      base += vec3(0.95, 0.35, 0.10) * pow(sunAngle, 4.0) * 0.10; // wide glow (v0.2.468: 0.06 -> 0.10, emanate warmth
+      float sunDisc  = pow(sunAngle, 40.0);
+      // v0.2.470: full replacement at the core so the sun is unambiguously
+      // orange, not white. No additive layers on top of the disc — the horizon
+      // glow above already provides the surrounding warmth.
+      base = mix(base, vec3(1.0, 0.48, 0.15), sunDisc);
+      // Corona: only contributes AWAY from the disc (sunAngle^8 minus disc)
+      // so it can't push the core past 1.0 and clamp to white.
+      float coronaOnly = max(0.0, pow(sunAngle, 8.0) - sunDisc);
+      base += vec3(1.0, 0.42, 0.14) * coronaOnly * 0.35;
 
       // Japanese rising-sun rays (v0.2.466) — alternating warm beams fanning out
       // of the disc. Basis built with cross products around sunDir (not raw world

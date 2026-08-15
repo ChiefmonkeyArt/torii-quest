@@ -7,7 +7,7 @@ import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
-import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
+import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -38,7 +38,7 @@ const CHARACTERS = {
     anims: {
       IDLE:       'Stylish_Walk_inplace',      // best available idle substitute
       WALK:       'Walking',
-      WALK_BACK:  'Walk_Backward',              // from animation library
+      WALK_BACK:  'Walk_Turn_Left',             // nostrich3.glb clip (no Walk_Backward in this GLB)
       WALK_LEFT:  'Crouch_Walk_Left_with_Gun_inplace',
       RUN:        'Running',
       RUN_SHOOT:  'Run_and_Shoot',
@@ -89,22 +89,32 @@ export async function loadPlayerModel(parentObj) {
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
   try {
-    const [gltf, libraryClips] = await Promise.all([
-      _loader.loadAsync(assetUrl(char.file)),
-      loadAnimationLibrary(_loader),
-    ]);
+    const gltf = await _loader.loadAsync(assetUrl(char.file));
     _root = gltf.scene;
 
-    // Scale to TARGET_HEIGHT using geometry-only bounds (Box3.setFromObject includes
-    // bone hierarchy which gives wildly wrong measurements on SkinnedMesh).
+    // Compute geometry bounding box across both Y and Z axes.
+    // Some GLBs (e.g. animation-library.glb) are Z-up — the character lies
+    // along the Z axis instead of Y.  We detect this and apply a +90° X
+    // rotation to stand the character upright.
     let gMinY = Infinity, gMaxY = -Infinity;
+    let gMinZ = Infinity, gMaxZ = -Infinity;
     _root.traverse(o => {
       if (o.isMesh && o.geometry) {
         o.geometry.computeBoundingBox();
         const b = o.geometry.boundingBox;
-        if (b) { gMinY = Math.min(gMinY, b.min.y); gMaxY = Math.max(gMaxY, b.max.y); }
+        if (b) {
+          gMinY = Math.min(gMinY, b.min.y); gMaxY = Math.max(gMaxY, b.max.y);
+          gMinZ = Math.min(gMinZ, b.min.z); gMaxZ = Math.max(gMaxZ, b.max.z);
+        }
       }
     });
+    // Z-up detection: Z range significantly exceeds Y range.
+    const isZUp = (gMaxZ - gMinZ) > (gMaxY - gMinY) * 1.2;
+    if (isZUp) {
+      _root.rotation.x = Math.PI / 2;   // +90° X: (x,y,z) → (x,-z,y)
+      // After rotation the old Z range becomes the new Y range (negated).
+      gMinY = -gMaxZ;
+    }
     const geoH = (gMinY < gMaxY) ? (gMaxY - gMinY) : 1;
     // v0.2.100: the chiefmonkey GLB is already authored at metre scale (like the
     // bot model, which renders correctly at 1.0). Auto-scaling to TARGET_HEIGHT
@@ -167,6 +177,9 @@ export async function loadPlayerModel(parentObj) {
     if (_rh) setRightHandBone(_rh);
     else console.warn('[playerModel] RightHand bone not found — world gun will not attach');
 
+    // Use character's own clips (no separate library load — chiefmonkey
+    // already uses animation-library.glb as its mesh file, so its clips
+    // are in the correct coordinate system).
     _mixer = new THREE.AnimationMixer(_root);
     _clips = {};
     _actions = {};
@@ -179,30 +192,32 @@ export async function loadPlayerModel(parentObj) {
       stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
       availableClips.set(stripped.name, stripped);
     });
-    // Shared library clips take priority; embedded character clips remain
-    // available as fallbacks for logical states that the library does not provide.
-    libraryClips.forEach((clip, name) => availableClips.set(name, clip));
     availableClips.forEach((clip, name) => {
       _clips[name] = clip;
       const a = _mixer.clipAction(clip);
       a.clampWhenFinished = true;
       _actions[name] = a;
     });
-    // Resolve _anims: library clip names take priority, then character fallbacks.
+    // Resolve _anims: for chiefmonkey, GAME_STATE_TO_CLIP provides the
+    // canonical mapping (clips are in the character GLB). For other
+    // characters (e.g. nostrich), use their own char.anims mapping.
     _anims = {};
-    for (const stateName of new Set([
-      ...Object.keys(char.anims),
-      ...Object.keys(GAME_STATE_TO_CLIP),
-    ])) {
-      const libraryName = GAME_STATE_TO_CLIP[stateName];
-      _anims[stateName] = (libraryName && libraryClips.has(libraryName))
-        ? libraryName
-        : char.anims[stateName] || null;
+    if (_charKey === 'chiefmonkey') {
+      for (const stateName of new Set([
+        ...Object.keys(char.anims),
+        ...Object.keys(GAME_STATE_TO_CLIP),
+      ])) {
+        const libName = GAME_STATE_TO_CLIP[stateName];
+        _anims[stateName] = (libName && availableClips.has(libName))
+          ? libName
+          : char.anims[stateName] || null;
+      }
+      _anims.WALK_LEFT = GAME_STATE_TO_CLIP.STRAFE_LEFT || char.anims.WALK_LEFT;
+    } else {
+      for (const [stateName, clipName] of Object.entries(char.anims)) {
+        _anims[stateName] = (clipName && availableClips.has(clipName)) ? clipName : null;
+      }
     }
-    // The state machine calls this slot WALK_LEFT; use the library's strafe clip.
-    _anims.WALK_LEFT = libraryClips.has(GAME_STATE_TO_CLIP.STRAFE_LEFT)
-      ? GAME_STATE_TO_CLIP.STRAFE_LEFT
-      : char.anims.WALK_LEFT;
 
     _current = null;
     _play(_anims.IDLE, true);

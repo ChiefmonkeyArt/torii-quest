@@ -442,6 +442,7 @@ const _godRayMat = new THREE.ShaderMaterial({
   `,
   transparent: true,
   depthWrite: false,
+  side: THREE.DoubleSide,
   blending: THREE.AdditiveBlending,
   fog: false,
 });

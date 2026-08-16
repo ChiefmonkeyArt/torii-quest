@@ -68,89 +68,58 @@ function _mtnFaceShade(base, nxAvg) {
 let _waterfallMesh = null;
 const _riverMeshes = [];
 
-// _buildMtnPeak(i, count, ring, opts) — generate a SUBDIVIDED 3D mountain.
-// Concentric rings of vertices from base to apex, each displaced by fractal noise,
-// so ridgelines read craggy and faces catch real per-face dawn shading. Adds
-// valleys (low dips), crevices (dark vertical fissures) and selective snow caps.
-// v0.2.482: Now outputs per-vertex AO (aAo) for the shader, slope-based rock color,
-// 2D noisy snow line, and crevice-snow coupling.
+// _buildMtnPeak(i, count, ring, opts) — generate a SMOOTH 3D mountain.
+// v0.2.493: Indexed shared-vertex geometry (was triangle soup). 3× resolution
+// (32 segs × 12 levels vs 12×6) with smooth fBM radial noise and
+// computeVertexNormals() for Gouraud shading. Applies the Three.js terrain
+// technique: dense grid + multi-octave noise + recomputed shared normals.
+// Keeps existing ShaderMaterial, colors, snow, AO — just feeds it smoother data.
 // opts: { isSnow, valley, crevices:[{angle,halfWidth}], waterfall }.
-// Returns { verts, colors, ao, meta } where meta carries position/size for waterfalls.
+// Returns { positions, colors, ao, indices, meta }.
 function _buildMtnPeak(i, count, ring, opts) {
   const { isSnow, valley, crevices } = opts;
-  // Deterministic pseudo-random per peak (stable across reloads, no texture).
   const seed = i * 12.9898 + ring.dist * 0.1;
   const rnd = (o) => {
     const s = Math.sin(seed + o * 78.233) * 43758.5453;
     return s - Math.floor(s);
   };
-  // Angular position around the arena (full ring of mountains).
   const ang = (i / count) * Math.PI * 2 + ring.dist * 0.03;
   const cx = Math.cos(ang) * ring.dist;
   const cz = Math.sin(ang) * ring.dist;
 
   const hVar = ring.hMin + rnd(1) * (ring.hMax - ring.hMin);
   let h = hVar * (1 + (rnd(2) - 0.5) * ring.jag);
-  // Valleys: short, broad, gentle dips in the silhouette.
-  if (valley) h *= 0.28 + rnd(7) * 0.12; // ~28-40% height = a low pass between peaks
+  if (valley) h *= 0.28 + rnd(7) * 0.12;
 
-  // Steeper for alpine (reads as more detail + drama), broader for foothills/valleys.
   let rad;
-  if (valley)               rad = h * (1.8 + rnd(3) * 0.6);          // broad low dome
-  else if (ring.jag < 0.4)  rad = h * (1.00 + rnd(3) * 0.50) * 1.30; // broad rounded foothills
-  else if (ring.jag < 0.7)  rad = h * (0.65 + rnd(3) * 0.35);         // mid transitional
-  else                      rad = h * (0.45 + rnd(3) * 0.35);         // steep jagged alpine
-  // HARD safety clamp: base foot never enters the NAP zone (extends to NAP_FAR_X
-  // on the east side) — keeps mountains clear of the playfield + travel gateway.
+  if (valley)               rad = h * (1.8 + rnd(3) * 0.6);
+  else if (ring.jag < 0.4)  rad = h * (1.00 + rnd(3) * 0.50) * 1.30;
+  else if (ring.jag < 0.7)  rad = h * (0.65 + rnd(3) * 0.35);
+  else                      rad = h * (0.45 + rnd(3) * 0.35);
   rad = Math.min(rad, ring.dist - NAP_FAR_X - 6);
 
-  // More facets + vertical subdivisions than a flat fan = craggier silhouettes.
-  const segs   = valley ? 9 : (ring.jag < 0.4 ? 10 : (ring.jag < 0.7 ? 11 : 12));
-  const levels = valley ? 3 : (ring.jag < 0.4 ? 4  : (ring.jag < 0.7 ? 5  : 6));
+  // v0.2.493: 3× resolution for smooth Gouraud shading (was 9-12 segs, 3-6 levels)
+  const segs   = valley ? 24 : (ring.jag < 0.4 ? 28 : (ring.jag < 0.7 ? 30 : 32));
+  const levels = valley ? 8  : (ring.jag < 0.4 ? 10 : (ring.jag < 0.7 ? 11 : 12));
 
   const hasSnow  = isSnow;
   const snowLine = hasSnow ? h * (0.50 + rnd(4) * 0.18) : Infinity;
-
-  // Asymmetric apex offset so ridgelines aren't perfectly centred.
   const apexDX = (rnd(5) - 0.5) * rad * 0.30 * ring.jag;
   const apexDZ = (rnd(6) - 0.5) * rad * 0.30 * ring.jag;
-
-  // Build concentric vertex rings from base (L=0) up to just below the apex.
-  const rings = [];
-  for (let L = 0; L < levels; L++) {
-    const t = L / levels;                                  // 0 base -> ~1 near apex
-    const y = t * h;
-    // Foothills/valleys round off (cosine); alpine taper sharper near the top.
-    const shrink = (valley || ring.jag < 0.4)
-      ? Math.cos(t * Math.PI * 0.5)
-      : Math.pow(1 - t, 0.85);
-    const rBase = rad * shrink;
-    const row = [];
-    for (let s = 0; s < segs; s++) {
-      const a = (s / segs) * Math.PI * 2;
-      // Per-vertex fractal cragginess — radial noise, stronger aloft on alpine.
-      const ns = Math.sin(seed + L * 3.137 + s * 7.777) * 43758.5453;
-      const nv = ns - Math.floor(ns);
-      const crag = 1 + (nv - 0.5) * ring.jag * 0.55 * (0.35 + t * 0.65);
-      const rr = rBase * crag;
-      row.push([
-        cx + Math.cos(a) * rr + apexDX * t,
-        y,
-        cz + Math.sin(a) * rr + apexDZ * t,
-      ]);
-    }
-    rings.push(row);
-  }
-  const apex = [cx + apexDX, h, cz + apexDZ];
-
-  const verts = [];
-  const colors = [];
-  const aoArr = []; // v0.2.482: per-vertex AO for shader
   const sun = _MTN_DAWN.sunDir;
 
-  // creviceFactor(segAngle, levelT) — 0..1 depth of a vertical fissure at this
-  // angular position. Crevices are angular bands darkening all levels below the
-  // apex, so they read as dark vertical cracks running down the face.
+  // v0.2.493: Smooth multi-octave angular noise for flowing ridgelines.
+  // Replaces per-vertex pseudo-random hash that created jittery edges at
+  // higher resolution. 4 octaves of sine at increasing frequency.
+  function fbmAngle(angle, t) {
+    let v = 0, a = 0.5;
+    for (let oct = 0; oct < 4; oct++) {
+      v += a * Math.sin(angle * (3 + oct * 4) + seed + t * 2.0);
+      a *= 0.5;
+    }
+    return v; // ~-1..1
+  }
+
   function creviceFactor(a, t) {
     let f = 0;
     if (crevices) {
@@ -158,7 +127,7 @@ function _buildMtnPeak(i, count, ring, opts) {
         let d = Math.abs(((a - c.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
         if (d < c.halfWidth) {
           const band = 1 - d / c.halfWidth;
-          const heightFade = Math.max(0, 1 - t * 1.4); // fissures fade out near the apex
+          const heightFade = Math.max(0, 1 - t * 1.4);
           f = Math.max(f, band * heightFade);
         }
       }
@@ -166,36 +135,25 @@ function _buildMtnPeak(i, count, ring, opts) {
     return f;
   }
 
-  // pushTri — emit one triangle, shaded by its REAL face normal vs the dawn sun,
-  // with snow applied by elevation and crevices cut dark. v0.2.482: adds AO,
-  // slope-based rock color, 2D noisy snow line, and crevice-snow coupling.
-  function pushTri(p0, p1, p2, crv) {
-    _mtnN1.set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
-    _mtnN2.set(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]);
-    _mtnNr.crossVectors(_mtnN1, _mtnN2).normalize();
-    const facing = _mtnNr.x * sun.x + _mtnNr.y * sun.y + _mtnNr.z * sun.z; // -1..1
-    const yAvg = (p0[1] + p1[1] + p2[1]) / 3;
+  // v0.2.493: Per-vertex color (was per-triangle). Computes facing from
+  // radial direction instead of face normal, since normals aren't available
+  // until after computeVertexNormals().
+  function vertexColor(x, y, z, a, t, crv) {
+    const dx = x - (cx + apexDX * t);
+    const dz = z - (cz + apexDZ * t);
+    const rLen = Math.sqrt(dx * dx + dz * dz) || 1;
+    const nxAvg = dx / rLen;
+    const nzAvg = dz / rLen;
+    const facing = nxAvg * sun.x + nzAvg * sun.z;
 
-    // v0.2.482: Per-triangle AO from crevice depth, slope, and valley position.
-    // Stored as vertex attribute for the shader to modulate lighting + snow.
-    const slope = 1 - Math.abs(_mtnNr.y);                    // 0 flat → 1 vertical
-    const valleyAO = yAvg < h * 0.15 ? 0.30 : 0;              // darken valley floors
-    const slopeAO = slope > 0.7 ? (slope - 0.7) * 0.15 : 0;  // darken overhangs/crevice walls
-    const ao = Math.max(0.15, 1 - crv * 0.55 - valleyAO - slopeAO);
-
-    // v0.2.482: 2D noisy snow line — varies by height AND angular position of
-    // the face normal, so snow rambles instead of forming a horizontal band.
-    // Leeward faces (away from sun) get snow lower; sun-facing faces hold it higher.
-    const faceAngle = Math.atan2(_mtnNr.z, _mtnNr.x);
+    const faceAngle = Math.atan2(nzAvg, nxAvg);
     const snowWobble = 0.12 * Math.sin(seed * 2.1 + faceAngle * 3.7);
-    const leewardBias = (_mtnNr.x * sun.x + _mtnNr.z * sun.z) < 0 ? -0.06 : 0.05;
+    const leewardBias = (nxAvg * sun.x + nzAvg * sun.z) < 0 ? -0.06 : 0.05;
     const snowEdge = hasSnow ? snowLine * (0.88 + snowWobble + leewardBias) : Infinity;
-    const aboveSnow = yAvg > snowEdge;
+    const aboveSnow = y > snowEdge;
 
-    // v0.2.482: Crevice-snow coupling — crevices catch snow up high (where snow
-    // falls in), stay shadowed down low. Makes snow look settled, not painted.
-    const creviceSnow = hasSnow && crv > 0.25 && yAvg > h * 0.45
-      ? Math.min(0.55, crv * (yAvg - h * 0.45) / (h * 0.3))
+    const creviceSnow = hasSnow && crv > 0.25 && y > h * 0.45
+      ? Math.min(0.55, crv * (y - h * 0.45) / (h * 0.3))
       : 0;
 
     let baseCol;
@@ -206,56 +164,96 @@ function _buildMtnPeak(i, count, ring, opts) {
     } else if (ring.jag < 0.4) {
       baseCol = _MTN_DAWN.foothill;
     } else {
-      // v0.2.482: Slope-based rock color — steep faces darker/weathered,
-      // gentle faces lighter talus. Previously only varied by height.
-      const rockBase = yAvg > h * 0.5
+      const rockBase = y > h * 0.5
         ? _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothill, 0.25)
         : _MTN_DAWN.base;
-      baseCol = _mtnLerp(rockBase, _MTN_DAWN.crevice, slope * 0.12);
+      const slopeApprox = t < 0.15 ? 0.3 : 0.6;
+      baseCol = _mtnLerp(rockBase, _MTN_DAWN.crevice, slopeApprox * 0.12);
     }
+
     let col;
     if (facing >= 0) {
-      // Dawn-lit slope. Snow gets the gold kiss; rock gets warm dawn light.
       col = aboveSnow
-        ? _mtnLerp(baseCol, _MTN_DAWN.snowLit, facing * 0.5)  // v0.2.474: 0.7 -> 0.5
-        : _mtnLerp(baseCol, _MTN_DAWN.lit,     facing * 0.6);  // v0.2.474: 0.7 -> 0.6
+        ? _mtnLerp(baseCol, _MTN_DAWN.snowLit, facing * 0.5)
+        : _mtnLerp(baseCol, _MTN_DAWN.lit,     facing * 0.6);
     } else {
-      // Shadowed slope — pulled toward cool shadowed rock.
       col = _mtnLerp(baseCol, _MTN_DAWN.base, -facing * 0.5);
     }
-    // Crevices cut dark (existing) unless they catch snow up high.
     if (crv > 0 && creviceSnow < 0.3) {
       col = _mtnLerp(col, _MTN_DAWN.crevice, crv * 0.85);
     } else if (creviceSnow > 0) {
       col = _mtnLerp(col, _MTN_DAWN.snow, creviceSnow * 0.35);
     }
-    verts.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
-    for (let v = 0; v < 3; v++) {
+    return col;
+  }
+
+  // v0.2.493: Per-vertex AO (was per-triangle slope/valley AO)
+  function vertexAO(y, t, crv) {
+    const valleyAO = y < h * 0.15 ? 0.30 : 0;
+    const slopeAO = t > 0.3 ? (t - 0.3) * 0.10 : 0;
+    return Math.max(0.15, 1 - crv * 0.55 - valleyAO - slopeAO);
+  }
+
+  // Build shared vertex grid: levels rows × segs columns + 1 apex vertex.
+  // Vertex index = L * segs + s for L < levels; apex index = levels * segs.
+  const positions = [];
+  const colors = [];
+  const aoArr = [];
+  const indices = [];
+
+  for (let L = 0; L <= levels; L++) {
+    const t = L / levels;
+    const y = t * h;
+    const shrink = (valley || ring.jag < 0.4)
+      ? Math.cos(t * Math.PI * 0.5)
+      : Math.pow(1 - t, 0.85);
+    const rBase = rad * shrink;
+
+    if (L === levels) {
+      // Apex — single shared vertex
+      const ax = cx + apexDX, ay = h, az = cz + apexDZ;
+      positions.push(ax, ay, az);
+      const crv = creviceFactor(0, 1);
+      const col = vertexColor(ax, ay, az, 0, 1, crv);
       colors.push(col.r, col.g, col.b);
-      aoArr.push(ao);
+      aoArr.push(vertexAO(ay, 1, crv));
+    } else {
+      for (let s = 0; s < segs; s++) {
+        const a = (s / segs) * Math.PI * 2;
+        const crag = 1 + fbmAngle(a, t) * ring.jag * 0.55 * (0.35 + t * 0.65);
+        const rr = rBase * crag;
+        const px = cx + Math.cos(a) * rr + apexDX * t;
+        const py = y;
+        const pz = cz + Math.sin(a) * rr + apexDZ * t;
+        positions.push(px, py, pz);
+        const crv = creviceFactor(a, t);
+        const col = vertexColor(px, py, pz, a, t, crv);
+        colors.push(col.r, col.g, col.b);
+        aoArr.push(vertexAO(py, t, crv));
+      }
     }
   }
 
-  // Side faces between consecutive rings (two tris per quad).
-  for (let L = 0; L < rings.length - 1; L++) {
-    const a = rings[L], b = rings[L + 1];
-    const tMid = (L + 0.5) / levels;
+  const apexIdx = levels * segs;
+
+  // Index buffer: side faces between consecutive levels
+  for (let L = 0; L < levels; L++) {
     for (let s = 0; s < segs; s++) {
       const s2 = (s + 1) % segs;
-      const angMid = ((s + 0.5) / segs) * Math.PI * 2;
-      const crv = creviceFactor(angMid, tMid);
-      pushTri(a[s], a[s2], b[s], crv);
-      pushTri(a[s2], b[s2], b[s], crv);
+      const v00 = L * segs + s;
+      const v01 = L * segs + s2;
+      if (L + 1 === levels) {
+        indices.push(v00, v01, apexIdx);
+      } else {
+        const v10 = (L + 1) * segs + s;
+        const v11 = (L + 1) * segs + s2;
+        indices.push(v00, v01, v11);
+        indices.push(v00, v11, v10);
+      }
     }
   }
-  // Top ring -> apex fan (closes the peak). Crevices taper off here.
-  const top = rings[rings.length - 1];
-  for (let s = 0; s < segs; s++) {
-    const s2 = (s + 1) % segs;
-    const angMid = ((s + 0.5) / segs) * Math.PI * 2;
-    pushTri(top[s], top[s2], apex, creviceFactor(angMid, 1));
-  }
-  return { verts, colors, ao: aoArr, meta: { cx, cz, h, ang, rad, waterfall: opts.waterfall } };
+
+  return { positions, colors, ao: aoArr, indices, meta: { cx, cz, h, ang, rad, waterfall: opts.waterfall } };
 }
 
 // ── Mountain ShaderMaterial (v0.2.482) ──────────────────────────────────────
@@ -413,9 +411,11 @@ function _buildMountains() {
   const wfMetas = []; // peaks flagged for a waterfall
   let ringIdx = 0;
   for (const ring of _MTN_DAWN.rings) {
-    const allV = [];
+    const allP = [];
     const allC = [];
     const allA = []; // v0.2.482: AO values
+    const allI = []; // v0.2.493: index buffer for shared-vertex geometry
+    let vertOffset = 0;
     // Designate snow-cap peaks: spread `snowCaps` indices around the ring.
     const snowIdx = new Set();
     for (let k = 0; k < ring.snowCaps; k++) {
@@ -446,15 +446,18 @@ function _buildMountains() {
         crevices,
         waterfall: wfIdx.has(i),
       });
-      allV.push(...p.verts);
+      allP.push(...p.positions);
       allC.push(...p.colors);
       allA.push(...p.ao);
+      for (let k = 0; k < p.indices.length; k++) allI.push(p.indices[k] + vertOffset);
+      vertOffset += p.positions.length / 3;
       if (p.meta.waterfall) wfMetas.push(p.meta);
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(allV, 3));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(allP, 3));
     geo.setAttribute('color',    new THREE.Float32BufferAttribute(allC, 3));
-    geo.setAttribute('aAo',      new THREE.Float32BufferAttribute(allA, 1)); // v0.2.482: AO attribute
+    geo.setAttribute('aAo',      new THREE.Float32BufferAttribute(allA, 1));
+    geo.setIndex(allI); // v0.2.493: indexed geometry for smooth normals
     // Per-vertex haze blend toward warm dawn colour by elevation: peaks catch more
     // haze aloft, bases stay grounded. Done via vertex colour (zero shader cost).
     // v0.2.482: Far ring desaturates harder toward sky color (Firewatch depth cue).
@@ -479,7 +482,7 @@ function _buildMountains() {
       colAttr.setXYZ(k, r, g, b);
     }
     colAttr.needsUpdate = true;
-    geo.computeVertexNormals();
+    geo.computeVertexNormals(); // v0.2.493: smooth Gouraud normals on shared vertices
     // v0.2.482: Custom ShaderMaterial replaces MeshBasicMaterial.
     // Unlocks Fresnel rim, procedural rock noise, altitude tint, AO.
     const mat = _createMountainMaterial(ringIdx);

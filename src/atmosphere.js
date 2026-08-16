@@ -1,6 +1,6 @@
-// atmosphere.js — Torii Quest atmospheric layer.
-// Mountains, instanced tree billboards, drifting ground mist, birds.
-// All pure geometry — zero textures, zero extra file downloads.
+// atmosphere.js — Torii Quest atmospheric layer (v0.2.482 mountain shader upgrade).
+// Mountains (custom ShaderMaterial + procedural detail), instanced boulders,
+// drifting ground mist, birds. All pure geometry — zero textures, zero downloads.
 // Exported: initAtmosphere(), tickAtmosphere(dt)
 import * as THREE from 'three';
 import { scene } from './scene.js';
@@ -12,15 +12,22 @@ const _mtnN1 = new THREE.Vector3();
 const _mtnN2 = new THREE.Vector3();
 const _mtnNr = new THREE.Vector3();
 
-// ── 1. Distant mountain range (v0.2.250) ───────────────────────────────────
+// ── 1. Distant mountain range (v0.2.250, v0.2.482 shader upgrade) ──────────
 // Layered 3D range: rounded dawn foothills in the near ring, jagged snow-capped
 // alpine peaks in the far ring, fading into warm dawn haze. Real pyramidal geometry
 // (not flat billboards) with face-based shading so lit slopes read as solid form.
 // One BufferGeometry per ring = 3 draw calls total, zero textures, zero downloads.
 //
-// Dawn alpine palette: sun-low warm light on east-facing slopes, cool shadow on
-// west faces, peach haze aloft, gold kiss on the highest snow. Matches the
-// Bitcoin/nostrich gold accent without importing any asset.
+// v0.2.482: Upgraded from MeshBasicMaterial to a custom ShaderMaterial that adds:
+//   - Fresnel rim lighting (Journey-style edge glow catching dawn light)
+//   - Procedural triplanar fbm noise for rock grain (zero textures, zero downloads)
+//   - Normal perturbation per-fragment for surface detail on flat faces
+//   - Altitude-based atmospheric tint (cool low, warm high)
+//   - Per-vertex AO from crevice/valley/slope (shader modulates lighting + snow)
+//   - Distance LOD (reduced noise detail on mid/far rings)
+//   - Proper FogExp2 integration via Three.js fog chunks
+//   - Luma cap below bloom threshold (0.86)
+// Research: notes/mountain-research.md §6.3, §3.4, §3.3
 const _MTN_DAWN = Object.freeze({
   // 3 rings: near (rounded foothills), mid (transitional), far (jagged alpine).
   // snowCaps = exact number of snow-capped peaks in that ring (user: "just a few, ~3").
@@ -61,12 +68,14 @@ function _mtnFaceShade(base, nxAvg) {
 let _waterfallMesh = null;
 const _riverMeshes = [];
 
-// _buildMtnPeak(i, count, ring, opts) — generate a SUBDIVIDED 3D mountain (v0.2.250).
+// _buildMtnPeak(i, count, ring, opts) — generate a SUBDIVIDED 3D mountain.
 // Concentric rings of vertices from base to apex, each displaced by fractal noise,
 // so ridgelines read craggy and faces catch real per-face dawn shading. Adds
 // valleys (low dips), crevices (dark vertical fissures) and selective snow caps.
+// v0.2.482: Now outputs per-vertex AO (aAo) for the shader, slope-based rock color,
+// 2D noisy snow line, and crevice-snow coupling.
 // opts: { isSnow, valley, crevices:[{angle,halfWidth}], waterfall }.
-// Returns { verts, colors, meta } where meta carries position/size for waterfalls.
+// Returns { verts, colors, ao, meta } where meta carries position/size for waterfalls.
 function _buildMtnPeak(i, count, ring, opts) {
   const { isSnow, valley, crevices } = opts;
   // Deterministic pseudo-random per peak (stable across reloads, no texture).
@@ -136,6 +145,7 @@ function _buildMtnPeak(i, count, ring, opts) {
 
   const verts = [];
   const colors = [];
+  const aoArr = []; // v0.2.482: per-vertex AO for shader
   const sun = _MTN_DAWN.sunDir;
 
   // creviceFactor(segAngle, levelT) — 0..1 depth of a vertical fissure at this
@@ -157,30 +167,51 @@ function _buildMtnPeak(i, count, ring, opts) {
   }
 
   // pushTri — emit one triangle, shaded by its REAL face normal vs the dawn sun,
-  // with snow applied by elevation and crevices cut dark. Reuses module-scratch
-  // vectors (no allocs).
+  // with snow applied by elevation and crevices cut dark. v0.2.482: adds AO,
+  // slope-based rock color, 2D noisy snow line, and crevice-snow coupling.
   function pushTri(p0, p1, p2, crv) {
     _mtnN1.set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]);
     _mtnN2.set(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]);
     _mtnNr.crossVectors(_mtnN1, _mtnN2).normalize();
     const facing = _mtnNr.x * sun.x + _mtnNr.y * sun.y + _mtnNr.z * sun.z; // -1..1
     const yAvg = (p0[1] + p1[1] + p2[1]) / 3;
-    // Noisy snow boundary so the line isn't a perfect horizontal ring.
-    const snowEdge = snowLine * (0.88 + 0.12 * ((Math.sin(seed + yAvg * 1.7) * 43758.5453) % 1 + 1) * 0.5);
-    const aboveSnow = hasSnow && yAvg > snowEdge;
+
+    // v0.2.482: Per-triangle AO from crevice depth, slope, and valley position.
+    // Stored as vertex attribute for the shader to modulate lighting + snow.
+    const slope = 1 - Math.abs(_mtnNr.y);                    // 0 flat → 1 vertical
+    const valleyAO = yAvg < h * 0.15 ? 0.30 : 0;              // darken valley floors
+    const slopeAO = slope > 0.7 ? (slope - 0.7) * 0.15 : 0;  // darken overhangs/crevice walls
+    const ao = Math.max(0.15, 1 - crv * 0.55 - valleyAO - slopeAO);
+
+    // v0.2.482: 2D noisy snow line — varies by height AND angular position of
+    // the face normal, so snow rambles instead of forming a horizontal band.
+    // Leeward faces (away from sun) get snow lower; sun-facing faces hold it higher.
+    const faceAngle = Math.atan2(_mtnNr.z, _mtnNr.x);
+    const snowWobble = 0.12 * Math.sin(seed * 2.1 + faceAngle * 3.7);
+    const leewardBias = (_mtnNr.x * sun.x + _mtnNr.z * sun.z) < 0 ? -0.06 : 0.05;
+    const snowEdge = hasSnow ? snowLine * (0.88 + snowWobble + leewardBias) : Infinity;
+    const aboveSnow = yAvg > snowEdge;
+
+    // v0.2.482: Crevice-snow coupling — crevices catch snow up high (where snow
+    // falls in), stay shadowed down low. Makes snow look settled, not painted.
+    const creviceSnow = hasSnow && crv > 0.25 && yAvg > h * 0.45
+      ? Math.min(0.55, crv * (yAvg - h * 0.45) / (h * 0.3))
+      : 0;
 
     let baseCol;
-    if (aboveSnow) {
+    if (aboveSnow || creviceSnow > 0.35) {
       baseCol = _MTN_DAWN.snow;
     } else if (valley) {
       baseCol = _MTN_DAWN.valleyFloor;
     } else if (ring.jag < 0.4) {
       baseCol = _MTN_DAWN.foothill;
     } else {
-      // Rock: cool plum near the base, blends slightly warmer higher up.
-      baseCol = yAvg > h * 0.5
+      // v0.2.482: Slope-based rock color — steep faces darker/weathered,
+      // gentle faces lighter talus. Previously only varied by height.
+      const rockBase = yAvg > h * 0.5
         ? _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothill, 0.25)
         : _MTN_DAWN.base;
+      baseCol = _mtnLerp(rockBase, _MTN_DAWN.crevice, slope * 0.12);
     }
     let col;
     if (facing >= 0) {
@@ -192,10 +223,17 @@ function _buildMtnPeak(i, count, ring, opts) {
       // Shadowed slope — pulled toward cool shadowed rock.
       col = _mtnLerp(baseCol, _MTN_DAWN.base, -facing * 0.5);
     }
-    // Crevices cut dark vertical fissures down the face.
-    if (crv > 0) col = _mtnLerp(col, _MTN_DAWN.crevice, crv * 0.85);
+    // Crevices cut dark (existing) unless they catch snow up high.
+    if (crv > 0 && creviceSnow < 0.3) {
+      col = _mtnLerp(col, _MTN_DAWN.crevice, crv * 0.85);
+    } else if (creviceSnow > 0) {
+      col = _mtnLerp(col, _MTN_DAWN.snow, creviceSnow * 0.35);
+    }
     verts.push(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2]);
-    for (let v = 0; v < 3; v++) colors.push(col.r, col.g, col.b);
+    for (let v = 0; v < 3; v++) {
+      colors.push(col.r, col.g, col.b);
+      aoArr.push(ao);
+    }
   }
 
   // Side faces between consecutive rings (two tris per quad).
@@ -217,14 +255,168 @@ function _buildMtnPeak(i, count, ring, opts) {
     const angMid = ((s + 0.5) / segs) * Math.PI * 2;
     pushTri(top[s], top[s2], apex, creviceFactor(angMid, 1));
   }
-  return { verts, colors, meta: { cx, cz, h, ang, rad, waterfall: opts.waterfall } };
+  return { verts, colors, ao: aoArr, meta: { cx, cz, h, ang, rad, waterfall: opts.waterfall } };
+}
+
+// ── Mountain ShaderMaterial (v0.2.482) ──────────────────────────────────────
+// Custom shader replacing MeshBasicMaterial. Adds:
+//   - Fresnel rim lighting (Journey-style edge glow catching dawn light)
+//   - Procedural triplanar fbm noise for rock grain (zero textures)
+//   - Normal perturbation per-fragment for surface detail on flat faces
+//   - Altitude-based atmospheric tint (cool low, warm high)
+//   - Per-vertex AO from crevice/valley/slope (shader modulates lighting + snow)
+//   - Distance LOD (reduced noise detail on mid/far rings)
+//   - Proper FogExp2 integration via Three.js fog chunks
+//   - Luma cap below bloom threshold (0.86)
+// Research: notes/mountain-research.md §6.3, §3.4, §3.3
+function _createMountainMaterial(ringIndex) {
+  const sunVec = new THREE.Vector3(_MTN_DAWN.sunDir.x, _MTN_DAWN.sunDir.y, _MTN_DAWN.sunDir.z).normalize();
+  const uniforms = THREE.UniformsUtils.merge([
+    THREE.UniformsLib.fog,
+    {
+      uSunDir:     { value: sunVec },
+      uDetailStr:  { value: ringIndex === 0 ? 0.55 : ringIndex === 1 ? 0.32 : 0.14 },
+      uRimColor:  { value: new THREE.Color(_MTN_DAWN.snowLit.r, _MTN_DAWN.snowLit.g, _MTN_DAWN.snowLit.b) },
+    },
+  ]);
+
+  return new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `
+      attribute float aAo;
+      attribute vec3 color;
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      varying vec3 vColor;
+      varying float vAo;
+      varying vec3 vViewDir;
+      #include <fog_pars_vertex>
+      void main() {
+        vColor = color;
+        vAo = aAo;
+        vec4 localPos = vec4(position, 1.0);
+        vec3 localNormal = normal;
+        #ifdef USE_INSTANCING
+          localPos = instanceMatrix * localPos;
+          localNormal = mat3(instanceMatrix) * localNormal;
+        #endif
+        vec4 worldPos = modelMatrix * localPos;
+        vWorldPos = worldPos.xyz;
+        vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
+        vViewDir = normalize(cameraPosition - worldPos.xyz);
+        vec4 mvPosition = viewMatrix * worldPos;
+        #include <fog_vertex>
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNormal;
+      varying vec3 vColor;
+      varying float vAo;
+      varying vec3 vViewDir;
+      uniform vec3 uSunDir;
+      uniform float uDetailStr;
+      uniform vec3 uRimColor;
+      #include <fog_pars_fragment>
+
+      // --- Procedural noise (hash → value noise → fbm) ---
+      float hash3(vec3 p) {
+        return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+      }
+      float noise3(vec3 p) {
+        vec3 i = floor(p);
+        vec3 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        float n000 = hash3(i);
+        float n100 = hash3(i + vec3(1.0, 0.0, 0.0));
+        float n010 = hash3(i + vec3(0.0, 1.0, 0.0));
+        float n110 = hash3(i + vec3(1.0, 1.0, 0.0));
+        float n001 = hash3(i + vec3(0.0, 0.0, 1.0));
+        float n101 = hash3(i + vec3(1.0, 0.0, 1.0));
+        float n011 = hash3(i + vec3(0.0, 1.0, 1.0));
+        float n111 = hash3(i + vec3(1.0, 1.0, 1.0));
+        float nx00 = mix(n000, n100, f.x);
+        float nx10 = mix(n010, n110, f.x);
+        float nx01 = mix(n001, n101, f.x);
+        float nx11 = mix(n011, n111, f.x);
+        float nxy0 = mix(nx00, nx10, f.y);
+        float nxy1 = mix(nx01, nx11, f.y);
+        return mix(nxy0, nxy1, f.z);
+      }
+      float fbm3(vec3 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 3; i++) {
+          v += a * noise3(p);
+          p *= 2.07;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        vec3 n = normalize(vWorldNormal);
+        n = gl_FrontFacing ? n : -n;  // DoubleSide fix
+
+        // --- Triplanar fbm noise for rock detail (2 samples per axis, 3 octaves) ---
+        vec3 blend = abs(n);
+        float bsum = max(blend.x + blend.y + blend.z, 0.0001);
+        blend /= bsum;
+        vec3 sp = vWorldPos * 0.25;
+        float rockNoise = fbm3(sp.yzx) * blend.x
+                        + fbm3(sp.xzy) * blend.y
+                        + fbm3(sp.xyz) * blend.z;
+
+        // --- Normal perturbation (cheap — offsets normal by noise gradient) ---
+        float perturb = (rockNoise - 0.5) * uDetailStr * 0.35;
+        vec3 perturbed = normalize(n + vec3(perturb, perturb * 0.25, perturb));
+
+        // --- Diffuse lighting with enhanced contrast (Journey-style) ---
+        float facing = dot(perturbed, uSunDir);
+        float diffuse = 0.42 + 0.58 * max(facing, 0.0);
+
+        // --- Base color from vertex colors (already baked with dawn shading) ---
+        vec3 base = vColor;
+
+        // --- Altitude tint: cool skylight low, warm dawn light high ---
+        float alt = clamp(vWorldPos.y / 58.0, 0.0, 1.0);
+        base *= mix(vec3(0.76, 0.77, 0.81), vec3(1.02, 0.96, 0.86), alt);
+
+        // --- Apply diffuse contrast ---
+        vec3 lit = base * diffuse;
+
+        // --- Rock grain modulation ---
+        lit *= 0.88 + 0.22 * rockNoise * uDetailStr;
+
+        // --- Fresnel rim lighting (Journey-style edge glow) ---
+        float fres = pow(1.0 - max(dot(n, vViewDir), 0.0), 3.0);
+        lit += uRimColor * fres * 0.28;
+
+        // --- AO darkening on crevices/valleys/overhangs ---
+        lit *= 0.60 + 0.40 * vAo;
+
+        // --- Luma cap below bloom threshold (0.86) ---
+        float luma = dot(lit, vec3(0.299, 0.587, 0.114));
+        if (luma > 0.80) lit *= 0.80 / luma;
+
+        gl_FragColor = vec4(lit, 1.0);
+        #include <fog_fragment>
+      }
+    `,
+    vertexColors: true,
+    fog: true,
+    side: THREE.DoubleSide,
+  });
 }
 
 function _buildMountains() {
   const wfMetas = []; // peaks flagged for a waterfall
+  let ringIdx = 0;
   for (const ring of _MTN_DAWN.rings) {
     const allV = [];
     const allC = [];
+    const allA = []; // v0.2.482: AO values
     // Designate snow-cap peaks: spread `snowCaps` indices around the ring.
     const snowIdx = new Set();
     for (let k = 0; k < ring.snowCaps; k++) {
@@ -257,39 +449,110 @@ function _buildMountains() {
       });
       allV.push(...p.verts);
       allC.push(...p.colors);
+      allA.push(...p.ao);
       if (p.meta.waterfall) wfMetas.push(p.meta);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(allV, 3));
     geo.setAttribute('color',    new THREE.Float32BufferAttribute(allC, 3));
+    geo.setAttribute('aAo',      new THREE.Float32BufferAttribute(allA, 1)); // v0.2.482: AO attribute
     // Per-vertex haze blend toward warm dawn colour by elevation: peaks catch more
     // haze aloft, bases stay grounded. Done via vertex colour (zero shader cost).
+    // v0.2.482: Far ring desaturates harder toward sky color (Firewatch depth cue).
     const haze = _MTN_DAWN.haze;
     const colAttr = geo.getAttribute('color');
     const posAttr = geo.getAttribute('position');
     const ringHMax = ring.hMax;
+    const desatAmt = ringIdx === 2 ? 0.28 : ringIdx === 1 ? 0.14 : 0.05;
+    const skyR = 0.80, skyG = 0.74, skyB = 0.70; // desaturated warm sky-grey
     for (let k = 0; k < colAttr.count; k++) {
       const y = posAttr.getY(k);
       const ht = Math.min(1, y / ringHMax);          // 0 at base → 1 at peak
       const hazeMix = ring.haze * (0.4 + ht * 0.6);  // more haze aloft
-      colAttr.setXYZ(k,
-        colAttr.getX(k) + (haze.r - colAttr.getX(k)) * hazeMix,
-        colAttr.getY(k) + (haze.g - colAttr.getY(k)) * hazeMix,
-        colAttr.getZ(k) + (haze.b - colAttr.getZ(k)) * hazeMix);
+      let r = colAttr.getX(k) + (haze.r - colAttr.getX(k)) * hazeMix;
+      let g = colAttr.getY(k) + (haze.g - colAttr.getY(k)) * hazeMix;
+      let b = colAttr.getZ(k) + (haze.b - colAttr.getZ(k)) * hazeMix;
+      // Desaturation toward sky color (stronger on far ring, by altitude)
+      const dm = desatAmt * ht;
+      r += (skyR - r) * dm;
+      g += (skyG - g) * dm;
+      b += (skyB - b) * dm;
+      colAttr.setXYZ(k, r, g, b);
     }
     colAttr.needsUpdate = true;
     geo.computeVertexNormals();
-    const mat = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      fog: true,
-      side: THREE.DoubleSide,
-    });
+    // v0.2.482: Custom ShaderMaterial replaces MeshBasicMaterial.
+    // Unlocks Fresnel rim, procedural rock noise, altitude tint, AO.
+    const mat = _createMountainMaterial(ringIdx);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
     scene.add(mesh);
+    ringIdx++;
   }
   _buildWaterfalls(wfMetas);
   _buildRivers(wfMetas);
+  _buildBoulders(); // v0.2.482: instanced procedural rocks on near ring
+}
+
+// ── Instanced boulders (v0.2.482) ────────────────────────────────────────────
+// Procedural low-poly rocks (icosahedron + noise displacement) scattered on the
+// near ring's mountain bases. One InstancedMesh = one draw call, zero textures.
+// Research: notes/mountain-research.md §1.8
+const _BOULDER_COUNT = 30;
+let _boulderMesh = null;
+
+function _buildBoulders() {
+  // Procedural rock geometry: icosahedron with noise-displaced vertices.
+  const geo = new THREE.IcosahedronGeometry(1, 1); // subdiv 1 → 80 faces
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const n = Math.sin(x * 4.3 + y * 2.7) * Math.cos(z * 3.1) * 0.25
+            + Math.sin(x * 8.1 + z * 5.3) * 0.12;
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    pos.setXYZ(i, x + (x / len) * n, y + (y / len) * n, z + (z / len) * n);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  // Vertex colors matching mountain rock palette.
+  const colArr = new Float32Array(pos.count * 3);
+  const c = _MTN_DAWN.base;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const f = Math.max(0, Math.min(1, y * 0.5 + 0.5));
+    colArr[i * 3]     = c.r * (0.65 + f * 0.55);
+    colArr[i * 3 + 1] = c.g * (0.65 + f * 0.55);
+    colArr[i * 3 + 2] = c.b * (0.65 + f * 0.55);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colArr, 3));
+  // AO attribute — all 0.7 (slightly darkened rock, no crevice/valley variation).
+  const aoArr = new Float32Array(pos.count);
+  aoArr.fill(0.7);
+  geo.setAttribute('aAo', new THREE.Float32BufferAttribute(aoArr, 1));
+
+  // Same mountain shader with near-ring detail level.
+  const mat = _createMountainMaterial(0);
+  _boulderMesh = new THREE.InstancedMesh(geo, mat, _BOULDER_COUNT);
+  _boulderMesh.frustumCulled = false;
+
+  // Place boulders near the near ring's mountain bases (outside the playfield).
+  const nearRing = _MTN_DAWN.rings[0];
+  for (let i = 0; i < _BOULDER_COUNT; i++) {
+    const ang = (i / _BOULDER_COUNT) * Math.PI * 2 + Math.sin(i * 7.3) * 0.4;
+    const r = nearRing.dist - 4 - Math.abs(Math.sin(i * 2.1)) * 10;
+    const scale = 0.7 + Math.abs(Math.sin(i * 3.7)) * 1.5;
+    _dummy.position.set(Math.cos(ang) * r, 0.3, Math.sin(ang) * r);
+    _dummy.rotation.set(
+      Math.sin(i * 1.3) * 0.3,
+      (i / _BOULDER_COUNT) * Math.PI * 2,
+      Math.cos(i * 2.7) * 0.3,
+    );
+    _dummy.scale.setScalar(scale);
+    _dummy.updateMatrix();
+    _boulderMesh.setMatrixAt(i, _dummy.matrix);
+  }
+  _boulderMesh.instanceMatrix.needsUpdate = true;
+  scene.add(_boulderMesh);
 }
 
 // ── Waterfalls (v0.2.250) ────────────────────────────────────────────────────

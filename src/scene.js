@@ -150,7 +150,7 @@ _sky.material.uniforms.showSunDisc.value = 0; // v0.2.479: built-in disc too bri
 // Clouds off for now — we'll add them back as a separate layer if wanted.
 _sky.material.uniforms.cloudCoverage.value = 0;
 _sky.frustumCulled = false;
-// v0.2.481: Patch the Sky.js fragment shader to cap scattering brightness
+// v0.2.482: Patch the Sky.js fragment shader to cap scattering brightness
 // near the sun. The original shader produces HDR values (hundreds) near
 // the sun at low elevation which bloom to white. We cap texColor luma
 // to 0.75 BEFORE tone mapping so the warm glow is visible but never

@@ -223,11 +223,12 @@ function _buildMtnPeak(i, count, ring, opts) {
   for (let L = 0; L <= levels; L++) {
     const t = L / levels;
     const y = t * h;
-    // v0.2.494: Sharper alpine taper (was 0.85 → 1.4) for dramatic peaks.
-    // Foothills/valleys stay rounded.
+    // v0.2.495: Natural mountain slope (was 1.4 = too pointed, 0.85 = too rounded).
+    // Real ranges (Himalayas, Japanese Alps, Dolomites) have broad massifs,
+    // not cones. Moderate taper with dramatic ridgeline variation instead.
     const shrink = (valley || ring.jag < 0.4)
       ? Math.cos(t * Math.PI * 0.5)
-      : Math.pow(1 - t, 1.4);
+      : Math.pow(1 - t, 0.95);
     const rBase = rad * shrink;
 
     if (L === levels) {
@@ -241,14 +242,18 @@ function _buildMtnPeak(i, count, ring, opts) {
     } else {
       for (let s = 0; s < segs; s++) {
         const a = (s / segs) * Math.PI * 2;
-        // v0.2.494: Ridged noise for sharp crags + smooth fBM for variation.
-        // Much higher amplitude (was 0.55 → 0.85) for dramatic, rugged silhouettes.
+        // v0.2.495: Ridged noise creates deep notches and sub-peaks in the
+        // radial profile — the mountain outline has crests and cols, not a
+        // smooth circle. Combined with smooth fBM for natural variation.
         const ridge = ridgedFbm(a, t);
         const smooth = fbmAngle(a, t);
-        const crag = 1 + (ridge * 0.55 + smooth * 0.20) * ring.jag * (0.30 + t * 0.70);
+        const crag = 1 + (ridge * 0.50 + smooth * 0.15) * ring.jag * (0.25 + t * 0.75);
         const rr = rBase * crag;
-        // v0.2.494: Vertical displacement — terrain undulates, ridgelines rise/dip.
-        const vd = vertNoise(a, t) * ring.jag * h * 0.06;
+        // v0.2.495: Dramatic vertical displacement (was 6% → 18%). Creates
+        // clear peaks and saddles around the circumference — the ridge
+        // undulates so the mountain reads as a massif with multiple summits,
+        // not a single cone. Stronger aloft where peaks/cols matter most.
+        const vd = vertNoise(a, t) * ring.jag * h * (0.08 + t * 0.14);
         const px = cx + Math.cos(a) * rr + apexDX * t;
         const py = y + vd;
         const pz = cz + Math.sin(a) * rr + apexDZ * t;

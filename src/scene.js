@@ -401,14 +401,18 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
   fog: false,
 });
+// v0.2.504: CircleGeometry (no rectangular edges) + camera-relative
+// positioning (edges stay well inside camera.far=600). Original PlaneGeometry
+// at radius 560 had edge fragments at sqrt(560²+420²)=700 > far 600, causing
+// far-plane clipping that discard masks couldn't fix (clipping is pre-shader).
 const _sunSprite = new THREE.Mesh(
-  new THREE.PlaneGeometry(840, 840), // v0.2.500: 420 → 840, doubled sun size
+  new THREE.CircleGeometry(270, 64), // apparent size = 420 * 360/560
   _sunSpriteMat
 );
-// Position at the sun direction, radius 560 (inside camera far=600)
-_sunSprite.position.copy(_sunDir).multiplyScalar(560);
-// Always face the camera
+// Camera-relative: sun follows camera like a real distant sun.
+// Positioned in tickAurora() each frame.
 _sunSprite.userData.isBillboard = true;
+_sunSprite.frustumCulled = false;
 scene.add(_sunSprite);
 
 // ── God rays (v0.2.499) — cinematic light beams from rising sun ────────────────
@@ -457,12 +461,13 @@ const _godRayMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   fog: false,
 });
+// v0.2.504: CircleGeometry + camera-relative (same fix as sun sprite).
 const _godRays = new THREE.Mesh(
-  new THREE.PlaneGeometry(1200, 1200), // v0.2.500: 600 → 1200, larger so fade is invisible
+  new THREE.CircleGeometry(395, 64), // apparent size = 600 * 365/555
   _godRayMat
 );
-_godRays.position.copy(_sunDir).multiplyScalar(555); // just behind sun sprite
 _godRays.userData.isBillboard = true;
+_godRays.frustumCulled = false;
 scene.add(_godRays);
 
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
@@ -481,9 +486,15 @@ export function tickAurora(dt) {
   _godRayMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
-  // v0.2.479: billboard the sun sprite to face the camera
-  _sunSprite.lookAt(camera.position);
-  _godRays.lookAt(camera.position);
+  // v0.2.504: Camera-relative positioning + screen-aligned billboarding.
+  // Sun sprite and god rays follow the camera (like a real distant sun) and
+  // stay well inside camera.far (edges at sqrt(360²+270²)=450 < 600).
+  // Screen-aligned (camera.quaternion) is more correct than lookAt for
+  // distant objects and avoids oblique-angle far-plane clipping.
+  _sunSprite.position.copy(camera.position).addScaledVector(_sunDir, 360);
+  _godRays.position.copy(camera.position).addScaledVector(_sunDir, 365);
+  _sunSprite.quaternion.copy(camera.quaternion);
+  _godRays.quaternion.copy(camera.quaternion);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

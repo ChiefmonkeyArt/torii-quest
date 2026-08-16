@@ -149,16 +149,194 @@ _sky.material.uniforms.cloudCoverage.value = 0;
 _sky.frustumCulled = false;
 scene.add(_sky);
 
-// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
+// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Star field (v0.2.477) — real 3D points, not painted on dome ──────────
+// Stars are now a THREE.Points mesh with actual (x,y,z) positions on a sphere
+// shell at radius 550 (inside camera.far=600, in front of Sky.js box). Each
+// star has per-vertex brightness, color, and twinkle phase. This fixes the
+// "painted on" problem — stars are real geometry that responds to camera
+// rotation with proper perspective. Uses additive blending for natural glow.
+// Reference: https://github.com/pmndrs/threejs-journey (Galaxy Generator)
+const STAR_COUNT = 3000;
+const STAR_RADIUS = 550;
+const _starGeo = new THREE.BufferGeometry();
+const _starPositions = new Float32Array(STAR_COUNT * 3);
+const _starColors = new Float32Array(STAR_COUNT * 3);
+const _starSizes = new Float32Array(STAR_COUNT);
+const _starPhases = new Float32Array(STAR_COUNT);
+// Deterministic PRNG so stars are stable across reloads (no texture needed).
+let _starSeed = 42;
+function _starRand() {
+  _starSeed = (_starSeed * 16807) % 2147483647;
+  return _starSeed / 2147483647;
+}
+for (let i = 0; i < STAR_COUNT; i++) {
+  // Uniform distribution on a sphere (no pole clustering).
+  const u = _starRand();
+  const v = _starRand();
+  const theta = 2 * Math.PI * u;          // azimuth 0..2pi
+  const phi = Math.acos(2 * v - 1);       // polar 0..pi (uniform)
+  const r = STAR_RADIUS;
+  const x = r * Math.sin(phi) * Math.cos(theta);
+  const y = r * Math.cos(phi);
+  const z = r * Math.sin(phi) * Math.sin(theta);
+  _starPositions[i * 3]     = x;
+  _starPositions[i * 3 + 1] = y;
+  _starPositions[i * 3 + 2] = z;
+  // Star color: mostly white-blue, some warm yellow, a few red giants.
+  const hue = _starRand();
+  if (hue > 0.92) {                      // ~8% red giants
+    _starColors[i * 3]     = 1.0;
+    _starColors[i * 3 + 1] = 0.6;
+    _starColors[i * 3 + 2] = 0.4;
+  } else if (hue > 0.75) {               // ~17% warm yellow
+    _starColors[i * 3]     = 1.0;
+    _starColors[i * 3 + 1] = 0.85;
+    _starColors[i * 3 + 2] = 0.6;
+  } else if (hue > 0.55) {                // ~20% blue-white
+    _starColors[i * 3]     = 0.85;
+    _starColors[i * 3 + 1] = 0.9;
+    _starColors[i * 3 + 2] = 1.0;
+  } else {                               // ~55% pure white
+    _starColors[i * 3]     = 0.95;
+    _starColors[i * 3 + 1] = 0.97;
+    _starColors[i * 3 + 2] = 1.0;
+  }
+  // Size: most stars small, a few bright ones bigger.
+  const sizeRoll = _starRand();
+  _starSizes[i] = sizeRoll > 0.97 ? 3.0 : sizeRoll > 0.85 ? 2.0 : 1.0;
+  // Twinkle phase: random 0..2pi
+  _starPhases[i] = _starRand() * Math.PI * 2;
+}
+_starGeo.setAttribute('position', new THREE.BufferAttribute(_starPositions, 3));
+_starGeo.setAttribute('aColor', new THREE.BufferAttribute(_starColors, 3));
+_starGeo.setAttribute('aSize', new THREE.BufferAttribute(_starSizes, 1));
+_starGeo.setAttribute('aPhase', new THREE.BufferAttribute(_starPhases, 1));
+
+const _starMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0.0 },
+    uPixelRatio: { value: renderer.getPixelRatio() },
+  },
+  vertexShader: /* glsl */`
+    attribute vec3 aColor;
+    attribute float aSize;
+    attribute float aPhase;
+    uniform float uTime;
+    uniform float uPixelRatio;
+    varying vec3 vColor;
+    varying float vTwinkle;
+    void main() {
+      vColor = aColor;
+      // Twinkle: each star has its own phase and frequency.
+      float twinkleFreq = 1.5 + fract(aPhase * 0.7) * 2.0;
+      vTwinkle = 0.6 + 0.4 * sin(uTime * twinkleFreq + aPhase);
+      vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+      // Size attenuates with distance (perspective — this is the key
+      // difference from painted-on stars: they shrink as they get
+      // farther from camera center).
+      gl_PointSize = aSize * uPixelRatio * 2.0 * (300.0 / -mvPosition.z);
+      gl_PointSize = clamp(gl_PointSize, 1.0, 6.0);
+      gl_Position = projectionMatrix * mvPosition;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    varying vec3 vColor;
+    varying float vTwinkle;
+    void main() {
+      // Circular star shape with soft edge (not a hard square).
+      vec2 uv = gl_PointCoord - 0.5;
+      float dist = length(uv);
+      if (dist > 0.5) discard;
+      float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
+      alpha *= alpha;                     // sharper falloff
+      gl_FragColor = vec4(vColor * vTwinkle, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  fog: false,
+});
+
+const _starField = new THREE.Points(_starGeo, _starMat);
+_starField.renderOrder = -1;
+_starField.frustumCulled = false;          // huge sphere, camera is inside
+scene.add(_starField);
+
+// ── Second star shell (v0.2.478) — parallax depth cue ──────────────────────
+// Inner shell: fewer, brighter, bigger stars at radius 520. Rotates very
+// slowly so camera movement creates a subtle parallax between the two shells
+// — the "floating in space" feeling that a single dome can't produce.
+// This is the same trick Skyrim and BOTW use (separate star layer from sky).
+const STAR_COUNT_INNER = 800;
+const STAR_RADIUS_INNER = 520;
+const _starGeoInner = new THREE.BufferGeometry();
+const _starPosInner = new Float32Array(STAR_COUNT_INNER * 3);
+const _starColInner = new Float32Array(STAR_COUNT_INNER * 3);
+const _starSizeInner = new Float32Array(STAR_COUNT_INNER);
+const _starPhaseInner = new Float32Array(STAR_COUNT_INNER);
+let _seed2 = 137;
+function _starRand2() {
+  _seed2 = (_seed2 * 16807) % 2147483647;
+  return _seed2 / 2147483647;
+}
+for (let i = 0; i < STAR_COUNT_INNER; i++) {
+  const u = _starRand2();
+  const v = _starRand2();
+  const theta = 2 * Math.PI * u;
+  const phi = Math.acos(2 * v - 1);
+  const r = STAR_RADIUS_INNER;
+  _starPosInner[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  _starPosInner[i * 3 + 1] = r * Math.cos(phi);
+  _starPosInner[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+  // Inner shell: brighter, warmer stars (the "hero" stars)
+  const hue = _starRand2();
+  if (hue > 0.85) {
+    _starColInner[i * 3]     = 1.0;
+    _starColInner[i * 3 + 1] = 0.7;
+    _starColInner[i * 3 + 2] = 0.5;
+  } else if (hue > 0.6) {
+    _starColInner[i * 3]     = 1.0;
+    _starColInner[i * 3 + 1] = 0.9;
+    _starColInner[i * 3 + 2] = 0.7;
+  } else {
+    _starColInner[i * 3]     = 0.9;
+    _starColInner[i * 3 + 1] = 0.95;
+    _starColInner[i * 3 + 2] = 1.0;
+  }
+  _starSizeInner[i] = _starRand2() > 0.9 ? 4.0 : _starRand2() > 0.7 ? 2.5 : 1.5;
+  _starPhaseInner[i] = _starRand2() * Math.PI * 2;
+}
+_starGeoInner.setAttribute('position', new THREE.BufferAttribute(_starPosInner, 3));
+_starGeoInner.setAttribute('aColor', new THREE.BufferAttribute(_starColInner, 3));
+_starGeoInner.setAttribute('aSize', new THREE.BufferAttribute(_starSizeInner, 1));
+_starGeoInner.setAttribute('aPhase', new THREE.BufferAttribute(_starPhaseInner, 1));
+
+const _starMatInner = _starMat.clone();   // same shader, different uniforms
+_starMatInner.uniforms = {
+  uTime: { value: 0.0 },
+  uPixelRatio: { value: renderer.getPixelRatio() },
+};
+
+const _starFieldInner = new THREE.Points(_starGeoInner, _starMatInner);
+_starFieldInner.renderOrder = -1;
+_starFieldInner.frustumCulled = false;
+scene.add(_starFieldInner);
+
+// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
 // The additive canvas-corona sprite (scale 38) + NormalBlending PNG ₿ overlay
 // (scale 55) at (0.85, 0.18, -0.45)*420 stacked on the shader sun disc and
 // bloomed (strength 0.72 / threshold 0.86) into a massive white glare on the
 // right side of the sky. The shader sun above is now the only sun — bigger,
 // warmer, and bloom-safe. The brand ₿ overlay was noise for a sunrise scene.
 
-// ── Sky tick — call once per frame (drives cloud animation if enabled) ──────
+// ── Sky + stars tick — call once per frame ───────────────────────────────────
 export function tickAurora(dt) {
   _sky.material.uniforms.time.value += dt;
+  _starMat.uniforms.uTime.value += dt;
+  _starMatInner.uniforms.uTime.value += dt;
+  // v0.2.478: inner shell rotates very slowly for parallax depth cue.
+  _starFieldInner.rotation.y += dt * 0.005;
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

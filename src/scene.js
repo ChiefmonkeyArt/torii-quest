@@ -391,7 +391,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   fog: false,
 });
 const _sunSprite = new THREE.Mesh(
-  new THREE.PlaneGeometry(420, 420), // v0.2.498: 140 → 420, dramatic rising sun
+  new THREE.PlaneGeometry(840, 840), // v0.2.500: 420 → 840, doubled sun size
   _sunSpriteMat
 );
 // Position at the sun direction, radius 560 (inside camera far=600)
@@ -403,6 +403,8 @@ scene.add(_sunSprite);
 // ── God rays (v0.2.499) — cinematic light beams from rising sun ────────────────
 // Transparent ray planes emanating from the sun direction, depth-tested behind
 // mountains, low opacity, bloom-safe. Gives the Neoverse-style atmospheric drama.
+// v0.2.500: Plane enlarged to 1200 and fade goes to 0 at 0.35 UV to prevent
+// the hard vertical edge that was visible at certain camera angles.
 const _godRayMat = new THREE.ShaderMaterial({
   uniforms: { uTime: { value: 0.0 } },
   vertexShader: /* glsl */`
@@ -419,8 +421,12 @@ const _godRayMat = new THREE.ShaderMaterial({
       // Radial god rays: brightest at center, fading outward
       vec2 p = vUv - 0.5;
       float dist = length(p);
+      // Circular mask — fade to 0 well before plane edge (0.35 not 0.50)
+      // prevents hard vertical edge visible at certain camera angles
+      float mask = 1.0 - smoothstep(0.20, 0.35, dist);
+      if (mask <= 0.001) discard;
       // Core glow
-      float core = (1.0 - smoothstep(0.0, 0.15, dist)) * 0.3;
+      float core = (1.0 - smoothstep(0.0, 0.12, dist)) * 0.28;
       // Ray streaks — angular variation creates light beams
       float angle = atan(p.y, p.x);
       float rays = 0.0;
@@ -428,8 +434,8 @@ const _godRayMat = new THREE.ShaderMaterial({
       rays += pow(0.5 + 0.5 * sin(angle * 13.0 - uTime * 0.2), 6.0) * 0.10;
       rays += pow(0.5 + 0.5 * sin(angle * 21.0 + uTime * 0.15), 8.0) * 0.06;
       // Fade with distance from center
-      float fade = (1.0 - smoothstep(0.1, 0.5, dist));
-      float alpha = (core + rays * fade) * fade;
+      float fade = (1.0 - smoothstep(0.05, 0.30, dist));
+      float alpha = (core + rays * fade) * mask;
       vec3 col = vec3(0.98, 0.58, 0.20) * 0.8;
       gl_FragColor = vec4(col, alpha);
     }
@@ -440,7 +446,7 @@ const _godRayMat = new THREE.ShaderMaterial({
   fog: false,
 });
 const _godRays = new THREE.Mesh(
-  new THREE.PlaneGeometry(600, 600), // much larger than sun — rays extend far
+  new THREE.PlaneGeometry(1200, 1200), // v0.2.500: 600 → 1200, larger so fade is invisible
   _godRayMat
 );
 _godRays.position.copy(_sunDir).multiplyScalar(555); // just behind sun sprite

@@ -100,9 +100,10 @@ function _buildMtnPeak(i, count, ring, opts) {
   else                      rad = h * (0.45 + rnd(3) * 0.35);
   rad = Math.min(rad, ring.dist - NAP_FAR_X - 6);
 
-  // v0.2.493: 3× resolution for smooth Gouraud shading (was 9-12 segs, 3-6 levels)
-  const segs   = valley ? 24 : (ring.jag < 0.4 ? 28 : (ring.jag < 0.7 ? 30 : 32));
-  const levels = valley ? 8  : (ring.jag < 0.4 ? 10 : (ring.jag < 0.7 ? 11 : 12));
+  // v0.2.500: Increased resolution for photorealistic detail (was 28-32 segs, 10-12 levels)
+  // Higher poly count means more crevasses, ridges, and erosion channels are visible
+  const segs   = valley ? 28 : (ring.jag < 0.4 ? 34 : (ring.jag < 0.7 ? 38 : 42));
+  const levels = valley ? 10 : (ring.jag < 0.4 ? 13 : (ring.jag < 0.7 ? 14 : 16));
 
   const hasSnow  = isSnow;
   const snowLine = hasSnow ? h * (0.50 + rnd(4) * 0.18) : Infinity;
@@ -278,19 +279,20 @@ function _buildMtnPeak(i, count, ring, opts) {
         const smooth = fbmAngle(a, t);
         // v0.2.496: Added high-freq surface roughness for grit at vertex level
         const grit = (Math.sin(a * 11 + seed * 2.1 + t * 7.0) * 0.5
-                    + Math.sin(a * 19 + seed * 3.3) * 0.25) * 0.18;
-        const crag = 1 + (ridge * 0.58 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
+                    + Math.sin(a * 19 + seed * 3.3) * 0.25
+                    + Math.sin(a * 29 + seed * 5.7 + t * 4.0) * 0.15) * 0.25;
+        const crag = 1 + (ridge * 0.68 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
         // v0.2.499: Compute crevice BEFORE position so it carves real gullies.
         // Pulls vertices inward + downward = visible erosion channels, not just color.
         const channel = creviceFactor(a, t);
-        const rr = rBase * crag * (1 - channel * 0.22);
+        const rr = rBase * crag * (1 - channel * 0.30);
         // v0.2.495: Dramatic vertical displacement (was 6% → 18%). Creates
         // clear peaks and saddles around the circumference — the ridge
         // undulates so the mountain reads as a massif with multiple summits,
         // not a single cone. Stronger aloft where peaks/cols matter most.
         const vd = vertNoise(a, t) * ring.jag * h * (0.08 + t * 0.14);
         // v0.2.499: Crevice gullies pull vertices downward = erosion ravines
-        const gully = channel * h * 0.12;
+        const gully = channel * h * 0.18;
         const px = cx + Math.cos(a) * rr + apexDX * t;
         const py = y + vd - gully;
         const pz = cz + Math.sin(a) * rr + apexDZ * t;
@@ -341,7 +343,7 @@ function _createMountainMaterial(ringIndex) {
     THREE.UniformsLib.fog,
     {
       uSunDir:     { value: sunVec },
-      uDetailStr:  { value: ringIndex === 0 ? 1.60 : ringIndex === 1 ? 1.10 : 0.55 },
+      uDetailStr:  { value: ringIndex === 0 ? 2.00 : ringIndex === 1 ? 1.40 : 0.70 },
       uRimColor:  { value: new THREE.Color(_MTN_DAWN.snowLit.r, _MTN_DAWN.snowLit.g, _MTN_DAWN.snowLit.b) },
     },
   ]);
@@ -433,32 +435,32 @@ function _createMountainMaterial(ringIndex) {
         vec3 blend = abs(n);
         float bsum = max(blend.x + blend.y + blend.z, 0.0001);
         blend /= bsum;
-        vec3 sp = vWorldPos * 0.65;
+        vec3 sp = vWorldPos * 0.85;
         float rockNoise = fbm3(sp.yzx) * blend.x
                         + fbm3(sp.xzy) * blend.y
                         + fbm3(sp.xyz) * blend.z;
 
         // v0.2.496: High-frequency rock grain — grit and micro-texture
-        vec3 gp = vWorldPos * 2.5;
+        vec3 gp = vWorldPos * 3.5;
         float grain = grain3(gp.yzx) * blend.x
                     + grain3(gp.xzy) * blend.y
                     + grain3(gp.xyz) * blend.z;
 
         // v0.2.496: Crevasse detection — dark fissures where noise drops low
         // (Himalayan ice crevasses, rock cracks, shadowed gullies)
-        float crevasse = smoothstep(0.10, 0.32, rockNoise);
+        float crevasse = smoothstep(0.08, 0.38, rockNoise);
 
         // v0.2.496: Ridge highlights — bright crests where noise is high
         float ridge = smoothstep(0.62, 0.88, rockNoise);
 
         // v0.2.496: Stronger normal perturbation (was 0.35 → 0.65) + grain contribution
-        float perturb = (rockNoise - 0.5) * uDetailStr * 0.85;
-        perturb += (grain - 0.5) * uDetailStr * 0.25;
+        float perturb = (rockNoise - 0.5) * uDetailStr * 1.0;
+        perturb += (grain - 0.5) * uDetailStr * 0.35;
         vec3 perturbed = normalize(n + vec3(perturb, perturb * 0.20, perturb));
 
         // v0.2.496: More contrast diffuse (was 0.42/0.58 → 0.36/0.64)
         float facing = dot(perturbed, uSunDir);
-        float diffuse = 0.30 + 0.70 * max(facing, 0.0);
+        float diffuse = 0.24 + 0.76 * max(facing, 0.0);
 
         // --- Base color from vertex colors ---
         vec3 base = vColor;
@@ -471,21 +473,21 @@ function _createMountainMaterial(ringIndex) {
         vec3 lit = base * diffuse;
 
         // v0.2.496: Stronger rock grain (was 0.22 → 0.32) + grit layer
-        lit *= 0.76 + 0.40 * rockNoise * uDetailStr;
+        lit *= 0.70 + 0.50 * rockNoise * uDetailStr;
         lit *= 0.92 + 0.08 * grain;
 
         // v0.2.496: Crevasse darkening — deep fissures in shadow
-        lit *= 0.20 + 0.80 * crevasse;
+        lit *= 0.12 + 0.88 * crevasse;
 
         // v0.2.496: Ridge highlights — bright crests catch dawn light
-        lit += vec3(0.14, 0.09, 0.06) * ridge * uDetailStr;
+        lit += vec3(0.18, 0.12, 0.08) * ridge * uDetailStr;
 
         // --- Fresnel rim lighting ---
         float fres = pow(1.0 - max(dot(n, vViewDir), 0.0), 3.0);
         lit += uRimColor * fres * 0.28;
 
         // v0.2.496: Stronger AO (was 0.60/0.40 → 0.52/0.48)
-        lit *= 0.45 + 0.55 * vAo;
+        lit *= 0.38 + 0.62 * vAo;
 
         // --- Luma cap below bloom threshold ---
         float luma = dot(lit, vec3(0.299, 0.587, 0.114));

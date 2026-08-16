@@ -26,7 +26,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
 // v0.2.464: 1.8 blew the dawn disc + Bitcoin sprite into white glare.
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.5; // v0.2.476: Sky.js HDR output needs ACES + low exposure
+renderer.toneMappingExposure = 0.35; // v0.2.480: 0.5 -> 0.35, tame scattering bloom
 renderer.autoClear = false;
 // Local clipping lets firstPersonBody.js slice the neck stump off just below the
 // camera so looking down never reveals the inside of the headless body.
@@ -105,7 +105,7 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Sun direction (shared by lights + Sky.js) ──────────────────────────────────
-const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
+const _sunDir = new THREE.Vector3(0.85, 0.35, -0.45).normalize(); // v0.2.480: y 0.18 -> 0.35, sunrise not dawn
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
@@ -137,9 +137,9 @@ _sky.scale.setScalar(450000);
 //   rayleigh 2.5    — deeper blue sky (dawn would be 0.5-1, noon ~1)
 //   mieCoefficient 0.01 — warm scatter at horizon (dawn would be 0.05+)
 //   mieDirectionalG 0.85 — forward scatter, sun glow concentrated toward disc
-_sky.material.uniforms.turbidity.value = 8;
-_sky.material.uniforms.rayleigh.value = 2.5;
-_sky.material.uniforms.mieCoefficient.value = 0.01;
+_sky.material.uniforms.turbidity.value = 5; // v0.2.480: 8 -> 5, less haze
+_sky.material.uniforms.rayleigh.value = 1.5; // v0.2.480: 2.5 -> 1.5, less intense scatter
+_sky.material.uniforms.mieCoefficient.value = 0.005; // v0.2.480: 0.01 -> 0.005, default
 _sky.material.uniforms.mieDirectionalG.value = 0.85;
 // Sun position matches the existing DirectionalLight direction (0.85, 0.18,
 // -0.45) — low eastern sunrise, disc just above the ridgeline.
@@ -373,7 +373,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   fog: false,
 });
 const _sunSprite = new THREE.Mesh(
-  new THREE.PlaneGeometry(30, 30),
+  new THREE.PlaneGeometry(20, 20), // v0.2.480: 30 -> 20, smaller disc
   _sunSpriteMat
 );
 // Position at the sun direction, radius 560 (inside camera far=600)

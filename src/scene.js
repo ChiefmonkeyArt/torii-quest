@@ -401,16 +401,14 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
   fog: false,
 });
-// v0.2.504: CircleGeometry (no rectangular edges) + camera-relative
-// positioning (edges stay well inside camera.far=600). Original PlaneGeometry
-// at radius 560 had edge fragments at sqrt(560²+420²)=700 > far 600, causing
-// far-plane clipping that discard masks couldn't fix (clipping is pre-shader).
+// v0.2.506: CircleGeometry (small enough that edges at sqrt(560²+27²)=560.6
+// are well inside camera.far=600 — no far-plane clipping). World-space
+// positioning puts sun behind mountains where it belongs.
 const _sunSprite = new THREE.Mesh(
   new THREE.CircleGeometry(27, 64), // v0.2.505: 10x smaller
   _sunSpriteMat
 );
-// Camera-relative: sun follows camera like a real distant sun.
-// Positioned in tickAurora() each frame.
+_sunSprite.position.copy(_sunDir).multiplyScalar(560);
 _sunSprite.userData.isBillboard = true;
 _sunSprite.frustumCulled = false;
 scene.add(_sunSprite);
@@ -461,11 +459,12 @@ const _godRayMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   fog: false,
 });
-// v0.2.504: CircleGeometry + camera-relative (same fix as sun sprite).
+// v0.2.506: CircleGeometry + world-space (same fix, behind mountains).
 const _godRays = new THREE.Mesh(
   new THREE.CircleGeometry(40, 64), // v0.2.505: 10x smaller
   _godRayMat
 );
+_godRays.position.copy(_sunDir).multiplyScalar(555);
 _godRays.userData.isBillboard = true;
 _godRays.frustumCulled = false;
 scene.add(_godRays);
@@ -486,15 +485,9 @@ export function tickAurora(dt) {
   _godRayMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
-  // v0.2.504: Camera-relative positioning + screen-aligned billboarding.
-  // Sun sprite and god rays follow the camera (like a real distant sun) and
-  // stay well inside camera.far (edges at sqrt(360²+270²)=450 < 600).
-  // Screen-aligned (camera.quaternion) is more correct than lookAt for
-  // distant objects and avoids oblique-angle far-plane clipping.
-  _sunSprite.position.copy(camera.position).addScaledVector(_sunDir, 360);
-  _godRays.position.copy(camera.position).addScaledVector(_sunDir, 365);
-  _sunSprite.quaternion.copy(camera.quaternion);
-  _godRays.quaternion.copy(camera.quaternion);
+  // v0.2.506: World-space billboarding (sun is far away, lookAt is fine).
+  _sunSprite.lookAt(camera.position);
+  _godRays.lookAt(camera.position);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

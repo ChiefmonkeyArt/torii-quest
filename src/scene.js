@@ -400,6 +400,53 @@ _sunSprite.position.copy(_sunDir).multiplyScalar(560);
 _sunSprite.userData.isBillboard = true;
 scene.add(_sunSprite);
 
+// ── God rays (v0.2.499) — cinematic light beams from rising sun ────────────────
+// Transparent ray planes emanating from the sun direction, depth-tested behind
+// mountains, low opacity, bloom-safe. Gives the Neoverse-style atmospheric drama.
+const _godRayMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0.0 } },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform float uTime;
+    varying vec2 vUv;
+    void main() {
+      // Radial god rays: brightest at center, fading outward
+      vec2 p = vUv - 0.5;
+      float dist = length(p);
+      // Core glow
+      float core = (1.0 - smoothstep(0.0, 0.15, dist)) * 0.3;
+      // Ray streaks — angular variation creates light beams
+      float angle = atan(p.y, p.x);
+      float rays = 0.0;
+      rays += pow(0.5 + 0.5 * sin(angle * 8.0 + uTime * 0.3), 4.0) * 0.15;
+      rays += pow(0.5 + 0.5 * sin(angle * 13.0 - uTime * 0.2), 6.0) * 0.10;
+      rays += pow(0.5 + 0.5 * sin(angle * 21.0 + uTime * 0.15), 8.0) * 0.06;
+      // Fade with distance from center
+      float fade = (1.0 - smoothstep(0.1, 0.5, dist));
+      float alpha = (core + rays * fade) * fade;
+      vec3 col = vec3(0.98, 0.58, 0.20) * 0.8;
+      gl_FragColor = vec4(col, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  fog: false,
+});
+const _godRays = new THREE.Mesh(
+  new THREE.PlaneGeometry(600, 600), // much larger than sun — rays extend far
+  _godRayMat
+);
+_godRays.position.copy(_sunDir).multiplyScalar(555); // just behind sun sprite
+_godRays.userData.isBillboard = true;
+scene.add(_godRays);
+
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
 // The additive canvas-corona sprite (scale 38) + NormalBlending PNG ₿ overlay
 // (scale 55) at (0.85, 0.18, -0.45)*420 stacked on the shader sun disc and
@@ -413,10 +460,12 @@ export function tickAurora(dt) {
   _starMat.uniforms.uTime.value += dt;
   _starMatInner.uniforms.uTime.value += dt;
   _sunSpriteMat.uniforms.uTime.value += dt;
+  _godRayMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
   // v0.2.479: billboard the sun sprite to face the camera
   _sunSprite.lookAt(camera.position);
+  _godRays.lookAt(camera.position);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

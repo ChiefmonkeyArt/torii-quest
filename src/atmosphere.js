@@ -173,6 +173,12 @@ function _buildMtnPeak(i, count, ring, opts) {
     const snowEdge = hasSnow ? snowLine * (0.88 + snowWobble + leewardBias) : Infinity;
     const aboveSnow = y > snowEdge;
 
+    // v0.2.499: Patchy snow using noise — not just clean snow line.
+    // Irregular snow patches on leeward/crease areas at mid-high elevations.
+    const snowPatch = hasSnow && !aboveSnow && t > 0.35
+      ? Math.max(0, Math.sin(seed * 3.7 + faceAngle * 5.1 + t * 8.0) * 0.5 + 0.3) * (t - 0.35) * 1.5
+      : 0;
+
     const creviceSnow = hasSnow && crv > 0.25 && y > h * 0.45
       ? Math.min(0.55, crv * (y - h * 0.45) / (h * 0.3))
       : 0;
@@ -192,11 +198,21 @@ function _buildMtnPeak(i, count, ring, opts) {
         baseCol = _mtnLerp(baseCol, _MTN_DAWN.crevice, (t - 0.5) * 0.3);
       }
     } else {
-      const rockBase = y > h * 0.5
-        ? _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothill, 0.25)
-        : _MTN_DAWN.base;
-      const slopeApprox = t < 0.15 ? 0.3 : 0.6;
-      baseCol = _mtnLerp(rockBase, _MTN_DAWN.crevice, slopeApprox * 0.12);
+      // v0.2.499: Natural biome bands — olive lower → charcoal rock → snow.
+      // Lower slopes get olive-green tint (alpine vegetation), mid gets bare rock,
+      // upper gets snow/ice. Transitions driven by elevation (t).
+      if (t < 0.25) {
+        // Lower slopes: olive-green vegetation band
+        const oliveAmt = 1 - t * 4; // 1 at base → 0 at t=0.25
+        const rockGreen = _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothillRock, oliveAmt * 0.6);
+        baseCol = _mtnLerp(rockGreen, _MTN_DAWN.foothill, oliveAmt * 0.4);
+      } else {
+        const rockBase = y > h * 0.5
+          ? _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothill, 0.20)
+          : _MTN_DAWN.base;
+        const slopeApprox = t < 0.15 ? 0.3 : 0.6;
+        baseCol = _mtnLerp(rockBase, _MTN_DAWN.crevice, slopeApprox * 0.12);
+      }
     }
 
     let col;
@@ -211,6 +227,10 @@ function _buildMtnPeak(i, count, ring, opts) {
       col = _mtnLerp(col, _MTN_DAWN.crevice, crv * 0.85);
     } else if (creviceSnow > 0) {
       col = _mtnLerp(col, _MTN_DAWN.snow, creviceSnow * 0.35);
+    }
+    // v0.2.499: Apply patchy snow on top of everything
+    if (snowPatch > 0.15) {
+      col = _mtnLerp(col, _MTN_DAWN.snow, snowPatch * 0.45);
     }
     return col;
   }
@@ -260,20 +280,24 @@ function _buildMtnPeak(i, count, ring, opts) {
         const grit = (Math.sin(a * 11 + seed * 2.1 + t * 7.0) * 0.5
                     + Math.sin(a * 19 + seed * 3.3) * 0.25) * 0.18;
         const crag = 1 + (ridge * 0.58 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
-        const rr = rBase * crag;
+        // v0.2.499: Compute crevice BEFORE position so it carves real gullies.
+        // Pulls vertices inward + downward = visible erosion channels, not just color.
+        const channel = creviceFactor(a, t);
+        const rr = rBase * crag * (1 - channel * 0.22);
         // v0.2.495: Dramatic vertical displacement (was 6% → 18%). Creates
         // clear peaks and saddles around the circumference — the ridge
         // undulates so the mountain reads as a massif with multiple summits,
         // not a single cone. Stronger aloft where peaks/cols matter most.
         const vd = vertNoise(a, t) * ring.jag * h * (0.08 + t * 0.14);
+        // v0.2.499: Crevice gullies pull vertices downward = erosion ravines
+        const gully = channel * h * 0.12;
         const px = cx + Math.cos(a) * rr + apexDX * t;
-        const py = y + vd;
+        const py = y + vd - gully;
         const pz = cz + Math.sin(a) * rr + apexDZ * t;
         positions.push(px, py, pz);
-        const crv = creviceFactor(a, t);
-        const col = vertexColor(px, py, pz, a, t, crv);
+        const col = vertexColor(px, py, pz, a, t, channel);
         colors.push(col.r, col.g, col.b);
-        aoArr.push(vertexAO(py, t, crv));
+        aoArr.push(vertexAO(py, t, channel));
       }
     }
   }

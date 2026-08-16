@@ -40,7 +40,7 @@ export const scene  = new THREE.Scene();
 // right of the actual sun.
 scene.fog = new THREE.FogExp2(0xc8a878, 0.002); // v0.2.476: very light warm haze, Sky.js handles atmosphere
 
-export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 700);
+export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 800);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
 // sees world (layer 0) + FP body (layer 2). The mirror reflection camera shows
 // the full 3rd-person model on layer 1 and DISABLES layer 2 so the headless FP
@@ -175,7 +175,7 @@ scene.add(_sky);
 
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Star field (v0.2.477) — real 3D points, not painted on dome ──────────
 // Stars are now a THREE.Points mesh with actual (x,y,z) positions on a sphere
-// shell at radius 550 (inside camera.far=700, in front of Sky.js box). Each
+// shell at radius 550 (inside camera.far=800, in front of Sky.js box). Each
 // star has per-vertex brightness, color, and twinkle phase. This fixes the
 // "painted on" problem — stars are real geometry that responds to camera
 // rotation with proper perspective. Uses additive blending for natural glow.
@@ -401,14 +401,13 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
   fog: false,
 });
-// v0.2.507: CircleGeometry(270) at radius 560 — edges at sqrt(560²+270²)=622
-// < camera.far=700, no clipping. Screen-aligned (camera.quaternion) avoids
-// the oval distortion that lookAt causes at oblique angles.
+// v0.2.508: Camera-relative at 500 (behind mountains, not in arena).
+// Doubled to 540. Edge at sqrt(500²+540²)=735 < far=800. No clipping
+// regardless of camera position in arena.
 const _sunSprite = new THREE.Mesh(
-  new THREE.CircleGeometry(270, 64), // v0.2.507: 10x bigger
+  new THREE.CircleGeometry(540, 64), // v0.2.508: doubled from 270
   _sunSpriteMat
 );
-_sunSprite.position.copy(_sunDir).multiplyScalar(560);
 _sunSprite.userData.isBillboard = true;
 _sunSprite.frustumCulled = false;
 scene.add(_sunSprite);
@@ -459,12 +458,11 @@ const _godRayMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   fog: false,
 });
-// v0.2.507: CircleGeometry(400) at radius 555 — edges at sqrt(555²+400²)=684 < 700.
+// v0.2.508: Camera-relative at 495. Edge at sqrt(495²+400²)=636 < 800.
 const _godRays = new THREE.Mesh(
-  new THREE.CircleGeometry(400, 64), // v0.2.507: 10x bigger
+  new THREE.CircleGeometry(400, 64),
   _godRayMat
 );
-_godRays.position.copy(_sunDir).multiplyScalar(555);
 _godRays.userData.isBillboard = true;
 _godRays.frustumCulled = false;
 scene.add(_godRays);
@@ -485,8 +483,10 @@ export function tickAurora(dt) {
   _godRayMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
-  // v0.2.507: Screen-aligned billboarding (camera.quaternion) — fixes oval
-  // distortion that lookAt caused at oblique viewing angles.
+  // v0.2.508: Camera-relative at 500/495 — sun always behind mountains,
+  // never in arena, no clipping regardless of camera position.
+  _sunSprite.position.copy(camera.position).addScaledVector(_sunDir, 500);
+  _godRays.position.copy(camera.position).addScaledVector(_sunDir, 495);
   _sunSprite.quaternion.copy(camera.quaternion);
   _godRays.quaternion.copy(camera.quaternion);
 }

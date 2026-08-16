@@ -53,7 +53,7 @@ export const BEACH_INSET = 6.0;
 // puddle. SHELF_DEPTH is how far the slope runs before the collider ends; SHELF_DEEP_Y
 // is the height at the outermost edge (well below sea level → deep water). No
 // global sea-level change, so no interior pooling.
-export const SHELF_DEPTH  = 14.0;
+export const SHELF_DEPTH  = 0.0; // v0.2.490: removed underwater shelf — blocky edges showed through water
 export const SHELF_DEEP_Y = SEA_LEVEL - 0.6;   // outer edge ≈ -0.86 (deep wade)
 // Seam band (metres): approaching a JOIN edge the hills fade to 0 so both zones
 // meet at exactly ISLAND_BASE_Y — continuous, level ground. The shared x=20 line is
@@ -241,7 +241,7 @@ function makeZone(cfg) {
     if (edges.maxX === 'sea') out = Math.max(out, x - maxX);
     if (edges.minZ === 'sea') out = Math.max(out, minZ - z);
     if (edges.maxZ === 'sea') out = Math.max(out, z - maxZ);
-    const slopeT = smoothstep(0, SHELF_DEPTH, out);
+    const slopeT = SHELF_DEPTH > 0 ? smoothstep(0, SHELF_DEPTH, out) : 0;
     return base + (SHELF_DEEP_Y - SEA_LEVEL) * slopeT + rawHeight(x, z, shapeCfg) * hill - drop;
   }
 

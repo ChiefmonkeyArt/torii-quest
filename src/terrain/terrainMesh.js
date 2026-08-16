@@ -14,7 +14,6 @@ import {
   NAP_TERRAIN, NAP_GRID, sampleNapHeight,
   ARENA_TERRAIN, ARENA_GRID, sampleArenaHeight, ISLAND_BASE_Y,
 } from './heightmap.js';
-import { NAP_X } from '../config.js';
 import { SEA_LEVEL } from './seaConfig.js';
 import { pointInTerrainEdge } from './coastline.js';
 
@@ -114,14 +113,7 @@ export function buildNapTerrainMesh(scene) {
   return buildZoneMesh(scene, NAP_TERRAIN, NAP_GRID, sampleNapHeight, {
     color: 0x3d5a2f,        // NAP ground-cover green
     name: 'nap-zone-floor', // preserve scene.getObjectByName lookup
-    // v0.2.484: round the NAP zone edges (east/north/south) so the overall
-    // landmass reads as organic, not a box glued to the round arena.
-    cellKeep: (x, z) => {
-      if (x <= NAP_X + 1) return true; // keep join seam with arena
-      const cx = NAP_X + 12.5, cz = 0; // NAP centre (32.5, 0)
-      const dx = x - cx, dz = z - cz;
-      return dx * dx + dz * dz <= 14 * 14; // 14m radius circle
-    },
+    // v0.2.492: no cellKeep — full mesh, water covers below waterline.
   });
 }
 
@@ -156,10 +148,8 @@ export function buildArenaTerrainMesh(scene) {
     name: 'arena-floor',
     roughness: 0.95,
     vary: _arenaGroundColor,
-    // Crop the visible/physical arena footprint to the ROUNDED terrain edge so the
-    // land follows the coast instead of the square grid. The east/river vertex is
-    // preserved (no outward push) and the bridge overlaps x∈[14,26] at z≈0, so the
-    // arena→bridge→NAP connection stays intact even though the corners round in.
-    cellKeep: (x, z) => pointInTerrainEdge(x, z),
+    // v0.2.492: no cellKeep — full square mesh. The terrain height function
+    // already slopes to SEA_LEVEL at the footprint edge, and the opaque water
+    // covers everything below the waterline. No polygon crop = no blocky edges.
   });
 }

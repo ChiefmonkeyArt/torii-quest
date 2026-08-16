@@ -146,7 +146,7 @@ _sky.material.uniforms.mieDirectionalG.value = 0.85;
 // _sunDir is declared above (before lights) so both lights and sky share it.
 _sky.material.uniforms.sunPosition.value.copy(_sunDir);
 // Show the sun disc — we want a visible sunrise sun, not just a gradient.
-_sky.material.uniforms.showSunDisc.value = 1;
+_sky.material.uniforms.showSunDisc.value = 0; // v0.2.479: built-in disc too bright for bloom, using custom sprite
 // Clouds off for now — we'll add them back as a separate layer if wanted.
 _sky.material.uniforms.cloudCoverage.value = 0;
 _sky.frustumCulled = false;
@@ -335,6 +335,53 @@ _starFieldInner.renderOrder = -1;
 _starFieldInner.frustumCulled = false;
 scene.add(_starFieldInner);
 
+// ── Custom sun sprite (v0.2.479) — controlled, bloom-safe ────────────────────
+// Sky.js built-in disc (760.0 * multiplier) blows out to white through bloom.
+// Instead: a small custom disc at the sun's position, with a warm orange color
+// that stays below bloom threshold (0.86). The atmospheric scattering from
+// Sky.js already produces the warm horizon glow — this just adds the disc.
+const _sunSpriteMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0.0 } },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform float uTime;
+    varying vec2 vUv;
+    void main() {
+      vec2 p = vUv - 0.5;
+      float dist = length(p);
+      // Sun disc: hard edge at 0.3, soft corona to 0.5
+      float disc = 1.0 - smoothstep(0.28, 0.32, dist);
+      float corona = (1.0 - smoothstep(0.32, 0.5, dist)) * 0.3;
+      // Warm sunrise orange — NOT white. Max luma ~0.65, below bloom 0.86.
+      vec3 sunColor = vec3(0.95, 0.55, 0.20);
+      vec3 col = sunColor * (disc + corona);
+      // Subtle pulse
+      col *= 0.95 + 0.05 * sin(uTime * 0.5);
+      float alpha = clamp(disc + corona, 0.0, 1.0);
+      gl_FragColor = vec4(col, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.NormalBlending,
+  fog: false,
+});
+const _sunSprite = new THREE.Mesh(
+  new THREE.PlaneGeometry(30, 30),
+  _sunSpriteMat
+);
+// Position at the sun direction, radius 560 (inside camera far=600)
+_sunSprite.position.copy(_sunDir).multiplyScalar(560);
+// Always face the camera
+_sunSprite.userData.isBillboard = true;
+scene.add(_sunSprite);
+
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
 // The additive canvas-corona sprite (scale 38) + NormalBlending PNG ₿ overlay
 // (scale 55) at (0.85, 0.18, -0.45)*420 stacked on the shader sun disc and
@@ -342,13 +389,16 @@ scene.add(_starFieldInner);
 // right side of the sky. The shader sun above is now the only sun — bigger,
 // warmer, and bloom-safe. The brand ₿ overlay was noise for a sunrise scene.
 
-// ── Sky + stars tick — call once per frame ───────────────────────────────────
+// ── Sky + stars + sun tick — call once per frame ───────────────────────────────
 export function tickAurora(dt) {
   _sky.material.uniforms.time.value += dt;
   _starMat.uniforms.uTime.value += dt;
   _starMatInner.uniforms.uTime.value += dt;
+  _sunSpriteMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
+  // v0.2.479: billboard the sun sprite to face the camera
+  _sunSprite.lookAt(camera.position);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

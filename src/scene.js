@@ -406,7 +406,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
 // at radius 560 had edge fragments at sqrt(560²+420²)=700 > far 600, causing
 // far-plane clipping that discard masks couldn't fix (clipping is pre-shader).
 const _sunSprite = new THREE.Mesh(
-  new THREE.CircleGeometry(270, 64), // apparent size = 420 * 360/560
+  new THREE.CircleGeometry(27, 64), // v0.2.505: 10x smaller
   _sunSpriteMat
 );
 // Camera-relative: sun follows camera like a real distant sun.
@@ -463,7 +463,7 @@ const _godRayMat = new THREE.ShaderMaterial({
 });
 // v0.2.504: CircleGeometry + camera-relative (same fix as sun sprite).
 const _godRays = new THREE.Mesh(
-  new THREE.CircleGeometry(395, 64), // apparent size = 600 * 365/555
+  new THREE.CircleGeometry(40, 64), // v0.2.505: 10x smaller
   _godRayMat
 );
 _godRays.userData.isBillboard = true;

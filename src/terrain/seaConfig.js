@@ -16,7 +16,7 @@
 // only right at the shore edge and stays ~1cm below the deepest interior dip over a
 // long wave sweep — water reaches the shore boundary but never shows through grass.
 // We do NOT move any terrain — only the visual water plane lives here.
-export const SEA_LEVEL = -0.8;
+export const SEA_LEVEL = -0.3; // v0.2.491: raised to cover beach slope — no blocky terrain grid visible
 
 // Plane extent (full width, metres). The scene camera far plane is 600 and the fog
 // (FogExp2 0xc8dde8, density 0.008) is ~fully opaque by ~300m, so a ±500m sheet

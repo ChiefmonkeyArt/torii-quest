@@ -45,7 +45,7 @@ export const SHORE_WIDTH = 4.0;
 // surf. Beyond the edge the wadeable shelf (below) takes over. JOIN seam edges have
 // NO beach. Because the band is INSIDE the footprint it does NOT grow the extended
 // rect — only the shelf does.
-export const BEACH_INSET = 6.0;
+export const BEACH_INSET = 1.5; // v0.2.491: was 6.0 — steep beach so minimal blocky grid shows
 // Graduated wadeable slope (v0.2.335→337). Past the footprint edge (the waterline
 // at SEA_LEVEL) the ground does NOT sit on a flat shelf — it CONTINUES SLOPING
 // DOWN, graduating deeper the further out you wade, so the player walks into

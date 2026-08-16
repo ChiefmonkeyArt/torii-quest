@@ -489,7 +489,9 @@ function _buildMountains() {
     ringIdx++;
   }
   _buildWaterfalls(wfMetas);
-  _buildRivers(wfMetas);
+  // v0.2.488: rivers REMOVED — diagonal ground ribbons were showing through
+  // the water as parallel lines beneath the island. User asked to remove the layer.
+  // _buildRivers(wfMetas);
   _buildBoulders(); // v0.2.482: instanced procedural rocks on near ring
 }
 

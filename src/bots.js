@@ -407,6 +407,12 @@ function _tickNet(dt) {
     return;
   }
 
+  // v0.2.487: hide boss health bar in fly mode — it's a debug view, not combat
+  if (isFlyEnabled()) {
+    hideBossBar();
+    return;
+  }
+
   const bossId = bossPose.id == null ? '' : String(bossPose.id);
   if (_bossNetId !== bossId) {
     _bossNetId = bossId;

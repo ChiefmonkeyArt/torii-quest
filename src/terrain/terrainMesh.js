@@ -133,6 +133,17 @@ export function buildNapTerrainMesh(scene) {
 const _SAND = 0xb9a06b;
 function _arenaGroundColor(base, x, z, h) {
   const n = _hash(x, z);                                   // 0..1 speckle
+  // v0.2.487: go dark below the waterline so the terrain mesh doesn't show
+  // as a white grid through the transparent water surface.
+  if (h < SEA_LEVEL + 0.3) {
+    const depth = Math.max(0, (SEA_LEVEL + 0.3 - h));
+    const underwater = Math.min(1, depth * 0.5);
+    return _scratchCol.setRGB(
+      base.r * (1 - underwater) * 0.15,
+      base.g * (1 - underwater) * 0.15,
+      base.b * (1 - underwater) * 0.2,
+    );
+  }
   const span = (ISLAND_BASE_Y - SEA_LEVEL) || 1;
   const hf = Math.max(0, Math.min(1, (h - SEA_LEVEL) / span)); // 0 shore → 1 plateau
   const shade = 0.80 + 0.20 * n + 0.14 * hf;               // ~0.80..1.14

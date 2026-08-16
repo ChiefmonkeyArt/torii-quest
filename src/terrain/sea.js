@@ -161,7 +161,8 @@ export function buildSeaMesh(scene) {
 
         // Translucency: clearer looking straight down (shore hints through),
         // more opaque toward the horizon where crests stack up.
-        float alpha = mix(0.62, 0.92, fres);
+        // v0.2.487: more opaque so terrain mesh grid doesn't show through underwater
+        float alpha = mix(0.88, 0.96, fres);
 
         // Arena-matched exponential-squared fog (scene uses FogExp2 0xc8dde8, 0.008)
         // so the far edge dissolves into the mist horizon.

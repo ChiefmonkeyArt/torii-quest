@@ -40,7 +40,7 @@ export const scene  = new THREE.Scene();
 // right of the actual sun.
 scene.fog = new THREE.FogExp2(0xc8a878, 0.002); // v0.2.476: very light warm haze, Sky.js handles atmosphere
 
-export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
+export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 700);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
 // sees world (layer 0) + FP body (layer 2). The mirror reflection camera shows
 // the full 3rd-person model on layer 1 and DISABLES layer 2 so the headless FP
@@ -175,7 +175,7 @@ scene.add(_sky);
 
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Star field (v0.2.477) — real 3D points, not painted on dome ──────────
 // Stars are now a THREE.Points mesh with actual (x,y,z) positions on a sphere
-// shell at radius 550 (inside camera.far=600, in front of Sky.js box). Each
+// shell at radius 550 (inside camera.far=700, in front of Sky.js box). Each
 // star has per-vertex brightness, color, and twinkle phase. This fixes the
 // "painted on" problem — stars are real geometry that responds to camera
 // rotation with proper perspective. Uses additive blending for natural glow.
@@ -401,11 +401,11 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   blending: THREE.NormalBlending,
   fog: false,
 });
-// v0.2.506: CircleGeometry (small enough that edges at sqrt(560²+27²)=560.6
-// are well inside camera.far=600 — no far-plane clipping). World-space
-// positioning puts sun behind mountains where it belongs.
+// v0.2.507: CircleGeometry(270) at radius 560 — edges at sqrt(560²+270²)=622
+// < camera.far=700, no clipping. Screen-aligned (camera.quaternion) avoids
+// the oval distortion that lookAt causes at oblique angles.
 const _sunSprite = new THREE.Mesh(
-  new THREE.CircleGeometry(27, 64), // v0.2.505: 10x smaller
+  new THREE.CircleGeometry(270, 64), // v0.2.507: 10x bigger
   _sunSpriteMat
 );
 _sunSprite.position.copy(_sunDir).multiplyScalar(560);
@@ -459,9 +459,9 @@ const _godRayMat = new THREE.ShaderMaterial({
   blending: THREE.AdditiveBlending,
   fog: false,
 });
-// v0.2.506: CircleGeometry + world-space (same fix, behind mountains).
+// v0.2.507: CircleGeometry(400) at radius 555 — edges at sqrt(555²+400²)=684 < 700.
 const _godRays = new THREE.Mesh(
-  new THREE.CircleGeometry(40, 64), // v0.2.505: 10x smaller
+  new THREE.CircleGeometry(400, 64), // v0.2.507: 10x bigger
   _godRayMat
 );
 _godRays.position.copy(_sunDir).multiplyScalar(555);
@@ -485,9 +485,10 @@ export function tickAurora(dt) {
   _godRayMat.uniforms.uTime.value += dt;
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
-  // v0.2.506: World-space billboarding (sun is far away, lookAt is fine).
-  _sunSprite.lookAt(camera.position);
-  _godRays.lookAt(camera.position);
+  // v0.2.507: Screen-aligned billboarding (camera.quaternion) — fixes oval
+  // distortion that lookAt caused at oblique viewing angles.
+  _sunSprite.quaternion.copy(camera.quaternion);
+  _godRays.quaternion.copy(camera.quaternion);
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

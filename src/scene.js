@@ -1,4 +1,4 @@
-// scene.js — renderer, camera, lights, aurora sky dome (single warm shader sun).
+// scene.js — renderer, camera, lights, Preetham sky (Three.js Sky.js addon).
 import * as THREE from 'three';
 // Post-processing (v0.2.400): UnrealBloom stays on the deferred ARENA path only.
 // scene.js is imported solely via arenaRuntime.js (the lazy ENTER ARENA chunk),
@@ -8,6 +8,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { bloomPlanForTier } from './engine/bloomPlan.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
 const DEFAULT_DPR = Math.min(globalThis.devicePixelRatio || 1, 1.5);
 const BLOOM_PLAN = bloomPlanForTier('HIGH');
@@ -24,7 +25,8 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
 // v0.2.464: 1.8 blew the dawn disc + Bitcoin sprite into white glare.
-renderer.toneMappingExposure = 1.2;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.5; // v0.2.476: Sky.js HDR output needs ACES + low exposure
 renderer.autoClear = false;
 // Local clipping lets firstPersonBody.js slice the neck stump off just below the
 // camera so looking down never reveals the inside of the headless body.
@@ -36,7 +38,7 @@ export const scene  = new THREE.Scene();
 // direction. Peach at density 0.008 was lit by the amber sun and pushed past
 // bloom threshold (0.86) at the horizon, producing a huge white blob to the
 // right of the actual sun.
-scene.fog = new THREE.FogExp2(0x9fb8d0, 0.0035); // v0.2.473: cool dawn blue, matches sky gradient
+scene.fog = new THREE.FogExp2(0xc8a878, 0.002); // v0.2.476: very light warm haze, Sky.js handles atmosphere
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 600);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -106,7 +108,7 @@ export { syncComposerViewportSize };
 scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
 export const sun = new THREE.DirectionalLight(0xffc878, 0.95); // v0.2.472: 1.15 -> 0.95, less fog-lighting bloom
 // Matches the sky-shader sunDir (0.85, 0.18, -0.45) — low eastern dawn, disc behind peaks.
-sun.position.set(40, 13, -21);
+sun.position.copy(_sunDir).multiplyScalar(50); // v0.2.476: exact match to Sky.js sun direction
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
@@ -117,135 +119,46 @@ const fill = new THREE.PointLight(0xffa060, 0.7, 60); // warm fill
 fill.position.set(-10, 8, 10);
 scene.add(fill);
 
-// ── Aurora dome ───────────────────────────────────────────────────────────────
-// Ported from v1 main.js — BackSide sphere with animated GLSL aurora bands +
-// star field + sun disc. Animated via uTime uniform in tickAurora().
-const _auroraMat = new THREE.ShaderMaterial({
-  side: THREE.BackSide,
-  depthWrite: false,
-  depthTest: false,
-  fog: false,
-  uniforms: {
-    uTime: { value: 0.0 },
-  },
-  vertexShader: /* glsl */`
-    varying vec3 vWorldPos;
-    void main() {
-      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  fragmentShader: /* glsl */`
-    uniform float uTime;
-    varying vec3 vWorldPos;
+// ── Sky (v0.2.476) — Three.js Preetham atmospheric scattering ──────────────
+// Replaces the hand-rolled aurora dome shader entirely. The Preetham model
+// computes sky color from sun position + atmospheric coefficients per-pixel
+// using view-direction dot products (Cartesian), not theta/phi UV space —
+// so there is no pole singularity, no wedge artifact, no "painted on" look.
+// The sun disc is built into the scattering model: one sun, physically
+// correct angular diameter, color derived from atmospheric extinction.
+// Reference: https://threejs.org/docs/pages/Sky.html
+const _sky = new Sky();
+_sky.scale.setScalar(450000);
+// Sunrise tuning (not dawn — sun is up, sky is clearing, warm light):
+//   turbidity 8     — moderate haze, warm horizon (dawn would be 10-20)
+//   rayleigh 2.5    — deeper blue sky (dawn would be 0.5-1, noon ~1)
+//   mieCoefficient 0.01 — warm scatter at horizon (dawn would be 0.05+)
+//   mieDirectionalG 0.85 — forward scatter, sun glow concentrated toward disc
+_sky.material.uniforms.turbidity.value = 8;
+_sky.material.uniforms.rayleigh.value = 2.5;
+_sky.material.uniforms.mieCoefficient.value = 0.01;
+_sky.material.uniforms.mieDirectionalG.value = 0.85;
+// Sun position matches the existing DirectionalLight direction (0.85, 0.18,
+// -0.45) — low eastern sunrise, disc just above the ridgeline.
+const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
+_sky.material.uniforms.sunPosition.value.copy(_sunDir);
+// Show the sun disc — we want a visible sunrise sun, not just a gradient.
+_sky.material.uniforms.showSunDisc.value = 1;
+// Clouds off for now — we'll add them back as a separate layer if wanted.
+_sky.material.uniforms.cloudCoverage.value = 0;
+_sky.frustumCulled = false;
+scene.add(_sky);
 
-    float hash(vec2 p) {
-      return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-    }
-    float noise(vec2 p) {
-      vec2 i = floor(p), f = fract(p);
-      f = f * f * (3.0 - 2.0 * f);
-      return mix(
-        mix(hash(i), hash(i + vec2(1,0)), f.x),
-        mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y
-      );
-    }
-    float fbm(vec2 p) {
-      float v = 0.0, a = 0.5;
-      for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.1; a *= 0.5; }
-      return v;
-    }
-
-    void main() {
-      vec3 dir = normalize(vWorldPos);
-      float up      = clamp(dir.y, 0.0, 1.0);
-      float horizon = 1.0 - up;
-      float t       = uTime;
-
-      if (dir.y < -0.05) {
-        gl_FragColor = vec4(0.55, 0.72, 0.60, 1.0); // below horizon: meadow haze
-        return;
-      }
-
-      // v0.2.474 — reference: warm hazy horizon on the sun side, deep blue
-      // dominating the opposite side. The old (v0.2.473) gradient was too
-      // uniformly pale. Now the far side covers ~30% of the dome in deep
-      // blue, gradiating through mid-blue to warm haze only near the sun.
-      vec3  sunDirH    = normalize(vec3(0.85, 0.0, -0.45));
-      vec3  dirH       = normalize(vec3(dir.x, 0.0, dir.z));
-      float toSun      = dot(dirH, sunDirH);              // -1 opposite, +1 toward sun
-      // Bias the mix so the far side occupies more of the dome. smoothstep
-      // (-0.4, 0.8) means: from 30% far-side outward we're already fully in
-      // deep-blue territory; only pixels genuinely aimed near the sun get warm.
-      float sunSide    = smoothstep(-0.8, 0.9, toSun);  // wider, softer transition
-      // Deep-blue side (opposite sun): dark navy zenith, deeper blue horizon.
-      vec3 farZenith   = vec3(0.04, 0.10, 0.28);          // deep navy
-      vec3 farHorizon  = vec3(0.14, 0.26, 0.48);          // deep sky blue
-      // Sun side: pale blue up top, warm hazy horizon (like the reference).
-      vec3 nearZenith  = vec3(0.35, 0.55, 0.78);          // clear day blue
-      vec3 nearHorizon = vec3(0.82, 0.72, 0.55);          // warm haze at horizon
-      // Vertical blend uses the FULL up range so there is no flat plateau
-      // near the zenith and thus no visible wedge where the two azimuthal
-      // sides meet. v0.2.474 used smoothstep(0, 0.4/0.6) which produced a
-      // wedge because everything above that elevation was one flat color.
-      vec3 farCol      = mix(farHorizon,  farZenith,  pow(up, 0.5));
-      vec3 nearCol     = mix(nearHorizon, nearZenith, pow(up, 0.5));
-      vec3 base        = mix(farCol, nearCol, sunSide);
-
-      // Stars (v0.2.475) — dense fine points. Cell scales bumped up so each
-      // star is a small pinpoint (~2-3 px), not the fat blobs from v0.2.474.
-      // Also cell wraps in theta must be seamless; scaling theta by an
-      // integer multiple of pi keeps the wrap continuous.
-      vec3 starCol = vec3(0.0);
-      float theta  = atan(dir.z, dir.x);                       // -pi..pi
-      float phi    = acos(clamp(dir.y, -1.0, 1.0));            // 0 at zenith
-      for (int layer = 0; layer < 2; layer++) {
-        float scale  = layer == 0 ? 60.0 : 90.0;               // v0.2.475: much denser
-        float bright = layer == 0 ? 0.9  : 0.6;
-        vec2 starUV  = vec2(theta * scale, phi * scale)
-                       + vec2(float(layer) * 37.3, float(layer) * 19.7);
-        vec2 cell    = floor(starUV);
-        vec2 frac    = fract(starUV);
-        vec2 starPos = vec2(hash(cell), hash(cell + vec2(31.4, 71.9))) * 0.6 + 0.2;
-        float dist   = length(frac - starPos);
-        float thresh = hash(cell + vec2(53.1, 97.3));
-        float vis    = step(0.90, thresh);                     // rarer (was 0.85)
-        float disc   = 1.0 - smoothstep(0.0, 0.02, dist);      // tighter (was 0.05)
-        float phase  = hash(cell + vec2(11.7, 43.1)) * 6.28;
-        float twinkle = 0.6 + 0.4 * sin(t * (1.5 + thresh) + phase);
-        float hue    = hash(cell + vec2(73.1, 17.3));
-        vec3 sColor  = hue > 0.85 ? vec3(1.0, 0.85, 0.6)
-                     : hue > 0.70 ? vec3(0.85, 0.9, 1.0)
-                     :              vec3(0.95, 0.97, 1.0);
-        float starFade = smoothstep(0.15, 0.45, dir.y);
-        starCol += sColor * disc * vis * twinkle * bright * starFade;
-      }
-      base += starCol * 0.65;
-
-      // v0.2.473 — sun disc, corona, and Japanese rays REMOVED. The horizon
-      // gradient toward the sun's azimuth is the only cue of where the sun is.
-
-      base = clamp(base, 0.0, 1.0);
-      gl_FragColor = vec4(base, 1.0);
-    }
-  `,
-});
-
-const _auroraDome = new THREE.Mesh(new THREE.SphereGeometry(500, 64, 32), _auroraMat);
-_auroraDome.renderOrder = -1;
-_auroraDome.frustumCulled = false; // camera is inside — Three.js culls incorrectly without this
-scene.add(_auroraDome);
-
-// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
+// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────
 // The additive canvas-corona sprite (scale 38) + NormalBlending PNG ₿ overlay
 // (scale 55) at (0.85, 0.18, -0.45)*420 stacked on the shader sun disc and
 // bloomed (strength 0.72 / threshold 0.86) into a massive white glare on the
 // right side of the sky. The shader sun above is now the only sun — bigger,
 // warmer, and bloom-safe. The brand ₿ overlay was noise for a sunrise scene.
 
-// ── Aurora tick — call once per frame ────────────────────────────────────────
+// ── Sky tick — call once per frame (drives cloud animation if enabled) ──────
 export function tickAurora(dt) {
-  _auroraMat.uniforms.uTime.value += dt;
+  _sky.material.uniforms.time.value += dt;
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

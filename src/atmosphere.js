@@ -284,7 +284,6 @@ function _createMountainMaterial(ringIndex) {
     uniforms,
     vertexShader: `
       attribute float aAo;
-      attribute vec3 color;
       varying vec3 vWorldPos;
       varying vec3 vWorldNormal;
       varying vec3 vColor;

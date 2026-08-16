@@ -60,7 +60,10 @@ export function buildArena() {
 function _buildFloor() {
   buildArenaTerrainMesh(scene); // name 'arena-floor'
 
-  _buildCoastlineWall();
+  // v0.2.486: coastline glass wall + neon edge REMOVED per user request —
+  // the neon lines were visually distracting. The terrain shore slope is
+  // the visual/physical boundary now.
+  // _buildCoastlineWall();
 
   // Soft top-down fill replacing the old single turquoise PointLight — a
   // HemisphereLight gives the arena its cool read for near-zero cost and without

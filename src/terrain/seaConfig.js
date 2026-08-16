@@ -27,7 +27,7 @@ export const SEA_SIZE = 1000;
 // Subdivisions per axis. 160 → ~6.25m cells across a 1000m sheet: enough vertices
 // for visible crest displacement near the camera, cheap enough for one mesh
 // (161×161 = 25,921 verts). Distance motion is carried by the fragment shader + fog.
-export const SEA_SEGMENTS = 160;
+export const SEA_SEGMENTS = 400;
 
 // Traveling wave layers. Each is a directional (Gerstner-style vertical) sine
 // wave: crest travels along `dir` (a UNIT vector in the XZ plane) at `speed` m/s,

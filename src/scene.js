@@ -367,11 +367,11 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
     void main() {
       vec2 p = vUv - 0.5;
       float dist = length(p);
-      // Sun disc: hard edge at 0.3, soft corona to 0.5
-      float disc = 1.0 - smoothstep(0.28, 0.32, dist);
-      float corona = (1.0 - smoothstep(0.32, 0.5, dist)) * 0.3;
-      // Warm sunrise orange — NOT white. Max luma ~0.65, below bloom 0.86.
-      vec3 sunColor = vec3(0.95, 0.55, 0.20);
+      // Sun disc: soft edge, large corona for golden bronze glow
+      float disc = 1.0 - smoothstep(0.15, 0.28, dist);
+      float corona = (1.0 - smoothstep(0.28, 0.5, dist)) * 0.45;
+      // Golden bronze sun — warm, below bloom threshold
+      vec3 sunColor = vec3(0.98, 0.62, 0.25);
       vec3 col = sunColor * (disc + corona);
       // Subtle pulse
       col *= 0.95 + 0.05 * sin(uTime * 0.5);
@@ -385,7 +385,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   fog: false,
 });
 const _sunSprite = new THREE.Mesh(
-  new THREE.PlaneGeometry(20, 20), // v0.2.480: 30 -> 20, smaller disc
+  new THREE.PlaneGeometry(45, 45), // v0.2.486: 20 -> 45, bigger soft glow not a spot
   _sunSpriteMat
 );
 // Position at the sun direction, radius 560 (inside camera far=600)

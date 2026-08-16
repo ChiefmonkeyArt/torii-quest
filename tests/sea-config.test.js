@@ -9,8 +9,8 @@ import {
 } from '../src/terrain/seaConfig.js';
 
 describe('sea constants', () => {
-  it('SEA_LEVEL is exactly -0.26 (raised so water laps higher up the shore)', () => {
-    expect(SEA_LEVEL).toBe(-0.26);
+  it('SEA_LEVEL is exactly -0.8 (lowered so water sits below the shore, not swampy)', () => {
+    expect(SEA_LEVEL).toBe(-0.8);
   });
 
   it('SEA_SIZE is a positive extent that reaches past the fog horizon (~300m)', () => {

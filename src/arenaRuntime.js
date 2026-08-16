@@ -62,6 +62,7 @@ import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
+import { isNapLand } from './terrain/tomoeShape.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
@@ -639,7 +640,7 @@ export function createArenaRuntime(hooks = {}) {
         // On submerged ground (≤ SEA_LEVEL: the wadeable shelf / river) the step
         // is a splash; on dry land it's a footstep.
         const px = playerObj.position.x, pz = playerObj.position.z;
-        const groundY = px > NAP_X ? sampleNapHeight(px, pz) : sampleArenaHeight(px, pz);
+        const groundY = isNapLand(px, pz) ? sampleNapHeight(px, pz) : sampleArenaHeight(px, pz);
         if (groundY <= SEA_LEVEL) playSplash(); else playFootstep();
       }
     } else {
@@ -650,7 +651,7 @@ export function createArenaRuntime(hooks = {}) {
     tickPlayerModel(dt, shootingNow, isReloading(), _isJumping, !_isJumping);
     tickFirstPersonBody(dt);
     tickNapNpc(dt);
-    setNapMode(playerObj.position.x > NAP_X);
+    setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
     if (isPlaying()) {
       _portalTrigger.tick(playerObj.position);
       // Drive the torii-frame glow from the graded approach affordance (pure scalar).
@@ -758,7 +759,7 @@ export function createArenaRuntime(hooks = {}) {
     // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX. Suppressed
     // entirely in the NAP zone (player.x > NAP_X) so the weapon reads as inert.
     on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
-      if (playerObj.position.x > NAP_X) return;
+      if (isNapLand(playerObj.position.x, playerObj.position.z)) return;
       const b = spawnBullet(origin, dir, true);
       _muzzleFlashes.trigger('muzzle', origin);
       if (aimOrigin && aimDir) {
@@ -772,7 +773,7 @@ export function createArenaRuntime(hooks = {}) {
       // module (prefers the AIM ray so server hit-detection matches what the
       // shooter saw). Bot hits stay a separate client-side path — a shot may both
       // hit a bot locally AND resolve a peer hit server-side; that is expected.
-      if (_mp && shouldSendShot({ playerX: playerObj.position.x, napX: NAP_X, selfId: _mp.selfId })) {
+      if (_mp && shouldSendShot({ playerX: playerObj.position.x, playerZ: playerObj.position.z, isNapLandFn: isNapLand, selfId: _mp.selfId })) {
         // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
         // client's measured viewLag. The server rewinds in its OWN clock frame
         // (server_now - viewLag) — the client clock is not synced to the server,

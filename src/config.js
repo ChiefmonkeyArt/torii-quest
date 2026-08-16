@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.510-alpha';
+export const VERSION   = 'v0.2.511-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -19,20 +19,16 @@ export const NAP_FAR_X      = ARENA_HALF + 25; // outer edge of NAP zone floor
 // from the entrance torii-gate.glb at NAP_X. Sits on the FAR side of the NAP zone
 // so the player walks the full peace-zone to reach it. x=42 leaves the portal's
 // outer ring (radius = trigger range 3 → x∈[39,45]) at the far floor edge.
-export const TRAVEL_GATE_X  = ARENA_HALF + 22; // 42 — far-side travel portal plane (pushed into the corner)
-// v0.2.246 — gateway pushed deeper into the far-right NAP corner and turned 45°
-// clockwise (top-down). x=42 + z=16 places it in the corner with the outer
-// detection ring (radius 3 → x∈[39,45], z∈[13,19]) clear of the z=0 proof panel
-// and inside the floor edges (x≤45, z≤20). Entrance torii-gate at NAP_X untouched.
-export const TRAVEL_GATE_Z  = 16; // far-right NAP corner (player's right, +z)
+export const TRAVEL_GATE_X  = 0;   // top of NAP island — far side from the arena
+export const TRAVEL_GATE_Z  = 30;  // deep in the NAP, clear of bridge and tree
 // v0.2.275: title-screen "ENTER NAP ZONE" button spawns the player straight into
 // the NAP zone's far-left corner (deep + south, clear of the travel portal at
 // (42,16) and the bonsai at (26,0)) so the grass field is immediately visible
 // without walking through the torii gate. Yaw = π/2 faces due west (-X) back
 // toward the gate — the whole grass field spreads out in front of the player.
-export const NAP_SPAWN_X   = NAP_FAR_X - 5;   // 40 — deep in NAP, 2u clear of the travel gate
-export const NAP_SPAWN_Z   = -(ARENA_HALF - 3); // -17 — south (player's left) corner
-export const NAP_SPAWN_YAW = Math.PI / 2;     // face west (-X) across the grass toward the gate
+export const NAP_SPAWN_X   = 0;    // center of NAP island (tomoe layout)
+export const NAP_SPAWN_Z   = 25;   // upper NAP, facing south toward arena
+export const NAP_SPAWN_YAW = Math.PI; // face south (-Z) toward the arena bridges
 
 // Bonsai tree position in the NAP zone (v0.2.339). Moved FURTHER from the bridge
 // (x=20, z=0) and CLOSER to the east beach (x=NAP_FAR_X=45): relocated off the
@@ -40,8 +36,8 @@ export const NAP_SPAWN_YAW = Math.PI / 2;     // face west (-X) across the grass
 // entrance. x=34 is ~11m from the east beach (was 19m), ~15.6m from the bridge
 // (was 6m), and stays clear of the river (x≈20±3.5), the NAP NPC (30,5), the
 // travel gate (42,16), and the spawn corner (40,-17).
-export const NAP_TREE_X = NAP_X + 14;   // 34 — further from bridge, closer to east beach
-export const NAP_TREE_Z = 7;            // off the z=0 bridge axis
+export const NAP_TREE_X = 0.83;  // NAP centroid — center of the top comma shape
+export const NAP_TREE_Z = 18.05;
 // Clockwise (top-down) yaw delta applied to BOTH the procedural fallback and the
 // GLB gate so they stay in sync. Three.js +Y rotation is CCW from above, so
 // clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because
@@ -49,19 +45,20 @@ export const NAP_TREE_Z = 7;            // off the z=0 bridge axis
 // on top of both, so a single tweak turns the whole gateway.
 export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4; // 45° clockwise (top-down)
 
-// ── Bridge over the sea channel (Stage 4, v0.2.331) ──────────────────────────
-// A static deck crossing the x=20 channel E-W at z=0, connecting the arena and
-// NAP islands. It overlaps the land ~3m on each side (x∈[BRIDGE_X±BRIDGE_LEN/2])
-// so it meets both islands' terrain, and its walkable top sits at BRIDGE_DECK_Y
-// (a hair above ISLAND_BASE_Y so the character controller steps up onto it). The
-// decorative torii-gate is placed ON this deck. Shared by bridge.js (mesh) and
-// physics.js (cuboid deck collider).
-export const BRIDGE_X      = ARENA_HALF; // 20 — channel centreline
-export const BRIDGE_Z      = 0;          // aligned with the east-wall gate gap
-export const BRIDGE_DECK_Y = 0.7;        // walkable top surface (world Y)
-export const BRIDGE_LEN    = 12;         // E-W span (x 14 → 26): 3m onto each island
-export const BRIDGE_WIDTH  = 4;          // N-S width (z −2 → +2)
-export const BRIDGE_THICK  = 0.4;        // deck slab thickness
+// ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
+// Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.
+export const BRIDGE_X      = -24;   // channel centreline between NAP and Arena BL
+export const BRIDGE_Z      = 5;     // z=5 where the channel is ~6m wide
+export const BRIDGE_DECK_Y = 0.7;   // walkable top surface (world Y)
+export const BRIDGE_LEN    = 10;    // E-W span (x -29 → -19): 2m overlap each side
+export const BRIDGE_WIDTH  = 4;    // N-S width (z 3 → 7)
+export const BRIDGE_THICK  = 0.4;   // deck slab thickness
+// Bridge 2: Arena BL ↔ Arena BR (no gate). Spans the center channel at z=0.
+export const BRIDGE2_X      = 1;    // channel centreline between BL and BR
+export const BRIDGE2_Z      = 0;
+export const BRIDGE2_LEN    = 12;   // E-W span (x -5 → 7): 2m overlap each side
+export const BRIDGE2_WIDTH  = 4;
+export const BRIDGE2_THICK  = 0.4;
 export const PLAYER_HP      = 100;
 export const PLAYER_SPEED   = 8;
 export const PLAYER_RADIUS  = 0.35;
@@ -136,16 +133,16 @@ export const TUNING = Object.freeze({
 // arena.js builds BoxGeometry(halfW*2, fullH, halfD*2) centred at (cx, fullH/2, cz)
 // player.js + bots.js use these same values for AABB pushout.
 export const CRATES = [
-  // cx    cz    hw    hd    fullH
-  [ -8,   -8,  0.75, 0.75,  1.5 ],
-  [  8,   -8,  0.75, 0.75,  1.5 ],
-  [ -8,    8,  0.75, 0.75,  1.5 ],
-  [  8,    8,  0.75, 0.75,  1.5 ],
-  [  0,    0,  1.0,  1.0,   1.0 ],
-  [-14,    0,  0.75, 0.75,  2.0 ],
-  [-10,  -10,  0.75, 0.75,  2.0 ], // was [14,0] — relocated off the arena bridge foot (v0.2.333)
-  [ -5,   13,  1.5,  0.5,   1.0 ],
-  [  5,  -13,  1.5,  0.5,   1.0 ],
+  // cx    cz    hw    hd    fullH    — spread across both arena comma shapes
+  [-15,   -8,  0.75, 0.75,  1.5 ],   // Arena BL interior
+  [ 15,  -10,  0.75, 0.75,  1.5 ],   // Arena BR interior
+  [-20,   -5,  0.75, 0.75,  1.5 ],   // Arena BL west
+  [ 20,   -5,  0.75, 0.75,  1.5 ],   // Arena BR east
+  [-10,  -15,  1.0,  1.0,   1.0 ],   // Arena BL south
+  [ 10,  -15,  1.0,  1.0,   1.0 ],   // Arena BR south
+  [-15,    0,  0.75, 0.75,  2.0 ],   // Arena BL center
+  [ 15,    0,  0.75, 0.75,  2.0 ],   // Arena BR center
+  [-22,  -12,  1.5,  0.5,   1.0 ],   // Arena BL far west
 ];
 
 // OBSTACLES — collision-only colliders (no visual mesh built from this list).
@@ -162,6 +159,6 @@ export const CRATES = [
 export const OBSTACLES = [
   // cx              cz                 hw    hd                 fullH
   [ NAP_TREE_X,     NAP_TREE_Z,        0.55, 0.55,              4.4 ], // bonsai trunk (NAP zone)
-  [ ARENA_HALF,     -3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (north) — matches gate ×1.3 scale
-  [ ARENA_HALF,      3.0,               0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (south) — matches gate ×1.3 scale
+  [ BRIDGE_X,       BRIDGE_Z - 3.0,    0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (north) — on bridge 1
+  [ BRIDGE_X,       BRIDGE_Z + 3.0,    0.4,  0.4,               WALL_H * 1.3 ], // torii pillar (south) — on bridge 1
 ];

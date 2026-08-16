@@ -17,7 +17,7 @@ import { raycastService } from './engine/physics/raycastService.js';
 import { classifyHeadshot } from './weapons.js';
 import { setReticleState } from './hud.js';
 import { state, isPlaying } from './state.js';
-import { NAP_X } from './config.js';
+import { isNapLand } from './terrain/tomoeShape.js';
 
 const RANGE          = 60;   // m — matches effective bullet reach
 const CLOSE_RADIUS   = 0.6;  // m — perpendicular slack that counts as "close"
@@ -41,7 +41,7 @@ export function initTargetReticle({ bots, playerObj, getPlayerCollider }) {
 export function tickTargetReticle() {
   // Only meaningful while actively playing AND armed.
   if (!_bots || !isPlaying() || state.reloading ||
-      (_playerObj && _playerObj.position.x > NAP_X)) {
+      (_playerObj && isNapLand(_playerObj.position.x, _playerObj.position.z))) {
     setReticleState('none');
     return;
   }

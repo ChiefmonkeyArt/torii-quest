@@ -15,8 +15,9 @@
 // 2*(halfHeight + radius). Player body is positioned at the *capsule centre*
 // (foot + halfHeight + radius), NOT the eye. player.js maps body↔eye.
 import {
-  CRATES, OBSTACLES, EAST_GAP_HALF,
+  CRATES, OBSTACLES,
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
+  BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
 } from './config.js';
 import { initBodies, createStatic, createStaticYaw, createHeightfield } from './engine/physics/bodies.js';
 import { initRaycast } from './engine/physics/raycast.js';
@@ -142,35 +143,33 @@ export function buildArenaColliders() {
   }
 
   // COASTLINE wall — knee-high (0.5m) PLAYER colliders following the organic
-  // coast ring (v0.2.342). Height sits above the 0.3m autostep but far below the
-  // ~2m jump apex, so the player can jump the boundary but not walk over it. One
-  // thin yaw-rotated cuboid per ring segment (~32, well under the ≤40 budget),
-  // skipping the east torii-gate gap so the bridge → NAP walkway stays clear.
-  // These do NOT contain bots — bots are held in by the polygon clamp in bots.js
-  // (kinematic bots ignore static colliders). See coastline.js.
-  const ring = fenceRing();
-  const rn = ring.length;
-  const WALL_HH = 0.25;   // half-height → 0.5m tall
-  const WALL_HD = 0.1;    // half-thickness (radial)
-  for (let i = 0; i < rn; i++) {
-    const [ax, az] = ring[i];
-    const [bx, bz] = ring[(i + 1) % rn];
-    const mx = (ax + bx) * 0.5, mz = (az + bz) * 0.5;
-    if (mx > 6 && Math.abs(mz) < EAST_GAP_HALF) continue; // gate gap (matches arena.js)
-    const dx = bx - ax, dz = bz - az;
-    const len = Math.hypot(dx, dz) || 1e-6;
-    const yaw = Math.atan2(-dz, dx);
-    const cy = sampleArenaHeight(mx, mz) + WALL_HH;
-    createStaticYaw(len / 2, WALL_HH, WALL_HD, mx, cy, mz, yaw);
+  // v0.2.511: fenceRing() now returns an ARRAY of rings (two arena play loops).
+  // Build wall segments for each ring. No gate gap — bridges are separate from the wall.
+  const rings = fenceRing();
+  const WALL_HH = 0.25;
+  const WALL_HD = 0.1;
+  for (const ring of rings) {
+    const rn = ring.length;
+    for (let i = 0; i < rn; i++) {
+      const [ax, az] = ring[i];
+      const [bx, bz] = ring[(i + 1) % rn];
+      const mx = (ax + bx) * 0.5, mz = (az + bz) * 0.5;
+      const dx = bx - ax, dz = bz - az;
+      const len = Math.hypot(dx, dz) || 1e-6;
+      const yaw = Math.atan2(-dz, dx);
+      const cy = sampleArenaHeight(mx, mz) + WALL_HH;
+      createStaticYaw(len / 2, WALL_HH, WALL_HD, mx, cy, mz, yaw);
+    }
   }
 
-  // BRIDGE deck (Stage 4, v0.2.331) — a static cuboid spanning the sea channel at
-  // x=20, z=0, matching the visual deck in bridge.js. Its top face is at
-  // BRIDGE_DECK_Y (centre a half-thickness below). It overlaps both islands'
-  // heightfields at its ends, so the character controller can step arena → bridge
-  // → NAP over the channel water.
+  // Bridge 1 deck (NAP ↔ Arena BL) — static cuboid matching bridge.js visuals.
   createStatic(
     BRIDGE_LEN / 2, BRIDGE_THICK / 2, BRIDGE_WIDTH / 2,
     BRIDGE_X, BRIDGE_DECK_Y - BRIDGE_THICK / 2, BRIDGE_Z,
+  );
+  // Bridge 2 deck (Arena BL ↔ Arena BR) — no gate.
+  createStatic(
+    BRIDGE2_LEN / 2, BRIDGE2_THICK / 2, BRIDGE2_WIDTH / 2,
+    BRIDGE2_X, BRIDGE_DECK_Y - BRIDGE2_THICK / 2, BRIDGE2_Z,
   );
 }

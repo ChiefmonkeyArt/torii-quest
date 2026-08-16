@@ -19,18 +19,22 @@ const NAP_X = -20;
 describe('peerCombat outbound (shouldSendShot + buildShotPayload)', () => {
   // The arena sits at x <= NAP_X (shooting is suppressed for x > NAP_X, the NAP zone).
   it('sends when we have selfId and are inside the arena', () => {
-    expect(shouldSendShot({ playerX: NAP_X - 30, napX: NAP_X, selfId: 'me1' })).toBe(true);
-    expect(shouldSendShot({ playerX: NAP_X, napX: NAP_X, selfId: 'me1' })).toBe(true);
+    // v0.2.511: isNapLandFn returns false for arena positions
+    const notNap = () => false;
+    expect(shouldSendShot({ playerX: -10, playerZ: -5, isNapLandFn: notNap, selfId: 'me1' })).toBe(true);
+    expect(shouldSendShot({ playerX: 0, playerZ: 2, isNapLandFn: notNap, selfId: 'me1' })).toBe(true);
   });
 
-  it('does NOT send in the NAP zone (playerX > napX)', () => {
-    expect(shouldSendShot({ playerX: NAP_X + 5, napX: NAP_X, selfId: 'me1' })).toBe(false);
+  it('does NOT send in the NAP zone (isNapLand = true)', () => {
+    // v0.2.511: polygon-based NAP check — (0, 25) is inside the NAP island
+    expect(shouldSendShot({ playerX: 0, playerZ: 25, isNapLandFn: (x, z) => z > 3, selfId: 'me1' })).toBe(false);
   });
 
   it('does NOT send when selfId is falsy (pre-WELCOME)', () => {
-    expect(shouldSendShot({ playerX: NAP_X - 30, napX: NAP_X, selfId: null })).toBe(false);
-    expect(shouldSendShot({ playerX: NAP_X - 30, napX: NAP_X, selfId: undefined })).toBe(false);
-    expect(shouldSendShot({ playerX: NAP_X - 30, napX: NAP_X, selfId: '' })).toBe(false);
+    const notNap = () => false;
+    expect(shouldSendShot({ playerX: -10, playerZ: -5, isNapLandFn: notNap, selfId: null })).toBe(false);
+    expect(shouldSendShot({ playerX: -10, playerZ: -5, isNapLandFn: notNap, selfId: undefined })).toBe(false);
+    expect(shouldSendShot({ playerX: -10, playerZ: -5, isNapLandFn: notNap, selfId: '' })).toBe(false);
   });
 
   it('prefers the AIM ray and serialises vectors to [x,y,z] arrays', () => {

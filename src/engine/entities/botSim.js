@@ -24,6 +24,7 @@ import {
   pickCover, obstacleAvoid,
   effectiveSight, effectiveCooldown, effectiveSpread,
 } from './bot-tactics.js';
+import { isNapLand } from '../../terrain/tomoeShape.js';
 
 // ── Tuning (mirrors src/bots.js exactly) ─────────────────────────────────────
 export const BOT_R = 0.4;
@@ -97,7 +98,7 @@ export function createBotSim(deps) {
     shotCallback, getPlayerCollider,
   } = deps;
   const {
-    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X,
+    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES,
     // Per-bot stat sources. Defaults keep callers that only pass the regular
     // config (and the pure unit tests) byte-identical: BOSS_COUNT=0 → no boss.
     BOT_SPEED = 2.2, BOT_DAMAGE = 6,
@@ -230,7 +231,7 @@ export function createBotSim(deps) {
   // Is this player a valid shooting/engage target? In-fence, non-NAP, and (for a
   // flying player) below the targeting ceiling. Mirrors the shooting gate.
   function _eligible(p) {
-    return !p.outsideFence && p.x <= NAP_X &&
+    return !p.outsideFence && !isNapLand(p.x, p.z) &&
            !(p.flyEnabled && p.y >= FLY_TARGET_CEILING);
   }
 
@@ -350,7 +351,7 @@ export function createBotSim(deps) {
       }
       // Per-target gates (were global in chunk 1; identical for one player).
       const playerSafe     = !!pp.outsideFence;
-      const playerInNap     = pp.x > NAP_X;
+      const playerInNap     = isNapLand(pp.x, pp.z);
       const tooHighToTarget = !!pp.flyEnabled && pp.y >= FLY_TARGET_CEILING;
 
       const px = state.pos.x, pz = state.pos.z;

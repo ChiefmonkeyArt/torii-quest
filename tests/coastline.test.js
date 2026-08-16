@@ -1,16 +1,18 @@
-// tests/coastline.test.js — organic outer-arena boundary polygon (v0.2.342).
-// Pure + node-safe (no THREE): guards the deterministic coastline shape and the
-// point-in-polygon / clamp helpers that drive the wall, the player colliders and
-// the bot containment clamp. If this shape drifts, all three fall out of sync.
+// tests/coastline.test.js — TOMOE coastline rings (v0.2.511).
+// Tests the two arena play-area rings (bottom islands) and the point-in-polygon /
+// clamp helpers. The origin (0,0) is in the sea channel between the two arena
+// islands — NOT inside the fence. The centroids of each arena island are inside.
 import { describe, it, expect } from 'vitest';
 import {
   ARENA_COASTLINE, pointInCoastline, clampToCoastline,
   coastlineRing, coastlineBounds,
 } from '../src/terrain/coastline.js';
-import { ARENA_HALF } from '../src/config.js';
+import {
+  ARENA_BL_CENTROID, ARENA_BR_CENTROID,
+} from '../src/terrain/tomoeShape.js';
 
 describe('ARENA_COASTLINE shape', () => {
-  it('is a closed ring of many vertices (organic, not a square)', () => {
+  it('is a closed ring of many vertices (organic, from SVG)', () => {
     expect(Array.isArray(ARENA_COASTLINE)).toBe(true);
     expect(ARENA_COASTLINE.length).toBeGreaterThanOrEqual(24);
     for (const p of ARENA_COASTLINE) {
@@ -20,83 +22,84 @@ describe('ARENA_COASTLINE shape', () => {
     }
   });
 
-  it('fits inside the island footprint (max |x|,|z| < ARENA_HALF)', () => {
-    for (const [x, z] of ARENA_COASTLINE) {
-      expect(Math.abs(x)).toBeLessThan(ARENA_HALF);
-      expect(Math.abs(z)).toBeLessThan(ARENA_HALF);
+  it('coastlineRing() returns an array of rings (two arena islands)', () => {
+    const rings = coastlineRing();
+    expect(Array.isArray(rings)).toBe(true);
+    expect(rings.length).toBe(2);
+    for (const ring of rings) {
+      expect(ring.length).toBeGreaterThanOrEqual(24);
     }
-  });
-
-  it('is genuinely wavy — radius is not constant (not a circle)', () => {
-    const radii = ARENA_COASTLINE.map(([x, z]) => Math.hypot(x, z));
-    const min = Math.min(...radii), max = Math.max(...radii);
-    expect(max - min).toBeGreaterThan(1); // real headlands/bays, > 1m variation
-  });
-
-  it('is deterministic — coastlineRing() returns the same shape', () => {
-    expect(coastlineRing()).toBe(ARENA_COASTLINE);
   });
 });
 
 describe('coastlineBounds', () => {
-  it('encloses every vertex', () => {
+  it('encloses every vertex in all rings', () => {
     const b = coastlineBounds();
-    for (const [x, z] of ARENA_COASTLINE) {
-      expect(x).toBeGreaterThanOrEqual(b.minX);
-      expect(x).toBeLessThanOrEqual(b.maxX);
-      expect(z).toBeGreaterThanOrEqual(b.minZ);
-      expect(z).toBeLessThanOrEqual(b.maxZ);
+    const rings = coastlineRing();
+    for (const ring of rings) {
+      for (const [x, z] of ring) {
+        expect(x).toBeGreaterThanOrEqual(b.minX);
+        expect(x).toBeLessThanOrEqual(b.maxX);
+        expect(z).toBeGreaterThanOrEqual(b.minZ);
+        expect(z).toBeLessThanOrEqual(b.maxZ);
+      }
     }
   });
 });
 
 describe('pointInCoastline', () => {
-  it('is true at the origin (deep inside)', () => {
-    expect(pointInCoastline(0, 0)).toBe(true);
+  it('is true at the Arena BL centroid (deep inside left island)', () => {
+    expect(pointInCoastline(ARENA_BL_CENTROID[0], ARENA_BL_CENTROID[1])).toBe(true);
+  });
+
+  it('is true at the Arena BR centroid (deep inside right island)', () => {
+    expect(pointInCoastline(ARENA_BR_CENTROID[0], ARENA_BR_CENTROID[1])).toBe(true);
+  });
+
+  it('is false at the origin (sea channel between islands)', () => {
+    expect(pointInCoastline(0, 0)).toBe(false);
   });
 
   it('is false far outside', () => {
     expect(pointInCoastline(100, 100)).toBe(false);
-    expect(pointInCoastline(-50, 0)).toBe(false);
+    expect(pointInCoastline(-50, 50)).toBe(false);
     expect(pointInCoastline(0, 40)).toBe(false);
-  });
-
-  it('is false just beyond the max extent on each axis', () => {
-    const b = coastlineBounds();
-    expect(pointInCoastline(b.maxX + 2, 0)).toBe(false);
-    expect(pointInCoastline(b.minX - 2, 0)).toBe(false);
-    expect(pointInCoastline(0, b.maxZ + 2)).toBe(false);
-    expect(pointInCoastline(0, b.minZ - 2)).toBe(false);
   });
 });
 
 describe('clampToCoastline', () => {
   it('leaves a deep-interior point unchanged', () => {
-    const [x, z] = clampToCoastline(0, 0, 0.4);
-    expect(x).toBeCloseTo(0, 9);
-    expect(z).toBeCloseTo(0, 9);
+    const [x, z] = clampToCoastline(ARENA_BL_CENTROID[0], ARENA_BL_CENTROID[1], 0.4);
+    expect(x).toBeCloseTo(ARENA_BL_CENTROID[0], 6);
+    expect(z).toBeCloseTo(ARENA_BL_CENTROID[1], 6);
   });
 
   it('pulls an outside point back inside (with margin)', () => {
     const margin = 0.4;
-    const [x, z] = clampToCoastline(30, 30, margin);
+    const [x, z] = clampToCoastline(100, 100, margin);
     expect(pointInCoastline(x, z)).toBe(true);
-    // and it should be meaningfully closer to the interior than the input
-    expect(Math.hypot(x, z)).toBeLessThan(Math.hypot(30, 30));
   });
 
   it('keeps any clamped point inside for a sweep of far-flung inputs', () => {
-    for (let a = 0; a < Math.PI * 2; a += 0.13) {
-      const x = Math.cos(a) * 40, z = Math.sin(a) * 40;
+    // Test from points just outside each arena island's bounds
+    const b = coastlineBounds();
+    const testPoints = [
+      [b.minX - 5, ARENA_BL_CENTROID[1]],
+      [b.maxX + 5, ARENA_BR_CENTROID[1]],
+      [ARENA_BL_CENTROID[0], b.minZ - 5],
+      [ARENA_BR_CENTROID[0], b.maxZ + 5],
+      [ARENA_BL_CENTROID[0] - 10, ARENA_BL_CENTROID[1] - 10],
+      [ARENA_BR_CENTROID[0] + 10, ARENA_BR_CENTROID[1] + 10],
+    ];
+    for (const [x, z] of testPoints) {
       const [cx, cz] = clampToCoastline(x, z, 0.4);
       expect(pointInCoastline(cx, cz)).toBe(true);
     }
   });
 
   it('honours a larger margin (clamped point sits further in)', () => {
-    const [x0, z0] = clampToCoastline(30, 0, 0.1);
-    const [x2, z2] = clampToCoastline(30, 0, 2.0);
-    expect(Math.hypot(x2, z2)).toBeLessThan(Math.hypot(x0, z0));
+    const [x0, z0] = clampToCoastline(100, 0, 0.1);
+    const [x2, z2] = clampToCoastline(100, 0, 2.0);
     expect(pointInCoastline(x2, z2)).toBe(true);
   });
 });

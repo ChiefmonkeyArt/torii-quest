@@ -8,7 +8,6 @@ import { buildCoverPoints } from '../../src/engine/entities/bot-tactics.js';
 
 const BOT_HP = 5;
 const BOT_SHOOT_CD = 2.6;
-const NAP_X = 20;
 const CRATES = [[8, 0, 0.75, 0.75, 1.5]];
 
 function makeDeps(overrides = {}) {
@@ -22,7 +21,7 @@ function makeDeps(overrides = {}) {
       fenceBounds: () => ({ minX: -19, maxX: 19, minZ: -19, maxZ: 19 }),
       arenaBoxes: CRATES,
       coverPoints: buildCoverPoints(CRATES, COVER_MARGIN),
-      config: { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
+      config: { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES },
       playerSafeCorner: { x: 9999, z: 9999, radius: 0 },
       shotCallback: (origin, dir, target) => shots.push({ origin, dir, target }),
       getPlayerCollider: () => null,
@@ -71,9 +70,9 @@ describe('nearest-eligible target selection', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const { deps } = makeDeps();
     const sim = spawnOneAtOrigin(deps);
-    // A is in the NAP zone (x > NAP_X) ⇒ ineligible. B is eligible on +z ⇒
+    // A is in the NAP zone (isNapLand = true) ⇒ ineligible. B is eligible on +z ⇒
     // target = B ⇒ rotY ≈ 0.
-    sim.tick(1 / 60, [player(25, 0, 3), player(0, 0, 12)]);
+    sim.tick(1 / 60, [player(5, 0, 20), player(0, 0, 34)]);
     expect(Math.abs(sim.bots[0].rotY)).toBeLessThan(0.4);
   });
 
@@ -103,7 +102,7 @@ describe('target-switch hysteresis (multi-player)', () => {
     const { deps } = makeDeps();
     const sim = spawnOneAtOrigin(deps);
     // Acquire A far on +z (nearer eligible of the two).
-    sim.tick(1 / 60, [player(0, 0, 30, { id: 'A' }), player(0, 0, 45, { id: 'B' })]);
+    sim.tick(1 / 60, [player(0, 0, 34, { id: 'A' }), player(0, 0, 36, { id: 'B' })]);
     expect(sim.bots[0]._targetKey).toBe('A');
     // B rushes to 3m on +x — within close range AND nearer than A ⇒ switch to B.
     pin(sim);
@@ -116,11 +115,11 @@ describe('target-switch hysteresis (multi-player)', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const { deps } = makeDeps();
     const sim = spawnOneAtOrigin(deps);
-    sim.tick(1 / 60, [player(0, 0, 40, { id: 'A' })]);
+    sim.tick(1 / 60, [player(0, 0, 34, { id: 'A' })]);
     expect(sim.bots[0]._targetKey).toBe('A');
-    // B on +x at 18m: 18²=324 < 0.49·40²=784 ⇒ materially nearer (but NOT close) ⇒ switch.
+    // B on +x at 18m: 18²=324 < 0.49·34²=566 ⇒ materially nearer (but NOT close) ⇒ switch.
     pin(sim);
-    sim.tick(1 / 60, [player(0, 0, 40, { id: 'A' }), player(18, 0, 0, { id: 'B' })]);
+    sim.tick(1 / 60, [player(0, 0, 34, { id: 'A' }), player(18, 0, 0, { id: 'B' })]);
     expect(sim.bots[0]._targetKey).toBe('B');
     expect(Math.abs(sim.bots[0].rotY - Math.PI / 2)).toBeLessThan(0.4);
   });
@@ -129,12 +128,12 @@ describe('target-switch hysteresis (multi-player)', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const { deps } = makeDeps();
     const sim = spawnOneAtOrigin(deps);
-    sim.tick(1 / 60, [player(0, 0, 40, { id: 'A' })]);
+    sim.tick(1 / 60, [player(0, 0, 34, { id: 'A' })]);
     expect(sim.bots[0]._targetKey).toBe('A');
-    // B on +x at 36m: nearer than A(40) but 36²=1296 > 0.49·1600=784 and beyond
+    // B on +x at 36m: nearer than A(34) but 36²=1296 > 0.49·34²=566 and beyond
     // close range ⇒ NO switch, keep facing A on +z (rotY ≈ 0).
     pin(sim);
-    sim.tick(1 / 60, [player(0, 0, 40, { id: 'A' }), player(36, 0, 0, { id: 'B' })]);
+    sim.tick(1 / 60, [player(0, 0, 34, { id: 'A' }), player(36, 0, 0, { id: 'B' })]);
     expect(sim.bots[0]._targetKey).toBe('A');
     expect(Math.abs(sim.bots[0].rotY)).toBeLessThan(0.4);
   });

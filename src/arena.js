@@ -3,11 +3,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
-import { ARENA_HALF, WALL_H, CRATES, EAST_GAP_HALF, NAP_X, NAP_FAR_X, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y } from './config.js';
+import { ARENA_HALF, WALL_H, CRATES, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y, BRIDGE_X, BRIDGE_Z } from './config.js';
 import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
+import { arenaGlowLoops } from './terrain/tomoeShape.js';
 import { fenceRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
@@ -21,10 +22,8 @@ const C_NEON   = 0x27e1ff; // coastline neon edge
 
 // Coastline glass wall — knee-high (jumpable) transparent barrier + neon top edge.
 const WALL_WALL_H = 0.5; // wall height (m) — above the 0.3 autostep, well under the ~2m jump apex
-// A ring segment whose midpoint lies in the east torii-gate gap is skipped so the
-// bridge → NAP walkway stays open (mirrors EAST_GAP_HALF; bots are held in by the
-// full polygon clamp in bots.js, so the gap only concerns the player).
-function _inGateGap(mx, mz) { return mx > 6 && Math.abs(mz) < EAST_GAP_HALF; }
+// v0.2.511: No gate gap — the wall follows the play rings and bridges are separate.
+function _inGateGap(mx, mz) { return false; }
 
 const crateMat = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
 
@@ -90,83 +89,82 @@ const _groundGlowMat = new THREE.MeshBasicMaterial({
   blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
 });
 function _buildCoastlineWall() {
-  const ring = fenceRing();
-  const n = ring.length;
+  // v0.2.511: Two separate neon loops for the two arena islands.
+  // fenceRing() returns an array of rings; iterate each independently.
+  const rings = fenceRing();
   const H = WALL_WALL_H;
-  const inGap = ring.map(([x, z]) => _inGateGap(x, z));
 
-  // Glass ribbon: two verts per ring point (bottom on ground, top at +H). Skip
-  // any segment touching the gate gap so the bridge walkway stays open.
-  const positions = new Float32Array(n * 2 * 3);
-  for (let i = 0; i < n; i++) {
-    const x = ring[i][0], z = ring[i][1];
-    const gy = sampleArenaHeight(x, z);
-    positions[i * 6 + 0] = x; positions[i * 6 + 1] = gy;     positions[i * 6 + 2] = z;
-    positions[i * 6 + 3] = x; positions[i * 6 + 4] = gy + H; positions[i * 6 + 5] = z;
-  }
-  const idx = [];
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (inGap[i] || inGap[j]) continue;
-    const bi = i * 2, ti = i * 2 + 1, bj = j * 2, tj = j * 2 + 1;
-    idx.push(bi, ti, tj, bi, tj, bj);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  const glass = new THREE.Mesh(geo, _glassMat);
-  glass.name = 'coastline-wall';
-  glass.renderOrder = 2;
-  scene.add(glass);
+  for (const ring of rings) {
+    const n = ring.length;
+    const inGap = ring.map(([x, z]) => _inGateGap(x, z));
 
-  // Neon top edge: a thin emissive tube along the kept arc (open if a gate gap
-  // exists, closed loop otherwise). Start just after the gap so the arc is one
-  // contiguous run even across the ring's 0-index wrap.
-  let start = 0;
-  for (let i = 0; i < n; i++) {
-    if (!inGap[i] && inGap[(i - 1 + n) % n]) { start = i; break; }
-  }
-  const pts = [];
-  for (let k = 0; k < n; k++) {
-    const i = (start + k) % n;
-    if (inGap[i]) break;
-    const x = ring[i][0], z = ring[i][1];
-    pts.push(new THREE.Vector3(x, sampleArenaHeight(x, z) + H, z));
-  }
-  const closed = pts.length === n;
-  const curve = new THREE.CatmullRomCurve3(pts, closed);
-  const neonGeo = new THREE.TubeGeometry(curve, n * 2, 0.05, 6, closed);
-  const neon = new THREE.Mesh(neonGeo, _neonMat);
-  neon.name = 'coastline-neon';
-  scene.add(neon);
+    // Glass ribbon: two verts per ring point (bottom on ground, top at +H).
+    const positions = new Float32Array(n * 2 * 3);
+    for (let i = 0; i < n; i++) {
+      const x = ring[i][0], z = ring[i][1];
+      const gy = sampleArenaHeight(x, z);
+      positions[i * 6 + 0] = x; positions[i * 6 + 1] = gy;     positions[i * 6 + 2] = z;
+      positions[i * 6 + 3] = x; positions[i * 6 + 4] = gy + H; positions[i * 6 + 5] = z;
+    }
+    const idx = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if (inGap[i] || inGap[j]) continue;
+      const bi = i * 2, ti = i * 2 + 1, bj = j * 2, tj = j * 2 + 1;
+      idx.push(bi, ti, tj, bi, tj, bj);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const glass = new THREE.Mesh(geo, _glassMat);
+    glass.name = 'coastline-wall';
+    glass.renderOrder = 2;
+    scene.add(glass);
 
-  // Ground-hugging wash: two verts per ring point (outer on the wall, inner
-  // inset toward the arena) so the glow sits on the dirt under the glass.
-  const INSET = 0.7, Y_LIFT = 0.06;
-  const gpos = new Float32Array(n * 2 * 3);
-  for (let i = 0; i < n; i++) {
-    const x = ring[i][0], z = ring[i][1];
-    const len = Math.hypot(x, z) || 1;
-    const scale = Math.max(0.2, (len - INSET) / len);
-    const ix = x * scale, iz = z * scale;
-    gpos[i * 6 + 0] = x;  gpos[i * 6 + 1] = sampleArenaHeight(x, z) + Y_LIFT;   gpos[i * 6 + 2] = z;
-    gpos[i * 6 + 3] = ix; gpos[i * 6 + 4] = sampleArenaHeight(ix, iz) + Y_LIFT; gpos[i * 6 + 5] = iz;
+    // Neon top edge: thin emissive tube along the full ring (closed loop, no gap).
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const x = ring[i][0], z = ring[i][1];
+      pts.push(new THREE.Vector3(x, sampleArenaHeight(x, z) + H, z));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts, true);
+    const neonGeo = new THREE.TubeGeometry(curve, n * 2, 0.05, 6, true);
+    const neon = new THREE.Mesh(neonGeo, _neonMat);
+    neon.name = 'coastline-neon';
+    scene.add(neon);
+
+    // Ground-hugging wash: additive ribbon on the soil just inside the wall.
+    const INSET = 0.7, Y_LIFT = 0.06;
+    // Compute ring centroid for inward inset direction.
+    let rcx = 0, rcz = 0;
+    for (const [px, pz] of ring) { rcx += px; rcz += pz; }
+    rcx /= n; rcz /= n;
+    const gpos = new Float32Array(n * 2 * 3);
+    for (let i = 0; i < n; i++) {
+      const x = ring[i][0], z = ring[i][1];
+      const dx = rcx - x, dz = rcz - z;
+      const len = Math.hypot(dx, dz) || 1;
+      const scale = Math.max(0.2, (len - INSET) / len);
+      const ix = x + dx * scale, iz = z + dz * scale;
+      gpos[i * 6 + 0] = x;  gpos[i * 6 + 1] = sampleArenaHeight(x, z) + Y_LIFT;   gpos[i * 6 + 2] = z;
+      gpos[i * 6 + 3] = ix; gpos[i * 6 + 4] = sampleArenaHeight(ix, iz) + Y_LIFT; gpos[i * 6 + 5] = iz;
+    }
+    const gidx = [];
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if (inGap[i] || inGap[j]) continue;
+      const oi = i * 2, ii = i * 2 + 1, oj = j * 2, ij = j * 2 + 1;
+      gidx.push(oi, ii, ij, oi, ij, oj);
+    }
+    const ggeo = new THREE.BufferGeometry();
+    ggeo.setAttribute('position', new THREE.BufferAttribute(gpos, 3));
+    ggeo.setIndex(gidx);
+    const glow = new THREE.Mesh(ggeo, _groundGlowMat);
+    glow.name = 'coastline-ground-glow';
+    glow.renderOrder = 1;
+    scene.add(glow);
   }
-  const gidx = [];
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n;
-    if (inGap[i] || inGap[j]) continue;
-    const oi = i * 2, ii = i * 2 + 1, oj = j * 2, ij = j * 2 + 1;
-    gidx.push(oi, ii, ij, oi, ij, oj);
-  }
-  const ggeo = new THREE.BufferGeometry();
-  ggeo.setAttribute('position', new THREE.BufferAttribute(gpos, 3));
-  ggeo.setIndex(gidx);
-  const glow = new THREE.Mesh(ggeo, _groundGlowMat);
-  glow.name = 'coastline-ground-glow';
-  glow.renderOrder = 1;
-  scene.add(glow);
 }
 
 // ── Crates ────────────────────────────────────────────────────────────────────
@@ -196,7 +194,7 @@ function _buildToriiGate() {
   const rp = lp.clone(); rp.position.set(0, 2.5, 3); fallback.add(rp);
   const cb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 6.5), mat);
   cb.position.set(0, 5.2, 0); fallback.add(cb);
-  fallback.position.set(ARENA_HALF, BRIDGE_DECK_Y, 0); // gate now stands ON the bridge deck over the channel
+  fallback.position.set(BRIDGE_X, BRIDGE_DECK_Y, BRIDGE_Z); // gate on bridge 1 (NAP ↔ Arena BL)
   fallback.rotation.y = Math.PI / 2; // match GLB — crossbar parallel to east wall
   // Named for the proof-surface parent binding (v0.2.151), discoverable via
   // scene.getObjectByName('torii-gate'); the GLB below inherits the same name.
@@ -205,7 +203,7 @@ function _buildToriiGate() {
 
   // Accent light — stays regardless of GLB. Raised onto the island plateau.
   const gl = new THREE.PointLight(C_PURPLE, 3, 10);
-  gl.position.set(ARENA_HALF - 1, 4 + BRIDGE_DECK_Y, 0); scene.add(gl);
+  gl.position.set(BRIDGE_X - 1, 4 + BRIDGE_DECK_Y, BRIDGE_Z); scene.add(gl);
 
   // Load GLB asynchronously — replaces fallback when ready
   const draco = new DRACOLoader();
@@ -233,7 +231,7 @@ function _buildToriiGate() {
     // crossbar runs north–south, parallel to the east wall — players walk
     // through it along the X axis.
     box.setFromObject(gate);
-    gate.position.set(ARENA_HALF - 0.2, -box.min.y + BRIDGE_DECK_Y, 0);
+    gate.position.set(BRIDGE_X - 0.2, -box.min.y + BRIDGE_DECK_Y, BRIDGE_Z);
     // Spin 180° from the previous 0-rad orientation — user request, makes the
     // "front" face of the torii (and its plaque/markings) read from inside the
     // arena rather than from the NAP zone side.
@@ -350,10 +348,9 @@ function _buildNapZone() {
   // 'nap-zone-floor' to preserve the scene.getObjectByName lookup.
   buildNapTerrainMesh(scene);
 
-  // Soft teal accent light to mark the peace zone
+  // Soft teal accent light to mark the peace zone — centered on the NAP island
   const napLight = new THREE.PointLight(0x6ad9d0, 2.0, 22);
-  const NAP_W = NAP_FAR_X - NAP_X;
-  napLight.position.set(NAP_X + NAP_W * 0.55, 5 + ISLAND_BASE_Y, 0);
+  napLight.position.set(NAP_TREE_X, 5 + ISLAND_BASE_Y, NAP_TREE_Z);
   scene.add(napLight);
 
   _buildNapTree(NAP_TREE_X, NAP_TREE_Z); // moved off the bridge axis, closer to the east beach (v0.2.339)

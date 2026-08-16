@@ -20,8 +20,9 @@ import { createBotSim, COVER_MARGIN, EYE_Y, BOT_R } from '../../src/engine/entit
 import { buildCoverPoints } from '../../src/engine/entities/bot-tactics.js';
 import { sampleArenaHeight } from '../../src/terrain/heightmap.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from '../../src/terrain/coastline.js';
+import { isNapLand } from '../../src/terrain/tomoeShape.js';
 import {
-  CRATES, OBSTACLES, NAP_X, BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPEED, BOT_DAMAGE,
+  CRATES, OBSTACLES, BOT_COUNT, BOT_HP, BOT_SHOOT_CD, BOT_SPEED, BOT_DAMAGE,
   BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
 } from '../../src/config.js';
 import { createHeadlessLos } from './headlessLos.js';
@@ -34,7 +35,7 @@ const DEFAULT_LAG_COMP_MS = 300;
 
 // Arena-side static boxes (crates + obstacles west of the NAP plane; torii
 // pillars / bonsai east of it are irrelevant to combat cover). Mirrors src/bots.js.
-const ARENA_BOXES  = [...CRATES, ...OBSTACLES.filter((b) => b[0] < NAP_X)];
+const ARENA_BOXES  = [...CRATES, ...OBSTACLES.filter((b) => !isNapLand(b[0], b[1]))];
 const COVER_POINTS = buildCoverPoints(ARENA_BOXES, COVER_MARGIN);
 
 // The server has no single fixed "player safe corner" (many players). Use a
@@ -60,7 +61,7 @@ export function createArenaBotSim(opts = {}) {
     arenaBoxes: ARENA_BOXES,
     coverPoints: COVER_POINTS,
     config: {
-      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
       BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
     },
     playerSafeCorner: NO_SAFE_CORNER,

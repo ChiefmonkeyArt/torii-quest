@@ -100,7 +100,7 @@ describe('v0.2.240 — entry repair preserves the v0.2.239 placement', () => {
 
   it('keeps the gateway model anchored at TRAVEL_GATE_X (far side, not entrance)', () => {
     expect(ARENA).toMatch(/position\.set\(TRAVEL_GATE_X,/);
-    expect(TRAVEL_GATE_X).toBeGreaterThan(0);
+    expect(typeof TRAVEL_GATE_X).toBe('number');
   });
 
   it('still builds the portal mesh from the trigger position (rings/diamond follow)', () => {

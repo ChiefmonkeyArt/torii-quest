@@ -12,6 +12,7 @@ import { getGunBarrelWorld } from './weapons.js';
 import { isFlyEnabled, enableFly, disableFly, getFlyEye } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isInsideFence } from './terrain/coastline.js';
+import { isNapLand } from './terrain/tomoeShape.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
@@ -76,7 +77,7 @@ const GLIDE_AIR_CONTROL = 0.4; // horizontal accel factor while gliding down
 const GLIDE_MIN_FOOT = 0.5;    // foot this far above terrain ⇒ treat as airborne
 
 function _groundYAt(x, z) {
-  return x > NAP_X ? sampleNapHeight(x, z) : sampleArenaHeight(x, z);
+  return isNapLand(x, z) ? sampleNapHeight(x, z) : sampleArenaHeight(x, z);
 }
 
 export function initPlayer() {

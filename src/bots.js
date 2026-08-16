@@ -17,7 +17,7 @@ import { state, isPlaying } from './state.js';
 import { emit, EV } from './events.js';
 import { setBossBar, hideBossBar } from './hud.js';
 import {
-  BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+  BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, OBSTACLES, BOT_SPEED, BOT_DAMAGE,
   BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
   BOSS_TARGET_HEIGHT,
 } from './config.js';
@@ -31,6 +31,7 @@ import { raycastService } from './engine/physics/raycastService.js';
 import { buildCoverPoints } from './engine/entities/bot-tactics.js';
 import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
+import { isNapLand } from './terrain/tomoeShape.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
@@ -119,7 +120,7 @@ function _botShotToWorld(origin, dir, target) {
 // (crates + arena-side obstacles west of the NAP plane — the torii pillars/bonsai
 // east of it are irrelevant to combat cover). Offset outward from each box by
 // (BOT_R + margin) so a bot standing on the point clears the box.
-const _arenaBoxes  = [...CRATES, ...OBSTACLES.filter(b => b[0] < NAP_X)];
+const _arenaBoxes  = [...CRATES, ...OBSTACLES.filter(b => !isNapLand(b[0], b[1]))];
 const _coverPoints = buildCoverPoints(_arenaBoxes, COVER_MARGIN);
 
 let _spawnBulletFn = null;
@@ -138,7 +139,7 @@ const sim = createBotSim({
   arenaBoxes: _arenaBoxes,
   coverPoints: _coverPoints,
   config: {
-    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+    BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
     BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
   },
   playerSafeCorner: PLAYER_SAFE_CORNER,

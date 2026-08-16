@@ -15,7 +15,7 @@ import {
   ARENA_TERRAIN, ARENA_GRID, sampleArenaHeight, ISLAND_BASE_Y,
 } from './heightmap.js';
 import { SEA_LEVEL } from './seaConfig.js';
-import { pointInTerrainEdge } from './coastline.js';
+import { isNapLand, isArenaLand } from './tomoeShape.js';
 
 // Cheap deterministic value-noise in [0,1) from world XZ — no textures, no state.
 function _hash(x, z) {
@@ -113,7 +113,8 @@ export function buildNapTerrainMesh(scene) {
   return buildZoneMesh(scene, NAP_TERRAIN, NAP_GRID, sampleNapHeight, {
     color: 0x3d5a2f,        // NAP ground-cover green
     name: 'nap-zone-floor', // preserve scene.getObjectByName lookup
-    // v0.2.492: no cellKeep — full mesh, water covers below waterline.
+    // v0.2.511: cellKeep crops the mesh to the NAP comma shape (no square blocks).
+    cellKeep: isNapLand,
   });
 }
 
@@ -148,8 +149,7 @@ export function buildArenaTerrainMesh(scene) {
     name: 'arena-floor',
     roughness: 0.95,
     vary: _arenaGroundColor,
-    // v0.2.492: no cellKeep — full square mesh. The terrain height function
-    // already slopes to SEA_LEVEL at the footprint edge, and the opaque water
-    // covers everything below the waterline. No polygon crop = no blocky edges.
+    // v0.2.511: cellKeep crops the mesh to both arena comma shapes (no square blocks).
+    cellKeep: isArenaLand,
   });
 }

@@ -99,12 +99,10 @@ describe('ARENA terrain heightfield — real Rapier collider (Stage 3, v0.2.329)
   });
 });
 
-describe('BRIDGE deck cuboid collider — real Rapier (Stage 4, v0.2.331)', () => {
-  it('builds the bridge deck cuboid collider without a panic, spanning the channel', () => {
+describe('BRIDGE deck cuboid collider — real Rapier (v0.2.511 — tomoe layout)', () => {
+  it('builds the bridge 1 deck cuboid collider without a panic, spanning the NAP-BL channel', () => {
     const world = new RAPIER.World({ x: 0, y: -25, z: 0 });
     expect(() => {
-      // Mirror physics.js buildArenaColliders exactly: a static cuboid whose top
-      // face sits at BRIDGE_DECK_Y, centred on the x=20 channel at z=0.
       const desc = RAPIER.ColliderDesc.cuboid(
         BRIDGE_LEN / 2, BRIDGE_THICK / 2, BRIDGE_WIDTH / 2,
       ).setTranslation(BRIDGE_X, BRIDGE_DECK_Y - BRIDGE_THICK / 2, BRIDGE_Z);
@@ -114,10 +112,9 @@ describe('BRIDGE deck cuboid collider — real Rapier (Stage 4, v0.2.331)', () =
     world.free();
   });
 
-  it('deck overlaps both islands (spans past x=20 onto arena and NAP land)', () => {
-    // The deck must reach onto both islands' terrain so the player can cross.
-    // Arena land begins ≈ x=17, NAP land ≈ x=23; the deck spans BRIDGE_X±LEN/2.
-    expect(BRIDGE_X - BRIDGE_LEN / 2).toBeLessThan(17);
-    expect(BRIDGE_X + BRIDGE_LEN / 2).toBeGreaterThan(23);
+  it('deck 1 overlaps both NAP and Arena BL land', () => {
+    // Bridge 1 spans the west channel at z=5. NAP land is west, Arena BL is east.
+    expect(BRIDGE_X - BRIDGE_LEN / 2).toBeLessThan(-27);
+    expect(BRIDGE_X + BRIDGE_LEN / 2).toBeGreaterThan(-21);
   });
 });

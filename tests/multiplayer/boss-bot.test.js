@@ -20,7 +20,6 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 const BOT_SHOOT_CD = 2.6;
-const NAP_X = 20;
 const CRATES = [[8, 0, 0.75, 0.75, 1.5]];
 
 // Flat open arena with injected fakes. `bossN`/`count` let a test dial the roster.
@@ -31,11 +30,11 @@ function makeDeps(overrides = {}) {
     footY: () => 0,
     clampFence: (x, z) => [x, z],
     pointInFence: () => true,
-    fenceBounds: () => ({ minX: -19, maxX: 19, minZ: -19, maxZ: 19 }),
+    fenceBounds: () => ({ minX: -19, maxX: 19, minZ: -19, maxZ: 1 }),
     arenaBoxes: CRATES,
     coverPoints: buildCoverPoints(CRATES, COVER_MARGIN),
     config: {
-      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
       BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD: 3.5, BOSS_RADIUS, BOSS_NAME,
     },
     playerSafeCorner: { x: -18, z: -18, radius: 6 },
@@ -79,7 +78,7 @@ describe('pure brain — boss profile + spawn split', () => {
   });
 
   it('with BOSS_COUNT=0 the roster is byte-identical (all regulars)', () => {
-    const { deps } = makeDeps({ config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X } });
+    const { deps } = makeDeps({ config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES } });
     const sim = createBotSim(deps);
     sim.spawnAll(BOT_COUNT);
     expect(sim.bots.every((b) => b.kind === 'regular')).toBe(true);
@@ -90,7 +89,7 @@ describe('pure brain — boss profile + spawn split', () => {
     // Identical spawn (random pinned) + identical tier (index 0) → the only
     // difference is the per-bot speed, so the boss must cover less ground.
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    const single = { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE };
+    const single = { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE };
 
     const reg = createBotSim(makeDeps({ config: { ...single, BOSS_COUNT: 0 } }).deps);
     reg.spawnAll(1);
@@ -113,7 +112,7 @@ describe('pure brain — boss profile + spawn split', () => {
   it('the shotCallback carries the shooting bot per-bot damage', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9);
     const { deps, shots } = makeDeps({
-      config: { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X, BOT_SPEED, BOT_DAMAGE,
+      config: { BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
                 BOSS_COUNT: 1, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_RADIUS, BOSS_NAME },
     });
     const sim = createBotSim(deps);

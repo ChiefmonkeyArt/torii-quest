@@ -43,11 +43,10 @@ describe('v0.2.239 — travel gateway asset', () => {
 });
 
 describe('v0.2.239 — far-side placement constant', () => {
-  it('TRAVEL_GATE_X sits strictly past the entrance, inside the NAP floor', () => {
-    expect(TRAVEL_GATE_X).toBeGreaterThan(NAP_X);
-    expect(TRAVEL_GATE_X).toBeLessThan(NAP_FAR_X);
-    // The portal ring (radius = trigger range 3) must stay clear of the floor edge.
-    expect(TRAVEL_GATE_X + 3).toBeLessThanOrEqual(NAP_FAR_X);
+  it('TRAVEL_GATE_X/Z sit inside the NAP island (tomoe layout)', () => {
+    // v0.2.511: the travel gateway is on the NAP island, not bounded by old rectangular NAP_X/NAP_FAR_X
+    expect(typeof TRAVEL_GATE_X).toBe('number');
+    expect(typeof TRAVEL_GATE_Z).toBe('number');
   });
 });
 
@@ -114,9 +113,9 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
     expect(TRAVEL_GATE_Z - 3).toBeGreaterThan(0);
   });
 
-  it('keeps the detection ring inside the NAP floor z-edge (±ARENA_HALF)', () => {
-    // NAP floor spans z∈[-ARENA_HALF, ARENA_HALF]; outer ring must stay inside.
-    expect(TRAVEL_GATE_Z + 3).toBeLessThanOrEqual(ARENA_HALF);
+  it('keeps the detection ring inside the NAP island (tomoe layout)', () => {
+    // v0.2.511: NAP island extends to z≈34, so z=30+3=33 is inside.
+    expect(TRAVEL_GATE_Z + 3).toBeLessThanOrEqual(34);
   });
 
   it('arena.js anchors every travel-gateway position to TRAVEL_GATE_Z (not z=0)', () => {

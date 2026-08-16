@@ -11,7 +11,6 @@ import { buildCoverPoints, flankAnchor } from '../../src/engine/entities/bot-tac
 const BOT_COUNT = 5;
 const BOT_HP = 5;
 const BOT_SHOOT_CD = 2.6;
-const NAP_X = 20;
 const CRATES = [[8, 0, 0.75, 0.75, 1.5]];
 
 // A wide-open flat arena: ground at y=0, everything inside the fence, clamp is a
@@ -27,7 +26,7 @@ function makeDeps(overrides = {}) {
     fenceBounds: () => ({ minX: -19, maxX: 19, minZ: -19, maxZ: 19 }),
     arenaBoxes: CRATES,
     coverPoints: buildCoverPoints(CRATES, COVER_MARGIN),
-    config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X },
+    config: { BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES },
     playerSafeCorner: { x: -18, z: -18, radius: 6 },
     shotCallback: (origin, dir) => shots.push({ origin, dir }),
     getPlayerCollider: () => null,
@@ -170,7 +169,7 @@ describe('botSim movement', () => {
     const { deps } = makeDeps({
       arenaBoxes: [],
       config: {
-        BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES, NAP_X,
+        BOT_COUNT: 1, BOT_HP, BOT_SHOOT_CD, CRATES,
         BOSS_COUNT: 1, BOSS_HP: 60, BOSS_SPEED: 1, BOSS_DAMAGE: 14,
         BOSS_SHOOT_CD: 3.5, BOSS_RADIUS: 0.8, BOSS_NAME: 'Augustink',
       },
@@ -246,12 +245,12 @@ describe('botSim LOS gate', () => {
 });
 
 describe('botSim NAP + fly suppression', () => {
-  it('does not shoot when the player is in the NAP zone (x > NAP_X)', () => {
+  it('does not shoot when the player is in the NAP zone (isNapLand = true)', () => {
     const { deps, shots } = makeDeps();
     const sim = createBotSim(deps);
     const bots = sim.spawnAll(BOT_COUNT);
     bots.forEach((b, i) => { b.pos.x = 18; b.pos.z = 0; b._losTimer = 10; b.shootCd = 0; if (i) b.alive = false; });
-    run(sim, playerAt(NAP_X + 2, 1.6, 0), 120);
+    run(sim, playerAt(0, 1.6, 25), 120);
     expect(shots).toHaveLength(0);
   });
 

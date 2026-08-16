@@ -14,8 +14,12 @@
 // Outbound gate — send a SHOT only once we have a server-assigned identity
 // (selfId, set from WELCOME) and the shooter is inside the arena (not the NAP
 // zone, where the weapon reads as inert).
-export function shouldSendShot({ playerX, napX, selfId }) {
-  return !!selfId && playerX <= napX;
+export function shouldSendShot({ playerX, playerZ, isNapLandFn, selfId }) {
+  // v0.2.511: use polygon-based NAP check instead of rectangular NAP_X boundary
+  if (typeof isNapLandFn === 'function') {
+    return !!selfId && !isNapLandFn(playerX, playerZ);
+  }
+  return !!selfId;
 }
 
 // Build the outbound SHOT payload. Prefer the AIM ray (camera through the

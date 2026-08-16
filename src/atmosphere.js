@@ -1075,7 +1075,7 @@ export function tickAtmosphere(dt) {
 export function initAtmosphere() {
   _buildMountains();
   // _buildTrees(); // disabled — billboard crosses read as messy clutter, revisit with real GLB later
-  _buildMist();
+  // _buildMist(); // v0.2.509: removed — flat rectangles visible as squares on water surface
   _buildArenaSwirls(); // turquoise underlit floor swirls inside arena
   _buildBirds();
 }

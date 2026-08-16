@@ -405,7 +405,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
 // Doubled to 540. Edge at sqrt(500²+540²)=735 < far=800. No clipping
 // regardless of camera position in arena.
 const _sunSprite = new THREE.Mesh(
-  new THREE.CircleGeometry(540, 64), // v0.2.508: doubled from 270
+  new THREE.CircleGeometry(270, 64), // v0.2.509: back to v0.2.507 size
   _sunSpriteMat
 );
 _sunSprite.userData.isBillboard = true;
@@ -485,8 +485,8 @@ export function tickAurora(dt) {
   _starFieldInner.rotation.y += dt * 0.005;
   // v0.2.508: Camera-relative at 500/495 — sun always behind mountains,
   // never in arena, no clipping regardless of camera position.
-  _sunSprite.position.copy(camera.position).addScaledVector(_sunDir, 500);
-  _godRays.position.copy(camera.position).addScaledVector(_sunDir, 495);
+  _sunSprite.position.copy(camera.position).addScaledVector(_sunDir, 560);
+  _godRays.position.copy(camera.position).addScaledVector(_sunDir, 555);
   _sunSprite.quaternion.copy(camera.quaternion);
   _godRays.quaternion.copy(camera.quaternion);
 }

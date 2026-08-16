@@ -69,9 +69,9 @@ export function buildSeaMesh(scene) {
   const waveGLSL = buildWaveGLSL();
 
   _seaMat = new THREE.RawShaderMaterial({
-    transparent: true,
-    depthWrite: false,   // terrain/islands (opaque, drawn first) show through/occlude via depth test
-    depthTest: true,     // so land in front still hides the sea behind it
+    transparent: false,  // v0.2.488: opaque — nothing underneath shows through
+    depthWrite: true,
+    depthTest: true,
     side: THREE.DoubleSide,
     uniforms: {
       uTime:       { value: 0.0 },
@@ -150,10 +150,10 @@ export function buildSeaMesh(scene) {
         float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0);
         color = mix(color, uHorizonColor, fres * 0.6);
 
-        // Subtle specular sun glint off the wave faces.
+        // v0.2.488: kill specular — was creating diagonal light streaks across water
         vec3  R = reflect(-L, N);
         float spec = pow(max(dot(R, V), 0.0), 60.0);
-        color += vec3(1.0, 0.96, 0.85) * spec * 0.6;
+        color += vec3(1.0, 0.96, 0.85) * spec * 0.02;
 
         // Gentle diffuse so crest faces catch a little sun.
         float diff = max(dot(N, L), 0.0);
@@ -161,8 +161,8 @@ export function buildSeaMesh(scene) {
 
         // Translucency: clearer looking straight down (shore hints through),
         // more opaque toward the horizon where crests stack up.
-        // v0.2.487: more opaque so terrain mesh grid doesn't show through underwater
-        float alpha = mix(0.88, 0.96, fres);
+        // v0.2.488: fully opaque — no terrain mesh grid or seams show through
+        float alpha = 1.0;
 
         // Arena-matched exponential-squared fog (scene uses FogExp2 0xc8dde8, 0.008)
         // so the far edge dissolves into the mist horizon.

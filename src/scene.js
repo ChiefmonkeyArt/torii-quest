@@ -369,11 +369,14 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
     void main() {
       vec2 p = vUv - 0.5;
       float dist = length(p);
+      // v0.2.501: Circular discard — prevents rectangular plane edge from
+      // showing as a diagonal cut at certain camera angles
+      if (dist > 0.48) discard;
       // v0.2.497: Larger disc + wider corona for Japanese rising sun effect
       float disc = 1.0 - smoothstep(0.10, 0.18, dist);
       // Multi-layer corona: inner bright glow + outer soft emanation
       float coronaInner = (1.0 - smoothstep(0.18, 0.32, dist)) * 0.55;
-      float coronaOuter = (1.0 - smoothstep(0.32, 0.50, dist)) * 0.25;
+      float coronaOuter = (1.0 - smoothstep(0.32, 0.46, dist)) * 0.25;
       float corona = coronaInner + coronaOuter;
       // Golden bronze sun — warm, radiating onto environment
       vec3 sunColor = vec3(0.98, 0.58, 0.20);
@@ -387,6 +390,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   `,
   transparent: true,
   depthWrite: false,
+  side: THREE.DoubleSide,
   blending: THREE.NormalBlending,
   fog: false,
 });

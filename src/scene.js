@@ -26,7 +26,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap deprecated in r168+
 // v0.2.464: 1.8 blew the dawn disc + Bitcoin sprite into white glare.
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.35; // v0.2.480: 0.5 -> 0.35, tame scattering bloom
+renderer.toneMappingExposure = 0.5;
 renderer.autoClear = false;
 // Local clipping lets firstPersonBody.js slice the neck stump off just below the
 // camera so looking down never reveals the inside of the headless body.
@@ -105,7 +105,7 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Sun direction (shared by lights + Sky.js) ──────────────────────────────────
-const _sunDir = new THREE.Vector3(0.85, 0.35, -0.45).normalize(); // v0.2.480: y 0.18 -> 0.35, sunrise not dawn
+const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
@@ -137,9 +137,9 @@ _sky.scale.setScalar(450000);
 //   rayleigh 2.5    — deeper blue sky (dawn would be 0.5-1, noon ~1)
 //   mieCoefficient 0.01 — warm scatter at horizon (dawn would be 0.05+)
 //   mieDirectionalG 0.85 — forward scatter, sun glow concentrated toward disc
-_sky.material.uniforms.turbidity.value = 5; // v0.2.480: 8 -> 5, less haze
-_sky.material.uniforms.rayleigh.value = 1.5; // v0.2.480: 2.5 -> 1.5, less intense scatter
-_sky.material.uniforms.mieCoefficient.value = 0.005; // v0.2.480: 0.01 -> 0.005, default
+_sky.material.uniforms.turbidity.value = 8;
+_sky.material.uniforms.rayleigh.value = 2.5;
+_sky.material.uniforms.mieCoefficient.value = 0.01;
 _sky.material.uniforms.mieDirectionalG.value = 0.85;
 // Sun position matches the existing DirectionalLight direction (0.85, 0.18,
 // -0.45) — low eastern sunrise, disc just above the ridgeline.
@@ -150,6 +150,18 @@ _sky.material.uniforms.showSunDisc.value = 0; // v0.2.479: built-in disc too bri
 // Clouds off for now — we'll add them back as a separate layer if wanted.
 _sky.material.uniforms.cloudCoverage.value = 0;
 _sky.frustumCulled = false;
+// v0.2.481: Patch the Sky.js fragment shader to cap scattering brightness
+// near the sun. The original shader produces HDR values (hundreds) near
+// the sun at low elevation which bloom to white. We cap texColor luma
+// to 0.75 BEFORE tone mapping so the warm glow is visible but never
+// blooms to white. The cap is applied before the #include <tonemapping_fragment>
+// so ACES still runs on the capped value.
+const _skyFrag = _sky.material.fragmentShader;
+_sky.material.fragmentShader = _skyFrag.replace(
+  'gl_FragColor = vec4( texColor, 1.0 );',
+  'float _luma = dot(texColor, vec3(0.299, 0.587, 0.114)); if (_luma > 0.75) texColor *= 0.75 / _luma; gl_FragColor = vec4( texColor, 1.0 );'
+);
+_sky.material.needsUpdate = true;
 scene.add(_sky);
 
 // ── Bitcoin ₿ sun sprite — RETIRED (v0.2.466) ─────────────────────────────────// ── Star field (v0.2.477) — real 3D points, not painted on dome ──────────

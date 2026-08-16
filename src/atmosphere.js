@@ -108,13 +108,32 @@ function _buildMtnPeak(i, count, ring, opts) {
   const apexDZ = (rnd(6) - 0.5) * rad * 0.30 * ring.jag;
   const sun = _MTN_DAWN.sunDir;
 
-  // v0.2.493: Smooth multi-octave angular noise for flowing ridgelines.
-  // Replaces per-vertex pseudo-random hash that created jittery edges at
-  // higher resolution. 4 octaves of sine at increasing frequency.
+  // v0.2.494: Ridged multi-octave noise for dramatic, craggy silhouettes.
+  // Uses 1-abs(noise) for sharp ridge crests (like the Three.js terrain example's
+  // Math.abs(perlin) technique). Combined with smooth fBM for natural variation.
   function fbmAngle(angle, t) {
     let v = 0, a = 0.5;
     for (let oct = 0; oct < 4; oct++) {
       v += a * Math.sin(angle * (3 + oct * 4) + seed + t * 2.0);
+      a *= 0.5;
+    }
+    return v; // ~-1..1
+  }
+  // Ridged noise: 1-abs(noise) creates sharp crests, not round bumps.
+  function ridgedFbm(angle, t) {
+    let v = 0, a = 0.5;
+    for (let oct = 0; oct < 4; oct++) {
+      const n = Math.sin(angle * (2 + oct * 5) + seed * 1.3 + t * 3.0);
+      v += a * (1 - Math.abs(n));
+      a *= 0.5;
+    }
+    return v; // 0..~1
+  }
+  // Vertical displacement — terrain undulates, not a perfect cone.
+  function vertNoise(angle, t) {
+    let v = 0, a = 0.5;
+    for (let oct = 0; oct < 3; oct++) {
+      v += a * Math.sin(angle * (2 + oct * 3) + seed * 1.7 + t * 5.0);
       a *= 0.5;
     }
     return v; // ~-1..1
@@ -204,9 +223,11 @@ function _buildMtnPeak(i, count, ring, opts) {
   for (let L = 0; L <= levels; L++) {
     const t = L / levels;
     const y = t * h;
+    // v0.2.494: Sharper alpine taper (was 0.85 → 1.4) for dramatic peaks.
+    // Foothills/valleys stay rounded.
     const shrink = (valley || ring.jag < 0.4)
       ? Math.cos(t * Math.PI * 0.5)
-      : Math.pow(1 - t, 0.85);
+      : Math.pow(1 - t, 1.4);
     const rBase = rad * shrink;
 
     if (L === levels) {
@@ -220,10 +241,16 @@ function _buildMtnPeak(i, count, ring, opts) {
     } else {
       for (let s = 0; s < segs; s++) {
         const a = (s / segs) * Math.PI * 2;
-        const crag = 1 + fbmAngle(a, t) * ring.jag * 0.55 * (0.35 + t * 0.65);
+        // v0.2.494: Ridged noise for sharp crags + smooth fBM for variation.
+        // Much higher amplitude (was 0.55 → 0.85) for dramatic, rugged silhouettes.
+        const ridge = ridgedFbm(a, t);
+        const smooth = fbmAngle(a, t);
+        const crag = 1 + (ridge * 0.55 + smooth * 0.20) * ring.jag * (0.30 + t * 0.70);
         const rr = rBase * crag;
+        // v0.2.494: Vertical displacement — terrain undulates, ridgelines rise/dip.
+        const vd = vertNoise(a, t) * ring.jag * h * 0.06;
         const px = cx + Math.cos(a) * rr + apexDX * t;
-        const py = y;
+        const py = y + vd;
         const pz = cz + Math.sin(a) * rr + apexDZ * t;
         positions.push(px, py, pz);
         const crv = creviceFactor(a, t);

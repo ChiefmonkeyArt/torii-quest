@@ -38,7 +38,7 @@ const _MTN_DAWN = Object.freeze({
   ],
   // Dawn light comes from the east (+x), low on the horizon. Lit slopes warm,
   // shadowed slopes cool. Colours blend by elevation + which way a face points.
-  sunDir:   Object.freeze({ x: 0.70, y: 0.42, z: -0.45 }), // higher golden bronze sun
+  sunDir:   Object.freeze({ x: 0.70, y: 0.22, z: -0.45 }), // v0.2.497: lowered to match rising sun behind mountains
   base:     Object.freeze({ r: 0.30, g: 0.27, b: 0.34 }), // shadowed rock (cool plum-grey)
   lit:      Object.freeze({ r: 0.86, g: 0.66, b: 0.52 }), // dawn-lit warm rock
   foothill: Object.freeze({ r: 0.55, g: 0.60, b: 0.50 }), // soft sage-green for low foothills

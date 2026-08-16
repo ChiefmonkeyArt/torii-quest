@@ -104,6 +104,9 @@ initBloomComposer();
 
 export { syncComposerViewportSize };
 
+// ── Sun direction (shared by lights + Sky.js) ──────────────────────────────────
+const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
+
 // ── Lights ────────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
 export const sun = new THREE.DirectionalLight(0xffc878, 0.95); // v0.2.472: 1.15 -> 0.95, less fog-lighting bloom
@@ -140,7 +143,7 @@ _sky.material.uniforms.mieCoefficient.value = 0.01;
 _sky.material.uniforms.mieDirectionalG.value = 0.85;
 // Sun position matches the existing DirectionalLight direction (0.85, 0.18,
 // -0.45) — low eastern sunrise, disc just above the ridgeline.
-const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
+// _sunDir is declared above (before lights) so both lights and sky share it.
 _sky.material.uniforms.sunPosition.value.copy(_sunDir);
 // Show the sun disc — we want a visible sunrise sun, not just a gradient.
 _sky.material.uniforms.showSunDisc.value = 1;
@@ -312,11 +315,20 @@ _starGeoInner.setAttribute('aColor', new THREE.BufferAttribute(_starColInner, 3)
 _starGeoInner.setAttribute('aSize', new THREE.BufferAttribute(_starSizeInner, 1));
 _starGeoInner.setAttribute('aPhase', new THREE.BufferAttribute(_starPhaseInner, 1));
 
-const _starMatInner = _starMat.clone();   // same shader, different uniforms
-_starMatInner.uniforms = {
-  uTime: { value: 0.0 },
-  uPixelRatio: { value: renderer.getPixelRatio() },
-};
+// Create inner shell material with same shaders but independent uniforms
+// (clone() doesn't reliably clone uniforms in all three.js versions).
+const _starMatInner = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0.0 },
+    uPixelRatio: { value: renderer.getPixelRatio() },
+  },
+  vertexShader: _starMat.vertexShader,
+  fragmentShader: _starMat.fragmentShader,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  fog: false,
+});
 
 const _starFieldInner = new THREE.Points(_starGeoInner, _starMatInner);
 _starFieldInner.renderOrder = -1;

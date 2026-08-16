@@ -247,7 +247,10 @@ function _buildMtnPeak(i, count, ring, opts) {
         // smooth circle. Combined with smooth fBM for natural variation.
         const ridge = ridgedFbm(a, t);
         const smooth = fbmAngle(a, t);
-        const crag = 1 + (ridge * 0.50 + smooth * 0.15) * ring.jag * (0.25 + t * 0.75);
+        // v0.2.496: Added high-freq surface roughness for grit at vertex level
+        const grit = (Math.sin(a * 11 + seed * 2.1 + t * 7.0) * 0.5
+                    + Math.sin(a * 19 + seed * 3.3) * 0.25) * 0.12;
+        const crag = 1 + (ridge * 0.50 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
         const rr = rBase * crag;
         // v0.2.495: Dramatic vertical displacement (was 6% → 18%). Creates
         // clear peaks and saddles around the circumference — the ridge
@@ -305,7 +308,7 @@ function _createMountainMaterial(ringIndex) {
     THREE.UniformsLib.fog,
     {
       uSunDir:     { value: sunVec },
-      uDetailStr:  { value: ringIndex === 0 ? 0.55 : ringIndex === 1 ? 0.32 : 0.14 },
+      uDetailStr:  { value: ringIndex === 0 ? 1.20 : ringIndex === 1 ? 0.80 : 0.40 },
       uRimColor:  { value: new THREE.Color(_MTN_DAWN.snowLit.r, _MTN_DAWN.snowLit.g, _MTN_DAWN.snowLit.b) },
     },
   ]);
@@ -373,59 +376,85 @@ function _createMountainMaterial(ringIndex) {
         float nxy1 = mix(nx01, nx11, f.y);
         return mix(nxy0, nxy1, f.z);
       }
+      // v0.2.496: 5-octave fBM (was 3) for richer Himalayan rock detail
       float fbm3(vec3 p) {
         float v = 0.0;
         float a = 0.5;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
           v += a * noise3(p);
           p *= 2.07;
           a *= 0.5;
         }
         return v;
       }
+      // v0.2.496: High-frequency grain for rock grit and micro-crevasses
+      float grain3(vec3 p) {
+        return noise3(p * 3.5);
+      }
 
       void main() {
         vec3 n = normalize(vWorldNormal);
         n = gl_FrontFacing ? n : -n;  // DoubleSide fix
 
-        // --- Triplanar fbm noise for rock detail (2 samples per axis, 3 octaves) ---
+        // v0.2.496: Higher frequency triplanar fBM (was 0.25 → 0.45) for finer rock
         vec3 blend = abs(n);
         float bsum = max(blend.x + blend.y + blend.z, 0.0001);
         blend /= bsum;
-        vec3 sp = vWorldPos * 0.25;
+        vec3 sp = vWorldPos * 0.45;
         float rockNoise = fbm3(sp.yzx) * blend.x
                         + fbm3(sp.xzy) * blend.y
                         + fbm3(sp.xyz) * blend.z;
 
-        // --- Normal perturbation (cheap — offsets normal by noise gradient) ---
-        float perturb = (rockNoise - 0.5) * uDetailStr * 0.35;
-        vec3 perturbed = normalize(n + vec3(perturb, perturb * 0.25, perturb));
+        // v0.2.496: High-frequency rock grain — grit and micro-texture
+        vec3 gp = vWorldPos * 1.8;
+        float grain = grain3(gp.yzx) * blend.x
+                    + grain3(gp.xzy) * blend.y
+                    + grain3(gp.xyz) * blend.z;
 
-        // --- Diffuse lighting with enhanced contrast (Journey-style) ---
+        // v0.2.496: Crevasse detection — dark fissures where noise drops low
+        // (Himalayan ice crevasses, rock cracks, shadowed gullies)
+        float crevasse = smoothstep(0.12, 0.28, rockNoise);
+
+        // v0.2.496: Ridge highlights — bright crests where noise is high
+        float ridge = smoothstep(0.62, 0.88, rockNoise);
+
+        // v0.2.496: Stronger normal perturbation (was 0.35 → 0.65) + grain contribution
+        float perturb = (rockNoise - 0.5) * uDetailStr * 0.65;
+        perturb += (grain - 0.5) * uDetailStr * 0.18;
+        vec3 perturbed = normalize(n + vec3(perturb, perturb * 0.20, perturb));
+
+        // v0.2.496: More contrast diffuse (was 0.42/0.58 → 0.36/0.64)
         float facing = dot(perturbed, uSunDir);
-        float diffuse = 0.42 + 0.58 * max(facing, 0.0);
+        float diffuse = 0.36 + 0.64 * max(facing, 0.0);
 
-        // --- Base color from vertex colors (already baked with dawn shading) ---
+        // --- Base color from vertex colors ---
         vec3 base = vColor;
 
-        // --- Altitude tint: cool skylight low, warm dawn light high ---
+        // --- Altitude tint ---
         float alt = clamp(vWorldPos.y / 58.0, 0.0, 1.0);
         base *= mix(vec3(0.76, 0.77, 0.81), vec3(1.02, 0.96, 0.86), alt);
 
         // --- Apply diffuse contrast ---
         vec3 lit = base * diffuse;
 
-        // --- Rock grain modulation ---
-        lit *= 0.88 + 0.22 * rockNoise * uDetailStr;
+        // v0.2.496: Stronger rock grain (was 0.22 → 0.32) + grit layer
+        lit *= 0.80 + 0.32 * rockNoise * uDetailStr;
+        lit *= 0.92 + 0.08 * grain;
 
-        // --- Fresnel rim lighting (Journey-style edge glow) ---
+        // v0.2.496: Crevasse darkening — deep fissures in shadow
+        lit *= 0.30 + 0.70 * crevasse;
+
+        // v0.2.496: Ridge highlights — bright crests catch dawn light
+        lit += vec3(0.10, 0.07, 0.05) * ridge * uDetailStr;
+
+        // --- Fresnel rim lighting ---
         float fres = pow(1.0 - max(dot(n, vViewDir), 0.0), 3.0);
         lit += uRimColor * fres * 0.28;
 
-        // --- AO darkening on crevices/valleys/overhangs ---
-        lit *= 0.60 + 0.40 * vAo;
+        // v0.2.496: Stronger AO (was 0.60/0.40 → 0.52/0.48)
+        lit *= 0.52 + 0.48 * vAo;
 
-        // --- Luma cap below bloom threshold (0.86) ---
+        // --- Luma cap below bloom threshold ---
         float luma = dot(lit, vec3(0.299, 0.587, 0.114));
         if (luma > 0.80) lit *= 0.80 / luma;
 

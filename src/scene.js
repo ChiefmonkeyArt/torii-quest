@@ -391,7 +391,7 @@ const _sunSpriteMat = new THREE.ShaderMaterial({
   fog: false,
 });
 const _sunSprite = new THREE.Mesh(
-  new THREE.PlaneGeometry(140, 140), // v0.2.497: 45 → 140, dramatic Japanese rising sun
+  new THREE.PlaneGeometry(420, 420), // v0.2.498: 140 → 420, dramatic rising sun
   _sunSpriteMat
 );
 // Position at the sun direction, radius 560 (inside camera far=600)

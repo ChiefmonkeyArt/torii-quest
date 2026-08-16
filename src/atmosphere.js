@@ -32,8 +32,9 @@ const _MTN_DAWN = Object.freeze({
   // 3 rings: near (rounded foothills), mid (transitional), far (jagged alpine).
   // snowCaps = exact number of snow-capped peaks in that ring (user: "just a few, ~3").
   rings: [
-    { dist:  78, count: 22, hMin: 10, hMax: 20, jag: 0.25, snowCaps: 0, haze: 0.07 }, // near foothills (clear of NAP zone)
-    { dist:  96, count: 18, hMin: 20, hMax: 34, jag: 0.55, snowCaps: 0, haze: 0.17 }, // mid
+    // v0.2.498: near ring = smaller green hills with rock crevasses
+    { dist:  78, count: 22, hMin: 6,  hMax: 14, jag: 0.35, snowCaps: 0, haze: 0.07 }, // near green hills
+    { dist:  96, count: 18, hMin: 18, hMax: 34, jag: 0.60, snowCaps: 0, haze: 0.17 }, // mid transitional
     { dist: 116, count: 14, hMin: 32, hMax: 58, jag: 0.90, snowCaps: 3, haze: 0.30 }, // far alpine (3 snow caps)
   ],
   // Dawn light comes from the east (+x), low on the horizon. Lit slopes warm,
@@ -41,7 +42,8 @@ const _MTN_DAWN = Object.freeze({
   sunDir:   Object.freeze({ x: 0.70, y: 0.22, z: -0.45 }), // v0.2.497: lowered to match rising sun behind mountains
   base:     Object.freeze({ r: 0.30, g: 0.27, b: 0.34 }), // shadowed rock (cool plum-grey)
   lit:      Object.freeze({ r: 0.86, g: 0.66, b: 0.52 }), // dawn-lit warm rock
-  foothill: Object.freeze({ r: 0.55, g: 0.60, b: 0.50 }), // soft sage-green for low foothills
+  foothill: Object.freeze({ r: 0.35, g: 0.48, b: 0.28 }), // v0.2.498: deeper green for lush lower hills
+  foothillRock: Object.freeze({ r: 0.45, g: 0.42, b: 0.32 }), // v0.2.498: green-to-rock transition
   valleyFloor: Object.freeze({ r: 0.40, g: 0.44, b: 0.36 }), // muted lowland green-grey for valley dips
   snow:     Object.freeze({ r: 0.96, g: 0.94, b: 0.90 }), // snow
   snowLit:  Object.freeze({ r: 0.82, g: 0.76, b: 0.66 }), // v0.2.474: dimmed below bloom threshold
@@ -181,7 +183,14 @@ function _buildMtnPeak(i, count, ring, opts) {
     } else if (valley) {
       baseCol = _MTN_DAWN.valleyFloor;
     } else if (ring.jag < 0.4) {
-      baseCol = _MTN_DAWN.foothill;
+      // v0.2.498: Green hills with rock detail — lower portions lush green,
+      // upper portions transition to rock with crevasses.
+      const greenAmt = 1 - t; // 1 at base (green) → 0 at peak (rock)
+      baseCol = _mtnLerp(_MTN_DAWN.foothillRock, _MTN_DAWN.foothill, greenAmt);
+      // Rock crevasses show through on steep upper sections
+      if (t > 0.5) {
+        baseCol = _mtnLerp(baseCol, _MTN_DAWN.crevice, (t - 0.5) * 0.3);
+      }
     } else {
       const rockBase = y > h * 0.5
         ? _mtnLerp(_MTN_DAWN.base, _MTN_DAWN.foothill, 0.25)
@@ -249,8 +258,8 @@ function _buildMtnPeak(i, count, ring, opts) {
         const smooth = fbmAngle(a, t);
         // v0.2.496: Added high-freq surface roughness for grit at vertex level
         const grit = (Math.sin(a * 11 + seed * 2.1 + t * 7.0) * 0.5
-                    + Math.sin(a * 19 + seed * 3.3) * 0.25) * 0.12;
-        const crag = 1 + (ridge * 0.50 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
+                    + Math.sin(a * 19 + seed * 3.3) * 0.25) * 0.18;
+        const crag = 1 + (ridge * 0.58 + smooth * 0.15 + grit) * ring.jag * (0.25 + t * 0.75);
         const rr = rBase * crag;
         // v0.2.495: Dramatic vertical displacement (was 6% → 18%). Creates
         // clear peaks and saddles around the circumference — the ridge
@@ -308,7 +317,7 @@ function _createMountainMaterial(ringIndex) {
     THREE.UniformsLib.fog,
     {
       uSunDir:     { value: sunVec },
-      uDetailStr:  { value: ringIndex === 0 ? 1.20 : ringIndex === 1 ? 0.80 : 0.40 },
+      uDetailStr:  { value: ringIndex === 0 ? 1.60 : ringIndex === 1 ? 1.10 : 0.55 },
       uRimColor:  { value: new THREE.Color(_MTN_DAWN.snowLit.r, _MTN_DAWN.snowLit.g, _MTN_DAWN.snowLit.b) },
     },
   ]);
@@ -400,32 +409,32 @@ function _createMountainMaterial(ringIndex) {
         vec3 blend = abs(n);
         float bsum = max(blend.x + blend.y + blend.z, 0.0001);
         blend /= bsum;
-        vec3 sp = vWorldPos * 0.45;
+        vec3 sp = vWorldPos * 0.65;
         float rockNoise = fbm3(sp.yzx) * blend.x
                         + fbm3(sp.xzy) * blend.y
                         + fbm3(sp.xyz) * blend.z;
 
         // v0.2.496: High-frequency rock grain — grit and micro-texture
-        vec3 gp = vWorldPos * 1.8;
+        vec3 gp = vWorldPos * 2.5;
         float grain = grain3(gp.yzx) * blend.x
                     + grain3(gp.xzy) * blend.y
                     + grain3(gp.xyz) * blend.z;
 
         // v0.2.496: Crevasse detection — dark fissures where noise drops low
         // (Himalayan ice crevasses, rock cracks, shadowed gullies)
-        float crevasse = smoothstep(0.12, 0.28, rockNoise);
+        float crevasse = smoothstep(0.10, 0.32, rockNoise);
 
         // v0.2.496: Ridge highlights — bright crests where noise is high
         float ridge = smoothstep(0.62, 0.88, rockNoise);
 
         // v0.2.496: Stronger normal perturbation (was 0.35 → 0.65) + grain contribution
-        float perturb = (rockNoise - 0.5) * uDetailStr * 0.65;
-        perturb += (grain - 0.5) * uDetailStr * 0.18;
+        float perturb = (rockNoise - 0.5) * uDetailStr * 0.85;
+        perturb += (grain - 0.5) * uDetailStr * 0.25;
         vec3 perturbed = normalize(n + vec3(perturb, perturb * 0.20, perturb));
 
         // v0.2.496: More contrast diffuse (was 0.42/0.58 → 0.36/0.64)
         float facing = dot(perturbed, uSunDir);
-        float diffuse = 0.36 + 0.64 * max(facing, 0.0);
+        float diffuse = 0.30 + 0.70 * max(facing, 0.0);
 
         // --- Base color from vertex colors ---
         vec3 base = vColor;
@@ -438,21 +447,21 @@ function _createMountainMaterial(ringIndex) {
         vec3 lit = base * diffuse;
 
         // v0.2.496: Stronger rock grain (was 0.22 → 0.32) + grit layer
-        lit *= 0.80 + 0.32 * rockNoise * uDetailStr;
+        lit *= 0.76 + 0.40 * rockNoise * uDetailStr;
         lit *= 0.92 + 0.08 * grain;
 
         // v0.2.496: Crevasse darkening — deep fissures in shadow
-        lit *= 0.30 + 0.70 * crevasse;
+        lit *= 0.20 + 0.80 * crevasse;
 
         // v0.2.496: Ridge highlights — bright crests catch dawn light
-        lit += vec3(0.10, 0.07, 0.05) * ridge * uDetailStr;
+        lit += vec3(0.14, 0.09, 0.06) * ridge * uDetailStr;
 
         // --- Fresnel rim lighting ---
         float fres = pow(1.0 - max(dot(n, vViewDir), 0.0), 3.0);
         lit += uRimColor * fres * 0.28;
 
         // v0.2.496: Stronger AO (was 0.60/0.40 → 0.52/0.48)
-        lit *= 0.52 + 0.48 * vAo;
+        lit *= 0.45 + 0.55 * vAo;
 
         // --- Luma cap below bloom threshold ---
         float luma = dot(lit, vec3(0.299, 0.587, 0.114));

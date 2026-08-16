@@ -113,6 +113,14 @@ export function buildNapTerrainMesh(scene) {
   return buildZoneMesh(scene, NAP_TERRAIN, NAP_GRID, sampleNapHeight, {
     color: 0x3d5a2f,        // NAP ground-cover green
     name: 'nap-zone-floor', // preserve scene.getObjectByName lookup
+    // v0.2.484: round the NAP zone edges (east/north/south) so the overall
+    // landmass reads as organic, not a box glued to the round arena.
+    cellKeep: (x, z) => {
+      if (x <= NAP_X + 1) return true; // keep join seam with arena
+      const cx = NAP_X + 12.5, cz = 0; // NAP centre (32.5, 0)
+      const dx = x - cx, dz = z - cz;
+      return dx * dx + dz * dz <= 14 * 14; // 14m radius circle
+    },
   });
 }
 

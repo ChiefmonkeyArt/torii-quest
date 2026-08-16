@@ -105,12 +105,12 @@ initBloomComposer();
 export { syncComposerViewportSize };
 
 // ── Sun direction (shared by lights + Sky.js) ──────────────────────────────────
-const _sunDir = new THREE.Vector3(0.85, 0.18, -0.45).normalize();
+const _sunDir = new THREE.Vector3(0.70, 0.42, -0.45).normalize();
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffd090, 0.70)); // v0.2.472: 0.85 -> 0.70
-export const sun = new THREE.DirectionalLight(0xffc878, 0.95); // v0.2.472: 1.15 -> 0.95, less fog-lighting bloom
-// Matches the sky-shader sunDir (0.85, 0.18, -0.45) — low eastern dawn, disc behind peaks.
+scene.add(new THREE.AmbientLight(0xffc080, 0.55)); // v0.2.484: warmer ambient, dimmer so directional dominates
+export const sun = new THREE.DirectionalLight(0xffa830, 1.15); // v0.2.484: golden bronze, brighter
+// Matches the sky-shader sunDir (0.70, 0.42, -0.45) — higher golden bronze sun.
 sun.position.copy(_sunDir).multiplyScalar(50); // v0.2.476: exact match to Sky.js sun direction
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);

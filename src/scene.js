@@ -133,6 +133,11 @@ scene.add(fill);
 // correct angular diameter, color derived from atmospheric extinction.
 // Reference: https://threejs.org/docs/pages/Sky.html
 const _sky = new Sky();
+// v0.2.503: Replace Sky.js box geometry with sphere — box face edges create
+// a visible straight-line seam in the atmospheric scattering near the sun.
+// A sphere has no face boundaries, so the scattering is smooth in all directions.
+_sky.geometry.dispose();
+_sky.geometry = new THREE.SphereGeometry(1, 64, 32);
 _sky.scale.setScalar(450000);
 // Sunrise tuning (not dawn — sun is up, sky is clearing, warm light):
 //   turbidity 8     — moderate haze, warm horizon (dawn would be 10-20)
@@ -158,10 +163,12 @@ _sky.frustumCulled = false;
 // to 0.75 BEFORE tone mapping so the warm glow is visible but never
 // blooms to white. The cap is applied before the #include <tonemapping_fragment>
 // so ACES still runs on the capped value.
+// v0.2.503: Use smoothstep blend instead of hard if-statement to avoid
+// derivative discontinuity that creates visible edges in the sky.
 const _skyFrag = _sky.material.fragmentShader;
 _sky.material.fragmentShader = _skyFrag.replace(
   'gl_FragColor = vec4( texColor, 1.0 );',
-  'float _luma = dot(texColor, vec3(0.299, 0.587, 0.114)); if (_luma > 0.75) texColor *= 0.75 / _luma; gl_FragColor = vec4( texColor, 1.0 );'
+  'float _luma = dot(texColor, vec3(0.299, 0.587, 0.114)); float _cap = smoothstep(0.68, 0.82, _luma); texColor = mix(texColor, texColor * 0.75 / max(_luma, 0.001), _cap); gl_FragColor = vec4( texColor, 1.0 );'
 );
 _sky.material.needsUpdate = true;
 scene.add(_sky);

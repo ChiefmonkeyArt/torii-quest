@@ -14,6 +14,7 @@ import {
   NAP_TERRAIN, NAP_GRID, sampleNapHeight,
   ARENA_TERRAIN, ARENA_GRID, sampleArenaHeight, ISLAND_BASE_Y,
 } from './heightmap.js';
+import { NAP_X } from '../config.js';
 import { SEA_LEVEL } from './seaConfig.js';
 import { pointInTerrainEdge } from './coastline.js';
 

@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.484-alpha** (MOUNTAIN SHADER UPGRADE - custom ShaderMaterial replacing MeshBasicMaterial: Fresnel rim lighting, procedural triplanar fbm noise, normal perturbation, altitude atmospheric tint, per-vertex AO, slope-based rock color, 2D noisy snow line, crevice-snow coupling, distance LOD, instanced boulders. Research: notes/mountain-research.md. Prior - **v0.2.481-alpha** SKY.JS SHADER LUMA CAP.)
+> Current version: **v0.2.485-alpha** (MOUNTAIN SHADER UPGRADE - custom ShaderMaterial replacing MeshBasicMaterial: Fresnel rim lighting, procedural triplanar fbm noise, normal perturbation, altitude atmospheric tint, per-vertex AO, slope-based rock color, 2D noisy snow line, crevice-snow coupling, distance LOD, instanced boulders. Research: notes/mountain-research.md. Prior - **v0.2.481-alpha** SKY.JS SHADER LUMA CAP.)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

@@ -82,12 +82,8 @@ const _glassMat = new THREE.MeshStandardMaterial({
 const _neonMat = new THREE.MeshStandardMaterial({
   color: 0x061418, emissive: C_NEON, emissiveIntensity: 1.4, roughness: 0.4,
 });
-// Ground wash: additive ribbon on the soil just inside the wall so the neon
-// reads as an uplight on the ground, not a bloom spray into the sky (v0.2.464).
-const _groundGlowMat = new THREE.MeshBasicMaterial({
-  color: C_NEON, transparent: true, opacity: 0.28,
-  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-});
+// Ground wash removed (v0.2.540) — additive ribbon was rendering as
+// translucent light-blue planes on the water, mistaken for extra water.
 function _buildCoastlineWall() {
   // v0.2.511: Two separate neon loops for the two arena islands.
   // fenceRing() returns an array of rings; iterate each independently.
@@ -133,37 +129,6 @@ function _buildCoastlineWall() {
     const neon = new THREE.Mesh(neonGeo, _neonMat);
     neon.name = 'coastline-neon';
     scene.add(neon);
-
-    // Ground-hugging wash: additive ribbon on the soil just inside the wall.
-    const INSET = 0.7, Y_LIFT = 0.06;
-    // Compute ring centroid for inward inset direction.
-    let rcx = 0, rcz = 0;
-    for (const [px, pz] of ring) { rcx += px; rcz += pz; }
-    rcx /= n; rcz /= n;
-    const gpos = new Float32Array(n * 2 * 3);
-    for (let i = 0; i < n; i++) {
-      const x = ring[i][0], z = ring[i][1];
-      const dx = rcx - x, dz = rcz - z;
-      const len = Math.hypot(dx, dz) || 1;
-      const scale = Math.max(0.2, (len - INSET) / len);
-      const ix = x + dx * scale, iz = z + dz * scale;
-      gpos[i * 6 + 0] = x;  gpos[i * 6 + 1] = sampleArenaHeight(x, z) + Y_LIFT;   gpos[i * 6 + 2] = z;
-      gpos[i * 6 + 3] = ix; gpos[i * 6 + 4] = sampleArenaHeight(ix, iz) + Y_LIFT; gpos[i * 6 + 5] = iz;
-    }
-    const gidx = [];
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      if (inGap[i] || inGap[j]) continue;
-      const oi = i * 2, ii = i * 2 + 1, oj = j * 2, ij = j * 2 + 1;
-      gidx.push(oi, ii, ij, oi, ij, oj);
-    }
-    const ggeo = new THREE.BufferGeometry();
-    ggeo.setAttribute('position', new THREE.BufferAttribute(gpos, 3));
-    ggeo.setIndex(gidx);
-    const glow = new THREE.Mesh(ggeo, _groundGlowMat);
-    glow.name = 'coastline-ground-glow';
-    glow.renderOrder = 1;
-    scene.add(glow);
   }
 }
 

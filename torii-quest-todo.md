@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.539-alpha` - TORII GATE ROTATED 45° (180° from 225°). Prior: `v0.2.536-alpha` - BRIDGE ROTATION PIVOT FIX.
+Current version: `v0.2.540-alpha` - REMOVED GROUND GLOW RIBBON. Prior: `v0.2.539-alpha` - TORII GATE ROTATED 45°.
 
 ## 🚨 TOP OF QUEUE
 

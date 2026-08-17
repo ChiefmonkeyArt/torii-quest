@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.536-alpha** (BRIDGE ROTATION PIVOT FIX - bridge visual now matches torii gate position. Prior - **v0.2.535-alpha** BRIDGE 1 RESET TO ORIGINAL.)
+> Current version: **v0.2.537-alpha** (TORII GATE ROTATED 315°. Prior - **v0.2.536-alpha** BRIDGE ROTATION PIVOT FIX.)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

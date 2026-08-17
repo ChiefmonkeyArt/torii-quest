@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.536-alpha` - BRIDGE ROTATION PIVOT FIX (bridge visual now matches torii gate position). Prior: `v0.2.535-alpha` - BRIDGE 1 RESET TO ORIGINAL.
+Current version: `v0.2.537-alpha` - TORII GATE ROTATED 315°. Prior: `v0.2.536-alpha` - BRIDGE ROTATION PIVOT FIX.
 
 ## 🚨 TOP OF QUEUE
 

@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.530-alpha` - TORII GATE ROTATION FLIP (east side now flush with curved NAP boundary instead of west side). Prior: `v0.2.529-alpha` - BOOT LOADING OVERLAY.
+Current version: `v0.2.531-alpha` - TORII GATE YAW ZEROED (gate flush with east-west boundary, text faces south into NAP zone). Prior: `v0.2.530-alpha` - TORII GATE ROTATION FLIP.
 
 ## 🚨 TOP OF QUEUE
 

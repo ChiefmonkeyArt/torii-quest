@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { CRATES, NAP_TREE_X, NAP_TREE_Z } from './config.js';
 import { sampleNapHeight, sampleArenaHeight } from './terrain/heightmap.js';
-import { isNapLand, isArenaLand, NAP_BBOX, ARENA_BBOX } from './terrain/tomoeShape.js';
+import { NAP_BBOX, ARENA_BBOX } from './terrain/tomoeShape.js'; // v0.2.547: isNapLand/isArenaLand removed — heightmap replaces polygon tests
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 
 // NAP-zone footprint: bounded by the NAP polygon bbox, filtered by isNapLand().
@@ -114,7 +114,11 @@ async function _buildGrass(onProgress) {
   // the huge instance count a full-density arena would need. Candidates from both
   // zones are interleaved then Fisher–Yates thinned to TARGET_BLADES.
   const TARGET_BLADES = 75000;
-  const CAND_SPACING  = 0.10;  // v0.2.512: coarser grid — polygon bboxes are 3x larger than old rects
+  // v0.2.547: widened from 0.10 to 0.15 — 2.25x fewer candidates to test,
+  // still 300K+ candidates for 75K blades. The height check (O(1)) replaces
+  // the expensive point-in-polygon test (O(228-516) per point), cutting
+  // ~285M polygon iterations down to zero.
+  const CAND_SPACING  = 0.15;
 
   // ── Procedural grass blade texture (no asset file, DataTexture) ───────────
   // 8x64 RGBA. Vertical blade: soft alpha edges + faint midrib + green gradient
@@ -245,20 +249,26 @@ async function _buildGrass(onProgress) {
 
   const candidates = [];
   let _candCount = 0;
+  // v0.2.547: removed isNapLand()/isArenaLand() polygon tests — the heightmap
+  // already encodes land/water. If sampleHeight(x,z) >= GRASS_MIN_Y, the point
+  // is on land. This eliminates ~285M point-in-polygon iterations.
+  // Height check is O(1) (bilinear interpolation from pre-computed grid) and is
+  // done FIRST so the cheap tree/crate clearance checks only run on land points.
+
   // NAP zone (green) — bonsai cleared.
   for (let x = NAP_GRASS_X0; x <= NAP_GRASS_X1; x += CAND_SPACING) {
     for (let z = NAP_GRASS_Z0; z <= NAP_GRASS_Z1; z += CAND_SPACING) {
       const jx = x + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
+      // Height check first — eliminates ~80% of candidates (water) in O(1)
+      if (sampleNapHeight(jx, jz) < GRASS_MIN_Y) continue;
       const dx = jx - TREE_X, dz = jz - TREE_Z;
       if (dx * dx + dz * dz < TREE_CLEAR_SQ) continue;
-      if (!isNapLand(jx, jz)) continue;       // v0.2.511: polygon filter
-      if (sampleNapHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 0);
     }
     _candCount++;
     if (_candCount % 50 === 0) {
-      if (onProgress) onProgress(0.05 + 0.20 * _candCount / 500);
+      if (onProgress) onProgress(0.05 + 0.20 * _candCount / 280);
       await _yieldPaint();
     }
   }
@@ -267,14 +277,14 @@ async function _buildGrass(onProgress) {
     for (let z = ARENA_GRASS_Z0; z <= ARENA_GRASS_Z1; z += CAND_SPACING) {
       const jx = x + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
+      // Height check first — eliminates ~70% of candidates (water) in O(1)
+      if (sampleArenaHeight(jx, jz) < GRASS_MIN_Y) continue;
       if (inCrate(jx, jz)) continue;
-      if (!isArenaLand(jx, jz)) continue;     // v0.2.511: polygon filter
-      if (sampleArenaHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 1);
     }
     _candCount++;
     if (_candCount % 50 === 0) {
-      if (onProgress) onProgress(0.30 + 0.30 * (_candCount - 500) / 650);
+      if (onProgress) onProgress(0.30 + 0.30 * (_candCount - 280) / 370);
       await _yieldPaint();
     }
   }

@@ -131,8 +131,8 @@ function _findInfluencingBone(skinnedMesh, face) {
 
   for (const vi of verts) {
     for (let j = 0; j < 4; j++) {
-      const boneIdx = skinIndexAttr.getX(vi * 4 + j);
-      const weight = skinWeightAttr.getX(vi * 4 + j);
+      const boneIdx = skinIndexAttr.getComponent(vi, j);
+      const weight = skinWeightAttr.getComponent(vi, j);
       if (weight > 0) {
         boneWeights.set(boneIdx, (boneWeights.get(boneIdx) || 0) + weight);
       }

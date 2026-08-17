@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.561-alpha - LOAD TIME OPTIMIZATION (Draco + WebP texture compression, smooth progress bar, title-screen preloading). Prior: v0.2.541-alpha - CRATE PLAY ZONE GUARD. See §0 for the current snapshot.
+**Current version:** v0.2.562-alpha - LOAD TIME OPTIMIZATION (Draco + WebP texture compression, smooth progress bar, title-screen preloading). Prior: v0.2.541-alpha - CRATE PLAY ZONE GUARD. See §0 for the current snapshot.
 
 **Recent shipped work (newest first):**
 - **v0.2.528-alpha - NAP ZONE LAYOUT FIX.** Fixed the NAP zone object layout to be left-to-right as the maintainer specified: leaderboard → torii gate → product panel → mirror, all flush with the curved NAP edge. The NAP zone edge is a CURVE (not a straight line) — each object's z-position must match the edge at its x-position. Previous attempts (v0.2.525–v0.2.527) failed because objects were placed at wrong z-values (not flush), the mirror was too wide (8.12m) and overlapped the torii gate, and the ordering was wrong. Final positions: Leaderboard (-6.5, 32.5) yaw=PI, Torii gate (0, 32) unchanged yaw=PI-PI/4-PI/18, Product panel (5, 31) yaw=PI+0.15, Mirror (9, 28.5) width shrunk to 5m yaw=PI+PI/4 (45° to follow edge curve). Mirror was shrunk from 8.12m to 5m to keep both edges on solid NAP land. Both mirror edges verified on land (h=0.92). NPC (napNpc.js) confirmed working in v0.2.526 console output: walks, loads 18 gesture clips. 2668 tests pass, 21 checks green.
@@ -10,7 +10,7 @@ Single-page onboarding for the next contributor — human or AI agent. Keep it c
 - **v0.2.526-alpha - MIRROR REPOSITION ATTEMPT.** Moved mirror to (0.26, 31) — but this was on top of the torii gate at (0, 32). User reported "nothing has changed" (the mirror was invisible behind/inside the gate). NPC fix confirmed working in this version's console output.
 - **v0.2.525-alpha - NAP OBJECT ROTATIONS.** Applied: torii gate +10° CW (YAW_DELTA = -PI/4 - PI/18 = 55° total), leaderboard +5° CCW, product +10° CW. Mirror moved to x=-1. These were correct angle changes but at wrong positions.
 - **v0.2.520-alpha - NAP OBJECT REPOSITION + NPC REWRITE.** Moved all NAP objects to z=31 edge. Rewrote napNpc.js with _minY fix, separate GLTFLoader for gesture GLB, fade transitions. NPC starts at (-4, 22), wanders NAP zone using isNapLand() + NAP_BBOX. 2668 tests pass.
-- **v0.2.561-alpha - LOAD TIME OPTIMIZATION.** Compressed 4 uncompressed GLBs with Draco mesh compression + WebP texture compression: chiefmonkey7.glb (8.9MB→2.4MB), augustink4.glb (7.6MB→706KB), chiefmonkey-npc-animations.glb (8.5MB→2.0MB), animation-library.glb (6.4MB→1.5MB). Total dist reduced from 46MB to 22MB (52% reduction). Also: smooth progress bar with eased animation (rAF-based), 12 granular boot steps (was 7), title-screen preloading (fetches critical GLBs + Rapier WASM during idle time before ENTER click), CSS cubic-bezier transition on bar fill. torii-gate.png converted to WebP (580KB→68KB). No gameplay changes. 2668 tests pass, 21 checks green.
+- **v0.2.562-alpha - LOAD TIME OPTIMIZATION.** Compressed 4 uncompressed GLBs with Draco mesh compression + WebP texture compression: chiefmonkey7.glb (8.9MB→2.4MB), augustink4.glb (7.6MB→706KB), chiefmonkey-npc-animations.glb (8.5MB→2.0MB), animation-library.glb (6.4MB→1.5MB). Total dist reduced from 46MB to 22MB (52% reduction). Also: smooth progress bar with eased animation (rAF-based), 12 granular boot steps (was 7), title-screen preloading (fetches critical GLBs + Rapier WASM during idle time before ENTER click), CSS cubic-bezier transition on bar fill. torii-gate.png converted to WebP (580KB→68KB). No gameplay changes. 2668 tests pass, 21 checks green.
 - **v0.2.466-alpha - SUNRISE SUN FIX.** Retired the entire `_buildBitcoinSun` IIFE (additive canvas-corona sprite scale 38 + NormalBlending PNG ₿ overlay scale 55) - it stacked on the shader disc at (0.85, 0.18, -0.45) and bloomed into the right-side white glare. Sky shader now carries the ONLY sun: disc pow 90->40 rebuilt as `mix(base, vec3(1.0,0.50,0.18), disc*0.8)` (deep orange, no white clamp), corona pow 14->8 * 0.4, wide glow 0.35->0.12, and the dome-wide pow(sunAngle,2.0)*0.18 horizon flush DELETED (left-side glare). Added subtle Japanese rising-sun rays (14 beams, cross-product basis around sunDir, smoothstep-masked near the sun/horizon, *0.12). Zenith gold band 0.45->0.20, shimmer 0.08->0.04. Ambient hue 0xffd9a0->0xffd090, fog hue 0xe6c4a4->0xe6bc94 (density/intensity unchanged). Combat / score publishing untouched.
 - **v0.2.465-alpha - SUNRISE ATMOSPHERE POLISH.** Rebalance after the v0.2.464 tone-down went too far on the ring and the sun still read as glare. Ring: coastline neon emissiveIntensity 0.95->1.4 (visibly glowing again, no sky bloom) and ground-wash opacity 0.22->0.28 to keep the ring/ground balance. Sun: sprite + sky-shader sunDir lowered to y=0.18 with depthTest ON so the mountain ridge occludes the lower half of the disc; sprite scale 48->38 (btc 72->55); corona/disc pulled toward amber; shader amber-disc multiplier 2.2->1.4; horizon mix deepened to peach-amber; ambient 0.72->0.85; fog density 0.007->0.008. Combat / score publishing untouched.
 - **v0.2.464-alpha - SUNRISE-OF-HOPE ATMOSPHERICS.** Tone down sun glare and redirect arena-ring glow onto the ground. Sky: exposure 1.8->1.2, directional sun 1.8->1.15 amber, fog 0xc8dde8->peach 0xe6c4a4, sky disc 6.0->2.2 warm gold, Bitcoin sprite moved onto the same low-east sunDir and scaled 90->48. Ring: neon emissive 2.2->0.95 plus `coastline-ground-glow` additive ribbon inset 0.7m. Combat / score publishing untouched.
@@ -26,7 +26,7 @@ Single-page onboarding for the next contributor — human or AI agent. Keep it c
 
 ## 0. Current snapshot (2026-08-17)
 
-- **Version:** v0.2.561-alpha (tag `v0.2.561-alpha`).
+- **Version:** v0.2.562-alpha (tag `v0.2.562-alpha`).
 - **Live:** https://chiefmonkey.art/quest/ (SHC VPS, Torii Suite install). The maintainer deploys manually with `sudo torii-deploy <tag>`; the update-runner resolves the git tag and builds with `--base=/quest/`.
 - **Multiplayer:** LIVE and working (`MP_ENABLED=true` in `src/config.js`). Two-npub in-world play confirmed 2026-08-15: idle players stay connected (v0.2.460), peers appear promptly on join (v0.2.462 warm pool), and mirror self-shoot reads correctly (v0.2.461).
 - **Tests:** 2668/2668 across 197 files; `node tools/regression-check.mjs` ALL GREEN at ship time.
@@ -243,9 +243,9 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 
 ## 9.5. Active task / next steps (2026-08-17)
 
-**PENDING DEPLOY:** v0.2.561-alpha is pushed to GitHub (tag `v0.2.561-alpha`) but NOT yet deployed to the VPS. The user needs to run:
+**PENDING DEPLOY:** v0.2.562-alpha is pushed to GitHub (tag `v0.2.562-alpha`) but NOT yet deployed to the VPS. The user needs to run:
 ```
-sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.561-alpha
+sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.562-alpha
 ```
 
 **WHAT WAS DONE THIS SESSION:**

@@ -41,7 +41,7 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     note: 'Plebeian/Nostr market stall; previews one listing read-only. No checkout/pay/zap.',
     position: Object.freeze({ x: TRAVEL_GATE_X - 5, y: 2.0, z: TRAVEL_GATE_Z }),
     size: Object.freeze({ width: 2.4, height: 1.6, depth: 0.1 }),
-    yawRad: Math.PI / 2, // faces inward (east, toward gate)
+    yawRad: 0, // v0.2.516: rotated 90° clockwise — faces south toward island center
     invariants: Object.freeze({ readOnly: true, actionable: false }),
   }),
   Object.freeze({
@@ -53,7 +53,7 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     note: 'Far-centre notice board; previews local/mock ranked scores. Never signs or publishes.',
     position: Object.freeze({ x: TRAVEL_GATE_X + 5, y: 2.6, z: TRAVEL_GATE_Z }),
     size: Object.freeze({ width: 3.2, height: 2.2, depth: 0.12 }),
-    yawRad: -Math.PI / 2, // faces inward (west, toward gate)
+    yawRad: 0, // v0.2.516: rotated 90° anti-clockwise — faces south toward island center
     invariants: Object.freeze({ readOnly: true, actionable: false, signed: false, published: false }),
   }),
 ]);

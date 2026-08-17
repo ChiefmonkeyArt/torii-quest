@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.516-alpha';
+export const VERSION   = 'v0.2.517-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -43,7 +43,7 @@ export const NAP_TREE_Z = 18.05;
 // clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because
 // each model was calibrated to face the approaching player; this delta is added
 // on top of both, so a single tweak turns the whole gateway.
-export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4; // 45° clockwise (top-down)
+export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 2; // 90° clockwise (top-down) — v0.2.516
 
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.
@@ -133,16 +133,17 @@ export const TUNING = Object.freeze({
 // arena.js builds BoxGeometry(halfW*2, fullH, halfD*2) centred at (cx, fullH/2, cz)
 // player.js + bots.js use these same values for AABB pushout.
 export const CRATES = [
-  // cx    cz    hw    hd    fullH    — spread across both arena comma shapes
-  [-15,   -8,  0.75, 0.75,  1.5 ],   // Arena BL interior
-  [ 15,  -10,  0.75, 0.75,  1.5 ],   // Arena BR interior
-  [-20,   -5,  0.75, 0.75,  1.5 ],   // Arena BL west
-  [ 20,   -5,  0.75, 0.75,  1.5 ],   // Arena BR east
-  [-10,  -15,  1.0,  1.0,   1.0 ],   // Arena BL south
-  [ 10,  -15,  1.0,  1.0,   1.0 ],   // Arena BR south
-  [-15,    0,  0.75, 0.75,  2.0 ],   // Arena BL center
-  [ 15,    0,  0.75, 0.75,  2.0 ],   // Arena BR center
-  [-22,  -12,  1.5,  0.5,   1.0 ],   // Arena BL far west
+  // v0.2.516: All crates moved well inside the play zone (inset from coast)
+  // cx    cz    hw    hd    fullH
+  [-12,   -6,  0.75, 0.75,  1.5 ],   // Arena BL interior
+  [ 12,   -8,  0.75, 0.75,  1.5 ],   // Arena BR interior
+  [-14,  -10,  0.75, 0.75,  1.5 ],   // Arena BL mid-west
+  [ 14,  -10,  0.75, 0.75,  1.5 ],   // Arena BR mid-east
+  [ -8,  -12,  1.0,  1.0,   1.0 ],   // Arena BL south
+  [  8,  -12,  1.0,  1.0,   1.0 ],   // Arena BR south
+  [-10,    0,  0.75, 0.75,  2.0 ],   // Arena BL center
+  [ 10,    0,  0.75, 0.75,  2.0 ],   // Arena BR center
+  [ -3,   -6,  1.5,  0.5,   1.0 ],   // Arena center-left between islands
 ];
 
 // OBSTACLES — collision-only colliders (no visual mesh built from this list).

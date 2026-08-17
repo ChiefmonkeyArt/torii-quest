@@ -85,30 +85,29 @@ export function buildMirror() {
     // exists in Three.js r168+. Attempting renderer.render with undefined camera crashes
     // the render loop. Warm-up is handled naturally on first arena render frame.
 
-    // ── Dark metal frame ──────────────────────────────────────────────────────
+    // ── Dark metal frame (parented to mirror so it inherits rotation) ─────────
     const FT  = 0.22;   // bar thickness
-    const FD  = 0.18;   // bar depth (X extent)
+    const FD  = 0.18;   // bar depth (X extent — local to mirror)
     const fMat = new THREE.MeshStandardMaterial({
       color: 0x0a0a0a, metalness: 0.95, roughness: 0.15,
     });
     const _bar = (w, h, d, x, y, z) => {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), fMat);
       m.position.set(x, y, z);
-      scene.add(m);
+      mirror.add(m);
     };
-    const fx = MX - FD * 0.5 + 0.01;
-    _bar(FD, FT,        MW + FT*2, fx, MY + MH*0.5 + FT*0.5, MZ);  // top
-    _bar(FD, FT,        MW + FT*2, fx, MY - MH*0.5 - FT*0.5, MZ);  // bottom
-    _bar(FD, MH+FT*2,  FT,        fx, MY, MZ - MW*0.5 - FT*0.5);   // left
-    _bar(FD, MH+FT*2,  FT,        fx, MY, MZ + MW*0.5 + FT*0.5);   // right
+    const fx = -FD * 0.5 + 0.01;
+    _bar(FD, FT,        MW + FT*2, fx,  MH*0.5 + FT*0.5,  0);           // top
+    _bar(FD, FT,        MW + FT*2, fx, -MH*0.5 - FT*0.5,  0);           // bottom
+    _bar(FD, MH+FT*2,  FT,        fx,  0, -MW*0.5 - FT*0.5);           // left
+    _bar(FD, MH+FT*2,  FT,        fx,  0,  MW*0.5 + FT*0.5);           // right
 
     // ── Soft cool fill light in front of mirror ───────────────────────────────
     const mLight = new THREE.PointLight(0xc8e8ff, 1.2, 18);
     mLight.position.set(MX + 5, MY + 1, MZ);
     scene.add(mLight);
 
-    // ── "MIRROR" label above frame ────────────────────────────────────────────
-    // Simple canvas texture — no font loading needed
+    // ── "MIRROR" label above frame (parented to mirror) ───────────────────────
     const cv = document.createElement('canvas');
     cv.width = 512; cv.height = 64;
     const ctx = cv.getContext('2d');
@@ -122,9 +121,8 @@ export function buildMirror() {
       new THREE.PlaneGeometry(MW * 0.5, 0.4),
       new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, depthWrite: false, fog: false })
     );
-    label.rotation.y = Math.PI / 2;
-    label.position.set(MX + 0.05, MY + MH * 0.5 + FT + 0.35, MZ);
-    scene.add(label);
+    label.position.set(0.05, MH * 0.5 + FT + 0.35, 0);
+    mirror.add(label);
 
   } catch (e) {
     console.warn('[mirror] non-fatal build error:', e);

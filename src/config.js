@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.524-alpha';
+export const VERSION   = 'v0.2.525-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -43,7 +43,7 @@ export const NAP_TREE_Z = 18.05;
 // clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because
 // each model was calibrated to face the approaching player; this delta is added
 // on top of both, so a single tweak turns the whole gateway.
-export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4; // 45° clockwise, faces into NAP
+export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4 - Math.PI / 18; // v0.2.525: +10° CW (55° total)
 
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.

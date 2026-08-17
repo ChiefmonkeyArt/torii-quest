@@ -41,7 +41,7 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     note: 'Plebeian/Nostr market stall; previews one listing read-only. No checkout/pay/zap.',
     position: Object.freeze({ x: -7, y: 2.0, z: 31 }), // v0.2.519: NAP zone edge
     size: Object.freeze({ width: 2.4, height: 1.6, depth: 0.1 }),
-    yawRad: Math.PI + 0.15, // slight CCW, flush with tomoe edge
+    yawRad: Math.PI + 0.15 - Math.PI / 18, // v0.2.525: +10° CW
     invariants: Object.freeze({ readOnly: true, actionable: false }),
   }),
   Object.freeze({
@@ -53,7 +53,7 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     note: 'Far-centre notice board; previews local/mock ranked scores. Never signs or publishes.',
     position: Object.freeze({ x: 5, y: 2.6, z: 31 }), // NAP zone edge
     size: Object.freeze({ width: 3.2, height: 2.2, depth: 0.12 }),
-    yawRad: Math.PI + 0.15, // slight CCW, flush with tomoe edge
+    yawRad: Math.PI + 0.15 + Math.PI / 36, // v0.2.525: +5° CCW
     invariants: Object.freeze({ readOnly: true, actionable: false, signed: false, published: false }),
   }),
 ]);

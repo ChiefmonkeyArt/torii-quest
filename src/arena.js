@@ -195,7 +195,7 @@ function _buildToriiGate() {
   const cb = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 6.5), mat);
   cb.position.set(0, 5.2, 0); fallback.add(cb);
   fallback.position.set(BRIDGE_X, BRIDGE_DECK_Y, BRIDGE_Z); // gate on bridge 1 (NAP ↔ Arena BL)
-  fallback.rotation.y = 7 * Math.PI / 4; // 315° — user request v0.2.537
+  fallback.rotation.y = 5 * Math.PI / 4; // 225° — user request v0.2.538
   // Named for the proof-surface parent binding (v0.2.151), discoverable via
   // scene.getObjectByName('torii-gate'); the GLB below inherits the same name.
   fallback.name = 'torii-gate';
@@ -232,7 +232,7 @@ function _buildToriiGate() {
     // through it along the X axis.
     box.setFromObject(gate);
     gate.position.set(BRIDGE_X - 0.2, -box.min.y + BRIDGE_DECK_Y, BRIDGE_Z);
-    gate.rotation.y = 7 * Math.PI / 4; // 315° — user request v0.2.537
+    gate.rotation.y = 5 * Math.PI / 4; // 225° — user request v0.2.538
 
     gate.traverse(o => {
       if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }

@@ -14,7 +14,7 @@
 // The anchors all live east of the torii gate, in the NAP zone (NAP_X..NAP_FAR_X),
 // matching the proof surfaces they support.
 
-import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
+// v0.2.519: positions are hardcoded at NAP zone edge
 import { PROOF_SURFACE_SPECS } from './proofSurfaceSpecs.js';
 
 // Badge stamped on resolved transforms / the resolve summary so a viewer can
@@ -37,14 +37,14 @@ export const PROOF_SURFACE_ANCHORS = Object.freeze({
     id: 'nap-zone-gate-left',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: TRAVEL_GATE_X - 5, y: 0, z: TRAVEL_GATE_Z }),
+    origin: Object.freeze({ x: -7, y: 0, z: 31 }),
     note: 'Ground 5m left of the travel gateway torii gate, facing inward.',
   }),
   'nap-zone-gate-right': Object.freeze({
     id: 'nap-zone-gate-right',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: TRAVEL_GATE_X + 5, y: 0, z: TRAVEL_GATE_Z }),
+    origin: Object.freeze({ x: 5, y: 0, z: 31 }),
     note: 'Ground 5m right of the travel gateway torii gate, facing inward.',
   }),
 });

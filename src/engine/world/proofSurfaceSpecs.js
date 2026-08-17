@@ -39,9 +39,9 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     previewSdk: 'productPreview', shell: 'productPreview',
     anchor: 'nap-zone-gate-left',
     note: 'Plebeian/Nostr market stall; previews one listing read-only. No checkout/pay/zap.',
-    position: Object.freeze({ x: TRAVEL_GATE_X - 5, y: 2.0, z: TRAVEL_GATE_Z }),
+    position: Object.freeze({ x: -7, y: 2.0, z: 31 }), // v0.2.519: NAP zone edge
     size: Object.freeze({ width: 2.4, height: 1.6, depth: 0.1 }),
-    yawRad: Math.PI, // v0.2.517: rotated 180° — faces north toward island center
+    yawRad: Math.PI + 0.15, // v0.2.519: slight CCW, flush with tomoe edge
     invariants: Object.freeze({ readOnly: true, actionable: false }),
   }),
   Object.freeze({
@@ -51,9 +51,9 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     previewSdk: 'leaderboardPreview', shell: 'leaderboardPreview',
     anchor: 'nap-zone-gate-right',
     note: 'Far-centre notice board; previews local/mock ranked scores. Never signs or publishes.',
-    position: Object.freeze({ x: TRAVEL_GATE_X + 5, y: 2.6, z: TRAVEL_GATE_Z }),
+    position: Object.freeze({ x: 5, y: 2.6, z: 31 }), // v0.2.519: NAP zone edge
     size: Object.freeze({ width: 3.2, height: 2.2, depth: 0.12 }),
-    yawRad: Math.PI, // v0.2.517: rotated 180° — faces north toward island center
+    yawRad: Math.PI + 0.15, // v0.2.519: slight CCW, flush with tomoe edge
     invariants: Object.freeze({ readOnly: true, actionable: false, signed: false, published: false }),
   }),
 ]);

@@ -11,7 +11,7 @@ import { ARENA_HALF, WALL_H } from './config.js';
 // Width shortened 42% from original ~14 to ~8.1 units.
 const MW = ARENA_HALF * 0.7 * 0.58;  // mirror width (~8.1 units, -42%)
 const MH = WALL_H + 0.2;       // mirror height
-const MX = -1;                   // v0.2.525: right of product panel
+const MX = 0.26;                  // v0.2.526: 2m right of product panel edge
 const MZ = 31;                   // flush with northern rim
 
 // Throttle mirror texture refresh to 20 Hz by suppressing onBeforeRender.

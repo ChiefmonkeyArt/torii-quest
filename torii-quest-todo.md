@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.531-alpha` - TORII GATE YAW ZEROED (gate flush with east-west boundary, text faces south into NAP zone). Prior: `v0.2.530-alpha` - TORII GATE ROTATION FLIP.
+Current version: `v0.2.532-alpha` - TORII GATE 90° CW ROTATION. Prior: `v0.2.531-alpha` - TORII GATE YAW ZEROED.
 
 ## 🚨 TOP OF QUEUE
 

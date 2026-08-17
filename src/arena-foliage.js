@@ -51,8 +51,10 @@ function smoothstep(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
-export function buildFoliage() {
-  _buildGrass();
+// Accepts an optional onProgress callback (0..1) so the boot progress bar
+// can animate smoothly during the ~7s of CPU work.
+export async function buildFoliage(onProgress) {
+  await _buildGrass(onProgress);
   // v0.2.312: wildflowers + tulips removed at user request (grass-only NAP zone).
   // _buildWildflowers();
   // _buildTulips();
@@ -96,7 +98,10 @@ export function getTulipMat()  { return _tulipMat; } // v0.2.263
 // vec4 instanced attributes: `offset` (x, z, _, rot) and `shape` (width, height,
 // lean, curve). Y-up: blade grows +Y, ground is XZ, bend plane is Y/Z, blade
 // yaw rotates X/Z. (Z-up→Y-up conversion applied to terra's original GLSL.)
-function _buildGrass() {
+async function _buildGrass(onProgress) {
+  const _yieldPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // Yield every N candidates to let the progress bar paint (~16ms of work).
+  const YIELD_EVERY = 8000;
   const BLADE_SEGS   = 4;
   const BLADE_VERTS  = (BLADE_SEGS + 1) * 2;
   const BLADE_INDICES = BLADE_SEGS * 12;
@@ -239,6 +244,7 @@ function _buildGrass() {
   const GRASS_MIN_Y = SEA_LEVEL + 0.04;   // ≈ -0.22: grass meets the waterline
 
   const candidates = [];
+  let _candCount = 0;
   // NAP zone (green) — bonsai cleared.
   for (let x = NAP_GRASS_X0; x <= NAP_GRASS_X1; x += CAND_SPACING) {
     for (let z = NAP_GRASS_Z0; z <= NAP_GRASS_Z1; z += CAND_SPACING) {
@@ -249,6 +255,11 @@ function _buildGrass() {
       if (!isNapLand(jx, jz)) continue;       // v0.2.511: polygon filter
       if (sampleNapHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 0);
+    }
+    _candCount++;
+    if (_candCount % 50 === 0) {
+      if (onProgress) onProgress(0.05 + 0.20 * _candCount / 500);
+      await _yieldPaint();
     }
   }
   // Arena zone (purple→orange) — crates cleared.
@@ -261,9 +272,16 @@ function _buildGrass() {
       if (sampleArenaHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 1);
     }
+    _candCount++;
+    if (_candCount % 50 === 0) {
+      if (onProgress) onProgress(0.30 + 0.30 * (_candCount - 500) / 650);
+      await _yieldPaint();
+    }
   }
   const total = Math.floor(candidates.length / 3);
   const pick = Math.min(TARGET_BLADES, total);
+  if (onProgress) onProgress(0.62);
+  await _yieldPaint();
   for (let k = 0; k < pick; k++) {
     const r = k + Math.floor(Math.random() * (total - k));
     const kx = candidates[k * 3], kz = candidates[k * 3 + 1], kzone = candidates[k * 3 + 2];
@@ -273,6 +291,10 @@ function _buildGrass() {
     candidates[r * 3]     = kx;
     candidates[r * 3 + 1] = kz;
     candidates[r * 3 + 2] = kzone;
+    if (k % YIELD_EVERY === 0 && k > 0) {
+      if (onProgress) onProgress(0.62 + 0.10 * k / pick);
+      await _yieldPaint();
+    }
   }
 
   const count = pick;
@@ -302,6 +324,10 @@ function _buildGrass() {
     shapeArr[i * 4 + 2] = Math.random() * 0.3;       // lean
     shapeArr[i * 4 + 3] = 0.05 + Math.random() * 0.3; // curve
     zoneArr[i] = zone;
+    if (i % YIELD_EVERY === 0 && i > 0) {
+      if (onProgress) onProgress(0.75 + 0.20 * i / count);
+      await _yieldPaint();
+    }
   }
 
   const geo = new THREE.InstancedBufferGeometry();

@@ -40,21 +40,15 @@ const _scl  = new THREE.Vector3();
 const _m4   = new THREE.Matrix4();
 
 export function buildArena() {
-  const _t = (typeof performance !== 'undefined') ? performance.now.bind(performance) : () => 0;
-  const _m = (n, t0) => console.log(`[boot-timing] ${n}: ${Math.round(_t() - t0)}ms`);
-
-  let t0 = _t();
   _buildFloor();
-  _m('_buildFloor', t0);
-
-  t0 = _t(); _buildCrates(); _m('_buildCrates', t0);
-  t0 = _t(); buildBridge(); _m('buildBridge', t0);
-  t0 = _t(); _buildToriiGate(); _m('_buildToriiGate', t0);
-  t0 = _t(); _buildTravelGateway(); _m('_buildTravelGateway', t0);
-  t0 = _t(); _buildNapZone(); _m('_buildNapZone', t0);
-  t0 = _t(); buildSeaMesh(scene); _m('buildSeaMesh', t0);
-  // buildFoliage() deferred to after first frame — 75K grass blades take ~7s
-  // to generate. It's purely cosmetic and must not block the critical path.
+  _buildCrates();
+  buildBridge();       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
+  _buildToriiGate();
+  _buildTravelGateway(); // far-side metaverse travel portal model (v0.2.239)
+  _buildNapZone();     // floor extension + tree past the torii gate
+  buildSeaMesh(scene); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
+  // buildFoliage() now called from arenaRuntime.js boot() as async with
+  // paint yields for smooth progress bar animation (v0.2.545).
 }
 
 // ── Floor ─────────────────────────────────────────────────────────────────────

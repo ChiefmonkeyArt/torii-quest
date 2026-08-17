@@ -454,6 +454,7 @@ export function createArenaRuntime(hooks = {}) {
   const showEntryStatus = typeof hooks.showEntryStatus === 'function' ? hooks.showEntryStatus : () => {};
   const resetEnterButton = typeof hooks.resetEnterButton === 'function' ? hooks.resetEnterButton : () => {};
   const onBootProgress = typeof hooks.onBootProgress === 'function' ? hooks.onBootProgress : () => {};
+  const onBootPct = typeof hooks.onBootPct === 'function' ? hooks.onBootPct : () => {};
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
@@ -776,11 +777,23 @@ export function createArenaRuntime(hooks = {}) {
     mark('boot-mirror-done');
     await _yieldPaint();
 
+    // v0.2.545: buildFoliage is now async with paint yields so the progress bar
+    // animates smoothly during the ~7s of grass blade generation. Grass is ready
+    // before the player enters the arena (better UX than deferred pop-in).
+    onBootProgress(3); // 'Growing grass…'
+    await buildFoliage((p) => {
+      // Map foliage progress (0..1) to 30%..58% of the boot bar
+      onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
+    });
+    mark('boot-foliage-done');
+    onBootProgress(4); // 'Loading physics…'
+    await _yieldPaint();
+
     initHUD();
     initPlayerStats();
     initPlayer();
     mark('boot-player-done');
-    onBootProgress(3); // update sub-label
+    onBootPct(60, 'Preparing world…', 'HUD · player · entities');
     await _yieldPaint();
 
     initBots(playerObj, spawnBullet);
@@ -1181,11 +1194,7 @@ export function createArenaRuntime(hooks = {}) {
     // compete for bandwidth/Draco workers during the critical entry path.
     // Kick it off fire-and-forget after a short delay (via rAF, NOT setTimeout —
     // constraint [3] forbids new setTimeout sites).
-    // v0.2.545: Defer buildFoliage() too — 75K grass blades take ~7s to generate
-    // on the CPU. Foliage is purely cosmetic and must not block the player from
-    // entering the arena. Grass pops in a second or two after the first frame.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      try { buildFoliage(); } catch (e) { console.warn('[foliage] deferred build failed:', e); }
       try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
     }));
     mark('bootstrap-physics-end');

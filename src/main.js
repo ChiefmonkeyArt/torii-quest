@@ -1275,12 +1275,13 @@ const _bootSub     = document.getElementById('boot-overlay-sub');
 
 const BOOT_STEPS = [
   { pct: 8,  label: 'Loading engine…',     sub: 'Fetching modules' },
-  { pct: 20, label: 'Building scene…',     sub: 'Renderer · lights · sky' },
-  { pct: 38, label: 'Sculpting terrain…',  sub: 'Mountains · arena · coast' },
-  { pct: 55, label: 'Loading physics…',   sub: 'Rapier WASM · colliders' },
-  { pct: 70, label: 'Loading avatar…',    sub: 'Character model · animations' },
-  { pct: 85, label: 'Preparing world…',    sub: 'Body · NPCs · details' },
-  { pct: 95, label: 'Entering…',           sub: 'Almost there' },
+  { pct: 16, label: 'Building scene…',     sub: 'Renderer · lights · sky' },
+  { pct: 24, label: 'Sculpting terrain…',  sub: 'Mountains · arena · coast' },
+  { pct: 30, label: 'Growing grass…',      sub: '75,000 blades · wind shaders' },
+  { pct: 62, label: 'Loading physics…',   sub: 'Rapier WASM · colliders' },
+  { pct: 75, label: 'Loading avatar…',    sub: 'Character model · animations' },
+  { pct: 88, label: 'Preparing world…',    sub: 'Body · NPCs · details' },
+  { pct: 96, label: 'Entering…',           sub: 'Almost there' },
 ];
 
 // Smoothly animate the progress bar toward a target percentage.
@@ -1389,6 +1390,7 @@ async function ensureArenaReady(loadingLabel) {
         showEntryStatus,
         resetEnterButton,
         onBootProgress: _setBootProgress,
+        onBootPct: _setBootPct,
         getGatewayScreenState: () => ({
           worlds: _worldsCache,
           scanStatus: _worldsScan,

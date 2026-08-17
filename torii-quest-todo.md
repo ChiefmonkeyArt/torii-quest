@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.532-alpha` - TORII GATE 90° CW ROTATION. Prior: `v0.2.531-alpha` - TORII GATE YAW ZEROED.
+Current version: `v0.2.533-alpha` - BRIDGE MOVE + BOT BRIDGE CROSSING + FLY MODE DAMAGE FIX. Prior: `v0.2.532-alpha` - TORII GATE 90° CW ROTATION.
 
 ## 🚨 TOP OF QUEUE
 

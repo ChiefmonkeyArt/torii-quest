@@ -45,6 +45,11 @@ import { resolveLocalHitscan } from './engine/combat/localShot.js';
 // during module init) so the player.js↔weapons.js cycle stays safe. Bot bullets
 // already in flight deal no damage once the player steps outside the fence.
 import { isPlayerOutsideFence } from './player.js';
+// v0.2.533 — fly-mode damage gate. Live-bound import so bot bullets deal no damage
+// when the player is flying above the targeting ceiling. Mirrors the bot AI's
+// tooHighToTarget check in botSim.js.
+import { isFlyEnabled } from './engine/debug/flyCamera.js';
+import { FLY_TARGET_CEILING } from './engine/entities/botSim.js';
 // v0.2.127 — pure reload viewmodel pose curve ("click down, clack snap back"),
 // extracted so the snap timing is unit-testable and allocation-free.
 import { reloadDip } from './engine/weapons/reloadPose.js';
@@ -389,7 +394,9 @@ export function tickWeapons(dt, playerPos) {
       if (!remove && !b.isPlayer) {
         // 1. Player hit — keep the cheap distance test (the player capsule is
         //    excluded from the static raycast, so the ray can't resolve it).
+        //    v0.2.533: Hard gate — no damage when flying above targeting ceiling.
         if (_onPlayerHit && !isPlayerOutsideFence() &&
+            !(isFlyEnabled() && playerPos.y >= FLY_TARGET_CEILING) &&
             b.mesh.position.distanceToSquared(playerPos) < 0.5) {
           _onPlayerHit(Number.isFinite(b.dmg) ? b.dmg : BOT_DAMAGE);
           remove = true;

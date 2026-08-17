@@ -24,7 +24,7 @@ import {
   pickCover, obstacleAvoid,
   effectiveSight, effectiveCooldown, effectiveSpread,
 } from './bot-tactics.js';
-import { isNapLand } from '../../terrain/tomoeShape.js';
+import { isNapLand, whichIsland, ISLAND_BL, ISLAND_BR } from '../../terrain/tomoeShape.js';
 
 // ── Tuning (mirrors src/bots.js exactly) ─────────────────────────────────────
 export const BOT_R = 0.4;
@@ -96,6 +96,14 @@ export function createBotSim(deps) {
     losFn, footY, clampFence, pointInFence, fenceBounds,
     arenaBoxes, coverPoints, config, playerSafeCorner,
     shotCallback, getPlayerCollider,
+    // v0.2.533: Optional bridge walkable check. When a bot is on a bridge,
+    // skip the coastline clamp so it can walk freely between islands.
+    // Defaults to always-false so existing callers/tests are byte-identical.
+    isBridgeWalkable = () => false,
+    // v0.2.533: Optional bridge waypoint for inter-island pathing.
+    // When bot and target are on different arena islands, steer to this
+    // point first. Array of [x, z] or null. Defaults to null (no routing).
+    bridgeWaypoints = null,
   } = deps;
   const {
     BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES,
@@ -145,8 +153,13 @@ export function createBotSim(deps) {
 
   // ── AABB pushout + coastline containment (kinematic bots ignore physics) ────
   function _pushout(nx, nz, r = BOT_R) {
-    [nx, nz] = clampFence(nx, nz, r);
-    if (!pointInFence(nx, nz)) { nx = 0; nz = 0; }
+    // v0.2.533: If the bot is on a bridge, skip coastline clamping so it can
+    // walk freely between islands. Bots NOT on a bridge get clamped to the
+    // nearest island play-area ring (can't cross water/glow rings).
+    if (!isBridgeWalkable(nx, nz)) {
+      [nx, nz] = clampFence(nx, nz, r);
+      if (!pointInFence(nx, nz)) { nx = 0; nz = 0; }
+    }
     for (const [cx, cz, hw, hd] of CRATES) {
       const dx = nx - cx, dz = nz - cz;
       const ox = hw + r - Math.abs(dx);
@@ -382,23 +395,40 @@ export function createBotSim(deps) {
       }
 
       // ── Desired target ───────────────────────────────────────────────────────
-      // The boss pursues directly and holds at BOSS_STANDOFF. Regular bots seek
-      // their assigned flank anchor until REGULAR_STANDOFF unless a genuinely
-      // pressured bot has selected cover.
+      // v0.2.533: Inter-island bridge routing. If the bot and the player are on
+      // different arena islands, steer toward the bridge waypoint first. Once
+      // the bot reaches the bridge (isBridgeWalkable returns true) or arrives on
+      // the same island as the player, resume direct pursuit.
+      let usingBridgeWaypoint = false;
       let tx, tz;
-      if (isBoss) {
-        if (dist > BOSS_STANDOFF) { tx = pp.x; tz = pp.z; }
-        else { tx = px; tz = pz; }
-      } else if (state._coverPoint) {
-        tx = state._coverPoint[0]; tz = state._coverPoint[1];
-      } else if (dist > REGULAR_STANDOFF) {
-        // Flank: circle the player at the bot's assigned slot angle instead of
-        // walking straight in. Bosses never flank (handled above). The flank
-        // anchor is a point on a ring around the player, offset by the slot angle.
-        flankAnchor(pp.x, pp.z, px, pz, state._flankSlot.angle, tier.flankBias, _flank);
-        tx = _flank.x; tz = _flank.z;
-      } else {
-        tx = px; tz = pz;
+      if (bridgeWaypoints && !isBoss && !state._coverPoint) {
+        const botIsland = whichIsland(px, pz);
+        const playerIsland = whichIsland(pp.x, pp.z);
+        if (botIsland === ISLAND_BL && playerIsland === ISLAND_BR) {
+          // Bot on BL, player on BR — head to bridge entry on BL side
+          usingBridgeWaypoint = true;
+          tx = bridgeWaypoints[0][0]; tz = bridgeWaypoints[0][1];
+        } else if (botIsland === ISLAND_BR && playerIsland === ISLAND_BL) {
+          // Bot on BR, player on BL — head to bridge entry on BR side
+          usingBridgeWaypoint = true;
+          tx = bridgeWaypoints[1][0]; tz = bridgeWaypoints[1][1];
+        }
+      }
+      if (!usingBridgeWaypoint) {
+        if (isBoss) {
+          if (dist > BOSS_STANDOFF) { tx = pp.x; tz = pp.z; }
+          else { tx = px; tz = pz; }
+        } else if (state._coverPoint) {
+          tx = state._coverPoint[0]; tz = state._coverPoint[1];
+        } else if (dist > REGULAR_STANDOFF) {
+          // Flank: circle the player at the bot's assigned slot angle instead of
+          // walking straight in. Bosses never flank (handled above). The flank
+          // anchor is a point on a ring around the player, offset by the slot angle.
+          flankAnchor(pp.x, pp.z, px, pz, state._flankSlot.angle, tier.flankBias, _flank);
+          tx = _flank.x; tz = _flank.z;
+        } else {
+          tx = px; tz = pz;
+        }
       }
       const dtx = tx - px, dtz = tz - pz;
       const tlen = Math.hypot(dtx, dtz);

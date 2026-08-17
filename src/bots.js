@@ -36,6 +36,7 @@ import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/c
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
 import { decideBossEngagement } from './bossBarState.js';
+import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
 
 export const bots = [];
 
@@ -127,6 +128,21 @@ let _spawnBulletFn = null;
 let _playerObj     = null;
 let _modelsReady   = false;
 
+// v0.2.533: Bridge 2 walkable zone — lets bots walk between Arena BL and BR
+// islands over the bridge. Includes a margin so the bot center stays on deck.
+// Bridge 2 is axis-aligned (no rotation), so this is a simple AABB check.
+const _BR2_HALF_L = BRIDGE2_LEN / 2 + 0.3;   // 0.3m margin for bot radius
+const _BR2_HALF_W = BRIDGE2_WIDTH / 2 + 0.3;
+function _isOnBridge2(x, z) {
+  return Math.abs(x - BRIDGE2_X) <= _BR2_HALF_L &&
+         Math.abs(z - BRIDGE2_Z) <= _BR2_HALF_W;
+}
+// Bridge 2 entry waypoints (one per island side) for inter-island pathing.
+const _BRIDGE2_WAYPOINTS = [
+  [BRIDGE2_X - _BR2_HALF_L, BRIDGE2_Z],  // BL-side entry
+  [BRIDGE2_X + _BR2_HALF_L, BRIDGE2_Z],  // BR-side entry
+];
+
 // The pure headless brain. All render/audio/physics access is injected — the sim
 // itself imports none of it. shotCallback wraps spawnBullet + bot-shoot audio; the
 // LOS/height/coastline deps forward to the render-side services.
@@ -153,6 +169,8 @@ const sim = createBotSim({
     playBotShoot();
   },
   getPlayerCollider,
+  isBridgeWalkable: _isOnBridge2,
+  bridgeWaypoints: _BRIDGE2_WAYPOINTS,
 });
 
 export function initBots(playerObj, spawnBulletFn) {

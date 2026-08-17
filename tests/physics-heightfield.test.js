@@ -112,9 +112,13 @@ describe('BRIDGE deck cuboid collider — real Rapier (v0.2.511 — tomoe layout
     world.free();
   });
 
-  it('deck 1 overlaps both NAP and Arena BL land', () => {
-    // Bridge 1 spans the west channel at z=5. NAP land is west, Arena BL is east.
-    expect(BRIDGE_X - BRIDGE_LEN / 2).toBeLessThan(-27);
-    expect(BRIDGE_X + BRIDGE_LEN / 2).toBeGreaterThan(-21);
+  it('deck 1 spans the west channel at new position (v0.2.533)', () => {
+    // Bridge 1 moved 10m south + 10m west from (-24, 3) to (-34, -7) in v0.2.533.
+    // Check the bridge deck is at the expected position.
+    expect(BRIDGE_X).toBe(-34);
+    expect(BRIDGE_Z).toBe(-7);
+    // Bridge span: x from -39 to -29 (before 45° yaw rotation).
+    expect(BRIDGE_X - BRIDGE_LEN / 2).toBe(-39);
+    expect(BRIDGE_X + BRIDGE_LEN / 2).toBe(-29);
   });
 });

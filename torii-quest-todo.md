@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.538-alpha` - TORII GATE ROTATED 225° (90° CCW from 315°). Prior: `v0.2.536-alpha` - BRIDGE ROTATION PIVOT FIX.
+Current version: `v0.2.539-alpha` - TORII GATE ROTATED 45° (180° from 225°). Prior: `v0.2.536-alpha` - BRIDGE ROTATION PIVOT FIX.
 
 ## 🚨 TOP OF QUEUE
 

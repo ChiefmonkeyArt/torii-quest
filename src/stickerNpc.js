@@ -18,6 +18,8 @@ const _rayDir = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _zAxis = new THREE.Vector3(0, 0, 1);
+const _bonePos = new THREE.Vector3();
+const _worldQuatInv = new THREE.Quaternion();
 
 // Mesh cache — refreshed periodically to pick up newly loaded objects
 const _meshCache = [];
@@ -110,6 +112,24 @@ function _raycastScene(origin, dir) {
   return null;
 }
 
+// Find the nearest bone in a SkinnedMesh to a world-space point.
+// Returns the bone Object3D or null.
+function _findNearestBone(skinnedMesh, worldPoint) {
+  if (!skinnedMesh.isSkinnedMesh || !skinnedMesh.skeleton) return null;
+  const bones = skinnedMesh.skeleton.bones;
+  let nearest = null;
+  let minDist = Infinity;
+  for (let i = 0; i < bones.length; i++) {
+    bones[i].getWorldPosition(_bonePos);
+    const d = _bonePos.distanceTo(worldPoint);
+    if (d < minDist) {
+      minDist = d;
+      nearest = bones[i];
+    }
+  }
+  return nearest;
+}
+
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
 export function fireStickerAtNpc(origin, dir) {
   _preloadTexture();
@@ -181,44 +201,70 @@ export function tickStickerNpc(dt) {
         depthTest: true,
         depthWrite: false,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
       });
       const geo = new THREE.PlaneGeometry(ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO);
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true; // exclude from raycast cache
 
-      // Position at hit point + offset along normal (0.03 to avoid z-fighting)
-      sticker.position.copy(s.to);
-      sticker.position.x += s.normal.x * 0.03;
-      sticker.position.y += s.normal.y * 0.03;
-      sticker.position.z += s.normal.z * 0.03;
+      // Compute final world position: hit point + small offset along normal
+      const worldPos = s.to.clone();
+      worldPos.x += s.normal.x * 0.01;
+      worldPos.y += s.normal.y * 0.01;
+      worldPos.z += s.normal.z * 0.01;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);
-      sticker.quaternion.copy(_quat);
 
-      // Find the top-level root (direct child of scene) that contains the hit mesh.
-      // This works for NPC (gltf.scene), bots (bot.model.root), crates, etc.
-      let rootObj = s.targetObject;
-      while (rootObj.parent && rootObj.parent !== scene) {
-        rootObj = rootObj.parent;
-      }
-
+      // ── Bone parenting for SkinnedMesh (NPC, bots, players) ──
+      // Parenting to the root group causes a “cloud” effect: the root
+      // moves with walking/rotation, but skeletal animation deforms the
+      // mesh away from the sticker. Parenting to the nearest bone makes
+      // the sticker follow the animated surface.
       let parented = false;
-      if (rootObj && rootObj !== scene && rootObj !== s.targetObject) {
-        try {
-          rootObj.updateMatrixWorld(true);
-          const localPos = sticker.position.clone();
-          rootObj.worldToLocal(localPos);
-          sticker.position.copy(localPos);
-          // Adjust quaternion for root's world rotation
-          const worldQuatInv = new THREE.Quaternion();
-          rootObj.getWorldQuaternion(worldQuatInv).invert();
-          sticker.quaternion.multiplyQuaternions(worldQuatInv, _quat);
-          rootObj.add(sticker);
-          parented = true;
-        } catch (e) { /* keep in world space */ }
+      if (s.targetObject.isSkinnedMesh) {
+        const bone = _findNearestBone(s.targetObject, s.to);
+        if (bone) {
+          try {
+            bone.updateMatrixWorld(true);
+            const localPos = worldPos.clone();
+            bone.worldToLocal(localPos);
+            sticker.position.copy(localPos);
+            bone.getWorldQuaternion(_worldQuatInv).invert();
+            sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
+            bone.add(sticker);
+            parented = true;
+          } catch (e) { /* fall through to root parenting */ }
+        }
       }
-      if (!parented) scene.add(sticker);
+
+      // ── Root-object parenting for static meshes (trees, crates, etc.) ──
+      if (!parented) {
+        let rootObj = s.targetObject;
+        while (rootObj.parent && rootObj.parent !== scene) {
+          rootObj = rootObj.parent;
+        }
+        if (rootObj && rootObj !== scene && rootObj !== s.targetObject) {
+          try {
+            rootObj.updateMatrixWorld(true);
+            const localPos = worldPos.clone();
+            rootObj.worldToLocal(localPos);
+            sticker.position.copy(localPos);
+            rootObj.getWorldQuaternion(_worldQuatInv).invert();
+            sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
+            rootObj.add(sticker);
+            parented = true;
+          } catch (e) { /* fall through to world space */ }
+        }
+      }
+
+      if (!parented) {
+        sticker.position.copy(worldPos);
+        sticker.quaternion.copy(_quat);
+        scene.add(sticker);
+      }
 
       _attached.push({ mesh: sticker, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME });
 

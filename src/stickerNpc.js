@@ -252,6 +252,7 @@ export function tickStickerNpc(dt) {
       //   boneInverse * meshInverse * worldPoint
       // so that: bone.matrixWorld * localPosition = boneMatrix * boneInverse * vertex
       let parented = false;
+      console.log('[sticker] target isSkinnedMesh:', s.targetObject.isSkinnedMesh, 'has face:', !!s.face, 'name:', s.targetObject.name);
       if (s.targetObject.isSkinnedMesh && s.face) {
         const bone = _findInfluencingBone(s.targetObject, s.face);
         if (bone) {
@@ -290,7 +291,9 @@ export function tickStickerNpc(dt) {
       }
 
       // ── Direct mesh parenting for static/rotating objects (trees, SATS, crates) ──
-      // Parent directly to the hit mesh so stickers follow its rotation.
+      if (!parented) {
+        console.log('[sticker] falling back to direct mesh parenting');
+      }
       if (!parented && s.targetObject.parent) {
         try {
           const target = s.targetObject;

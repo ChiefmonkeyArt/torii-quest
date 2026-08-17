@@ -4,7 +4,7 @@
 // Raycaster for precise surface hit detection. Excludes sea, player weapon,
 // and portal/gateway screens.
 import * as THREE from 'three';
-import { scene } from './scene.js';
+import { scene, camera } from './scene.js';
 import { assetUrl } from './assetUrl.js';
 
 let _texture = null;
@@ -71,7 +71,8 @@ function _raycastScene(origin, dir) {
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
   _raycaster.set(_rayOrigin, _rayDir);
-  _raycaster.far = 200; // generous range — can fire across zones
+  _raycaster.far = 200;
+  _raycaster.camera = camera; // required for Sprite raycasting // generous range — can fire across zones
 
   const hits = _raycaster.intersectObjects(scene.children, true);
   for (const hit of hits) {

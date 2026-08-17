@@ -271,18 +271,19 @@ export function tickStickerNpc(dt) {
               const bindLocal = meshLocal.applyMatrix4(boneInverse);
               sticker.position.copy(bindLocal);
 
+              // Scale: compensate for bone world scale so sticker stays 0.08 world units
+              const boneScale = new THREE.Vector3();
+              bone.getWorldScale(boneScale);
+
               console.log('[sticker] pos: world=', worldPos.x.toFixed(2), worldPos.y.toFixed(2), worldPos.z.toFixed(2),
                 'bindLocal=', bindLocal.x.toFixed(2), bindLocal.y.toFixed(2), bindLocal.z.toFixed(2),
-                'boneScale=', boneScale ? boneScale.x.toFixed(4) : 'n/a');
+                'boneScale=', boneScale.x.toFixed(4), boneScale.y.toFixed(4), boneScale.z.toFixed(4));
 
               // Convert normal the same way
               const localNormal = s.normal.clone().transformDirection(meshInverse).transformDirection(boneInverse);
               _quat.setFromUnitVectors(_zAxis, localNormal);
               sticker.quaternion.copy(_quat);
 
-              // Scale: compensate for bone world scale so sticker stays 0.08 world units
-              const boneScale = new THREE.Vector3();
-              bone.getWorldScale(boneScale);
               if (boneScale.x > 0.001 && boneScale.y > 0.001 && boneScale.z > 0.001) {
                 sticker.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
               }

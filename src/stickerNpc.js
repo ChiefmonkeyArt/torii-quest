@@ -43,14 +43,14 @@ const ATTACHED_LIFETIME = 180;
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
   _textureLoading = true;
-  console.log('[sticker] preloading texture from', assetUrl('/ftff-sticker.png'));
+  console.log('[sticker] preloading texture');
   const loader = new THREE.TextureLoader();
   loader.load(assetUrl('/ftff-sticker.png'), tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     _texture = tex;
     _textureLoading = false;
-    console.log('[sticker] texture loaded OK, size:', tex.image.width + 'x' + tex.image.height);
+    console.log('[sticker] texture loaded', tex.image.width + 'x' + tex.image.height);
   }, undefined, err => {
     console.warn('[sticker] texture load FAILED:', err);
     _textureLoading = false;
@@ -82,7 +82,7 @@ function _getMeshes() {
       }
     });
     _meshCacheTime = now;
-    console.log('[sticker] mesh cache refreshed:', _meshCache.length, 'meshes');
+  
   }
   return _meshCache;
 }
@@ -161,10 +161,10 @@ export function fireStickerAtNpc(origin, dir) {
 
   const hit = _raycastScene(origin, dir);
   if (!hit) {
-    console.log('[sticker] no surface hit — ray missed everything');
+  
     return false;
   }
-  console.log('[sticker] hit:', hit.object.name || hit.object.type, 'at dist', origin.distanceTo(hit.point).toFixed(1));
+
 
   // Flying sticker: always visible (texture or pink fallback)
   const mat = new THREE.SpriteMaterial({
@@ -259,17 +259,32 @@ export function tickStickerNpc(dt) {
           const hasInverse = boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex];
           if (hasInverse) {
             try {
-              // Use worldToLocal (current-pose) — simpler and proven to work.
-              // The sticker follows the bone's overall movement (walk, turn)
-              // but won't perfectly track skeletal animation (cloud effect).
-              bone.updateMatrixWorld(true);
-              const localPos = worldPos.clone();
-              bone.worldToLocal(localPos);
-              sticker.position.copy(localPos);
+              // Try bind-pose approach without meshInverse.
+              // The GLTF inverseBindMatrices transform from the node's parent space
+              // (which is world space if the root node has no transform) to bone-local.
+              // Applying directly to worldPos avoids double-counting the 0.01 parent scale.
+              const skinnedMesh = s.targetObject;
+              const boneInverse = skinnedMesh.skeleton.boneInverses[boneIndex];
 
-              // Orient: use current bone world quaternion
-              bone.getWorldQuaternion(_worldQuatInv).invert();
-              sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
+              const bindLocal = worldPos.clone().applyMatrix4(boneInverse);
+
+              // Sanity check: if bindLocal is reasonable, use bind-pose (tracks mesh surface).
+              // If not, fall back to worldToLocal (current-pose, cloud effect).
+              const bindLen = bindLocal.length();
+              if (bindLen > 0.01 && bindLen < 500) {
+                sticker.position.copy(bindLocal);
+                const localNormal = s.normal.clone().transformDirection(boneInverse);
+                _quat.setFromUnitVectors(_zAxis, localNormal);
+                sticker.quaternion.copy(_quat);
+              } else {
+                // Fallback: worldToLocal (current-pose)
+                bone.updateMatrixWorld(true);
+                const localPos = worldPos.clone();
+                bone.worldToLocal(localPos);
+                sticker.position.copy(localPos);
+                bone.getWorldQuaternion(_worldQuatInv).invert();
+                sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
+              }
 
               // Scale: compensate for bone world scale
               const boneScale = new THREE.Vector3();
@@ -280,7 +295,6 @@ export function tickStickerNpc(dt) {
 
               bone.add(sticker);
               parented = true;
-              console.log('[sticker] bone-parented:', bone.name, 'idx:', boneIndex);
             } catch (e) {
               console.warn('[sticker] bone parenting failed:', e);
             }
@@ -327,7 +341,7 @@ export function tickStickerNpc(dt) {
           o = o.parent;
         }
         if (isNpc) {
-          console.log('[sticker] NPC hit — triggering gesture');
+
           import('./napNpc.js').then(({ triggerNpcGesture }) => {
             if (triggerNpcGesture) triggerNpcGesture();
           });

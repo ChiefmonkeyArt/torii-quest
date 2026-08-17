@@ -32,6 +32,7 @@ import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBo
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
+import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
@@ -657,6 +658,7 @@ export function createArenaRuntime(hooks = {}) {
     tickPlayerModel(dt, shootingNow, isReloading(), _isJumping, !_isJumping);
     tickFirstPersonBody(dt);
     tickNapNpc(dt);
+    tickStickerNpc(dt);
     setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
     if (isPlaying()) {
       _portalTrigger.tick(playerObj.position);
@@ -810,10 +812,21 @@ export function createArenaRuntime(hooks = {}) {
     );
     initTargetReticle({ bots, playerObj, getPlayerCollider });
 
-    // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX. Suppressed
-    // entirely in the NAP zone (player.x > NAP_X) so the weapon reads as inert.
+    // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
+    // In the NAP zone, bullets are suppressed BUT the FTFF sticker
+    // interaction is allowed — firing at the NPC slaps a sticker on them
+    // and triggers a gesture animation (v0.2.548).
     on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
-      if (isNapLand(playerObj.position.x, playerObj.position.z)) return;
+      const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
+      if (inNap) {
+        // NAP zone: try sticker interaction with the NPC
+        const aim = aimOrigin || origin;
+        const ad = aimDir || dir;
+        fireStickerAtNpc(aim, ad);
+        triggerRecoil();
+        playShoot();
+        return; // no bullets in the NAP zone
+      }
       const b = spawnBullet(origin, dir, true);
       _muzzleFlashes.trigger('muzzle', origin);
       if (aimOrigin && aimDir) {

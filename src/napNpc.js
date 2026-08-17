@@ -70,12 +70,24 @@ function _playGesture() {
   _state = 'gesture';
 }
 
+// v0.2.548: External trigger — called when the player fires an FTFF sticker
+// at the NPC. Interrupts any current action to play a random gesture.
+export function triggerNpcGesture() {
+  if (!_mixer || _gestureClips.length === 0) return;
+  _playGesture();
+  // Reset the gesture timer so the NPC doesn't immediately gesture again
+  _nextGestureAt = _clock + GESTURE_MIN_DELAY + Math.random() * (GESTURE_MAX_DELAY - GESTURE_MIN_DELAY);
+}
+
 function _onGestureFinished() {
   _target = _pickWalkTarget();
   _playWalk();
 }
 
 let _currentAction = null;
+
+// v0.2.548: Expose NPC root for the sticker interaction system.
+export function getNpcRoot() { return _root; }
 
 export function buildNapNpc() {
   if (_root) return;

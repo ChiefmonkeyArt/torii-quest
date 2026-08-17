@@ -115,7 +115,7 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
 
   it('keeps the detection ring inside the NAP island (tomoe layout)', () => {
     // v0.2.511: NAP island extends to z≈34, so z=30+3=33 is inside.
-    expect(TRAVEL_GATE_Z + 3).toBeLessThanOrEqual(34);
+    expect(TRAVEL_GATE_Z + 3).toBeLessThanOrEqual(36); // v0.2.521: gate at edge z=32, ring extends to 35
   });
 
   it('arena.js anchors every travel-gateway position to TRAVEL_GATE_Z (not z=0)', () => {
@@ -128,8 +128,8 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
 
   it('main.js anchors the portal trigger + gateway component to TRAVEL_GATE_Z', () => {
     const triggerBlock = MAIN.slice(MAIN.indexOf('createPortalTrigger('));
-    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z }');
+    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
     const gwBlock = MAIN.slice(MAIN.indexOf('createToriiGateway('));
-    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z }');
+    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
   });
 });

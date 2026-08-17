@@ -271,6 +271,10 @@ export function tickStickerNpc(dt) {
               const bindLocal = meshLocal.applyMatrix4(boneInverse);
               sticker.position.copy(bindLocal);
 
+              console.log('[sticker] pos: world=', worldPos.x.toFixed(2), worldPos.y.toFixed(2), worldPos.z.toFixed(2),
+                'bindLocal=', bindLocal.x.toFixed(2), bindLocal.y.toFixed(2), bindLocal.z.toFixed(2),
+                'boneScale=', boneScale ? boneScale.x.toFixed(4) : 'n/a');
+
               // Convert normal the same way
               const localNormal = s.normal.clone().transformDirection(meshInverse).transformDirection(boneInverse);
               _quat.setFromUnitVectors(_zAxis, localNormal);

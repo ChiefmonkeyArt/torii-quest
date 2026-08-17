@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.562-alpha` - LOAD TIME OPTIMIZATION (Draco + WebP compression, smooth progress bar, title-screen preloading). Prior: `v0.2.541-alpha` - CRATE PLAY ZONE GUARD.
+Current version: `v0.2.563-alpha` - LOAD TIME OPTIMIZATION (Draco + WebP compression, smooth progress bar, title-screen preloading). Prior: `v0.2.541-alpha` - CRATE PLAY ZONE GUARD.
 
 ## 🚨 TOP OF QUEUE
 

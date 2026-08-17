@@ -9,10 +9,10 @@ import { ARENA_HALF, WALL_H } from './config.js';
 
 // v0.2.518: Mirror in NAP zone, right of product panel.
 // Width shortened 42% from original ~14 to ~8.1 units.
-const MW = ARENA_HALF * 0.7 * 0.58;  // mirror width (~8.1 units, -42%)
+const MW = 5.0;  // v0.2.528: shrunk to follow curved NAP edge
 const MH = WALL_H + 0.2;       // mirror height
-const MX = 12.26;                // v0.2.527: 2m right of product panel edge
-const MZ = 25;                   // NAP zone edge, following curve
+const MX = 9;                     // v0.2.528: right of product, following curve
+const MZ = 28.5;                  // NAP zone edge
 
 // Throttle mirror texture refresh to 20 Hz by suppressing onBeforeRender.
 // The mesh stays visible every frame — only the RT update is gated.
@@ -58,7 +58,7 @@ export function buildMirror() {
       multisample:   1,         // MSAA off — extra FB resolve not worth it
     });
 
-    mirror.rotation.y = Math.PI;  // face south toward island center
+    mirror.rotation.y = Math.PI + Math.PI / 4;  // v0.2.528: follow NAP edge curve
     mirror.position.set(MX, sampleNapHeight(MX, MZ) + MH / 2 + 0.05, MZ);
     scene.add(mirror);
     _mirrorRef = mirror; // module handle — see getMirror() / tickMirror()

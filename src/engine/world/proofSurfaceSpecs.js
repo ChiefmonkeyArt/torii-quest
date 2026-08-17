@@ -39,9 +39,9 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     previewSdk: 'productPreview', shell: 'productPreview',
     anchor: 'nap-zone-gate-left',
     note: 'Plebeian/Nostr market stall; previews one listing read-only. No checkout/pay/zap.',
-    position: Object.freeze({ x: 5, y: 2.0, z: 30 }), // v0.2.527: right of torii gate
+    position: Object.freeze({ x: 5, y: 2.0, z: 31 }), // v0.2.528: flush with NAP edge
     size: Object.freeze({ width: 2.4, height: 1.6, depth: 0.1 }),
-    yawRad: Math.PI + 0.15 - Math.PI / 18, // v0.2.525: +10° CW
+    yawRad: Math.PI + 0.15, // v0.2.528: face south, slight curve
     invariants: Object.freeze({ readOnly: true, actionable: false }),
   }),
   Object.freeze({
@@ -51,9 +51,9 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     previewSdk: 'leaderboardPreview', shell: 'leaderboardPreview',
     anchor: 'nap-zone-gate-right',
     note: 'Far-centre notice board; previews local/mock ranked scores. Never signs or publishes.',
-    position: Object.freeze({ x: -8, y: 2.6, z: 31 }), // v0.2.527: far left of edge
+    position: Object.freeze({ x: -6.5, y: 2.6, z: 32.5 }), // v0.2.528: flush with NAP edge
     size: Object.freeze({ width: 3.2, height: 2.2, depth: 0.12 }),
-    yawRad: Math.PI + 0.15 + Math.PI / 36, // v0.2.525: +5° CCW
+    yawRad: Math.PI, // v0.2.528: face south, flush with edge
     invariants: Object.freeze({ readOnly: true, actionable: false, signed: false, published: false }),
   }),
 ]);

@@ -759,27 +759,32 @@ export function createArenaRuntime(hooks = {}) {
     startPhase('buildArena');
     buildArena();
     endPhase('buildArena');
+    mark('boot-arena-done');
     onBootProgress(2); // 'Sculpting terrain…'
     await _yieldPaint();
 
     startPhase('initAtmosphere');
     initAtmosphere();
     endPhase('initAtmosphere');
+    mark('boot-atmosphere-done');
     onBootProgress(3); // (still terrain/world)
     await _yieldPaint();
 
     startPhase('buildMirror');
     buildMirror();
     endPhase('buildMirror');
+    mark('boot-mirror-done');
     await _yieldPaint();
 
     initHUD();
     initPlayerStats();
     initPlayer();
+    mark('boot-player-done');
     onBootProgress(3); // update sub-label
     await _yieldPaint();
 
     initBots(playerObj, spawnBullet);
+    mark('boot-bots-done');
     _muzzleFlashes = createMuzzleFlashPool(scene, {
       getQualityTier: () => _quality.currentTier(),
     });
@@ -1119,6 +1124,7 @@ export function createArenaRuntime(hooks = {}) {
 
     // Render loop start (LAST — every binding update() touches is initialised now).
     await _yieldPaint();
+    mark('boot-preloop');
     initLoop(update, _onLoopFatal);
     startLoop();
     mark('boot-end');

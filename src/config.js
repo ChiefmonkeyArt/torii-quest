@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.529-alpha';
+export const VERSION   = 'v0.2.530-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -38,12 +38,14 @@ export const NAP_SPAWN_YAW = Math.PI; // face south (-Z) toward the arena bridge
 // travel gate (42,16), and the spawn corner (40,-17).
 export const NAP_TREE_X = 0.83;  // NAP centroid — center of the top comma shape
 export const NAP_TREE_Z = 18.05;
-// Clockwise (top-down) yaw delta applied to BOTH the procedural fallback and the
-// GLB gate so they stay in sync. Three.js +Y rotation is CCW from above, so
-// clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because
-// each model was calibrated to face the approaching player; this delta is added
-// on top of both, so a single tweak turns the whole gateway.
-export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4 - Math.PI / 18; // v0.2.525: +10° CW (55° total)
+// Yaw delta applied to BOTH the procedural fallback and the GLB gate so they
+// stay in sync. Three.js +Y rotation is CCW from above, so clockwise is negative.
+// The two base yaws differ (fallback π/2, GLB π) because each model was calibrated
+// to face the approaching player; this delta is added on top of both, so a single
+// tweak turns the whole gateway.
+// v0.2.530: Flipped from -55° (CW) to +55° (CCW) so the RIGHT (east) side of the
+// gate is flush with the boundary instead of the left (west) side.
+export const TRAVEL_GATE_YAW_DELTA = Math.PI / 4 + Math.PI / 18; // +55° CCW (east side flush)
 
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.

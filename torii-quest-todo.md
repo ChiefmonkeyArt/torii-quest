@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.529-alpha` - BOOT LOADING OVERLAY + ENTRY DEEP DIVE (full-screen CSS loader with progress, deferred NPC + peer prewarm, boot timing instrumentation). Prior: `v0.2.528-alpha` - NAP ZONE LAYOUT FIX.
+Current version: `v0.2.530-alpha` - TORII GATE ROTATION FLIP (east side now flush with curved NAP boundary instead of west side). Prior: `v0.2.529-alpha` - BOOT LOADING OVERLAY.
 
 ## 🚨 TOP OF QUEUE
 

@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 import { ARENA_HALF, WALL_H, CRATES, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y, BRIDGE_X, BRIDGE_Z } from './config.js';
-import { buildFoliage } from './arena-foliage.js';
+// buildFoliage moved to arenaRuntime.js (deferred, v0.2.545)
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
@@ -53,7 +53,8 @@ export function buildArena() {
   t0 = _t(); _buildTravelGateway(); _m('_buildTravelGateway', t0);
   t0 = _t(); _buildNapZone(); _m('_buildNapZone', t0);
   t0 = _t(); buildSeaMesh(scene); _m('buildSeaMesh', t0);
-  t0 = _t(); buildFoliage(); _m('buildFoliage', t0);
+  // buildFoliage() deferred to after first frame — 75K grass blades take ~7s
+  // to generate. It's purely cosmetic and must not block the critical path.
 }
 
 // ── Floor ─────────────────────────────────────────────────────────────────────

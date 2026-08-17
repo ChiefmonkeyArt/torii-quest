@@ -20,7 +20,7 @@ import { createPerfHud } from './engine/render/perfHud.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
-import { tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
+import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
 import { tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
@@ -1181,7 +1181,11 @@ export function createArenaRuntime(hooks = {}) {
     // compete for bandwidth/Draco workers during the critical entry path.
     // Kick it off fire-and-forget after a short delay (via rAF, NOT setTimeout —
     // constraint [3] forbids new setTimeout sites).
+    // v0.2.545: Defer buildFoliage() too — 75K grass blades take ~7s to generate
+    // on the CPU. Foliage is purely cosmetic and must not block the player from
+    // entering the arena. Grass pops in a second or two after the first frame.
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { buildFoliage(); } catch (e) { console.warn('[foliage] deferred build failed:', e); }
       try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
     }));
     mark('bootstrap-physics-end');

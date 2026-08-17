@@ -37,7 +37,7 @@ import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import {
-  ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
+  ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, BRIDGE_DECK_Y, VERSION, TUNING,
   MP_ENABLED, PLAYER_HP, SCORE_PUBLISH_ENABLED,
 } from './config.js';
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
@@ -530,7 +530,7 @@ export function createArenaRuntime(hooks = {}) {
   const _portalGateway = createToriiGateway({
     target: 'plebeian-market-bazaar',
     relay: 'wss://relay.example.com',
-    position: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z },
+    position: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z },
   });
   const _portalBoundary = createGatewayPortalBoundary({
     window,
@@ -545,14 +545,14 @@ export function createArenaRuntime(hooks = {}) {
     boundary: _portalBoundary,
     component: _portalGateway,
     context: { title: 'Plebeian Market Bazaar', zoneType: 'shop', from: 'torii-quest' },
-    portalPos: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z },
+    portalPos: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z },
     range: 3,
     promptText: portalPromptLabel({ slug: 'plebeian-market-bazaar' }),
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
   });
   // Stable portal geometry reused each frame to drive the approach glow without
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
-  const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
+  const _portalPos = { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z };
   const _portalRange = 3;
 
   // ── In-world gateway screen (KeyF) ───────────────────────────────────────────

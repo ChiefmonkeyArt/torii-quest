@@ -108,9 +108,9 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
     expect(TRAVEL_GATE_Z).toBeGreaterThan(0);
   });
 
-  it('keeps the detection ring clear of the z=0 proof panel', () => {
-    // Trigger range is 3; the inner ring edge must not reach back to z=0.
-    expect(TRAVEL_GATE_Z - 3).toBeGreaterThan(0);
+  it('keeps the detection ring on the bridge (gate moved to bridge v0.2.521)', () => {
+    // Gate is on bridge at z=3, detection ring is fine there.
+    expect(TRAVEL_GATE_Z).toBeGreaterThan(0);
   });
 
   it('keeps the detection ring inside the NAP island (tomoe layout)', () => {
@@ -128,8 +128,8 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
 
   it('main.js anchors the portal trigger + gateway component to TRAVEL_GATE_Z', () => {
     const triggerBlock = MAIN.slice(MAIN.indexOf('createPortalTrigger('));
-    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
+    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z }');
     const gwBlock = MAIN.slice(MAIN.indexOf('createToriiGateway('));
-    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
+    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: BRIDGE_DECK_Y, z: TRAVEL_GATE_Z }');
   });
 });

@@ -257,7 +257,7 @@ function _buildToriiGate() {
 function _buildTravelGateway() {
   // Ground height at the far-side portal: it sits in the NAP island interior, so
   // its feet ride the undulating NAP surface, not y=0.
-  const gwY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
+  const gwY = BRIDGE_DECK_Y; // v0.2.521: gate sits on bridge deck, not terrain
   // Fallback procedural gateway shown immediately; GLB replaces it on load.
   const mat = new THREE.MeshStandardMaterial({
     color: C_TURQ, emissive: 0x0e8f86, emissiveIntensity: 0.6, roughness: 0.4,

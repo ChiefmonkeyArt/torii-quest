@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.521-alpha';
+export const VERSION   = 'v0.2.522-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -19,8 +19,8 @@ export const NAP_FAR_X      = ARENA_HALF + 25; // outer edge of NAP zone floor
 // from the entrance torii-gate.glb at NAP_X. Sits on the FAR side of the NAP zone
 // so the player walks the full peace-zone to reach it. x=42 leaves the portal's
 // outer ring (radius = trigger range 3 → x∈[39,45]) at the far floor edge.
-export const TRAVEL_GATE_X  = 0;   // v0.2.520: true north of NAP tomoe
-export const TRAVEL_GATE_Z  = 32;  // v0.2.520: flush with northern edge
+export const TRAVEL_GATE_X  = -24; // v0.2.521: on bridge 1 (NAP↔Arena BL)
+export const TRAVEL_GATE_Z  = 3;   // v0.2.521: grouped with bridge
 // v0.2.275: title-screen "ENTER NAP ZONE" button spawns the player straight into
 // the NAP zone's far-left corner (deep + south, clear of the travel portal at
 // (42,16) and the bonsai at (26,0)) so the grass field is immediately visible
@@ -43,7 +43,7 @@ export const NAP_TREE_Z = 18.05;
 // clockwise is negative. The two base yaws differ (fallback π/2, GLB π) because
 // each model was calibrated to face the approaching player; this delta is added
 // on top of both, so a single tweak turns the whole gateway.
-export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 4; // v0.2.520: 45° clockwise, faces into NAP
+export const TRAVEL_GATE_YAW_DELTA = Math.PI / 4; // v0.2.521: matches BRIDGE_YAW
 
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.

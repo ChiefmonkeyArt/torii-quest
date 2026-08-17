@@ -300,6 +300,13 @@ export function tickStickerNpc(dt) {
               _quat.setFromUnitVectors(_zAxis, currentNormal);
               sticker.quaternion.copy(_quat);
 
+              // Scale: compensate for SkinnedMesh world scale (0.01 from NPC root)
+              const meshScale = new THREE.Vector3();
+              skinnedMesh.getWorldScale(meshScale);
+              if (meshScale.x > 0.001 && meshScale.y > 0.001 && meshScale.z > 0.001) {
+                sticker.scale.set(1 / meshScale.x, 1 / meshScale.y, 1 / meshScale.z);
+              }
+
               skinnedMesh.add(sticker);
               parented = true;
             } catch (e) {

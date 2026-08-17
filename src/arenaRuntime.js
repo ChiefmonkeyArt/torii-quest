@@ -813,20 +813,16 @@ export function createArenaRuntime(hooks = {}) {
     initTargetReticle({ bots, playerObj, getPlayerCollider });
 
     // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
-    // In the NAP zone, bullets are suppressed BUT the FTFF sticker
-    // interaction is allowed — firing at the NPC slaps a sticker on them
-    // and triggers a gesture animation (v0.2.548).
+    // Stickers fire everywhere — they stick to any mesh surface.
+    // In the NAP zone, bullets are suppressed (stickers only).
     on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
+      const aim = aimOrigin || origin;
+      const ad = aimDir || dir;
+      fireStickerAtNpc(aim, ad);
+      triggerRecoil();
+      playShoot();
       const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
-      if (inNap) {
-        // NAP zone: try sticker interaction with the NPC
-        const aim = aimOrigin || origin;
-        const ad = aimDir || dir;
-        fireStickerAtNpc(aim, ad);
-        triggerRecoil();
-        playShoot();
-        return; // no bullets in the NAP zone
-      }
+      if (inNap) return; // no bullets in the NAP zone
       const b = spawnBullet(origin, dir, true);
       _muzzleFlashes.trigger('muzzle', origin);
       if (aimOrigin && aimDir) {

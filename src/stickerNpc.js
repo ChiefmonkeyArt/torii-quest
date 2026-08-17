@@ -1,38 +1,47 @@
 // stickerNpc.js — FTFF sticker projectile system for the NAP zone NPC.
 // When the player fires at the Chiefmonkey NPC in the NAP zone, a sticker
 // sprite flies from the gun muzzle to the NPC. On impact, the sticker
-// attaches to the NPC and the NPC plays a random gesture animation.
+// attaches to the NPC surface and the NPC plays a random gesture animation.
 import * as THREE from 'three';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
 
 let _texture = null;
-let _stickers = [];      // active flying stickers { sprite, from, to, t, duration, target }
-let _attached = [];      // stickers stuck to NPC { mesh, parent, offset, life, maxLife }
+let _textureLoading = false;
+let _stickers = [];      // active flying stickers
+let _attached = [];      // stickers stuck to NPC
 
 let _npcRoot = null;     // ref to NPC root (polled from napNpc.js)
+let _npcRootChecked = false;
+let _getNpcRootFn = null;
 
-const STICKER_SIZE = 0.6;     // world units
+// Flying sticker starts large (0.6) and shrinks during flight to ATTACHED_SIZE
+const FLY_SIZE = 0.6;          // world units at launch
+const ATTACHED_SIZE = 0.06;    // world units when stuck on NPC (10x smaller)
 const FLIGHT_DURATION = 0.25;  // seconds
-const ATTACHED_LIFETIME = 4.0; // seconds before fade
+const MAX_ATTACHED = 80;       // max stickers on NPC before oldest removed
+const ATTACHED_LIFETIME = 120; // seconds before fade (2 min — generous)
 
-function _ensureTexture() {
-  if (_texture) return _texture;
+// Preload the texture immediately so the first shot appears instantly.
+function _preloadTexture() {
+  if (_texture || _textureLoading) return;
+  _textureLoading = true;
   const loader = new THREE.TextureLoader();
-  _texture = loader.load(assetUrl('/ftff-sticker.png'));
-  _texture.colorSpace = THREE.SRGBColorSpace;
-  _texture.needsUpdate = true;
-  return _texture;
+  loader.load(assetUrl('/ftff-sticker.png'), tex => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    _texture = tex;
+    _textureLoading = false;
+  });
 }
 
-// Check if the aim ray hits the NPC. Returns hit point or null.
+// Ray-sphere hit test against the NPC. Returns { point, normal } or null.
+// normal is the outward direction from NPC center to hit point (for offset).
 function _raycastNpc(origin, dir) {
   if (!_npcRoot) return null;
-  // Use a bounding sphere around the NPC for a simple, forgiving hit test.
   const center = _npcRoot.position;
-  const radius = 1.2; // generous hit sphere
+  const radius = 1.2;
 
-  // Ray-sphere intersection
   const ox = origin.x - center.x;
   const oy = origin.y - center.y;
   const oz = origin.z - center.z;
@@ -41,51 +50,59 @@ function _raycastNpc(origin, dir) {
   const b = ox * dx + oy * dy + oz * dz;
   const c = ox * ox + oy * oy + oz * oz - radius * radius;
 
-  if (c > 0 && b > 0) return null; // ray points away from sphere
+  if (c > 0 && b > 0) return null;
 
   const disc = b * b - c;
-  if (disc < 0) return null; // no intersection
+  if (disc < 0) return null;
 
   const t = -b - Math.sqrt(disc);
-  const tt = t < 0 ? 0 : t; // clamp to origin if inside sphere
+  const tt = t < 0 ? 0 : t;
 
-  return new THREE.Vector3(
-    origin.x + dx * tt,
-    origin.y + dy * tt,
-    origin.z + dz * tt
-  );
+  const px = origin.x + dx * tt;
+  const py = origin.y + dy * tt;
+  const pz = origin.z + dz * tt;
+
+  // Outward normal from NPC center to hit point
+  let nx = px - center.x, ny = py - center.y, nz = pz - center.z;
+  const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+  nx /= nl; ny /= nl; nz /= nl;
+
+  return { point: new THREE.Vector3(px, py, pz), normal: { x: nx, y: ny, z: nz } };
 }
 
-// Spawn a sticker projectile from `origin` toward the NPC hit point `target`.
+// Spawn a sticker projectile from `origin` toward the NPC hit point.
 export function fireStickerAtNpc(origin, dir) {
-  const hitPoint = _raycastNpc(origin, dir);
-  if (!hitPoint) return false;
+  // Ensure texture is loading (first call triggers preload)
+  _preloadTexture();
 
-  const tex = _ensureTexture();
+  const hit = _raycastNpc(origin, dir);
+  if (!hit) return false;
+
+  // If texture isn't loaded yet, still register the hit so the gesture
+  // triggers — the sticker will appear once the texture loads on subsequent shots.
   const mat = new THREE.SpriteMaterial({
-    map: tex,
+    map: _texture,
     transparent: true,
     depthTest: true,
     depthWrite: false,
+    opacity: _texture ? 1.0 : 0.0, // invisible until texture ready
   });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(STICKER_SIZE, STICKER_SIZE * 0.6, 1);
+  sprite.scale.set(FLY_SIZE, FLY_SIZE * 0.6, 1);
   sprite.position.copy(origin);
   scene.add(sprite);
 
   _stickers.push({
     sprite,
     from: origin.clone(),
-    to: hitPoint.clone(),
+    to: hit.point.clone(),
+    normal: hit.normal,
     t: 0,
     duration: FLIGHT_DURATION,
   });
 
   return true;
 }
-
-let _npcRootChecked = false;
-let _getNpcRootFn = null;
 
 // Called every frame to update flying + attached stickers.
 export function tickStickerNpc(dt) {
@@ -98,8 +115,12 @@ export function tickStickerNpc(dt) {
   }
   if (!_npcRoot && _getNpcRootFn) {
     const r = _getNpcRootFn();
-    if (r) _npcRoot = r;
+    if (r) {
+      _npcRoot = r;
+      _preloadTexture(); // start texture load once NPC exists
+    }
   }
+
   // Update flying stickers
   for (let i = _stickers.length - 1; i >= 0; i--) {
     const s = _stickers[i];
@@ -109,31 +130,40 @@ export function tickStickerNpc(dt) {
     const e = 1 - (1 - p) * (1 - p);
     s.sprite.position.lerpVectors(s.from, s.to, e);
 
+    // Shrink during flight: FLY_SIZE → ATTACHED_SIZE
+    const size = FLY_SIZE + (ATTACHED_SIZE - FLY_SIZE) * e;
+    s.sprite.scale.set(size, size * 0.6, 1);
+
     if (p >= 1) {
-      // Sticker arrived — attach to NPC
+      // Sticker arrived — attach to NPC surface
       scene.remove(s.sprite);
+      if (s.sprite.material) s.sprite.material.dispose();
       _stickers.splice(i, 1);
 
+      if (!_texture) continue; // skip if texture not loaded yet
+
       // Create attached sticker as child of NPC root
-      const tex = _ensureTexture();
       const mat = new THREE.SpriteMaterial({
-        map: tex,
+        map: _texture,
         transparent: true,
         depthTest: true,
         depthWrite: false,
       });
       const attached = new THREE.Sprite(mat);
-      attached.scale.set(STICKER_SIZE, STICKER_SIZE * 0.6, 1);
+      attached.scale.set(ATTACHED_SIZE, ATTACHED_SIZE * 0.6, 1);
 
-      // Convert hit point to NPC-local space
+      // Convert hit point to NPC-local space, then push outward along
+      // the hit normal so the sticker sits ON the surface, not inside.
       const localPos = s.to.clone();
       if (_npcRoot) {
+        // Push outward along normal in world space first
+        localPos.x += s.normal.x * 0.08;
+        localPos.y += s.normal.y * 0.08;
+        localPos.z += s.normal.z * 0.08;
         _npcRoot.worldToLocal(localPos);
-        // Offset slightly so the sticker sits in front of the model
-        localPos.z += 0.15;
         _npcRoot.add(attached);
       } else {
-        attached.position.copy(s.to);
+        attached.position.copy(localPos);
         scene.add(attached);
       }
       attached.position.copy(localPos);
@@ -144,15 +174,21 @@ export function tickStickerNpc(dt) {
         maxLife: ATTACHED_LIFETIME,
       });
 
-      // Trigger the NPC gesture via the global event bus
-      // We import lazily to avoid circular deps
+      // Enforce max sticker count — remove oldest
+      while (_attached.length > MAX_ATTACHED) {
+        const old = _attached.shift();
+        if (old.mesh.parent) old.mesh.parent.remove(old.mesh);
+        if (old.mesh.material) old.mesh.material.dispose();
+      }
+
+      // Trigger the NPC gesture
       import('./napNpc.js').then(({ triggerNpcGesture }) => {
         if (triggerNpcGesture) triggerNpcGesture();
       });
     }
   }
 
-  // Update attached stickers (fade out + remove)
+  // Update attached stickers (fade out in last 2 seconds)
   for (let i = _attached.length - 1; i >= 0; i--) {
     const a = _attached[i];
     a.life -= dt;
@@ -160,12 +196,8 @@ export function tickStickerNpc(dt) {
       if (a.mesh.parent) a.mesh.parent.remove(a.mesh);
       if (a.mesh.material) a.mesh.material.dispose();
       _attached.splice(i, 1);
-    } else {
-      // Fade in last 1 second
-      const fadeStart = 1.0;
-      if (a.life < fadeStart) {
-        a.mesh.material.opacity = a.life / fadeStart;
-      }
+    } else if (a.life < 2.0) {
+      a.mesh.material.opacity = a.life / 2.0;
     }
   }
 }

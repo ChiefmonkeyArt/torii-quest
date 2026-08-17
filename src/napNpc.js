@@ -11,11 +11,10 @@ import { assetUrl } from './assetUrl.js';
 let _root  = null;
 let _mixer = null;
 
-// Placed clear of the bonsai trunk (now at x=NAP_TREE_X=34, z=7, v0.2.339) so
-// the NPC no longer reads as walking into the tree. Off the central walkway,
-// facing the gate to greet the incoming player.
-const NPC_X = 30;
-const NPC_Z = 5;
+// v0.2.515: NPC in the NAP zone near the centroid, facing the travel gateway.
+// Offset from the tree (NAP_TREE_X=0.83, NAP_TREE_Z=18.05) to avoid overlap.
+const NPC_X = -4;
+const NPC_Z = 22;
 
 export function buildNapNpc() {
   if (_root) return; // already built

@@ -15,7 +15,7 @@
 // The proof surfaces live east of the torii gate, in the NAP zone (the peaceful,
 // weapon-free area beyond the gate) — fitting the freedom-tech loop they preview.
 
-import { NAP_X, NAP_FAR_X } from '../../config.js';
+import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
 
 // Badge stamped on the layout summary so a viewer can never mistake these specs
 // for live, rendered, or actionable meshes. They describe a future placement; they
@@ -23,7 +23,7 @@ import { NAP_X, NAP_FAR_X } from '../../config.js';
 export const PROOF_SURFACE_BADGE = 'SPEC · INERT · LAYOUT-ONLY';
 
 // Centre of the NAP-zone floor along X — a convenient anchor for the stalls/boards.
-const NAP_MID_X = (NAP_X + NAP_FAR_X) / 2; // (20 + 45) / 2 = 32.5
+// v0.2.515: Panels flank the travel gateway torii gate, facing inward.
 
 // The ordered proof-surface specs, in MVP-loop order (Market→Score remain in-world;
 // Travel + Update were removed v0.2.316 — the torii gateway realises Travel and the
@@ -37,11 +37,11 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     step: 'MARKET', lean: 'LEAN-3',
     title: 'PRODUCT', kind: 'stall-panel',
     previewSdk: 'productPreview', shell: 'productPreview',
-    anchor: 'nap-zone-north-stall',
+    anchor: 'nap-zone-gate-left',
     note: 'Plebeian/Nostr market stall; previews one listing read-only. No checkout/pay/zap.',
-    position: Object.freeze({ x: NAP_MID_X, y: 2.0, z: -9 }),
+    position: Object.freeze({ x: TRAVEL_GATE_X - 5, y: 2.0, z: TRAVEL_GATE_Z }),
     size: Object.freeze({ width: 2.4, height: 1.6, depth: 0.1 }),
-    yawRad: 0, // faces the central walkway (south, +Z)
+    yawRad: Math.PI / 2, // faces inward (east, toward gate)
     invariants: Object.freeze({ readOnly: true, actionable: false }),
   }),
   Object.freeze({
@@ -49,11 +49,11 @@ export const PROOF_SURFACE_SPECS = Object.freeze([
     step: 'SCORE', lean: 'LEAN-4',
     title: 'LEADERBOARD', kind: 'notice-board',
     previewSdk: 'leaderboardPreview', shell: 'leaderboardPreview',
-    anchor: 'nap-zone-far-centre',
+    anchor: 'nap-zone-gate-right',
     note: 'Far-centre notice board; previews local/mock ranked scores. Never signs or publishes.',
-    position: Object.freeze({ x: NAP_FAR_X - 5, y: 2.6, z: 0 }),
+    position: Object.freeze({ x: TRAVEL_GATE_X + 5, y: 2.6, z: TRAVEL_GATE_Z }),
     size: Object.freeze({ width: 3.2, height: 2.2, depth: 0.12 }),
-    yawRad: -Math.PI / 2, // faces back toward the gate (west)
+    yawRad: -Math.PI / 2, // faces inward (west, toward gate)
     invariants: Object.freeze({ readOnly: true, actionable: false, signed: false, published: false }),
   }),
 ]);

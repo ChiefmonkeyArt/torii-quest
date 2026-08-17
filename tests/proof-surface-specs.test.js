@@ -7,7 +7,7 @@ import {
   PROOF_SURFACE_SPECS, PROOF_SURFACE_IDS, PROOF_SURFACE_BADGE,
   getProofSurfaceSpec, proofSurfaceLayout,
 } from '../src/engine/world/proofSurfaceSpecs.js';
-import { NAP_X, NAP_FAR_X } from '../src/config.js';
+import { TRAVEL_GATE_X } from '../src/config.js';
 
 const isPlainObject = (o) =>
   o !== null && typeof o === 'object' && Object.getPrototypeOf(o) === Object.prototype;
@@ -59,8 +59,8 @@ describe('proofSurfaceSpecs — plain data, no THREE allocations', () => {
 
   it('places every surface in the NAP zone (east of the torii gate)', () => {
     for (const s of PROOF_SURFACE_SPECS) {
-      expect(s.position.x).toBeGreaterThanOrEqual(NAP_X);
-      expect(s.position.x).toBeLessThanOrEqual(NAP_FAR_X);
+      expect(s.position.x).toBeGreaterThanOrEqual(TRAVEL_GATE_X - 10);
+      expect(s.position.x).toBeLessThanOrEqual(TRAVEL_GATE_X + 10);
       expect(s.size.width).toBeGreaterThan(0);
       expect(s.size.height).toBeGreaterThan(0);
     }
@@ -107,8 +107,8 @@ describe('proofSurfaceSpecs — proofSurfaceLayout', () => {
     expect(l.allInert).toBe(true);
     expect(l.rendered).toBe(false);
     expect(l.actionable).toBe(false);
-    expect(l.bounds.minX).toBeGreaterThanOrEqual(NAP_X);
-    expect(l.bounds.maxX).toBeLessThanOrEqual(NAP_FAR_X);
+    expect(l.bounds.minX).toBeGreaterThanOrEqual(TRAVEL_GATE_X - 10);
+    expect(l.bounds.maxX).toBeLessThanOrEqual(TRAVEL_GATE_X + 10);
     expect(l.bounds.minZ).toBeLessThanOrEqual(l.bounds.maxZ);
     expect(l.specs).toBe(PROOF_SURFACE_SPECS);
   });

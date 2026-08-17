@@ -14,7 +14,7 @@
 // The anchors all live east of the torii gate, in the NAP zone (NAP_X..NAP_FAR_X),
 // matching the proof surfaces they support.
 
-import { NAP_X, NAP_FAR_X } from '../../config.js';
+import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
 import { PROOF_SURFACE_SPECS } from './proofSurfaceSpecs.js';
 
 // Badge stamped on resolved transforms / the resolve summary so a viewer can
@@ -22,7 +22,7 @@ import { PROOF_SURFACE_SPECS } from './proofSurfaceSpecs.js';
 export const ANCHOR_BADGE = 'ANCHOR · PLAIN-TRANSFORM · NO RENDER';
 
 // Centre of the NAP-zone floor along X — kept consistent with proofSurfaceSpecs.
-const NAP_MID_X = (NAP_X + NAP_FAR_X) / 2; // (20 + 45) / 2 = 32.5
+// v0.2.515: Anchors flank the travel gateway.
 
 // The anchor registry: anchor id → plain placement metadata. Each anchor's
 // `origin` is the GROUND point (y:0) the surface stands on; `parent` is a hint
@@ -33,19 +33,19 @@ export const PROOF_SURFACE_ANCHORS = Object.freeze({
   // v0.2.316: 'torii-gate-threshold' + 'nap-zone-south-board' anchors removed —
   // the Travel (gateway) + Update-check specs were removed from the in-world proof
   // surfaces (torii gateway realises Travel; homescreen realises Update-check).
-  'nap-zone-north-stall': Object.freeze({
-    id: 'nap-zone-north-stall',
+  'nap-zone-gate-left': Object.freeze({
+    id: 'nap-zone-gate-left',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: NAP_MID_X, y: 0, z: -9 }),
-    note: 'Ground at the north market-stall spot (mid NAP zone, north of the central walkway).',
+    origin: Object.freeze({ x: TRAVEL_GATE_X - 5, y: 0, z: TRAVEL_GATE_Z }),
+    note: 'Ground 5m left of the travel gateway torii gate, facing inward.',
   }),
-  'nap-zone-far-centre': Object.freeze({
-    id: 'nap-zone-far-centre',
+  'nap-zone-gate-right': Object.freeze({
+    id: 'nap-zone-gate-right',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: NAP_FAR_X - 5, y: 0, z: 0 }),
-    note: 'Ground at the far-centre notice-board spot (deep NAP zone, on the central axis z=0).',
+    origin: Object.freeze({ x: TRAVEL_GATE_X + 5, y: 0, z: TRAVEL_GATE_Z }),
+    note: 'Ground 5m right of the travel gateway torii gate, facing inward.',
   }),
 });
 

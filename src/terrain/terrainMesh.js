@@ -100,6 +100,24 @@ function buildZoneMesh(scene, TERRAIN, GRID, sample, { color, name, roughness = 
   const mat = new THREE.MeshStandardMaterial({
     color: vary ? 0xffffff : color, roughness, metalness: 0, vertexColors: !!vary,
   });
+  // v0.2.515: Discard fragments at/below sea level so the underwater mesh
+  // rectangle is invisible — the water plane handles the visual coast.
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      'void main() {',
+      'varying vec3 vWorldPos;\nvoid main() {',
+    ).replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\n  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;',
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'void main() {',
+      'varying vec3 vWorldPos;\nvoid main() {',
+    ).replace(
+      '#include <dithering_fragment>',
+      '#include <dithering_fragment>\n  if (vWorldPos.y <= ' + SEA_LEVEL + ' + 0.01) discard;',
+    );
+  };
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = name;

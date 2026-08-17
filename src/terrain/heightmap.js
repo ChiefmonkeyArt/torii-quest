@@ -21,7 +21,7 @@ import {
 } from './tomoeShapeData.js';
 
 // ── Island shaping constants ────────────────────────────────────────────────
-export const ISLAND_BASE_Y = 0.6;
+export const ISLAND_BASE_Y = 1.0;
 export const SHORE_WIDTH = 4.0;
 export const BEACH_INSET = 1.5;
 export const SHELF_DEPTH  = 0.0;

@@ -109,7 +109,7 @@ function _buildGrass() {
   // the huge instance count a full-density arena would need. Candidates from both
   // zones are interleaved then Fisher–Yates thinned to TARGET_BLADES.
   const TARGET_BLADES = 75000;
-  const CAND_SPACING  = 0.032;
+  const CAND_SPACING  = 0.10;  // v0.2.512: coarser grid — polygon bboxes are 3x larger than old rects
 
   // ── Procedural grass blade texture (no asset file, DataTexture) ───────────
   // 8x64 RGBA. Vertical blade: soft alpha edges + faint midrib + green gradient

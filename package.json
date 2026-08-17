@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.541-alpha",
+  "version": "0.2.542-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,6 +43,10 @@
     "build:server": "esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --outfile=dist/server/arena-ws.cjs --log-level=warning"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
+    "draco3d": "^1.5.7",
     "vite": "^8.0.16",
     "vitest": "^3.2.4"
   },

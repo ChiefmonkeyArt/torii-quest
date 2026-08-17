@@ -1283,6 +1283,29 @@ const BOOT_STEPS = [
   { pct: 95, label: 'Entering…',           sub: 'Almost there' },
 ];
 
+// Smoothly animate the progress bar toward a target percentage.
+// Eases forward between discrete step updates so it never stalls visually.
+let _bootCurrentPct = 0;
+let _bootTargetPct = 0;
+let _bootAnimId = null;
+
+function _animateBootBar() {
+  if (_bootAnimId) cancelAnimationFrame(_bootAnimId);
+  const tick = () => {
+    const diff = _bootTargetPct - _bootCurrentPct;
+    if (Math.abs(diff) < 0.5) {
+      _bootCurrentPct = _bootTargetPct;
+      if (_bootBar) _bootBar.style.width = _bootCurrentPct + '%';
+      _bootAnimId = null;
+      return;
+    }
+    _bootCurrentPct += diff * 0.12;
+    if (_bootBar) _bootBar.style.width = _bootCurrentPct + '%';
+    _bootAnimId = requestAnimationFrame(tick);
+  };
+  _bootAnimId = requestAnimationFrame(tick);
+}
+
 function showBootOverlay() {
   if (!_bootOverlay) return;
   _bootOverlay.classList.remove('hidden');
@@ -1297,8 +1320,17 @@ function hideBootOverlay() {
 function _setBootProgress(stepIndex) {
   const step = BOOT_STEPS[stepIndex] || BOOT_STEPS[BOOT_STEPS.length - 1];
   if (_bootStatus) _bootStatus.textContent = step.label;
-  if (_bootBar)    _bootBar.style.width = step.pct + '%';
+  _bootTargetPct = step.pct;
   if (_bootSub)    _bootSub.textContent = step.sub;
+  _animateBootBar();
+}
+
+// Set an exact percentage for sub-step progress (e.g. GLB download progress).
+function _setBootPct(pct, label, sub) {
+  _bootTargetPct = Math.min(95, Math.max(0, pct));
+  if (label && _bootStatus) _bootStatus.textContent = label;
+  if (sub && _bootSub) _bootSub.textContent = sub;
+  _animateBootBar();
 }
 
 // Yield to the browser so the overlay can paint before heavy synchronous work.
@@ -1463,3 +1495,28 @@ function _shellTick() {
   requestAnimationFrame(_shellTick);
 }
 requestAnimationFrame(_shellTick);
+
+// ── Title-screen preloading (v0.2.542) ───────────────────────────────────────
+const PRELOAD_ASSETS = [
+  '/models/chiefmonkey7.glb',
+  '/augustink4.glb',
+  '/models/animation-library.glb',
+];
+let _preloadedAssets = null;
+let _preloadingStarted = false;
+function startPreloading() {
+  if (_preloadingStarted) return;
+  _preloadingStarted = true;
+  const base = document.querySelector('base')?.getAttribute('href') || '/';
+  _preloadedAssets = {};
+  for (const asset of PRELOAD_ASSETS) {
+    const url = base.replace(/\/$/, '') + asset;
+    _preloadedAssets[asset] = fetch(url, { cache: 'force-cache' })
+      .then(r => r.ok)
+      .catch(() => false);
+  }
+  _preloadedAssets._rapier = import('@dimforge/rapier3d-compat')
+    .then(r => { r.init(); return r; })
+    .catch(() => null);
+}
+requestAnimationFrame(() => requestAnimationFrame(startPreloading));

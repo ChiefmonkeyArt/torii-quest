@@ -24,7 +24,7 @@ const _planeGeo = null; // built per-sticker (cheap, small)
 // Names to exclude from sticker raycasting (UI/screens/non-stickable)
 const EXCLUDE_NAMES = new Set([
   'sea', 'world-gun-normalizer', 'coastline-wall', 'coastline-neon',
-  'portal-mesh-group', 'PORTAL_MESH_GROUP',
+  'portal-mesh-group', 'PORTAL_MESH_GROUP', 'grass-instanced',
 ]);
 
 // Flying sticker starts large (0.6) and shrinks during flight
@@ -39,11 +39,16 @@ const ATTACHED_LIFETIME = 180;  // 3 minutes
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
   _textureLoading = true;
+  console.log('[sticker] preloading texture from', assetUrl('/ftff-sticker.png'));
   const loader = new THREE.TextureLoader();
   loader.load(assetUrl('/ftff-sticker.png'), tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     _texture = tex;
+    _textureLoading = false;
+    console.log('[sticker] texture loaded OK');
+  }, undefined, err => {
+    console.warn('[sticker] texture load FAILED:', err);
     _textureLoading = false;
   });
 }
@@ -98,7 +103,11 @@ export function fireStickerAtNpc(origin, dir) {
   _preloadTexture();
 
   const hit = _raycastScene(origin, dir);
-  if (!hit) return false;
+  if (!hit) {
+    console.log('[sticker] no surface hit — ray missed everything');
+    return false;
+  }
+  console.log('[sticker] hit:', hit.object.name || hit.object.type, 'at dist', origin.distanceTo(hit.point).toFixed(1));
 
   const mat = new THREE.SpriteMaterial({
     map: _texture,

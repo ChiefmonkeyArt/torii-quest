@@ -565,6 +565,7 @@ async function _buildGrass(onProgress) {
 
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
+  mesh.name = 'grass-instanced';
   mesh.position.y = -0.05;
 
   // v0.2.326: the flat ground-cover plane was removed — the NAP terrain mesh

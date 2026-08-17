@@ -4,15 +4,15 @@
 import * as THREE from 'three';
 import { Reflector }  from 'three/addons/objects/Reflector.js';
 import { scene, renderer } from './scene.js';
+import { sampleNapHeight } from './terrain/heightmap.js';
 import { ARENA_HALF, WALL_H } from './config.js';
 
-// v0.2.515: Mirror moved to diagonal position in upper-left of arena
-// (per user's pink-line placement). Width shortened 42% from ~14 to ~8.1 units.
+// v0.2.518: Mirror in NAP zone, right of product panel.
+// Width shortened 42% from original ~14 to ~8.1 units.
 const MW = ARENA_HALF * 0.7 * 0.58;  // mirror width (~8.1 units, -42%)
-const MH = WALL_H + 0.2;       // mirror height: wall + 20cm cap clearance
-const MX = -9;                   // diagonal position: midpoint of pink line
-const MY = MH / 2 + 0.05;      // just above floor
-const MZ = -6;                  // diagonal position: upper-left of arena
+const MH = WALL_H + 0.2;       // mirror height
+const MX = -1;                   // right of product panel at (-5, 30)
+const MZ = 30;                   // NAP zone, same Z as product panel
 
 // Throttle mirror texture refresh to 20 Hz by suppressing onBeforeRender.
 // The mesh stays visible every frame — only the RT update is gated.
@@ -58,8 +58,8 @@ export function buildMirror() {
       multisample:   1,         // MSAA off — extra FB resolve not worth it
     });
 
-    mirror.rotation.y = Math.atan2(9, 6);  // v0.2.515: face arena center from diagonal
-    mirror.position.set(MX, MY, MZ);
+    mirror.rotation.y = Math.PI;  // v0.2.518: face south toward island center
+    mirror.position.set(MX, sampleNapHeight(MX, MZ) + MH / 2 + 0.05, MZ);
     scene.add(mirror);
     _mirrorRef = mirror; // module handle — see getMirror() / tickMirror()
     window._mirrorMesh = mirror; // DEPRECATED debug alias (v0.2.119) — internal code uses getMirror()
@@ -85,9 +85,10 @@ export function buildMirror() {
     // exists in Three.js r168+. Attempting renderer.render with undefined camera crashes
     // the render loop. Warm-up is handled naturally on first arena render frame.
 
-    // ── Dark metal frame (parented to mirror so it inherits rotation) ─────────
+    // ── Dark metal frame (parented to mirror, proper local coords) ───────────
+    // PlaneGeometry(MW, MH): local X=width, local Y=height, local Z=normal
     const FT  = 0.22;   // bar thickness
-    const FD  = 0.18;   // bar depth (X extent — local to mirror)
+    const FD  = 0.18;   // bar depth (along normal Z)
     const fMat = new THREE.MeshStandardMaterial({
       color: 0x0a0a0a, metalness: 0.95, roughness: 0.15,
     });
@@ -96,15 +97,15 @@ export function buildMirror() {
       m.position.set(x, y, z);
       mirror.add(m);
     };
-    const fx = -FD * 0.5 + 0.01;
-    _bar(FD, FT,        MW + FT*2, fx,  MH*0.5 + FT*0.5,  0);           // top
-    _bar(FD, FT,        MW + FT*2, fx, -MH*0.5 - FT*0.5,  0);           // bottom
-    _bar(FD, MH+FT*2,  FT,        fx,  0, -MW*0.5 - FT*0.5);           // left
-    _bar(FD, MH+FT*2,  FT,        fx,  0,  MW*0.5 + FT*0.5);           // right
+    const fz = FD * 0.5;  // bars sit just in front of the mirror surface
+    _bar(MW + FT*2, FT, FD, 0,  MH*0.5 + FT*0.5,  fz);  // top
+    _bar(MW + FT*2, FT, FD, 0, -MH*0.5 - FT*0.5,  fz);  // bottom
+    _bar(FT, MH + FT*2, FD, -MW*0.5 - FT*0.5, 0,  fz);  // left
+    _bar(FT, MH + FT*2, FD,  MW*0.5 + FT*0.5, 0,  fz);  // right
 
     // ── Soft cool fill light in front of mirror ───────────────────────────────
     const mLight = new THREE.PointLight(0xc8e8ff, 1.2, 18);
-    mLight.position.set(MX + 5, MY + 1, MZ);
+    mLight.position.set(MX, sampleNapHeight(MX, MZ) + MH + 1, MZ + 2);
     scene.add(mLight);
 
     // ── "MIRROR" label above frame (parented to mirror) ───────────────────────
@@ -121,7 +122,7 @@ export function buildMirror() {
       new THREE.PlaneGeometry(MW * 0.5, 0.4),
       new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, depthWrite: false, fog: false })
     );
-    label.position.set(0.05, MH * 0.5 + FT + 0.35, 0);
+    label.position.set(0, MH * 0.5 + FT + 0.35, fz);
     mirror.add(label);
 
   } catch (e) {

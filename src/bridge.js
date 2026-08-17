@@ -7,6 +7,7 @@ import { scene } from './scene.js';
 import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
+  BRIDGE_YAW,
 } from './config.js';
 
 const RAIL_H = 0.5;
@@ -48,8 +49,9 @@ export function buildBridge() {
   // Rebuild-safe: drop any prior bridges before re-adding.
   while (_groups.length) { scene.remove(_groups.pop()); }
 
-  // Bridge 1: NAP ↔ Arena BL (with torii gate)
-  _buildOne(BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK, 'bridge-nap-bl');
+  // Bridge 1: NAP ↔ Arena BL (with torii gate) — rotated 45°
+  const b1 = _buildOne(BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK, 'bridge-nap-bl');
+  b1.rotation.y = BRIDGE_YAW;
 
   // Bridge 2: Arena BL ↔ Arena BR (no gate)
   _buildOne(BRIDGE2_X, BRIDGE2_Z, BRIDGE_DECK_Y, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK, 'bridge-bl-br');

@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.518-alpha';
+export const VERSION   = 'v0.2.519-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -20,7 +20,7 @@ export const NAP_FAR_X      = ARENA_HALF + 25; // outer edge of NAP zone floor
 // so the player walks the full peace-zone to reach it. x=42 leaves the portal's
 // outer ring (radius = trigger range 3 → x∈[39,45]) at the far floor edge.
 export const TRAVEL_GATE_X  = 0;   // top of NAP island — far side from the arena
-export const TRAVEL_GATE_Z  = 30;  // deep in the NAP, clear of bridge and tree
+export const TRAVEL_GATE_Z  = 28;  // v0.2.518: moved 2m south with bridge
 // v0.2.275: title-screen "ENTER NAP ZONE" button spawns the player straight into
 // the NAP zone's far-left corner (deep + south, clear of the travel portal at
 // (42,16) and the bonsai at (26,0)) so the grass field is immediately visible
@@ -48,15 +48,17 @@ export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 2; // 90° clockwise (top-down) 
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel at z=5.
 export const BRIDGE_X      = -24;   // channel centreline between NAP and Arena BL
-export const BRIDGE_Z      = 5;     // z=5 where the channel is ~6m wide
+export const BRIDGE_Z      = 3;     // v0.2.518: moved 2m south
 export const BRIDGE_DECK_Y = 1.1;   // walkable top surface (world Y)
 export const BRIDGE_LEN    = 10;    // E-W span (x -29 → -19): 2m overlap each side
 export const BRIDGE_WIDTH  = 4;    // N-S width (z 3 → 7)
 export const BRIDGE_THICK  = 0.4;   // deck slab thickness
+export const BRIDGE_YAW    = Math.PI / 4;  // v0.2.518: 45° rotation
+export const BRIDGE_SOUTH  = 2;             // v0.2.518: moved 2m south
 // Bridge 2: Arena BL ↔ Arena BR (no gate). Spans the center channel at z=0.
-export const BRIDGE2_X      = 1;    // channel centreline between BL and BR
-export const BRIDGE2_Z      = 0;
-export const BRIDGE2_LEN    = 12;   // E-W span (x -5 → 7): 2m overlap each side
+export const BRIDGE2_X      = 0;    // v0.2.518: narrowest channel point
+export const BRIDGE2_Z      = -5;   // v0.2.518: 5m south, 3m gap
+export const BRIDGE2_LEN    = 8;    // 3m gap + 2.5m overlap each side
 export const BRIDGE2_WIDTH  = 4;
 export const BRIDGE2_THICK  = 0.4;
 export const PLAYER_HP      = 100;

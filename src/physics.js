@@ -17,7 +17,7 @@
 import {
   CRATES, OBSTACLES,
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
-  BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
+  BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK, BRIDGE_YAW,
 } from './config.js';
 import { initBodies, createStatic, createStaticYaw, createHeightfield } from './engine/physics/bodies.js';
 import { initRaycast } from './engine/physics/raycast.js';
@@ -162,10 +162,10 @@ export function buildArenaColliders() {
     }
   }
 
-  // Bridge 1 deck (NAP ↔ Arena BL) — static cuboid matching bridge.js visuals.
-  createStatic(
+  // Bridge 1 deck (NAP ↔ Arena BL) — rotated 45° to match visuals.
+  createStaticYaw(
     BRIDGE_LEN / 2, BRIDGE_THICK / 2, BRIDGE_WIDTH / 2,
-    BRIDGE_X, BRIDGE_DECK_Y - BRIDGE_THICK / 2, BRIDGE_Z,
+    BRIDGE_X, BRIDGE_DECK_Y - BRIDGE_THICK / 2, BRIDGE_Z, BRIDGE_YAW,
   );
   // Bridge 2 deck (Arena BL ↔ Arena BR) — no gate.
   createStatic(

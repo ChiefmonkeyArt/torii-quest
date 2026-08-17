@@ -21,6 +21,14 @@ const _zAxis = new THREE.Vector3(0, 0, 1);
 const _bonePos = new THREE.Vector3();
 const _worldQuatInv = new THREE.Quaternion();
 
+// Scratch matrices for per-frame bone tracking (constraint [4])
+const _m4a = new THREE.Matrix4();
+const _m4b = new THREE.Matrix4();
+const _m4c = new THREE.Matrix4();
+const _v3a = new THREE.Vector3();
+const _v3b = new THREE.Vector3();
+const _v3c = new THREE.Vector3();
+
 // Mesh cache — refreshed periodically to pick up newly loaded objects
 const _meshCache = [];
 let _meshCacheTime = 0;
@@ -244,59 +252,58 @@ export function tickStickerNpc(dt) {
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);
 
-      // ── Bone parenting for SkinnedMesh (NPC, bots, players) ──
-      // The shader transforms vertices as: boneMatrix * boneInverse * vertex
-      // where boneMatrix = bone.matrixWorld (changes each frame) and
-      // boneInverse = skeleton.boneInverses[i] (fixed bind-pose).
-      // For the sticker to follow the vertex, its localPosition must be:
-      //   boneInverse * meshInverse * worldPoint
-      // so that: bone.matrixWorld * localPosition = boneMatrix * boneInverse * vertex
+      // ── Per-frame bone-matrix tracking for SkinnedMesh (NPC, bots, players) ──
+      // The vertex shader computes: bindMatrixInverse * boneMatrices[i] * bindMatrix * vertex
+      // We replicate this each frame so stickers track the deforming mesh surface.
       let parented = false;
       if (s.targetObject.isSkinnedMesh && s.face) {
         const bone = _findInfluencingBone(s.targetObject, s.face);
         if (bone) {
-          const boneIndex = s.targetObject.skeleton.bones.indexOf(bone);
-          const hasInverse = boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex];
-          if (hasInverse) {
+          const skinnedMesh = s.targetObject;
+          const boneIndex = skinnedMesh.skeleton.bones.indexOf(bone);
+          if (boneIndex >= 0) {
             try {
-              // Try bind-pose approach without meshInverse.
-              // The GLTF inverseBindMatrices transform from the node's parent space
-              // (which is world space if the root node has no transform) to bone-local.
-              // Applying directly to worldPos avoids double-counting the 0.01 parent scale.
-              const skinnedMesh = s.targetObject;
-              const boneInverse = skinnedMesh.skeleton.boneInverses[boneIndex];
+              // Compute the vertex position in bind-pose world space.
+              // vertex = (mesh.matrixWorld * bindMatrixInverse * boneMatrices.creation * bindMatrix).inverse() * worldPos
+              // Simplified: bindWorldPos = boneMatrices.creation.inverse() * bindMatrix * meshInverse * worldPos
+              // (when bindMatrix == mesh.matrixWorld at bind time)
+              skinnedMesh.updateMatrixWorld(true);
+              skinnedMesh.skeleton.update();
 
-              const bindLocal = worldPos.clone().applyMatrix4(boneInverse);
+              const meshInverse = _m4a.copy(skinnedMesh.matrixWorld).invert();
+              const boneMat = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
+              const boneMatInv = _m4c.copy(boneMat).invert();
 
-              // Sanity check: if bindLocal is reasonable, use bind-pose (tracks mesh surface).
-              // If not, fall back to worldToLocal (current-pose, cloud effect).
-              const bindLen = bindLocal.length();
-              if (bindLen > 0.01 && bindLen < 500) {
-                sticker.position.copy(bindLocal);
-                const localNormal = s.normal.clone().transformDirection(boneInverse);
-                _quat.setFromUnitVectors(_zAxis, localNormal);
-                sticker.quaternion.copy(_quat);
-              } else {
-                // Fallback: worldToLocal (current-pose)
-                bone.updateMatrixWorld(true);
-                const localPos = worldPos.clone();
-                bone.worldToLocal(localPos);
-                sticker.position.copy(localPos);
-                bone.getWorldQuaternion(_worldQuatInv).invert();
-                sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
-              }
+              // bindWorldPos = boneMatInv * meshInverse * worldPos
+              // (meshInverse converts world→mesh-local, boneMatInv converts mesh-local→bind-pose world)
+              const bindWorldPos = _v3a.copy(worldPos).applyMatrix4(meshInverse).applyMatrix4(boneMatInv);
 
-              // Scale: compensate for bone world scale
-              const boneScale = new THREE.Vector3();
-              bone.getWorldScale(boneScale);
-              if (boneScale.x > 0.001 && boneScale.y > 0.001 && boneScale.z > 0.001) {
-                sticker.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
-              }
+              // Compute bind-pose normal similarly
+              const bindNormal = _v3b.copy(s.normal).transformDirection(meshInverse).transformDirection(boneMatInv);
 
-              bone.add(sticker);
+              // Parent to the SkinnedMesh (not the bone) and update each frame
+              sticker.userData.stickerBoneTrack = {
+                skinnedMesh,
+                boneIndex,
+                bindWorldPos: bindWorldPos.clone(),
+                bindNormal: bindNormal.clone(),
+              };
+
+              // Set initial position
+              _m4a.copy(skinnedMesh.bindMatrixInverse)
+                .multiply(boneMat)
+                .multiply(skinnedMesh.bindMatrix);
+              sticker.position.copy(bindWorldPos).applyMatrix4(_m4a);
+
+              // Set initial orientation
+              const currentNormal = _v3c.copy(bindNormal).transformDirection(_m4a);
+              _quat.setFromUnitVectors(_zAxis, currentNormal);
+              sticker.quaternion.copy(_quat);
+
+              skinnedMesh.add(sticker);
               parented = true;
             } catch (e) {
-              console.warn('[sticker] bone parenting failed:', e);
+              console.warn('[sticker] bone tracking setup failed:', e);
             }
           }
         }
@@ -350,7 +357,7 @@ export function tickStickerNpc(dt) {
     }
   }
 
-  // Update attached stickers (fade out in last 2 seconds)
+  // Update attached stickers (fade out in last 2 seconds + per-frame bone tracking)
   for (let i = _attached.length - 1; i >= 0; i--) {
     const a = _attached[i];
     a.life -= dt;
@@ -359,8 +366,26 @@ export function tickStickerNpc(dt) {
       if (a.mesh.geometry) a.mesh.geometry.dispose();
       if (a.mesh.material) a.mesh.material.dispose();
       _attached.splice(i, 1);
-    } else if (a.life < 2.0) {
-      a.mesh.material.opacity = a.life / 2.0;
+    } else {
+      // Per-frame bone-matrix tracking for skinned-mesh stickers
+      const track = a.mesh.userData.stickerBoneTrack;
+      if (track) {
+        const sm = track.skinnedMesh;
+        if (sm.skeleton && sm.skeleton.boneMatrices) {
+          // Read current bone matrix from the skeleton
+          _m4b.fromArray(sm.skeleton.boneMatrices, track.boneIndex * 16);
+          // Compute: bindMatrixInverse * boneMat * bindMatrix * bindWorldPos
+          _m4a.copy(sm.bindMatrixInverse).multiply(_m4b).multiply(sm.bindMatrix);
+          a.mesh.position.copy(track.bindWorldPos).applyMatrix4(_m4a);
+          // Update orientation
+          _v3c.copy(track.bindNormal).transformDirection(_m4a);
+          _quat.setFromUnitVectors(_zAxis, _v3c);
+          a.mesh.quaternion.copy(_quat);
+        }
+      }
+      if (a.life < 2.0) {
+        a.mesh.material.opacity = a.life / 2.0;
+      }
     }
   }
 }

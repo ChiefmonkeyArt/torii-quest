@@ -245,56 +245,64 @@ export function tickStickerNpc(dt) {
       _quat.setFromUnitVectors(_zAxis, s.normal);
 
       // ── Bone parenting for SkinnedMesh (NPC, bots, players) ──
-      // Parenting to the root group causes a "cloud" effect: the root
-      // moves with walking/rotation, but skeletal animation deforms the
-      // mesh away from the sticker. Parenting to the nearest bone makes
-      // the sticker follow the animated surface.
+      // The shader transforms vertices as: boneMatrix * boneInverse * vertex
+      // where boneMatrix = bone.matrixWorld (changes each frame) and
+      // boneInverse = skeleton.boneInverses[i] (fixed bind-pose).
+      // For the sticker to follow the vertex, its localPosition must be:
+      //   boneInverse * meshInverse * worldPoint
+      // so that: bone.matrixWorld * localPosition = boneMatrix * boneInverse * vertex
       let parented = false;
-      if (s.targetObject.isSkinnedMesh) {
+      if (s.targetObject.isSkinnedMesh && s.face) {
         const bone = _findInfluencingBone(s.targetObject, s.face);
         if (bone) {
-          try {
-            bone.updateMatrixWorld(true);
-            const localPos = worldPos.clone();
-            bone.worldToLocal(localPos);
-            sticker.position.copy(localPos);
-            bone.getWorldQuaternion(_worldQuatInv).invert();
-            sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
-            // Compensate for bone scale (Meshy GLBs have non-unity bone scales)
-            const boneScale = new THREE.Vector3();
-            bone.getWorldScale(boneScale);
-            if (boneScale.x > 0.001 && boneScale.y > 0.001 && boneScale.z > 0.001) {
-              sticker.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
+          const boneIndex = s.targetObject.skeleton.bones.indexOf(bone);
+          if (boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex]) {
+            try {
+              const skinnedMesh = s.targetObject;
+              const boneInverse = skinnedMesh.skeleton.boneInverses[boneIndex];
+
+              // Convert world hit point → mesh-local space → bone bind-pose space
+              const meshInverse = new THREE.Matrix4().copy(skinnedMesh.matrixWorld).invert();
+              const meshLocal = worldPos.clone().applyMatrix4(meshInverse);
+              const bindLocal = meshLocal.applyMatrix4(boneInverse);
+              sticker.position.copy(bindLocal);
+
+              // Convert normal the same way
+              const localNormal = s.normal.clone().transformDirection(meshInverse).transformDirection(boneInverse);
+              _quat.setFromUnitVectors(_zAxis, localNormal);
+              sticker.quaternion.copy(_quat);
+
+              // Scale: compensate for bone world scale so sticker stays 0.08 world units
+              const boneScale = new THREE.Vector3();
+              bone.getWorldScale(boneScale);
+              if (boneScale.x > 0.001 && boneScale.y > 0.001 && boneScale.z > 0.001) {
+                sticker.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
+              }
+
+              bone.add(sticker);
+              parented = true;
+              console.log('[sticker] bone-parented:', bone.name, 'idx:', boneIndex);
+            } catch (e) {
+              console.warn('[sticker] bone parenting failed:', e);
             }
-            bone.add(sticker);
-            parented = true;
-            console.log('[sticker] parented to bone:', bone.name, 'scale:', boneScale.x.toFixed(3), boneScale.y.toFixed(3), boneScale.z.toFixed(3));
-          } catch (e) {
-            console.warn('[sticker] bone parenting failed:', e);
           }
-        } else {
-          console.log('[sticker] SkinnedMesh hit but no bones found');
         }
       }
 
-      // ── Root-object parenting for static meshes (trees, crates, etc.) ──
-      if (!parented) {
-        let rootObj = s.targetObject;
-        while (rootObj.parent && rootObj.parent !== scene) {
-          rootObj = rootObj.parent;
-        }
-        if (rootObj && rootObj !== scene && rootObj !== s.targetObject) {
-          try {
-            rootObj.updateMatrixWorld(true);
-            const localPos = worldPos.clone();
-            rootObj.worldToLocal(localPos);
-            sticker.position.copy(localPos);
-            rootObj.getWorldQuaternion(_worldQuatInv).invert();
-            sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
-            rootObj.add(sticker);
-            parented = true;
-          } catch (e) { /* fall through to world space */ }
-        }
+      // ── Direct mesh parenting for static/rotating objects (trees, SATS, crates) ──
+      // Parent directly to the hit mesh so stickers follow its rotation.
+      if (!parented && s.targetObject.parent) {
+        try {
+          const target = s.targetObject;
+          target.updateMatrixWorld(true);
+          const localPos = worldPos.clone();
+          target.worldToLocal(localPos);
+          sticker.position.copy(localPos);
+          target.getWorldQuaternion(_worldQuatInv).invert();
+          sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
+          target.add(sticker);
+          parented = true;
+        } catch (e) { /* fall through to world space */ }
       }
 
       if (!parented) {

@@ -252,38 +252,28 @@ export function tickStickerNpc(dt) {
       //   boneInverse * meshInverse * worldPoint
       // so that: bone.matrixWorld * localPosition = boneMatrix * boneInverse * vertex
       let parented = false;
-      console.log('[sticker] target isSkinnedMesh:', s.targetObject.isSkinnedMesh, 'has face:', !!s.face, 'name:', s.targetObject.name);
       if (s.targetObject.isSkinnedMesh && s.face) {
         const bone = _findInfluencingBone(s.targetObject, s.face);
-        console.log('[sticker] influencing bone:', bone ? bone.name : 'NULL');
         if (bone) {
           const boneIndex = s.targetObject.skeleton.bones.indexOf(bone);
           const hasInverse = boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex];
-          console.log('[sticker] boneIndex:', boneIndex, 'hasInverse:', !!hasInverse, 'boneCount:', s.targetObject.skeleton.bones.length);
           if (hasInverse) {
             try {
-              const skinnedMesh = s.targetObject;
-              const boneInverse = skinnedMesh.skeleton.boneInverses[boneIndex];
+              // Use worldToLocal (current-pose) — simpler and proven to work.
+              // The sticker follows the bone's overall movement (walk, turn)
+              // but won't perfectly track skeletal animation (cloud effect).
+              bone.updateMatrixWorld(true);
+              const localPos = worldPos.clone();
+              bone.worldToLocal(localPos);
+              sticker.position.copy(localPos);
 
-              // Convert world hit point → mesh-local space → bone bind-pose space
-              const meshInverse = new THREE.Matrix4().copy(skinnedMesh.matrixWorld).invert();
-              const meshLocal = worldPos.clone().applyMatrix4(meshInverse);
-              const bindLocal = meshLocal.applyMatrix4(boneInverse);
-              sticker.position.copy(bindLocal);
+              // Orient: use current bone world quaternion
+              bone.getWorldQuaternion(_worldQuatInv).invert();
+              sticker.quaternion.multiplyQuaternions(_worldQuatInv, _quat);
 
-              // Scale: compensate for bone world scale so sticker stays 0.08 world units
+              // Scale: compensate for bone world scale
               const boneScale = new THREE.Vector3();
               bone.getWorldScale(boneScale);
-
-              console.log('[sticker] pos: world=', worldPos.x.toFixed(2), worldPos.y.toFixed(2), worldPos.z.toFixed(2),
-                'bindLocal=', bindLocal.x.toFixed(2), bindLocal.y.toFixed(2), bindLocal.z.toFixed(2),
-                'boneScale=', boneScale.x.toFixed(4), boneScale.y.toFixed(4), boneScale.z.toFixed(4));
-
-              // Convert normal the same way
-              const localNormal = s.normal.clone().transformDirection(meshInverse).transformDirection(boneInverse);
-              _quat.setFromUnitVectors(_zAxis, localNormal);
-              sticker.quaternion.copy(_quat);
-
               if (boneScale.x > 0.001 && boneScale.y > 0.001 && boneScale.z > 0.001) {
                 sticker.scale.set(1 / boneScale.x, 1 / boneScale.y, 1 / boneScale.z);
               }
@@ -299,9 +289,6 @@ export function tickStickerNpc(dt) {
       }
 
       // ── Direct mesh parenting for static/rotating objects (trees, SATS, crates) ──
-      if (!parented) {
-        console.log('[sticker] falling back to direct mesh parenting');
-      }
       if (!parented && s.targetObject.parent) {
         try {
           const target = s.targetObject;

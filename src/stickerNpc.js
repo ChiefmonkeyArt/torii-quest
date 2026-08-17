@@ -73,7 +73,7 @@ function _getMeshes() {
   if (now - _meshCacheTime > MESH_CACHE_TTL) {
     _meshCache.length = 0;
     scene.traverse(obj => {
-      if (obj.isMesh && !_isExcluded(obj)) {
+      if (obj.isMesh && !obj.userData.isSticker && !_isExcluded(obj)) {
         const mat = obj.material;
         if (mat && mat.visible === false) return;
         _meshCache.push(obj);
@@ -130,6 +130,7 @@ export function fireStickerAtNpc(origin, dir) {
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(mat);
+  sprite.userData.isSticker = true;
   sprite.scale.set(FLY_SIZE, FLY_SIZE * ATTACHED_RATIO, 1);
   sprite.position.copy(origin);
   scene.add(sprite);
@@ -183,27 +184,37 @@ export function tickStickerNpc(dt) {
       });
       const geo = new THREE.PlaneGeometry(ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO);
       const sticker = new THREE.Mesh(geo, mat);
+      sticker.userData.isSticker = true; // exclude from raycast cache
 
-      // Position at hit point + offset along normal
+      // Position at hit point + offset along normal (0.03 to avoid z-fighting)
       sticker.position.copy(s.to);
-      sticker.position.x += s.normal.x * 0.01;
-      sticker.position.y += s.normal.y * 0.01;
-      sticker.position.z += s.normal.z * 0.01;
+      sticker.position.x += s.normal.x * 0.03;
+      sticker.position.y += s.normal.y * 0.03;
+      sticker.position.z += s.normal.z * 0.03;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);
       sticker.quaternion.copy(_quat);
 
-      // Parent to hit object so sticker moves with it
+      // Find the top-level root (direct child of scene) that contains the hit mesh.
+      // This works for NPC (gltf.scene), bots (bot.model.root), crates, etc.
+      let rootObj = s.targetObject;
+      while (rootObj.parent && rootObj.parent !== scene) {
+        rootObj = rootObj.parent;
+      }
+
       let parented = false;
-      if (s.targetObject && s.targetObject.parent && s.targetObject.parent !== scene) {
+      if (rootObj && rootObj !== scene && rootObj !== s.targetObject) {
         try {
-          const localPos = s.to.clone();
-          s.targetObject.parent.worldToLocal(localPos);
+          rootObj.updateMatrixWorld(true);
+          const localPos = sticker.position.clone();
+          rootObj.worldToLocal(localPos);
           sticker.position.copy(localPos);
-          const parentQuatInverse = s.targetObject.parent.quaternion.clone().invert();
-          sticker.quaternion.multiplyQuaternions(parentQuatInverse, _quat);
-          s.targetObject.parent.add(sticker);
+          // Adjust quaternion for root's world rotation
+          const worldQuatInv = new THREE.Quaternion();
+          rootObj.getWorldQuaternion(worldQuatInv).invert();
+          sticker.quaternion.multiplyQuaternions(worldQuatInv, _quat);
+          rootObj.add(sticker);
           parented = true;
         } catch (e) { /* keep in world space */ }
       }
@@ -227,6 +238,7 @@ export function tickStickerNpc(dt) {
           o = o.parent;
         }
         if (isNpc) {
+          console.log('[sticker] NPC hit — triggering gesture');
           import('./napNpc.js').then(({ triggerNpcGesture }) => {
             if (triggerNpcGesture) triggerNpcGesture();
           });

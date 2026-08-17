@@ -112,11 +112,9 @@ describe('BRIDGE deck cuboid collider — real Rapier (v0.2.511 — tomoe layout
     world.free();
   });
 
-  it('deck 1 at moved position (v0.2.534)', () => {
-    // Bridge 1 moved 20m south + 20m west total from original (-24, 3) to (-44, -17).
-    expect(BRIDGE_X).toBe(-44);
-    expect(BRIDGE_Z).toBe(-17);
-    expect(BRIDGE_X - BRIDGE_LEN / 2).toBe(-49);
-    expect(BRIDGE_X + BRIDGE_LEN / 2).toBe(-39);
+  it('deck 1 at original position (v0.2.535 reset)', () => {
+    // Bridge 1 reset to original position (-24, 3) — NAP ↔ Arena BL channel.
+    expect(BRIDGE_X).toBe(-24);
+    expect(BRIDGE_Z).toBe(3);
   });
 });

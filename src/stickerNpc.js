@@ -1,10 +1,9 @@
-// stickerNpc.js — FTFF sticker projectile system for the NAP zone.
+// stickerNpc.js — FTFF sticker projectile system.
 // Stickers fire from the gun and stick to any mesh surface in the scene
 // (NPC, trees, crates, terrain, bots, torii gate, etc.) using a Three.js
-// Raycaster for precise surface hit detection. Excludes sea, player weapon,
-// and portal/gateway screens.
+// Raycaster against collected Mesh objects only (avoids Sprite crash).
 import * as THREE from 'three';
-import { scene, camera } from './scene.js';
+import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
 
 let _texture = null;
@@ -18,22 +17,25 @@ const _rayOrigin = new THREE.Vector3();
 const _rayDir = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
-const _up = new THREE.Vector3(0, 1, 0);
-const _planeGeo = null; // built per-sticker (cheap, small)
+const _zAxis = new THREE.Vector3(0, 0, 1);
 
-// Names to exclude from sticker raycasting (UI/screens/non-stickable)
+// Mesh cache — refreshed periodically to pick up newly loaded objects
+const _meshCache = [];
+let _meshCacheTime = 0;
+const MESH_CACHE_TTL = 2000; // refresh every 2s
+
+// Names to exclude from sticker raycasting
 const EXCLUDE_NAMES = new Set([
   'sea', 'world-gun-normalizer', 'coastline-wall', 'coastline-neon',
   'portal-mesh-group', 'PORTAL_MESH_GROUP', 'grass-instanced',
 ]);
 
-// Flying sticker starts large (0.6) and shrinks during flight
 const FLY_SIZE = 0.6;
-const ATTACHED_SIZE = 0.08;     // world units when stuck
-const ATTACHED_RATIO = 0.6;     // height/width ratio (matches image aspect)
+const ATTACHED_SIZE = 0.08;
+const ATTACHED_RATIO = 0.6;
 const FLIGHT_DURATION = 0.22;
 const MAX_ATTACHED = 120;
-const ATTACHED_LIFETIME = 180;  // 3 minutes
+const ATTACHED_LIFETIME = 180;
 
 // Preload the texture.
 function _preloadTexture() {
@@ -46,7 +48,7 @@ function _preloadTexture() {
     tex.needsUpdate = true;
     _texture = tex;
     _textureLoading = false;
-    console.log('[sticker] texture loaded OK');
+    console.log('[sticker] texture loaded OK, size:', tex.image.width + 'x' + tex.image.height);
   }, undefined, err => {
     console.warn('[sticker] texture load FAILED:', err);
     _textureLoading = false;
@@ -58,38 +60,47 @@ function _isExcluded(obj) {
   let o = obj;
   while (o) {
     if (o.name && EXCLUDE_NAMES.has(o.name)) return true;
-    // Skip the player's own model/weapon (first-person body)
     if (o.name === 'fps-body' || o.name === 'player-model') return true;
     o = o.parent;
   }
   return false;
 }
 
+// Collect all Mesh objects in the scene (not Sprites, Lights, Cameras).
+// Refreshed every MESH_CACHE_TTL ms to pick up dynamically loaded objects.
+function _getMeshes() {
+  const now = performance.now();
+  if (now - _meshCacheTime > MESH_CACHE_TTL) {
+    _meshCache.length = 0;
+    scene.traverse(obj => {
+      if (obj.isMesh && !_isExcluded(obj)) {
+        const mat = obj.material;
+        if (mat && mat.visible === false) return;
+        _meshCache.push(obj);
+      }
+    });
+    _meshCacheTime = now;
+    console.log('[sticker] mesh cache refreshed:', _meshCache.length, 'meshes');
+  }
+  return _meshCache;
+}
+
 // Find the nearest mesh surface hit by a ray from origin in direction dir.
-// Returns { point, normal, object } or null.
 function _raycastScene(origin, dir) {
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = 200;
-  _raycaster.camera = camera; // required for Sprite raycasting // generous range — can fire across zones
 
-  const hits = _raycaster.intersectObjects(scene.children, true);
+  const meshes = _getMeshes();
+  const hits = _raycaster.intersectObjects(meshes, false);
   for (const hit of hits) {
-    if (!hit.object.isMesh) continue;
-    if (_isExcluded(hit.object)) continue;
-    // Skip transparent/non-rendered meshes
-    const mat = hit.object.material;
-    if (mat && mat.visible === false) continue;
-
-    // Get the face normal in world space
     if (hit.face) {
       _normal.copy(hit.face.normal);
       _normal.transformDirection(hit.object.matrixWorld);
     } else {
       _normal.set(0, 0, 1);
     }
-
     return {
       point: hit.point.clone(),
       normal: _normal.clone(),
@@ -110,12 +121,13 @@ export function fireStickerAtNpc(origin, dir) {
   }
   console.log('[sticker] hit:', hit.object.name || hit.object.type, 'at dist', origin.distanceTo(hit.point).toFixed(1));
 
+  // Flying sticker: always visible (texture or pink fallback)
   const mat = new THREE.SpriteMaterial({
-    map: _texture,
+    map: _texture || null,
+    color: _texture ? 0xffffff : 0xff00ff,
     transparent: true,
     depthTest: true,
     depthWrite: false,
-    opacity: _texture ? 1.0 : 0.0,
   });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(FLY_SIZE, FLY_SIZE * ATTACHED_RATIO, 1);
@@ -139,7 +151,6 @@ export function fireStickerAtNpc(origin, dir) {
 export function tickStickerNpc(dt) {
   // Poll for NPC root (for gesture trigger detection)
   if (!_npcRoot) _pollNpcRoot();
-  // Also check if NPC root became available since last poll
   if (!_npcRoot && _getNpcRootFn) {
     const r = _getNpcRootFn();
     if (r) _npcRoot = r;
@@ -150,74 +161,56 @@ export function tickStickerNpc(dt) {
     const s = _stickers[i];
     s.t += dt;
     const p = Math.min(1, s.t / s.duration);
-    const e = 1 - (1 - p) * (1 - p); // ease-out
+    const e = 1 - (1 - p) * (1 - p);
     s.sprite.position.lerpVectors(s.from, s.to, e);
 
-    // Shrink during flight
     const size = FLY_SIZE + (ATTACHED_SIZE - FLY_SIZE) * e;
     s.sprite.scale.set(size, size * ATTACHED_RATIO, 1);
 
     if (p >= 1) {
-      // Sticker arrived — create a flat mesh on the surface
       scene.remove(s.sprite);
       if (s.sprite.material) s.sprite.material.dispose();
       _stickers.splice(i, 1);
 
-      if (!_texture) continue;
-
-      // Build a small plane mesh oriented to the surface normal
-      const geo = new THREE.PlaneGeometry(ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO);
+      // Create attached sticker — use texture if available, else pink fallback
       const mat = new THREE.MeshBasicMaterial({
-        map: _texture,
+        map: _texture || null,
+        color: _texture ? 0xffffff : 0xff00ff,
         transparent: true,
         depthTest: true,
         depthWrite: false,
         side: THREE.DoubleSide,
       });
+      const geo = new THREE.PlaneGeometry(ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO);
       const sticker = new THREE.Mesh(geo, mat);
 
-      // Position at hit point, slightly offset along normal to avoid z-fighting
+      // Position at hit point + offset along normal
       sticker.position.copy(s.to);
       sticker.position.x += s.normal.x * 0.01;
       sticker.position.y += s.normal.y * 0.01;
       sticker.position.z += s.normal.z * 0.01;
 
-      // Orient: the plane's default normal is +Z. Rotate so +Z aligns
-      // with the surface normal.
-      _quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), s.normal);
+      // Orient plane to surface normal
+      _quat.setFromUnitVectors(_zAxis, s.normal);
       sticker.quaternion.copy(_quat);
 
-      // Try to parent to the hit object so the sticker moves with it
-      // (NPC, bots, crates). If the object has no parent or is the scene,
-      // keep it in world space.
+      // Parent to hit object so sticker moves with it
       let parented = false;
       if (s.targetObject && s.targetObject.parent && s.targetObject.parent !== scene) {
         try {
-          // Convert position to target's parent local space
           const localPos = s.to.clone();
           s.targetObject.parent.worldToLocal(localPos);
           sticker.position.copy(localPos);
-          // Adjust quaternion for parent's world rotation
           const parentQuatInverse = s.targetObject.parent.quaternion.clone().invert();
           sticker.quaternion.multiplyQuaternions(parentQuatInverse, _quat);
           s.targetObject.parent.add(sticker);
           parented = true;
-        } catch (e) {
-          // Parenting failed — keep in world space
-        }
+        } catch (e) { /* keep in world space */ }
       }
+      if (!parented) scene.add(sticker);
 
-      if (!parented) {
-        scene.add(sticker);
-      }
+      _attached.push({ mesh: sticker, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME });
 
-      _attached.push({
-        mesh: sticker,
-        life: ATTACHED_LIFETIME,
-        maxLife: ATTACHED_LIFETIME,
-      });
-
-      // Enforce max sticker count
       while (_attached.length > MAX_ATTACHED) {
         const old = _attached.shift();
         if (old.mesh.parent) old.mesh.parent.remove(old.mesh);
@@ -225,7 +218,7 @@ export function tickStickerNpc(dt) {
         if (old.mesh.material) old.mesh.material.dispose();
       }
 
-      // Trigger NPC gesture if the hit object is the NPC (or a child of it)
+      // Trigger NPC gesture if hit object is the NPC
       if (s.targetObject) {
         let isNpc = false;
         let o = s.targetObject;
@@ -264,7 +257,6 @@ let _npcImportStarted = false;
 
 export function setNpcRoot(root) { _npcRoot = root; }
 
-// Poll for NPC root from napNpc.js (async import, then check each tick)
 function _pollNpcRoot() {
   if (_npcImportStarted) return;
   _npcImportStarted = true;

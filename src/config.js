@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.540-alpha';
+export const VERSION   = 'v0.2.541-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -147,7 +147,7 @@ export const CRATES = [
   [  8,  -12,  1.0,  1.0,   1.0 ],   // Arena BR south
   [-10,    0,  0.75, 0.75,  2.0 ],   // Arena BL center
   [ 10,    0,  0.75, 0.75,  2.0 ],   // Arena BR center
-  [ -3,   -6,  1.5,  0.5,   1.0 ],   // Arena center-left between islands
+  [ -6,   -3,  1.5,  0.5,   1.0 ],   // Arena BL center (moved from -3,-6 to avoid bridge 2 overlap)
 ];
 
 // OBSTACLES — collision-only colliders (no visual mesh built from this list).

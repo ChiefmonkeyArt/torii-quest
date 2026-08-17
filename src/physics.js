@@ -28,6 +28,7 @@ import {
   sampleArenaHeight, ISLAND_BASE_Y,
 } from './terrain/heightmap.js';
 import { fenceRing } from './terrain/coastline.js';
+import { isArenaPlayArea } from './terrain/tomoeShape.js';
 
 // Re-export the SDK boundary surface so existing import sites are unchanged.
 export {
@@ -135,6 +136,8 @@ export function buildArenaColliders() {
   // (v0.2.330), matching the visual mesh in arena.js so the collision box lines
   // up with what the player sees on the hills.
   for (const [cx, cz, hw, hd, ch] of CRATES) {
+    // v0.2.540: Skip crates outside the play zone (water, bridge, NAP).
+    if (!isArenaPlayArea(cx, cz)) continue;
     createStatic(hw, ch / 2, hd, cx, ch / 2 + sampleArenaHeight(cx, cz), cz);
   }
   // OBSTACLES — collision-only (tree trunk, torii pillars, east wall segments).

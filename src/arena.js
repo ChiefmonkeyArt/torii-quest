@@ -8,7 +8,7 @@ import { buildFoliage } from './arena-foliage.js';
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
 import { buildNapTerrainMesh, buildArenaTerrainMesh } from './terrain/terrainMesh.js';
 import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/heightmap.js';
-import { arenaGlowLoops } from './terrain/tomoeShape.js';
+import { arenaGlowLoops, isArenaPlayArea } from './terrain/tomoeShape.js';
 import { fenceRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
 import { buildBridge } from './bridge.js';
@@ -135,6 +135,11 @@ function _buildCoastlineWall() {
 // ── Crates ────────────────────────────────────────────────────────────────────
 function _buildCrates() {
   CRATES.forEach(([cx, cz, hw, hd, ch]) => {
+    // v0.2.540: Skip crates outside the play zone (water, bridge, NAP).
+    if (!isArenaPlayArea(cx, cz)) {
+      console.warn('[arena] crate at (' + cx + ',' + cz + ') is outside play zone — skipping');
+      return;
+    }
     const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, ch, hd * 2), crateMat);
     // Crate sits ON the undulating arena surface: its base is the terrain height
     // sampled at the crate centre, so it rides the hills instead of floating over

@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.540-alpha` - REMOVED GROUND GLOW RIBBON. Prior: `v0.2.539-alpha` - TORII GATE ROTATED 45°.
+Current version: `v0.2.541-alpha` - CRATE PLAY ZONE GUARD. Prior: `v0.2.539-alpha` - TORII GATE ROTATED 45°.
 
 ## 🚨 TOP OF QUEUE
 

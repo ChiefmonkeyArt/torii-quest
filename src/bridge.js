@@ -18,14 +18,16 @@ const _groups = [];
 function _buildOne(x, z, deckY, len, width, thick, name) {
   const group = new THREE.Group();
   group.name = name;
+  group.position.set(x, 0, z); // position the GROUP so rotation pivots at (x,z)
 
   const deckMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.85, metalness: 0.04 });
   const railMat = new THREE.MeshStandardMaterial({ color: 0x7d5a3a, roughness: 0.8, metalness: 0.04 });
 
   // Deck slab — top surface sits at deckY (centre is half-thickness below).
+  // Positioned at origin within the group so group rotation pivots correctly.
   const deckGeo = new THREE.BoxGeometry(len, thick, width);
   const deck = new THREE.Mesh(deckGeo, deckMat);
-  deck.position.set(x, deckY - thick / 2, z);
+  deck.position.set(0, deckY - thick / 2, 0);
   deck.castShadow = true;
   deck.receiveShadow = true;
   group.add(deck);
@@ -34,7 +36,7 @@ function _buildOne(x, z, deckY, len, width, thick, name) {
   const railGeo = new THREE.BoxGeometry(len, RAIL_H, RAIL_T);
   for (const side of [-1, 1]) {
     const rail = new THREE.Mesh(railGeo, railMat);
-    rail.position.set(x, deckY + RAIL_H / 2, z + side * (width / 2 - RAIL_T / 2));
+    rail.position.set(0, deckY + RAIL_H / 2, side * (width / 2 - RAIL_T / 2));
     rail.castShadow = true;
     rail.receiveShadow = true;
     group.add(rail);

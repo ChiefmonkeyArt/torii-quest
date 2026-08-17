@@ -255,9 +255,12 @@ export function tickStickerNpc(dt) {
       console.log('[sticker] target isSkinnedMesh:', s.targetObject.isSkinnedMesh, 'has face:', !!s.face, 'name:', s.targetObject.name);
       if (s.targetObject.isSkinnedMesh && s.face) {
         const bone = _findInfluencingBone(s.targetObject, s.face);
+        console.log('[sticker] influencing bone:', bone ? bone.name : 'NULL');
         if (bone) {
           const boneIndex = s.targetObject.skeleton.bones.indexOf(bone);
-          if (boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex]) {
+          const hasInverse = boneIndex >= 0 && s.targetObject.skeleton.boneInverses[boneIndex];
+          console.log('[sticker] boneIndex:', boneIndex, 'hasInverse:', !!hasInverse, 'boneCount:', s.targetObject.skeleton.bones.length);
+          if (hasInverse) {
             try {
               const skinnedMesh = s.targetObject;
               const boneInverse = skinnedMesh.skeleton.boneInverses[boneIndex];

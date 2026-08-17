@@ -530,7 +530,7 @@ export function createArenaRuntime(hooks = {}) {
   const _portalGateway = createToriiGateway({
     target: 'plebeian-market-bazaar',
     relay: 'wss://relay.example.com',
-    position: { x: TRAVEL_GATE_X, y: 0, z: TRAVEL_GATE_Z },
+    position: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z },
   });
   const _portalBoundary = createGatewayPortalBoundary({
     window,
@@ -545,14 +545,14 @@ export function createArenaRuntime(hooks = {}) {
     boundary: _portalBoundary,
     component: _portalGateway,
     context: { title: 'Plebeian Market Bazaar', zoneType: 'shop', from: 'torii-quest' },
-    portalPos: { x: TRAVEL_GATE_X, y: 0, z: TRAVEL_GATE_Z },
+    portalPos: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z },
     range: 3,
     promptText: portalPromptLabel({ slug: 'plebeian-market-bazaar' }),
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
   });
   // Stable portal geometry reused each frame to drive the approach glow without
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
-  const _portalPos = { x: TRAVEL_GATE_X, y: 0, z: TRAVEL_GATE_Z };
+  const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
   const _portalRange = 3;
 
   // ── In-world gateway screen (KeyF) ───────────────────────────────────────────

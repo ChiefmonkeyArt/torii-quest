@@ -3,33 +3,26 @@
 // reads as a clean turquoise underlit floor with mist swirls.
 import * as THREE from 'three';
 import { scene } from './scene.js';
-import { ARENA_HALF, NAP_X, NAP_FAR_X, CRATES, NAP_TREE_X, NAP_TREE_Z } from './config.js';
-import { sampleNapHeight, sampleArenaHeight, riverCenterX, RIVER_HALF } from './terrain/heightmap.js';
+import { CRATES, NAP_TREE_X, NAP_TREE_Z } from './config.js';
+import { sampleNapHeight, sampleArenaHeight } from './terrain/heightmap.js';
+import { isNapLand, isArenaLand, NAP_BBOX, ARENA_BBOX } from './terrain/tomoeShape.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 
-// Blades within the meandering river band (|x − riverCenterX(z)| < RIVER_HALF,
-// Stage 5) would stand in / over the water, so exclude them from both zones'
-// candidates. The band follows the curved centreline, so the test is z-aware.
-const inRiver = (x, z) => Math.abs(x - riverCenterX(z)) < RIVER_HALF;
-
-// NAP-zone footprint shared by both grass + flowers.
-//   x: just inside the gate edge → just inside the far wall (small inset so
-//      blades don't intersect the torii pillars or NAP_FAR_X clamp).
-//   z: full arena width minus a small inset.
-const NAP_GRASS_X0 = NAP_X + 1.0;
-const NAP_GRASS_X1 = NAP_FAR_X - 1.0;
-const NAP_GRASS_Z0 = -ARENA_HALF + 1.0;
-const NAP_GRASS_Z1 =  ARENA_HALF - 1.0;
+// NAP-zone footprint: bounded by the NAP polygon bbox, filtered by isNapLand().
+// v0.2.511: polygon-based — grass follows the comma-shaped island outline.
+const NAP_GRASS_X0 = NAP_BBOX.minX;
+const NAP_GRASS_X1 = NAP_BBOX.maxX;
+const NAP_GRASS_Z0 = NAP_BBOX.minZ;
+const NAP_GRASS_Z1 = NAP_BBOX.maxZ;
 const NAP_GRASS_W  = NAP_GRASS_X1 - NAP_GRASS_X0;
 const NAP_GRASS_D  = NAP_GRASS_Z1 - NAP_GRASS_Z0;
 
-// Arena footprint (west of the gate), inset from the walls so blades don't poke
-// through them. Stage 3 (v0.2.329): grass now covers the arena island too, tinted
-// purple→orange (vs the NAP zone's green) via a per-blade zone flag.
-const ARENA_GRASS_X0 = -ARENA_HALF + 1.0;
-const ARENA_GRASS_X1 =  ARENA_HALF - 1.0;
-const ARENA_GRASS_Z0 = -ARENA_HALF + 1.0;
-const ARENA_GRASS_Z1 =  ARENA_HALF - 1.0;
+// Arena footprint: bounded by the arena polygon bbox, filtered by isArenaLand().
+// v0.2.511: polygon-based — grass follows the two comma-shaped arena islands.
+const ARENA_GRASS_X0 = ARENA_BBOX.minX;
+const ARENA_GRASS_X1 = ARENA_BBOX.maxX;
+const ARENA_GRASS_Z0 = ARENA_BBOX.minZ;
+const ARENA_GRASS_Z1 = ARENA_BBOX.maxZ;
 
 // Module-level scratch — shared with arena.js equivalents but isolated here
 const _up   = new THREE.Vector3(0, 1, 0);
@@ -253,7 +246,7 @@ function _buildGrass() {
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const dx = jx - TREE_X, dz = jz - TREE_Z;
       if (dx * dx + dz * dz < TREE_CLEAR_SQ) continue;
-      if (inRiver(jx, jz)) continue;
+      if (!isNapLand(jx, jz)) continue;       // v0.2.511: polygon filter
       if (sampleNapHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 0);
     }
@@ -264,7 +257,7 @@ function _buildGrass() {
       const jx = x + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       const jz = z + (Math.random() - 0.5) * CAND_SPACING * 0.7;
       if (inCrate(jx, jz)) continue;
-      if (inRiver(jx, jz)) continue;
+      if (!isArenaLand(jx, jz)) continue;     // v0.2.511: polygon filter
       if (sampleArenaHeight(jx, jz) < GRASS_MIN_Y) continue; // no blades on the beach/surf
       candidates.push(jx, jz, 1);
     }
@@ -661,7 +654,7 @@ function _buildWildflowers() {
       fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
       fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
       const dx = fx - TREE_X, dz = fz - TREE_Z;
-      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inRiver(fx, fz)) break;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !isNapLand(fx, fz)) break;
     }
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);
@@ -778,7 +771,7 @@ function _buildTulips() {
       fx = NAP_GRASS_X0 + Math.random() * NAP_GRASS_W;
       fz = NAP_GRASS_Z0 + Math.random() * NAP_GRASS_D;
       const dx = fx - TREE_X, dz = fz - TREE_Z;
-      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !inRiver(fx, fz)) break;
+      if (dx * dx + dz * dz >= TREE_CLEAR_SQ && !isNapLand(fx, fz)) break;
     }
     const pal = PALETTES[Math.floor(Math.random() * PALETTES.length)];
     _pos.set(fx, 0, fz);

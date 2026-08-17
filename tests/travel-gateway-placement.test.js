@@ -128,8 +128,8 @@ describe('v0.2.245 — travel gateway moved to the far-right NAP corner', () => 
 
   it('main.js anchors the portal trigger + gateway component to TRAVEL_GATE_Z', () => {
     const triggerBlock = MAIN.slice(MAIN.indexOf('createPortalTrigger('));
-    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: 0, z: TRAVEL_GATE_Z }');
+    expect(triggerBlock).toContain('portalPos: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
     const gwBlock = MAIN.slice(MAIN.indexOf('createToriiGateway('));
-    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: 0, z: TRAVEL_GATE_Z }');
+    expect(gwBlock).toContain('position: { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z }');
   });
 });

@@ -66,8 +66,10 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
+import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
+import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -451,6 +453,7 @@ async function _createPeerAvatar(peer) {
 export function createArenaRuntime(hooks = {}) {
   const showEntryStatus = typeof hooks.showEntryStatus === 'function' ? hooks.showEntryStatus : () => {};
   const resetEnterButton = typeof hooks.resetEnterButton === 'function' ? hooks.resetEnterButton : () => {};
+  const onBootProgress = typeof hooks.onBootProgress === 'function' ? hooks.onBootProgress : () => {};
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
@@ -589,6 +592,8 @@ export function createArenaRuntime(hooks = {}) {
 
   // ── Game loop state ──────────────────────────────────────────────────────────
   let _minimapTick = 0;
+  let _firstFrameMarked = false;
+  let _firstFrameEnded = false;
   // Sticky shoot-anim window: EV.SHOOT pushes this timestamp forward; the
   // shooting flag stays up for SHOOT_ANIM_WINDOW_MS after the last shot so
   // RUN_SHOOT actually reads (a single-frame flag was preempted by run/walk
@@ -721,10 +726,19 @@ export function createArenaRuntime(hooks = {}) {
     // refresh the debug HUD AFTER (draw-call/triangle counts reflect the frame
     // just drawn). Both are cheap; the HUD does nothing unless its flag is set.
     _quality.update(dt * 1000);
+    if (!_firstFrameMarked) {
+      _firstFrameMarked = true;
+      mark('first-frame');
+      startPhase('first-render');
+    }
     try {
       renderFrame(isLive());
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
+    }
+    if (_firstFrameMarked && !_firstFrameEnded) {
+      _firstFrameEnded = true;
+      endPhase('first-render');
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
@@ -735,11 +749,23 @@ export function createArenaRuntime(hooks = {}) {
   function boot() {
     if (_booted) return;
     _booted = true;
+    mark('boot-start');
 
     // Scene/world/HUD/entities — built once.
+    startPhase('buildArena');
     buildArena();
+    endPhase('buildArena');
+    onBootProgress(2); // 'Sculpting terrain…'
+
+    startPhase('initAtmosphere');
     initAtmosphere();
+    endPhase('initAtmosphere');
+    onBootProgress(3); // (still terrain/world)
+
+    startPhase('buildMirror');
     buildMirror();
+    endPhase('buildMirror');
+
     initHUD();
     initPlayerStats();
     initPlayer();
@@ -818,6 +844,7 @@ export function createArenaRuntime(hooks = {}) {
         reloading: state.reloading, pointerLocked: state.pointerLocked,
       }),
       getCrateSummary, config: TUNING,
+      bootTiming: () => getBootTimings(),
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
@@ -981,7 +1008,13 @@ export function createArenaRuntime(hooks = {}) {
         if (name === 'mp_state') {
           if (p.state === WS_STATE.CONNECTED) {
             setBotNetMode(true);
-            _prewarmPeerTemplates(); // kill the join-time GLB fetch delay
+            // v0.2.529: Defer peer prewarm until after first visible frame — the
+            // warm pool builds a full avatar (skeletonClone + traverse + mixer +
+            // gun attach) per character, which is several seconds of main-thread
+            // work. Peers joining before the pool is ready use cold-build fallback.
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              try { _prewarmPeerTemplates(); } catch (e) { console.warn('[mp] prewarm deferred failed:', e); }
+            }));
           }
           else if (p.state === WS_STATE.CLOSED) setBotNetMode(false);
           return;
@@ -1077,6 +1110,8 @@ export function createArenaRuntime(hooks = {}) {
     // Render loop start (LAST — every binding update() touches is initialised now).
     initLoop(update, _onLoopFatal);
     startLoop();
+    mark('boot-end');
+    onBootProgress(4); // 'Loading physics…' (next phase)
   }
 
   // bootstrapPhysics() — one-time lazy Rapier world + colliders + player body +
@@ -1095,15 +1130,37 @@ export function createArenaRuntime(hooks = {}) {
         throw new Error(msg);
       }
     };
+    startPhase('initPhysics');
     await step('initPhysics',       () => initPhysics());
+    endPhase('initPhysics');
+    onBootProgress(4); // 'Loading physics…'
+
+    startPhase('buildArenaColliders');
     await step('buildArenaColliders', () => buildArenaColliders());
+    endPhase('buildArenaColliders');
+
     await step('buildDynamicCrates', () => buildDynamicCrates());
     let handle;
     await step('spawnPlayerBody', () => { handle = spawnPlayerBody(); });
     setPlayerBody(handle);
+    onBootProgress(5); // 'Loading avatar…'
+
+    startPhase('loadPlayerModel');
     await step('loadPlayerModel',   () => loadPlayerModel(playerObj));
+    endPhase('loadPlayerModel');
+    onBootProgress(6); // 'Preparing world…'
+
     await step('loadFirstPersonBody', () => loadFirstPersonBody(playerObj));
-    await step('buildNapNpc',        () => buildNapNpc());
+    // v0.2.529: Defer buildNapNpc until after the first visible frame — the NPC
+    // is purely cosmetic (wanders the NAP zone, plays gestures). Its GLB loads
+    // (chiefmonkey6.glb 1.2MB + chiefmonkey-npc-animations.glb 8.5MB) should NOT
+    // compete for bandwidth/Draco workers during the critical entry path.
+    // Kick it off fire-and-forget after a short delay (via rAF, NOT setTimeout —
+    // constraint [3] forbids new setTimeout sites).
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
+    }));
+    mark('bootstrap-physics-end');
   }
 
   // enter() — start a fresh run: reset HP/ammo/score (resetRun), move the player to

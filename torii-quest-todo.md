@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.528-alpha` - MOUNTAIN SHADER UPGRADE (custom ShaderMaterial replacing MeshBasicMaterial: Fresnel rim lighting, procedural triplanar fbm noise, normal perturbation, altitude atmospheric tint, per-vertex AO, slope-based rock color, 2D noisy snow line, crevice-snow coupling, distance LOD, instanced boulders). Prior: `v0.2.481-alpha` - SKY.JS SHADER LUMA CAP.
+Current version: `v0.2.529-alpha` - BOOT LOADING OVERLAY + ENTRY DEEP DIVE (full-screen CSS loader with progress, deferred NPC + peer prewarm, boot timing instrumentation). Prior: `v0.2.528-alpha` - NAP ZONE LAYOUT FIX.
 
 ## 🚨 TOP OF QUEUE
 

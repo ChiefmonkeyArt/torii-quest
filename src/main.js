@@ -73,6 +73,7 @@ import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditable
 import {
   NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED,
 } from './config.js';
+import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
 const elTitle = document.getElementById('screen-title');
@@ -1263,6 +1264,51 @@ document.querySelectorAll('.char-btn').forEach(btn => {
   });
 });
 
+// ── Boot loading overlay (v0.2.529) ──────────────────────────────────────────
+// Full-screen CSS-only overlay shown on ENTER, hidden after the first rendered
+// frame. Lives in main.js (three-free) so it can paint BEFORE the arenaRuntime
+// dynamic import loads the THREE vendor chunk.
+const _bootOverlay = document.getElementById('boot-overlay');
+const _bootStatus  = document.getElementById('boot-overlay-status');
+const _bootBar     = document.getElementById('boot-overlay-bar');
+const _bootSub     = document.getElementById('boot-overlay-sub');
+
+const BOOT_STEPS = [
+  { pct: 8,  label: 'Loading engine…',     sub: 'Fetching modules' },
+  { pct: 20, label: 'Building scene…',     sub: 'Renderer · lights · sky' },
+  { pct: 38, label: 'Sculpting terrain…',  sub: 'Mountains · arena · coast' },
+  { pct: 55, label: 'Loading physics…',   sub: 'Rapier WASM · colliders' },
+  { pct: 70, label: 'Loading avatar…',    sub: 'Character model · animations' },
+  { pct: 85, label: 'Preparing world…',    sub: 'Body · NPCs · details' },
+  { pct: 95, label: 'Entering…',           sub: 'Almost there' },
+];
+
+function showBootOverlay() {
+  if (!_bootOverlay) return;
+  _bootOverlay.classList.remove('hidden');
+  _setBootProgress(0);
+}
+
+function hideBootOverlay() {
+  if (!_bootOverlay) return;
+  _bootOverlay.classList.add('hidden');
+}
+
+function _setBootProgress(stepIndex) {
+  const step = BOOT_STEPS[stepIndex] || BOOT_STEPS[BOOT_STEPS.length - 1];
+  if (_bootStatus) _bootStatus.textContent = step.label;
+  if (_bootBar)    _bootBar.style.width = step.pct + '%';
+  if (_bootSub)    _bootSub.textContent = step.sub;
+}
+
+// Yield to the browser so the overlay can paint before heavy synchronous work.
+// Uses double-rAF (two animation frames) — a single rAF can resume before paint.
+function _yieldToPaint() {
+  return new Promise(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
 // ── ENTER ARENA — the ONE place THREE is loaded ─────────────────────────────────
 // On first click we `await import('./arenaRuntime.js')` (the three-vendor chunk
 // loads HERE, deferred off first paint), build the scene + start the render loop,
@@ -1279,10 +1325,15 @@ elEnterBtn?.addEventListener('click', async () => {
   // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
   // never a silent no-op (regression guard — tests assert a non-empty message here).
   showEntryStatus('Entering arena…');
+  resetTimings();
+  mark('enter-click');
+  showBootOverlay();
+  await _yieldToPaint();
   try {
     await ensureArenaReady('LOADING ARENA…');
-  } catch { return; }
+  } catch { hideBootOverlay(); return; }
   showEntryStatus('');
+  hideBootOverlay();
   _arena.enter();
 });
 
@@ -1296,11 +1347,16 @@ async function ensureArenaReady(loadingLabel) {
   elEnterBtn.disabled = true;
   try {
     if (!_arena) {
+      _setBootProgress(0); // 'Loading engine…'
+      startPhase('import-runtime');
       // ← THE deferred three-vendor load. Nothing the shell imports touches three.
       const mod = await import('./arenaRuntime.js');
+      endPhase('import-runtime');
+      _setBootProgress(1); // 'Building scene…'
       _arena = mod.createArenaRuntime({
         showEntryStatus,
         resetEnterButton,
+        onBootProgress: _setBootProgress,
         getGatewayScreenState: () => ({
           worlds: _worldsCache,
           scanStatus: _worldsScan,
@@ -1311,9 +1367,15 @@ async function ensureArenaReady(loadingLabel) {
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      startPhase('boot');
       _arena.boot();
+      endPhase('boot');
+    } else {
+      _setBootProgress(1);
     }
+    startPhase('bootstrap-physics');
     await _arena.bootstrapPhysics();
+    endPhase('bootstrap-physics');
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
     elEnterBtn.textContent = 'ENTER ARENA';
@@ -1326,6 +1388,8 @@ async function ensureArenaReady(loadingLabel) {
     throw e;
   }
   _arenaBootstrapped = true;
+  // Log the boot timing report for dev/debug.
+  try { logReport(); } catch {}
   return _arena;
 }
 
@@ -1343,10 +1407,15 @@ elNapBtn?.addEventListener('click', async () => {
   if (!isTitle()) return;
   // IMMEDIATE visible status (mirrors ENTER ARENA) before the async bootstrap.
   showEntryStatus('Entering NAP zone…');
+  resetTimings();
+  mark('enter-click-nap');
+  showBootOverlay();
+  await _yieldToPaint();
   try {
     await ensureArenaReady('LOADING NAP…');
-  } catch { return; }
+  } catch { hideBootOverlay(); return; }
   showEntryStatus('');
+  hideBootOverlay();
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });

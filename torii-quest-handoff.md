@@ -2,9 +2,14 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.528-alpha - MOUNTAIN SHADER UPGRADE (custom ShaderMaterial with Fresnel rim lighting + procedural triplanar fbm noise + per-vertex AO + slope-based rock color + 2D noisy snow line + crevice-snow coupling + altitude atmospheric tint + distance LOD + instanced boulders). Prior: v0.2.481-alpha - SKY.JS SHADER LUMA CAP (patched Sky.js fragment shader to cap scattering brightness below bloom threshold). Prior: v0.2.476-alpha - SKY.JS PREETHAM (replaced hand-rolled aurora dome with Three.js Sky.js atmospheric scattering). See §0 for the current snapshot.
+**Current version:** v0.2.528-alpha - NAP ZONE LAYOUT FIX (left-to-right: leaderboard → torii gate → product panel → mirror, all flush with curved NAP edge). Prior: v0.2.481-alpha - MOUNTAIN SHADER UPGRADE. See §0 for the current snapshot.
 
 **Recent shipped work (newest first):**
+- **v0.2.528-alpha - NAP ZONE LAYOUT FIX.** Fixed the NAP zone object layout to be left-to-right as the maintainer specified: leaderboard → torii gate → product panel → mirror, all flush with the curved NAP edge. The NAP zone edge is a CURVE (not a straight line) — each object's z-position must match the edge at its x-position. Previous attempts (v0.2.525–v0.2.527) failed because objects were placed at wrong z-values (not flush), the mirror was too wide (8.12m) and overlapped the torii gate, and the ordering was wrong. Final positions: Leaderboard (-6.5, 32.5) yaw=PI, Torii gate (0, 32) unchanged yaw=PI-PI/4-PI/18, Product panel (5, 31) yaw=PI+0.15, Mirror (9, 28.5) width shrunk to 5m yaw=PI+PI/4 (45° to follow edge curve). Mirror was shrunk from 8.12m to 5m to keep both edges on solid NAP land. Both mirror edges verified on land (h=0.92). NPC (napNpc.js) confirmed working in v0.2.526 console output: walks, loads 18 gesture clips. 2668 tests pass, 21 checks green.
+- **v0.2.527-alpha - NAP LAYOUT ATTEMPT (FAILED).** Incorrectly placed mirror at (12.26, 25) — too far around the curve, appeared to cross the NAP/arena boundary. Product panel at wrong z. Leaderboard at wrong z. Angles not updated for new positions. User reported "even worse." Superseded by v0.2.528.
+- **v0.2.526-alpha - MIRROR REPOSITION ATTEMPT.** Moved mirror to (0.26, 31) — but this was on top of the torii gate at (0, 32). User reported "nothing has changed" (the mirror was invisible behind/inside the gate). NPC fix confirmed working in this version's console output.
+- **v0.2.525-alpha - NAP OBJECT ROTATIONS.** Applied: torii gate +10° CW (YAW_DELTA = -PI/4 - PI/18 = 55° total), leaderboard +5° CCW, product +10° CW. Mirror moved to x=-1. These were correct angle changes but at wrong positions.
+- **v0.2.520-alpha - NAP OBJECT REPOSITION + NPC REWRITE.** Moved all NAP objects to z=31 edge. Rewrote napNpc.js with _minY fix, separate GLTFLoader for gesture GLB, fade transitions. NPC starts at (-4, 22), wanders NAP zone using isNapLand() + NAP_BBOX. 2668 tests pass.
 - **v0.2.528-alpha - MOUNTAIN SHADER UPGRADE.** Replaced MeshBasicMaterial with a custom ShaderMaterial in atmosphere.js. Adds: (1) Fresnel rim lighting (Journey-style edge glow catching dawn light), (2) procedural triplanar 3-octave fbm noise for rock grain (zero textures, zero downloads), (3) normal perturbation per-fragment for surface detail on flat faces, (4) altitude-based atmospheric tint (cool low, warm high), (5) per-vertex AO from crevice/valley/slope stored as `aAo` attribute, (6) distance LOD via uDetailStr uniform (0.55 near, 0.32 mid, 0.14 far), (7) proper FogExp2 integration via Three.js fog chunks, (8) DoubleSide normal fix (`gl_FrontFacing ? n : -n`), (9) luma cap at 0.80 below bloom threshold 0.86. Vertex-color authoring improvements: slope-based rock color (steep=dark weathered, gentle=lighter talus), 2D noisy snow line (varies by face angle + height + leeward bias), crevice-snow coupling (crevices catch snow up high, stay shadowed down low). Per-ring atmospheric perspective: far ring desaturates 28% toward sky-grey, mid 14%, near 5%. Instanced boulders: 30 procedural noise-displaced icosahedron rocks on the near ring, one InstancedMesh draw call. Skipped load-time normal map bake (shader-side procedural noise + AO provides detail without load-time cost). Research: notes/mountain-research.md (76 source links). Combat / score publishing untouched.
 - **v0.2.466-alpha - SUNRISE SUN FIX.** Retired the entire `_buildBitcoinSun` IIFE (additive canvas-corona sprite scale 38 + NormalBlending PNG ₿ overlay scale 55) - it stacked on the shader disc at (0.85, 0.18, -0.45) and bloomed into the right-side white glare. Sky shader now carries the ONLY sun: disc pow 90->40 rebuilt as `mix(base, vec3(1.0,0.50,0.18), disc*0.8)` (deep orange, no white clamp), corona pow 14->8 * 0.4, wide glow 0.35->0.12, and the dome-wide pow(sunAngle,2.0)*0.18 horizon flush DELETED (left-side glare). Added subtle Japanese rising-sun rays (14 beams, cross-product basis around sunDir, smoothstep-masked near the sun/horizon, *0.12). Zenith gold band 0.45->0.20, shimmer 0.08->0.04. Ambient hue 0xffd9a0->0xffd090, fog hue 0xe6c4a4->0xe6bc94 (density/intensity unchanged). Combat / score publishing untouched.
 - **v0.2.465-alpha - SUNRISE ATMOSPHERE POLISH.** Rebalance after the v0.2.464 tone-down went too far on the ring and the sun still read as glare. Ring: coastline neon emissiveIntensity 0.95->1.4 (visibly glowing again, no sky bloom) and ground-wash opacity 0.22->0.28 to keep the ring/ground balance. Sun: sprite + sky-shader sunDir lowered to y=0.18 with depthTest ON so the mountain ridge occludes the lower half of the disc; sprite scale 48->38 (btc 72->55); corona/disc pulled toward amber; shader amber-disc multiplier 2.2->1.4; horizon mix deepened to peach-amber; ambient 0.72->0.85; fog density 0.007->0.008. Combat / score publishing untouched.
@@ -15,16 +20,16 @@ Single-page onboarding for the next contributor — human or AI agent. Keep it c
 - **v0.2.460-alpha - MP IDLE-DROP FIX (Option A: idle players stay connected) + JOIN-DELAY PREWARM.** Peers vanished after a few idle minutes because the server idle-swept any session silent for 60s (`IDLE_DISCONNECT_MS`) and broadcast LEFT, while the client keepalive PINGed only every 25s - a single tab-throttled setTimeout could slip past the reap. Fixed both ends: client `KEEPALIVE_MS` 25s -> 15s (4x margin) and server `IDLE_DISCONNECT_MS` 60s -> 90s (6 missed pings), so an idle player is never dropped. Reconnect `BACKOFF_MS_CAP` 30s -> 2s so a real blip rejoins in ~2s. Plus the first template-only `_prewarmPeerTemplates()` on MP connect. Tests reference the constants by name, so they track the values.
 - **v0.2.459-alpha - RUN+SHOOT ANIM FIX + NOSTRICH MASTER RE-BAKE.** RUN_SHOOT never played (single-frame `_isShooting` flag); fixed with a sticky 400ms `_shootUntil` window driving both `tickPlayerModel` and the MP anim hint. nostrich-master.glb re-baked with three `tools/glb_retarget.py` fixes (frame-change matrix was the inverse of intended; added per-bone shortest-arc bind-axis alignment; exact animated-parent local conversion; quaternion hemisphere continuity). Bone-axis deviation vs library now 0-4deg every clip (was 50-180deg), zero flips, root motion 0.000m, Draco 3.66MB. New `tools/glb_pose_compare.py`.
 
-**Deployed live:** the maintainer deploys manually over SSH with `sudo torii-deploy <tag>` (the update-runner resolves the git tag, builds with `--base=/quest/`, and installs to chiefmonkey.art). **Latest tag pushed: v0.2.481-alpha** (v0.2.528-alpha not yet deployed) - confirm the live version with `curl -s https://chiefmonkey.art/quest/ | grep -o 'v0\.2\.[0-9]*-alpha'`. MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
+**Deployed live:** the maintainer deploys manually over SSH with `sudo torii-deploy <tag>` (the update-runner resolves the git tag, builds with `--base=/quest/`, and installs to chiefmonkey.art). **Latest tag pushed: v0.2.528-alpha** (not yet deployed — user runs `sudo torii-deploy v0.2.528-alpha`) - confirm the live version with `curl -s https://chiefmonkey.art/quest/ | grep -o 'v0\.2\.[0-9]*-alpha'`. MVP APPROVED 2026-07-27. Suite `install-quest.sh` tolerates generated-but-tracked files (`public/dashboard.html` + `public/torii-quest-data.json` are rewritten by `npm run build` on every deploy).
 
 ---
 
-## 0. Current snapshot (2026-08-15)
+## 0. Current snapshot (2026-08-17)
 
 - **Version:** v0.2.528-alpha (tag `v0.2.528-alpha`).
 - **Live:** https://chiefmonkey.art/quest/ (SHC VPS, Torii Suite install). The maintainer deploys manually with `sudo torii-deploy <tag>`; the update-runner resolves the git tag and builds with `--base=/quest/`.
 - **Multiplayer:** LIVE and working (`MP_ENABLED=true` in `src/config.js`). Two-npub in-world play confirmed 2026-08-15: idle players stay connected (v0.2.460), peers appear promptly on join (v0.2.462 warm pool), and mirror self-shoot reads correctly (v0.2.461).
-- **Tests:** 2637/2637 across 196 files; `node tools/regression-check.mjs` ALL GREEN at ship time.
+- **Tests:** 2668/2668 across 197 files; `node tools/regression-check.mjs` ALL GREEN at ship time.
 - **Nostr score publishing:** DISABLED (`SCORE_PUBLISH_ENABLED=false` in `src/config.js`). Do NOT re-enable until the maintainer explicitly says so - it is for the very end of alpha.
 - **Combat values (DO NOT CHANGE):** BOT_HP=5, BODY_DAMAGE=3, HEADSHOT_DAMAGE=9, BOSS_HP=60, BOSS_TARGET_HEIGHT=3.0, BOSS_RADIUS=0.8, BOT_BODY_RADIUS=0.30, BOT_HEAD_RADIUS=0.30, LAG_COMP_MS=300.
 - **MP timing model (verified 2026-08-15):** client PING `KEEPALIVE_MS=15_000`, server idle reap `IDLE_DISCONNECT_MS=90_000` (sweep interval still 60s), reconnect backoff `BACKOFF_MS_INITIAL=500` doubling to cap `BACKOFF_MS_CAP=2_000`. On reconnect the WELCOME carries the full roster; `finishAuth` re-broadcasts JOIN to others.
@@ -38,6 +43,42 @@ Single-page onboarding for the next contributor — human or AI agent. Keep it c
 - The active MVP focus is the 15-hour proof-of-concept route (`torii-quest-strategy.md`); the shooter is maintenance-only unless demo-breaking.
 - Read `torii-quest-strategy.md` + `torii-quest-todo.md` + `torii-quest-progress.md` first; use the §10 next-job format.
 - Always read code before editing. Root causes in this codebase are found by reading (e.g. parsing GLB binary, tracing the MP wire), not guessing.
+
+### NAP zone object layout (CRITICAL — read before touching NAP objects)
+
+The NAP zone edge is a CURVE (mitsudomoe shape), not a straight line. Each object's z-position MUST match the edge at its x-position. Use `isNapLand(x, z)` + `sampleNapHeight(x, z)` from `src/terrain/tomoeShape.js` / `src/terrain/heightmap.js` to verify positions are on solid land (h > 0.7).
+
+**Current layout (v0.2.528-alpha), left to right, flush with curved edge:**
+
+| Object | Position (x, z) | Yaw | File |
+|---|---|---|---|
+| Leaderboard | (-6.5, 32.5) | `Math.PI` (face south) | `src/engine/world/proofSurfaceSpecs.js` |
+| Torii gate (travel gateway) | (0, 32) | `Math.PI - PI/4 - PI/18` (55° CW) | `src/config.js` (TRAVEL_GATE_*) + `src/arena.js` |
+| Product panel | (5, 31) | `Math.PI + 0.15` | `src/engine/world/proofSurfaceSpecs.js` |
+| Mirror (with frame) | (9, 28.5) | `Math.PI + PI/4` (45°, follows curve) | `src/mirror.js` (MX, MZ, MW, mirror.rotation.y) |
+
+**Key values:**
+- `TRAVEL_GATE_X = 0`, `TRAVEL_GATE_Z = 32`, `TRAVEL_GATE_YAW_DELTA = -Math.PI / 4 - Math.PI / 18` (in `src/config.js`)
+- Mirror: `MW = 5.0` (shrunk from 8.12m in v0.2.528), `MX = 9`, `MZ = 28.5`, `mirror.rotation.y = Math.PI + Math.PI / 4`
+- Anchor positions in `src/engine/world/anchorTransforms.js` must match proofSurfaceSpecs positions
+- `ARENA_HALF = 20` (in `src/config.js`)
+
+**Two gates (CRITICAL DISTINCTION):**
+1. **Travel gateway** (`torii-gateway-experience.glb`): At (0, 32) in NAP zone with portal ring. This is what the user means by "torii gate" or "Torii Gateway". GLB uses `gate.rotation.y = Math.PI + TRAVEL_GATE_YAW_DELTA`. Procedural fallback uses `fallback.rotation.y = Math.PI / 2 + TRAVEL_GATE_YAW_DELTA` — DIFFERENT base rotation (90° mismatch).
+2. **Entrance/gamma markets gate** (`torii-gate.glb`): At bridge position (-24, 3), hardcoded `gate.rotation.y = Math.PI` — NEVER touched by TRAVEL_GATE_YAW_DELTA.
+
+**NAP edge reference (z at each x where height > 0.7):**
+x=-12→z=30.5, x=-10→z=31.5, x=-8→z=32.5, x=-6→z=32.5, x=-4→z=32.5, x=-2→z=32.5, x=0→z=32, x=2→z=32, x=4→z=31.5, x=6→z=31, x=8→z=30, x=10→z=28.5, x=12→z=25.5
+
+**NPC (napNpc.js):** Starts at (-4, 22), wanders NAP zone using `isNapLand()` + `NAP_BBOX`. Plays random gesture clips from `chiefmonkey-npc-animations.glb` every 5-10s. Confirmed working in v0.2.526 console output. NPC animations GLB is for NPC ONLY — do NOT add to playable characters.
+
+**User's layout instructions (verbatim):**
+- "from left to right the correct layout is, leaderboard, torii gate, product panel, mirror"
+- "flushed with the edge of the nap zone"
+- Mirror and frame treated as one grouped object
+- Torii gate and glow ring treated as one grouped object
+- "to the right" = right-hand side when facing north toward the NAP zone edge
+- The NAP zone edge curves — "flush with the edge" means each object sits at the correct z for its x
 
 ---
 
@@ -199,6 +240,53 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 - ~~**SEC-1 (mandatory gate on `leaderboardPublisher`)**~~ — **LANDED v0.2.355-alpha.** The `createLeaderboardPublisher({ sign, publish, gate })` adapter no longer treats `gate` as optional: `gate` DEFAULTS to `verifyPublishGate` (the crypto-verified SEC-1 gate), so any live publisher inherits real BIP-340 verification + the consent check by default. An explicit `gate: null` combined with a wired `publish` is a SEC-1 CONSTRUCTION ERROR — `publishScore` fails closed on every call, never signs, never publishes, and returns `ok:false` with a `SEC-1: publish is wired without a gate` error. The build-only path (no publisher) still needs no gate. This closes the earlier bypass where a caller could wire `{ sign, publish }` without a gate and quietly ship stub-signed or unverified events to a relay. Tests: 5 new cases across `tests/leaderboard-publisher.test.js` (mandatory-gate fail-closed describe block) and `tests/leaderboard-publish-gate.test.js` (the old "backward compatible" bypass test flipped to two fail-closed assertions). Consent gating for the real signer/relay wiring landed earlier (v0.2.257 publishGate, v0.2.277 real BIP-340, v0.2.285 live NIP-07); v0.2.355 removes the last opt-out path.
 - ~~**SEC-2 (handoff verification on `world/handoff.js`)**~~ — **LANDED v0.2.356-alpha.** The traveller-side handoff skeleton (`src/world/handoff.js`) now runs real BIP-340 schnorr verification before it hands a caller a spawn descriptor. New `verifyHandoffCrypto(h, { expectedPlayerPubkey, now, requireFresh })` composes the pure structural pre-flight (schema/namespace/freshness) with a re-derived NIP-01 event id + `schnorr.verify(h.sig, h.id, h.player)` under the traveller's hex64 pubkey, mirroring the SEC-2 gateway gate in `engine/gateway/handoffVerify.js` and the SEC-1 leaderboard gate. `resolveHandoffSpawn(h, destZoneMeta, { expectedPlayerPubkey })` is the choke-point: the `expectedPlayerPubkey` opt is REQUIRED (must be hex64) and the crypto verdict must be trusted, so an unsigned envelope, a tampered body, a wrong-key signature, or an envelope naming a different traveller returns null. New helpers `deriveHandoffId(h)` (pure, so signer + verifier agree on what the sig commits to) and `signHandoffEvent(h, sk)` (test/demo convenience, injected sk only) round out the module. Tests: 32 new cases in `tests/world-handoff.test.js` covering constants, factory shape, structural verify parity, id derivation, sign+verify round-trip, malformed opts, identity mismatch, tampered body, stub sig, wrong-key sig, freshness gate, resolveHandoffSpawn fail-closed matrix, and serialize/deserialize sig preservation. Historical crypto SEC-2 in the gateway path (`handoffVerify.js`, live-signature verify) landed earlier at v0.2.252 (structural) and v0.2.263 (real BIP-340); v0.2.356 completes SEC-2 on the traveller/arrival side. **Note:** live relay ingest still requires the maintainer to wire `resolveHandoffSpawn` into whatever transport lands `h` — the module has no relay layer yet.
 - ~~**SEC-3 (product URL validation)**~~ — **LANDED v0.2.354-alpha.** `productDisplay.isSafeHttpUrl` (the shared validator both `productDisplay` and the `productPanel` view-model use) is now a WHATWG `URL`-object parser: it trims + rejects any embedded whitespace, tries `new URL(s)`, and only accepts a result whose `protocol === 'https:'` and whose `hostname` is non-empty. The old regex `^https:\/\/[^\s]+$` accepted malformed inputs like `https://` and `https:javascript:…`; the parser refuses them and normalises the permissive-but-safe cases (`https:host`, `https:///host`, `HTTPS://`) to a real https host, so a listing can no longer smuggle a non-https scheme through us. Tests: 6 new cases in `tests/product-display.test.js` locking scheme/host enforcement, malformed rejection, WHATWG normalisation behaviour, and non-string safety.
+
+## 9.5. Active task / next steps (2026-08-17)
+
+**PENDING DEPLOY:** v0.2.528-alpha is pushed to GitHub (tag `v0.2.528-alpha`) but NOT yet deployed to the VPS. The user needs to run:
+```
+sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.528-alpha
+```
+
+**WHAT WAS DONE THIS SESSION:**
+1. v0.2.520: Repositioned all NAP objects to z=31 edge. Rewrote napNpc.js (NPC walking + gestures). 2668 tests pass.
+2. v0.2.521–v0.2.525: Iterative rotation adjustments (torii gate, leaderboard, product panel, mirror). Multiple failed attempts due to wrong positions and not following the curved edge.
+3. v0.2.526: Mirror at (0.26, 31) — on top of torii gate. User reported "nothing has changed."
+4. v0.2.527: Mirror at (12.26, 25) — too far around curve, crossed NAP/arena boundary. User reported "even worse."
+5. v0.2.528: Correct layout — all objects flush with curved edge, left to right: leaderboard → torii gate → product panel → mirror. Mirror shrunk to 5m, rotated 45° to follow curve. Both edges verified on land.
+
+**WHAT TO VERIFY AFTER DEPLOY:**
+- All four objects visible in correct left-to-right order along the NAP edge
+- Mirror not overlapping any other object
+- Mirror angled to follow the curve (45° from south)
+- NPC (chiefmonkey) walking and doing gestures in NAP zone
+- Torii gate at (0, 32) with its glow ring, rotated 55° CW
+
+**IF THE LAYOUT STILL LOOKS WRONG:**
+1. Check browser console for `[arena] travel-gateway GLB unavailable` — if present, the fallback gate shows at a different angle (Math.PI/2 base vs Math.PI for GLB)
+2. Hard refresh (Ctrl+Shift+R) to bypass service worker cache
+3. Verify the deployed version: `curl -s https://chiefmonkey.art/quest/ | grep -o 'v0\.2\.[0-9]*-alpha'`
+4. Check `src/mirror.js` for MW, MX, MZ values
+5. Check `src/engine/world/proofSurfaceSpecs.js` for panel/leaderboard positions
+6. Check `src/config.js` for TRAVEL_GATE_* values
+7. Use `isNapLand(x, z)` + `sampleNapHeight(x, z)` to verify any new positions are on solid land
+
+**DEPLOY PIPELINE:**
+- Push: `git push origin main --tags` with `api_credentials=["github"]`
+- Deploy on VPS: `sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy <version>`
+- The `torii-deploy` script writes a JSON request to `/opt/torii-quest/mp/update-requests/`, an update-runner service picks it up, does git fetch + checkout by TAG (not branch), builds, and logs result
+- MUST create git tag for each version: `git tag v0.2.XXX-alpha && git push origin v0.2.XXX-alpha`
+- Repo: `https://github.com/ChiefmonkeyArt/torii-quest.git`
+- Live URL: https://chiefmonkey.art/quest/
+- VPS: ubuntu@chiefmonkey
+- SSH key NOT available from sandbox — print deploy command for user to run manually
+- dist/ is in .gitignore — VPS builds from source via `npm run build`
+- Service worker: network-first for JS/CSS/HTML, cache-first for GLBs/images/fonts
+
+**VERSION MARKER FILES (bump ALL on each version):**
+MVP_APPROVAL_STATE.json, NEXT_ACTION_STATE.json, index.html, public/dashboard.html, public/sw.js, public/torii-quest-data.json, server/arena-ws.js, src/config.js, src/engine/dashboard/toriiQuestDashboardData.js, tests/torii-quest-dashboard.helpers.test.js, tests/torii-quest-dashboard.model.test.js, tests/torii-quest-dashboard.render.test.js, tests/torii-quest-dashboard.sdk.test.js, tools/regression-check.mjs, torii-quest-handoff.md, torii-quest-progress.md, torii-quest-todo.md, package.json, dist/index.html
+
+---
 
 ## 10. Next-job format
 

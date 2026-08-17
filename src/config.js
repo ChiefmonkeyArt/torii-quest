@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.533-alpha';
+export const VERSION   = 'v0.2.534-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -50,8 +50,8 @@ export const TRAVEL_GATE_YAW_DELTA = -Math.PI / 2;
 // ── Bridges over the sea channels (v0.2.511 — tomoe layout) ───────────────
 // Bridge 1: NAP ↔ Arena BL (with torii gate). Spans the west channel.
 // v0.2.533: Moved 10m south + 10m west from (-24, 3).
-export const BRIDGE_X      = -34;   // v0.2.533: moved 10m west
-export const BRIDGE_Z      = -7;    // v0.2.533: moved 10m south
+export const BRIDGE_X      = -44;   // v0.2.534: moved 10m west
+export const BRIDGE_Z      = -17;   // v0.2.534: moved 10m south
 export const BRIDGE_DECK_Y = 1.1;   // walkable top surface (world Y)
 export const BRIDGE_LEN    = 10;    // E-W span (x -39 → -29): 2m overlap each side
 export const BRIDGE_WIDTH  = 4;    // N-S width

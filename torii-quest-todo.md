@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.533-alpha` - BRIDGE MOVE + BOT BRIDGE CROSSING + FLY MODE DAMAGE FIX. Prior: `v0.2.532-alpha` - TORII GATE 90° CW ROTATION.
+Current version: `v0.2.534-alpha` - BRIDGE 1 FURTHER MOVE (another 10m south + 10m west to -44, -17). Prior: `v0.2.533-alpha` - BRIDGE MOVE + BOT BRIDGE CROSSING + FLY MODE DAMAGE FIX.
 
 ## 🚨 TOP OF QUEUE
 

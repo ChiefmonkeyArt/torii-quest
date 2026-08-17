@@ -1,4 +1,4 @@
-// mirror.js — Live Reflector mirror on the arena west wall.
+// mirror.js — Live Reflector mirror in the arena (v0.2.515: diagonal upper-left).
 // Uses Three.js Reflector (real scene reflection via off-screen render target).
 // Player GLB is on layer 1 — mirror camera enables layer 1 so you see yourself.
 import * as THREE from 'three';
@@ -6,15 +6,13 @@ import { Reflector }  from 'three/addons/objects/Reflector.js';
 import { scene, renderer } from './scene.js';
 import { ARENA_HALF, WALL_H } from './config.js';
 
-const MW = ARENA_HALF * 0.7;   // mirror width  (~14 units)
-// Mirror is now FULL wall height + a touch more on top so it reaches past the
-// orange wall cap. At WALL_H = 2.6 this gives a 2.8m mirror — enough to frame
-// the entire player including the gun in their hand, which was getting cropped
-// out at the previous 0.75× multiplier (= 1.95m mirror, ~0.5m short).
+// v0.2.515: Mirror moved to diagonal position in upper-left of arena
+// (per user's pink-line placement). Width shortened 42% from ~14 to ~8.1 units.
+const MW = ARENA_HALF * 0.7 * 0.58;  // mirror width (~8.1 units, -42%)
 const MH = WALL_H + 0.2;       // mirror height: wall + 20cm cap clearance
-const MX = -ARENA_HALF + 0.36; // just proud of west wall interior face
+const MX = -9;                   // diagonal position: midpoint of pink line
 const MY = MH / 2 + 0.05;      // just above floor
-const MZ = 0;                   // centred on wall
+const MZ = -6;                  // diagonal position: upper-left of arena
 
 // Throttle mirror texture refresh to 20 Hz by suppressing onBeforeRender.
 // The mesh stays visible every frame — only the RT update is gated.
@@ -60,7 +58,7 @@ export function buildMirror() {
       multisample:   1,         // MSAA off — extra FB resolve not worth it
     });
 
-    mirror.rotation.y = Math.PI / 2;  // normal faces +X (eastward, into arena)
+    mirror.rotation.y = Math.atan2(9, 6);  // v0.2.515: face arena center from diagonal
     mirror.position.set(MX, MY, MZ);
     scene.add(mirror);
     _mirrorRef = mirror; // module handle — see getMirror() / tickMirror()

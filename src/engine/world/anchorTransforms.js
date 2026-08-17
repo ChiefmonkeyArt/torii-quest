@@ -37,14 +37,14 @@ export const PROOF_SURFACE_ANCHORS = Object.freeze({
     id: 'nap-zone-gate-left',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: -7, y: 0, z: 31 }),
+    origin: Object.freeze({ x: 5, y: 0, z: 30 }),
     note: 'Ground 5m left of the travel gateway torii gate, facing inward.',
   }),
   'nap-zone-gate-right': Object.freeze({
     id: 'nap-zone-gate-right',
     parent: 'nap-zone-floor',
     zone: 'nap-zone',
-    origin: Object.freeze({ x: 5, y: 0, z: 31 }),
+    origin: Object.freeze({ x: -8, y: 0, z: 31 }),
     note: 'Ground 5m right of the travel gateway torii gate, facing inward.',
   }),
 });

@@ -1400,7 +1400,7 @@ async function ensureArenaReady(loadingLabel) {
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
       startPhase('boot');
-      _arena.boot();
+      await _arena.boot();
       endPhase('boot');
     } else {
       _setBootProgress(1);
@@ -1496,21 +1496,24 @@ function _shellTick() {
 }
 requestAnimationFrame(_shellTick);
 
-// ── Title-screen preloading (v0.2.542) ───────────────────────────────────────
+// ── Title-screen preloading (v0.2.543) ───────────────────────────────────────
+// Start fetching critical assets during title-screen idle time so they’re in
+// the browser cache when the player clicks ENTER. Also kicks off the Rapier
+// WASM import in parallel (independent of arenaRuntime).
+const _preloadBase = (import.meta.env && import.meta.env.BASE_URL) || '/';
 const PRELOAD_ASSETS = [
-  '/models/chiefmonkey7.glb',
-  '/augustink4.glb',
-  '/models/animation-library.glb',
+  'models/chiefmonkey7.glb',
+  'augustink4.glb',
+  'models/animation-library.glb',
 ];
 let _preloadedAssets = null;
 let _preloadingStarted = false;
 function startPreloading() {
   if (_preloadingStarted) return;
   _preloadingStarted = true;
-  const base = document.querySelector('base')?.getAttribute('href') || '/';
   _preloadedAssets = {};
   for (const asset of PRELOAD_ASSETS) {
-    const url = base.replace(/\/$/, '') + asset;
+    const url = _preloadBase + asset.replace(/^\/+/, '');
     _preloadedAssets[asset] = fetch(url, { cache: 'force-cache' })
       .then(r => r.ok)
       .catch(() => false);

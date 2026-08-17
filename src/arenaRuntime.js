@@ -746,29 +746,39 @@ export function createArenaRuntime(hooks = {}) {
 
   // boot() — one-time synchronous three scene/loop bootstrap + handler wiring.
   // Safe to call once; subsequent calls are a no-op.
-  function boot() {
+  async function boot() {
     if (_booted) return;
     _booted = true;
     mark('boot-start');
+
+    // Helper: yield to the browser so the boot overlay can paint between
+    // synchronous sub-steps. Double-rAF ensures a paint frame occurs.
+    const _yieldPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     // Scene/world/HUD/entities — built once.
     startPhase('buildArena');
     buildArena();
     endPhase('buildArena');
     onBootProgress(2); // 'Sculpting terrain…'
+    await _yieldPaint();
 
     startPhase('initAtmosphere');
     initAtmosphere();
     endPhase('initAtmosphere');
     onBootProgress(3); // (still terrain/world)
+    await _yieldPaint();
 
     startPhase('buildMirror');
     buildMirror();
     endPhase('buildMirror');
+    await _yieldPaint();
 
     initHUD();
     initPlayerStats();
     initPlayer();
+    onBootProgress(3); // update sub-label
+    await _yieldPaint();
+
     initBots(playerObj, spawnBullet);
     _muzzleFlashes = createMuzzleFlashPool(scene, {
       getQualityTier: () => _quality.currentTier(),
@@ -1108,6 +1118,7 @@ export function createArenaRuntime(hooks = {}) {
     }
 
     // Render loop start (LAST — every binding update() touches is initialised now).
+    await _yieldPaint();
     initLoop(update, _onLoopFatal);
     startLoop();
     mark('boot-end');
@@ -1121,6 +1132,8 @@ export function createArenaRuntime(hooks = {}) {
   // hid the real error. Each step now reports its name + e.message to entry-status
   // AND the console so the actual failure (which step, which error) is visible.
   async function bootstrapPhysics() {
+    // Yield helper for paint between sync sub-steps.
+    const _yieldPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const step = async (name, fn) => {
       try { await fn(); }
       catch (e) {
@@ -1134,21 +1147,26 @@ export function createArenaRuntime(hooks = {}) {
     await step('initPhysics',       () => initPhysics());
     endPhase('initPhysics');
     onBootProgress(4); // 'Loading physics…'
+    await _yieldPaint();
 
     startPhase('buildArenaColliders');
     await step('buildArenaColliders', () => buildArenaColliders());
     endPhase('buildArenaColliders');
+    await _yieldPaint();
 
     await step('buildDynamicCrates', () => buildDynamicCrates());
+    await _yieldPaint();
     let handle;
     await step('spawnPlayerBody', () => { handle = spawnPlayerBody(); });
     setPlayerBody(handle);
     onBootProgress(5); // 'Loading avatar…'
+    await _yieldPaint();
 
     startPhase('loadPlayerModel');
     await step('loadPlayerModel',   () => loadPlayerModel(playerObj));
     endPhase('loadPlayerModel');
     onBootProgress(6); // 'Preparing world…'
+    await _yieldPaint();
 
     await step('loadFirstPersonBody', () => loadFirstPersonBody(playerObj));
     // v0.2.529: Defer buildNapNpc until after the first visible frame — the NPC

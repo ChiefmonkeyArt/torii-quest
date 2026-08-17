@@ -15,7 +15,6 @@ import {
   ARENA_TERRAIN, ARENA_GRID, sampleArenaHeight, ISLAND_BASE_Y,
 } from './heightmap.js';
 import { SEA_LEVEL } from './seaConfig.js';
-import { isNapLand, isArenaLand } from './tomoeShape.js';
 
 // Cheap deterministic value-noise in [0,1) from world XZ — no textures, no state.
 function _hash(x, z) {
@@ -108,13 +107,42 @@ function buildZoneMesh(scene, TERRAIN, GRID, sample, { color, name, roughness = 
   return mesh;
 }
 
-// NAP island — green, matching the peaceful-garden tone.
+// NAP island — lighter green with procedural earth, grit, and stone detail.
+// v0.2.513: removed cellKeep — the heightmap's signed-distance field creates a
+// smooth beach ramp at the polygon boundary, so no binary cell culling is needed.
+// The water plane covers everything below SEA_LEVEL, giving a natural coastline.
+function _napGroundColor(base, x, z, h) {
+  if (h < SEA_LEVEL + 0.3) {
+    const depth = Math.max(0, (SEA_LEVEL + 0.3 - h));
+    const underwater = Math.min(1, depth * 0.5);
+    return _scratchCol.setRGB(
+      base.r * (1 - underwater) * 0.15,
+      base.g * (1 - underwater) * 0.15,
+      base.b * (1 - underwater) * 0.2,
+    );
+  }
+  const n = _hash(x, z);                                    // 0..1 speckle
+  const n2 = _hash(x * 3.7 + 11, z * 5.3 + 7);            // second noise octave
+  const span = (ISLAND_BASE_Y - SEA_LEVEL) || 1;
+  const hf = Math.max(0, Math.min(1, (h - SEA_LEVEL) / span));
+  // Lighter green base with height-based brightening on rises
+  const shade = 0.85 + 0.15 * n + 0.12 * hf;
+  // Earth/grit patches: ~15% of surface gets a warm brown tint
+  const earth = n2 > 0.85 ? 0.35 : 0;
+  // Stone/pebble speckles: ~5% gets a gray tint
+  const stone = n > 0.95 ? 0.25 : 0;
+  return _scratchCol.setRGB(
+    Math.min(1, base.r * shade + earth * 0.25 + stone * 0.15),
+    Math.min(1, base.g * shade + earth * 0.12 + stone * 0.15),
+    Math.min(1, base.b * shade + earth * 0.05 + stone * 0.12),
+  );
+}
 export function buildNapTerrainMesh(scene) {
   return buildZoneMesh(scene, NAP_TERRAIN, NAP_GRID, sampleNapHeight, {
-    color: 0x3d5a2f,        // NAP ground-cover green
-    name: 'nap-zone-floor', // preserve scene.getObjectByName lookup
-    // v0.2.511: cellKeep crops the mesh to the NAP comma shape (no square blocks).
-    cellKeep: isNapLand,
+    color: 0x5a7a3a,        // lighter NAP green (was 0x3d5a2f)
+    name: 'nap-zone-floor',
+    roughness: 0.95,
+    vary: _napGroundColor,
   });
 }
 
@@ -149,7 +177,5 @@ export function buildArenaTerrainMesh(scene) {
     name: 'arena-floor',
     roughness: 0.95,
     vary: _arenaGroundColor,
-    // v0.2.511: cellKeep crops the mesh to both arena comma shapes (no square blocks).
-    cellKeep: isArenaLand,
   });
 }

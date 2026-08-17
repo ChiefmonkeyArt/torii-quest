@@ -107,27 +107,52 @@ function _raycastScene(origin, dir) {
       point: hit.point.clone(),
       normal: _normal.clone(),
       object: hit.object,
+      face: hit.face,
     };
   }
   return null;
 }
 
-// Find the nearest bone in a SkinnedMesh to a world-space point.
-// Returns the bone Object3D or null.
-function _findNearestBone(skinnedMesh, worldPoint) {
-  if (!skinnedMesh.isSkinnedMesh || !skinnedMesh.skeleton) return null;
-  const bones = skinnedMesh.skeleton.bones;
-  let nearest = null;
-  let minDist = Infinity;
-  for (let i = 0; i < bones.length; i++) {
-    bones[i].getWorldPosition(_bonePos);
-    const d = _bonePos.distanceTo(worldPoint);
-    if (d < minDist) {
-      minDist = d;
-      nearest = bones[i];
+// Find the bone that controls the hit vertex using skinIndex/skinWeight.
+// This is the correct way: the skinIndex attribute tells exactly which
+// bone(s) influence each vertex. We pick the highest-weighted bone across
+// the hit triangle's 3 vertices.
+function _findInfluencingBone(skinnedMesh, face) {
+  if (!skinnedMesh.isSkinnedMesh || !skinnedMesh.skeleton || !face) return null;
+
+  const geometry = skinnedMesh.geometry;
+  const skinIndexAttr = geometry.getAttribute('skinIndex');
+  const skinWeightAttr = geometry.getAttribute('skinWeight');
+  if (!skinIndexAttr || !skinWeightAttr) return null;
+
+  // Accumulate bone weights across the 3 vertices of the hit face
+  const boneWeights = new Map();
+  const verts = [face.a, face.b, face.c];
+
+  for (const vi of verts) {
+    for (let j = 0; j < 4; j++) {
+      const boneIdx = skinIndexAttr.getX(vi * 4 + j);
+      const weight = skinWeightAttr.getX(vi * 4 + j);
+      if (weight > 0) {
+        boneWeights.set(boneIdx, (boneWeights.get(boneIdx) || 0) + weight);
+      }
     }
   }
-  return nearest;
+
+  // Pick the bone with the highest total weight
+  let bestBone = -1;
+  let bestWeight = 0;
+  for (const [idx, weight] of boneWeights) {
+    if (weight > bestWeight) {
+      bestWeight = weight;
+      bestBone = idx;
+    }
+  }
+
+  if (bestBone >= 0 && skinnedMesh.skeleton.bones[bestBone]) {
+    return skinnedMesh.skeleton.bones[bestBone];
+  }
+  return null;
 }
 
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
@@ -161,6 +186,7 @@ export function fireStickerAtNpc(origin, dir) {
     to: hit.point.clone(),
     normal: hit.normal,
     targetObject: hit.object,
+    face: hit.face,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -225,7 +251,7 @@ export function tickStickerNpc(dt) {
       // the sticker follow the animated surface.
       let parented = false;
       if (s.targetObject.isSkinnedMesh) {
-        const bone = _findNearestBone(s.targetObject, s.to);
+        const bone = _findInfluencingBone(s.targetObject, s.face);
         if (bone) {
           try {
             bone.updateMatrixWorld(true);

@@ -231,10 +231,13 @@ function _getSurfaceHitBone(surfaceHit) {
 
 function _addSurfaceDebugMarker(surfaceHit) {
   // DEBUG: red sphere at the real SkinnedMesh surface hit.
-  const rGeo = new THREE.SphereGeometry(0.02, 8, 6);
-  const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 1 });
+  // depthTest:false so it's ALWAYS visible (not hidden inside the mesh).
+  console.log('[sticker] surface hit point:', surfaceHit.point.toArray().map(v=>v.toFixed(3)));
+  const rGeo = new THREE.SphereGeometry(0.05, 8, 6);
+  const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8, depthTest: false });
   const rDbg = new THREE.Mesh(rGeo, rMat);
   rDbg.position.copy(surfaceHit.point);
+  rDbg.renderOrder = 999;
   rDbg.userData.isDebugMarker = true;
   rDbg.userData.life = 5.0;
   scene.add(rDbg);
@@ -460,10 +463,11 @@ export function tickStickerNpc(dt) {
         try {
           // DEBUG: green sphere at worldPos BEFORE bone.attach()
           const dbgGeo = new THREE.SphereGeometry(0.03, 8, 6);
-          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 1 });
+          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, depthTest: false });
           const dbg = new THREE.Mesh(dbgGeo, dbgMat);
           dbg.position.copy(worldPos);
           dbg.userData.isDebugMarker = true;
+          dbg.renderOrder = 999;
           dbg.userData.life = 5.0; // seconds
           scene.add(dbg);
 

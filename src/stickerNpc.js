@@ -43,10 +43,10 @@ const MAX_ATTACHED = 120;
 const ATTACHED_LIFETIME = 180;
 
 // Bone ball radius is 0.20 (generous for easy hit detection), but the mesh surface
-// is only ~0.08 from the bone center.  When a bone collider is hit, the sticker
-// must be placed near the mesh surface, not on the sphere surface.  We offset
-// the sticker inward from the hit point by this amount.
-const BONE_HIT_INWARD_OFFSET = 0.14; // 0.20 radius - 0.06 target surface distance
+// is closer to the bone center.  When a bone collider is hit, the sticker must be
+// placed near the mesh surface, not on the sphere surface.  We offset the sticker
+// inward from the hit point by this amount.  Tuned empirically.
+const BONE_HIT_INWARD_OFFSET = 0.19; // aggressive — if stickers disappear (inside mesh), reduce
 
 // Preload the texture.
 function _preloadTexture() {
@@ -168,21 +168,10 @@ export function fireStickerAtNpc(origin, dir) {
 
   let bonePoint = null, boneNormal = null, boneInfo = null;
   if (rawBoneHit?.bone) {
-    // Bone collider tells us WHICH character + WHICH bone was hit.
-    // Raycast the actual SkinnedMesh to find the real surface point.
-    const sm = rawBoneHit.bone.skinnedMesh;
-    const surfaceHit = _raycastSkinnedMesh(sm, origin, dirN);
-    console.log('[sticker] bone hit, skinnedMesh:', !!sm, 'surfaceHit:', !!surfaceHit,
-      'sm.matrixWorld scale:', sm ? sm.matrixWorld.elements[0] : 'N/A');
-    if (surfaceHit) {
-      bonePoint = surfaceHit.point;
-      boneNormal = surfaceHit.normal;
-    } else {
-      // SkinnedMesh raycast missed — fall back to collider hit point.
-      bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
-      boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
-      bonePoint.addScaledVector(boneNormal, -BONE_HIT_INWARD_OFFSET);
-    }
+    // Bone collider hit — offset inward from sphere surface toward mesh surface.
+    bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
+    boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
+    bonePoint.addScaledVector(boneNormal, -BONE_HIT_INWARD_OFFSET);
     boneInfo = rawBoneHit.bone;
   }
 
@@ -332,12 +321,11 @@ export function tickStickerNpc(dt) {
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true;
 
-      // Compute final world position: hit point + tiny z-fight offset.
-      // For bone hits, hitPoint is already on the SkinnedMesh surface.
+      // Compute final world position: hit point + small offset along normal
       const worldPos = s.to.clone();
-      worldPos.x += s.normal.x * 0.006;
-      worldPos.y += s.normal.y * 0.006;
-      worldPos.z += s.normal.z * 0.006;
+      worldPos.x += s.normal.x * 0.02;
+      worldPos.y += s.normal.y * 0.02;
+      worldPos.z += s.normal.z * 0.02;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);

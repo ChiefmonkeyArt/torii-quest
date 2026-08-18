@@ -46,7 +46,7 @@ const ATTACHED_LIFETIME = 180;
 // is closer to the bone center.  When a bone collider is hit, the sticker must be
 // placed near the mesh surface, not on the sphere surface.  We offset the sticker
 // inward from the hit point by this amount.  Tuned empirically.
-const BONE_HIT_INWARD_OFFSET = -0.1;
+const BONE_HIT_INWARD_OFFSET = 0.0;
 
 // Preload the texture.
 function _preloadTexture() {
@@ -333,15 +333,17 @@ export function tickStickerNpc(dt) {
       let parented = false;
 
       // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
-      // attach() converts the sticker's world transform to the bone's local
-      // space and parents it. The sticker then follows the bone's animation.
-      // No manual matrix math needed — this is what every game engine does
-      // (Unreal: AttachRootComponentToActor with KeepWorldPosition,
-      //  Unity: transform.parent = bone, Three.js: Object3D.attach()).
       if (s.bone) {
         try {
-          // Add to scene first with world transform, THEN attach to bone.
-          // attach() reads the world matrix to compute local space.
+          // DEBUG: green sphere at worldPos BEFORE bone.attach()
+          const dbgGeo = new THREE.SphereGeometry(0.03, 8, 6);
+          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 1 });
+          const dbg = new THREE.Mesh(dbgGeo, dbgMat);
+          dbg.position.copy(worldPos);
+          dbg.userData.isDebugMarker = true;
+          dbg.userData.life = 5.0; // seconds
+          scene.add(dbg);
+
           sticker.position.copy(worldPos);
           sticker.quaternion.copy(_quat);
           sticker.scale.setScalar(1.0);
@@ -351,7 +353,6 @@ export function tickStickerNpc(dt) {
           parented = true;
         } catch (e) {
           console.warn('[sticker] bone.attach failed:', e);
-          // Fall through to NPC root or static mesh parenting
         }
       }
 
@@ -445,6 +446,19 @@ export function tickStickerNpc(dt) {
     } else {
       if (a.life < 2.0) {
         a.mesh.material.opacity = a.life / 2.0;
+      }
+    }
+  }
+
+  // Clean up debug markers
+  for (let i = scene.children.length - 1; i >= 0; i--) {
+    const c = scene.children[i];
+    if (c.userData.isDebugMarker) {
+      c.userData.life -= dt;
+      if (c.userData.life <= 0) {
+        scene.remove(c);
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
       }
     }
   }

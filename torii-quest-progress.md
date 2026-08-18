@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.589-alpha** (PER-BONE STICKER COLLIDERS ON BOTS — extended to bots, castRay default excludes bone sensors. Prior - **v0.2.574-alpha** PER-BONE NPC STICKER COLLIDERS.)
+> Current version: **v0.2.590-alpha** (PER-BONE STICKER COLLIDERS ON BOTS — extended to bots, castRay default excludes bone sensors. Prior - **v0.2.574-alpha** PER-BONE NPC STICKER COLLIDERS.)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

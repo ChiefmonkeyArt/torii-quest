@@ -136,14 +136,20 @@ function _raycastScene(origin, dir) {
 // See: https://discourse.threejs.org/t/raycasters-not-working-with-blender-glb/22449
 function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
   if (!skinnedMesh) return null;
-  // Recompute bounding sphere so it fits the current animated pose.
-  skinnedMesh.computeBoundingSphere();
+  // Update bone world matrices FIRST, then compute bounding sphere.
   skinnedMesh.updateMatrixWorld(true);
+  if (skinnedMesh.skeleton) skinnedMesh.skeleton.update();
+  skinnedMesh.computeBoundingSphere();
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = 200;
   const hits = _raycaster.intersectObject(skinnedMesh, false);
+  console.log('[sticker] skinnedMesh raycast:', hits.length, 'hits |',
+    'bindMatrix is identity:', skinnedMesh.bindMatrix.elements[0] === 1 && skinnedMesh.bindMatrix.elements[5] === 1 && skinnedMesh.bindMatrix.elements[10] === 1,
+    '| bsphere center:', skinnedMesh.boundingSphere?.center.toArray().map(v=>v.toFixed(2)),
+    'radius:', skinnedMesh.boundingSphere?.radius.toFixed(2),
+    '| worldScale:', skinnedMesh.matrixWorld.elements[0].toFixed(4));
   if (hits.length > 0) {
     const hit = hits[0];
     if (hit.face) {

@@ -46,7 +46,7 @@ const ATTACHED_LIFETIME = 180;
 // is closer to the bone center.  When a bone collider is hit, the sticker must be
 // placed near the mesh surface, not on the sphere surface.  We offset the sticker
 // inward from the hit point by this amount.  Tuned empirically.
-const BONE_HIT_INWARD_OFFSET = 0.0000;
+const BONE_HIT_INWARD_OFFSET = -0.1;
 
 // Preload the texture.
 function _preloadTexture() {

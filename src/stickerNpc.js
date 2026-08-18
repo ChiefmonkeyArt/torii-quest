@@ -42,6 +42,12 @@ const FLIGHT_DURATION = 0.22;
 const MAX_ATTACHED = 120;
 const ATTACHED_LIFETIME = 180;
 
+// Bone ball radius is 0.20 (generous for easy hit detection), but the mesh surface
+// is only ~0.08 from the bone center.  When a bone collider is hit, the sticker
+// must be placed near the mesh surface, not on the sphere surface.  We offset
+// the sticker inward from the hit point by this amount.
+const BONE_HIT_INWARD_OFFSET = 0.14; // 0.20 radius - 0.06 target surface distance
+
 // Preload the texture.
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
@@ -274,8 +280,18 @@ export function tickStickerNpc(dt) {
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true;
 
-      // Compute final world position: hit point + small offset along normal
+      // Compute final world position: hit point + small offset along normal.
+      // For BONE hits: offset INWARD by BONE_HIT_INWARD_OFFSET to place the
+      // sticker near the mesh surface (bone ball radius is larger than the
+      // actual bone-to-mesh-surface distance).
       const worldPos = s.to.clone();
+      if (s.bone) {
+        // Bone hit: move inward from sphere surface toward mesh surface
+        worldPos.x -= s.normal.x * BONE_HIT_INWARD_OFFSET;
+        worldPos.y -= s.normal.y * BONE_HIT_INWARD_OFFSET;
+        worldPos.z -= s.normal.z * BONE_HIT_INWARD_OFFSET;
+      }
+      // Small outward offset so the sticker sits just above the surface
       worldPos.x += s.normal.x * 0.02;
       worldPos.y += s.normal.y * 0.02;
       worldPos.z += s.normal.z * 0.02;

@@ -275,21 +275,16 @@ export function tickStickerNpc(dt) {
 
               // Debug: log key values to diagnose
               const boneMat0 = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
-              const testPos = vertex.clone().applyMatrix4(boneMat0);
-              const testWorld = testPos.clone().applyMatrix4(skinnedMesh.matrixWorld);
-              console.log('[sticker] boneTrack setup:',
-                'bone:', bone.name, 'idx:', boneIndex,
-                'hitWorld:', worldPos.x.toFixed(2), worldPos.y.toFixed(2), worldPos.z.toFixed(2),
-                'vertex:', vertex.x.toFixed(2), vertex.y.toFixed(2), vertex.z.toFixed(2),
-                'testWorld:', testWorld.x.toFixed(2), testWorld.y.toFixed(2), testWorld.z.toFixed(2),
-                'bindMatIsI:', skinnedMesh.bindMatrix.elements[0] === 1 && skinnedMesh.bindMatrix.elements[5] === 1 && skinnedMesh.bindMatrix.elements[10] === 1 && skinnedMesh.bindMatrix.elements[12] === 0 && skinnedMesh.bindMatrix.elements[13] === 0 && skinnedMesh.bindMatrix.elements[14] === 0);
+
+              // Normal in mesh-local space
+              const bindNormal = _v3b.copy(s.normal).transformDirection(meshInverse);
 
               // Store vertex for per-frame updates
               sticker.userData.stickerBoneTrack = {
                 skinnedMesh,
                 boneIndex,
                 vertex: vertex.clone(),
-                bindNormal: s.normal.clone().transformDirection(meshInverse),
+                bindNormal: bindNormal.clone(),
               };
 
               // Set initial position: boneMat * vertex

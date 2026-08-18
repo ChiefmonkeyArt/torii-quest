@@ -93,6 +93,7 @@ let _currentAction = null;
 
 // v0.2.548: Expose NPC root for the sticker interaction system.
 export function getNpcRoot() { return _root; }
+export function getNpcSkinnedMesh() { return _skinnedMesh; }
 
 export function buildNapNpc() {
   if (_root) return;

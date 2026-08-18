@@ -23,6 +23,9 @@ const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _worldQuatInv = new THREE.Quaternion();
+const MAX_SKIN_BONES = 256;
+const _faceBoneTotals = new Float32Array(MAX_SKIN_BONES);
+const _faceBoneUsed = new Uint16Array(12);
 
 // Mesh cache — refreshed periodically to pick up newly loaded objects
 const _meshCache = [];
@@ -41,12 +44,6 @@ const ATTACHED_RATIO = 0.6;
 const FLIGHT_DURATION = 0.22;
 const MAX_ATTACHED = 120;
 const ATTACHED_LIFETIME = 180;
-
-// Bone ball radius is 0.20 (generous for easy hit detection), but the mesh surface
-// is closer to the bone center.  When a bone collider is hit, the sticker must be
-// placed near the mesh surface, not on the sphere surface.  We offset the sticker
-// inward from the hit point by this amount.  Tuned empirically.
-const BONE_HIT_INWARD_OFFSET = 0.0;
 
 // Preload the texture.
 function _preloadTexture() {
@@ -161,9 +158,86 @@ function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
     return {
       point: hit.point.clone(),
       normal: _normal.clone(),
+      object: hit.object,
+      face: hit.face,
+      faceIndex: hit.faceIndex,
     };
   }
   return null;
+}
+
+function _findSkinnedMesh(root) {
+  if (!root) return null;
+  let skinnedMesh = null;
+  root.traverse(o => {
+    if (o.isSkinnedMesh && !skinnedMesh) skinnedMesh = o;
+  });
+  return skinnedMesh;
+}
+
+function _getNpcSkinnedMesh() {
+  if (_npcSkinnedMesh) return _npcSkinnedMesh;
+  if (_getNpcSkinnedMeshFn) {
+    _npcSkinnedMesh = _getNpcSkinnedMeshFn();
+    if (_npcSkinnedMesh) return _npcSkinnedMesh;
+  }
+  _npcSkinnedMesh = _findSkinnedMesh(_npcRoot);
+  return _npcSkinnedMesh;
+}
+
+function _getAttributeComponent(attribute, index, component) {
+  if (component === 0) return attribute.getX(index);
+  if (component === 1) return attribute.getY(index);
+  if (component === 2) return attribute.getZ(index);
+  return attribute.getW(index);
+}
+
+// Derive the attachment bone from the three hit-face vertices. This is only used
+// when the broad bone-ball query missed, so surface placement never depends on it.
+function _getSurfaceHitBone(surfaceHit) {
+  const object = surfaceHit?.object;
+  const face = surfaceHit?.face;
+  const skeleton = object?.skeleton;
+  const geometry = object?.geometry;
+  const skinIndex = geometry?.getAttribute('skinIndex');
+  const skinWeight = geometry?.getAttribute('skinWeight');
+  if (!face || !skeleton || !skinIndex || !skinWeight) return null;
+
+  let usedCount = 0;
+  for (let vertex = 0; vertex < 3; vertex++) {
+    const vertexIndex = vertex === 0 ? face.a : (vertex === 1 ? face.b : face.c);
+    for (let component = 0; component < 4; component++) {
+      const boneIndex = _getAttributeComponent(skinIndex, vertexIndex, component);
+      const weight = _getAttributeComponent(skinWeight, vertexIndex, component);
+      if (weight <= 0 || boneIndex < 0 || boneIndex >= skeleton.bones.length || boneIndex >= MAX_SKIN_BONES) continue;
+      if (_faceBoneTotals[boneIndex] === 0) _faceBoneUsed[usedCount++] = boneIndex;
+      _faceBoneTotals[boneIndex] += weight;
+    }
+  }
+
+  let bestIndex = -1;
+  let bestWeight = -1;
+  for (let i = 0; i < usedCount; i++) {
+    const boneIndex = _faceBoneUsed[i];
+    const weight = _faceBoneTotals[boneIndex];
+    if (weight > bestWeight) {
+      bestWeight = weight;
+      bestIndex = boneIndex;
+    }
+    _faceBoneTotals[boneIndex] = 0;
+  }
+  return bestIndex >= 0 ? skeleton.bones[bestIndex] || null : null;
+}
+
+function _addSurfaceDebugMarker(surfaceHit) {
+  // DEBUG: red sphere at the real SkinnedMesh surface hit.
+  const rGeo = new THREE.SphereGeometry(0.02, 8, 6);
+  const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 1 });
+  const rDbg = new THREE.Mesh(rGeo, rMat);
+  rDbg.position.copy(surfaceHit.point);
+  rDbg.userData.isDebugMarker = true;
+  rDbg.userData.life = 5.0;
+  scene.add(rDbg);
 }
 
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
@@ -182,32 +256,25 @@ export function fireStickerAtNpc(origin, dir) {
     200, null, c => colliderToBone.has(c.handle)
   );
 
-  let bonePoint = null, boneNormal = null, boneInfo = null;
-  if (rawBoneHit?.bone) {
-    console.log('[sticker] BONE HIT! bone:', rawBoneHit.bone.bone?.name, 'sm:', !!rawBoneHit.bone.skinnedMesh);
-    // Bone collider tells us WHICH character + WHICH bone was hit.
-    // Raycast the actual SkinnedMesh to find the real surface point.
-    const sm = rawBoneHit.bone.skinnedMesh;
-    const surfaceHit = _raycastSkinnedMesh(sm, origin, dirN);
-    if (surfaceHit) {
-      bonePoint = surfaceHit.point;
-      boneNormal = surfaceHit.normal;
-      // DEBUG: red sphere at SkinnedMesh surface hit
-      const rGeo = new THREE.SphereGeometry(0.02, 8, 6);
-      const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 1 });
-      const rDbg = new THREE.Mesh(rGeo, rMat);
-      rDbg.position.copy(bonePoint);
-      rDbg.userData.isDebugMarker = true;
-      rDbg.userData.life = 5.0;
-      scene.add(rDbg);
-    } else {
-      // SkinnedMesh raycast missed — fall back to collider hit point.
-      bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
-      boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
-      bonePoint.addScaledVector(boneNormal, BONE_HIT_INWARD_OFFSET);
-    }
-    boneInfo = rawBoneHit.bone;
+  console.log('[sticker] fire', rawBoneHit?.bone ? 'hit' : 'miss');
+
+  const boneInfo = rawBoneHit?.bone || null;
+  if (boneInfo?.npcRoot) {
+    _npcRoot = boneInfo.npcRoot;
+    if (boneInfo.skinnedMesh) _npcSkinnedMesh = boneInfo.skinnedMesh;
   }
+  const npcSkinnedMesh = _getNpcSkinnedMesh();
+  // The surface ray is authoritative and runs on every fire, even if the
+  // generous per-bone ball query misses.
+  const npcSurface = _raycastSkinnedMesh(npcSkinnedMesh, origin, dirN);
+  if (npcSurface) _addSurfaceDebugMarker(npcSurface);
+
+  // Bot bone sensors still need a surface point, but never fall back to their
+  // collider point. NPC sensors reuse the independently resolved NPC surface.
+  const boneSurface = boneInfo?.skinnedMesh === npcSkinnedMesh
+    ? npcSurface
+    : _raycastSkinnedMesh(boneInfo?.skinnedMesh, origin, dirN);
+  if (boneSurface && boneSurface !== npcSurface) _addSurfaceDebugMarker(boneSurface);
 
   // ── Step 1b: Rapier raycast for broad NPC capsule + bots + crates ──
   // Excludes bone colliders so we get the broad capsule hit independently.
@@ -221,50 +288,65 @@ export function fireStickerAtNpc(origin, dir) {
   const meshHit = _raycastScene(origin, dirN);
 
   // ── Step 3: Pick the closest hit ──
-  // Bone hit wins over same entity's broad capsule — broad is fallback only
-  // when no bone was hit for that entity.  A closer blocker from a DIFFERENT
-  // entity (or static mesh) still wins over a farther bone hit.
+  // Surface hits only: collider hits identify an entity/bone but never supply
+  // a placement point. A closer static mesh can still win over an NPC surface.
   let hitPoint, hitNormal;
   let npcRoot = null, meshObj = null, bone = null, bot = null;
   let bestDist = Infinity;
 
-  if (boneInfo) {
-    const d = bonePoint.distanceTo(origin);
+  if (npcSurface && _npcRoot) {
+    const d = npcSurface.point.distanceTo(origin);
     bestDist = d;
-    hitPoint = bonePoint;
-    hitNormal = boneNormal;
-    bone = boneInfo.bone;       // the Three.js Bone Object3D
-    npcRoot = boneInfo.npcRoot || null; // NPC root for gesture trigger
-    bot = boneInfo.bot || null;        // bot ref (v0.2.575)
+    hitPoint = npcSurface.point;
+    hitNormal = npcSurface.normal;
+    bone = boneInfo?.npcRoot === _npcRoot && boneInfo.bone
+      ? boneInfo.bone
+      : _getSurfaceHitBone(npcSurface);
+    npcRoot = _npcRoot;
   }
 
-  // Broad capsule hit — skip if it's the SAME entity as the bone hit.
+  if (boneInfo?.bot && boneSurface) {
+    const d = boneSurface.point.distanceTo(origin);
+    if (d < bestDist) {
+      bestDist = d;
+      hitPoint = boneSurface.point;
+      hitNormal = boneSurface.normal;
+      bone = boneInfo.bone || _getSurfaceHitBone(boneSurface);
+      npcRoot = null;
+      bot = boneInfo.bot;
+    }
+  }
+
+  // Broad capsule hit — it may identify a bot or an NPC that was not yet
+  // cached, but it only counts when the real skinned surface also intersects.
   if (rapierHit && (rapierHit.npc || rapierHit.bot)) {
-    const sameEntity = boneInfo &&
-      (boneInfo.npcRoot === rapierHit.npc || boneInfo.bot === rapierHit.bot);
-    if (!sameEntity) {
-      // Try to find the SkinnedMesh for surface raycasting.
-      let broadSkinnedMesh = null;
-      if (rapierHit.bot?.model?.skinnedMesh) broadSkinnedMesh = rapierHit.bot.model.skinnedMesh;
-      else if (rapierHit.npc) {
-        // NPC: traverse for SkinnedMesh (cached after first find).
-        rapierHit.npc.traverse(o => { if (o.isSkinnedMesh && !broadSkinnedMesh) broadSkinnedMesh = o; });
-      }
-      const broadSurface = broadSkinnedMesh ? _raycastSkinnedMesh(broadSkinnedMesh, origin, dirN) : null;
-      const rp = broadSurface
-        ? broadSurface.point
-        : new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
-      const rn = broadSurface
-        ? broadSurface.normal
-        : new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
-      const d = rp.distanceTo(origin);
+    let broadSkinnedMesh = null;
+    let broadSurface = null;
+    if (rapierHit.bot?.model?.skinnedMesh) {
+      broadSkinnedMesh = rapierHit.bot.model.skinnedMesh;
+    } else if (rapierHit.npc) {
+      broadSkinnedMesh = rapierHit.npc === _npcRoot
+        ? npcSkinnedMesh
+        : _findSkinnedMesh(rapierHit.npc);
+    }
+    if (broadSkinnedMesh) {
+      broadSurface = broadSkinnedMesh === npcSkinnedMesh
+        ? npcSurface
+        : _raycastSkinnedMesh(broadSkinnedMesh, origin, dirN);
+    }
+    if (broadSurface) {
+      if (broadSurface !== npcSurface && broadSurface !== boneSurface) _addSurfaceDebugMarker(broadSurface);
+      const d = broadSurface.point.distanceTo(origin);
       if (d < bestDist) {
         bestDist = d;
-        hitPoint = rp;
-        hitNormal = rn;
+        hitPoint = broadSurface.point;
+        hitNormal = broadSurface.normal;
         npcRoot = rapierHit.npc || null;
         bot = rapierHit.bot || null;
-        bone = null; // broad capsule hit — no specific bone
+        bone = boneInfo?.bone &&
+          (boneInfo.npcRoot === rapierHit.npc || boneInfo.bot === rapierHit.bot)
+          ? boneInfo.bone
+          : _getSurfaceHitBone(broadSurface);
       }
     }
   }
@@ -320,7 +402,13 @@ export function tickStickerNpc(dt) {
   if (!_npcRoot) _pollNpcRoot();
   if (!_npcRoot && _getNpcRootFn) {
     const r = _getNpcRootFn();
-    if (r) _npcRoot = r;
+    if (r) {
+      if (_npcRoot !== r) _npcSkinnedMesh = null;
+      _npcRoot = r;
+    }
+  }
+  if (!_npcSkinnedMesh && _getNpcSkinnedMeshFn) {
+    _npcSkinnedMesh = _getNpcSkinnedMeshFn();
   }
 
   // Update flying stickers
@@ -501,16 +589,22 @@ export function tickStickerNpc(dt) {
 
 // NPC root ref (for gesture trigger detection)
 let _npcRoot = null;
+let _npcSkinnedMesh = null;
 let _getNpcRootFn = null;
+let _getNpcSkinnedMeshFn = null;
 let _npcImportStarted = false;
 
-export function setNpcRoot(root) { _npcRoot = root; }
+export function setNpcRoot(root) {
+  if (_npcRoot !== root) _npcSkinnedMesh = null;
+  _npcRoot = root;
+}
 
 function _pollNpcRoot() {
   if (_npcImportStarted) return;
   _npcImportStarted = true;
-  import('./napNpc.js').then(({ getNpcRoot }) => {
+  import('./napNpc.js').then(({ getNpcRoot, getNpcSkinnedMesh }) => {
     _getNpcRootFn = getNpcRoot;
+    _getNpcSkinnedMeshFn = getNpcSkinnedMesh;
   });
 }
 

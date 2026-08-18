@@ -14,6 +14,7 @@ let _texture = null;
 let _textureLoading = false;
 let _stickers = [];      // active flying stickers
 let _attached = [];      // stickers stuck on surfaces
+const _debugMarkers = []; // debug spheres (may be parented to bones)
 
 // Reusable raycaster + scratch vectors (constraint [4]: no new in hot paths)
 const _raycaster = new THREE.Raycaster();
@@ -241,6 +242,7 @@ function _addSurfaceDebugMarker(surfaceHit) {
   rDbg.userData.isDebugMarker = true;
   rDbg.userData.life = 5.0;
   scene.add(rDbg);
+  _debugMarkers.push(rDbg);
 }
 
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
@@ -459,19 +461,9 @@ export function tickStickerNpc(dt) {
       let parented = false;
 
       // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
-      console.log('[sticker] land: bone=', s.bone?.name || 'NULL', 'npcRoot=', !!s.npcRoot, 'bot=', !!s.bot, 'meshObj=', !!s.meshObj);
+      console.log('[sticker] land: bone=', s.bone?.name || 'NULL', 'npcRoot=', !!s.npcRoot, 'bot=', !!s.bot, 'meshObj=', s.meshObj?.name || s.meshObj?.type || 'none');
       if (s.bone) {
         try {
-          // DEBUG: green sphere at worldPos BEFORE bone.attach()
-          const dbgGeo = new THREE.SphereGeometry(0.03, 8, 6);
-          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, depthTest: false });
-          const dbg = new THREE.Mesh(dbgGeo, dbgMat);
-          dbg.position.copy(worldPos);
-          dbg.userData.isDebugMarker = true;
-          dbg.renderOrder = 999;
-          dbg.userData.life = 5.0; // seconds
-          scene.add(dbg);
-
           sticker.position.copy(worldPos);
           sticker.quaternion.copy(_quat);
           sticker.scale.setScalar(1.0);
@@ -479,7 +471,28 @@ export function tickStickerNpc(dt) {
           sticker.updateMatrixWorld(true);
           s.bone.attach(sticker);
           parented = true;
-          console.log('[sticker] attached to bone:', s.bone.name, 'worldPos after attach:', sticker.getWorldPosition(new THREE.Vector3()).toArray().map(v=>v.toFixed(3)));
+
+          // DEBUG: green sphere attached to the SAME BONE — if this follows
+          // the NPC, bone parenting works in-game. If it stays fixed, the
+          // bone itself is not moving in the scene graph.
+          const dbgGeo = new THREE.SphereGeometry(0.05, 8, 6);
+          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, depthTest: false });
+          const dbg = new THREE.Mesh(dbgGeo, dbgMat);
+          dbg.position.copy(worldPos);
+          dbg.renderOrder = 999;
+          scene.add(dbg);
+          dbg.updateMatrixWorld(true);
+          s.bone.attach(dbg);
+          dbg.userData.isDebugMarker = true;
+          dbg.userData.life = 8.0; // seconds
+          _debugMarkers.push(dbg);
+
+          console.log('[sticker] attached to bone:', s.bone.name,
+            'worldPos:', sticker.getWorldPosition(new THREE.Vector3()).toArray().map(v=>v.toFixed(3)),
+            'localPos:', sticker.position.toArray().map(v=>v.toFixed(2)),
+            'localScale:', sticker.scale.toArray().map(v=>v.toFixed(1)),
+            'parentIsBone:', sticker.parent === s.bone,
+            'boneInScene:', (() => { let o = s.bone; while (o.parent) o = o.parent; return o === scene || o.type === 'Scene'; })());
         } catch (e) {
           console.warn('[sticker] bone.attach failed:', e);
         }
@@ -579,16 +592,15 @@ export function tickStickerNpc(dt) {
     }
   }
 
-  // Clean up debug markers
-  for (let i = scene.children.length - 1; i >= 0; i--) {
-    const c = scene.children[i];
-    if (c.userData.isDebugMarker) {
-      c.userData.life -= dt;
-      if (c.userData.life <= 0) {
-        scene.remove(c);
-        if (c.geometry) c.geometry.dispose();
-        if (c.material) c.material.dispose();
-      }
+  // Clean up debug markers (wherever they are parented)
+  for (let i = _debugMarkers.length - 1; i >= 0; i--) {
+    const c = _debugMarkers[i];
+    c.userData.life -= dt;
+    if (c.userData.life <= 0) {
+      if (c.parent) c.parent.remove(c);
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+      _debugMarkers.splice(i, 1);
     }
   }
 }

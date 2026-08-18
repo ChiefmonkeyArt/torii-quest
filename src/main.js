@@ -262,7 +262,7 @@ async function _gwTravel(world) {
   renderGatewayCard();
 }
 async function _gwAccept() {
-  await _handshake.respondIncoming(true, { spawn: 'https://quest-torii.pplx.app' });
+  await _handshake.respondIncoming(true, { spawn: window.location.origin + window.location.pathname });
   renderGatewayCard();
 }
 async function _gwDeny() {
@@ -278,7 +278,7 @@ function _executeJump() {
   const snap = _handshake.snapshot();
   const armed = snap && snap.armed;
   if (!armed) { renderGatewayCard(); return; }
-  const spawn = armed.spawn || 'https://quest-torii.pplx.app';
+  const spawn = armed.spawn || (window.location.origin + window.location.pathname);
   const hardened = hardenSpawnUrl(spawn);
   if (!hardened.ok) {
     _handshake.clearArmed();
@@ -460,7 +460,7 @@ async function publishOurWorldPresence() {
     zoneId: 'quest-torii',
     title: 'Torii Quest',
     zoneType: 'arena',
-    website: 'https://quest-torii.pplx.app',
+    website: window.location.origin + window.location.pathname,
     relays: RELAYS,
   });
   if (!built.ok) return;
@@ -1526,7 +1526,7 @@ function startPreloading() {
 }
 requestAnimationFrame(() => requestAnimationFrame(startPreloading));
 
-// ── n2n gateway preflight (v0.2.600) ──────────────────────────────────────────
+// ── n2n gateway preflight (v0.2.601) ──────────────────────────────────────────
 // Exposes a live diagnostic snapshot so the user can verify the node2node jump
 // is configured correctly before testing. Open the browser console and run:
 //   ToriiDebug.gateway()
@@ -1537,7 +1537,7 @@ if (typeof window !== 'undefined') {
   window.ToriiDebug.gateway = () => {
     const snap = _handshake.snapshot();
     const armed = snap && snap.armed;
-    const spawn = armed?.spawn || 'https://quest-torii.pplx.app';
+    const spawn = armed?.spawn || (window.location.origin + window.location.pathname);
     const hardened = hardenSpawnUrl(spawn);
     const incoming = readArrivingTraveller(window.location?.href || '');
     const view = _handshake.view();

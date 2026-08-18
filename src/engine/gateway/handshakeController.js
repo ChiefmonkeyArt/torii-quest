@@ -49,6 +49,12 @@ export function createHandshakeController(opts = {}) {
   // keyed by traveller pubkey. On arrival (admitArrival) we re-run verifyArrival
   // against the stored signed request before seating the arriving npub.
   const _acceptedTravellers = new Map(); // travellerPubkey → sanitised signed request
+  // Dismissed request event IDs — once denied, a stale relay copy must not
+  // re-surface on the next tick.
+  const _dismissedIds = new Set();
+  // Max age (seconds) for an incoming request to be considered live. Older
+  // requests are stale relay residue and should not surface.
+  const REQUEST_MAX_AGE_S = 600; // 10 minutes
   let _lastError = null;
   let _busy = false; // guards against re-entrant ticks
 
@@ -125,7 +131,7 @@ export function createHandshakeController(opts = {}) {
       hostPubkey: _ourPubkey,
       request: _incoming,
       accepted: accepted === true,
-      spawn: accepted ? (extra.spawn || 'https://quest-torii.pplx.app') : null,
+      spawn: accepted ? (extra.spawn || window.location.origin + window.location.pathname) : null,
       relays: _relays,
     });
     if (!built.ok) { _lastError = 'build-failed'; return { ok: false, error: _lastError }; }
@@ -138,6 +144,7 @@ export function createHandshakeController(opts = {}) {
     // Record the crypto-verified accepted traveller so admitArrival can re-verify
     // and seat them when their browser lands on our spawn URL.
     if (accepted === true) _acceptedTravellers.set(_incoming.travellerPubkey, _incoming);
+    if (_incoming.eventId) _dismissedIds.add(_incoming.eventId);
     _incoming = null;
     return { ok: true, error: null };
   }
@@ -200,11 +207,17 @@ export function createHandshakeController(opts = {}) {
 
       const reqs = readTravelRequests(events);
       if (reqs.count) {
-        // Newest incoming request addressed to us as host.
+        const nowS = Math.floor(Date.now() / 1000);
+        // Newest incoming request addressed to us as host. Skip dismissed
+        // events (denied) and stale events (older than REQUEST_MAX_AGE_S).
         let newest = _incoming;
         for (const r of reqs.requests) {
+          if (r.eventId && _dismissedIds.has(r.eventId)) continue;
+          if (r.created_at && (nowS - r.created_at) > REQUEST_MAX_AGE_S) continue;
           if (!newest || (r.created_at || 0) >= (newest.created_at || 0)) newest = r;
         }
+        // If the current _incoming is now stale, clear it.
+        if (newest && newest.created_at && (nowS - newest.created_at) > REQUEST_MAX_AGE_S) newest = null;
         _incoming = newest;
       }
 

@@ -179,6 +179,38 @@ export function createHeightfield(nrows, ncols, heights, scaleX, scaleY, scaleZ,
   _world.createCollider(desc);
 }
 
+// Collider → NPC root map. Used by the sticker raycast to translate a Rapier
+// hit on the NPC capsule back to the Three.js NPC root object for parenting.
+export const colliderToNpc = new Map();
+
+// NPC capsule — sensor collider (no physical collision, only raycast target).
+// Matches the Chiefmonkey body: ~1.7m tall, ~0.3m radius. Centre at ~0.9m.
+export const NPC_CAPSULE_HALF_H = 0.55;
+export const NPC_CAPSULE_RADIUS = 0.30;
+export const NPC_CAPSULE_CENTRE_Y = NPC_CAPSULE_HALF_H + NPC_CAPSULE_RADIUS; // ~0.85
+
+export function createNpcCollider(npcRoot, x, y, z) {
+  if (!_world) return null;
+  const body = _world.createRigidBody(
+    _RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
+  );
+  const collider = _world.createCollider(
+    _RAPIER.ColliderDesc.capsule(NPC_CAPSULE_HALF_H, NPC_CAPSULE_RADIUS)
+      .setSensor(true),
+    body
+  );
+  colliderToNpc.set(collider.handle, npcRoot);
+  return { body, collider };
+}
+
+export function setNpcColliderPos(body, x, y, z) {
+  if (body) body.setNextKinematicTranslation({ x, y, z });
+}
+
+export function getNpcForColliderHandle(h) {
+  return colliderToNpc.get(h) || null;
+}
+
 // Dynamic crate — physics-driven cuboid that bullets and players can shove.
 export function createDynamicCrate(x, y, z, half) {
   if (!_world) return null;

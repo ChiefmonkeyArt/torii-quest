@@ -9,10 +9,12 @@ import { scene } from './scene.js';
 import { sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand, NAP_BBOX } from './terrain/tomoeShape.js';
 import { assetUrl } from './assetUrl.js';
+import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y } from './physics.js';
 
 let _root   = null;
 let _mixer  = null;
 let _minY   = 0;             // geometry feet offset
+let _npcColliderBody = null;  // Rapier kinematic body for sticker raycasting
 let _gestureClips = [];     // clips from chiefmonkey-npc-animations.glb
 let _walkClip = null;       // walk clip from the model GLB
 let _idleClip = null;       // idle clip from the model GLB
@@ -127,6 +129,10 @@ export function buildNapNpc() {
     _root.rotation.y = 0;
     scene.add(_root);
 
+    // Create Rapier sensor collider for sticker raycasting
+    _npcColliderBody = createNpcCollider(_root,
+      _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
+
     _mixer = new THREE.AnimationMixer(_root);
 
     // Extract clips from model
@@ -167,6 +173,12 @@ export function tickNapNpc(dt) {
   if (!_mixer || !_root) return;
   _clock += dt;
   _mixer.update(dt);
+
+  // Sync Rapier collider to NPC root position
+  if (_npcColliderBody) {
+    setNpcColliderPos(_npcColliderBody.body,
+      _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
+  }
 
   if (_state === 'walk' && _target) {
     const pos = _root.position;

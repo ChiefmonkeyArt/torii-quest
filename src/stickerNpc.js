@@ -1,10 +1,14 @@
 // stickerNpc.js — FTFF sticker projectile system.
-// Stickers fire from the gun and stick to any mesh surface in the scene
-// (NPC, trees, crates, terrain, bots, torii gate, etc.) using a Three.js
-// Raycaster against collected Mesh objects only (avoids Sprite crash).
+// Stickers fire from the gun and stick to any surface in the scene.
+// For the NPC: uses Rapier raycasting against a sensor capsule collider
+// (hits the actual NPC position, not the bind-pose ghost mesh).
+// For static objects (trees, crates): uses Three.js raycaster against meshes.
+// Stickers on the NPC are parented to the NPC root — they follow the NPC's
+// walking and turning. No bone-matrix tracking needed.
 import * as THREE from 'three';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
+import { castRay } from './physics.js';
 
 let _texture = null;
 let _textureLoading = false;
@@ -18,16 +22,7 @@ const _rayDir = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _zAxis = new THREE.Vector3(0, 0, 1);
-const _bonePos = new THREE.Vector3();
 const _worldQuatInv = new THREE.Quaternion();
-
-// Scratch matrices for per-frame bone tracking (constraint [4])
-const _m4a = new THREE.Matrix4();
-const _m4b = new THREE.Matrix4();
-const _m4c = new THREE.Matrix4();
-const _v3a = new THREE.Vector3();
-const _v3b = new THREE.Vector3();
-const _v3c = new THREE.Vector3();
 
 // Mesh cache — refreshed periodically to pick up newly loaded objects
 const _meshCache = [];
@@ -71,6 +66,8 @@ function _isExcluded(obj) {
   while (o) {
     if (o.name && EXCLUDE_NAMES.has(o.name)) return true;
     if (o.name === 'fps-body' || o.name === 'player-model') return true;
+    // Skip NPC meshes — handled by Rapier capsule, not Three.js raycaster
+    if (_npcRoot && o === _npcRoot) return true;
     o = o.parent;
   }
   return false;
@@ -90,12 +87,11 @@ function _getMeshes() {
       }
     });
     _meshCacheTime = now;
-  
   }
   return _meshCache;
 }
 
-// Find the nearest mesh surface hit by a ray from origin in direction dir.
+// Three.js raycast for static meshes (trees, crates, terrain).
 function _raycastScene(origin, dir) {
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
@@ -121,58 +117,46 @@ function _raycastScene(origin, dir) {
   return null;
 }
 
-// Find the bone that controls the hit vertex using skinIndex/skinWeight.
-// This is the correct way: the skinIndex attribute tells exactly which
-// bone(s) influence each vertex. We pick the highest-weighted bone across
-// the hit triangle's 3 vertices.
-function _findInfluencingBone(skinnedMesh, face) {
-  if (!skinnedMesh.isSkinnedMesh || !skinnedMesh.skeleton || !face) return null;
-
-  const geometry = skinnedMesh.geometry;
-  const skinIndexAttr = geometry.getAttribute('skinIndex');
-  const skinWeightAttr = geometry.getAttribute('skinWeight');
-  if (!skinIndexAttr || !skinWeightAttr) return null;
-
-  // Accumulate bone weights across the 3 vertices of the hit face
-  const boneWeights = new Map();
-  const verts = [face.a, face.b, face.c];
-
-  for (const vi of verts) {
-    for (let j = 0; j < 4; j++) {
-      const boneIdx = skinIndexAttr.getComponent(vi, j);
-      const weight = skinWeightAttr.getComponent(vi, j);
-      if (weight > 0) {
-        boneWeights.set(boneIdx, (boneWeights.get(boneIdx) || 0) + weight);
-      }
-    }
-  }
-
-  // Pick the bone with the highest total weight
-  let bestBone = -1;
-  let bestWeight = 0;
-  for (const [idx, weight] of boneWeights) {
-    if (weight > bestWeight) {
-      bestWeight = weight;
-      bestBone = idx;
-    }
-  }
-
-  if (bestBone >= 0 && skinnedMesh.skeleton.bones[bestBone]) {
-    return skinnedMesh.skeleton.bones[bestBone];
-  }
-  return null;
-}
-
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
 export function fireStickerAtNpc(origin, dir) {
   _preloadTexture();
 
-  const hit = _raycastScene(origin, dir);
-  if (!hit) {
-  
+  const dirN = dir.clone().normalize();
+
+  // ── Step 1: Rapier raycast for NPC (hits actual physics capsule) ──
+  const rapierHit = castRay(
+    origin.x, origin.y, origin.z,
+    dirN.x, dirN.y, dirN.z,
+    200, null, null
+  );
+
+  // ── Step 2: Three.js raycast for static meshes (trees, crates, terrain) ──
+  const meshHit = _raycastScene(origin, dirN);
+
+  // ── Step 3: Pick the closest hit ──
+  let hitPoint, hitNormal, npcRoot = null, meshObj = null;
+
+  if (rapierHit && rapierHit.npc) {
+    // NPC hit via Rapier — use this hit
+    hitPoint = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
+    hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
+    npcRoot = rapierHit.npc;
+
+    // If the mesh hit is closer, prefer it (e.g. a tree between player and NPC)
+    if (meshHit && meshHit.point.distanceTo(origin) < hitPoint.distanceTo(origin)) {
+      hitPoint = meshHit.point;
+      hitNormal = meshHit.normal;
+      meshObj = meshHit.object;
+      npcRoot = null;
+    }
+  } else if (meshHit) {
+    hitPoint = meshHit.point;
+    hitNormal = meshHit.normal;
+    meshObj = meshHit.object;
+  } else {
+    // No hit at all
     return false;
   }
-
 
   // Flying sticker: always visible (texture or pink fallback)
   const mat = new THREE.SpriteMaterial({
@@ -191,10 +175,10 @@ export function fireStickerAtNpc(origin, dir) {
   _stickers.push({
     sprite,
     from: origin.clone(),
-    to: hit.point.clone(),
-    normal: hit.normal,
-    targetObject: hit.object,
-    face: hit.face,
+    to: hitPoint.clone(),
+    normal: hitNormal.clone(),
+    npcRoot,
+    meshObj,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -227,7 +211,7 @@ export function tickStickerNpc(dt) {
       if (s.sprite.material) s.sprite.material.dispose();
       _stickers.splice(i, 1);
 
-      // Create attached sticker — use texture if available, else pink fallback
+      // Create attached sticker
       const mat = new THREE.MeshBasicMaterial({
         map: _texture || null,
         color: _texture ? 0xffffff : 0xff00ff,
@@ -241,81 +225,45 @@ export function tickStickerNpc(dt) {
       });
       const geo = new THREE.PlaneGeometry(ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO);
       const sticker = new THREE.Mesh(geo, mat);
-      sticker.userData.isSticker = true; // exclude from raycast cache
+      sticker.userData.isSticker = true;
 
       // Compute final world position: hit point + small offset along normal
       const worldPos = s.to.clone();
-      worldPos.x += s.normal.x * 0.01;
-      worldPos.y += s.normal.y * 0.01;
-      worldPos.z += s.normal.z * 0.01;
+      worldPos.x += s.normal.x * 0.02;
+      worldPos.y += s.normal.y * 0.02;
+      worldPos.z += s.normal.z * 0.02;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);
 
-      // ── Per-frame bone-matrix tracking for SkinnedMesh (NPC, bots, players) ──
-      // The vertex shader computes: bindMatrixInverse * boneMatrices[i] * bindMatrix * vertex
-      // We replicate this each frame so stickers track the deforming mesh surface.
       let parented = false;
-      if (s.targetObject.isSkinnedMesh && s.face) {
-        const bone = _findInfluencingBone(s.targetObject, s.face);
-        if (bone) {
-          const skinnedMesh = s.targetObject;
-          const boneIndex = skinnedMesh.skeleton.bones.indexOf(bone);
-          if (boneIndex >= 0) {
-            try {
-              // Simplified approach: the raycaster hits the bind-pose mesh.
-              // vertex = meshInverse * hitPoint (bind-pose geometry vertex)
-              // Each frame: sticker.position = boneMat * vertex (replicates shader)
-              // This works when bindMatrix = identity (common for GLTF-loaded meshes).
-              skinnedMesh.updateMatrixWorld(true);
-              skinnedMesh.skeleton.update();
 
-              const meshInverse = _m4a.copy(skinnedMesh.matrixWorld).invert();
-              const vertex = _v3a.copy(worldPos).applyMatrix4(meshInverse);
-
-              // Debug: log key values to diagnose
-              const boneMat0 = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
-
-              // Normal in mesh-local space
-              const bindNormal = _v3b.copy(s.normal).transformDirection(meshInverse);
-
-              // Store vertex for per-frame updates
-              sticker.userData.stickerBoneTrack = {
-                skinnedMesh,
-                boneIndex,
-                vertex: vertex.clone(),
-                bindNormal: bindNormal.clone(),
-              };
-
-              // Set initial position: boneMat * vertex
-              _m4a.copy(boneMat0);
-              sticker.position.copy(vertex).applyMatrix4(_m4a);
-
-              // Set initial orientation
-              const currentNormal = _v3c.copy(bindNormal).transformDirection(_m4a);
-              _quat.setFromUnitVectors(_zAxis, currentNormal);
-              sticker.quaternion.copy(_quat);
-
-              // Scale: compensate for SkinnedMesh world scale (0.01 from NPC root)
-              const meshScale = new THREE.Vector3();
-              skinnedMesh.getWorldScale(meshScale);
-              if (meshScale.x > 0.001 && meshScale.y > 0.001 && meshScale.z > 0.001) {
-                sticker.scale.set(1 / meshScale.x, 1 / meshScale.y, 1 / meshScale.z);
-              }
-
-              skinnedMesh.add(sticker);
-              parented = true;
-            } catch (e) {
-              console.warn('[sticker] bone tracking setup failed:', e);
-            }
-          }
+      // ── NPC: parent to NPC root ──
+      // The Rapier capsule gave us the hit point in world space.
+      // Convert to NPC-root-local space and parent. The sticker follows
+      // the NPC's walking and turning. No bone tracking needed.
+      if (s.npcRoot) {
+        try {
+          s.npcRoot.updateMatrixWorld(true);
+          const localPos = worldPos.clone();
+          s.npcRoot.worldToLocal(localPos);
+          sticker.position.copy(localPos);
+          sticker.quaternion.copy(_quat);
+          // Adjust orientation to match NPC root rotation
+          s.npcRoot.getWorldQuaternion(_worldQuatInv).invert();
+          sticker.quaternion.premultiply(_worldQuatInv);
+          sticker.scale.setScalar(1.0);
+          s.npcRoot.add(sticker);
+          parented = true;
+        } catch (e) {
+          console.warn('[sticker] NPC root parenting failed:', e);
         }
       }
 
-      // ── Direct mesh parenting for static/rotating objects (trees, SATS, crates) ──
-      if (!parented && s.targetObject.parent) {
+      // ── Static mesh parenting (trees, crates, etc.) ──
+      if (!parented && s.meshObj && s.meshObj.parent) {
         try {
-          const target = s.targetObject;
+          const target = s.meshObj;
           target.updateMatrixWorld(true);
           const localPos = worldPos.clone();
           target.worldToLocal(localPos);
@@ -342,25 +290,16 @@ export function tickStickerNpc(dt) {
         if (old.mesh.material) old.mesh.material.dispose();
       }
 
-      // Trigger NPC gesture if hit object is the NPC
-      if (s.targetObject) {
-        let isNpc = false;
-        let o = s.targetObject;
-        while (o) {
-          if (o === _npcRoot) { isNpc = true; break; }
-          o = o.parent;
-        }
-        if (isNpc) {
-
-          import('./napNpc.js').then(({ triggerNpcGesture }) => {
-            if (triggerNpcGesture) triggerNpcGesture();
-          });
-        }
+      // Trigger NPC gesture if hit the NPC
+      if (s.npcRoot) {
+        import('./napNpc.js').then(({ triggerNpcGesture }) => {
+          if (triggerNpcGesture) triggerNpcGesture();
+        });
       }
     }
   }
 
-  // Update attached stickers (fade out in last 2 seconds + per-frame bone tracking)
+  // Update attached stickers (fade out in last 2 seconds)
   for (let i = _attached.length - 1; i >= 0; i--) {
     const a = _attached[i];
     a.life -= dt;
@@ -370,21 +309,6 @@ export function tickStickerNpc(dt) {
       if (a.mesh.material) a.mesh.material.dispose();
       _attached.splice(i, 1);
     } else {
-      // Per-frame bone-matrix tracking for skinned-mesh stickers
-      const track = a.mesh.userData.stickerBoneTrack;
-      if (track) {
-        const sm = track.skinnedMesh;
-        if (sm.skeleton && sm.skeleton.boneMatrices) {
-          // Read current bone matrix from the skeleton
-          _m4b.fromArray(sm.skeleton.boneMatrices, track.boneIndex * 16);
-          // Simple: sticker.position = boneMat * vertex
-          a.mesh.position.copy(track.vertex).applyMatrix4(_m4b);
-          // Update orientation
-          _v3c.copy(track.bindNormal).transformDirection(_m4b);
-          _quat.setFromUnitVectors(_zAxis, _v3c);
-          a.mesh.quaternion.copy(_quat);
-        }
-      }
       if (a.life < 2.0) {
         a.mesh.material.opacity = a.life / 2.0;
       }

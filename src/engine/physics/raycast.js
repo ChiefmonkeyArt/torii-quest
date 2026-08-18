@@ -6,7 +6,7 @@
 // World + RAPIER are injected by physics.js via initRaycast(). The collider→bot
 // lookup maps live in bodies.js (the factories that populate them); we read
 // them here to translate a Rapier hit into a game-side bot reference.
-import { colliderToBot, colliderToPart, colliderToCrate } from './bodies.js';
+import { colliderToBot, colliderToPart, colliderToCrate, colliderToNpc } from './bodies.js';
 
 let _world = null;
 let _RAPIER = null;
@@ -52,6 +52,7 @@ export function castRay(ox, oy, oz, dx, dy, dz, maxDist, excludeCollider = null,
     bot:      colliderToBot.get(hit.collider.handle) || null,
     bodyPart: colliderToPart.get(hit.collider.handle) || null,
     crate:    colliderToCrate.get(hit.collider.handle) || null,
+    npc:      colliderToNpc.get(hit.collider.handle) || null,
   };
 }
 
@@ -62,7 +63,7 @@ export function castRay(ox, oy, oz, dx, dy, dz, maxDist, excludeCollider = null,
 // out of the result when needed.
 export function castRayStatic(ox, oy, oz, dx, dy, dz, maxDist, excludePlayerCollider = null) {
   return castRay(ox, oy, oz, dx, dy, dz, maxDist, excludePlayerCollider,
-    c => !colliderToBot.has(c.handle));
+    c => !colliderToBot.has(c.handle) && !colliderToNpc.has(c.handle));
 }
 
 // True if nothing static blocks the segment from (ox,oy,oz) to (tx,ty,tz).

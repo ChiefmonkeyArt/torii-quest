@@ -170,13 +170,15 @@ export function fireStickerAtNpc(origin, dir) {
   if (rawBoneHit?.bone) {
     // Bone collider tells us WHICH character + WHICH bone was hit.
     // Raycast the actual SkinnedMesh to find the real surface point.
-    const surfaceHit = _raycastSkinnedMesh(rawBoneHit.bone.skinnedMesh, origin, dirN);
+    const sm = rawBoneHit.bone.skinnedMesh;
+    const surfaceHit = _raycastSkinnedMesh(sm, origin, dirN);
+    console.log('[sticker] bone hit, skinnedMesh:', !!sm, 'surfaceHit:', !!surfaceHit,
+      'sm.matrixWorld scale:', sm ? sm.matrixWorld.elements[0] : 'N/A');
     if (surfaceHit) {
       bonePoint = surfaceHit.point;
       boneNormal = surfaceHit.normal;
     } else {
-      // SkinnedMesh raycast missed (rare — bone sphere extends past mesh).
-      // Fall back to the collider hit point with inward offset.
+      // SkinnedMesh raycast missed — fall back to collider hit point.
       bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
       boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
       bonePoint.addScaledVector(boneNormal, -BONE_HIT_INWARD_OFFSET);

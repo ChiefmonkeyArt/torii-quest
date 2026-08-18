@@ -171,7 +171,7 @@ export function fireStickerAtNpc(origin, dir) {
     // Bone collider hit — offset inward from sphere surface toward mesh surface.
     bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
     boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
-    bonePoint.addScaledVector(boneNormal, -BONE_HIT_INWARD_OFFSET);
+    bonePoint.addScaledVector(boneNormal, BONE_HIT_INWARD_OFFSET);
     boneInfo = rawBoneHit.bone;
   }
 

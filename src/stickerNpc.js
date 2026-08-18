@@ -263,27 +263,32 @@ export function tickStickerNpc(dt) {
           const boneIndex = skinnedMesh.skeleton.bones.indexOf(bone);
           if (boneIndex >= 0) {
             try {
-              // Compute the vertex position in bind-pose world space.
-              // From the shader: worldPos = mesh.matrixWorld * bindMatrixInverse * boneMat * bindMatrix * vertex
-              // Solving: bindWorldPos = bindMatrix * vertex = boneMatInv * bindMatrix * meshInverse * worldPos
+              // The raycaster hits the BIND-POSE mesh (Three.js SkinnedMesh doesn't
+              // override raycast, so it uses geometry position attribute = bind pose).
+              // The hit point is on the bind-pose surface, positioned at the NPC's
+              // current world location (via mesh.matrixWorld).
+              //
+              // To place the sticker on the VISIBLE (animated) mesh surface, we
+              // compute the bind-pose vertex, then each frame apply the bone
+              // matrix to get the animated position:
+              //   vertex = meshInverse * hitPoint  (bind-pose geometry vertex)
+              //   bindWorldPos = bindMatrix * vertex  (bind-pose world space)
+              //   per-frame: bindMatrixInverse * boneMat.current * bindWorldPos
               skinnedMesh.updateMatrixWorld(true);
               skinnedMesh.skeleton.update();
 
               const meshInverse = _m4a.copy(skinnedMesh.matrixWorld).invert();
-              const boneMat = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
-              const boneMatInv = _m4c.copy(boneMat).invert();
 
-              // bindWorldPos = boneMatInv * bindMatrix * meshInverse * worldPos
+              // bindWorldPos = bindMatrix * meshInverse * hitPoint
+              // (NO boneMatInv — the raycaster hit the bind-pose mesh, not the animated mesh)
               const bindWorldPos = _v3a.copy(worldPos)
                 .applyMatrix4(meshInverse)
-                .applyMatrix4(skinnedMesh.bindMatrix)
-                .applyMatrix4(boneMatInv);
+                .applyMatrix4(skinnedMesh.bindMatrix);
 
-              // Compute bind-pose normal similarly
+              // Normal in bind-pose world space
               const bindNormal = _v3b.copy(s.normal)
                 .transformDirection(meshInverse)
-                .transformDirection(skinnedMesh.bindMatrix)
-                .transformDirection(boneMatInv);
+                .transformDirection(skinnedMesh.bindMatrix);
 
               // Parent to the SkinnedMesh (not the bone) and update each frame
               sticker.userData.stickerBoneTrack = {
@@ -294,6 +299,7 @@ export function tickStickerNpc(dt) {
               };
 
               // Set initial position: bindMatrixInverse * boneMat * bindWorldPos
+              const boneMat = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
               _m4a.copy(skinnedMesh.bindMatrixInverse).multiply(boneMat);
               sticker.position.copy(bindWorldPos).applyMatrix4(_m4a);
 

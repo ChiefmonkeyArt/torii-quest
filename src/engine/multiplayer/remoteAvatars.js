@@ -132,5 +132,12 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
     // Test / debug seam — never depend on this in production wiring.
     _peek: (id) => roster.get(id) || null,
     get size() { return roster.size; },
+    // v0.2.600: debug snapshot of all peers for ToriiDebug.mp()
+    _debugPeers: () => Array.from(roster.entries()).map(([id, e]) => ({
+      id,
+      loading: e.loading,
+      hasObj: !!e.obj,
+      peer: e.peer ? { npub: e.peer.npub, character: e.peer.character, pos: e.peer.pos, rot: e.peer.rot } : null,
+    })),
   };
 }

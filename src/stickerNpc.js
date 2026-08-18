@@ -48,6 +48,19 @@ const FLIGHT_DURATION = 0.22;
 const MAX_ATTACHED = 120;
 const ATTACHED_LIFETIME = 180;
 
+// Peer avatar roots (multiplayer remote players) — wrapper Groups stamped
+// with userData.peerId by arenaRuntime._createPeerAvatar. Collected lazily
+// on each fire (click-rate, not per-frame) so joins/leaves are picked up
+// without a registration seam.
+const _peerRoots = [];
+function _collectPeerRoots() {
+  _peerRoots.length = 0;
+  scene.traverse(o => {
+    if (o.userData && o.userData.peerId && o.parent === scene) _peerRoots.push(o);
+  });
+  return _peerRoots;
+}
+
 // Preload the texture.
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
@@ -73,6 +86,9 @@ function _isExcluded(obj) {
     // Skip NPC + bot meshes — handled by Rapier colliders, not Three.js raycaster
     if (_npcRoot && o === _npcRoot) return true;
     if (o.userData?.isBotMesh) return true;
+    // Skip peer avatars — SkinnedMesh needs the surface-authoritative path
+    // (_raycastSkinnedMesh with skeleton update), not the static-mesh raycast.
+    if (o.userData?.peerId) return true;
     o = o.parent;
   }
   return false;
@@ -392,6 +408,31 @@ export function fireStickerAtNpc(origin, dir) {
     }
   }
 
+  // ── Step 2b: Peer avatars (multiplayer remote players) — surface-authoritative
+  // SkinnedMesh raycast, same as the NPC path. Peers have no Rapier colliders,
+  // so the Three.js surface ray is the ONLY targeting channel. The peer wrapper
+  // Group is a moving target (remoteAvatars.tick sets its position every frame),
+  // so the bone-local bake at fire time + flight tracking handle the motion.
+  let peerRoot = null;
+  const peers = _collectPeerRoots();
+  for (let i = 0; i < peers.length; i++) {
+    const sm = _findSkinnedMesh(peers[i]);
+    if (!sm) continue;
+    const peerSurface = _raycastSkinnedMesh(sm, origin, dirN);
+    if (!peerSurface) continue;
+    const d = peerSurface.point.distanceTo(origin);
+    if (d < bestDist) {
+      bestDist = d;
+      hitPoint = peerSurface.point;
+      hitNormal = peerSurface.normal;
+      peerRoot = peers[i];
+      bone = _getSurfaceHitBone(peerSurface);
+      npcRoot = null;
+      bot = null;
+      meshObj = null;
+    }
+  }
+
   if (meshHit) {
     const d = meshHit.point.distanceTo(origin);
     if (d < bestDist) {
@@ -402,6 +443,7 @@ export function fireStickerAtNpc(origin, dir) {
       npcRoot = null;
       bot = null;
       bone = null;
+      peerRoot = null;
     }
   }
 
@@ -443,6 +485,7 @@ export function fireStickerAtNpc(origin, dir) {
     meshObj,
     bone,
     bot,
+    peerRoot,
     boneLocalOffset,
     boneLocalNormal,
     t: 0,
@@ -586,6 +629,27 @@ export function tickStickerNpc(dt) {
           parented = true;
         } catch (e) {
           console.warn('[sticker] bot root parenting failed:', e);
+        }
+      }
+
+      // ── PEER: parent to peer avatar root (fallback when no bone was found) ──
+      // Same pattern as NPC root: convert world → peer-local, then add.
+      // The peer wrapper Group moves every frame via remoteAvatars.tick, so
+      // the sticker rides the peer's transform automatically.
+      if (!parented && s.peerRoot) {
+        try {
+          s.peerRoot.updateMatrixWorld(true);
+          const localPos = worldPos.clone();
+          s.peerRoot.worldToLocal(localPos);
+          sticker.position.copy(localPos);
+          sticker.quaternion.copy(_quat);
+          s.peerRoot.getWorldQuaternion(_worldQuatInv).invert();
+          sticker.quaternion.premultiply(_worldQuatInv);
+          sticker.scale.setScalar(1.0);
+          s.peerRoot.add(sticker);
+          parented = true;
+        } catch (e) {
+          console.warn('[sticker] peer root parenting failed:', e);
         }
       }
 

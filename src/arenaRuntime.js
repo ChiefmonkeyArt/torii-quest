@@ -891,12 +891,9 @@ export function createArenaRuntime(hooks = {}) {
         enabled: true,
         wsState: _mp.state,
         selfId: _mp.selfId || null,
-        peers: _mp.roster ? Array.from(_mp.roster._roster?.entries?.() || []).map(([id, e]) => ({
-          id,
-          loading: e.loading,
-          hasObj: !!e.obj,
-          peer: e.peer ? { npub: e.peer.npub, character: e.peer.character, pos: e.peer.pos, rot: e.peer.rot } : null,
-        })) : [],
+        peers: _mp.roster && typeof _mp.roster._debugPeers === 'function'
+          ? _mp.roster._debugPeers()
+          : [],
         peerCount: _mp.roster ? _mp.roster.size : 0,
       } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
     });

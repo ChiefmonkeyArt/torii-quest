@@ -1526,7 +1526,7 @@ function startPreloading() {
 }
 requestAnimationFrame(() => requestAnimationFrame(startPreloading));
 
-// ── n2n gateway preflight (v0.2.599) ──────────────────────────────────────────
+// ── n2n gateway preflight (v0.2.600) ──────────────────────────────────────────
 // Exposes a live diagnostic snapshot so the user can verify the node2node jump
 // is configured correctly before testing. Open the browser console and run:
 //   ToriiDebug.gateway()
@@ -1540,16 +1540,19 @@ if (typeof window !== 'undefined') {
     const spawn = armed?.spawn || 'https://quest-torii.pplx.app';
     const hardened = hardenSpawnUrl(spawn);
     const incoming = readArrivingTraveller(window.location?.href || '');
+    const view = _handshake.view();
     return {
       hostPubkey: _hostIdentity() || 'NOT CONFIGURED',
       loggedInNpub: state.nostrPubkey || 'not logged in',
-      relays: _handshake.view?.()?.relays || [],
-      handshakeState: snap?.state || 'idle',
+      relays: RELAYS,
+      handshakeMode: view?.mode || 'idle',
+      handshakeBadge: view?.badge || '',
       armed: armed ? { toZone: armed.toZone, spawn: armed.spawn, hostPubkey: armed.hostPubkey } : null,
       spawnUrl: spawn,
       hardenResult: hardened,
       currentUrl: window.location?.href || '',
       hasInboundTraveller: incoming ? { npub: incoming.npub, hint: incoming.pubkey } : null,
+      worldsOnline: _worldsCache.length,
       ready: !!(armed && hardened.ok && state.nostrPubkey),
     };
   };

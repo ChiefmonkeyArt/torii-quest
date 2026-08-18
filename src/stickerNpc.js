@@ -245,6 +245,49 @@ function _addSurfaceDebugMarker(surfaceHit) {
   _debugMarkers.push(rDbg);
 }
 
+// Approximate skin radius per bone (world units / meters). Used by the graze
+// fallback to place a sticker on the bone's surface when the generous bone
+// ball sensor is hit but the precise SkinnedMesh raycast misses (thin limbs).
+const _SKIN_RADIUS = {
+  Head: 0.13, headfront: 0.12, head_end: 0.10, neck: 0.08,
+  Hips: 0.15, Spine: 0.14, Spine01: 0.15, Spine02: 0.15,
+  LeftShoulder: 0.07, RightShoulder: 0.07,
+  LeftArm: 0.06, RightArm: 0.06,
+  LeftForeArm: 0.055, RightForeArm: 0.055,
+  LeftHand: 0.05, RightHand: 0.05,
+  LeftUpLeg: 0.09, RightUpLeg: 0.09,
+  LeftLeg: 0.07, RightLeg: 0.07,
+  LeftFoot: 0.06, RightFoot: 0.06,
+  LeftToeBase: 0.045, RightToeBase: 0.045,
+};
+const _SKIN_RADIUS_DEFAULT = 0.08;
+const _grazeBonePos = new THREE.Vector3();
+const _grazeToBone = new THREE.Vector3();
+const _grazeClosest = new THREE.Vector3();
+const _grazeSide = new THREE.Vector3();
+
+// Synthesize a surface hit when the bone-ball sensor was hit but the precise
+// mesh raycast missed. Places the point at the bone's approximate skin
+// radius on the side facing the ray, so the sticker hugs the limb.
+function _boneGrazeFallback(bone, origin, dirN) {
+  bone.getWorldPosition(_grazeBonePos);
+  _grazeToBone.subVectors(_grazeBonePos, origin);
+  const t = _grazeToBone.dot(dirN);
+  if (t < 0) return null; // bone is behind the ray origin
+  _grazeClosest.copy(dirN).multiplyScalar(t).add(origin);
+  _grazeSide.subVectors(_grazeClosest, _grazeBonePos);
+  const dist = _grazeSide.length();
+  if (dist > 1e-5) {
+    _grazeSide.multiplyScalar(1 / dist); // unit: bone center → ray side
+  } else {
+    _grazeSide.copy(dirN).multiplyScalar(-1); // dead-center: face the camera
+  }
+  const skinR = _SKIN_RADIUS[bone.name] || _SKIN_RADIUS_DEFAULT;
+  const point = new THREE.Vector3().copy(_grazeBonePos).addScaledVector(_grazeSide, skinR);
+  const normal = new THREE.Vector3().copy(_grazeSide);
+  return { point, normal, bone };
+}
+
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
 export function fireStickerAtNpc(origin, dir) {
   _preloadTexture();
@@ -299,24 +342,39 @@ export function fireStickerAtNpc(origin, dir) {
   let npcRoot = null, meshObj = null, bone = null, bot = null;
   let bestDist = Infinity;
 
-  if (npcSurface && _npcRoot) {
-    const d = npcSurface.point.distanceTo(origin);
+  // Graze fallback: bone sensor hit but the precise mesh raycast missed
+  // (thin limbs). Synthesize a surface point on the hit bone so the sticker
+  // still lands on the character instead of flying through to the floor.
+  let npcSurfaceEff = npcSurface;
+  if (!npcSurfaceEff && boneInfo?.npcRoot && boneInfo.npcRoot === _npcRoot && boneInfo.bone) {
+    npcSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
+    if (npcSurfaceEff) console.log('[sticker] graze fallback → npc bone:', boneInfo.bone.name);
+  }
+
+  if (npcSurfaceEff && _npcRoot) {
+    const d = npcSurfaceEff.point.distanceTo(origin);
     bestDist = d;
-    hitPoint = npcSurface.point;
-    hitNormal = npcSurface.normal;
+    hitPoint = npcSurfaceEff.point;
+    hitNormal = npcSurfaceEff.normal;
     bone = boneInfo?.npcRoot === _npcRoot && boneInfo.bone
       ? boneInfo.bone
-      : _getSurfaceHitBone(npcSurface);
+      : _getSurfaceHitBone(npcSurfaceEff);
     npcRoot = _npcRoot;
   }
 
-  if (boneInfo?.bot && boneSurface) {
-    const d = boneSurface.point.distanceTo(origin);
+  let boneSurfaceEff = boneSurface;
+  if (!boneSurfaceEff && boneInfo?.bot && boneInfo.bone) {
+    boneSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
+    if (boneSurfaceEff) console.log('[sticker] graze fallback → bot bone:', boneInfo.bone.name);
+  }
+
+  if (boneInfo?.bot && boneSurfaceEff) {
+    const d = boneSurfaceEff.point.distanceTo(origin);
     if (d < bestDist) {
       bestDist = d;
-      hitPoint = boneSurface.point;
-      hitNormal = boneSurface.normal;
-      bone = boneInfo.bone || _getSurfaceHitBone(boneSurface);
+      hitPoint = boneSurfaceEff.point;
+      hitNormal = boneSurfaceEff.normal;
+      bone = boneInfo.bone || _getSurfaceHitBone(boneSurfaceEff);
       npcRoot = null;
       bot = boneInfo.bot;
     }

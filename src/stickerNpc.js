@@ -459,6 +459,7 @@ export function tickStickerNpc(dt) {
       let parented = false;
 
       // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
+      console.log('[sticker] land: bone=', s.bone?.name || 'NULL', 'npcRoot=', !!s.npcRoot, 'bot=', !!s.bot, 'meshObj=', !!s.meshObj);
       if (s.bone) {
         try {
           // DEBUG: green sphere at worldPos BEFORE bone.attach()
@@ -478,6 +479,7 @@ export function tickStickerNpc(dt) {
           sticker.updateMatrixWorld(true);
           s.bone.attach(sticker);
           parented = true;
+          console.log('[sticker] attached to bone:', s.bone.name, 'worldPos after attach:', sticker.getWorldPosition(new THREE.Vector3()).toArray().map(v=>v.toFixed(3)));
         } catch (e) {
           console.warn('[sticker] bone.attach failed:', e);
         }

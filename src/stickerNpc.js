@@ -124,6 +124,32 @@ function _raycastScene(origin, dir) {
   return null;
 }
 
+// Raycast against a specific SkinnedMesh to find the real animated-mesh surface
+// point.  Three.js r184's checkGeometryIntersection calls getVertexPosition()
+// which applies bone transforms — so this returns the posed hit point, not
+// the bind-pose hit point.
+function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
+  if (!skinnedMesh) return null;
+  _rayOrigin.copy(origin);
+  _rayDir.copy(dir).normalize();
+  _raycaster.set(_rayOrigin, _rayDir);
+  _raycaster.far = 200;
+  const hits = _raycaster.intersectObject(skinnedMesh, false);
+  for (const hit of hits) {
+    if (hit.face) {
+      _normal.copy(hit.face.normal);
+      _normal.transformDirection(hit.object.matrixWorld);
+    } else {
+      _normal.set(0, 0, 1);
+    }
+    return {
+      point: hit.point.clone(),
+      normal: _normal.clone(),
+    };
+  }
+  return null;
+}
+
 // Spawn a sticker projectile from `origin` toward the nearest surface hit.
 export function fireStickerAtNpc(origin, dir) {
   _preloadTexture();
@@ -142,8 +168,19 @@ export function fireStickerAtNpc(origin, dir) {
 
   let bonePoint = null, boneNormal = null, boneInfo = null;
   if (rawBoneHit?.bone) {
-    bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
-    boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
+    // Bone collider tells us WHICH character + WHICH bone was hit.
+    // Raycast the actual SkinnedMesh to find the real surface point.
+    const surfaceHit = _raycastSkinnedMesh(rawBoneHit.bone.skinnedMesh, origin, dirN);
+    if (surfaceHit) {
+      bonePoint = surfaceHit.point;
+      boneNormal = surfaceHit.normal;
+    } else {
+      // SkinnedMesh raycast missed (rare — bone sphere extends past mesh).
+      // Fall back to the collider hit point with inward offset.
+      bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
+      boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
+      bonePoint.addScaledVector(boneNormal, -BONE_HIT_INWARD_OFFSET);
+    }
     boneInfo = rawBoneHit.bone;
   }
 
@@ -181,12 +218,25 @@ export function fireStickerAtNpc(origin, dir) {
     const sameEntity = boneInfo &&
       (boneInfo.npcRoot === rapierHit.npc || boneInfo.bot === rapierHit.bot);
     if (!sameEntity) {
-      const rp = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
+      // Try to find the SkinnedMesh for surface raycasting.
+      let broadSkinnedMesh = null;
+      if (rapierHit.bot?.model?.skinnedMesh) broadSkinnedMesh = rapierHit.bot.model.skinnedMesh;
+      else if (rapierHit.npc) {
+        // NPC: traverse for SkinnedMesh (cached after first find).
+        rapierHit.npc.traverse(o => { if (o.isSkinnedMesh && !broadSkinnedMesh) broadSkinnedMesh = o; });
+      }
+      const broadSurface = broadSkinnedMesh ? _raycastSkinnedMesh(broadSkinnedMesh, origin, dirN) : null;
+      const rp = broadSurface
+        ? broadSurface.point
+        : new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
+      const rn = broadSurface
+        ? broadSurface.normal
+        : new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
       const d = rp.distanceTo(origin);
       if (d < bestDist) {
         bestDist = d;
         hitPoint = rp;
-        hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
+        hitNormal = rn;
         npcRoot = rapierHit.npc || null;
         bot = rapierHit.bot || null;
         bone = null; // broad capsule hit — no specific bone
@@ -280,21 +330,12 @@ export function tickStickerNpc(dt) {
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true;
 
-      // Compute final world position: hit point + small offset along normal.
-      // For BONE hits: offset INWARD by BONE_HIT_INWARD_OFFSET to place the
-      // sticker near the mesh surface (bone ball radius is larger than the
-      // actual bone-to-mesh-surface distance).
+      // Compute final world position: hit point + tiny z-fight offset.
+      // For bone hits, hitPoint is already on the SkinnedMesh surface.
       const worldPos = s.to.clone();
-      if (s.bone) {
-        // Bone hit: move inward from sphere surface toward mesh surface
-        worldPos.x -= s.normal.x * BONE_HIT_INWARD_OFFSET;
-        worldPos.y -= s.normal.y * BONE_HIT_INWARD_OFFSET;
-        worldPos.z -= s.normal.z * BONE_HIT_INWARD_OFFSET;
-      }
-      // Small outward offset so the sticker sits just above the surface
-      worldPos.x += s.normal.x * 0.02;
-      worldPos.y += s.normal.y * 0.02;
-      worldPos.z += s.normal.z * 0.02;
+      worldPos.x += s.normal.x * 0.006;
+      worldPos.y += s.normal.y * 0.006;
+      worldPos.z += s.normal.z * 0.006;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);

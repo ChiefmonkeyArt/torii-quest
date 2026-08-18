@@ -252,7 +252,7 @@ function _createBoneColliders(root, skinnedMesh, entityInfo) {
       _RAPIER.ColliderDesc.ball(BONE_BALL_RADIUS).setSensor(true),
       body
     );
-    colliderToBone.set(collider.handle, { ...entityInfo, bone });
+    colliderToBone.set(collider.handle, { ...entityInfo, bone, skinnedMesh });
     result.push({ body, collider, bone });
   }
   console.log('[bodies] created', result.length, 'per-bone colliders for', entityInfo.kind);

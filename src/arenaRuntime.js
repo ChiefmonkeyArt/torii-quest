@@ -813,16 +813,20 @@ export function createArenaRuntime(hooks = {}) {
     initTargetReticle({ bots, playerObj, getPlayerCollider });
 
     // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
-    // Stickers fire everywhere — they stick to any mesh surface.
-    // In the NAP zone, bullets are suppressed (stickers only).
+    // Stickers fire ONLY in the NAP zone (stick to NPC/bot/tree surfaces).
+    // Bullets fire ONLY in the arena (combat). They are mutually exclusive.
     on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
       const aim = aimOrigin || origin;
       const ad = aimDir || dir;
-      fireStickerAtNpc(aim, ad);
       triggerRecoil();
       playShoot();
       const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
-      if (inNap) return; // no bullets in the NAP zone
+      if (inNap) {
+        // NAP zone: stickers only, no bullets
+        fireStickerAtNpc(aim, ad);
+        return;
+      }
+      // Arena: bullets only, no stickers
       const b = spawnBullet(origin, dir, true);
       _muzzleFlashes.trigger('muzzle', origin);
       if (aimOrigin && aimDir) {
@@ -882,6 +886,19 @@ export function createArenaRuntime(hooks = {}) {
       }),
       getCrateSummary, config: TUNING,
       bootTiming: () => getBootTimings(),
+      // v0.2.599: MP diagnostic — ToriiDebug.mp() returns live multiplayer state
+      getMpState: () => _mp ? {
+        enabled: true,
+        wsState: _mp.state,
+        selfId: _mp.selfId || null,
+        peers: _mp.roster ? Array.from(_mp.roster._roster?.entries?.() || []).map(([id, e]) => ({
+          id,
+          loading: e.loading,
+          hasObj: !!e.obj,
+          peer: e.peer ? { npub: e.peer.npub, character: e.peer.character, pos: e.peer.pos, rot: e.peer.rot } : null,
+        })) : [],
+        peerCount: _mp.roster ? _mp.roster.size : 0,
+      } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync

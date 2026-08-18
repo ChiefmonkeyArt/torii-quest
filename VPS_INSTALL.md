@@ -173,6 +173,18 @@ server {
     gzip on;
     gzip_types text/css application/javascript application/wasm image/svg+xml;
 
+    # MP-1: WebSocket multiplayer relay. Runs on 127.0.0.1:8787 (systemd unit
+    # torii-arena-ws.service). nginx proxies the Upgrade handshake through so
+    # the connection stays on the same origin as the game (no subdomain, no CORS).
+    location /mp {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400s;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

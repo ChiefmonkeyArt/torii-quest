@@ -58,6 +58,7 @@ export function installToriiDebug(refs) {
     getGrassMat, getFlowerMat, getMirror,
     // v0.2.130 — snapshot/report providers.
     getState, getPhase, getCrateSummary, config,
+    getMpState,
   } = refs;
 
   // v0.2.130 — providers for the JSON-serialisable debug snapshot. Each is a
@@ -164,6 +165,9 @@ export function installToriiDebug(refs) {
     // version, phase, run state, player position, combat last shot/hit/miss,
     // physics/crate summary, and the key tuning values. Safe to call any time.
     snapshot() { return buildSnapshot(snapProviders); },
+
+    // v0.2.599: MP diagnostic — ToriiDebug.mp() returns live multiplayer state.
+    mp() { return getMpState ? getMpState() : { enabled: false, reason: 'getMpState not wired' }; },
 
     // v0.2.137 — read-only reports over the v0.2.136 VIEW shells (gateway portal,
     // product panel, leaderboard). Lets a tester/AI handoff inspect what those
@@ -399,6 +403,12 @@ export function installToriiDebug(refs) {
     },
   };
 
+  // v0.2.599: merge with any pre-existing ToriiDebug properties (e.g. the
+  // gateway preflight set by main.js before the arena boots) so we don't
+  // clobber the shell namespace.
+  if (typeof window !== 'undefined' && window.ToriiDebug) {
+    Object.assign(api, window.ToriiDebug);
+  }
   window.ToriiDebug = api;
   return api;
 }

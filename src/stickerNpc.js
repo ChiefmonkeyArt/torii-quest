@@ -184,6 +184,7 @@ export function fireStickerAtNpc(origin, dir) {
 
   let bonePoint = null, boneNormal = null, boneInfo = null;
   if (rawBoneHit?.bone) {
+    console.log('[sticker] BONE HIT! bone:', rawBoneHit.bone.bone?.name, 'sm:', !!rawBoneHit.bone.skinnedMesh);
     // Bone collider tells us WHICH character + WHICH bone was hit.
     // Raycast the actual SkinnedMesh to find the real surface point.
     const sm = rawBoneHit.bone.skinnedMesh;

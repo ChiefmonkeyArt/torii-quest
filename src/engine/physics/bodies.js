@@ -224,7 +224,7 @@ export const colliderToBone = new Map();
 
 // Ball radius for bone sensors — small enough for precision, large enough to
 // hit without pixel-perfect aim (user: "I didn't have to be so accurate").
-const BONE_BALL_RADIUS = 0.10;
+const BONE_BALL_RADIUS = 0.20;
 
 // Create ball sensor colliders on every bone in the skinned mesh's skeleton.
 // Returns an array of { body, collider, bone } for sync/cleanup.

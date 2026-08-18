@@ -153,32 +153,38 @@ export function fireStickerAtNpc(origin, dir) {
   const meshHit = _raycastScene(origin, dirN);
 
   // ── Step 3: Pick the closest hit ──
+  // Bone hit wins over same entity's broad capsule — broad is fallback only
+  // when no bone was hit for that entity.  A closer blocker from a DIFFERENT
+  // entity (or static mesh) still wins over a farther bone hit.
   let hitPoint, hitNormal;
   let npcRoot = null, meshObj = null, bone = null, bot = null;
   let bestDist = Infinity;
 
   if (boneInfo) {
     const d = bonePoint.distanceTo(origin);
-    if (d < bestDist) {
-      bestDist = d;
-      hitPoint = bonePoint;
-      hitNormal = boneNormal;
-      bone = boneInfo.bone;       // the Three.js Bone Object3D
-      npcRoot = boneInfo.npcRoot || null; // NPC root for gesture trigger
-      bot = boneInfo.bot || null;        // bot ref (v0.2.575)
-    }
+    bestDist = d;
+    hitPoint = bonePoint;
+    hitNormal = boneNormal;
+    bone = boneInfo.bone;       // the Three.js Bone Object3D
+    npcRoot = boneInfo.npcRoot || null; // NPC root for gesture trigger
+    bot = boneInfo.bot || null;        // bot ref (v0.2.575)
   }
 
+  // Broad capsule hit — skip if it's the SAME entity as the bone hit.
   if (rapierHit && (rapierHit.npc || rapierHit.bot)) {
-    const rp = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
-    const d = rp.distanceTo(origin);
-    if (d < bestDist) {
-      bestDist = d;
-      hitPoint = rp;
-      hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
-      npcRoot = rapierHit.npc || null;
-      bot = rapierHit.bot || null;
-      bone = null; // broad capsule hit — no specific bone
+    const sameEntity = boneInfo &&
+      (boneInfo.npcRoot === rapierHit.npc || boneInfo.bot === rapierHit.bot);
+    if (!sameEntity) {
+      const rp = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
+      const d = rp.distanceTo(origin);
+      if (d < bestDist) {
+        bestDist = d;
+        hitPoint = rp;
+        hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
+        npcRoot = rapierHit.npc || null;
+        bot = rapierHit.bot || null;
+        bone = null; // broad capsule hit — no specific bone
+      }
     }
   }
 

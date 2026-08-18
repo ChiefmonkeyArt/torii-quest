@@ -211,6 +211,77 @@ export function getNpcForColliderHandle(h) {
   return colliderToNpc.get(h) || null;
 }
 
+// ── Per-bone NPC colliders (v0.2.574) ───────────────────────────────────────
+// Small ball sensor colliders on the NPC's skeleton bones so stickers can hit
+// individual body parts (arms, legs, torso, head) and follow bone animation.
+// Each ball is a kinematic sensor that follows the bone's world position each
+// frame.  colliderToBone maps handle → { npcRoot, bone } so the raycast layer
+// can return the bone Object3D for Three.js Object3D.attach() parenting.
+//
+// Research: every major game engine (Unreal FindClosestBone, Unity per-bone
+// triggers, Three.js bone.add()) uses this per-bone collider pattern.
+export const colliderToBone = new Map();
+
+// Ball radius for bone sensors — small enough for precision, large enough to
+// hit without pixel-perfect aim (user: "I didn't have to be so accurate").
+const BONE_BALL_RADIUS = 0.10;
+
+// Create ball sensor colliders on every bone in the skinned mesh's skeleton.
+// Returns an array of { body, collider, bone } for sync/cleanup.
+export function createNpcBoneColliders(npcRoot, skinnedMesh) {
+  if (!_world || !skinnedMesh || !skinnedMesh.skeleton) return [];
+  const result = [];
+  // Ensure world matrices are current so bone positions are accurate.
+  npcRoot.updateMatrixWorld(true);
+  const bones = skinnedMesh.skeleton.bones;
+  for (let i = 0; i < bones.length; i++) {
+    const bone = bones[i];
+    // Read bone world position from matrixWorld (0.01 scale already baked in).
+    const e = bone.matrixWorld.elements;
+    const px = e[12], py = e[13], pz = e[14];
+    const body = _world.createRigidBody(
+      _RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(px, py, pz)
+    );
+    const collider = _world.createCollider(
+      _RAPIER.ColliderDesc.ball(BONE_BALL_RADIUS).setSensor(true),
+      body
+    );
+    colliderToBone.set(collider.handle, { npcRoot, bone });
+    result.push({ body, collider, bone });
+  }
+  console.log('[bodies] created', result.length, 'per-bone colliders for NPC');
+  return result;
+}
+
+// Scratch — module-scope, no per-frame allocations (constraint [4]).
+const _bonePos = { x: 0, y: 0, z: 0 };
+
+// Sync all bone colliders to their bone's current world position.
+// Called each frame AFTER mixer.update() + updateMatrixWorld().
+export function syncNpcBoneColliders(boneColliders) {
+  if (!_world) return;
+  for (let i = 0; i < boneColliders.length; i++) {
+    const bc = boneColliders[i];
+    const e = bc.bone.matrixWorld.elements;
+    _bonePos.x = e[12]; _bonePos.y = e[13]; _bonePos.z = e[14];
+    bc.body.setNextKinematicTranslation(_bonePos);
+  }
+}
+
+// Remove all bone colliders from the physics world.
+export function removeNpcBoneColliders(boneColliders) {
+  if (!_world) return;
+  for (const bc of boneColliders) {
+    colliderToBone.delete(bc.collider.handle);
+    _world.removeCollider(bc.collider, true);
+    _world.removeRigidBody(bc.body);
+  }
+}
+
+export function getBoneForColliderHandle(h) {
+  return colliderToBone.get(h) || null;
+}
+
 // Dynamic crate — physics-driven cuboid that bullets and players can shove.
 export function createDynamicCrate(x, y, z, half) {
   if (!_world) return null;

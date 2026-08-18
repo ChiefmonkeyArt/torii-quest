@@ -35,11 +35,13 @@ export {
   createKinematic, createDynamic, createBotBody, createBotHead, setBotBodyPos,
   createStatic, createDynamicCrate, getBotForColliderHandle, getBodyPartForColliderHandle,
   createNpcCollider, setNpcColliderPos, getNpcForColliderHandle,
+  createNpcBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders, getBoneForColliderHandle,
   PLAYER_CAPSULE_HALF_H, PLAYER_CAPSULE_RADIUS, PLAYER_BODY_CENTRE_OFFSET,
   BOT_BODY_HALF_H, BOT_BODY_RADIUS, BOT_BODY_CENTRE_Y_OFFSET,
   BOT_HEAD_RADIUS, BOT_HEAD_CENTRE_Y_OFFSET,
   NPC_CAPSULE_CENTRE_Y,
 } from './engine/physics/bodies.js';
+export { colliderToBone } from './engine/physics/bodies.js';
 export { castRay, castRayStatic, hasLineOfSight } from './engine/physics/raycast.js';
 
 let world, RAPIER;

@@ -9,12 +9,15 @@ import { scene } from './scene.js';
 import { sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand, NAP_BBOX } from './terrain/tomoeShape.js';
 import { assetUrl } from './assetUrl.js';
-import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y } from './physics.js';
+import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
+         createNpcBoneColliders, syncNpcBoneColliders } from './physics.js';
 
 let _root   = null;
 let _mixer  = null;
 let _minY   = 0;             // geometry feet offset
 let _npcColliderBody = null;  // Rapier kinematic body for sticker raycasting
+let _boneColliders = [];      // Per-bone sensor colliders (v0.2.574)
+let _skinnedMesh = null;      // NPC SkinnedMesh reference for bone collider setup
 let _gestureClips = [];     // clips from chiefmonkey-npc-animations.glb
 let _walkClip = null;       // walk clip from the model GLB
 let _idleClip = null;       // idle clip from the model GLB
@@ -133,6 +136,18 @@ export function buildNapNpc() {
     _npcColliderBody = createNpcCollider(_root,
       _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
 
+    // Find the SkinnedMesh and create per-bone colliders (v0.2.574)
+    _root.traverse(o => {
+      if (o.isSkinnedMesh && !_skinnedMesh) _skinnedMesh = o;
+    });
+    if (_skinnedMesh) {
+      _root.updateMatrixWorld(true);
+      _boneColliders = createNpcBoneColliders(_root, _skinnedMesh);
+      console.log('[napNpc] bone names:', _skinnedMesh.skeleton.bones.map(b => b.name));
+    } else {
+      console.warn('[napNpc] no SkinnedMesh found — per-bone colliders skipped');
+    }
+
     _mixer = new THREE.AnimationMixer(_root);
 
     // Extract clips from model
@@ -174,12 +189,6 @@ export function tickNapNpc(dt) {
   _clock += dt;
   _mixer.update(dt);
 
-  // Sync Rapier collider to NPC root position
-  if (_npcColliderBody) {
-    setNpcColliderPos(_npcColliderBody.body,
-      _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
-  }
-
   if (_state === 'walk' && _target) {
     const pos = _root.position;
     const dx = _target.x - pos.x;
@@ -216,5 +225,16 @@ export function tickNapNpc(dt) {
       _playGesture();
       _nextGestureAt = _clock + GESTURE_MIN_DELAY + Math.random() * (GESTURE_MAX_DELAY - GESTURE_MIN_DELAY);
     }
+  }
+
+  // Sync Rapier colliders AFTER all position/rotation/animation updates so
+  // bone.matrixWorld reflects the current frame's final pose (v0.2.574).
+  if (_npcColliderBody) {
+    setNpcColliderPos(_npcColliderBody.body,
+      _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
+  }
+  if (_boneColliders.length > 0) {
+    _root.updateMatrixWorld(true);
+    syncNpcBoneColliders(_boneColliders);
   }
 }

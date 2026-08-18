@@ -1,14 +1,14 @@
 // stickerNpc.js — FTFF sticker projectile system.
 // Stickers fire from the gun and stick to any surface in the scene.
-// For the NPC: uses Rapier raycasting against a sensor capsule collider
-// (hits the actual NPC position, not the bind-pose ghost mesh).
+// For the NPC: uses two Rapier raycasts — one for per-bone ball sensors
+// (hits individual arms, legs, torso, head) and one for the broad capsule
+// (fallback). When a bone is hit, the sticker is parented to that bone via
+// Object3D.attach() — it follows the bone's animation automatically.
 // For static objects (trees, crates): uses Three.js raycaster against meshes.
-// Stickers on the NPC are parented to the NPC root — they follow the NPC's
-// walking and turning. No bone-matrix tracking needed.
 import * as THREE from 'three';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
-import { castRay } from './physics.js';
+import { castRay, colliderToBone } from './physics.js';
 
 let _texture = null;
 let _textureLoading = false;
@@ -123,40 +123,75 @@ export function fireStickerAtNpc(origin, dir) {
 
   const dirN = dir.clone().normalize();
 
-  // ── Step 1: Rapier raycast for NPC (hits actual physics capsule) ──
+  // ── Step 1a: Rapier raycast for NPC BONE colliders only (v0.2.574) ──
+  // Small ball sensors on each bone.  Must be a separate raycast because the
+  // broad NPC capsule would shadow them (it's closer to the ray origin).
+  // Copy point/normal IMMEDIATELY — castRay reuses internal scratch objects.
+  const rawBoneHit = castRay(
+    origin.x, origin.y, origin.z,
+    dirN.x, dirN.y, dirN.z,
+    200, null, c => colliderToBone.has(c.handle)
+  );
+
+  let bonePoint = null, boneNormal = null, boneInfo = null;
+  if (rawBoneHit?.bone) {
+    bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
+    boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
+    boneInfo = rawBoneHit.bone;
+  }
+
+  // ── Step 1b: Rapier raycast for broad NPC capsule + bots + crates ──
+  // Excludes bone colliders so we get the broad capsule hit independently.
   const rapierHit = castRay(
     origin.x, origin.y, origin.z,
     dirN.x, dirN.y, dirN.z,
-    200, null, null
+    200, null, c => !colliderToBone.has(c.handle)
   );
 
   // ── Step 2: Three.js raycast for static meshes (trees, crates, terrain) ──
   const meshHit = _raycastScene(origin, dirN);
 
   // ── Step 3: Pick the closest hit ──
-  let hitPoint, hitNormal, npcRoot = null, meshObj = null;
+  let hitPoint, hitNormal;
+  let npcRoot = null, meshObj = null, bone = null;
+  let bestDist = Infinity;
+
+  if (boneInfo) {
+    const d = bonePoint.distanceTo(origin);
+    if (d < bestDist) {
+      bestDist = d;
+      hitPoint = bonePoint;
+      hitNormal = boneNormal;
+      bone = boneInfo.bone;       // the Three.js Bone Object3D
+      npcRoot = boneInfo.npcRoot; // NPC root for gesture trigger
+    }
+  }
 
   if (rapierHit && rapierHit.npc) {
-    // NPC hit via Rapier — use this hit
-    hitPoint = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
-    hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
-    npcRoot = rapierHit.npc;
+    const rp = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
+    const d = rp.distanceTo(origin);
+    if (d < bestDist) {
+      bestDist = d;
+      hitPoint = rp;
+      hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
+      npcRoot = rapierHit.npc;
+      bone = null; // broad capsule hit — no specific bone
+    }
+  }
 
-    // If the mesh hit is closer, prefer it (e.g. a tree between player and NPC)
-    if (meshHit && meshHit.point.distanceTo(origin) < hitPoint.distanceTo(origin)) {
+  if (meshHit) {
+    const d = meshHit.point.distanceTo(origin);
+    if (d < bestDist) {
+      bestDist = d;
       hitPoint = meshHit.point;
       hitNormal = meshHit.normal;
       meshObj = meshHit.object;
       npcRoot = null;
+      bone = null;
     }
-  } else if (meshHit) {
-    hitPoint = meshHit.point;
-    hitNormal = meshHit.normal;
-    meshObj = meshHit.object;
-  } else {
-    // No hit at all
-    return false;
   }
+
+  if (!hitPoint) return false; // no hit at all
 
   // Flying sticker: always visible (texture or pink fallback)
   const mat = new THREE.SpriteMaterial({
@@ -179,6 +214,7 @@ export function fireStickerAtNpc(origin, dir) {
     normal: hitNormal.clone(),
     npcRoot,
     meshObj,
+    bone,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -238,11 +274,31 @@ export function tickStickerNpc(dt) {
 
       let parented = false;
 
-      // ── NPC: parent to NPC root ──
-      // The Rapier capsule gave us the hit point in world space.
-      // Convert to NPC-root-local space and parent. The sticker follows
-      // the NPC's walking and turning. No bone tracking needed.
-      if (s.npcRoot) {
+      // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
+      // attach() converts the sticker's world transform to the bone's local
+      // space and parents it. The sticker then follows the bone's animation.
+      // No manual matrix math needed — this is what every game engine does
+      // (Unreal: AttachRootComponentToActor with KeepWorldPosition,
+      //  Unity: transform.parent = bone, Three.js: Object3D.attach()).
+      if (s.bone) {
+        try {
+          // Add to scene first with world transform, THEN attach to bone.
+          // attach() reads the world matrix to compute local space.
+          sticker.position.copy(worldPos);
+          sticker.quaternion.copy(_quat);
+          sticker.scale.setScalar(1.0);
+          scene.add(sticker);
+          sticker.updateMatrixWorld(true);
+          s.bone.attach(sticker);
+          parented = true;
+        } catch (e) {
+          console.warn('[sticker] bone.attach failed:', e);
+          // Fall through to NPC root or static mesh parenting
+        }
+      }
+
+      // ── NPC: parent to NPC root (broad capsule hit, no specific bone) ──
+      if (!parented && s.npcRoot) {
         try {
           s.npcRoot.updateMatrixWorld(true);
           const localPos = worldPos.clone();

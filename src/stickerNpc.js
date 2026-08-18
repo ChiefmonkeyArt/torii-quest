@@ -24,6 +24,9 @@ const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _worldQuatInv = new THREE.Quaternion();
+const _boneWorldInv = new THREE.Matrix4();
+const _worldTarget = new THREE.Vector3();
+const _worldNormal = new THREE.Vector3();
 const MAX_SKIN_BONES = 256;
 const _faceBoneTotals = new Float32Array(MAX_SKIN_BONES);
 const _faceBoneUsed = new Uint16Array(12);
@@ -356,9 +359,11 @@ export function fireStickerAtNpc(origin, dir) {
     bestDist = d;
     hitPoint = npcSurfaceEff.point;
     hitNormal = npcSurfaceEff.normal;
-    bone = boneInfo?.npcRoot === _npcRoot && boneInfo.bone
-      ? boneInfo.bone
-      : _getSurfaceHitBone(npcSurfaceEff);
+    // Real mesh hit: attach to the bone that drives the skin at the hit face
+    // (max skin weight). The grazed collider bone can be a neighbour that
+    // moves differently, leaving the sticker floating. Graze fallback: use it.
+    const surfaceBone = npcSurfaceEff !== npcSurface ? null : _getSurfaceHitBone(npcSurfaceEff);
+    bone = surfaceBone || (boneInfo?.npcRoot === _npcRoot ? boneInfo.bone : null);
     npcRoot = _npcRoot;
   }
 
@@ -374,7 +379,8 @@ export function fireStickerAtNpc(origin, dir) {
       bestDist = d;
       hitPoint = boneSurfaceEff.point;
       hitNormal = boneSurfaceEff.normal;
-      bone = boneInfo.bone || _getSurfaceHitBone(boneSurfaceEff);
+      const surfaceBone = boneSurfaceEff !== boneSurface ? null : _getSurfaceHitBone(boneSurfaceEff);
+      bone = surfaceBone || boneInfo.bone || null;
       npcRoot = null;
       bot = boneInfo.bot;
     }
@@ -429,6 +435,19 @@ export function fireStickerAtNpc(origin, dir) {
 
   if (!hitPoint) return false; // no hit at all
 
+  // Bake the hit into the bone's LOCAL space at fire time. The NPC walks
+  // ~0.3m during the 0.22s flight; storing a bone-local offset lets the
+  // landing code place the sticker at the bone's CURRENT transform of that
+  // offset, so it rides the skin instead of trailing behind in mid-air.
+  let boneLocalOffset = null;
+  let boneLocalNormal = null;
+  if (bone) {
+    bone.updateWorldMatrix(true, false);
+    _boneWorldInv.copy(bone.matrixWorld).invert();
+    boneLocalOffset = hitPoint.clone().applyMatrix4(_boneWorldInv);
+    boneLocalNormal = hitNormal.clone().transformDirection(_boneWorldInv);
+  }
+
   // Flying sticker: always visible (texture or pink fallback)
   const mat = new THREE.SpriteMaterial({
     map: _texture || null,
@@ -452,6 +471,8 @@ export function fireStickerAtNpc(origin, dir) {
     meshObj,
     bone,
     bot,
+    boneLocalOffset,
+    boneLocalNormal,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -478,6 +499,13 @@ export function tickStickerNpc(dt) {
   for (let i = _stickers.length - 1; i >= 0; i--) {
     const s = _stickers[i];
     s.t += dt;
+    // Bone-bound stickers track the moving bone during flight so the landing
+    // is seamless (the NPC walks ~0.3m during the 0.22s flight).
+    if (s.bone && s.boneLocalOffset) {
+      s.bone.updateWorldMatrix(true, false);
+      _worldTarget.copy(s.boneLocalOffset).applyMatrix4(s.bone.matrixWorld);
+      s.to.copy(_worldTarget);
+    }
     const p = Math.min(1, s.t / s.duration);
     const e = 1 - (1 - p) * (1 - p);
     s.sprite.position.lerpVectors(s.from, s.to, e);
@@ -522,21 +550,35 @@ export function tickStickerNpc(dt) {
       console.log('[sticker] land: bone=', s.bone?.name || 'NULL', 'npcRoot=', !!s.npcRoot, 'bot=', !!s.bot, 'meshObj=', s.meshObj?.name || s.meshObj?.type || 'none');
       if (s.bone) {
         try {
-          sticker.position.copy(worldPos);
-          sticker.quaternion.copy(_quat);
+          if (s.boneLocalOffset) {
+            // Place at the bone's CURRENT world transform of the fire-time
+            // local offset — the NPC moved during flight, so the raw hit point
+            // is stale. This glues the sticker to the skin with zero lag.
+            s.bone.updateWorldMatrix(true, false);
+            _worldTarget.copy(s.boneLocalOffset).applyMatrix4(s.bone.matrixWorld);
+            _worldNormal.copy(s.boneLocalNormal).transformDirection(s.bone.matrixWorld);
+            sticker.position.copy(_worldTarget);
+            sticker.position.x += _worldNormal.x * 0.006;
+            sticker.position.y += _worldNormal.y * 0.006;
+            sticker.position.z += _worldNormal.z * 0.006;
+            _quat.setFromUnitVectors(_zAxis, _worldNormal);
+            sticker.quaternion.copy(_quat);
+          } else {
+            sticker.position.copy(worldPos);
+            sticker.quaternion.copy(_quat);
+          }
           sticker.scale.setScalar(1.0);
           scene.add(sticker);
           sticker.updateMatrixWorld(true);
           s.bone.attach(sticker);
           parented = true;
 
-          // DEBUG: green sphere attached to the SAME BONE — if this follows
-          // the NPC, bone parenting works in-game. If it stays fixed, the
-          // bone itself is not moving in the scene graph.
+          // DEBUG: green sphere attached to the SAME BONE at the same spot.
           const dbgGeo = new THREE.SphereGeometry(0.05, 8, 6);
           const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, depthTest: false });
           const dbg = new THREE.Mesh(dbgGeo, dbgMat);
-          dbg.position.copy(worldPos);
+          dbg.position.copy(sticker.position);
+          dbg.quaternion.copy(sticker.quaternion);
           dbg.renderOrder = 999;
           scene.add(dbg);
           dbg.updateMatrixWorld(true);
@@ -547,10 +589,7 @@ export function tickStickerNpc(dt) {
 
           console.log('[sticker] attached to bone:', s.bone.name,
             'worldPos:', sticker.getWorldPosition(new THREE.Vector3()).toArray().map(v=>v.toFixed(3)),
-            'localPos:', sticker.position.toArray().map(v=>v.toFixed(2)),
-            'localScale:', sticker.scale.toArray().map(v=>v.toFixed(1)),
-            'parentIsBone:', sticker.parent === s.bone,
-            'boneInScene:', (() => { let o = s.bone; while (o.parent) o = o.parent; return o === scene || o.type === 'Scene'; })());
+            'parentIsBone:', sticker.parent === s.bone);
         } catch (e) {
           console.warn('[sticker] bone.attach failed:', e);
         }

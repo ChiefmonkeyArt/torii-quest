@@ -14,7 +14,6 @@ let _texture = null;
 let _textureLoading = false;
 let _stickers = [];      // active flying stickers
 let _attached = [];      // stickers stuck on surfaces
-const _debugMarkers = []; // debug spheres (may be parented to bones)
 
 // Reusable raycaster + scratch vectors (constraint [4]: no new in hot paths)
 const _raycaster = new THREE.Raycaster();
@@ -53,14 +52,12 @@ const ATTACHED_LIFETIME = 180;
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
   _textureLoading = true;
-  console.log('[sticker] preloading texture');
   const loader = new THREE.TextureLoader();
   loader.load(assetUrl('/ftff-sticker.png'), tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     _texture = tex;
     _textureLoading = false;
-    console.log('[sticker] texture loaded', tex.image.width + 'x' + tex.image.height);
   }, undefined, err => {
     console.warn('[sticker] texture load FAILED:', err);
     _textureLoading = false;
@@ -146,11 +143,6 @@ function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = 200;
   const hits = _raycaster.intersectObject(skinnedMesh, false);
-  console.log('[sticker] skinnedMesh raycast:', hits.length, 'hits |',
-    'bindMatrix is identity:', skinnedMesh.bindMatrix.elements[0] === 1 && skinnedMesh.bindMatrix.elements[5] === 1 && skinnedMesh.bindMatrix.elements[10] === 1,
-    '| bsphere center:', skinnedMesh.boundingSphere?.center.toArray().map(v=>v.toFixed(2)),
-    'radius:', skinnedMesh.boundingSphere?.radius.toFixed(2),
-    '| worldScale:', skinnedMesh.matrixWorld.elements[0].toFixed(4));
   if (hits.length > 0) {
     const hit = hits[0];
     if (hit.face) {
@@ -233,21 +225,6 @@ function _getSurfaceHitBone(surfaceHit) {
   return bestIndex >= 0 ? skeleton.bones[bestIndex] || null : null;
 }
 
-function _addSurfaceDebugMarker(surfaceHit) {
-  // DEBUG: red sphere at the real SkinnedMesh surface hit.
-  // depthTest:false so it's ALWAYS visible (not hidden inside the mesh).
-  console.log('[sticker] surface hit point:', surfaceHit.point.toArray().map(v=>v.toFixed(3)));
-  const rGeo = new THREE.SphereGeometry(0.05, 8, 6);
-  const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8, depthTest: false });
-  const rDbg = new THREE.Mesh(rGeo, rMat);
-  rDbg.position.copy(surfaceHit.point);
-  rDbg.renderOrder = 999;
-  rDbg.userData.isDebugMarker = true;
-  rDbg.userData.life = 5.0;
-  scene.add(rDbg);
-  _debugMarkers.push(rDbg);
-}
-
 // Approximate skin radius per bone (world units / meters). Used by the graze
 // fallback to place a sticker on the bone's surface when the generous bone
 // ball sensor is hit but the precise SkinnedMesh raycast misses (thin limbs).
@@ -285,7 +262,9 @@ function _boneGrazeFallback(bone, origin, dirN) {
   } else {
     _grazeSide.copy(dirN).multiplyScalar(-1); // dead-center: face the camera
   }
-  const skinR = _SKIN_RADIUS[bone.name] || _SKIN_RADIUS_DEFAULT;
+  // 0.85: radii are estimates; bias slightly inward so the sticker hugs the
+  // skin rather than floating proud of it.
+  const skinR = (_SKIN_RADIUS[bone.name] || _SKIN_RADIUS_DEFAULT) * 0.85;
   const point = new THREE.Vector3().copy(_grazeBonePos).addScaledVector(_grazeSide, skinR);
   const normal = new THREE.Vector3().copy(_grazeSide);
   return { point, normal, bone };
@@ -307,8 +286,6 @@ export function fireStickerAtNpc(origin, dir) {
     200, null, c => colliderToBone.has(c.handle)
   );
 
-  console.log('[sticker] fire', rawBoneHit?.bone ? 'hit' : 'miss');
-
   const boneInfo = rawBoneHit?.bone || null;
   if (boneInfo?.npcRoot) {
     _npcRoot = boneInfo.npcRoot;
@@ -318,14 +295,12 @@ export function fireStickerAtNpc(origin, dir) {
   // The surface ray is authoritative and runs on every fire, even if the
   // generous per-bone ball query misses.
   const npcSurface = _raycastSkinnedMesh(npcSkinnedMesh, origin, dirN);
-  if (npcSurface) _addSurfaceDebugMarker(npcSurface);
 
   // Bot bone sensors still need a surface point, but never fall back to their
   // collider point. NPC sensors reuse the independently resolved NPC surface.
   const boneSurface = boneInfo?.skinnedMesh === npcSkinnedMesh
     ? npcSurface
     : _raycastSkinnedMesh(boneInfo?.skinnedMesh, origin, dirN);
-  if (boneSurface && boneSurface !== npcSurface) _addSurfaceDebugMarker(boneSurface);
 
   // ── Step 1b: Rapier raycast for broad NPC capsule + bots + crates ──
   // Excludes bone colliders so we get the broad capsule hit independently.
@@ -351,7 +326,6 @@ export function fireStickerAtNpc(origin, dir) {
   let npcSurfaceEff = npcSurface;
   if (!npcSurfaceEff && boneInfo?.npcRoot && boneInfo.npcRoot === _npcRoot && boneInfo.bone) {
     npcSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
-    if (npcSurfaceEff) console.log('[sticker] graze fallback → npc bone:', boneInfo.bone.name);
   }
 
   if (npcSurfaceEff && _npcRoot) {
@@ -370,7 +344,6 @@ export function fireStickerAtNpc(origin, dir) {
   let boneSurfaceEff = boneSurface;
   if (!boneSurfaceEff && boneInfo?.bot && boneInfo.bone) {
     boneSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
-    if (boneSurfaceEff) console.log('[sticker] graze fallback → bot bone:', boneInfo.bone.name);
   }
 
   if (boneInfo?.bot && boneSurfaceEff) {
@@ -404,7 +377,6 @@ export function fireStickerAtNpc(origin, dir) {
         : _raycastSkinnedMesh(broadSkinnedMesh, origin, dirN);
     }
     if (broadSurface) {
-      if (broadSurface !== npcSurface && broadSurface !== boneSurface) _addSurfaceDebugMarker(broadSurface);
       const d = broadSurface.point.distanceTo(origin);
       if (d < bestDist) {
         bestDist = d;
@@ -534,12 +506,14 @@ export function tickStickerNpc(dt) {
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true;
 
-      // Compute final world position: hit point + tiny z-fight offset.
+      // Compute final world position: hit point + small z-fight offset.
       // For SkinnedMesh hits, hitPoint is already on the mesh surface.
+      // 0.012 lifts the flat plane clear of curved skin (was 0.006 — the
+      // corners of the 8cm plane clipped into rounded limbs at that depth).
       const worldPos = s.to.clone();
-      worldPos.x += s.normal.x * 0.006;
-      worldPos.y += s.normal.y * 0.006;
-      worldPos.z += s.normal.z * 0.006;
+      worldPos.x += s.normal.x * 0.012;
+      worldPos.y += s.normal.y * 0.012;
+      worldPos.z += s.normal.z * 0.012;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);
@@ -547,7 +521,6 @@ export function tickStickerNpc(dt) {
       let parented = false;
 
       // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
-      console.log('[sticker] land: bone=', s.bone?.name || 'NULL', 'npcRoot=', !!s.npcRoot, 'bot=', !!s.bot, 'meshObj=', s.meshObj?.name || s.meshObj?.type || 'none');
       if (s.bone) {
         try {
           if (s.boneLocalOffset) {
@@ -558,9 +531,9 @@ export function tickStickerNpc(dt) {
             _worldTarget.copy(s.boneLocalOffset).applyMatrix4(s.bone.matrixWorld);
             _worldNormal.copy(s.boneLocalNormal).transformDirection(s.bone.matrixWorld);
             sticker.position.copy(_worldTarget);
-            sticker.position.x += _worldNormal.x * 0.006;
-            sticker.position.y += _worldNormal.y * 0.006;
-            sticker.position.z += _worldNormal.z * 0.006;
+            sticker.position.x += _worldNormal.x * 0.012;
+            sticker.position.y += _worldNormal.y * 0.012;
+            sticker.position.z += _worldNormal.z * 0.012;
             _quat.setFromUnitVectors(_zAxis, _worldNormal);
             sticker.quaternion.copy(_quat);
           } else {
@@ -572,24 +545,6 @@ export function tickStickerNpc(dt) {
           sticker.updateMatrixWorld(true);
           s.bone.attach(sticker);
           parented = true;
-
-          // DEBUG: green sphere attached to the SAME BONE at the same spot.
-          const dbgGeo = new THREE.SphereGeometry(0.05, 8, 6);
-          const dbgMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, depthTest: false });
-          const dbg = new THREE.Mesh(dbgGeo, dbgMat);
-          dbg.position.copy(sticker.position);
-          dbg.quaternion.copy(sticker.quaternion);
-          dbg.renderOrder = 999;
-          scene.add(dbg);
-          dbg.updateMatrixWorld(true);
-          s.bone.attach(dbg);
-          dbg.userData.isDebugMarker = true;
-          dbg.userData.life = 8.0; // seconds
-          _debugMarkers.push(dbg);
-
-          console.log('[sticker] attached to bone:', s.bone.name,
-            'worldPos:', sticker.getWorldPosition(new THREE.Vector3()).toArray().map(v=>v.toFixed(3)),
-            'parentIsBone:', sticker.parent === s.bone);
         } catch (e) {
           console.warn('[sticker] bone.attach failed:', e);
         }
@@ -686,18 +641,6 @@ export function tickStickerNpc(dt) {
       if (a.life < 2.0) {
         a.mesh.material.opacity = a.life / 2.0;
       }
-    }
-  }
-
-  // Clean up debug markers (wherever they are parented)
-  for (let i = _debugMarkers.length - 1; i >= 0; i--) {
-    const c = _debugMarkers[i];
-    c.userData.life -= dt;
-    if (c.userData.life <= 0) {
-      if (c.parent) c.parent.remove(c);
-      if (c.geometry) c.geometry.dispose();
-      if (c.material) c.material.dispose();
-      _debugMarkers.splice(i, 1);
     }
   }
 }

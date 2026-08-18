@@ -264,9 +264,8 @@ export function tickStickerNpc(dt) {
           if (boneIndex >= 0) {
             try {
               // Compute the vertex position in bind-pose world space.
-              // vertex = (mesh.matrixWorld * bindMatrixInverse * boneMatrices.creation * bindMatrix).inverse() * worldPos
-              // Simplified: bindWorldPos = boneMatrices.creation.inverse() * bindMatrix * meshInverse * worldPos
-              // (when bindMatrix == mesh.matrixWorld at bind time)
+              // From the shader: worldPos = mesh.matrixWorld * bindMatrixInverse * boneMat * bindMatrix * vertex
+              // Solving: bindWorldPos = bindMatrix * vertex = boneMatInv * bindMatrix * meshInverse * worldPos
               skinnedMesh.updateMatrixWorld(true);
               skinnedMesh.skeleton.update();
 
@@ -274,12 +273,17 @@ export function tickStickerNpc(dt) {
               const boneMat = _m4b.fromArray(skinnedMesh.skeleton.boneMatrices, boneIndex * 16);
               const boneMatInv = _m4c.copy(boneMat).invert();
 
-              // bindWorldPos = boneMatInv * meshInverse * worldPos
-              // (meshInverse converts world→mesh-local, boneMatInv converts mesh-local→bind-pose world)
-              const bindWorldPos = _v3a.copy(worldPos).applyMatrix4(meshInverse).applyMatrix4(boneMatInv);
+              // bindWorldPos = boneMatInv * bindMatrix * meshInverse * worldPos
+              const bindWorldPos = _v3a.copy(worldPos)
+                .applyMatrix4(meshInverse)
+                .applyMatrix4(skinnedMesh.bindMatrix)
+                .applyMatrix4(boneMatInv);
 
               // Compute bind-pose normal similarly
-              const bindNormal = _v3b.copy(s.normal).transformDirection(meshInverse).transformDirection(boneMatInv);
+              const bindNormal = _v3b.copy(s.normal)
+                .transformDirection(meshInverse)
+                .transformDirection(skinnedMesh.bindMatrix)
+                .transformDirection(boneMatInv);
 
               // Parent to the SkinnedMesh (not the bone) and update each frame
               sticker.userData.stickerBoneTrack = {
@@ -289,10 +293,8 @@ export function tickStickerNpc(dt) {
                 bindNormal: bindNormal.clone(),
               };
 
-              // Set initial position
-              _m4a.copy(skinnedMesh.bindMatrixInverse)
-                .multiply(boneMat)
-                .multiply(skinnedMesh.bindMatrix);
+              // Set initial position: bindMatrixInverse * boneMat * bindWorldPos
+              _m4a.copy(skinnedMesh.bindMatrixInverse).multiply(boneMat);
               sticker.position.copy(bindWorldPos).applyMatrix4(_m4a);
 
               // Set initial orientation
@@ -381,8 +383,8 @@ export function tickStickerNpc(dt) {
         if (sm.skeleton && sm.skeleton.boneMatrices) {
           // Read current bone matrix from the skeleton
           _m4b.fromArray(sm.skeleton.boneMatrices, track.boneIndex * 16);
-          // Compute: bindMatrixInverse * boneMat * bindMatrix * bindWorldPos
-          _m4a.copy(sm.bindMatrixInverse).multiply(_m4b).multiply(sm.bindMatrix);
+          // Compute: bindMatrixInverse * boneMat * bindWorldPos
+          _m4a.copy(sm.bindMatrixInverse).multiply(_m4b);
           a.mesh.position.copy(track.bindWorldPos).applyMatrix4(_m4a);
           // Update orientation
           _v3c.copy(track.bindNormal).transformDirection(_m4a);

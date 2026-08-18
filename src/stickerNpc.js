@@ -128,14 +128,24 @@ function _raycastScene(origin, dir) {
 // point.  Three.js r184's checkGeometryIntersection calls getVertexPosition()
 // which applies bone transforms — so this returns the posed hit point, not
 // the bind-pose hit point.
+//
+// CRITICAL: The bounding sphere is cached from bind pose and may not fit the
+// animated mesh, especially when the SkinnedMesh has a scale (e.g. 0.01 from
+// an Armature node).  We recompute it each call to ensure the ray actually
+// passes the sphere check.
+// See: https://discourse.threejs.org/t/raycasters-not-working-with-blender-glb/22449
 function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
   if (!skinnedMesh) return null;
+  // Recompute bounding sphere so it fits the current animated pose.
+  skinnedMesh.computeBoundingSphere();
+  skinnedMesh.updateMatrixWorld(true);
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = 200;
   const hits = _raycaster.intersectObject(skinnedMesh, false);
-  for (const hit of hits) {
+  if (hits.length > 0) {
+    const hit = hits[0];
     if (hit.face) {
       _normal.copy(hit.face.normal);
       _normal.transformDirection(hit.object.matrixWorld);
@@ -168,10 +178,27 @@ export function fireStickerAtNpc(origin, dir) {
 
   let bonePoint = null, boneNormal = null, boneInfo = null;
   if (rawBoneHit?.bone) {
-    // Bone collider hit — offset inward from sphere surface toward mesh surface.
-    bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
-    boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
-    bonePoint.addScaledVector(boneNormal, BONE_HIT_INWARD_OFFSET);
+    // Bone collider tells us WHICH character + WHICH bone was hit.
+    // Raycast the actual SkinnedMesh to find the real surface point.
+    const sm = rawBoneHit.bone.skinnedMesh;
+    const surfaceHit = _raycastSkinnedMesh(sm, origin, dirN);
+    if (surfaceHit) {
+      bonePoint = surfaceHit.point;
+      boneNormal = surfaceHit.normal;
+      // DEBUG: red sphere at SkinnedMesh surface hit
+      const rGeo = new THREE.SphereGeometry(0.02, 8, 6);
+      const rMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 1 });
+      const rDbg = new THREE.Mesh(rGeo, rMat);
+      rDbg.position.copy(bonePoint);
+      rDbg.userData.isDebugMarker = true;
+      rDbg.userData.life = 5.0;
+      scene.add(rDbg);
+    } else {
+      // SkinnedMesh raycast missed — fall back to collider hit point.
+      bonePoint = new THREE.Vector3(rawBoneHit.point.x, rawBoneHit.point.y, rawBoneHit.point.z);
+      boneNormal = new THREE.Vector3(rawBoneHit.normal.x, rawBoneHit.normal.y, rawBoneHit.normal.z);
+      bonePoint.addScaledVector(boneNormal, BONE_HIT_INWARD_OFFSET);
+    }
     boneInfo = rawBoneHit.bone;
   }
 
@@ -321,11 +348,12 @@ export function tickStickerNpc(dt) {
       const sticker = new THREE.Mesh(geo, mat);
       sticker.userData.isSticker = true;
 
-      // Compute final world position: hit point + small offset along normal
+      // Compute final world position: hit point + tiny z-fight offset.
+      // For SkinnedMesh hits, hitPoint is already on the mesh surface.
       const worldPos = s.to.clone();
-      worldPos.x += s.normal.x * 0.02;
-      worldPos.y += s.normal.y * 0.02;
-      worldPos.z += s.normal.z * 0.02;
+      worldPos.x += s.normal.x * 0.006;
+      worldPos.y += s.normal.y * 0.006;
+      worldPos.z += s.normal.z * 0.006;
 
       // Orient plane to surface normal
       _quat.setFromUnitVectors(_zAxis, s.normal);

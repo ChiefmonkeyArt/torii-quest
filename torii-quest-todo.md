@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.574-alpha` - PER-BONE NPC STICKER COLLIDERS (per-bone Rapier ball sensors + Object3D.attach). Prior: `v0.2.573-alpha` - LOAD TIME OPTIMIZATION (Draco + WebP compression, smooth progress bar, title-screen preloading).
+Current version: `v0.2.575-alpha` - PER-BONE STICKER COLLIDERS ON BOTS (extended to bots, castRay default excludes bone sensors). Prior: `v0.2.574-alpha` - PER-BONE NPC STICKER COLLIDERS (per-bone Rapier ball sensors + Object3D.attach).
 
 ## 🚨 TOP OF QUEUE
 

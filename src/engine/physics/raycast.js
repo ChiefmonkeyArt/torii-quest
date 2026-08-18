@@ -34,11 +34,15 @@ export function castRay(ox, oy, oz, dx, dy, dz, maxDist, excludeCollider = null,
 
   // Signature: (ray, maxToi, solid, filterFlags?, filterGroups?,
   //             filterExcludeCollider?, filterExcludeRigidBody?, filterPredicate?)
+  // Default filter: exclude bone colliders so combat raycasts (which pass no
+  // filter) never hit per-bone sensors — only body capsule, head sphere, static
+  // geometry. Sticker raycasts pass their own explicit filter to override.
+  const effectiveFilter = filterPredicate || (c => !colliderToBone.has(c.handle));
   const hit = _world.castRayAndGetNormal(
     _rayCache, maxDist, true,
     undefined, undefined,
     excludeCollider || undefined,   // exclude the firing entity's own collider
-    undefined, filterPredicate || undefined,
+    undefined, effectiveFilter || undefined,
   );
   if (!hit) return null;
   _rayHitPoint.x = ox + dx * hit.timeOfImpact;

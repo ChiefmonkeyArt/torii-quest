@@ -66,8 +66,9 @@ function _isExcluded(obj) {
   while (o) {
     if (o.name && EXCLUDE_NAMES.has(o.name)) return true;
     if (o.name === 'fps-body' || o.name === 'player-model') return true;
-    // Skip NPC meshes — handled by Rapier capsule, not Three.js raycaster
+    // Skip NPC + bot meshes — handled by Rapier colliders, not Three.js raycaster
     if (_npcRoot && o === _npcRoot) return true;
+    if (o.userData?.isBotMesh) return true;
     o = o.parent;
   }
   return false;
@@ -153,7 +154,7 @@ export function fireStickerAtNpc(origin, dir) {
 
   // ── Step 3: Pick the closest hit ──
   let hitPoint, hitNormal;
-  let npcRoot = null, meshObj = null, bone = null;
+  let npcRoot = null, meshObj = null, bone = null, bot = null;
   let bestDist = Infinity;
 
   if (boneInfo) {
@@ -163,18 +164,20 @@ export function fireStickerAtNpc(origin, dir) {
       hitPoint = bonePoint;
       hitNormal = boneNormal;
       bone = boneInfo.bone;       // the Three.js Bone Object3D
-      npcRoot = boneInfo.npcRoot; // NPC root for gesture trigger
+      npcRoot = boneInfo.npcRoot || null; // NPC root for gesture trigger
+      bot = boneInfo.bot || null;        // bot ref (v0.2.575)
     }
   }
 
-  if (rapierHit && rapierHit.npc) {
+  if (rapierHit && (rapierHit.npc || rapierHit.bot)) {
     const rp = new THREE.Vector3(rapierHit.point.x, rapierHit.point.y, rapierHit.point.z);
     const d = rp.distanceTo(origin);
     if (d < bestDist) {
       bestDist = d;
       hitPoint = rp;
       hitNormal = new THREE.Vector3(rapierHit.normal.x, rapierHit.normal.y, rapierHit.normal.z);
-      npcRoot = rapierHit.npc;
+      npcRoot = rapierHit.npc || null;
+      bot = rapierHit.bot || null;
       bone = null; // broad capsule hit — no specific bone
     }
   }
@@ -187,6 +190,7 @@ export function fireStickerAtNpc(origin, dir) {
       hitNormal = meshHit.normal;
       meshObj = meshHit.object;
       npcRoot = null;
+      bot = null;
       bone = null;
     }
   }
@@ -215,6 +219,7 @@ export function fireStickerAtNpc(origin, dir) {
     npcRoot,
     meshObj,
     bone,
+    bot,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -313,6 +318,26 @@ export function tickStickerNpc(dt) {
           parented = true;
         } catch (e) {
           console.warn('[sticker] NPC root parenting failed:', e);
+        }
+      }
+
+      // ── BOT: parent to bot root (broad capsule/head hit, no specific bone) ──
+      // v0.2.575: same pattern as NPC root — convert world to bot-root-local.
+      if (!parented && s.bot && s.bot.model?.root) {
+        try {
+          const botRoot = s.bot.model.root;
+          botRoot.updateMatrixWorld(true);
+          const localPos = worldPos.clone();
+          botRoot.worldToLocal(localPos);
+          sticker.position.copy(localPos);
+          sticker.quaternion.copy(_quat);
+          botRoot.getWorldQuaternion(_worldQuatInv).invert();
+          sticker.quaternion.premultiply(_worldQuatInv);
+          sticker.scale.setScalar(1.0);
+          botRoot.add(sticker);
+          parented = true;
+        } catch (e) {
+          console.warn('[sticker] bot root parenting failed:', e);
         }
       }
 

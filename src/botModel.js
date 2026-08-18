@@ -93,6 +93,7 @@ export class BotModel {
     this._oneshotFade  = '';
     this._footY  = 0; // vertical offset to keep feet at y=0
     this._nameplate = null;
+    this.skinnedMesh = null; // SkinnedMesh ref for per-bone colliders
   }
 
   // Call once after _loadTemplate(kind) resolves
@@ -100,6 +101,7 @@ export class BotModel {
     const tpl = TEMPLATES[this.kind];
     // SkeletonUtils.clone — correct bone binding per instance, no shared matrices
     this.root = skeletonClone(tpl.scene);
+    this.root.userData.isBotMesh = true; // exclude from sticker Three.js raycaster
 
     if (tpl.target) {
       // Boss (augustink4.glb): a rigged SkinnedMesh whose Armature root carries a
@@ -140,6 +142,7 @@ export class BotModel {
         o.receiveShadow = true;
         o.frustumCulled = false; // critical for SkinnedMesh
       }
+      if (o.isSkinnedMesh && !this.skinnedMesh) this.skinnedMesh = o;
     });
 
     scene.add(this.root);

@@ -26,7 +26,8 @@ import { BotModel, preloadBotModel, preloadBossModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
-         BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET } from './physics.js';
+         BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET,
+         createBotBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
 import { buildCoverPoints } from './engine/entities/bot-tactics.js';
 import { isFlyEnabled } from './engine/debug/flyCamera.js';
@@ -230,6 +231,7 @@ function _makeWrapper(st, model, capsuleMesh) {
     rapierCollider: null,
     rapierHeadBody: null,
     rapierHeadCollider: null,
+    boneColliders: [],     // per-bone sensor colliders (v0.2.575)
     get mesh() { return this.model ? this.model.root : this._capsuleMesh; },
     get alive() { return this.state.alive; },
     get hp() { return this.state.hp; },
@@ -264,6 +266,10 @@ function _attachModelBot(st, renderKind = 'regular') {
     existing.state = st;
     existing.pos.set(x, 0, z);
     if (!st.alive) model.hide();
+    // Create bone colliders for the newly-attached model (v0.2.575).
+    if (physicsReady && model.skinnedMesh && existing.boneColliders.length === 0) {
+      existing.boneColliders = createBotBoneColliders(existing, model.skinnedMesh);
+    }
     return existing;
   }
   const bot = _makeWrapper(st, model, null);
@@ -289,6 +295,10 @@ function _ensureBotColliders(bot, x, z) {
     if (h) { bot.rapierHeadBody = h.body; bot.rapierHeadCollider = h.collider; }
   } else {
     setBotBodyPos(bot.rapierHeadBody, x, fy + BOT_HEAD_CENTRE_Y_OFFSET, z);
+  }
+  // Per-bone colliders — only for model bots with a SkinnedMesh (v0.2.575).
+  if (bot.model?.loaded && bot.model.skinnedMesh && bot.boneColliders.length === 0) {
+    bot.boneColliders = createBotBoneColliders(bot, bot.model.skinnedMesh);
   }
 }
 
@@ -504,6 +514,10 @@ function _syncNetBot(bot, pose, dt) {
     // a hit on a dead bot (damage is server-authoritative regardless).
     if (bot.rapierBody)     setBotBodyPos(bot.rapierBody,     pose.x, -100, pose.z);
     if (bot.rapierHeadBody) setBotBodyPos(bot.rapierHeadBody, pose.x, -100, pose.z);
+    // Park bone colliders too (v0.2.575).
+    if (bot.boneColliders.length > 0) {
+      for (const bc of bot.boneColliders) bc.body.setNextKinematicTranslation({ x: pose.x, y: -100, z: pose.z });
+    }
     bot._prevAlive = false;
     return;
   }
@@ -535,6 +549,11 @@ function _syncNetBot(bot, pose, dt) {
   } else if (bot._capsuleMesh && !bot.model) {
     bot._capsuleMesh.position.set(pose.x, fy + BOT_BODY_CENTRE_Y_OFFSET, pose.z);
     bot._capsuleMesh.rotation.y = pose.rotY;
+  }
+  // Sync per-bone colliders after model update (v0.2.575).
+  if (bot.boneColliders.length > 0 && bot.model?.root) {
+    bot.model.root.updateMatrixWorld(true);
+    syncNpcBoneColliders(bot.boneColliders);
   }
   bot._prevAlive = true;
 }
@@ -611,6 +630,12 @@ function _syncBot(bot, dt) {
     bot._capsuleMesh.rotation.y = st.rotY;
   }
 
+  // Sync per-bone colliders after model update (v0.2.575).
+  if (bot.boneColliders.length > 0 && bot.model?.root) {
+    bot.model.root.updateMatrixWorld(true);
+    syncNpcBoneColliders(bot.boneColliders);
+  }
+
   bot._prevDying = st._isDying;
   bot._prevAlive = st.alive;
 }
@@ -639,6 +664,10 @@ function _applyKillRender(bot) {
   }
   if (bot.rapierBody)     setBotBodyPos(bot.rapierBody,     bot.pos.x, -100, bot.pos.z);
   if (bot.rapierHeadBody) setBotBodyPos(bot.rapierHeadBody, bot.pos.x, -100, bot.pos.z);
+  // Park bone colliders too (v0.2.575).
+  if (bot.boneColliders.length > 0) {
+    for (const bc of bot.boneColliders) bc.body.setNextKinematicTranslation({ x: bot.pos.x, y: -100, z: bot.pos.z });
+  }
   bot._prevAlive = false;
   bot._prevDying = st._isDying;
 

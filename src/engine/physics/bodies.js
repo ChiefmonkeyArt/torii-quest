@@ -229,14 +229,20 @@ const BONE_BALL_RADIUS = 0.10;
 // Create ball sensor colliders on every bone in the skinned mesh's skeleton.
 // Returns an array of { body, collider, bone } for sync/cleanup.
 export function createNpcBoneColliders(npcRoot, skinnedMesh) {
+  return _createBoneColliders(npcRoot, skinnedMesh, { kind: 'npc', npcRoot });
+}
+
+export function createBotBoneColliders(bot, skinnedMesh) {
+  return _createBoneColliders(bot.model.root, skinnedMesh, { kind: 'bot', bot });
+}
+
+function _createBoneColliders(root, skinnedMesh, entityInfo) {
   if (!_world || !skinnedMesh || !skinnedMesh.skeleton) return [];
   const result = [];
-  // Ensure world matrices are current so bone positions are accurate.
-  npcRoot.updateMatrixWorld(true);
+  root.updateMatrixWorld(true);
   const bones = skinnedMesh.skeleton.bones;
   for (let i = 0; i < bones.length; i++) {
     const bone = bones[i];
-    // Read bone world position from matrixWorld (0.01 scale already baked in).
     const e = bone.matrixWorld.elements;
     const px = e[12], py = e[13], pz = e[14];
     const body = _world.createRigidBody(
@@ -246,10 +252,10 @@ export function createNpcBoneColliders(npcRoot, skinnedMesh) {
       _RAPIER.ColliderDesc.ball(BONE_BALL_RADIUS).setSensor(true),
       body
     );
-    colliderToBone.set(collider.handle, { npcRoot, bone });
+    colliderToBone.set(collider.handle, { ...entityInfo, bone });
     result.push({ body, collider, bone });
   }
-  console.log('[bodies] created', result.length, 'per-bone colliders for NPC');
+  console.log('[bodies] created', result.length, 'per-bone colliders for', entityInfo.kind);
   return result;
 }
 

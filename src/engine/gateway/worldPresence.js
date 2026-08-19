@@ -68,6 +68,15 @@ function _safeHttps(raw) {
 // template ready for NIP-07 signEvent. `input.pubkey` (hex64) is required so the
 // signed event carries the operator identity; everything else degrades. Returns
 // { ok, event, errors }. Pure; never throws.
+//
+// NIP-40 expiration (Phase 0d): by default the event carries an `expiration`
+// tag = created_at + ttl so stale nodes auto-drop from the live directory.
+// `input.expirationTtlSec` controls it:
+//   - omitted/undefined → default 1200s (20 min), always added (default-on so
+//     presence events always expire — stale nodes never linger).
+//   - a finite number > 0 → clamped to [60, 3600] and used as the ttl.
+//   - 0 (or a non-finite/non-number) → opt-out, NO expiration tag emitted.
+//     (Tests / special callers can pass 0 to assert the pre-NIP-40 shape.)
 export function buildPresenceEvent(input = {}) {
   const i = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
   const errors = [];
@@ -77,6 +86,16 @@ export function buildPresenceEvent(input = {}) {
     ? i.zoneId.trim().slice(0, 128) : null;
   if (!zoneId) errors.push('zoneId is required');
   if (errors.length) return { ok: false, event: null, errors };
+
+  // NIP-40 ttl resolution. Default-on (1200s). 0 / non-finite → opt-out (no tag).
+  // Finite > 0 is clamped to the [60, 3600] band so a hostile/typo'd input can't
+  // pin a node forever or expire it instantly.
+  let ttl = 1200;
+  if (typeof i.expirationTtlSec === 'number' && Number.isFinite(i.expirationTtlSec)) {
+    ttl = i.expirationTtlSec > 0 ? Math.min(3600, Math.max(60, Math.floor(i.expirationTtlSec))) : 0;
+  } else if (i.expirationTtlSec === 0) {
+    ttl = 0;
+  }
 
   const title = typeof i.title === 'string' ? i.title.trim().slice(0, 128) : '';
   const description = typeof i.description === 'string' ? i.description.trim().slice(0, 512) : '';
@@ -110,10 +129,15 @@ export function buildPresenceEvent(input = {}) {
   for (const r of relays) tags.push(['relay', r]);
   if (wsEndpoint) tags.push(['ws', wsEndpoint]);
 
+  const created_at = Math.floor(Date.now() / 1000);
+  // NIP-40: when ttl > 0, add the `expiration` tag so relays drop the event (and
+  // readers prune it) once it's stale. Default-on so presence always expires.
+  if (ttl > 0) tags.push(['expiration', String(created_at + ttl)]);
+
   const event = {
     kind: GATEWAY_KIND,
     pubkey,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at,
     tags,
     content: JSON.stringify(content),
   };

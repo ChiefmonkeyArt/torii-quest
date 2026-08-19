@@ -30,6 +30,9 @@ import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
+import { createGamestrPublisher } from './engine/gamestr/gamestrPublisher.js';
+import { GAMESTR_RELAYS, GAMESTR_KIND, GAMESTR_GAME_ID } from './engine/gamestr/gamestrScore.js';
+import { buildGamestrLeaderboard } from './engine/gamestr/gamestrLeaderboard.js';
 import { summariseConsent } from './engine/consent/consentGate.js';
 // v0.2.285 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
@@ -47,6 +50,10 @@ import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
+// Phase 0d: node presence heartbeat — pure timing + status helpers + the
+// node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
+// and the rAF shell tick drives the republish (NO setTimeout in new code).
+import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
 // v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
@@ -58,6 +65,26 @@ import {
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
 import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
+// Phase 0 (open-world): the OPEN-VISIT travel path — a pure leaf that turns a
+// world's https `website` into a hardened, traveller-tagged visit URL. This is
+// the DEFAULT n2n hop now (direct navigate, no signed handshake). The signed
+// handshake code below stays in place but UNUSED — reserved for an optional
+// future private/invite-only travel mode.
+import { buildVisitUrl } from './engine/gateway/openVisit.js';
+// Phase 0c: the canonical NAP-zone slug validator (used to forward zoneSlug on
+// travel so visiting lands in the destination NAP zone).
+import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
+// Phase 0c: the persistent Torii menu — DOM presentation layer + pure
+// sub-partitioner + owner-admin localStorage prefs. The menu renders from a
+// getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
+import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
+// Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
+// toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
+// the state + every callback; the stub is a pure renderer. No timer primitives,
+// no three import, browser-only, fail-safe (missing document → no-op).
+import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+import { classifySections } from './engine/menu/menuSections.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -71,7 +98,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // section is a read-only "public + coming soon" placeholder).
 import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
 import {
-  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED,
+  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED,
 } from './config.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
@@ -81,6 +108,7 @@ const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
 const elEnterBtn = document.getElementById('btn-enter');
 const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
+const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
 // declaratively from the phase the FSM transitioned INTO. transition() stays the
@@ -147,6 +175,7 @@ let _userContacts = new Set();
 let _ownerContacts = new Map();
 let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
+let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
 
 function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
@@ -221,9 +250,9 @@ function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
       row.setAttribute('role', 'button');
       row.setAttribute('tabindex', '0');
       row.setAttribute('aria-label', `travel to ${label}`);
-      row.addEventListener('click', () => _gwTravel(w));
+      row.addEventListener('click', () => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }));
       row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwTravel(w); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }); }
       });
     }
     const type = document.createElement('div');
@@ -257,6 +286,300 @@ function _renderGatewayActions(body, actions) {
   body.append(wrap);
 }
 
+// ── Phase 0c: persistent Torii menu state ─────────────────────────────────────
+// _getToriiMenuState() builds the snapshot the menu renders from. main.js owns ALL
+// the data (the live presence scan, the contact partition, the owner detection,
+// the admin prefs); the menu is a pure presentation layer. onTravel forwards the
+// destination world's zoneId as zoneSlug so visiting lands in the NAP zone.
+const _SHIPPED_WORLDS = Object.freeze([
+  { id: 'gateway-blank', name: 'Torii Gateway — Blank' },
+  { id: 'chiefmonkey-template', name: 'Chiefmonkey Template' },
+]);
+
+function _getToriiMenuState() {
+  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  const { friends, following, games, all } = classifySections({
+    worlds: _worldsCache,
+    userPubkey: canTravel ? state.nostrPubkey : '',
+    userContacts: _userContacts,
+    ownerContacts: _ownerContacts,
+  });
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  const nodeRelays = _nodeRelaysForPublish();
+  const heartbeatIntent = getHeartbeatIntent();
+  const heartbeat = heartbeatStatus({
+    intent: heartbeatIntent,
+    isOwner,
+    hasSigner,
+    nodeRelays,
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    lastError: _heartbeat.lastError,
+    republishPaused: _heartbeat.republishPaused,
+  });
+  const nextDueMs = nextHeartbeatInMs({
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    intervalMs: HEARTBEAT_INTERVAL_MS,
+  });
+  return {
+    scanStatus: _worldsScan,
+    canTravel,
+    friends,
+    following,
+    games,
+    all,
+    isOwner,
+    admin: {
+      heartbeatIntent,
+      heartbeatStatus: heartbeat,
+      heartbeatLastPublishedAt: _heartbeat.lastPublishedAt,
+      heartbeatNextDueMs: nextDueMs,
+      nodeRelays,
+      nodeRelaysInput: getNodeRelays(),
+      activeWorld: getActiveWorld(),
+      availableWorlds: _SHIPPED_WORLDS,
+      scoresEnabled: !!SCORE_PUBLISH_ENABLED,
+      // Phase 0f — gamestr.io publish status. Reflects the operator opt-in: the
+      // build-time GAMESTR_ENABLED const OR the runtime localStorage override
+      // (adminPrefs.getGamestrEnabled, toggled from this menu). Off by default; the
+      // actual publish still requires the player's explicit NIP-07 consent.
+      gamestrEnabled: GAMESTR_ENABLED || getGamestrEnabled(),
+      gamestrLastPublish: _lastGamestrResult
+        ? (_lastGamestrResult.published ? 'ok' : 'failed')
+        : 'idle',
+      onToggleHeartbeat: (next) => {
+        setHeartbeatIntent(next);
+        if (next === 'on') {
+          // Explicit consent-gated first publish: enabling the heartbeat
+          // triggers the NIP-07 signer prompt. The operator approving it IS the
+          // consent. On rejection → paused (status surfaces in the menu); on
+          // no-node-relay → blocked (publishes nothing, never public RELAYS).
+          _heartbeat.republishPaused = false;  // re-toggle clears a pause
+          _heartbeat.lastError = null;
+          publishOurWorldPresence().catch(() => { /* status surfaced */ });
+        } else {
+          _heartbeat.republishPaused = false;
+          showEntryStatus('Heartbeat OFF.');
+        }
+      },
+      onToggleGamestr: (next) => {
+        // Owner-only: runtime opt-in for the gamestr.io score publish (kind 30762).
+        // This is a localStorage override on top of the build-time GAMESTR_ENABLED
+        // const; main.js publishes when (GAMESTR_ENABLED || getGamestrEnabled()).
+        // Enabling does NOT publish immediately — the actual score publish still
+        // requires the player's explicit NIP-07 consent (PUBLISH MY SCORE).
+        setGamestrEnabled(next === 'on');
+        showEntryStatus(next === 'on' ? 'gamestr.io ON — publishes on your next score.' : 'gamestr.io OFF.');
+      },
+      onSetNodeRelays: (str) => {
+        // Owner-only: persist the node-relay set so the heartbeat publishes
+        // here (never to public RELAYS). Validated wss-only inside setNodeRelays.
+        setNodeRelays(str);
+        showEntryStatus('Node relays saved.');
+      },
+      onSetActiveWorld: (id) => {
+        setActiveWorld(id);
+        showEntryStatus('Homepage world set — reloading to apply…');
+        // Local preview toggle: reload so the loader picks up the new active
+        // world from localStorage `torii.world.active`.
+        try { window.location.reload(); } catch { /* best-effort */ }
+      },
+      // Phase 0g: owner-only "Gateway setup" button in this Node settings panel.
+      // Closes the menu first (so the two overlays never stack) then opens the
+      // homepage stub. The stub is a separate DOM element with its own state.
+      onOpenHomepageStub: () => {
+        closeToriiMenu();
+        _openHomepageStub();
+      },
+    },
+    onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+  };
+}
+
+// Title-screen burger button → open the persistent Torii menu.
+elToriiMenuBtn?.addEventListener('click', () => {
+  if (isToriiMenuOpen()) { closeToriiMenu(); return; }
+  openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+});
+
+// ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
+// A three-free DOM overlay (mirrors toriiMenu.js) with 4 cards. 3 of 4 actions
+// are ALREADY BUILT — this is the UI panel + wiring, not a reimplementation:
+//   1. Choose Blank            → setActiveWorld('gateway-blank') + reload      (owner-only)
+//   2. Use My World as Template → setActiveWorld('chiefmonkey-template') + reload (owner-only)
+//   3. Visit a Node            → openToriiMenu (the live node directory)        (everyone)
+//   4. Publish My Node         → the existing onToggleHeartbeat consent-publish path (owner-only)
+// main.js owns the state + every callback; the stub is a pure renderer. Guests /
+// non-owners must NOT mutate torii.world.active — the stub DISABLES + hints the
+// owner cards for them (fail-closed on the gate). Owner detection reuses the
+// existing isAdminOperator(state.nostrPubkey, cap.adminPubkey) (no new auth).
+//
+// _homepageStubState() — the snapshot the stub renders from. isOwner reuses the
+// same isAdminOperator check the menu uses; activeWorld comes from adminPrefs;
+// heartbeatStatus reuses the same heartbeatStatus() call so blocked/paused
+// states stay consistent with the menu's heartbeat toggle.
+function _homepageStubState() {
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  const isLoggedIn = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  const heartbeatIntent = getHeartbeatIntent();
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  const nodeRelays = _nodeRelaysForPublish();
+  const hb = heartbeatStatus({
+    intent: heartbeatIntent,
+    isOwner,
+    hasSigner,
+    nodeRelays,
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    lastError: _heartbeat.lastError,
+    republishPaused: _heartbeat.republishPaused,
+  });
+  return {
+    isOwner,
+    isLoggedIn,
+    activeWorld: getActiveWorld(),
+    heartbeatStatus: hb,
+  };
+}
+
+// _homepageStubCallbacks() — the 4 action callbacks. Each delegates to an
+// EXISTING function (no new publish/reload path). onChooseWorld reuses the
+// menu's onSetActiveWorld body (setActiveWorld + reload). onVisitNodeDirectory
+// opens the persistent Torii menu (optionally the directory is already at the
+// top). onPublishNode reuses the menu's onToggleHeartbeat consent-publish path
+// so blocked states stay consistent. onClose is a no-op on the title screen.
+function _homepageStubCallbacks() {
+  return {
+    onChooseWorld: (worldId) => {
+      // Owner-only by construction (the stub disables the card for non-owners,
+      // and the gate is fail-closed). Mirrors the menu's onSetActiveWorld body.
+      setActiveWorld(worldId);
+      showEntryStatus('Homepage world set — reloading to apply…');
+      try { window.location.reload(); } catch { /* best-effort */ }
+    },
+    onVisitNodeDirectory: () => {
+      // Close the stub first so the two overlays never stack, then open the
+      // persistent Torii menu (the live node directory is its first section).
+      closeHomepageStub();
+      openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+    },
+    onPublishNode: () => {
+      // Reuse the existing heartbeat consent-publish path (NOT a new publish
+      // path). Toggle to 'on' if currently off, else 'off' — same as the menu's
+      // heartbeat button. Blocked states (no-signer / no-node-relay /
+      // wallet-requires-approval) surface via the stub's heartbeatStatus label.
+      const next = getHeartbeatIntent() === 'on' ? 'off' : 'on';
+      setHeartbeatIntent(next);
+      if (next === 'on') {
+        _heartbeat.republishPaused = false;
+        _heartbeat.lastError = null;
+        publishOurWorldPresence().catch(() => { /* status surfaced */ });
+      } else {
+        _heartbeat.republishPaused = false;
+        showEntryStatus('Heartbeat OFF.');
+      }
+      // Re-render the stub so the Publish label reflects the new status.
+      openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+    },
+    onClose: () => { /* title screen: no pause to resume */ },
+  };
+}
+
+// _openHomepageStub() — the single open path the title-screen CTA, the menu
+// Node settings button, and the login-resolved auto-open all call. Re-renders
+// from the live snapshot each time (cheap; the stub is lazily built once).
+function _openHomepageStub() {
+  openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+}
+
+// Title-screen secondary CTA → open the Gateway setup stub. A small button
+// placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
+// / LOGIN. Built lazily into the title centre column so it matches the existing
+// title-screen visual style (no external CSS framework).
+(function _installHomepageStubCta() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const centre = document.getElementById('title-centre');
+  if (!centre) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'btn-homepage-stub';
+  btn.textContent = '⛩ GATEWAY SETUP';
+  btn.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
+  Object.assign(btn.style, {
+    width: '220px', fontSize: '10px', letterSpacing: '2px', padding: '9px',
+    marginTop: '10px', marginBottom: '4px', cursor: 'pointer',
+    background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',
+    border: '1px solid rgba(139,92,246,0.45)', borderRadius: '6px',
+  });
+  btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.25)'; btn.style.color = '#fff'; });
+  btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.12)'; btn.style.color = '#c4b5fd'; });
+  btn.addEventListener('click', () => {
+    if (isHomepageStubOpen()) { closeHomepageStub(); return; }
+    _openHomepageStub();
+  });
+  // Insert below the ENTER ARENA button (the last of the ENTER buttons) so it
+  // reads as a secondary CTA, not a replacement.
+  const enter = document.getElementById('btn-enter');
+  if (enter && enter.parentNode) enter.parentNode.insertBefore(btn, enter.nextSibling);
+  else centre.append(btn);
+})();
+
+// ESC closes the stub first (mirror the menu's ESC-closes-menu-first pattern).
+// arenaRuntime.js owns the in-game ESC handler (UNTOUCHED) and already closes
+// the Torii menu first; this capture-phase listener fires BEFORE it (main.js
+// loads first) and stops propagation when the stub is open, so ESC dismisses
+// the stub without also toggling the menu / pause / gateway screen. On the
+// title screen (no arenaRuntime) this is the only ESC path for the stub.
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Escape' || e.repeat) return;
+  if (!isHomepageStubOpen()) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  closeHomepageStub();
+}, true);
+
+// _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
+// mode). Direct-navigate to the world's hardened https `website`, tagging the
+// traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
+// reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
+// default path. allowPrivate is gated on the dev/staging domain (localhost /
+// *.pplx.app) so production stays private-host-rejecting.
+//
+// Phase 0c: opts.zoneSlug (a valid NAP-zone slug) is forwarded to buildVisitUrl so
+// the canonical hash route `#/zone/<slug>` is appended — visiting lands in the
+// destination NAP zone. The in-world gateway gate + the menu's Visit button both
+// pass the destination world's zoneId here.
+function _gwOpenVisit(world, opts) {
+  const allowPrivate = (() => {
+    try {
+      const h = (typeof location !== 'undefined' && location.hostname) || '';
+      return h === 'localhost' || h.endsWith('.pplx.app');
+    } catch { return false; }
+  })();
+  const zoneSlug = opts && typeof opts.zoneSlug === 'string' ? opts.zoneSlug : null;
+  const visit = buildVisitUrl(world, { ourHex: state.nostrPubkey || '', allowPrivate, zoneSlug });
+  if (!visit.ok) {
+    // Surface the error the same way _executeJump does — log + re-render the
+    // gateway card so the player sees the screen return to its live state.
+    console.warn('open-visit rejected:', visit.errors.join(', '));
+    renderGatewayCard();
+    return;
+  }
+  // MP-1: gracefully close the multiplayer WebSocket before we navigate, so the
+  // server logs a proper LEFT rather than a ping-timeout when we hop instances.
+  try { _arena?.stopMultiplayer?.('travel'); } catch (e) { /* best-effort */ }
+  try { window.location.href = visit.url; } catch (e) { renderGatewayCard(); }
+}
+
+// _gwTravel(world) — the SIGNED handshake hop. KEPT for an optional future
+// "private/invite-only travel mode" but is NOT the default path in Phase 0: the
+// in-world onTravel + the title-screen row click route to _gwOpenVisit above.
+// Left intact (not deleted) so re-enabling signed travel is a one-line routing
+// change, not a rebuild.
 async function _gwTravel(world) {
   await _handshake.requestTravel(world);
   renderGatewayCard();
@@ -387,9 +710,15 @@ _admitInboundTraveller();
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
   if (!_worldsCache.length) renderGatewayCard();
+  // Read-side discovery (Phase 0d follow-up): query the node-relay set (the
+  // community relay nodes publish their presence to) MERGED with the public
+  // RELAYS. This is read-only — a failed node relay just lands in `failed` and
+  // never fails the scan (fanoutReq returns the union). Without this, nodes that
+  // publish presence to their own/community relay (never the public RELAYS, per
+  // the own-relay-only rule) would be invisible to the directory.
   const r = await fetchOnlineWorlds({
     request: fanoutReq,
-    relays: RELAYS,
+    relays: [..._nodeRelaysForPublish(), ...RELAYS],
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
     graceMs: 250,
@@ -444,34 +773,125 @@ async function _refreshFriendData() {
 }
 
 let _presencePublishedPubkey = '';
-async function publishOurWorldPresence() {
+// ── Phase 0d: node presence heartbeat state ──────────────────────────────────
+// The heartbeat is consent-gated + rAF-driven (NO setTimeout in new code).
+// The menu toggle sets intent + triggers an explicit first publish (the NIP-07
+// prompt = operator consent); the rAF _shellTick then republishes every
+// HEARTBEAT_INTERVAL_MS. If a republish sign is rejected/thrown, we PAUSE
+// (status paused:wallet-requires-approval) and stop auto-republishing until
+// the operator re-toggles — so a per-call-prompting wallet never spams prompts.
+const _heartbeat = {
+  lastPublishedAt: null,   // epoch ms of the last successful publish (null = never)
+  lastError: null,          // last non-sign error string (null = none)
+  republishPaused: false,   // true when a republish sign was rejected → stop auto-republish
+  inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
+};
+
+// _nodeRelaysForPublish() → the validated wss:// node-relay set sourced from
+// config (localStorage `torii.node.relays` + <meta name="torii-relays">).
+// NEVER falls back to the public RELAYS (damus/nos.lol/nostr.band/primal) —
+// publishing presence to public relays is the regression this slice forbids.
+// Returns [] when none configured → caller blocks (publishes nothing).
+function _nodeRelaysForPublish() {
+  return readNodeRelays({
+    storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
+    metaGetter: typeof document !== 'undefined'
+      ? (name) => {
+          const el = document.querySelector(`meta[name="${name}"]`);
+          return el && el.content ? el.content : '';
+        }
+      : null,
+  });
+}
+
+// _publishPresenceOnce() → signs + fanout-publishes ONE presence event to the
+// node-relay set (NEVER public RELAYS). The NIP-40 expiration is now baked into
+// buildPresenceEvent (default 20 min). Returns { ok, error }.
+//   - On sign rejection/throw (nip-07-rejected/nip-07-threw): sets
+//     _heartbeat.republishPaused = true so the rAF tick stops auto-republishing.
+//     The operator re-toggles to resume. Quiet only when the wallet auto-allows.
+//   - On other failure: records lastError (status failed:<error>) but does NOT
+//     pause — a transient relay failure should retry on the next tick.
+async function _publishPresenceOnce() {
   const pubkey = state.nostrPubkey || '';
-  if (!/^[0-9a-f]{64}$/.test(pubkey)) return;
-  // v0.2.263: idempotent — NOSTR_LOGIN fires twice (once right after getPublicKey
-  // in the login call, again from _fetchProfile() once the kind:0 profile resolves).
-  // Without this guard each emit re-signs+republishes, popping the NIP-07 signer
-  // twice on login (and a 3rd delayed pop the player sees around ENTER ARENA).
-  // Publish at most once per pubkey per page load; the profile-refresh emit
-  // still updates the UI but no longer re-signs.
-  if (_presencePublishedPubkey === pubkey) return;
-  _presencePublishedPubkey = pubkey;
+  if (!/^[0-9a-f]{64}$/.test(pubkey)) return { ok: false, error: 'no-pubkey' };
+  const relays = _nodeRelaysForPublish();
+  if (!relays.length) return { ok: false, error: 'blocked:no-node-relay' };
   const built = buildPresenceEvent({
     pubkey,
     zoneId: 'quest-torii',
     title: 'Torii Quest',
     zoneType: 'arena',
-    website: window.location.origin + window.location.pathname,
-    relays: RELAYS,
+    website: (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : ''),
+    relays,
+    // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
-  if (!built.ok) return;
-  await publishOurPresence({
+  if (!built.ok) return { ok: false, error: 'build-failed' };
+  const res = await publishOurPresence({
     unsigned: built.event,
     sign: signEvent,
     publish: fanoutPublish,
-    relays: RELAYS,
+    relays,
     timeoutMs: 5000,
   });
-  refreshOnlineWorlds();
+  if (res.ok) {
+    _heartbeat.lastPublishedAt = Date.now();
+    _heartbeat.lastError = null;
+    return { ok: true, error: null };
+  }
+  // A sign rejection/throw pauses auto-republish (wallet prompts each call).
+  if (res.error === 'nip-07-rejected' || res.error === 'nip-07-threw') {
+    _heartbeat.republishPaused = true;
+  } else {
+    _heartbeat.lastError = res.error || 'unknown';
+  }
+  return { ok: false, error: res.error || 'publish-failed' };
+}
+
+// _heartbeatTick(now) — called from the existing rAF _shellTick loop (no new
+// timers). Republishes when due IF: intent is on, owner, signer present, node
+// relays configured, not paused, and not already mid-publish. Mirrors the
+// gateway-scan polling that already rides this tick.
+function _heartbeatTick(now) {
+  if (_heartbeat.inflight) return;
+  const intent = getHeartbeatIntent();
+  if (intent !== 'on') return;
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  if (!isOwner) return;
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  if (!hasSigner) return;
+  if (_heartbeat.republishPaused) return;
+  if (!isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS })) return;
+  // Never published → the first publish is explicit-via-toggle only; the tick
+  // only handles REpublishes (isHeartbeatDue is false when lastPublishedAt is
+  // null, so this guard is belt-and-braces).
+  if (_heartbeat.lastPublishedAt === null) return;
+  _heartbeat.inflight = true;
+  _publishPresenceOnce()
+    .catch(() => { /* publish threw — leave paused/error state as set */ })
+    .finally(() => { _heartbeat.inflight = false; });
+}
+
+// publishOurWorldPresence() — the consent-gated first publish (called by the
+// menu's heartbeat toggle when the operator enables it). v0.2.263 idempotency
+// guard kept so a re-toggle of the same intent doesn't double-publish. Now
+// publishes to the node-relay set ONLY (never public RELAYS); if none
+// configured, blocks with status blocked:no-node-relay and publishes nothing.
+async function publishOurWorldPresence() {
+  const pubkey = state.nostrPubkey || '';
+  if (!/^[0-9a-f]{64}$/.test(pubkey)) return;
+  // Consent-gated: the menu toggle calls this once on enable. A re-toggle of
+  // the same intent re-publishes (the operator explicitly asked again).
+  _presencePublishedPubkey = pubkey;
+  const res = await _publishPresenceOnce();
+  if (res.ok) {
+    refreshOnlineWorlds();
+  } else if (res.error === 'blocked:no-node-relay') {
+    showEntryStatus('Heartbeat blocked — set a node relay in Node settings first.');
+  } else if (res.error === 'nip-07-rejected' || res.error === 'nip-07-threw') {
+    showEntryStatus('Heartbeat paused — approve the signer request in your Nostr extension, then re-toggle.');
+  }
 }
 
 function renderGatewayPreview() {
@@ -489,6 +909,21 @@ on(EV.NOSTR_LOGIN, () => {
   // card is read-only. (publishOurWorldPresence remains available for a future
   // explicit, user-initiated publish, but is no longer auto-triggered.)
   refreshInstanceSettingsVisibility();
+  // Phase 0g: optional auto-open of the Gateway setup stub ONCE per session,
+  // ONLY for the confirmed node owner/admin AND only when there is no active
+  // world override (adminPrefs.getActiveWorld is empty). Do NOT trigger on "no
+  // active world" alone — the legacy default / no-<meta> path is intentional and
+  // would show the panel to the wrong people. The shown-this-session flag
+  // (sessionStorage `torii.homepage.stub.shown`) keeps it to once per browser
+  // session. No timer — rides the existing login-resolved callback.
+  try {
+    const cap = _updateCapability;
+    const owner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+    if (owner && !getActiveWorld() && !hasShownThisSession()) {
+      setShownThisSession();
+      _openHomepageStub();
+    }
+  } catch { /* auto-open is best-effort; never throw into the login path */ }
 });
 
 // ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────
@@ -778,12 +1213,14 @@ function renderLeaderboardPreview() {
   }));
 }
 renderLeaderboardPreview();
+_renderGamestrLeaderboard();
 on(EV.SCORE_FRAME, (frame) => {
   _latestScoreFrame = normaliseScoreFrame(frame);
   if (_latestScoreFrame && state.nostrPubkey) {
     saveLatestScoreFrame(globalThis.localStorage, state.nostrPubkey, _latestScoreFrame);
   }
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
 });
 
 function _isScoreEvent(event) {
@@ -815,6 +1252,72 @@ async function _refreshPersistentScores() {
   }
 }
 
+// Phase 0h — gamestr.io score READING (kind 30762). The read-side companion to
+// the Phase 0f publish: fetches the latest torii-quest score events from the
+// gamestr relays, dedupes to the latest score per player, and renders a
+// "gamestr.io" sub-section below the in-app NIP-78 leaderboard preview. This
+// reuses fanoutReq over GAMESTR_RELAYS exactly like _refreshPersistentScores
+// uses fanoutReq over RELAYS — NO new relay client. The pure dedupe/sort lives
+// in gamestrLeaderboard.js (node-safe, no DOM/sockets/timers).
+//
+// Opt-in / no external requests when off: the fetch fires ONLY when
+// (GAMESTR_ENABLED || getGamestrEnabled()) — the SAME gate as the publish — so
+// a default operator never hits gamestr relays on load. Best-effort: a relay
+// down / network failure is caught and NEVER breaks the in-app leaderboard or
+// the game loop; the section just shows its empty state. Render is a no-op when
+// the body element is missing (mirroring renderLeaderboardPreview).
+let _gamestrRows = [];
+let _gamestrReadSeq = 0;
+
+function _renderGamestrLeaderboard() {
+  const body = document.getElementById('gamestr-leaderboard-body');
+  if (!body) return;
+  const on = GAMESTR_ENABLED || getGamestrEnabled();
+  if (!on) {
+    const msg = document.createElement('div');
+    msg.className = 'lb-empty';
+    msg.textContent = 'Enable gamestr.io in Node settings to see the global leaderboard.';
+    body.replaceChildren(msg);
+    return;
+  }
+  if (!_gamestrRows.length) {
+    const msg = document.createElement('div');
+    msg.className = 'lb-empty';
+    msg.textContent = 'No gamestr scores yet.';
+    body.replaceChildren(msg);
+    return;
+  }
+  body.replaceChildren(..._gamestrRows.flatMap((r, i) => {
+    const l = document.createElement('div');
+    l.className = 'lb-row-label';
+    l.textContent = `#${i + 1} ${shortenNpub(r.pubkey)}`;
+    const v = document.createElement('div');
+    v.className = 'lb-row-value';
+    v.textContent = r.duration != null ? `${r.score} · ${r.duration}s` : `${r.score}`;
+    return [l, v];
+  }));
+}
+
+async function _refreshGamestrScores() {
+  // Same opt-in as publish — never hit gamestr relays when the operator hasn't
+  // enabled it (the build-time GAMESTR_ENABLED const OR the runtime override).
+  if (!(GAMESTR_ENABLED || getGamestrEnabled())) { _gamestrRows = []; _renderGamestrLeaderboard(); return; }
+  const seq = ++_gamestrReadSeq;
+  try {
+    const { events } = await fanoutReq(
+      GAMESTR_RELAYS,
+      [{ kinds: [GAMESTR_KIND], '#game': [GAMESTR_GAME_ID], limit: 100 }],
+      { timeoutMs: 4000, graceMs: 300 },
+    );
+    if (seq !== _gamestrReadSeq) return; // a newer fetch superseded this one
+    _gamestrRows = buildGamestrLeaderboard(events);
+    _renderGamestrLeaderboard();
+  } catch {
+    // Best-effort: leave the last good rows (or the empty state) in place — a
+    // gamestr relay failure must never break the in-app leaderboard or the loop.
+  }
+}
+
 async function _publishLatestScore() {
   if (!SCORE_PUBLISH_ENABLED) return;
   if (_scoreReportInFlight || !_latestScoreFrame || !HEX64.test(state.nostrPubkey || '')) return;
@@ -840,19 +1343,24 @@ async function _publishLatestScore() {
     _relayScoreEvents.history.push(result.history);
     renderLeaderboardPreview();
     void _refreshPersistentScores();
+    void _refreshGamestrScores();
   }
 }
 
 on(EV.NOSTR_LOGIN, ({ pubkey }) => {
   _latestScoreFrame = loadLatestScoreFrame(globalThis.localStorage, pubkey) || _latestScoreFrame;
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
   void _refreshPersistentScores();
+  void _refreshGamestrScores();
 });
 on(EV.PHASE_CHANGE, ({ to }) => {
   if (to !== 'title') return;
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
   void _publishLatestScore();
   void _refreshPersistentScores();
+  void _refreshGamestrScores();
 });
 
 // ── LIVE leaderboard publish (M2, v0.2.285) ────────────────────────────────────
@@ -866,6 +1374,20 @@ const _livePublisher = createLiveLeaderboardPublisher({
   sign: signEvent, publish: fanoutPublish, relays: RELAYS,
 });
 let _publishInFlight = false;
+
+// Phase 0f — gamestr.io score publish (kind 30762). A SEPARATE destination from
+// the in-app NIP-78 leaderboard above: off by default (GAMESTR_ENABLED),
+// best-effort, and only ever reached through the same explicit "PUBLISH MY
+// SCORE" consent path. A gamestr failure is captured here and NEVER blocks or
+// fails the in-app leaderboard write — the caller invokes this AFTER the in-app
+// publish, regardless of its outcome. Reuses the same nostr.js signEvent /
+// fanoutPublish seams (no new relay client) over GAMESTR_RELAYS.
+const _gamestrPublisher = createGamestrPublisher({
+  sign: signEvent, publish: fanoutPublish, relays: GAMESTR_RELAYS,
+});
+// Last gamestr result, surfaced read-only in the menu's Node settings (gamestr:
+// on/off, last publish ok/failed). null until the first publish attempt.
+let _lastGamestrResult = null;
 
 function _setLbPublishStatus(msg, tone) {
   const el = document.getElementById('leaderboard-publish-status');
@@ -925,6 +1447,29 @@ async function _publishMyScore() {
     _setLbPublishStatus(`✓ published to ${relays} relay${relays === 1 ? '' : 's'}`, 'ok');
   } else {
     _setLbPublishStatus('✗ ' + ((res && res.errors && res.errors.join('; ')) || 'publish failed'), 'fail');
+  }
+
+  // Phase 0f — gamestr.io best-effort publish (kind 30762). Runs ONLY when the
+  // operator opted in (the build-time GAMESTR_ENABLED const OR the runtime
+  // adminPrefs.getGamestrEnabled() override) AND the player consented (consent===true,
+  // already established above). A gamestr failure is captured into
+  // _lastGamestrResult and NEVER blocks or fails the in-app leaderboard write
+  // above — this runs regardless of the in-app outcome, and any throw is caught
+  // so it can never propagate into the game loop. First publish = NIP-07 signer
+  // prompt (the wallet may auto-allow thereafter).
+  if ((GAMESTR_ENABLED || getGamestrEnabled()) && consent === true) {
+    try {
+      _lastGamestrResult = await _gamestrPublisher.publishGameScore(
+        { score: stats.score, kills: stats.kills },
+        { signerPubkey: pubkey, consent: true },
+      );
+    } catch (e) {
+      _lastGamestrResult = {
+        ok: false, published: false, errors: ['gamestr unexpected error: ' + (e?.message || String(e))],
+      };
+    }
+  } else {
+    _lastGamestrResult = null;
   }
 }
 
@@ -1395,8 +1940,15 @@ async function ensureArenaReady(loadingLabel) {
           worlds: _worldsCache,
           scanStatus: _worldsScan,
           canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-          onTravel: (w) => _gwTravel(w),
+          onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
         }),
+        // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the
+        // SAME menu element the title-screen burger button opens — it calls this
+        // hook, which supplies getState + onClose (resume-on-close). arenaRuntime
+        // must NOT create its own menu DOM; it just calls the hook.
+        openToriiMenu: ({ onClose }) => openToriiMenu({ getState: _getToriiMenuState, onClose }),
+        closeToriiMenu,
+        isToriiMenuOpen,
       });
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.
@@ -1492,6 +2044,14 @@ function _shellTick() {
     if (++_presenceFrame >= 600) {
       _presenceFrame = 0;
       refreshOnlineWorlds().catch(() => {});
+    }
+    // Phase 0d: heartbeat republish rides the same rAF tick (no new timers).
+    // Throttled to ~once per 120 frames like the handshake tick — the actual
+    // interval check (10 min default) lives in isHeartbeatDue, so this just
+    // pokes that pure helper often enough.
+    if (++_heartbeatFrame >= 120) {
+      _heartbeatFrame = 0;
+      _heartbeatTick(Date.now());
     }
   }
   requestAnimationFrame(_shellTick);

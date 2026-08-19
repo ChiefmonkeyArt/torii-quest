@@ -51,6 +51,15 @@ export let physicsReady = false;
 
 export function getWorld() { return world || null; }
 
+// getRapier() → the loaded @dimforge/rapier3d-compat namespace (or null before
+// bootstrap). Mirrors getWorld(): RAPIER is set in initPhysics() once the WASM
+// module loads. Exposed so callers that need the descriptor classes
+// (RigidBodyDesc, CuboidColliderDesc, …) can reach them WITHOUT a static import
+// of the WASM module (which would bloat the main chunk — rapier stays lazy via
+// initPhysics's dynamic import). Used by arenaRuntime's minimal-world platform
+// collider build, guarded by the minimal-mode flag.
+export function getRapier() { return RAPIER || null; }
+
 export async function initPhysics() {
   RAPIER = await import('@dimforge/rapier3d-compat');
   await RAPIER.init();

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "id": "gateway-blank",
+  "name": "Torii Gateway — Blank",
+  "description": "The minimal 3D homepage: a space sky, a cloud platform, the torii gateway, a spawn point, and basic lights. The default open-world starter manifest — data only (the three.js renderer for manifest objects comes in a later slice).",
+  "sky": {
+    "type": "space",
+    "color": "#05050f",
+    "stars": true
+  },
+  "platform": {
+    "type": "cloud",
+    "size": 40,
+    "color": "#c4b5fd"
+  },
+  "gateway": {
+    "position": [0, 0, -8],
+    "target": [0, 0, 0],
+    "relays": []
+  },
+  "spawn": {
+    "position": [0, 0, 0],
+    "yaw": 0
+  },
+  "lights": [
+    {
+      "kind": "ambient",
+      "color": "#3b3b5c",
+      "intensity": 0.6
+    },
+    {
+      "kind": "directional",
+      "color": "#ffffff",
+      "intensity": 0.9,
+      "position": [8, 12, 6]
+    }
+  ],
+  "objects": []
+}

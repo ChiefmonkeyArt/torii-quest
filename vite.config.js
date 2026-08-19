@@ -35,29 +35,35 @@ const ENTRY_BASE = 'torii-entry.js';
 // Avoids touching the entry file itself or unrelated strings.
 const ENTRY_IMPORT_RE = /(from\s*["'])([.\w/-]*\/assets\/torii-entry\.js|[.]+\/torii-entry\.js)(["'])/g;
 
-// v0.2.370-alpha: the pinned-entry URL MUST carry the deploy base (import.meta
-// env BASE_URL — '/' at root, '/quest/' on the Torii Suite mount). Previously the
-// inline bootstrap import AND every chunk back-reference were hardcoded to the
-// root-absolute `/assets/torii-entry.js?v=<stamp>`, which 404s under `/quest/`.
-// The 404 rejected the ENTER ARENA `import('./arenaRuntime.js')` graph (arenaRuntime
-// statically imports the entry), so the arena never booted on the subpath deploy.
-// Vite normalises base to always end in '/', so `${base}assets/…` is correct for
-// both '/' and '/quest/'.
-function entryUrl(base) {
-  return `${base}assets/${ENTRY_BASE}?v=${BUILD_STAMP}`;
+// v0.2.370-alpha → preview-basepath fix: the pinned-entry URL is now RELATIVE so
+// the bundle loads at root `/`, the Suite `/quest/` mount, AND any arbitrary
+// deploy_website preview sub-path (unknown at build time). Relative specifiers
+// resolve against the document/chunk URL, so no build-time base knowledge is
+// needed. The cache-bust `?v=<stamp>` query is preserved on both forms.
+//
+//   entryUrlForHtml()  → './assets/torii-entry.js?v=<stamp>' (relative to index.html
+//                        at the deploy root, where /assets/ is a sibling dir).
+//   entryUrlForChunk() → './torii-entry.js?v=<stamp>' (relative to a chunk living
+//                        in /assets/, where torii-entry.js is a peer).
+//
+// Why this works for ALL deploy contexts:
+//   root `/`            → ./assets/...  resolves to /assets/...        ✓
+//   `/quest/`           → ./assets/...  resolves to /quest/assets/... ✓
+//   `/computer/a/.../`  → ./assets/...  resolves to /computer/a/.../assets/... ✓
+// (and likewise ./torii-entry.js from a chunk in <base>/assets/).
+function entryUrlForHtml() {
+  return `./assets/${ENTRY_BASE}?v=${BUILD_STAMP}`;
+}
+
+function entryUrlForChunk() {
+  return `./${ENTRY_BASE}?v=${BUILD_STAMP}`;
 }
 
 // Bootstrap selection and hashing are shared with check 16 and the emitted-build
 // tests so HTML-comment decoys cannot make the policy hash different source bytes.
 function cspHeaderPlugin() {
-  // Deploy base ('/' at root, '/quest/' on the Suite mount). Captured from the
-  // resolved Vite config so the emitted entry URL is base-correct.
-  let resolvedBase = '/';
   return {
     name: 'torii-csp-http-header',
-    configResolved(config) {
-      resolvedBase = config.base || '/';
-    },
     transformIndexHtml: {
       order: 'post',
       handler(html, ctx) {
@@ -85,7 +91,7 @@ function cspHeaderPlugin() {
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
         }
-        const versionedImportLine = `  import('${entryUrl(resolvedBase)}');`;
+        const versionedImportLine = `  import('${entryUrlForHtml()}');`;
         out = out.slice(0, lastCloseIdx) + `\n${versionedImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },
@@ -104,7 +110,7 @@ function cspHeaderPlugin() {
           // Skip if this chunk doesn't import the entry at all (cheap guard).
           if (!src.includes(ENTRY_BASE)) continue;
           const rewritten = src.replace(ENTRY_IMPORT_RE, (_m, pre, _spec, post) =>
-            `${pre}${entryUrl(resolvedBase)}${post}`);
+            `${pre}${entryUrlForChunk()}${post}`);
           if (rewritten !== src) writeFileSync(p, rewritten);
         }
       }

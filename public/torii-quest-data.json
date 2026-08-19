@@ -1,6 +1,6 @@
 {
   "version": "v0.2.601-alpha",
-  "generatedAt": "2026-08-18T18:38:25.530Z",
+  "generatedAt": "2026-08-19T14:45:44.378Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -54,12 +54,12 @@
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 197"
+        "value": "fast 5 · foundation 25 · full 201"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2637 passing / 197 files"
+        "value": "2744 passing / 201 files"
       },
       {
         "label": "Profile timings",
@@ -99,9 +99,9 @@
         "sub": "21 / 21"
       },
       {
-        "pct": 13,
+        "pct": 12,
         "label": "Foundation coverage",
-        "sub": "25/197 files"
+        "sub": "25/201 files"
       }
     ]
   },
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.601-alpha",
-    "gitCommit": "4036196",
+    "gitCommit": "1434751",
     "signals": [
       {
         "key": "versionSync",
@@ -221,7 +221,7 @@
         "label": "Bundle baseline",
         "state": "advisory",
         "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js"
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-CpKjtDGP.js"
       },
       {
         "key": "zoneFallback",
@@ -261,7 +261,7 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2637 passing / 197 files",
+    "testLabel": "2744 passing / 201 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "2637 passing / 197 files"
+        "value": "2744 passing / 201 files"
       },
       {
         "label": "Test profiles",
@@ -454,7 +454,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2637 passing / 197 files"
+        "value": "green — 2744 passing / 201 files"
       },
       {
         "label": "Explicit approval",

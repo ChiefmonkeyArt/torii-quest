@@ -27,7 +27,7 @@ import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
-import { initPhysics, stepPhysics, buildArenaColliders, getWorld, castRay, castRayStatic, hasLineOfSight } from './physics.js';
+import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
@@ -71,6 +71,9 @@ import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
+import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
+import { buildMinimalWorld } from './engine/world/worldRenderer.js';
+import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -443,6 +446,21 @@ async function _createPeerAvatar(peer) {
   return _buildPeerAvatarObject(character, peer);
 }
 
+// _loadGltf(url) → Promise<gltfScene> — the GLTFLoader the arena already uses,
+// wrapped for injection into buildWorldObjects (Phase 0e). Reuses the SAME
+// GLTFLoader + DRACOLoader pattern as _buildToriiGate / _loadPeerTemplate (the
+// Draco decoder is vendored at /draco/, base-aware via assetUrl). Returns the
+// gltf object (caller pulls .scene). Never throws — the worldObjectsRenderer
+// catches a rejection + leaves a placeholder. Created per-call (a fresh loader
+// per GLB is cheap; the Draco decoder path is the shared vendored one).
+function _loadGltf(url) {
+  const draco = new DRACOLoader();
+  draco.setDecoderPath(assetUrl('/draco/'));
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  return loader.loadAsync(url).finally(() => { draco.dispose(); });
+}
+
 // createArenaRuntime(hooks) — build the arena runtime. `boot()` runs the one-time
 // three scene/loop bootstrap; `bootstrapPhysics()` lazy-loads Rapier + spawns the
 // player body/models once; `enter()` starts a fresh run. Hooks (shell-owned):
@@ -459,8 +477,40 @@ export function createArenaRuntime(hooks = {}) {
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
+  // Phase 0c: the persistent Torii menu hooks (KeyM in-game). The shell owns the
+  // menu DOM + getState; arenaRuntime just calls these (it must NOT create its own
+  // menu DOM). openToriiMenu({ onClose }) opens the shared menu element; the
+  // onClose resume is wired below. Defaults are no-ops so a shell without the menu
+  // still works (mirrors the getGatewayScreenState fallback).
+  const openToriiMenuHook = typeof hooks.openToriiMenu === 'function' ? hooks.openToriiMenu : null;
+  const closeToriiMenuHook = typeof hooks.closeToriiMenu === 'function' ? hooks.closeToriiMenu : () => {};
+  const isToriiMenuOpenHook = typeof hooks.isToriiMenuOpen === 'function' ? hooks.isToriiMenuOpen : () => false;
 
   let _booted = false;
+
+  // ── Phase 0b: world-mode branch (minimal vs legacy) ──────────────────────────
+  // boot() resolves the active world via the loader. When a data-driven minimal
+  // world is present (fallback:'none'), boot() builds the small 3D scene from the
+  // manifest instead of buildArena(), and update() skips the arena-only ticks.
+  // When there is no <meta name="torii-world"> or the manifest opts into the
+  // legacy renderer (fallback:'legacy'), the EXISTING full buildArena() path runs
+  // UNCHANGED — this slice must not alter legacy behaviour at all.
+  //   _minimal       — true in minimal mode (data-driven small scene).
+  //   _minimalWorld  — the validated world object (or null in legacy mode).
+  //   _worldRt       — the minimal world's runtime ({ tick } from buildMinimalWorld).
+  //   _platformY     — the platform's TOP-surface Y (for the Rapier collider).
+  //   _worldColliders — per-object physics colliders for the minimal world (Phase
+  //                     0i), or null. Built right after _addPlatformCollider so
+  //                     data-driven objects can have collision (not just meshes).
+  //                     Lives for the page lifetime — there is no explicit
+  //                     minimal-world teardown path (the platform collider has
+  //                     the same lifetime); acceptable for v1.
+  let _minimal = false;
+  let _minimalWorld = null;
+  let _worldRt = null;
+  let _platformY = 0;
+  let _worldColliders = null;
+
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
   // no scene mutations. When enabled, the host owns the ws lifecycle + peer avatar
@@ -578,6 +628,22 @@ export function createArenaRuntime(hooks = {}) {
     closeGatewayScreen(); // triggers its onClose → _resume
   }
 
+  // ── In-world Torii menu (KeyM, Phase 0c) ────────────────────────────────────
+  // The SAME menu element the title-screen burger button opens; arenaRuntime just
+  // calls the injected hook (it owns no menu DOM). Pause on open + exitPointerLock
+  // (mirror _openGatewayScreen); resume on close via the onClose callback. Works
+  // whenever playing OR paused, independent of the portal (unlike KeyF).
+  function _openToriiMenu() {
+    if (!openToriiMenuHook || isToriiMenuOpenHook()) return;
+    if (!isPlaying() && !isPaused()) return; // only when in-game (playing/paused)
+    if (isPlaying()) { if (!transition(GAME_EVENT.PAUSE)) return; } // PLAYING → PAUSED
+    document.exitPointerLock?.();
+    openToriiMenuHook({ onClose: () => _resume() });
+  }
+  function _closeToriiMenu() {
+    closeToriiMenuHook(); // triggers its onClose → _resume
+  }
+
   function _openPause() {
     if (!transition(GAME_EVENT.PAUSE)) return;
     document.exitPointerLock?.();
@@ -616,10 +682,22 @@ export function createArenaRuntime(hooks = {}) {
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
     tickDeath(dt, renderer);
-    tickBots(dt);
-    if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
-    tickWeapons(dt, playerObj.position);
-    tickTargetReticle();
+
+    // ── Arena-only ticks (skipped in minimal world mode) ─────────────────────
+    // The minimal world has no bots/combat/foliage/sea/portal/MP/NAP. stepPhysics
+    // is shared (the player still needs Rapier in minimal mode); only
+    // tickDynamicCrates is arena-only. Legacy behaviour is UNCHANGED.
+    if (!_minimal) {
+      tickBots(dt);
+      if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
+      tickWeapons(dt, playerObj.position);
+      tickTargetReticle();
+    } else {
+      // Minimal: keep physics stepping so the player body lands on the platform
+      // collider; skip the dynamic-crate sync (no crates in the minimal world).
+      if (isPlaying()) { stepPhysics(); }
+    }
+
     // Grounded state comes straight from the Rapier character controller
     // (result.grounded), NOT an eye-height guess — the latter broke once the
     // terrain rose to ISLAND_BASE_Y + hills (eye Y was permanently above the old
@@ -631,53 +709,67 @@ export function createArenaRuntime(hooks = {}) {
     if (onGround && !_prevOnGround) playJumpLand();
     _prevOnGround = onGround;
 
-    const keyHeld =
-      keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] ||
-      keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'];
-    const pdx = playerObj.position.x - _prevFootX;
-    const pdz = playerObj.position.z - _prevFootZ;
-    const horizSpeed = _footInit && dt > 0 ? Math.sqrt(pdx*pdx + pdz*pdz) / dt : 0;
-    _prevFootX = playerObj.position.x; _prevFootZ = playerObj.position.z; _footInit = true;
-    if (isPlaying() && !isFlyEnabled() && onGround && keyHeld && horizSpeed > FOOT_MIN_SPEED) {
-      const running = keys['ShiftLeft'] || keys['ShiftRight'];
-      const interval = running ? FOOT_RUN_INTERVAL : FOOT_WALK_INTERVAL;
-      _footAccum += dt;
-      if (_footAccum >= interval) {
+    // Footstep audio + arena-terrain sampling — arena-only (the minimal world has
+    // no NAP/sea terrain heightmap, so isNapLand/sampleArenaHeight are meaningless
+    // there). In minimal mode the jump-land SFX above still fires.
+    if (!_minimal) {
+      const keyHeld =
+        keys['KeyW'] || keys['KeyS'] || keys['KeyA'] || keys['KeyD'] ||
+        keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'];
+      const pdx = playerObj.position.x - _prevFootX;
+      const pdz = playerObj.position.z - _prevFootZ;
+      const horizSpeed = _footInit && dt > 0 ? Math.sqrt(pdx*pdx + pdz*pdz) / dt : 0;
+      _prevFootX = playerObj.position.x; _prevFootZ = playerObj.position.z; _footInit = true;
+      if (isPlaying() && !isFlyEnabled() && onGround && keyHeld && horizSpeed > FOOT_MIN_SPEED) {
+        const running = keys['ShiftLeft'] || keys['ShiftRight'];
+        const interval = running ? FOOT_RUN_INTERVAL : FOOT_WALK_INTERVAL;
+        _footAccum += dt;
+        if (_footAccum >= interval) {
+          _footAccum = 0;
+          // On submerged ground (≤ SEA_LEVEL: the wadeable shelf / river) the step
+          // is a splash; on dry land it's a footstep.
+          const px = playerObj.position.x, pz = playerObj.position.z;
+          const groundY = isNapLand(px, pz) ? sampleNapHeight(px, pz) : sampleArenaHeight(px, pz);
+          if (groundY <= SEA_LEVEL) playSplash(); else playFootstep();
+        }
+      } else {
         _footAccum = 0;
-        // On submerged ground (≤ SEA_LEVEL: the wadeable shelf / river) the step
-        // is a splash; on dry land it's a footstep.
-        const px = playerObj.position.x, pz = playerObj.position.z;
-        const groundY = isNapLand(px, pz) ? sampleNapHeight(px, pz) : sampleArenaHeight(px, pz);
-        if (groundY <= SEA_LEVEL) playSplash(); else playFootstep();
       }
-    } else {
-      _footAccum = 0;
     }
 
     const shootingNow = performance.now() < _shootUntil;
     tickPlayerModel(dt, shootingNow, isReloading(), _isJumping, !_isJumping);
     tickFirstPersonBody(dt);
-    tickNapNpc(dt);
-    tickStickerNpc(dt);
-    setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
-    if (isPlaying()) {
-      _portalTrigger.tick(playerObj.position);
-      // Drive the torii-frame glow from the graded approach affordance (pure scalar).
-      const ap = portalApproachState({
-        playerPos: playerObj.position, portalPos: _portalPos, range: _portalRange,
-      });
-      setPortalApproach(ap.intensity);
-    } else {
-      _portalTrigger.reset();
+
+    // Arena-only NPC/portal/mirror/foliage/sea ticks — skipped in minimal mode.
+    if (!_minimal) {
+      tickNapNpc(dt);
+      tickStickerNpc(dt);
+      setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
+      if (isPlaying()) {
+        _portalTrigger.tick(playerObj.position);
+        // Drive the torii-frame glow from the graded approach affordance (pure scalar).
+        const ap = portalApproachState({
+          playerPos: playerObj.position, portalPos: _portalPos, range: _portalRange,
+        });
+        setPortalApproach(ap.intensity);
+      } else {
+        _portalTrigger.reset();
+      }
+      tickMirror(dt);
+      tickFoliage(dt);
+      tickSea(dt);
     }
+    // tickPortalMesh is shared: in legacy it animates the Plebeian Market portal
+    // marker; in minimal it no-ops (buildPortalMesh was skipped, so the module's
+    // _built guard is false and tickPortalMesh returns immediately).
     tickPortalMesh(dt);
     tickHUD(dt);
     tickAtmosphere(dt);
-    tickMirror(dt);
-    tickFoliage(dt);
-    tickSea(dt);
     if (_muzzleFlashes) _muzzleFlashes.tick(dt);
-    if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
+    if (!_minimal) {
+      if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
+    }
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
     // thus this loop) is ever booted. The game loop no longer polls them.
@@ -724,6 +816,8 @@ export function createArenaRuntime(hooks = {}) {
         });
       }
     }
+    // Minimal world per-frame: subtle cloud drift + gateway ring spin.
+    if (_worldRt) _worldRt.tick(dt);
     // v0.2.379-alpha: feed the frame delta (ms) to the adaptive tier BEFORE the
     // render so any DPR/bloom change lands on this frame; sample renderer.info +
     // refresh the debug HUD AFTER (draw-call/triangle counts reflect the frame
@@ -758,14 +852,62 @@ export function createArenaRuntime(hooks = {}) {
     // synchronous sub-steps. Double-rAF ensures a paint frame occurs.
     const _yieldPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-    // Scene/world/HUD/entities — built once.
-    startPhase('buildArena');
-    buildArena();
-    endPhase('buildArena');
-    mark('boot-arena-done');
+    // ── Phase 0b: resolve the active world (minimal vs legacy) ─────────────────
+    // readWorldIdFromDom() reads `<meta name="torii-world">` (the feature flag).
+    // resolveWorldManifest() fetches + validates the manifest; on any failure it
+    // returns { fallback:'legacy' } so the EXISTING buildArena() path runs unchanged.
+    // Only a valid, non-legacy manifest (fallback:'none') sets _minimal = true.
+    try {
+      const worldId = readWorldIdFromDom();
+      if (worldId) {
+        const resolved = await resolveWorldManifest({ worldId, fetchImpl: fetch });
+        if (resolved.ok && resolved.fallback === 'none' && resolved.world) {
+          _minimal = true;
+          _minimalWorld = resolved.world;
+        }
+      }
+    } catch (e) {
+      // Loader never throws (it returns fallback:'legacy'), but guard the await
+      // anyway so a surprise rejection can't break boot — legacy is the safe default.
+      console.warn('[world] manifest resolve failed; falling back to legacy arena:', e && e.message ? e.message : e);
+      _minimal = false;
+      _minimalWorld = null;
+    }
+
+    // Scene/world/HUD/entities — built once. In minimal mode, buildMinimalWorld
+    // replaces buildArena(); in legacy mode the full arena build runs UNCHANGED.
+    if (_minimal) {
+      startPhase('buildMinimalWorld');
+      // Phase 0e: inject assetUrl + loadGltf so data-driven objects (GLB models
+      // like torii-gate.glb) load via the SAME GLTFLoader the arena uses. The
+      // returned `ready` (Promise.allSettled) is awaited best-effort below — it
+      // is non-blocking: objects pop in async; a failed load leaves a placeholder.
+      _worldRt = buildMinimalWorld(_minimalWorld, {
+        scene, sun, THREE, assetUrl, loadGltf: _loadGltf,
+      });
+      _platformY = _worldRt.platformY || 0;
+      endPhase('buildMinimalWorld');
+      mark('boot-minimal-world-done');
+      // Best-effort await of async GLB loads — non-fatal. The boot overlay can
+      // show the world as soon as the sync scene is built; objects pop in when
+      // ready. A rejection never escapes (allSettled). This yield is AFTER the
+      // sync build so the platform/spawn/lights are already visible.
+      if (_worldRt.ready) {
+        _worldRt.ready.catch(() => {}); // swallow — worldObjectsRenderer already handled it
+      }
+    } else {
+      startPhase('buildArena');
+      buildArena();
+      endPhase('buildArena');
+      mark('boot-arena-done');
+    }
     onBootProgress(2); // 'Sculpting terrain…'
     await _yieldPaint();
 
+    // initAtmosphere is kept in BOTH modes — it builds the mountain/mist layer.
+    // In minimal mode the worldRenderer overrides scene.background + clears fog
+    // for the space read, so the atmosphere mountains sit behind the dark sky
+    // (harmless; a later slice can skip them in minimal mode if desired).
     startPhase('initAtmosphere');
     initAtmosphere();
     endPhase('initAtmosphere');
@@ -773,23 +915,29 @@ export function createArenaRuntime(hooks = {}) {
     onBootProgress(3); // (still terrain/world)
     await _yieldPaint();
 
-    startPhase('buildMirror');
-    buildMirror();
-    endPhase('buildMirror');
-    mark('boot-mirror-done');
-    await _yieldPaint();
+    // Mirror + foliage are arena-only (the legacy island scene). Skip in minimal.
+    if (!_minimal) {
+      startPhase('buildMirror');
+      buildMirror();
+      endPhase('buildMirror');
+      mark('boot-mirror-done');
+      await _yieldPaint();
 
-    // v0.2.545: buildFoliage is now async with paint yields so the progress bar
-    // animates smoothly during the ~7s of grass blade generation. Grass is ready
-    // before the player enters the arena (better UX than deferred pop-in).
-    onBootProgress(3); // 'Growing grass…'
-    await buildFoliage((p) => {
-      // Map foliage progress (0..1) to 30%..58% of the boot bar
-      onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
-    });
-    mark('boot-foliage-done');
-    onBootProgress(4); // 'Loading physics…'
-    await _yieldPaint();
+      // v0.2.545: buildFoliage is now async with paint yields so the progress bar
+      // animates smoothly during the ~7s of grass blade generation. Grass is ready
+      // before the player enters the arena (better UX than deferred pop-in).
+      onBootProgress(3); // 'Growing grass…'
+      await buildFoliage((p) => {
+        // Map foliage progress (0..1) to 30%..58% of the boot bar
+        onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
+      });
+      mark('boot-foliage-done');
+      onBootProgress(4); // 'Loading physics…'
+      await _yieldPaint();
+    } else {
+      onBootProgress(4); // 'Loading physics…' (skip grass/mirror in minimal)
+      await _yieldPaint();
+    }
 
     initHUD();
     initPlayerStats();
@@ -798,61 +946,72 @@ export function createArenaRuntime(hooks = {}) {
     onBootPct(60, 'Preparing world…', 'HUD · player · entities');
     await _yieldPaint();
 
-    initBots(playerObj, spawnBullet);
-    mark('boot-bots-done');
-    _muzzleFlashes = createMuzzleFlashPool(scene, {
-      getQualityTier: () => _quality.currentTier(),
-    });
-    initWeapons(
-      bots,
-      takeDamage,
-      getPlayerCollider,
-      isBotNetMode,
-      (impactPos) => _muzzleFlashes.trigger('impact', impactPos),
-    );
-    initTargetReticle({ bots, playerObj, getPlayerCollider });
+    // Arena-only entities + combat wiring (bots, weapons, target reticle, the
+    // EV.SHOOT bullet/sticker dispatch). The minimal world has no combat, so skip
+    // the whole block — legacy behaviour is UNCHANGED.
+    if (!_minimal) {
+      initBots(playerObj, spawnBullet);
+      mark('boot-bots-done');
+      _muzzleFlashes = createMuzzleFlashPool(scene, {
+        getQualityTier: () => _quality.currentTier(),
+      });
+      initWeapons(
+        bots,
+        takeDamage,
+        getPlayerCollider,
+        isBotNetMode,
+        (impactPos) => _muzzleFlashes.trigger('impact', impactPos),
+      );
+      initTargetReticle({ bots, playerObj, getPlayerCollider });
 
-    // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
-    // Stickers fire ONLY in the NAP zone (stick to NPC/bot/tree surfaces).
-    // Bullets fire ONLY in the arena (combat). They are mutually exclusive.
-    on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
-      const aim = aimOrigin || origin;
-      const ad = aimDir || dir;
-      triggerRecoil();
-      playShoot();
-      const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
-      if (inNap) {
-        // NAP zone: stickers only, no bullets
-        fireStickerAtNpc(aim, ad);
-        return;
-      }
-      // Arena: bullets only, no stickers
-      const b = spawnBullet(origin, dir, true);
-      _muzzleFlashes.trigger('muzzle', origin);
-      if (aimOrigin && aimDir) {
-        recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
-      }
-      triggerRecoil();
-      playShoot();
-      // MP-2 peer combat (outbound): every arena shot reports to the authoritative
-      // server, which ray-resolves it against lag-compensated peer snapshots and
-      // no-ops when it hits no peer. Gate + payload live in the pure peerCombat
-      // module (prefers the AIM ray so server hit-detection matches what the
-      // shooter saw). Bot hits stay a separate client-side path — a shot may both
-      // hit a bot locally AND resolve a peer hit server-side; that is expected.
-      if (_mp && shouldSendShot({ playerX: playerObj.position.x, playerZ: playerObj.position.z, isNapLandFn: isNapLand, selfId: _mp.selfId })) {
-        // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
-        // client's measured viewLag. The server rewinds in its OWN clock frame
-        // (server_now - viewLag) — the client clock is not synced to the server,
-        // so a client timestamp can never index the server's snapshot rings.
-        // viewLag = render interp delay + network one-way; rewinding by it tests
-        // the collider where the shooter SAW the target, not where it now is.
-        const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
-        const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
-        if (shot) _mp.sendShot(shot);
-      }
-    });
-    on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
+      // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
+      // Stickers fire ONLY in the NAP zone (stick to NPC/bot/tree surfaces).
+      // Bullets fire ONLY in the arena (combat). They are mutually exclusive.
+      on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
+        const aim = aimOrigin || origin;
+        const ad = aimDir || dir;
+        triggerRecoil();
+        playShoot();
+        const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
+        if (inNap) {
+          // NAP zone: stickers only, no bullets
+          fireStickerAtNpc(aim, ad);
+          return;
+        }
+        // Arena: bullets only, no stickers
+        const b = spawnBullet(origin, dir, true);
+        _muzzleFlashes.trigger('muzzle', origin);
+        if (aimOrigin && aimDir) {
+          recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
+        }
+        triggerRecoil();
+        playShoot();
+        // MP-2 peer combat (outbound): every arena shot reports to the authoritative
+        // server, which ray-resolves it against lag-compensated peer snapshots and
+        // no-ops when it hits no peer. Gate + payload live in the pure peerCombat
+        // module (prefers the AIM ray so server hit-detection matches what the
+        // shooter saw). Bot hits stay a separate client-side path — a shot may both
+        // hit a bot locally AND resolve a peer hit server-side; that is expected.
+        if (_mp && shouldSendShot({ playerX: playerObj.position.x, playerZ: playerObj.position.z, isNapLandFn: isNapLand, selfId: _mp.selfId })) {
+          // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
+          // client's measured viewLag. The server rewinds in its OWN clock frame
+          // (server_now - viewLag) — the client clock is not synced to the server,
+          // so a client timestamp can never index the server's snapshot rings.
+          // viewLag = render interp delay + network one-way; rewinding by it tests
+          // the collider where the shooter SAW the target, not where it now is.
+          const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
+          const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
+          if (shot) _mp.sendShot(shot);
+        }
+      });
+      on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
+    } else {
+      // Minimal mode: no combat entities, but still init the muzzle-flash pool
+      // so update()'s `if (_muzzleFlashes) _muzzleFlashes.tick(dt)` guard is safe.
+      _muzzleFlashes = createMuzzleFlashPool(scene, {
+        getQualityTier: () => _quality.currentTier(),
+      });
+    }
 
     on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
       hitBot(bot, dmg);
@@ -932,11 +1091,15 @@ export function createArenaRuntime(hooks = {}) {
     });
 
     // Visible in-world portal MARKER mesh (display-only; no collider/raycast/input).
-    buildPortalMesh(scene, {
-      position: _portalTrigger.portalPos(),
-      range: _portalTrigger.range(),
-      title: 'Plebeian Market Bazaar',
-    }, renderer);
+    // Arena-only: the minimal world builds its own gateway marker in
+    // buildMinimalWorld, so skip the Plebeian Market portal mesh there.
+    if (!_minimal) {
+      buildPortalMesh(scene, {
+        position: _portalTrigger.portalPos(),
+        range: _portalTrigger.range(),
+        title: 'Plebeian Market Bazaar',
+      }, renderer);
+    }
 
     // ESC — universal override: pause/resume both directions; closes the gateway
     // screen first when it is open. Capture phase so nothing swallows it first.
@@ -944,6 +1107,14 @@ export function createArenaRuntime(hooks = {}) {
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
       _escapeHandledOnKeyDown = true;
+      // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
+      // pause), mirroring the gateway-screen-first ordering below.
+      if (isToriiMenuOpenHook()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _closeToriiMenu();
+        return;
+      }
       if (isGatewayScreenOpen()) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -994,6 +1165,17 @@ export function createArenaRuntime(hooks = {}) {
       // v2: the ground/air-aware fly orchestration lives in player.js (hop from
       // ground, stop-mid-air / glide handoff in the air).
       flyToggleFromInput();
+    });
+
+    // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR
+    // paused, independent of the portal (unlike KeyF). Pressing M again while the
+    // menu is open closes it (toggle). Pause on open + exitPointerLock; resume on
+    // close. ESC closes the menu first (handled above) before pause.
+    onKeyDown(code => {
+      if (code !== 'KeyM') return;
+      if (!isPlaying() && !isPaused()) return;
+      if (isToriiMenuOpenHook()) { _closeToriiMenu(); return; }
+      _openToriiMenu();
     });
 
     const elResumeBtn = document.getElementById('btn-resume');
@@ -1191,18 +1373,54 @@ export function createArenaRuntime(hooks = {}) {
     onBootProgress(4); // 'Loading physics…'
     await _yieldPaint();
 
-    startPhase('buildArenaColliders');
-    await step('buildArenaColliders', () => buildArenaColliders());
-    endPhase('buildArenaColliders');
-    await _yieldPaint();
+    // Arena terrain colliders + dynamic crates are arena-only. In minimal mode
+    // the platform collider (built below, after the player body) replaces them.
+    if (!_minimal) {
+      startPhase('buildArenaColliders');
+      await step('buildArenaColliders', () => buildArenaColliders());
+      endPhase('buildArenaColliders');
+      await _yieldPaint();
 
-    await step('buildDynamicCrates', () => buildDynamicCrates());
-    await _yieldPaint();
+      await step('buildDynamicCrates', () => buildDynamicCrates());
+      await _yieldPaint();
+    }
     let handle;
     await step('spawnPlayerBody', () => { handle = spawnPlayerBody(); });
     setPlayerBody(handle);
     onBootProgress(5); // 'Loading avatar…'
     await _yieldPaint();
+
+    // ── Minimal world: spawn on the manifest's spawn point + platform collider ─
+    // After the player body is spawned, set the spawn XZ/yaw from the manifest,
+    // reset the player to it, and build a fixed cuboid collider at the platform's
+    // Y so the player stands on the cloud. The collider TOP sits at the platform
+    // surface; the player eye lands ~1.7m above it (SPAWN_Y). Uses getWorld() +
+    // getRapier() (RigidBodyDesc.fixed() + CuboidColliderDesc) — the same Rapier
+    // surface physics.js uses, reached via the lazy initPhysics dynamic import.
+    if (_minimal) {
+      try {
+        const spawn = _worldRt && _worldRt.spawn;
+        if (spawn) {
+          setNextSpawn(spawn.x, spawn.z, spawn.yaw);
+          resetPlayerPos();
+        }
+        _addPlatformCollider(_platformY);
+        // Phase 0i: build per-object physics colliders for the data-driven world
+        // (crates, ground, etc. that declare a `collider` field). Mirrors
+        // _addPlatformCollider — injected deps (getWorld/getRapier), best-effort
+        // try/catch, never breaks boot. Objects without a collider are visual-only.
+        try {
+          _worldColliders = buildWorldObjectColliders(_minimalWorld, {
+            physicsWorld: getWorld(),
+            Rapier: getRapier(),
+          });
+        } catch (e) {
+          console.warn('[world] per-object colliders failed:', e && e.message ? e.message : e);
+        }
+      } catch (e) {
+        console.warn('[world] minimal platform collider/spawn failed:', e && e.message ? e.message : e);
+      }
+    }
 
     startPhase('loadPlayerModel');
     await step('loadPlayerModel',   () => loadPlayerModel(playerObj));
@@ -1216,11 +1434,41 @@ export function createArenaRuntime(hooks = {}) {
     // (chiefmonkey6.glb 1.2MB + chiefmonkey-npc-animations.glb 8.5MB) should NOT
     // compete for bandwidth/Draco workers during the critical entry path.
     // Kick it off fire-and-forget after a short delay (via rAF, NOT setTimeout —
-    // constraint [3] forbids new setTimeout sites).
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
-    }));
+    // constraint [3] forbids new setTimeout sites). Arena-only: the minimal world
+    // has no NAP zone, so skip the NPC build there.
+    if (!_minimal) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
+      }));
+    }
     mark('bootstrap-physics-end');
+  }
+
+  // _addPlatformCollider(platformY) — build a fixed Rapier cuboid whose TOP sits
+  // at the platform surface Y so the player stands on the cloud. Sized to the
+  // platform (a generous ~24m square so the player can walk around). The cuboid
+  // is centred at platformY - HALF_HEIGHT so its top face is exactly platformY.
+  // Uses getWorld() + getRapier() (RigidBodyDesc.fixed() + CuboidColliderDesc) —
+  // the same Rapier surface physics.js uses, reached via the lazy initPhysics
+  // dynamic import so no static WASM import bloats the main chunk. No-op (with a
+  // warning) if the Rapier world/namespace isn't loaded yet.
+  function _addPlatformCollider(platformY) {
+    const world = getWorld();
+    const RAPIER = getRapier();
+    if (!world || !RAPIER) {
+      console.warn('[world] platform collider skipped — Rapier world not ready');
+      return;
+    }
+    const HALF = 12; // 24m square platform — generous, matches the worldRenderer default radius
+    const THICK = 1.0;
+    const cy = (platformY || 0) - THICK / 2;
+    const rb = world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(0, cy, 0)
+    );
+    world.createCollider(
+      RAPIER.ColliderDesc.cuboid(HALF, THICK / 2, HALF),
+      rb,
+    );
   }
 
   // enter() — start a fresh run: reset HP/ammo/score (resetRun), move the player to
@@ -1236,6 +1484,14 @@ export function createArenaRuntime(hooks = {}) {
       setNextSpawn(_spawnOverride.x, _spawnOverride.z, _spawnOverride.yaw);
       setYaw(_spawnOverride.yaw);
       _spawnOverride = null; // one-shot
+    } else if (_minimal) {
+      // Minimal world: spawn at the manifest's spawn point (already set in
+      // bootstrapPhysics, but re-assert here so every ENTER resets cleanly).
+      const spawn = _worldRt && _worldRt.spawn;
+      if (spawn) {
+        setNextSpawn(spawn.x, spawn.z, spawn.yaw);
+        setYaw(spawn.yaw);
+      }
     } else {
       setNextSpawn(SPAWN_X, SPAWN_Z, SPAWN_YAW);
       setYaw(SPAWN_YAW);

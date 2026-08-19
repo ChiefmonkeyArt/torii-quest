@@ -98,6 +98,15 @@ export const godMode        = false; // NEVER deploy true
 // but no score event may reach NIP-07 or a relay while this is false.
 export const SCORE_PUBLISH_ENABLED = false;
 
+// Phase 0f — gamestr.io score integration (kind 30762). OFF by default; the
+// operator opts in. When true AND the player explicitly publishes a score (the
+// existing "PUBLISH MY SCORE" consent path), a gamestr.io-format event is signed
+// via NIP-07 and fanned out to GAMESTR_RELAYS. This is SEPARATE from the in-app
+// NIP-78 leaderboard (kind 30000, gated by SCORE_PUBLISH_ENABLED above): gamestr
+// is a distinct destination with its own toggle. A gamestr failure is best-effort
+// and must never block the in-app leaderboard publish.
+export const GAMESTR_ENABLED = false;
+
 // MP-1 multiplayer flag. FALSE = single-player, identical to pre-MP-1 behaviour;
 // TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.
 // Ships FALSE by default (see MP_1_SPEC.md §6). An admin can toggle it at

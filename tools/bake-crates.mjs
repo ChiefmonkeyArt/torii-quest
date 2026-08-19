@@ -41,10 +41,17 @@ for (const [cx, cz, hw, hd, ch] of CRATES) {
   });
 }
 
-// Replace any existing `box` objects (placeholder crates from earlier template
-// drafts) with the baked crates. Non-box objects (torii-gate, cylinder, ...) are
-// preserved untouched — they're extracted in their own 0k.x steps.
-const kept = (world.objects || []).filter((o) => o.type !== 'box');
+// Replace the CRATE boxes only — boxes whose XZ matches a legacy CRATES
+// entry get re-baked. Other boxes (bridge decks/rails, torii pillar colliders)
+// have different XZ + are preserved untouched. Also cleans up the old starter
+// placeholder boxes (their XZ) for idempotency from the initial template state.
+const crateXZ = new Set(bakedCrates.map((c) => `${c.position[0]},${c.position[2]}`));
+const PLACEHOLDER_XZ = new Set(['4,-3', '5.2,-2.2', '-5,2']); // old starter placeholders
+const isCrateOrPlaceholder = (o) =>
+  o.type === 'box' &&
+  (crateXZ.has(`${o.position[0]},${o.position[2]}`) ||
+    PLACEHOLDER_XZ.has(`${o.position[0]},${o.position[2]}`));
+const kept = (world.objects || []).filter((o) => !isCrateOrPlaceholder(o));
 world.objects = [...kept, ...bakedCrates];
 
 writeFileSync(worldPath, JSON.stringify(world, null, 2) + '\n');

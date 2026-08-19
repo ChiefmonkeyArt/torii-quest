@@ -16,6 +16,11 @@ import {
 } from '../src/terrain/heightmap.js';
 import { CRATES } from '../src/config.js';
 import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
+import {
+  BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
+  BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
+  BRIDGE_YAW,
+} from '../src/config.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
 const world = JSON.parse(readFileSync(WORLD_PATH, 'utf8'));
@@ -108,8 +113,13 @@ describe('chiefmonkey-template world.json (real manifest)', () => {
 // terrain: center Y = fullH/2 + sampleArenaHeight(cx, cz), matching arena.js:144
 // + physics.js:152. Crates outside the play zone (isArenaPlayArea) are skipped.
 describe('chiefmonkey-template baked crates (0k.2)', () => {
-  const crates = world.objects.filter((o) => o.type === 'box' && o.collider);
+  // Filter crates by XZ (not just type:box+collider) so bridge decks (also boxes
+  // with colliders) aren't counted as crates.
   const expected = CRATES.filter(([cx, cz]) => isArenaPlayArea(cx, cz));
+  const crateXZ = new Set(expected.map(([cx, cz]) => `${cx},${cz}`));
+  const crates = world.objects.filter(
+    (o) => o.type === 'box' && o.collider && crateXZ.has(`${o.position[0]},${o.position[2]}`),
+  );
 
   it('bakes exactly the in-zone crates (one box object each)', () => {
     expect(crates.length).toBe(expected.length);
@@ -136,4 +146,60 @@ describe('chiefmonkey-template baked crates (0k.2)', () => {
       expect(crate.scale).toEqual([hw * 2, ch, hd * 2]);
     }
   });
+});
+
+// Phase 0k.1 — sea-channel bridges baked into the manifest. 2 box decks
+// (walkable colliders, top at BRIDGE_DECK_Y) + 4 side rails (visual-only).
+// Mirrors bridge.js + physics.js:182-190. RAIL_H/RAIL_T mirror bridge.js.
+describe('chiefmonkey-template baked bridges (0k.1)', () => {
+  const RAIL_H = 0.5;
+  const RAIL_T = 0.12;
+  const r4 = (n) => Math.round(n * 10000) / 10000;
+  const rotXZ = (x, z, yaw) => {
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    return [x * c - z * s, x * s + z * c];
+  };
+  const boxes = world.objects.filter((o) => o.type === 'box');
+
+  const specs = [
+    { name: 'bridge 1', x: BRIDGE_X, z: BRIDGE_Z, len: BRIDGE_LEN, width: BRIDGE_WIDTH, thick: BRIDGE_THICK, yaw: BRIDGE_YAW },
+    { name: 'bridge 2', x: BRIDGE2_X, z: BRIDGE2_Z, len: BRIDGE2_LEN, width: BRIDGE2_WIDTH, thick: BRIDGE2_THICK, yaw: 0 },
+  ];
+
+  it('bakes 2 decks + 4 rails (6 bridge boxes total)', () => {
+    const decks = boxes.filter((o) => o.collider);
+    const rails = boxes.filter((o) => !o.collider);
+    // 9 crate decks (with colliders) + 2 bridge decks = 11 colliders; 4 rails.
+    expect(decks.filter((o) => o.scale[1] === specs[0].thick || o.scale[1] === specs[1].thick).length).toBeGreaterThanOrEqual(2);
+    expect(rails.filter((o) => o.scale[1] === RAIL_H).length).toBe(4);
+  });
+
+  for (const spec of specs) {
+    it(`${spec.name} deck matches legacy constants + has a walkable collider`, () => {
+      const deck = boxes.find(
+        (o) => o.collider && o.scale[0] === spec.len && o.scale[2] === spec.width &&
+          o.position[0] === r4(spec.x) && o.position[2] === r4(spec.z),
+      );
+      expect(deck).toBeTruthy();
+      expect(deck.position[1]).toBeCloseTo(BRIDGE_DECK_Y - spec.thick / 2, 3);
+      expect(deck.scale).toEqual([spec.len, spec.thick, spec.width]);
+      expect(deck.rotation).toEqual([0, spec.yaw, 0]);
+      expect(deck.collider).toEqual({ shape: 'box', size: [spec.len, spec.thick, spec.width] });
+    });
+
+    it(`${spec.name} rails are visual-only + ride the deck edges`, () => {
+      const railOff = spec.width / 2 - RAIL_T / 2;
+      for (const side of [-1, 1]) {
+        const [dx, dz] = rotXZ(0, side * railOff, spec.yaw);
+        const rail = boxes.find(
+          (o) => !o.collider && o.scale[1] === RAIL_H &&
+            o.position[0] === r4(spec.x + dx) && o.position[2] === r4(spec.z + dz),
+        );
+        expect(rail).toBeTruthy();
+        expect(rail.scale).toEqual([spec.len, RAIL_H, RAIL_T]);
+        expect(rail.rotation).toEqual([0, spec.yaw, 0]);
+        expect(rail.collider).toBeUndefined();
+      }
+    });
+  }
 });

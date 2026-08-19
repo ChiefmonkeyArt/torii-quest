@@ -83,7 +83,7 @@ import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/to
 // no three import, browser-only, fail-safe (missing document → no-op).
 import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -341,10 +341,11 @@ function _getToriiMenuState() {
       activeWorld: getActiveWorld(),
       availableWorlds: _SHIPPED_WORLDS,
       scoresEnabled: !!SCORE_PUBLISH_ENABLED,
-      // Phase 0f — gamestr.io publish status (read-only). Reflects the GAMESTR_ENABLED
-      // operator opt-in (off by default; toggled via config/env, not the menu — a menu
-      // toggle is a nice-to-have, NOT in v1) + the last best-effort publish outcome.
-      gamestrEnabled: !!GAMESTR_ENABLED,
+      // Phase 0f — gamestr.io publish status. Reflects the operator opt-in: the
+      // build-time GAMESTR_ENABLED const OR the runtime localStorage override
+      // (adminPrefs.getGamestrEnabled, toggled from this menu). Off by default; the
+      // actual publish still requires the player's explicit NIP-07 consent.
+      gamestrEnabled: GAMESTR_ENABLED || getGamestrEnabled(),
       gamestrLastPublish: _lastGamestrResult
         ? (_lastGamestrResult.published ? 'ok' : 'failed')
         : 'idle',
@@ -362,6 +363,15 @@ function _getToriiMenuState() {
           _heartbeat.republishPaused = false;
           showEntryStatus('Heartbeat OFF.');
         }
+      },
+      onToggleGamestr: (next) => {
+        // Owner-only: runtime opt-in for the gamestr.io score publish (kind 30762).
+        // This is a localStorage override on top of the build-time GAMESTR_ENABLED
+        // const; main.js publishes when (GAMESTR_ENABLED || getGamestrEnabled()).
+        // Enabling does NOT publish immediately — the actual score publish still
+        // requires the player's explicit NIP-07 consent (PUBLISH MY SCORE).
+        setGamestrEnabled(next === 'on');
+        showEntryStatus(next === 'on' ? 'gamestr.io ON — publishes on your next score.' : 'gamestr.io OFF.');
       },
       onSetNodeRelays: (str) => {
         // Owner-only: persist the node-relay set so the heartbeat publishes
@@ -1366,13 +1376,14 @@ async function _publishMyScore() {
   }
 
   // Phase 0f — gamestr.io best-effort publish (kind 30762). Runs ONLY when the
-  // operator opted in (GAMESTR_ENABLED) AND the player consented (consent===true,
+  // operator opted in (the build-time GAMESTR_ENABLED const OR the runtime
+  // adminPrefs.getGamestrEnabled() override) AND the player consented (consent===true,
   // already established above). A gamestr failure is captured into
   // _lastGamestrResult and NEVER blocks or fails the in-app leaderboard write
   // above — this runs regardless of the in-app outcome, and any throw is caught
   // so it can never propagate into the game loop. First publish = NIP-07 signer
   // prompt (the wallet may auto-allow thereafter).
-  if (GAMESTR_ENABLED && consent === true) {
+  if ((GAMESTR_ENABLED || getGamestrEnabled()) && consent === true) {
     try {
       _lastGamestrResult = await _gamestrPublisher.publishGameScore(
         { score: stats.score, kills: stats.kills },

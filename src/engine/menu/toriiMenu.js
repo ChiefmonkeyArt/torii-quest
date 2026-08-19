@@ -340,28 +340,35 @@ function _renderAdmin(list, admin) {
   Object.assign(scNote.style, { fontSize: '10px', color: '#6b7280', marginTop: '-4px' });
   panel.append(scNote);
 
-  // Phase 0f — gamestr.io publish status (read-only). Reflects the GAMESTR_ENABLED
-  // operator opt-in (off by default) + the last best-effort publish outcome. The
-  // operator toggles it via config/env (a menu toggle is a nice-to-have, NOT v1).
+  // Phase 0f — gamestr.io publish TOGGLE (owner-only). Reflects the operator
+  // opt-in (the build-time GAMESTR_ENABLED const OR the runtime localStorage
+  // override adminPrefs.getGamestrEnabled) + the last best-effort publish
+  // outcome. Toggling ON does NOT publish immediately — the actual score publish
+  // still requires the player's explicit NIP-07 consent (PUBLISH MY SCORE).
   const gsRow = document.createElement('div');
   Object.assign(gsRow.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' });
   const gsLabel = document.createElement('div');
   gsLabel.textContent = 'gamestr.io';
   Object.assign(gsLabel.style, { fontSize: '12px', color: '#e9d5ff', flex: '1 1 auto' });
-  const gsVal = document.createElement('div');
+  const gsBtn = document.createElement('button');
+  gsBtn.type = 'button';
   const gamestrOn = !!admin.gamestrEnabled;
   const gamestrLast = typeof admin.gamestrLastPublish === 'string' ? admin.gamestrLastPublish : 'idle';
-  gsVal.textContent = gamestrOn ? `ON · ${gamestrLast}` : 'OFF';
-  Object.assign(gsVal.style, {
-    fontSize: '11px', letterSpacing: '1px', padding: '4px 12px', borderRadius: '6px',
-    color: gamestrOn ? '#f7931a' : '#6b7280',
-    border: `1px solid ${gamestrOn ? 'rgba(247,147,26,0.5)' : 'rgba(107,114,128,0.4)'}`,
+  gsBtn.textContent = gamestrOn ? `ON · ${gamestrLast}` : 'OFF';
+  Object.assign(gsBtn.style, {
+    fontSize: '11px', letterSpacing: '1px', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer',
+    background: gamestrOn ? 'rgba(247,147,26,0.35)' : 'rgba(139,92,246,0.15)',
+    color: gamestrOn ? '#f7931a' : '#9ca3af',
+    border: `1px solid ${gamestrOn ? 'rgba(247,147,26,0.6)' : 'rgba(139,92,246,0.4)'}`,
   });
-  gsRow.append(gsLabel, gsVal);
+  if (typeof admin.onToggleGamestr === 'function') {
+    gsBtn.addEventListener('click', () => { try { admin.onToggleGamestr(gamestrOn ? 'off' : 'on'); } catch { /* best-effort */ } });
+  }
+  gsRow.append(gsLabel, gsBtn);
   panel.append(gsRow);
 
   const gsNote = document.createElement('div');
-  gsNote.textContent = 'gamestr.io score publish — toggled in admin settings.';
+  gsNote.textContent = 'gamestr.io score publish — opt-in; publishes on your explicit score.';
   Object.assign(gsNote.style, { fontSize: '10px', color: '#6b7280', marginTop: '-4px' });
   panel.append(gsNote);
 

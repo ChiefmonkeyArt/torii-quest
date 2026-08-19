@@ -8,6 +8,7 @@ import {
   getHeartbeatIntent, setHeartbeatIntent,
   getActiveWorld, setActiveWorld,
   getNodeRelays, setNodeRelays, readNodeRelays,
+  getGamestrEnabled, setGamestrEnabled,
 } from './adminPrefs.js';
 
 // A minimal fake Storage.
@@ -153,5 +154,54 @@ describe('adminPrefs node-relay re-exports', () => {
   it('getNodeRelays returns "" when no storage / absent', () => {
     expect(getNodeRelays(fakeStorage())).toBe('');
     expect(getNodeRelays(null)).toBe('');
+  });
+});
+
+// Phase 0f (menu toggle): the operator's runtime gamestr opt-in. A localStorage
+// override on top of the build-time GAMESTR_ENABLED const; main.js publishes
+// when (GAMESTR_ENABLED || getGamestrEnabled()). Default off; never throws.
+describe('getGamestrEnabled / setGamestrEnabled', () => {
+  it('defaults to false when the key is absent', () => {
+    expect(getGamestrEnabled(fakeStorage())).toBe(false);
+  });
+
+  it('returns true when stored as "1"', () => {
+    expect(getGamestrEnabled(fakeStorage({ 'torii.gamestr.enabled': '1' }))).toBe(true);
+  });
+
+  it('returns false when stored value is not "1"', () => {
+    expect(getGamestrEnabled(fakeStorage({ 'torii.gamestr.enabled': '0' }))).toBe(false);
+    expect(getGamestrEnabled(fakeStorage({ 'torii.gamestr.enabled': 'true' }))).toBe(false);
+    expect(getGamestrEnabled(fakeStorage({ 'torii.gamestr.enabled': '' }))).toBe(false);
+  });
+
+  it('setGamestrEnabled(true) stores "1" and round-trips', () => {
+    const s = fakeStorage();
+    setGamestrEnabled(true, s);
+    expect(s.getItem('torii.gamestr.enabled')).toBe('1');
+    expect(getGamestrEnabled(s)).toBe(true);
+  });
+
+  it('setGamestrEnabled("on") coerces to stored "1" (toggle UI passes "on"/"off")', () => {
+    const s = fakeStorage();
+    setGamestrEnabled('on', s);
+    expect(getGamestrEnabled(s)).toBe(true);
+  });
+
+  it('setGamestrEnabled(false) stores "0"', () => {
+    const s = fakeStorage();
+    setGamestrEnabled(true, s);
+    setGamestrEnabled(false, s);
+    expect(s.getItem('torii.gamestr.enabled')).toBe('0');
+    expect(getGamestrEnabled(s)).toBe(false);
+  });
+
+  it('defaults to false with no storage (null/undefined)', () => {
+    expect(getGamestrEnabled(null)).toBe(false);
+    expect(getGamestrEnabled(undefined)).toBe(false);
+  });
+
+  it('never throws with no storage', () => {
+    expect(() => setGamestrEnabled(true, null)).not.toThrow();
   });
 });

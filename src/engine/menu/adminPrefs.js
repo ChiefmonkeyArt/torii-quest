@@ -22,6 +22,14 @@
 
 const ACTIVE_WORLD_KEY = 'torii.world.active';
 const HEARTBEAT_INTENT_KEY = 'torii.heartbeat.intent';
+const GAMESTR_ENABLED_KEY = 'torii.gamestr.enabled';
+//   torii.gamestr.enabled   — '1' | '0'. The operator's runtime opt-in for the
+//                            gamestr.io score publish (kind 30762). Default off.
+//                            This is a RUNTIME override on top of the build-time
+//                            GAMESTR_ENABLED config const; main.js publishes when
+//                            (GAMESTR_ENABLED || getGamestrEnabled()). Off by
+//                            default; the actual publish still requires the
+//                            player's explicit NIP-07 consent (PUBLISH MY SCORE).
 
 // Phase 0d: node-relay config helpers live in presence/nodeRelays.js (one
 // source of truth — pure, node-safe, wss-only validation). Re-exported here so
@@ -61,6 +69,31 @@ export function setHeartbeatIntent(v, storage) {
     store.setItem(HEARTBEAT_INTENT_KEY, v === 'on' ? 'on' : 'off');
   } catch {
     /* storage disabled / quota — ignore; read still returns the default */
+  }
+}
+
+// getGamestrEnabled(storage?) → boolean. The operator's runtime gamestr opt-in
+// (overrides the build-time GAMESTR_ENABLED const). Default false. Pure; never
+// throws.
+export function getGamestrEnabled(storage) {
+  try {
+    const store = _storage(storage);
+    if (!store) return false;
+    return store.getItem(GAMESTR_ENABLED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+// setGamestrEnabled(v, storage?) → void. Coerces to a stored '1'/'0'. Never
+// throws. Pure.
+export function setGamestrEnabled(v, storage) {
+  try {
+    const store = _storage(storage);
+    if (!store) return;
+    store.setItem(GAMESTR_ENABLED_KEY, v === true || v === 'on' ? '1' : '0');
+  } catch {
+    /* storage disabled / quota — ignore */
   }
 }
 

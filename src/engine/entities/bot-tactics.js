@@ -33,20 +33,22 @@ export const BOT_TIERS = Object.freeze({
   }),
   normal: Object.freeze({
     id: 'normal',
-    sightScale: 1.0, speedScale: 1.0, reaction: 0.28,
-    aimError: 1.0, cooldownScale: 1.0, coverBias: 0.5, flankBias: 0.6, persistence: 0.65,
+    sightScale: 1.0, speedScale: 1.0, reaction: 0.35,
+    aimError: 1.2, cooldownScale: 1.1, coverBias: 0.5, flankBias: 0.6, persistence: 0.65,
   }),
   hard: Object.freeze({
     id: 'hard',
-    sightScale: 1.15, speedScale: 1.18, reaction: 0.12,
-    aimError: 0.55, cooldownScale: 0.8, coverBias: 0.85, flankBias: 0.95, persistence: 1.0,
+    sightScale: 1.15, speedScale: 1.18, reaction: 0.22,
+    aimError: 0.75, cooldownScale: 0.95, coverBias: 0.85, flankBias: 0.95, persistence: 1.0,
   }),
 });
 
 // Deterministic per-bot tier tag by spawn index — a fixed rotation so a fresh
-// arena always has the same noticeable mix (2 hard / 2 normal / 1 easy at
-// BOT_COUNT=5) with no Math.random at assignment time.
-const TIER_ROTATION = Object.freeze(['normal', 'hard', 'normal', 'easy', 'hard']);
+// arena always has the same noticeable mix (1 hard / 3 normal / 1 easy at
+// BOT_COUNT=5) with no Math.random at assignment time. v0.2.608: reduced from
+// 2 hard — the hard bots were too accurate (0.12s reaction, 0.55 aimError) and
+// the player died too fast.
+const TIER_ROTATION = Object.freeze(['normal', 'hard', 'normal', 'easy', 'normal']);
 export function tierForIndex(i) {
   const n = TIER_ROTATION.length;
   return BOT_TIERS[TIER_ROTATION[((i % n) + n) % n]];

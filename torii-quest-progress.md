@@ -1,7 +1,7 @@
 # Torii Quest — Progress Dashboard
 
 > Visual execution dashboard. `torii-quest-strategy.md` = vision/decision rules · `torii-quest-todo.md` = active task queue.
-> Current version: **v0.2.607-alpha** (3D HOMEPAGE SCENE — starfield + glowing torii gate + slow camera orbit rendered behind the home-surface card; lazy `import('three')`, single rAF, full dispose on unmount, fail-safe to the DOM gradient when WebGL is absent. Prior - v0.2.606-alpha COMPONENT SEAM — 0l.1 expand path + crates-as-components, 0l.2 runtime host + beacon, 0l.3 portal/NAP data-shell. Prior - v0.2.602-alpha PER-BONE STICKER COLLIDERS ON BOTS. Prior - v0.2.574 per-bone NPC sticker colliders.)
+> Current version: **v0.2.608-alpha** (3D HOMEPAGE SCENE — starfield + glowing torii gate + slow camera orbit rendered behind the home-surface card; lazy `import('three')`, single rAF, full dispose on unmount, fail-safe to the DOM gradient when WebGL is absent. Prior - v0.2.606-alpha COMPONENT SEAM — 0l.1 expand path + crates-as-components, 0l.2 runtime host + beacon, 0l.3 portal/NAP data-shell. Prior - v0.2.602-alpha PER-BONE STICKER COLLIDERS ON BOTS. Prior - v0.2.574 per-bone NPC sticker colliders.)
 > **ACTIVE FOCUS — 15-hour proof-of-concept route.** Shooter is maintenance-only unless demo-breaking; the active MVP is the freedom-tech loop (gateway/NAP-to-NAP preview → Plebeian/Nostr product panel → leaderboard preview → torii.quest update-check). Polish comes after PoC validation.
 > **Doc structure (v0.2.352-alpha refresh):** per-project docs now use `torii-quest-{strategy,todo,progress,handoff}.md` (this file, plus `torii-quest-todo.md` etc.). Legacy shims (`todo.md`) deleted; tools reference the new names.
 

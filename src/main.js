@@ -47,6 +47,10 @@ import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
+// Phase 0d: node presence heartbeat — pure timing + status helpers + the
+// node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
+// and the rAF shell tick drives the republish (NO setTimeout in new code).
+import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
 // v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
@@ -72,7 +76,7 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -163,6 +167,7 @@ let _userContacts = new Set();
 let _ownerContacts = new Map();
 let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
+let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
 
 function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
@@ -293,6 +298,24 @@ function _getToriiMenuState() {
   });
   const cap = _updateCapability;
   const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  const nodeRelays = _nodeRelaysForPublish();
+  const heartbeatIntent = getHeartbeatIntent();
+  const heartbeat = heartbeatStatus({
+    intent: heartbeatIntent,
+    isOwner,
+    hasSigner,
+    nodeRelays,
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    lastError: _heartbeat.lastError,
+    republishPaused: _heartbeat.republishPaused,
+  });
+  const nextDueMs = nextHeartbeatInMs({
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    intervalMs: HEARTBEAT_INTERVAL_MS,
+  });
   return {
     scanStatus: _worldsScan,
     canTravel,
@@ -302,17 +325,35 @@ function _getToriiMenuState() {
     all,
     isOwner,
     admin: {
-      heartbeatIntent: getHeartbeatIntent(),
+      heartbeatIntent,
+      heartbeatStatus: heartbeat,
+      heartbeatLastPublishedAt: _heartbeat.lastPublishedAt,
+      heartbeatNextDueMs: nextDueMs,
+      nodeRelays,
+      nodeRelaysInput: getNodeRelays(),
       activeWorld: getActiveWorld(),
       availableWorlds: _SHIPPED_WORLDS,
       scoresEnabled: !!SCORE_PUBLISH_ENABLED,
       onToggleHeartbeat: (next) => {
         setHeartbeatIntent(next);
-        // Surface a notice that the first publish needs explicit signer consent.
-        // We do NOT auto-publish here — only set the intent.
-        showEntryStatus(next === 'on'
-          ? 'Heartbeat intent ON — first publish needs signer consent.'
-          : 'Heartbeat intent OFF.');
+        if (next === 'on') {
+          // Explicit consent-gated first publish: enabling the heartbeat
+          // triggers the NIP-07 signer prompt. The operator approving it IS the
+          // consent. On rejection → paused (status surfaces in the menu); on
+          // no-node-relay → blocked (publishes nothing, never public RELAYS).
+          _heartbeat.republishPaused = false;  // re-toggle clears a pause
+          _heartbeat.lastError = null;
+          publishOurWorldPresence().catch(() => { /* status surfaced */ });
+        } else {
+          _heartbeat.republishPaused = false;
+          showEntryStatus('Heartbeat OFF.');
+        }
+      },
+      onSetNodeRelays: (str) => {
+        // Owner-only: persist the node-relay set so the heartbeat publishes
+        // here (never to public RELAYS). Validated wss-only inside setNodeRelays.
+        setNodeRelays(str);
+        showEntryStatus('Node relays saved.');
       },
       onSetActiveWorld: (id) => {
         setActiveWorld(id);
@@ -557,34 +598,125 @@ async function _refreshFriendData() {
 }
 
 let _presencePublishedPubkey = '';
-async function publishOurWorldPresence() {
+// ── Phase 0d: node presence heartbeat state ──────────────────────────────────
+// The heartbeat is consent-gated + rAF-driven (NO setTimeout in new code).
+// The menu toggle sets intent + triggers an explicit first publish (the NIP-07
+// prompt = operator consent); the rAF _shellTick then republishes every
+// HEARTBEAT_INTERVAL_MS. If a republish sign is rejected/thrown, we PAUSE
+// (status paused:wallet-requires-approval) and stop auto-republishing until
+// the operator re-toggles — so a per-call-prompting wallet never spams prompts.
+const _heartbeat = {
+  lastPublishedAt: null,   // epoch ms of the last successful publish (null = never)
+  lastError: null,          // last non-sign error string (null = none)
+  republishPaused: false,   // true when a republish sign was rejected → stop auto-republish
+  inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
+};
+
+// _nodeRelaysForPublish() → the validated wss:// node-relay set sourced from
+// config (localStorage `torii.node.relays` + <meta name="torii-relays">).
+// NEVER falls back to the public RELAYS (damus/nos.lol/nostr.band/primal) —
+// publishing presence to public relays is the regression this slice forbids.
+// Returns [] when none configured → caller blocks (publishes nothing).
+function _nodeRelaysForPublish() {
+  return readNodeRelays({
+    storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
+    metaGetter: typeof document !== 'undefined'
+      ? (name) => {
+          const el = document.querySelector(`meta[name="${name}"]`);
+          return el && el.content ? el.content : '';
+        }
+      : null,
+  });
+}
+
+// _publishPresenceOnce() → signs + fanout-publishes ONE presence event to the
+// node-relay set (NEVER public RELAYS). The NIP-40 expiration is now baked into
+// buildPresenceEvent (default 20 min). Returns { ok, error }.
+//   - On sign rejection/throw (nip-07-rejected/nip-07-threw): sets
+//     _heartbeat.republishPaused = true so the rAF tick stops auto-republishing.
+//     The operator re-toggles to resume. Quiet only when the wallet auto-allows.
+//   - On other failure: records lastError (status failed:<error>) but does NOT
+//     pause — a transient relay failure should retry on the next tick.
+async function _publishPresenceOnce() {
   const pubkey = state.nostrPubkey || '';
-  if (!/^[0-9a-f]{64}$/.test(pubkey)) return;
-  // v0.2.263: idempotent — NOSTR_LOGIN fires twice (once right after getPublicKey
-  // in the login call, again from _fetchProfile() once the kind:0 profile resolves).
-  // Without this guard each emit re-signs+republishes, popping the NIP-07 signer
-  // twice on login (and a 3rd delayed pop the player sees around ENTER ARENA).
-  // Publish at most once per pubkey per page load; the profile-refresh emit
-  // still updates the UI but no longer re-signs.
-  if (_presencePublishedPubkey === pubkey) return;
-  _presencePublishedPubkey = pubkey;
+  if (!/^[0-9a-f]{64}$/.test(pubkey)) return { ok: false, error: 'no-pubkey' };
+  const relays = _nodeRelaysForPublish();
+  if (!relays.length) return { ok: false, error: 'blocked:no-node-relay' };
   const built = buildPresenceEvent({
     pubkey,
     zoneId: 'quest-torii',
     title: 'Torii Quest',
     zoneType: 'arena',
-    website: window.location.origin + window.location.pathname,
-    relays: RELAYS,
+    website: (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : ''),
+    relays,
+    // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
-  if (!built.ok) return;
-  await publishOurPresence({
+  if (!built.ok) return { ok: false, error: 'build-failed' };
+  const res = await publishOurPresence({
     unsigned: built.event,
     sign: signEvent,
     publish: fanoutPublish,
-    relays: RELAYS,
+    relays,
     timeoutMs: 5000,
   });
-  refreshOnlineWorlds();
+  if (res.ok) {
+    _heartbeat.lastPublishedAt = Date.now();
+    _heartbeat.lastError = null;
+    return { ok: true, error: null };
+  }
+  // A sign rejection/throw pauses auto-republish (wallet prompts each call).
+  if (res.error === 'nip-07-rejected' || res.error === 'nip-07-threw') {
+    _heartbeat.republishPaused = true;
+  } else {
+    _heartbeat.lastError = res.error || 'unknown';
+  }
+  return { ok: false, error: res.error || 'publish-failed' };
+}
+
+// _heartbeatTick(now) — called from the existing rAF _shellTick loop (no new
+// timers). Republishes when due IF: intent is on, owner, signer present, node
+// relays configured, not paused, and not already mid-publish. Mirrors the
+// gateway-scan polling that already rides this tick.
+function _heartbeatTick(now) {
+  if (_heartbeat.inflight) return;
+  const intent = getHeartbeatIntent();
+  if (intent !== 'on') return;
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  if (!isOwner) return;
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  if (!hasSigner) return;
+  if (_heartbeat.republishPaused) return;
+  if (!isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS })) return;
+  // Never published → the first publish is explicit-via-toggle only; the tick
+  // only handles REpublishes (isHeartbeatDue is false when lastPublishedAt is
+  // null, so this guard is belt-and-braces).
+  if (_heartbeat.lastPublishedAt === null) return;
+  _heartbeat.inflight = true;
+  _publishPresenceOnce()
+    .catch(() => { /* publish threw — leave paused/error state as set */ })
+    .finally(() => { _heartbeat.inflight = false; });
+}
+
+// publishOurWorldPresence() — the consent-gated first publish (called by the
+// menu's heartbeat toggle when the operator enables it). v0.2.263 idempotency
+// guard kept so a re-toggle of the same intent doesn't double-publish. Now
+// publishes to the node-relay set ONLY (never public RELAYS); if none
+// configured, blocks with status blocked:no-node-relay and publishes nothing.
+async function publishOurWorldPresence() {
+  const pubkey = state.nostrPubkey || '';
+  if (!/^[0-9a-f]{64}$/.test(pubkey)) return;
+  // Consent-gated: the menu toggle calls this once on enable. A re-toggle of
+  // the same intent re-publishes (the operator explicitly asked again).
+  _presencePublishedPubkey = pubkey;
+  const res = await _publishPresenceOnce();
+  if (res.ok) {
+    refreshOnlineWorlds();
+  } else if (res.error === 'blocked:no-node-relay') {
+    showEntryStatus('Heartbeat blocked — set a node relay in Node settings first.');
+  } else if (res.error === 'nip-07-rejected' || res.error === 'nip-07-threw') {
+    showEntryStatus('Heartbeat paused — approve the signer request in your Nostr extension, then re-toggle.');
+  }
 }
 
 function renderGatewayPreview() {
@@ -1612,6 +1744,14 @@ function _shellTick() {
     if (++_presenceFrame >= 600) {
       _presenceFrame = 0;
       refreshOnlineWorlds().catch(() => {});
+    }
+    // Phase 0d: heartbeat republish rides the same rAF tick (no new timers).
+    // Throttled to ~once per 120 frames like the handshake tick — the actual
+    // interval check (10 min default) lives in isHeartbeatDue, so this just
+    // pokes that pure helper often enough.
+    if (++_heartbeatFrame >= 120) {
+      _heartbeatFrame = 0;
+      _heartbeatTick(Date.now());
     }
   }
   requestAnimationFrame(_shellTick);

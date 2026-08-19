@@ -23,6 +23,12 @@
 const ACTIVE_WORLD_KEY = 'torii.world.active';
 const HEARTBEAT_INTENT_KEY = 'torii.heartbeat.intent';
 
+// Phase 0d: node-relay config helpers live in presence/nodeRelays.js (one
+// source of truth — pure, node-safe, wss-only validation). Re-exported here so
+// the menu/main.js composition root imports all owner-admin prefs from the
+// single adminPrefs seam. The localStorage key is `torii.node.relays`.
+export { getNodeRelays, setNodeRelays, readNodeRelays } from '../presence/nodeRelays.js';
+
 // _storage(s) → the injected storage or null. Tolerates a missing
 // globalThis.localStorage (SSR / disabled storage) without throwing.
 function _storage(s) {

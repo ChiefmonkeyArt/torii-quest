@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   getHeartbeatIntent, setHeartbeatIntent,
   getActiveWorld, setActiveWorld,
+  getNodeRelays, setNodeRelays, readNodeRelays,
 } from './adminPrefs.js';
 
 // A minimal fake Storage.
@@ -129,5 +130,28 @@ describe('setActiveWorld', () => {
 
   it('never throws with no storage', () => {
     expect(() => setActiveWorld('x', null)).not.toThrow();
+  });
+});
+
+// Phase 0d: adminPrefs re-exports the node-relay helpers from presence/nodeRelays.js
+// (one source of truth). Verify the re-export seam is wired + delegates.
+describe('adminPrefs node-relay re-exports', () => {
+  it('setNodeRelays + getNodeRelays round-trip through the adminPrefs seam', () => {
+    const s = fakeStorage();
+    setNodeRelays('wss://a.relay,ws://bad.relay', s);
+    expect(getNodeRelays(s)).toBe('wss://a.relay/');
+  });
+
+  it('readNodeRelays reads back the validated set', () => {
+    const s = fakeStorage();
+    setNodeRelays('wss://a.relay,wss://b.relay', s);
+    expect(readNodeRelays({ storage: s, metaGetter: () => '' })).toEqual([
+      'wss://a.relay/', 'wss://b.relay/',
+    ]);
+  });
+
+  it('getNodeRelays returns "" when no storage / absent', () => {
+    expect(getNodeRelays(fakeStorage())).toBe('');
+    expect(getNodeRelays(null)).toBe('');
   });
 });

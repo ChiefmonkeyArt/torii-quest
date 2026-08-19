@@ -173,14 +173,19 @@ export async function mountHomepageScene(container) {
   ro.observe(container);
 
   let raf = 0; let alive = true;
-  const clock = (typeof performance !== 'undefined' && performance.now) ? performance : Date;
-  let t0 = clock.now();
+  // Pick the clock ONCE (not per frame). `nowFn()` returns ms since epoch-ish;
+  // one call per frame feeds both the dt delta + the orbit/pulse phase `a`.
+  const nowFn = (typeof performance !== 'undefined' && performance.now)
+    ? () => performance.now()
+    : () => Date.now();
+  let t0 = nowFn();
 
   const loop = () => {
     if (!alive) return;
     raf = requestAnimationFrame(loop);
-    const dt = (clock.now() - t0) / 1000; t0 = clock.now();
-    const a = (typeof performance !== 'undefined' && performance.now) ? performance.now() / 1000 : (Date.now() / 1000);
+    const t = nowFn();
+    const dt = (t - t0) / 1000; t0 = t;
+    const a = t / 1000;
     // Slow camera orbit — a gentle drift, not a spin.
     camera.position.x = Math.cos(a * 0.08) * 30;
     camera.position.z = Math.sin(a * 0.08) * 30;

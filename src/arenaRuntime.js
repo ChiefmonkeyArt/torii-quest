@@ -74,6 +74,8 @@ import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
 import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
+import { buildWorldTerrain, loadWorldTerrainData } from './engine/world/worldTerrain.js';
+import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -507,6 +509,15 @@ export function createArenaRuntime(hooks = {}) {
   //                     the same lifetime); acceptable for v1.
   let _minimal = false;
   let _minimalWorld = null;
+  // Phase 0k.5: the active world id (the manifest dir under worlds/). Captured
+  // during boot so the terrain loader can resolve `terrain.source` paths against
+  // `worlds/<worldId>/`. Empty in legacy mode (no data-driven world).
+  let _worldId = '';
+  // Phase 0k.5: the data-driven terrain (heightfield collider + displaced mesh)
+  // for the minimal world, when world.terrain is present. Null when the world has
+  // no terrain (gateway-blank) or the build failed (fell back to the platform
+  // collider). Holds a dispose() for a future teardown path.
+  let _worldTerrain = null;
   let _worldRt = null;
   let _platformY = 0;
   let _worldColliders = null;
@@ -864,6 +875,34 @@ export function createArenaRuntime(hooks = {}) {
         if (resolved.ok && resolved.fallback === 'none' && resolved.world) {
           _minimal = true;
           _minimalWorld = resolved.world;
+          _worldId = worldId;
+          // Phase 0k.5: PREFLIGHT the terrain source/data BEFORE committing to the
+          // minimal world. If the world declares a terrain but the source can't be
+          // loaded or the heights are invalid (bad length, non-finite, wrong
+          // export), fall back to the FULL LEGACY buildArena() — which has its own
+          // procedural terrain — NOT a flat minimal platform. The ground must match
+          // the world author's intent; a present-but-unbuildable terrain is a data
+          // failure, so the legacy arena (with terrain) is the correct fallback.
+          // (Runtime Rapier/THREE failures later are a separate, rarer case — those
+          // warn + keep the platform collider, since physics may not be ready yet.)
+          if (resolved.world.terrain) {
+            try {
+              const preflightLoader = makeTerrainLoader({
+                worldId: _worldId,
+                fetchImpl: fetch,
+                importModule: (url) => import(/* @vite-ignore */ url),
+                resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+              });
+              const preflight = await loadWorldTerrainData(resolved.world.terrain, { loadTerrainSource: preflightLoader });
+              if (!preflight.ok) {
+                console.warn('[world] terrain preflight failed; falling back to legacy arena:', preflight.error);
+                _minimal = false; _minimalWorld = null; _worldId = '';
+              }
+            } catch (e) {
+              console.warn('[world] terrain preflight threw; falling back to legacy arena:', e && e.message ? e.message : e);
+              _minimal = false; _minimalWorld = null; _worldId = '';
+            }
+          }
         }
       }
     } catch (e) {
@@ -1404,7 +1443,6 @@ export function createArenaRuntime(hooks = {}) {
           setNextSpawn(spawn.x, spawn.z, spawn.yaw);
           resetPlayerPos();
         }
-        _addPlatformCollider(_platformY);
         // Phase 0i: build per-object physics colliders for the data-driven world
         // (crates, ground, etc. that declare a `collider` field). Mirrors
         // _addPlatformCollider — injected deps (getWorld/getRapier), best-effort
@@ -1416,6 +1454,58 @@ export function createArenaRuntime(hooks = {}) {
           });
         } catch (e) {
           console.warn('[world] per-object colliders failed:', e && e.message ? e.message : e);
+        }
+        // Phase 0k.5: data-driven terrain heightfield (world.terrain). When the
+        // world manifest declares a terrain, build the Rapier heightfield collider
+        // + the displaced ground mesh from the source module's heights. Built
+        // BEFORE the platform collider so the terrain can BE the ground — the
+        // platform collider is only a fallback for when there's no terrain field
+        // or the terrain build fails at runtime (physics not ready). The ground
+        // must never vanish. A world WITHOUT a terrain field is a no-op
+        // ({ok:true, terrain:null}). The loader resolves `terrain.source` (a
+        // relative .js/.json) against `worlds/<worldId>/` via assetUrl; .json is
+        // fetched (no code execution — safe for arbitrary worlds), .js is
+        // dynamically imported (trusted built-in templates only — the schema
+        // forbids .. + protocol so it can't escape).
+        if (_minimalWorld.terrain) {
+          try {
+            const loadTerrainSource = makeTerrainLoader({
+              worldId: _worldId,
+              fetchImpl: fetch,
+              importModule: (url) => import(/* @vite-ignore */ url),
+              resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+            });
+            const result = await buildWorldTerrain(_minimalWorld, {
+              physicsWorld: getWorld(),
+              Rapier: getRapier(),
+              THREE,
+              loadTerrainSource,
+            });
+            if (!result.ok) {
+              console.warn('[world] terrain build failed; using platform collider:', result.error);
+            } else if (result.terrain) {
+              _worldTerrain = result.terrain;
+              for (let i = 0; i < result.terrain.meshes.length; i++) scene.add(result.terrain.meshes[i]);
+              // The terrain mesh is now the visible ground — hide the cloud
+              // platform fallback meshes built by buildMinimalWorld (they stay
+              // visible if this branch is skipped on a runtime terrain failure,
+              // so the visible ground never vanishes).
+              if (_worldRt && Array.isArray(_worldRt.fallbackGround)) {
+                for (let i = 0; i < _worldRt.fallbackGround.length; i++) {
+                  _worldRt.fallbackGround[i].visible = false;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);
+          }
+        }
+        // Platform collider: the ground FALLBACK. Skipped when a terrain collider
+        // was built (the terrain heightfield is the ground). Built when there's no
+        // terrain field, or the terrain build failed at runtime — the ground must
+        // never vanish, so the player always has a walkable surface.
+        if (!_worldTerrain) {
+          _addPlatformCollider(_platformY);
         }
       } catch (e) {
         console.warn('[world] minimal platform collider/spawn failed:', e && e.message ? e.message : e);
@@ -1513,6 +1603,10 @@ export function createArenaRuntime(hooks = {}) {
     if (_mp) { try { _mp.stop(reason); } catch {} _mp = null; }
     // v0.2.380-alpha: tear the leaderboard overlay down on arena exit / travel.
     try { _arenaLb.destroy(); } catch { /* noop */ }
+    // Phase 0k.5: dispose the data-driven terrain (heightfield collider + ground
+    // mesh) on exit/travel so the physics world + scene don't leak across boots.
+    if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
+    if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }
 
   return { boot, bootstrapPhysics, enter, setCharacter, setSpawnOverride, stopMultiplayer };

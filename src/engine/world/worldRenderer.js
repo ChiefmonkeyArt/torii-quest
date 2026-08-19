@@ -140,6 +140,16 @@ export function buildMinimalWorld(world, opts = {}) {
   const platformColor = _parseColor(
     world.platform && world.platform.color, DEFAULT_PLATFORM_COLOR, T
   );
+  // Phase 0k.5: the cloud platform is ALWAYS built (so there's a visible ground
+  // even before the terrain loads, + as a fallback if the terrain build fails at
+  // runtime). When the world declares a `terrain`, the platform + glow rim are
+  // collected as `fallbackGround` meshes — arenaRuntime hides them once the
+  // terrain mesh is successfully added (the terrain IS the ground then). If the
+  // terrain build fails at runtime, they stay visible — so the ground (visual +
+  // physics) never vanishes. A world WITHOUT a terrain field has no fallback
+  // collection; the platform is the permanent ground.
+  let fallbackGround = null;
+  if (world.terrain) fallbackGround = [];
   const platGeo = new T.CylinderGeometry(radius, radius, 1.2, 48);
   const platMat = new T.MeshStandardMaterial({
     color: platformColor,
@@ -154,6 +164,7 @@ export function buildMinimalWorld(world, opts = {}) {
   platform.receiveShadow = true;
   scene.add(platform);
   created.push(platGeo, platMat, platform);
+  if (fallbackGround) fallbackGround.push(platform);
 
   // Subtle glow rim — a slightly larger, thin disc just below the platform edge
   // so the cloud appears to emit a soft halo into the void.
@@ -172,6 +183,7 @@ export function buildMinimalWorld(world, opts = {}) {
   rim.position.set(platform.position.x, platformY - 0.59, platform.position.z);
   scene.add(rim);
   created.push(rimGeo, rimMat, rim);
+  if (fallbackGround) fallbackGround.push(rim);
 
   // ── Gateway marker ────────────────────────────────────────────────────────
   // A simple emissive torus (portal ring) at world.gateway.position — the
@@ -306,6 +318,7 @@ export function buildMinimalWorld(world, opts = {}) {
   // `ready` is optional: omitted when there are no GLB objects (buildWorldObjects
   // returns null). The caller may `await result.ready` best-effort (non-blocking).
   const result = { tick, platformY, spawn };
+  if (fallbackGround) result.fallbackGround = fallbackGround;
   if (_objRt && _objRt.ready) result.ready = _objRt.ready;
   return result;
 }

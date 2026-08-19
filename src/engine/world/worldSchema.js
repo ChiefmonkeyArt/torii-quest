@@ -32,6 +32,8 @@ const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point']);
 // Allowed object.type values (closed set). `gltf` loads a GLB/GLTF model; the
 // primitives (`box`/`cylinder`/`plane`) are placed meshes; `torii-gate` is a
 // named alias that resolves to the chiefmonkey gate GLB (torii-gate.glb).
+// NOTE: the ground heightfield is NOT an object type — it is the singular
+// top-level `terrain` field (one ground per world), validated separately below.
 const OBJECT_TYPES = Object.freeze(['gltf', 'box', 'cylinder', 'torii-gate', 'plane']);
 // Allowed collider.shape values (closed set, Phase 0i). `box` is a full-extent
 // cuboid (size = [x,y,z]); `cylinder` is a Y-axis cylinder (radius + height). A
@@ -156,6 +158,42 @@ export function validateWorld(data) {
     if (Object.keys(platform).length) world.platform = platform;
   }
 
+  // terrain { source, rows, cols, scale, offset?, seaLevel? } — the singular ground
+  // heightfield (Phase 0k.5). One terrain per world (like sky/platform/gateway).
+  // `source` is a safe relative module path (.js/.json) exporting the heights: a
+  // Float32Array (column-major: heights[col*rows + row]) OR a `buildHeightfieldArray()`
+  // function returning one (preferred — avoids eager allocation). The loader imports
+  // it dynamically (the heights grid is too large to inline in world.json). `rows`/`cols`
+  // are VERTEX counts (rowsZ, colsX) and must be >= 2 (Rapier needs >= 1 cell = >= 2
+  // vertices per axis). `scale` is TOTAL extents [gWidth, heightScale, gDepth] (NOT
+  // per-cell) — scaleY is typically 1 so heights are absolute world-Y metres. `offset`
+  // is the Rapier CENTRE translation [cx, cy, cz] (the heightfield spans
+  // [-scaleX/2, scaleX/2] × [-scaleZ/2, scaleZ/2] around it; cy is usually 0). This is
+  // the data-driven mirror of the legacy buildArena() terrain heightfield (physics.js
+  // createHeightfield: nrows=rows-1, ncols=cols-1, heights, scale, centre). All-or-
+  // nothing: source+rows+cols+scale must ALL be valid, else the terrain is silently
+  // omitted from the WORLD (the world still validates ok). NOTE: a terrain present but
+  // unbuildable at render time (bad heights length, non-finite values, source load
+  // failure) is NOT silently skipped — buildWorldTerrain returns a structured failure
+  // so arenaRuntime falls back to legacy buildArena() (the ground must never vanish).
+  if (data.terrain != null && typeof data.terrain === 'object' && !Array.isArray(data.terrain)) {
+    const tSource = _safeDataSourcePath(data.terrain.source);
+    const tRows = _toNum(data.terrain.rows);
+    const tCols = _toNum(data.terrain.cols);
+    const tScale = _toVec3(data.terrain.scale);
+    const rowsOk = tRows !== undefined && _isInt(tRows) && tRows >= 2;
+    const colsOk = tCols !== undefined && _isInt(tCols) && tCols >= 2;
+    const scaleOk = !!(tScale && tScale.every((n) => n > 0));
+    if (tSource && rowsOk && colsOk && scaleOk) {
+      const terrain = { source: tSource, rows: tRows, cols: tCols, scale: tScale };
+      const tOffset = _toVec3(data.terrain.offset);
+      if (tOffset) terrain.offset = tOffset;
+      const tSea = _toNum(data.terrain.seaLevel);
+      if (tSea !== undefined) terrain.seaLevel = tSea;
+      world.terrain = terrain;
+    }
+  }
+
   // gateway { position, target?, relays? }
   if (data.gateway != null && typeof data.gateway === 'object' && !Array.isArray(data.gateway)) {
     const gateway = {};
@@ -247,6 +285,24 @@ export function _safeModelPath(raw) {
   if (parts.some((p) => p === '..')) return null;
   // Extension must be .glb or .gltf only.
   if (!(s.endsWith('.glb') || s.endsWith('.gltf'))) return null;
+  return s;
+}
+
+// _safeDataSourcePath(raw) → a sanitized relative data-module path or null. Pure.
+// Like _safeModelPath but for terrain heightfield data modules (.js/.json) that
+// export the heights array. Rules: string, ≤ 256 chars, no `..` segment, no
+// `://`, no leading `/`, must end `.js` or `.json`. Used by the terrain field so
+// a manifest can never load an arbitrary external URL or escape the world's
+// asset dir. Returns the trimmed path on success, or null on any violation.
+export function _safeDataSourcePath(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (s === '' || s.length > 256) return null;
+  if (s.startsWith('/')) return null; // no absolute paths
+  if (s.includes('://')) return null; // no protocol/host
+  const parts = s.split('/');
+  if (parts.some((p) => p === '..')) return null; // no path traversal
+  if (!(s.endsWith('.js') || s.endsWith('.json'))) return null;
   return s;
 }
 
@@ -348,6 +404,14 @@ function _validateObject(item, index, errors) {
   // color — optional CSS hex string (validated like the existing color fields).
   const color = _toStr(item.color);
   if (color) obj.color = color;
+
+  // visible — optional boolean (Phase 0k.3). Defaults to true (object renders a
+  // mesh). When explicitly `false`, the object is COLLISION-ONLY: no visual mesh
+  // is built by worldObjectsRenderer, but buildWorldObjectColliders still builds its
+  // collider (it checks `collider`, not `visible`). Used for legacy collision-only
+  // scenery like torii pillars (OBSTACLES) + the coastline wall. Only `false` is
+  // preserved — any other value is omitted (object stays visible, the default).
+  if (item.visible === false) obj.visible = false;
 
   // collider — optional per-object physics collider (Phase 0i). A malformed
   // collider is SILENTLY OMITTED (the object stays valid + visual-only) — it

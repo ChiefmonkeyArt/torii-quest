@@ -1,6 +1,6 @@
 {
   "version": "v0.2.602-alpha",
-  "generatedAt": "2026-08-19T16:54:57.957Z",
+  "generatedAt": "2026-08-19T16:58:36.343Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -54,12 +54,12 @@
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 212"
+        "value": "fast 5 · foundation 25 · full 213"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "2858 passing / 212 files"
+        "value": "2866 passing / 213 files"
       },
       {
         "label": "Profile timings",
@@ -101,7 +101,7 @@
       {
         "pct": 12,
         "label": "Foundation coverage",
-        "sub": "25/212 files"
+        "sub": "25/213 files"
       }
     ]
   },
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.602-alpha",
-    "gitCommit": "317c741",
+    "gitCommit": "245611c",
     "signals": [
       {
         "key": "versionSync",
@@ -261,7 +261,7 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "2858 passing / 212 files",
+    "testLabel": "2866 passing / 213 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "2858 passing / 212 files"
+        "value": "2866 passing / 213 files"
       },
       {
         "label": "Test profiles",
@@ -454,7 +454,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 2858 passing / 212 files"
+        "value": "green — 2866 passing / 213 files"
       },
       {
         "label": "Explicit approval",

@@ -255,12 +255,18 @@ describe('chiefmonkey-template torii gate + pillars (0k.3)', () => {
 // Decorative (no collider); the travel trigger is a separate sensor wired in
 // main.js. Mirrors arena.js _buildTravelGateway (v0.2.239).
 describe('chiefmonkey-template travel gateway (0k.4)', () => {
+  // Phase 0l.3: the travel-gateway GLTF is now a torii.gateway component
+  // instance, not an inline object. Resolve it through the same
+  // expandWorldComponents the runtime uses, then assert against the expanded
+  // world — the gateway object must be shape-equivalent to the 0k.4 baked object.
+  const registry = createBuiltinRegistry();
+  const expanded = expandWorldComponents(world, registry);
   const MODEL = 'torii-gateway-experience.glb';
   const TARGET_H = WALL_H * 1.6; // 4.16
   const r4 = (n) => Math.round(n * 10000) / 10000;
 
   it('has exactly one travel-gateway gltf loading the portal model', () => {
-    const gws = world.objects.filter((o) => o.type === 'gltf' && o.model === MODEL);
+    const gws = expanded.world.objects.filter((o) => o.type === 'gltf' && o.model === MODEL);
     expect(gws.length).toBe(1);
     const g = gws[0];
     expect(g.position[0]).toBeCloseTo(TRAVEL_GATE_X, 3);
@@ -271,7 +277,7 @@ describe('chiefmonkey-template travel gateway (0k.4)', () => {
   });
 
   it('ground Y is the baked NAP-surface height at the portal XZ', () => {
-    const g = world.objects.find((o) => o.type === 'gltf' && o.model === MODEL);
+    const g = expanded.world.objects.find((o) => o.type === 'gltf' && o.model === MODEL);
     const expectedY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
     expect(g.position[1]).toBeCloseTo(r4(expectedY), 3);
   });

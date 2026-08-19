@@ -12,6 +12,13 @@
     "size": 100,
     "color": "#8fbc8f"
   },
+  "terrain": {
+    "source": "./terrain.json",
+    "rows": 240,
+    "cols": 228,
+    "scale": [72.67869999999999, 1, 76.582],
+    "offset": [1.6655499999999996, 0, 0.029599999999998516]
+  },
   "gateway": {
     "position": [0, 0, -10],
     "target": [0, 0, 0]
@@ -65,14 +72,6 @@
       "scale": 1.2,
       "color": "#6b4423",
       "collider": { "shape": "box", "size": [1.2, 1.2, 1.2] }
-    },
-    {
-      "type": "plane",
-      "position": [0, 0.02, 0],
-      "rotation": [-1.5708, 0, 0],
-      "scale": [20, 0, 20],
-      "color": "#7a8a5a",
-      "collider": { "shape": "box", "size": [20, 0.5, 20], "offset": [0, -0.25, 0] }
     }
   ]
 }

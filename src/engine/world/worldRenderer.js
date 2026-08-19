@@ -140,38 +140,45 @@ export function buildMinimalWorld(world, opts = {}) {
   const platformColor = _parseColor(
     world.platform && world.platform.color, DEFAULT_PLATFORM_COLOR, T
   );
-  const platGeo = new T.CylinderGeometry(radius, radius, 1.2, 48);
-  const platMat = new T.MeshStandardMaterial({
-    color: platformColor,
-    emissive: platformColor,
-    emissiveIntensity: 0.18,
-    roughness: 0.85,
-    metalness: 0.0,
-  });
-  const platform = new T.Mesh(platGeo, platMat);
-  // Cylinder is centred on its origin; shift so the TOP face is at platformY.
-  platform.position.set(_numOr(pPos[0], 0), platformY - 0.6, _numOr(pPos[2], 0));
-  platform.receiveShadow = true;
-  scene.add(platform);
-  created.push(platGeo, platMat, platform);
+  // Phase 0k.5: when the world declares a `terrain` (heightfield collider +
+  // displaced mesh, built by buildWorldTerrain in arenaRuntime), the terrain IS the
+  // ground — skip the cloud platform + its glow rim so there aren't two surfaces.
+  // platformY stays 0 (the spawn eye-Y is SPAWN_Y from player.js; the player falls
+  // onto the terrain heightfield). The gateway still uses platformY as a Y fallback.
+  if (!world.terrain) {
+    const platGeo = new T.CylinderGeometry(radius, radius, 1.2, 48);
+    const platMat = new T.MeshStandardMaterial({
+      color: platformColor,
+      emissive: platformColor,
+      emissiveIntensity: 0.18,
+      roughness: 0.85,
+      metalness: 0.0,
+    });
+    const platform = new T.Mesh(platGeo, platMat);
+    // Cylinder is centred on its origin; shift so the TOP face is at platformY.
+    platform.position.set(_numOr(pPos[0], 0), platformY - 0.6, _numOr(pPos[2], 0));
+    platform.receiveShadow = true;
+    scene.add(platform);
+    created.push(platGeo, platMat, platform);
 
-  // Subtle glow rim — a slightly larger, thin disc just below the platform edge
-  // so the cloud appears to emit a soft halo into the void.
-  const rimGeo = new T.RingGeometry(radius * 0.98, radius * 1.25, 48);
-  const rimMat = new T.MeshBasicMaterial({
-    color: platformColor,
-    transparent: true,
-    opacity: 0.12,
-    side: T.DoubleSide,
-    depthWrite: false,
-    blending: T.AdditiveBlending,
-    fog: false,
-  });
-  const rim = new T.Mesh(rimGeo, rimMat);
-  rim.rotation.x = -Math.PI / 2; // lay flat
-  rim.position.set(platform.position.x, platformY - 0.59, platform.position.z);
-  scene.add(rim);
-  created.push(rimGeo, rimMat, rim);
+    // Subtle glow rim — a slightly larger, thin disc just below the platform edge
+    // so the cloud appears to emit a soft halo into the void.
+    const rimGeo = new T.RingGeometry(radius * 0.98, radius * 1.25, 48);
+    const rimMat = new T.MeshBasicMaterial({
+      color: platformColor,
+      transparent: true,
+      opacity: 0.12,
+      side: T.DoubleSide,
+      depthWrite: false,
+      blending: T.AdditiveBlending,
+      fog: false,
+    });
+    const rim = new T.Mesh(rimGeo, rimMat);
+    rim.rotation.x = -Math.PI / 2; // lay flat
+    rim.position.set(platform.position.x, platformY - 0.59, platform.position.z);
+    scene.add(rim);
+    created.push(rimGeo, rimMat, rim);
+  }
 
   // ── Gateway marker ────────────────────────────────────────────────────────
   // A simple emissive torus (portal ring) at world.gateway.position — the

@@ -1443,7 +1443,6 @@ export function createArenaRuntime(hooks = {}) {
           setNextSpawn(spawn.x, spawn.z, spawn.yaw);
           resetPlayerPos();
         }
-        _addPlatformCollider(_platformY);
         // Phase 0i: build per-object physics colliders for the data-driven world
         // (crates, ground, etc. that declare a `collider` field). Mirrors
         // _addPlatformCollider — injected deps (getWorld/getRapier), best-effort
@@ -1458,36 +1457,46 @@ export function createArenaRuntime(hooks = {}) {
         }
         // Phase 0k.5: data-driven terrain heightfield (world.terrain). When the
         // world manifest declares a terrain, build the Rapier heightfield collider
-        // + the displaced ground mesh from the source module's heights. On ANY
-        // failure (source load, bad heights, missing physics) buildWorldTerrain
-        // returns {ok:false} — we keep the platform collider built above so the
-        // ground never vanishes (the player still has a walkable surface). A world
-        // WITHOUT a terrain field (gateway-blank) is a no-op ({ok:true, terrain:null}).
-        // The loader resolves `terrain.source` (a relative .js/.json) against
-        // `worlds/<worldId>/` via assetUrl; .json is fetched (no code execution —
-        // safe for arbitrary worlds), .js is dynamically imported (trusted built-in
-        // templates only — the schema forbids .. + protocol so it can't escape).
-        try {
-          const loadTerrainSource = makeTerrainLoader({
-            worldId: _worldId,
-            fetchImpl: fetch,
-            importModule: (url) => import(/* @vite-ignore */ url),
-            resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
-          });
-          const result = await buildWorldTerrain(_minimalWorld, {
-            physicsWorld: getWorld(),
-            Rapier: getRapier(),
-            THREE,
-            loadTerrainSource,
-          });
-          if (!result.ok) {
-            console.warn('[world] terrain build failed; using platform collider:', result.error);
-          } else if (result.terrain) {
-            _worldTerrain = result.terrain;
-            for (let i = 0; i < result.terrain.meshes.length; i++) scene.add(result.terrain.meshes[i]);
+        // + the displaced ground mesh from the source module's heights. Built
+        // BEFORE the platform collider so the terrain can BE the ground — the
+        // platform collider is only a fallback for when there's no terrain field
+        // or the terrain build fails at runtime (physics not ready). The ground
+        // must never vanish. A world WITHOUT a terrain field is a no-op
+        // ({ok:true, terrain:null}). The loader resolves `terrain.source` (a
+        // relative .js/.json) against `worlds/<worldId>/` via assetUrl; .json is
+        // fetched (no code execution — safe for arbitrary worlds), .js is
+        // dynamically imported (trusted built-in templates only — the schema
+        // forbids .. + protocol so it can't escape).
+        if (_minimalWorld.terrain) {
+          try {
+            const loadTerrainSource = makeTerrainLoader({
+              worldId: _worldId,
+              fetchImpl: fetch,
+              importModule: (url) => import(/* @vite-ignore */ url),
+              resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+            });
+            const result = await buildWorldTerrain(_minimalWorld, {
+              physicsWorld: getWorld(),
+              Rapier: getRapier(),
+              THREE,
+              loadTerrainSource,
+            });
+            if (!result.ok) {
+              console.warn('[world] terrain build failed; using platform collider:', result.error);
+            } else if (result.terrain) {
+              _worldTerrain = result.terrain;
+              for (let i = 0; i < result.terrain.meshes.length; i++) scene.add(result.terrain.meshes[i]);
+            }
+          } catch (e) {
+            console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);
           }
-        } catch (e) {
-          console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);
+        }
+        // Platform collider: the ground FALLBACK. Skipped when a terrain collider
+        // was built (the terrain heightfield is the ground). Built when there's no
+        // terrain field, or the terrain build failed at runtime — the ground must
+        // never vanish, so the player always has a walkable surface.
+        if (!_worldTerrain) {
+          _addPlatformCollider(_platformY);
         }
       } catch (e) {
         console.warn('[world] minimal platform collider/spawn failed:', e && e.message ? e.message : e);

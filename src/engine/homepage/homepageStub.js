@@ -124,7 +124,7 @@ function _build() {
   backdrop.setAttribute('aria-modal', 'true');
   backdrop.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
   Object.assign(backdrop.style, {
-    position: 'fixed', inset: '0', zIndex: '78',
+    position: 'fixed', inset: '0', zIndex: '210',
     display: 'none',
     alignItems: 'center', justifyContent: 'center',
     background: 'radial-gradient(circle at 50% 40%, rgba(20,18,40,0.82), rgba(8,8,18,0.94))',

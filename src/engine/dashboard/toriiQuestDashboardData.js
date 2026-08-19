@@ -51,17 +51,8 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-<<<<<<< HEAD
-<<<<<<< HEAD
-  passing: 2838,
-=======
-  passing: 2838,
->>>>>>> phase0k7-lights
-  files: 209,
-=======
   passing: 2838,
   files: 209,
->>>>>>> phase0k8-sea-foliage
   fastProfile: 5,
   foundationProfile: 25,
 });

@@ -472,6 +472,21 @@
           0.8
         ]
       }
+    },
+    {
+      "type": "gltf",
+      "model": "torii-gateway-experience.glb",
+      "position": [
+        0,
+        0.885,
+        32
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": 4.16
     }
   ]
 }

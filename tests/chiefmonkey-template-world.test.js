@@ -14,13 +14,14 @@ import {
   ARENA_GRID,
   ARENA_TERRAIN,
   ISLAND_BASE_Y,
+  sampleNapHeight,
 } from '../src/terrain/heightmap.js';
 import { CRATES } from '../src/config.js';
 import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
 import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
-  BRIDGE_YAW, WALL_H,
+  BRIDGE_YAW, WALL_H, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA,
 } from '../src/config.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
@@ -239,5 +240,31 @@ describe('chiefmonkey-template torii gate + pillars (0k.3)', () => {
       expect(p.position[1]).toBeCloseTo(ISLAND_BASE_Y + GATE_H / 2, 3);
       expect(p.rotation).toEqual([0, 0, 0]); // un-rotated (legacy quirk)
     }
+  });
+});
+
+// Phase 0k.4 — metaverse travel portal GLB on the far side of the NAP zone.
+// Decorative (no collider); the travel trigger is a separate sensor wired in
+// main.js. Mirrors arena.js _buildTravelGateway (v0.2.239).
+describe('chiefmonkey-template travel gateway (0k.4)', () => {
+  const MODEL = 'torii-gateway-experience.glb';
+  const TARGET_H = WALL_H * 1.6; // 4.16
+  const r4 = (n) => Math.round(n * 10000) / 10000;
+
+  it('has exactly one travel-gateway gltf loading the portal model', () => {
+    const gws = world.objects.filter((o) => o.type === 'gltf' && o.model === MODEL);
+    expect(gws.length).toBe(1);
+    const g = gws[0];
+    expect(g.position[0]).toBeCloseTo(TRAVEL_GATE_X, 3);
+    expect(g.position[2]).toBeCloseTo(TRAVEL_GATE_Z, 3);
+    expect(g.rotation).toEqual([0, Math.PI + TRAVEL_GATE_YAW_DELTA, 0]); // [0, π/2, 0]
+    expect(g.scale).toBeCloseTo(TARGET_H, 3);
+    expect(g.collider).toBeUndefined(); // decorative — no collider
+  });
+
+  it('ground Y is the baked NAP-surface height at the portal XZ', () => {
+    const g = world.objects.find((o) => o.type === 'gltf' && o.model === MODEL);
+    const expectedY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
+    expect(g.position[1]).toBeCloseTo(r4(expectedY), 3);
   });
 });

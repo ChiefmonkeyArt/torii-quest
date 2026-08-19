@@ -14,6 +14,8 @@ import {
   ARENA_GRID,
   ARENA_TERRAIN,
 } from '../src/terrain/heightmap.js';
+import { CRATES } from '../src/config.js';
+import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
 const world = JSON.parse(readFileSync(WORLD_PATH, 'utf8'));
@@ -98,6 +100,40 @@ describe('chiefmonkey-template world.json (real manifest)', () => {
       const loaded = heights[col * rowsZ + row];
       const sampled = sampleArenaHeight(x, z);
       expect(Math.abs(loaded - sampled)).toBeLessThan(0.001);
+    }
+  });
+});
+
+// Phase 0k.2 — static crates baked into the manifest. Each crate rests ON the
+// terrain: center Y = fullH/2 + sampleArenaHeight(cx, cz), matching arena.js:144
+// + physics.js:152. Crates outside the play zone (isArenaPlayArea) are skipped.
+describe('chiefmonkey-template baked crates (0k.2)', () => {
+  const crates = world.objects.filter((o) => o.type === 'box' && o.collider);
+  const expected = CRATES.filter(([cx, cz]) => isArenaPlayArea(cx, cz));
+
+  it('bakes exactly the in-zone crates (one box object each)', () => {
+    expect(crates.length).toBe(expected.length);
+  });
+
+  it('each crate Y = fullH/2 + sampleArenaHeight(cx, cz) (rides the hills)', () => {
+    for (const [cx, cz, hw, hd, ch] of expected) {
+      const crate = crates.find(
+        (o) => o.position[0] === cx && o.position[2] === cz,
+      );
+      expect(crate).toBeTruthy();
+      const expectedY = ch / 2 + sampleArenaHeight(cx, cz);
+      expect(Math.abs(crate.position[1] - expectedY)).toBeLessThan(0.001);
+    }
+  });
+
+  it('each crate has a box collider matching its footprint + height', () => {
+    for (const [cx, cz, hw, hd, ch] of expected) {
+      const crate = crates.find(
+        (o) => o.position[0] === cx && o.position[2] === cz,
+      );
+      expect(crate.collider.shape).toBe('box');
+      expect(crate.collider.size).toEqual([hw * 2, ch, hd * 2]);
+      expect(crate.scale).toEqual([hw * 2, ch, hd * 2]);
     }
   });
 });

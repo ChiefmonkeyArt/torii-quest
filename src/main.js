@@ -30,6 +30,8 @@ import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 // v0.2.285 (M2): LIVE leaderboard publish — real NIP-07 sign + relay fan-out,
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
+import { createGamestrPublisher } from './engine/gamestr/gamestrPublisher.js';
+import { GAMESTR_RELAYS } from './engine/gamestr/gamestrScore.js';
 import { summariseConsent } from './engine/consent/consentGate.js';
 // v0.2.285 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
@@ -90,7 +92,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // section is a read-only "public + coming soon" placeholder).
 import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
 import {
-  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED,
+  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED,
 } from './config.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
@@ -334,6 +336,13 @@ function _getToriiMenuState() {
       activeWorld: getActiveWorld(),
       availableWorlds: _SHIPPED_WORLDS,
       scoresEnabled: !!SCORE_PUBLISH_ENABLED,
+      // Phase 0f — gamestr.io publish status (read-only). Reflects the GAMESTR_ENABLED
+      // operator opt-in (off by default; toggled via config/env, not the menu — a menu
+      // toggle is a nice-to-have, NOT in v1) + the last best-effort publish outcome.
+      gamestrEnabled: !!GAMESTR_ENABLED,
+      gamestrLastPublish: _lastGamestrResult
+        ? (_lastGamestrResult.published ? 'ok' : 'failed')
+        : 'idle',
       onToggleHeartbeat: (next) => {
         setHeartbeatIntent(next);
         if (next === 'on') {
@@ -1118,6 +1127,20 @@ const _livePublisher = createLiveLeaderboardPublisher({
 });
 let _publishInFlight = false;
 
+// Phase 0f — gamestr.io score publish (kind 30762). A SEPARATE destination from
+// the in-app NIP-78 leaderboard above: off by default (GAMESTR_ENABLED),
+// best-effort, and only ever reached through the same explicit "PUBLISH MY
+// SCORE" consent path. A gamestr failure is captured here and NEVER blocks or
+// fails the in-app leaderboard write — the caller invokes this AFTER the in-app
+// publish, regardless of its outcome. Reuses the same nostr.js signEvent /
+// fanoutPublish seams (no new relay client) over GAMESTR_RELAYS.
+const _gamestrPublisher = createGamestrPublisher({
+  sign: signEvent, publish: fanoutPublish, relays: GAMESTR_RELAYS,
+});
+// Last gamestr result, surfaced read-only in the menu's Node settings (gamestr:
+// on/off, last publish ok/failed). null until the first publish attempt.
+let _lastGamestrResult = null;
+
 function _setLbPublishStatus(msg, tone) {
   const el = document.getElementById('leaderboard-publish-status');
   if (!el) return;
@@ -1176,6 +1199,28 @@ async function _publishMyScore() {
     _setLbPublishStatus(`✓ published to ${relays} relay${relays === 1 ? '' : 's'}`, 'ok');
   } else {
     _setLbPublishStatus('✗ ' + ((res && res.errors && res.errors.join('; ')) || 'publish failed'), 'fail');
+  }
+
+  // Phase 0f — gamestr.io best-effort publish (kind 30762). Runs ONLY when the
+  // operator opted in (GAMESTR_ENABLED) AND the player consented (consent===true,
+  // already established above). A gamestr failure is captured into
+  // _lastGamestrResult and NEVER blocks or fails the in-app leaderboard write
+  // above — this runs regardless of the in-app outcome, and any throw is caught
+  // so it can never propagate into the game loop. First publish = NIP-07 signer
+  // prompt (the wallet may auto-allow thereafter).
+  if (GAMESTR_ENABLED && consent === true) {
+    try {
+      _lastGamestrResult = await _gamestrPublisher.publishGameScore(
+        { score: stats.score, kills: stats.kills },
+        { signerPubkey: pubkey, consent: true },
+      );
+    } catch (e) {
+      _lastGamestrResult = {
+        ok: false, published: false, errors: ['gamestr unexpected error: ' + (e?.message || String(e))],
+      };
+    }
+  } else {
+    _lastGamestrResult = null;
   }
 }
 

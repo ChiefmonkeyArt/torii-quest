@@ -340,6 +340,31 @@ function _renderAdmin(list, admin) {
   Object.assign(scNote.style, { fontSize: '10px', color: '#6b7280', marginTop: '-4px' });
   panel.append(scNote);
 
+  // Phase 0f — gamestr.io publish status (read-only). Reflects the GAMESTR_ENABLED
+  // operator opt-in (off by default) + the last best-effort publish outcome. The
+  // operator toggles it via config/env (a menu toggle is a nice-to-have, NOT v1).
+  const gsRow = document.createElement('div');
+  Object.assign(gsRow.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' });
+  const gsLabel = document.createElement('div');
+  gsLabel.textContent = 'gamestr.io';
+  Object.assign(gsLabel.style, { fontSize: '12px', color: '#e9d5ff', flex: '1 1 auto' });
+  const gsVal = document.createElement('div');
+  const gamestrOn = !!admin.gamestrEnabled;
+  const gamestrLast = typeof admin.gamestrLastPublish === 'string' ? admin.gamestrLastPublish : 'idle';
+  gsVal.textContent = gamestrOn ? `ON · ${gamestrLast}` : 'OFF';
+  Object.assign(gsVal.style, {
+    fontSize: '11px', letterSpacing: '1px', padding: '4px 12px', borderRadius: '6px',
+    color: gamestrOn ? '#f7931a' : '#6b7280',
+    border: `1px solid ${gamestrOn ? 'rgba(247,147,26,0.5)' : 'rgba(107,114,128,0.4)'}`,
+  });
+  gsRow.append(gsLabel, gsVal);
+  panel.append(gsRow);
+
+  const gsNote = document.createElement('div');
+  gsNote.textContent = 'gamestr.io score publish — toggled in admin settings.';
+  Object.assign(gsNote.style, { fontSize: '10px', color: '#6b7280', marginTop: '-4px' });
+  panel.append(gsNote);
+
   list.append(panel);
 }
 

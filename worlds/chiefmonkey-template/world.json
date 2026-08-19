@@ -487,6 +487,10 @@
         0
       ],
       "scale": 4.16
+    },
+    {
+      "type": "coastline-wall",
+      "source": "coastline-wall.json"
     }
   ]
 }

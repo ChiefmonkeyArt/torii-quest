@@ -84,6 +84,10 @@ export function buildWorldObjects(world, opts = {}) {
   for (const obj of world.objects) {
     if (!obj || typeof obj !== 'object') continue;
 
+    // coastline-wall — collision-only segment-set; no visual mesh. The collider
+    // builder expands it from its baked `source` JSON.
+    if (obj.type === 'coastline-wall') continue;
+
     // visible === false → collision-only: skip the visual mesh entirely. The
     // collider is still built by buildWorldObjectColliders (which checks
     // `collider`, not `visible`). Used for legacy collision-only scenery

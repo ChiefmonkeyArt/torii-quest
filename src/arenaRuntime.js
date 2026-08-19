@@ -75,6 +75,7 @@ import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLo
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
 import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
 import { buildWorldTerrain, loadWorldTerrainData } from './engine/world/worldTerrain.js';
+import { loadCoastlineWallData, buildCoastlineWallColliders } from './engine/world/worldCoastline.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
@@ -518,6 +519,11 @@ export function createArenaRuntime(hooks = {}) {
   // no terrain (gateway-blank) or the build failed (fell back to the platform
   // collider). Holds a dispose() for a future teardown path.
   let _worldTerrain = null;
+  // Phase 0k.6: preloaded coastline-wall segment-sets (keyed by source path) +
+  // the built collider sets. Prefetched at manifest-resolution time so the
+  // runtime collider build is sync + never imports legacy terrain sampling.
+  let _worldCoastlineData = null;
+  let _worldCoastlineColliders = null;
   let _worldRt = null;
   let _platformY = 0;
   let _worldColliders = null;
@@ -901,6 +907,20 @@ export function createArenaRuntime(hooks = {}) {
             } catch (e) {
               console.warn('[world] terrain preflight threw; falling back to legacy arena:', e && e.message ? e.message : e);
               _minimal = false; _minimalWorld = null; _worldId = '';
+            }
+          }
+          // Phase 0k.6: preflight coastline-wall segment-sets (collision-only).
+          // Best-effort: a bad/unloadable source is warned + skipped (the wall is
+          // optional collision, not ground — it must never force a legacy fallback).
+          const coastObjs = (_minimalWorld && Array.isArray(_minimalWorld.objects))
+            ? _minimalWorld.objects.filter((o) => o && o.type === 'coastline-wall') : [];
+          if (coastObjs.length) {
+            _worldCoastlineData = {};
+            for (const co of coastObjs) {
+              const url = assetUrl(`worlds/${_worldId}/${co.source}`);
+              const res = await loadCoastlineWallData({ source: url, fetchImpl: fetch });
+              if (res.ok) _worldCoastlineData[co.source] = res.data;
+              else console.warn('[world] coastline-wall preflight failed:', co.source, res.errors);
             }
           }
         }
@@ -1455,6 +1475,31 @@ export function createArenaRuntime(hooks = {}) {
         } catch (e) {
           console.warn('[world] per-object colliders failed:', e && e.message ? e.message : e);
         }
+        // Phase 0k.6: expand coastline-wall segment-sets into N cuboid colliders
+        // from the preloaded data (no runtime terrain sampling). Best-effort:
+        // a throw is warned + skipped; dispose() is wired into stopMultiplayer.
+        if (_worldCoastlineData) {
+          try {
+            const coastObjs = (_minimalWorld && Array.isArray(_minimalWorld.objects))
+              ? _minimalWorld.objects.filter((o) => o && o.type === 'coastline-wall') : [];
+            const all = { colliders: [], bodies: [], disposes: [] };
+            for (const co of coastObjs) {
+              const data = _worldCoastlineData[co.source];
+              if (!data) continue;
+              const r = buildCoastlineWallColliders(data, { physicsWorld: getWorld(), Rapier: getRapier() });
+              all.colliders.push(...r.colliders);
+              all.bodies.push(...r.bodies);
+              all.disposes.push(r.dispose);
+            }
+            if (all.colliders.length) {
+              _worldCoastlineColliders = {
+                dispose: () => { for (const d of all.disposes) { try { d(); } catch { /* best-effort */ } } },
+              };
+            }
+          } catch (e) {
+            console.warn('[world] coastline-wall colliders failed:', e && e.message ? e.message : e);
+          }
+        }
         // Phase 0k.5: data-driven terrain heightfield (world.terrain). When the
         // world manifest declares a terrain, build the Rapier heightfield collider
         // + the displaced ground mesh from the source module's heights. Built
@@ -1606,6 +1651,8 @@ export function createArenaRuntime(hooks = {}) {
     // Phase 0k.5: dispose the data-driven terrain (heightfield collider + ground
     // mesh) on exit/travel so the physics world + scene don't leak across boots.
     if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
+    if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
+    _worldCoastlineData = null;
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }
 

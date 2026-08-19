@@ -541,9 +541,15 @@ _admitInboundTraveller();
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
   if (!_worldsCache.length) renderGatewayCard();
+  // Read-side discovery (Phase 0d follow-up): query the node-relay set (the
+  // community relay nodes publish their presence to) MERGED with the public
+  // RELAYS. This is read-only — a failed node relay just lands in `failed` and
+  // never fails the scan (fanoutReq returns the union). Without this, nodes that
+  // publish presence to their own/community relay (never the public RELAYS, per
+  // the own-relay-only rule) would be invisible to the directory.
   const r = await fetchOnlineWorlds({
     request: fanoutReq,
-    relays: RELAYS,
+    relays: [..._nodeRelaysForPublish(), ...RELAYS],
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
     graceMs: 250,

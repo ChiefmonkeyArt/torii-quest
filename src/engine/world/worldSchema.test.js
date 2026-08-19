@@ -131,8 +131,11 @@ describe('validateWorld — unknown fields ignored', () => {
     expect(r.ok).toBe(true);
     expect(r.world.unknownTop).toBeUndefined();
     expect(r.world.sky.unknownNested).toBeUndefined();
-    // objects is reserved verbatim (Phase 1 validates contents)
-    expect(r.world.objects).toEqual([{ reserved: true }]);
+    // objects: { reserved: true } has no type/position → dropped (Phase 0e now
+    // validates entries). An empty surviving array is omitted (like lights).
+    expect(r.world.objects).toBeUndefined();
+    // The invalid entry records an error but doesn't fail the whole world.
+    expect(r.errors.some((e) => e.includes('objects[0]'))).toBe(true);
   });
 });
 
@@ -144,5 +147,216 @@ describe('validateWorld — never throws on garbage', () => {
     const r = validateWorld({ version: 'oops', id: 123, name: null });
     expect(r.ok).toBe(false);
     expect(r.world).toBeNull();
+  });
+});
+
+// ── Phase 0e: objects validation + _safeModelPath ─────────────────────────────
+import { _safeModelPath } from './worldSchema.js';
+
+describe('validateWorld — objects validation (Phase 0e)', () => {
+  const baseWorld = { version: 1, id: 'obj-test', name: 'Obj Test' };
+
+  it('validates a valid gltf object with model + position', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', model: 'gate.glb', position: [1, 2, 3] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toHaveLength(1);
+    expect(r.world.objects[0]).toEqual({ type: 'gltf', model: 'gate.glb', position: [1, 2, 3] });
+  });
+
+  it('validates a torii-gate object (no model required)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'torii-gate', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].type).toBe('torii-gate');
+    expect(r.world.objects[0].model).toBeUndefined();
+  });
+
+  it('validates primitive objects (box/cylinder/plane)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [
+        { type: 'box', position: [0, 0, 0], scale: 2, color: '#ff0000' },
+        { type: 'cylinder', position: [1, 0, 1], rotation: [0, 1.5, 0] },
+        { type: 'plane', position: [0, 0, 0], scale: [2, 1, 2] },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toHaveLength(3);
+    expect(r.world.objects[0]).toEqual({ type: 'box', position: [0, 0, 0], scale: 2, color: '#ff0000' });
+    expect(r.world.objects[1].rotation).toEqual([0, 1.5, 0]);
+    expect(r.world.objects[2].scale).toEqual([2, 1, 2]);
+  });
+
+  it('fails on an unknown object type', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'sphere', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true); // per-item drop, world still ok
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('type must be one of'))).toBe(true);
+  });
+
+  it('drops an object with missing position', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'box' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('position'))).toBe(true);
+  });
+
+  it('drops a gltf object with an unsafe model path (.. segment)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', model: '../escape.glb', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('safe model path'))).toBe(true);
+  });
+
+  it('drops a gltf object with a protocol model path (://)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', model: 'https://evil.com/gate.glb', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('safe model path'))).toBe(true);
+  });
+
+  it('drops a gltf object with a leading-slash model path', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', model: '/gate.glb', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('safe model path'))).toBe(true);
+  });
+
+  it('drops a gltf object with a wrong extension', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', model: 'gate.png', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('safe model path'))).toBe(true);
+  });
+
+  it('drops a gltf object with a missing model', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'gltf', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('safe model path'))).toBe(true);
+  });
+
+  it('rejects a primitive that carries a model', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'box', model: 'gate.glb', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toBeUndefined();
+    expect(r.errors.some((e) => e.includes('must not carry a model'))).toBe(true);
+  });
+
+  it('hard-errors when objects exceeds the 64 cap', () => {
+    const objs = Array.from({ length: 65 }, () => ({ type: 'box', position: [0, 0, 0] }));
+    const r = validateWorld({ ...baseWorld, objects: objs });
+    expect(r.ok).toBe(false);
+    expect(r.errors.some((e) => e.includes('exceeds cap of 64'))).toBe(true);
+    expect(r.world).toBeNull();
+  });
+
+  it('drops one bad object without killing valid ones (per-item drop)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [
+        { type: 'box', position: [0, 0, 0] },
+        { type: 'sphere', position: [1, 0, 1] }, // bad type
+        { type: 'cylinder', position: [2, 0, 2] },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toHaveLength(2);
+    expect(r.world.objects[0].type).toBe('box');
+    expect(r.world.objects[1].type).toBe('cylinder');
+    expect(r.errors.some((e) => e.includes('objects[1]'))).toBe(true);
+  });
+
+  it('accepts exactly 64 objects (at the cap, not over)', () => {
+    const objs = Array.from({ length: 64 }, () => ({ type: 'box', position: [0, 0, 0] }));
+    const r = validateWorld({ ...baseWorld, objects: objs });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toHaveLength(64);
+  });
+
+  it('coerces numeric-string positions in objects', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'box', position: ['1', '2', '3'] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].position).toEqual([1, 2, 3]);
+  });
+});
+
+describe('_safeModelPath (Phase 0e)', () => {
+  it('accepts a clean relative .glb path', () => {
+    expect(_safeModelPath('models/gate.glb')).toBe('models/gate.glb');
+  });
+
+  it('accepts a clean relative .gltf path', () => {
+    expect(_safeModelPath('scene.gltf')).toBe('scene.gltf');
+  });
+
+  it('rejects a non-string', () => {
+    expect(_safeModelPath(null)).toBeNull();
+    expect(_safeModelPath(42)).toBeNull();
+    expect(_safeModelPath(undefined)).toBeNull();
+  });
+
+  it('rejects an empty string', () => {
+    expect(_safeModelPath('')).toBeNull();
+    expect(_safeModelPath('   ')).toBeNull();
+  });
+
+  it('rejects a path over 128 chars', () => {
+    const long = 'a'.repeat(125) + '.glb'; // 129 chars — over the cap
+    expect(long.length).toBe(129);
+    expect(_safeModelPath(long)).toBeNull();
+  });
+
+  it('rejects a leading slash', () => {
+    expect(_safeModelPath('/gate.glb')).toBeNull();
+  });
+
+  it('rejects a protocol', () => {
+    expect(_safeModelPath('https://evil.com/gate.glb')).toBeNull();
+    expect(_safeModelPath('file://gate.glb')).toBeNull();
+  });
+
+  it('rejects a .. segment', () => {
+    expect(_safeModelPath('../gate.glb')).toBeNull();
+    expect(_safeModelPath('models/../gate.glb')).toBeNull();
+    expect(_safeModelPath('a/b/../../c.glb')).toBeNull();
+  });
+
+  it('rejects a wrong extension', () => {
+    expect(_safeModelPath('gate.png')).toBeNull();
+    expect(_safeModelPath('gate')).toBeNull();
+    expect(_safeModelPath('gate.txt')).toBeNull();
   });
 });

@@ -25,6 +25,7 @@
 // standalone marker. It is display-only: no collider, no raycast, no input.
 
 import * as THREE from 'three';
+import { buildWorldObjects } from './worldObjectsRenderer.js';
 
 // Defaults for a space scene when the manifest omits a field. Tuned so the
 // homepage reads as "sat on a cloud in space" — dark void, soft stars, a pale
@@ -36,20 +37,27 @@ const DEFAULT_GATEWAY_COLOR = 0xffd27a; // warm gold ring
 const STAR_COUNT = 600;
 const STAR_RADIUS = 400; // large sphere — camera sits inside it
 
-// buildMinimalWorld(world, opts) → { tick(dt), platformY, spawn }
+// buildMinimalWorld(world, opts) → { tick(dt), platformY, spawn, ready? }
 //   world  — a validated world object (worldSchema.validateWorld result .world).
-//   opts   — { scene, sun, THREE? } where:
-//     scene  — the shared THREE.Scene (from scene.js).
+//   opts   — { scene, sun, THREE?, assetUrl?, loadGltf? } where:
+//     scene    — the shared THREE.Scene (from scene.js).
 //     sun    — the shared THREE.DirectionalLight (from scene.js); position/intensity
 //              are adjusted when the manifest carries a directional light.
 //     THREE  — optional; the three namespace (passed in so the caller's single
 //              import is used). Defaults to this module's own `three` import.
+//     assetUrl — optional; the assetUrl helper (from assetUrl.js), forwarded to
+//              buildWorldObjects so GLB model paths resolve against the deploy base.
+//     loadGltf — optional; (path) → Promise<gltfScene>, forwarded to buildWorldObjects
+//              so GLB objects load via the real GLTFLoader (arenaRuntime wires it).
 //
 // Returns:
-//   { tick(dt), platformY, spawn }
-//     tick(dt)     — per-frame: subtle cloud drift + gateway ring spin. No-op-safe.
+//   { tick(dt), platformY, spawn, ready? }
+//     tick(dt)     — per-frame: subtle cloud drift + gateway ring spin + object
+//                    spins. No-op-safe.
 //     platformY    — the world-Y of the platform's TOP surface (for the collider).
 //     spawn        — { x, z, yaw } from world.spawn (for setNextSpawn); or null.
+//     ready        — optional Promise (allSettled) for async GLB loads; omitted
+//                    when world has no objects. Never rejects (best-effort).
 //
 // Never throws on a well-formed world; missing optional fields fall back to
 // defaults. If `world` is null/missing, returns a no-op tick + zero platformY so
@@ -263,9 +271,25 @@ export function buildMinimalWorld(world, opts = {}) {
     };
   }
 
+  // ── Objects (Phase 0e) ───────────────────────────────────────────────────
+  // Place visual-only meshes (primitives + GLB models) from world.objects.
+  // GLB loads are async + non-fatal; the returned `ready` is a Promise.allSettled
+  // the caller MAY await (best-effort — objects pop in async). The objects tick
+  // (subtle spin on flagged objects) is merged into the main tick below.
+  let _objRt = null;
+  if (Array.isArray(world.objects) && world.objects.length > 0) {
+    _objRt = buildWorldObjects(world, {
+      scene,
+      THREE: T,
+      assetUrl: opts.assetUrl,
+      loadGltf: opts.loadGltf,
+    });
+  }
+
   // ── Per-frame tick ───────────────────────────────────────────────────────
-  // Subtle cloud drift (a slow vertical bob) + gateway ring spin. Allocation-
-  // free: only mutates existing scalars. No-op-safe if dt is missing.
+  // Subtle cloud drift (a slow vertical bob) + gateway ring spin + object
+  // spins. Allocation-free: only mutates existing scalars. No-op-safe if dt is
+  // missing.
   let _driftPhase = 0;
   function tick(dt) {
     const d = typeof dt === 'number' && Number.isFinite(dt) ? dt : 0;
@@ -275,9 +299,15 @@ export function buildMinimalWorld(world, opts = {}) {
     platform.position.y = (platformY - 0.6) + bob;
     rim.position.y = (platformY - 0.59) + bob;
     if (gateway) gateway.rotation.z += d * 0.4;
+    // Objects tick (subtle spin on flagged objects). No-op when no objects.
+    if (_objRt) _objRt.tick(d);
   }
 
-  return { tick, platformY, spawn };
+  // `ready` is optional: omitted when there are no GLB objects (buildWorldObjects
+  // returns null). The caller may `await result.ready` best-effort (non-blocking).
+  const result = { tick, platformY, spawn };
+  if (_objRt && _objRt.ready) result.ready = _objRt.ready;
+  return result;
 }
 
 // ── Internal helpers ────────────────────────────────────────────────────────

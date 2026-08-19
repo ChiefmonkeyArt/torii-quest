@@ -29,6 +29,15 @@ const SKY_TYPES = Object.freeze(['space', 'clear', 'dusk']);
 const PLATFORM_TYPES = Object.freeze(['cloud', 'solid']);
 const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point']);
 
+// Allowed object.type values (closed set). `gltf` loads a GLB/GLTF model; the
+// primitives (`box`/`cylinder`/`plane`) are placed meshes; `torii-gate` is a
+// named alias that resolves to the chiefmonkey gate GLB (torii-gate.glb).
+const OBJECT_TYPES = Object.freeze(['gltf', 'box', 'cylinder', 'torii-gate', 'plane']);
+// Hard cap on the objects array — a bad manifest must not create thousands of
+// meshes. Beyond this is a hard error (loud rejection, matching validateWorld's
+// strict style) so a malformed manifest is never silently truncated.
+const OBJECT_CAP = 64;
+
 function _isBlank(v) { return v == null || v === ''; }
 
 function _isInt(v) { return typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v); }
@@ -182,11 +191,135 @@ export function validateWorld(data) {
     if (lights.length) world.lights = lights;
   }
 
-  // objects — optional array, reserved for future component placement. Kept
-  // verbatim only if it is an array; contents are not validated yet (Phase 1).
-  if (Array.isArray(data.objects)) world.objects = data.objects;
+  // objects — optional array of placed scene objects (Phase 0e). Each entry is
+  // validated per-item: a valid entry is pushed to world.objects; an invalid entry
+  // is dropped (errors recorded) WITHOUT failing the whole world — matching the
+  // lights[] per-item style so one bad object doesn't kill a valid manifest. The
+  // array itself is hard-capped at OBJECT_CAP entries; beyond that is a loud
+  // error (reject the whole world) so a malformed manifest can't create a flood
+  // of meshes. `gltf`/`torii-gate` carry a model path that must pass _safeModelPath
+  // (relative only, no `..`, no protocol, .glb/.gltf only).
+  if (Array.isArray(data.objects)) {
+    if (data.objects.length > OBJECT_CAP) {
+      errors.push(`objects exceeds cap of ${OBJECT_CAP} (got ${data.objects.length})`);
+      return out;
+    }
+    const objects = [];
+    for (let i = 0; i < data.objects.length; i++) {
+      const item = data.objects[i];
+      if (item == null || typeof item !== 'object' || Array.isArray(item)) {
+        errors.push(`objects[${i}] must be an object`);
+        continue;
+      }
+      const obj = _validateObject(item, i, errors);
+      if (obj) objects.push(obj);
+    }
+    if (objects.length) world.objects = objects;
+  }
 
   out.world = world;
   out.ok = true;
   return out;
+}
+
+// ── Object validation helpers (Phase 0e) ─────────────────────────────────────
+
+// _safeModelPath(raw) → a sanitized relative model path or null. Pure.
+// Rules: must be a string, ≤ 128 chars, no `..` segments, no `://`, no leading
+// `/`, must end `.glb` or `.gltf`. Used by _validateObject so a manifest can
+// never load an arbitrary external URL or escape the world's asset dir. Returns
+// the trimmed path on success, or null on any violation (caller records an
+// error + drops the object).
+export function _safeModelPath(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (s === '' || s.length > 128) return null;
+  if (s.startsWith('/')) return null; // no absolute paths
+  if (s.includes('://')) return null; // no protocol/host
+  // Reject any `..` segment (path traversal escape).
+  const parts = s.split('/');
+  if (parts.some((p) => p === '..')) return null;
+  // Extension must be .glb or .gltf only.
+  if (!(s.endsWith('.glb') || s.endsWith('.gltf'))) return null;
+  return s;
+}
+
+// _validateObject(item, index, errors) → a normalised object or null. Pure.
+// Validates a single objects[] entry. Required: `type` (closed set), `position`
+// ([x,y,z]). Optional: `rotation` ([x,y,z] radians), `scale` (number or
+// [x,y,z]), `color` (CSS hex string), `model` (required for `gltf`, forbidden
+// otherwise). A valid entry → a normalised object; invalid → an error is pushed
+// to `errors` + null returned (the caller drops it without failing the world).
+function _validateObject(item, index, errors) {
+  const obj = {};
+  const tag = `objects[${index}]`;
+
+  // type — required, closed set.
+  const type = _toStr(item.type);
+  if (!type) {
+    errors.push(`${tag}: missing required field: type`);
+    return null;
+  }
+  if (!OBJECT_TYPES.includes(type)) {
+    errors.push(`${tag}: type must be one of ${OBJECT_TYPES.join(', ')}`);
+    return null;
+  }
+  obj.type = type;
+
+  // position — required [x,y,z] numbers.
+  const pos = _toVec3(item.position);
+  if (!pos) {
+    errors.push(`${tag}: missing/invalid position (expected [x,y,z])`);
+    return null;
+  }
+  obj.position = pos;
+
+  // rotation — optional [x,y,z] radians.
+  const rot = _toVec3(item.rotation);
+  if (rot) obj.rotation = rot;
+
+  // scale — optional uniform number OR [x,y,z].
+  if (item.scale != null) {
+    if (Array.isArray(item.scale)) {
+      const sv = _toVec3(item.scale);
+      if (sv) obj.scale = sv;
+    } else {
+      const sn = _toNum(item.scale);
+      if (sn !== undefined && sn > 0) obj.scale = sn;
+    }
+  }
+
+  // color — optional CSS hex string (validated like the existing color fields).
+  const color = _toStr(item.color);
+  if (color) obj.color = color;
+
+  // model — required for type:'gltf', forbidden otherwise. For 'torii-gate' the
+  // model is the named alias (torii-gate.glb) resolved by the renderer; a
+  // manifest MAY override it with a safe path, but it is NOT required.
+  if (type === 'gltf') {
+    const model = _safeModelPath(item.model);
+    if (!model) {
+      errors.push(`${tag}: type 'gltf' requires a safe model path (.glb/.gltf, relative, no ..)`);
+      return null;
+    }
+    obj.model = model;
+  } else if (type === 'torii-gate') {
+    // Optional override; if present it must still be safe.
+    if (item.model != null) {
+      const model = _safeModelPath(item.model);
+      if (!model) {
+        errors.push(`${tag}: torii-gate model override must be a safe path (.glb/.gltf, relative, no ..)`);
+        return null;
+      }
+      obj.model = model;
+    }
+  } else {
+    // Primitives (box/cylinder/plane) must NOT carry a model.
+    if (item.model != null) {
+      errors.push(`${tag}: type '${type}' must not carry a model`);
+      return null;
+    }
+  }
+
+  return obj;
 }

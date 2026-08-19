@@ -445,6 +445,21 @@ async function _createPeerAvatar(peer) {
   return _buildPeerAvatarObject(character, peer);
 }
 
+// _loadGltf(url) → Promise<gltfScene> — the GLTFLoader the arena already uses,
+// wrapped for injection into buildWorldObjects (Phase 0e). Reuses the SAME
+// GLTFLoader + DRACOLoader pattern as _buildToriiGate / _loadPeerTemplate (the
+// Draco decoder is vendored at /draco/, base-aware via assetUrl). Returns the
+// gltf object (caller pulls .scene). Never throws — the worldObjectsRenderer
+// catches a rejection + leaves a placeholder. Created per-call (a fresh loader
+// per GLB is cheap; the Draco decoder path is the shared vendored one).
+function _loadGltf(url) {
+  const draco = new DRACOLoader();
+  draco.setDecoderPath(assetUrl('/draco/'));
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  return loader.loadAsync(url).finally(() => { draco.dispose(); });
+}
+
 // createArenaRuntime(hooks) — build the arena runtime. `boot()` runs the one-time
 // three scene/loop bootstrap; `bootstrapPhysics()` lazy-loads Rapier + spawns the
 // player body/models once; `enter()` starts a fresh run. Hooks (shell-owned):
@@ -855,10 +870,23 @@ export function createArenaRuntime(hooks = {}) {
     // replaces buildArena(); in legacy mode the full arena build runs UNCHANGED.
     if (_minimal) {
       startPhase('buildMinimalWorld');
-      _worldRt = buildMinimalWorld(_minimalWorld, { scene, sun, THREE });
+      // Phase 0e: inject assetUrl + loadGltf so data-driven objects (GLB models
+      // like torii-gate.glb) load via the SAME GLTFLoader the arena uses. The
+      // returned `ready` (Promise.allSettled) is awaited best-effort below — it
+      // is non-blocking: objects pop in async; a failed load leaves a placeholder.
+      _worldRt = buildMinimalWorld(_minimalWorld, {
+        scene, sun, THREE, assetUrl, loadGltf: _loadGltf,
+      });
       _platformY = _worldRt.platformY || 0;
       endPhase('buildMinimalWorld');
       mark('boot-minimal-world-done');
+      // Best-effort await of async GLB loads — non-fatal. The boot overlay can
+      // show the world as soon as the sync scene is built; objects pop in when
+      // ready. A rejection never escapes (allSettled). This yield is AFTER the
+      // sync build so the platform/spawn/lights are already visible.
+      if (_worldRt.ready) {
+        _worldRt.ready.catch(() => {}); // swallow — worldObjectsRenderer already handled it
+      }
     } else {
       startPhase('buildArena');
       buildArena();

@@ -18,6 +18,8 @@ import {
 } from '../src/terrain/heightmap.js';
 import { CRATES } from '../src/config.js';
 import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
+import { createBuiltinRegistry } from '../src/engine/components/registry.js';
+import { expandWorldComponents } from '../src/engine/world/worldComponents.js';
 import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
@@ -115,11 +117,17 @@ describe('chiefmonkey-template world.json (real manifest)', () => {
 // terrain: center Y = fullH/2 + sampleArenaHeight(cx, cz), matching arena.js:144
 // + physics.js:152. Crates outside the play zone (isArenaPlayArea) are skipped.
 describe('chiefmonkey-template baked crates (0k.2)', () => {
+  // Phase 0l.1: crates are now a component instance (arena.crates) in
+  // world.components, not inline objects. Resolve them through the same
+  // expandWorldComponents the runtime uses, then assert against the expanded
+  // world — the crates must be byte/shape-equivalent to the legacy formula.
+  const registry = createBuiltinRegistry();
+  const expanded = expandWorldComponents(world, registry);
   // Filter crates by XZ (not just type:box+collider) so bridge decks (also boxes
   // with colliders) aren't counted as crates.
   const expected = CRATES.filter(([cx, cz]) => isArenaPlayArea(cx, cz));
   const crateXZ = new Set(expected.map(([cx, cz]) => `${cx},${cz}`));
-  const crates = world.objects.filter(
+  const crates = expanded.world.objects.filter(
     (o) => o.type === 'box' && o.collider && crateXZ.has(`${o.position[0]},${o.position[2]}`),
   );
 

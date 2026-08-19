@@ -488,5 +488,7 @@
       ],
       "scale": 4.16
     }
-  ]
+  ],
+  "sea": true,
+  "foliage": true
 }

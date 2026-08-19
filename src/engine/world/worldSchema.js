@@ -160,23 +160,29 @@ export function validateWorld(data) {
 
   // terrain { source, rows, cols, scale, offset?, seaLevel? } — the singular ground
   // heightfield (Phase 0k.5). One terrain per world (like sky/platform/gateway).
-  // `source` is a safe relative module path (.js/.json) exporting the heights
-  // array; the loader imports it dynamically (the heights grid is too large to
-  // inline in world.json). `rows`/`cols` are the grid dimensions; `scale` is
-  // [x,y,z] world size per cell + height scale. This is the data-driven mirror of
-  // the legacy buildArena() terrain heightfield (tomoeShapeData →
-  // buildArenaHeightfieldArray). All-or-nothing: source+rows+cols+scale must ALL
-  // be valid, else the terrain is silently omitted (the world still validates; the
-  // renderer then has no ground + may fall back). Permissive omit-on-bad style —
-  // a malformed terrain never pushes to errors, so it can never force
-  // fallback:legacy on its own (the loader decides fallback on !ok only).
+  // `source` is a safe relative module path (.js/.json) exporting the heights: a
+  // Float32Array (column-major: heights[col*rows + row]) OR a `buildHeightfieldArray()`
+  // function returning one (preferred — avoids eager allocation). The loader imports
+  // it dynamically (the heights grid is too large to inline in world.json). `rows`/`cols`
+  // are VERTEX counts (rowsZ, colsX) and must be >= 2 (Rapier needs >= 1 cell = >= 2
+  // vertices per axis). `scale` is TOTAL extents [gWidth, heightScale, gDepth] (NOT
+  // per-cell) — scaleY is typically 1 so heights are absolute world-Y metres. `offset`
+  // is the Rapier CENTRE translation [cx, cy, cz] (the heightfield spans
+  // [-scaleX/2, scaleX/2] × [-scaleZ/2, scaleZ/2] around it; cy is usually 0). This is
+  // the data-driven mirror of the legacy buildArena() terrain heightfield (physics.js
+  // createHeightfield: nrows=rows-1, ncols=cols-1, heights, scale, centre). All-or-
+  // nothing: source+rows+cols+scale must ALL be valid, else the terrain is silently
+  // omitted from the WORLD (the world still validates ok). NOTE: a terrain present but
+  // unbuildable at render time (bad heights length, non-finite values, source load
+  // failure) is NOT silently skipped — buildWorldTerrain returns a structured failure
+  // so arenaRuntime falls back to legacy buildArena() (the ground must never vanish).
   if (data.terrain != null && typeof data.terrain === 'object' && !Array.isArray(data.terrain)) {
     const tSource = _safeDataSourcePath(data.terrain.source);
     const tRows = _toNum(data.terrain.rows);
     const tCols = _toNum(data.terrain.cols);
     const tScale = _toVec3(data.terrain.scale);
-    const rowsOk = tRows !== undefined && _isInt(tRows) && tRows > 0;
-    const colsOk = tCols !== undefined && _isInt(tCols) && tCols > 0;
+    const rowsOk = tRows !== undefined && _isInt(tRows) && tRows >= 2;
+    const colsOk = tCols !== undefined && _isInt(tCols) && tCols >= 2;
     const scaleOk = !!(tScale && tScale.every((n) => n > 0));
     if (tSource && rowsOk && colsOk && scaleOk) {
       const terrain = { source: tSource, rows: tRows, cols: tCols, scale: tScale };

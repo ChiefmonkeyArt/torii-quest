@@ -59,16 +59,20 @@ describe('validateWorld — terrain field (Phase 0k.5)', () => {
     expect(r.world.terrain).toBeUndefined();
   });
 
-  it('omits terrain when rows/cols are missing or non-positive', () => {
+  it('omits terrain when rows/cols are missing, < 2, or non-integer', () => {
+    // rows/cols are VERTEX counts; Rapier needs >= 1 cell = >= 2 vertices per axis.
     const r1 = validateWorld({ ...BASE, terrain: { source: './t.js', cols: 64, scale: [2, 1, 2] } });
-    const r2 = validateWorld({ ...BASE, terrain: { source: './t.js', rows: 0, cols: 64, scale: [2, 1, 2] } });
-    const r3 = validateWorld({ ...BASE, terrain: { source: './t.js', rows: 8, cols: -1, scale: [2, 1, 2] } });
+    const r2 = validateWorld({ ...BASE, terrain: { source: './t.js', rows: 1, cols: 64, scale: [2, 1, 2] } });
+    const r3 = validateWorld({ ...BASE, terrain: { source: './t.js', rows: 8, cols: 1, scale: [2, 1, 2] } });
+    const r4 = validateWorld({ ...BASE, terrain: { source: './t.js', rows: 0, cols: 64, scale: [2, 1, 2] } });
     expect(r1.ok).toBe(true);
     expect(r2.ok).toBe(true);
     expect(r3.ok).toBe(true);
+    expect(r4.ok).toBe(true);
     expect(r1.world.terrain).toBeUndefined();
     expect(r2.world.terrain).toBeUndefined();
     expect(r3.world.terrain).toBeUndefined();
+    expect(r4.world.terrain).toBeUndefined();
   });
 
   it('omits terrain when scale is missing or has a non-positive component', () => {

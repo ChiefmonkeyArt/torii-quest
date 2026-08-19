@@ -65,6 +65,18 @@ export function isComponent(obj) {
   return !!obj && typeof obj.mount === 'function' && typeof obj.unmount === 'function';
 }
 
+// isExpandingComponent(obj) → does this component ALSO expose a pure data-expansion
+// path? An expanding component's expand(config) returns a list of plain
+// world.objects (the same validated shape buildWorldObjects/buildWorldObjectColliders
+// consume). This is the seam that lets a droppable component contribute STATIC
+// scenery data (crates, props, decor) without a runtime mount — the host resolves
+// the component into world.objects at manifest-load time, then the existing
+// renderer/collider path builds them as if they were authored inline. Shape check
+// only; does not run expand.
+export function isExpandingComponent(obj) {
+  return isComponent(obj) && typeof obj.expand === 'function';
+}
+
 // defineComponent(def) → wrap a plain definition into a validated component with
 // idempotent lifecycle bookkeeping. `def.mount(scene, options)` and
 // `def.unmount()` are required; `def.manifest` is validated. Throws on an invalid
@@ -98,6 +110,13 @@ export function defineComponent(def) {
       def.unmount();
       _mounted = false;
       return true;
+    },
+    // Pure data-expansion path (optional). When a component declares
+    // def.expand(config), the host resolver calls it at manifest-load time to
+    // contribute static world.objects (scenery/props). Returns [] for a
+    // non-expanding component so callers can always treat the result as a list.
+    expand(config = {}) {
+      return typeof def.expand === 'function' ? def.expand(config) : [];
     },
   };
 }

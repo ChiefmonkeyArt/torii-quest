@@ -77,6 +77,11 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
+// Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
+// toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
+// the state + every callback; the stub is a pure renderer. No timer primitives,
+// no three import, browser-only, fail-safe (missing document → no-op).
+import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
 import { classifySections } from './engine/menu/menuSections.js';
 import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
@@ -371,6 +376,13 @@ function _getToriiMenuState() {
         // world from localStorage `torii.world.active`.
         try { window.location.reload(); } catch { /* best-effort */ }
       },
+      // Phase 0g: owner-only "Gateway setup" button in this Node settings panel.
+      // Closes the menu first (so the two overlays never stack) then opens the
+      // homepage stub. The stub is a separate DOM element with its own state.
+      onOpenHomepageStub: () => {
+        closeToriiMenu();
+        _openHomepageStub();
+      },
     },
     onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
   };
@@ -381,6 +393,143 @@ elToriiMenuBtn?.addEventListener('click', () => {
   if (isToriiMenuOpen()) { closeToriiMenu(); return; }
   openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
 });
+
+// ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
+// A three-free DOM overlay (mirrors toriiMenu.js) with 4 cards. 3 of 4 actions
+// are ALREADY BUILT — this is the UI panel + wiring, not a reimplementation:
+//   1. Choose Blank            → setActiveWorld('gateway-blank') + reload      (owner-only)
+//   2. Use My World as Template → setActiveWorld('chiefmonkey-template') + reload (owner-only)
+//   3. Visit a Node            → openToriiMenu (the live node directory)        (everyone)
+//   4. Publish My Node         → the existing onToggleHeartbeat consent-publish path (owner-only)
+// main.js owns the state + every callback; the stub is a pure renderer. Guests /
+// non-owners must NOT mutate torii.world.active — the stub DISABLES + hints the
+// owner cards for them (fail-closed on the gate). Owner detection reuses the
+// existing isAdminOperator(state.nostrPubkey, cap.adminPubkey) (no new auth).
+//
+// _homepageStubState() — the snapshot the stub renders from. isOwner reuses the
+// same isAdminOperator check the menu uses; activeWorld comes from adminPrefs;
+// heartbeatStatus reuses the same heartbeatStatus() call so blocked/paused
+// states stay consistent with the menu's heartbeat toggle.
+function _homepageStubState() {
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  const isLoggedIn = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  const heartbeatIntent = getHeartbeatIntent();
+  const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+  const nodeRelays = _nodeRelaysForPublish();
+  const hb = heartbeatStatus({
+    intent: heartbeatIntent,
+    isOwner,
+    hasSigner,
+    nodeRelays,
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    now: Date.now(),
+    lastError: _heartbeat.lastError,
+    republishPaused: _heartbeat.republishPaused,
+  });
+  return {
+    isOwner,
+    isLoggedIn,
+    activeWorld: getActiveWorld(),
+    heartbeatStatus: hb,
+  };
+}
+
+// _homepageStubCallbacks() — the 4 action callbacks. Each delegates to an
+// EXISTING function (no new publish/reload path). onChooseWorld reuses the
+// menu's onSetActiveWorld body (setActiveWorld + reload). onVisitNodeDirectory
+// opens the persistent Torii menu (optionally the directory is already at the
+// top). onPublishNode reuses the menu's onToggleHeartbeat consent-publish path
+// so blocked states stay consistent. onClose is a no-op on the title screen.
+function _homepageStubCallbacks() {
+  return {
+    onChooseWorld: (worldId) => {
+      // Owner-only by construction (the stub disables the card for non-owners,
+      // and the gate is fail-closed). Mirrors the menu's onSetActiveWorld body.
+      setActiveWorld(worldId);
+      showEntryStatus('Homepage world set — reloading to apply…');
+      try { window.location.reload(); } catch { /* best-effort */ }
+    },
+    onVisitNodeDirectory: () => {
+      // Close the stub first so the two overlays never stack, then open the
+      // persistent Torii menu (the live node directory is its first section).
+      closeHomepageStub();
+      openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+    },
+    onPublishNode: () => {
+      // Reuse the existing heartbeat consent-publish path (NOT a new publish
+      // path). Toggle to 'on' if currently off, else 'off' — same as the menu's
+      // heartbeat button. Blocked states (no-signer / no-node-relay /
+      // wallet-requires-approval) surface via the stub's heartbeatStatus label.
+      const next = getHeartbeatIntent() === 'on' ? 'off' : 'on';
+      setHeartbeatIntent(next);
+      if (next === 'on') {
+        _heartbeat.republishPaused = false;
+        _heartbeat.lastError = null;
+        publishOurWorldPresence().catch(() => { /* status surfaced */ });
+      } else {
+        _heartbeat.republishPaused = false;
+        showEntryStatus('Heartbeat OFF.');
+      }
+      // Re-render the stub so the Publish label reflects the new status.
+      openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+    },
+    onClose: () => { /* title screen: no pause to resume */ },
+  };
+}
+
+// _openHomepageStub() — the single open path the title-screen CTA, the menu
+// Node settings button, and the login-resolved auto-open all call. Re-renders
+// from the live snapshot each time (cheap; the stub is lazily built once).
+function _openHomepageStub() {
+  openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+}
+
+// Title-screen secondary CTA → open the Gateway setup stub. A small button
+// placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
+// / LOGIN. Built lazily into the title centre column so it matches the existing
+// title-screen visual style (no external CSS framework).
+(function _installHomepageStubCta() {
+  if (typeof document === 'undefined' || !document.getElementById) return;
+  const centre = document.getElementById('title-centre');
+  if (!centre) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'btn-homepage-stub';
+  btn.textContent = '⛩ GATEWAY SETUP';
+  btn.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
+  Object.assign(btn.style, {
+    width: '220px', fontSize: '10px', letterSpacing: '2px', padding: '9px',
+    marginTop: '10px', marginBottom: '4px', cursor: 'pointer',
+    background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',
+    border: '1px solid rgba(139,92,246,0.45)', borderRadius: '6px',
+  });
+  btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.25)'; btn.style.color = '#fff'; });
+  btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.12)'; btn.style.color = '#c4b5fd'; });
+  btn.addEventListener('click', () => {
+    if (isHomepageStubOpen()) { closeHomepageStub(); return; }
+    _openHomepageStub();
+  });
+  // Insert below the ENTER ARENA button (the last of the ENTER buttons) so it
+  // reads as a secondary CTA, not a replacement.
+  const enter = document.getElementById('btn-enter');
+  if (enter && enter.parentNode) enter.parentNode.insertBefore(btn, enter.nextSibling);
+  else centre.append(btn);
+})();
+
+// ESC closes the stub first (mirror the menu's ESC-closes-menu-first pattern).
+// arenaRuntime.js owns the in-game ESC handler (UNTOUCHED) and already closes
+// the Torii menu first; this capture-phase listener fires BEFORE it (main.js
+// loads first) and stops propagation when the stub is open, so ESC dismisses
+// the stub without also toggling the menu / pause / gateway screen. On the
+// title screen (no arenaRuntime) this is the only ESC path for the stub.
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Escape' || e.repeat) return;
+  if (!isHomepageStubOpen()) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  closeHomepageStub();
+}, true);
 
 // _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
 // mode). Direct-navigate to the world's hardened https `website`, tagging the
@@ -749,6 +898,21 @@ on(EV.NOSTR_LOGIN, () => {
   // card is read-only. (publishOurWorldPresence remains available for a future
   // explicit, user-initiated publish, but is no longer auto-triggered.)
   refreshInstanceSettingsVisibility();
+  // Phase 0g: optional auto-open of the Gateway setup stub ONCE per session,
+  // ONLY for the confirmed node owner/admin AND only when there is no active
+  // world override (adminPrefs.getActiveWorld is empty). Do NOT trigger on "no
+  // active world" alone — the legacy default / no-<meta> path is intentional and
+  // would show the panel to the wrong people. The shown-this-session flag
+  // (sessionStorage `torii.homepage.stub.shown`) keeps it to once per browser
+  // session. No timer — rides the existing login-resolved callback.
+  try {
+    const cap = _updateCapability;
+    const owner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+    if (owner && !getActiveWorld() && !hasShownThisSession()) {
+      setShownThisSession();
+      _openHomepageStub();
+    }
+  } catch { /* auto-open is best-effort; never throw into the login path */ }
 });
 
 // ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────

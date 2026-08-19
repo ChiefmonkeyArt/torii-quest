@@ -365,6 +365,30 @@ function _renderAdmin(list, admin) {
   Object.assign(gsNote.style, { fontSize: '10px', color: '#6b7280', marginTop: '-4px' });
   panel.append(gsNote);
 
+  // Phase 0g — owner-only "Gateway setup" button. Opens the homepage stub
+  // overlay (a three-free DOM module mirroring this menu). The action is owned
+  // by main.js via the injected admin.onOpenHomepageStub callback; the menu
+  // never opens it directly (presentation layer only). Best-effort.
+  if (typeof admin.onOpenHomepageStub === 'function') {
+    const hsRow = document.createElement('div');
+    Object.assign(hsRow.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '6px' });
+    const hsLabel = document.createElement('div');
+    hsLabel.textContent = 'Gateway setup';
+    Object.assign(hsLabel.style, { fontSize: '12px', color: '#e9d5ff', flex: '1 1 auto' });
+    const hsBtn = document.createElement('button');
+    hsBtn.type = 'button';
+    hsBtn.textContent = 'Open';
+    Object.assign(hsBtn.style, {
+      fontSize: '11px', letterSpacing: '1px', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer',
+      background: 'rgba(139,92,246,0.25)', color: '#e9d5ff', border: '1px solid rgba(139,92,246,0.45)',
+    });
+    hsBtn.addEventListener('mouseenter', () => { hsBtn.style.background = 'rgba(139,92,246,0.4)'; });
+    hsBtn.addEventListener('mouseleave', () => { hsBtn.style.background = 'rgba(139,92,246,0.25)'; });
+    hsBtn.addEventListener('click', () => { try { admin.onOpenHomepageStub(); } catch { /* best-effort */ } });
+    hsRow.append(hsLabel, hsBtn);
+    panel.append(hsRow);
+  }
+
   list.append(panel);
 }
 

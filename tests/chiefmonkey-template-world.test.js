@@ -4,12 +4,29 @@
 // shipped manifest passes validateWorld + the terrain field is well-formed, so a
 // bad edit to world.json is caught before deploy (the data-driven path would
 // otherwise fall back to legacy buildArena at runtime).
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { validateWorld } from '../src/engine/world/worldSchema.js';
+import { loadWorldTerrainData } from '../src/engine/world/worldTerrain.js';
+import { makeTerrainLoader } from '../src/engine/world/worldTerrainLoader.js';
+import {
+  sampleArenaHeight,
+  ARENA_GRID,
+  ARENA_TERRAIN,
+} from '../src/terrain/heightmap.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
 const world = JSON.parse(readFileSync(WORLD_PATH, 'utf8'));
+
+// A file-backed fetch for the terrain loader: reads the real terrain.json from
+// disk + parses it (no network). Mirrors how makeTerrainLoader fetches a .json
+// source in the browser, so this exercises the real round-trip (bake → JSON →
+// loadWorldTerrainData → Float32Array) end-to-end.
+const TERRAIN_JSON_PATH = new URL('../worlds/chiefmonkey-template/terrain.json', import.meta.url);
+const fileFetch = (url) => {
+  const text = readFileSync(TERRAIN_JSON_PATH, 'utf8');
+  return Promise.resolve({ ok: true, status: 200, json: () => JSON.parse(text) });
+};
 
 describe('chiefmonkey-template world.json (real manifest)', () => {
   it('passes validateWorld', () => {
@@ -40,10 +57,47 @@ describe('chiefmonkey-template world.json (real manifest)', () => {
     expect(Math.abs(world.terrain.offset[2])).toBeLessThan(1);
   });
 
-  it('ships terrain.json alongside world.json', async () => {
-    const { statSync } = await import('node:fs');
-    const terrainPath = new URL('../worlds/chiefmonkey-template/terrain.json', import.meta.url);
-    const stat = statSync(terrainPath);
+  it('ships terrain.json alongside world.json', () => {
+    const stat = statSync(TERRAIN_JSON_PATH);
     expect(stat.size).toBeGreaterThan(100000); // the baked heightfield (~300 KB)
+  });
+
+  it('terrain.json round-trips through the loader to a Float32Array of rows*cols', async () => {
+    const loadTerrainSource = makeTerrainLoader({
+      worldId: 'chiefmonkey-template',
+      fetchImpl: fileFetch,
+      importModule: () => { throw new Error('not a .js source'); },
+      resolveUrl: (source) => source,
+    });
+    const result = await loadWorldTerrainData(world.terrain, { loadTerrainSource });
+    expect(result.ok).toBe(true);
+    expect(result.data.heights).toBeInstanceOf(Float32Array);
+    expect(result.data.heights.length).toBe(world.terrain.rows * world.terrain.cols);
+  });
+
+  it('loaded terrain heights match sampleArenaHeight at sampled grid points', async () => {
+    const loadTerrainSource = makeTerrainLoader({
+      worldId: 'chiefmonkey-template',
+      fetchImpl: fileFetch,
+      importModule: () => { throw new Error('not a .js source'); },
+      resolveUrl: (source) => source,
+    });
+    const { data: td } = await loadWorldTerrainData(world.terrain, { loadTerrainSource });
+    const heights = td.heights;
+    const { colsX, rowsZ } = ARENA_GRID;
+    const { gWidth, gDepth, gCenterX, gCenterZ } = ARENA_TERRAIN;
+    const gMinX = gCenterX - gWidth / 2;
+    const gMinZ = gCenterZ - gDepth / 2;
+    const cellW = gWidth / (colsX - 1);
+    const cellD = gDepth / (rowsZ - 1);
+    // Sample a handful of grid points across the arena; the baked heights are
+    // rounded to 0.1mm so allow a 1mm tolerance vs the full-precision sample.
+    for (const [col, row] of [[0, 0], [colsX - 1, rowsZ - 1], [100, 120], [50, 200]]) {
+      const x = gMinX + col * cellW;
+      const z = gMinZ + row * cellD;
+      const loaded = heights[col * rowsZ + row];
+      const sampled = sampleArenaHeight(x, z);
+      expect(Math.abs(loaded - sampled)).toBeLessThan(0.001);
+    }
   });
 });

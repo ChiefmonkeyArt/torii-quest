@@ -22,8 +22,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 2825,
-    "files": 207
+<<<<<<< HEAD
+    "passing": 2838,
+=======
+    "passing": 2838,
+>>>>>>> phase0k7-lights
+    "files": 209
   },
   "manualBlocker": {
     "pending": true,

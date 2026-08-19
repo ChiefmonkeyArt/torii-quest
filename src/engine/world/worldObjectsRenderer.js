@@ -84,6 +84,12 @@ export function buildWorldObjects(world, opts = {}) {
   for (const obj of world.objects) {
     if (!obj || typeof obj !== 'object') continue;
 
+    // visible === false → collision-only: skip the visual mesh entirely. The
+    // collider is still built by buildWorldObjectColliders (which checks
+    // `collider`, not `visible`). Used for legacy collision-only scenery
+    // (torii pillars, coastline wall).
+    if (obj.visible === false) continue;
+
     // Resolve position/rotation/scale (already validated + coerced by the schema).
     const pos = Array.isArray(obj.position) ? obj.position : [0, 0, 0];
     const rot = Array.isArray(obj.rotation) ? obj.rotation : null;

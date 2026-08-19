@@ -13,13 +13,14 @@ import {
   sampleArenaHeight,
   ARENA_GRID,
   ARENA_TERRAIN,
+  ISLAND_BASE_Y,
 } from '../src/terrain/heightmap.js';
 import { CRATES } from '../src/config.js';
 import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
 import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
-  BRIDGE_YAW,
+  BRIDGE_YAW, WALL_H,
 } from '../src/config.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
@@ -202,4 +203,41 @@ describe('chiefmonkey-template baked bridges (0k.1)', () => {
       }
     });
   }
+});
+
+// Phase 0k.3 — torii entrance gate + 2 collision-only pillar colliders. The
+// torii-gate object loads torii-gate.glb at the legacy GLB placement; the 2
+// pillars (OBSTACLES) are visible:false box objects (collision-only) at the
+// un-rotated legacy positions. Mirrors arena.js:160-210 + physics.js OBSTACLES.
+describe('chiefmonkey-template torii gate + pillars (0k.3)', () => {
+  const GATE_H = WALL_H * 1.3; // 3.38
+  const r4 = (n) => Math.round(n * 10000) / 10000;
+
+  it('has exactly one torii-gate at the legacy GLB placement', () => {
+    const gates = world.objects.filter((o) => o.type === 'torii-gate');
+    expect(gates.length).toBe(1);
+    const g = gates[0];
+    expect(g.position[0]).toBeCloseTo(BRIDGE_X - 0.2, 3); // legacy GLB x
+    expect(g.position[1]).toBeCloseTo(BRIDGE_DECK_Y, 3);
+    expect(g.position[2]).toBeCloseTo(BRIDGE_Z, 3);
+    expect(g.rotation).toEqual([0, BRIDGE_YAW, 0]);
+    expect(g.scale).toBeCloseTo(GATE_H, 3);
+  });
+
+  it('has exactly 2 collision-only pillars at the legacy obstacle positions', () => {
+    const pillars = world.objects.filter((o) => o.visible === false);
+    expect(pillars.length).toBe(2);
+    const pillarXZ = new Set(pillars.map((p) => `${p.position[0]},${p.position[2]}`));
+    expect(pillarXZ.has(`${r4(BRIDGE_X)},${r4(BRIDGE_Z - 3)}`)).toBe(true);
+    expect(pillarXZ.has(`${r4(BRIDGE_X)},${r4(BRIDGE_Z + 3)}`)).toBe(true);
+  });
+
+  it('each pillar has a matching box collider + legacy centre Y', () => {
+    const pillars = world.objects.filter((o) => o.visible === false);
+    for (const p of pillars) {
+      expect(p.collider).toEqual({ shape: 'box', size: [0.8, GATE_H, 0.8] });
+      expect(p.position[1]).toBeCloseTo(ISLAND_BASE_Y + GATE_H / 2, 3);
+      expect(p.rotation).toEqual([0, 0, 0]); // un-rotated (legacy quirk)
+    }
+  });
 });

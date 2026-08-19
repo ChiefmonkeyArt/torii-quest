@@ -405,6 +405,14 @@ function _validateObject(item, index, errors) {
   const color = _toStr(item.color);
   if (color) obj.color = color;
 
+  // visible — optional boolean (Phase 0k.3). Defaults to true (object renders a
+  // mesh). When explicitly `false`, the object is COLLISION-ONLY: no visual mesh
+  // is built by worldObjectsRenderer, but buildWorldObjectColliders still builds its
+  // collider (it checks `collider`, not `visible`). Used for legacy collision-only
+  // scenery like torii pillars (OBSTACLES) + the coastline wall. Only `false` is
+  // preserved — any other value is omitted (object stays visible, the default).
+  if (item.visible === false) obj.visible = false;
+
   // collider — optional per-object physics collider (Phase 0i). A malformed
   // collider is SILENTLY OMITTED (the object stays valid + visual-only) — it
   // never pushes to errors, so a bad collider can never fail the whole world.

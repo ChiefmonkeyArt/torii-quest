@@ -31,7 +31,8 @@ import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 // gated by explicit consent AND the SEC-1 crypto-verified publishGate verdict.
 import { createLiveLeaderboardPublisher, buildFinalRunScore } from './engine/leaderboard/livePublish.js';
 import { createGamestrPublisher } from './engine/gamestr/gamestrPublisher.js';
-import { GAMESTR_RELAYS } from './engine/gamestr/gamestrScore.js';
+import { GAMESTR_RELAYS, GAMESTR_KIND, GAMESTR_GAME_ID } from './engine/gamestr/gamestrScore.js';
+import { buildGamestrLeaderboard } from './engine/gamestr/gamestrLeaderboard.js';
 import { summariseConsent } from './engine/consent/consentGate.js';
 // v0.2.285 (M2): LIVE update-check — real read-only GitHub releases/latest fetch,
 // cached client-side and failing closed to "unable to check"; NO auto-update.
@@ -1212,12 +1213,14 @@ function renderLeaderboardPreview() {
   }));
 }
 renderLeaderboardPreview();
+_renderGamestrLeaderboard();
 on(EV.SCORE_FRAME, (frame) => {
   _latestScoreFrame = normaliseScoreFrame(frame);
   if (_latestScoreFrame && state.nostrPubkey) {
     saveLatestScoreFrame(globalThis.localStorage, state.nostrPubkey, _latestScoreFrame);
   }
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
 });
 
 function _isScoreEvent(event) {
@@ -1249,6 +1252,72 @@ async function _refreshPersistentScores() {
   }
 }
 
+// Phase 0h — gamestr.io score READING (kind 30762). The read-side companion to
+// the Phase 0f publish: fetches the latest torii-quest score events from the
+// gamestr relays, dedupes to the latest score per player, and renders a
+// "gamestr.io" sub-section below the in-app NIP-78 leaderboard preview. This
+// reuses fanoutReq over GAMESTR_RELAYS exactly like _refreshPersistentScores
+// uses fanoutReq over RELAYS — NO new relay client. The pure dedupe/sort lives
+// in gamestrLeaderboard.js (node-safe, no DOM/sockets/timers).
+//
+// Opt-in / no external requests when off: the fetch fires ONLY when
+// (GAMESTR_ENABLED || getGamestrEnabled()) — the SAME gate as the publish — so
+// a default operator never hits gamestr relays on load. Best-effort: a relay
+// down / network failure is caught and NEVER breaks the in-app leaderboard or
+// the game loop; the section just shows its empty state. Render is a no-op when
+// the body element is missing (mirroring renderLeaderboardPreview).
+let _gamestrRows = [];
+let _gamestrReadSeq = 0;
+
+function _renderGamestrLeaderboard() {
+  const body = document.getElementById('gamestr-leaderboard-body');
+  if (!body) return;
+  const on = GAMESTR_ENABLED || getGamestrEnabled();
+  if (!on) {
+    const msg = document.createElement('div');
+    msg.className = 'lb-empty';
+    msg.textContent = 'Enable gamestr.io in Node settings to see the global leaderboard.';
+    body.replaceChildren(msg);
+    return;
+  }
+  if (!_gamestrRows.length) {
+    const msg = document.createElement('div');
+    msg.className = 'lb-empty';
+    msg.textContent = 'No gamestr scores yet.';
+    body.replaceChildren(msg);
+    return;
+  }
+  body.replaceChildren(..._gamestrRows.flatMap((r, i) => {
+    const l = document.createElement('div');
+    l.className = 'lb-row-label';
+    l.textContent = `#${i + 1} ${shortenNpub(r.pubkey)}`;
+    const v = document.createElement('div');
+    v.className = 'lb-row-value';
+    v.textContent = r.duration != null ? `${r.score} · ${r.duration}s` : `${r.score}`;
+    return [l, v];
+  }));
+}
+
+async function _refreshGamestrScores() {
+  // Same opt-in as publish — never hit gamestr relays when the operator hasn't
+  // enabled it (the build-time GAMESTR_ENABLED const OR the runtime override).
+  if (!(GAMESTR_ENABLED || getGamestrEnabled())) { _gamestrRows = []; _renderGamestrLeaderboard(); return; }
+  const seq = ++_gamestrReadSeq;
+  try {
+    const { events } = await fanoutReq(
+      GAMESTR_RELAYS,
+      [{ kinds: [GAMESTR_KIND], '#game': [GAMESTR_GAME_ID], limit: 100 }],
+      { timeoutMs: 4000, graceMs: 300 },
+    );
+    if (seq !== _gamestrReadSeq) return; // a newer fetch superseded this one
+    _gamestrRows = buildGamestrLeaderboard(events);
+    _renderGamestrLeaderboard();
+  } catch {
+    // Best-effort: leave the last good rows (or the empty state) in place — a
+    // gamestr relay failure must never break the in-app leaderboard or the loop.
+  }
+}
+
 async function _publishLatestScore() {
   if (!SCORE_PUBLISH_ENABLED) return;
   if (_scoreReportInFlight || !_latestScoreFrame || !HEX64.test(state.nostrPubkey || '')) return;
@@ -1274,19 +1343,24 @@ async function _publishLatestScore() {
     _relayScoreEvents.history.push(result.history);
     renderLeaderboardPreview();
     void _refreshPersistentScores();
+    void _refreshGamestrScores();
   }
 }
 
 on(EV.NOSTR_LOGIN, ({ pubkey }) => {
   _latestScoreFrame = loadLatestScoreFrame(globalThis.localStorage, pubkey) || _latestScoreFrame;
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
   void _refreshPersistentScores();
+  void _refreshGamestrScores();
 });
 on(EV.PHASE_CHANGE, ({ to }) => {
   if (to !== 'title') return;
   renderLeaderboardPreview();
+  _renderGamestrLeaderboard();
   void _publishLatestScore();
   void _refreshPersistentScores();
+  void _refreshGamestrScores();
 });
 
 // ── LIVE leaderboard publish (M2, v0.2.285) ────────────────────────────────────

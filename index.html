@@ -368,6 +368,14 @@
     #leaderboard-preview-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
     .lb-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
     .lb-row-value { font-size: 9px; color: #c4ecd9; word-break: break-all; }
+    /* ── gamestr.io global leaderboard sub-section (Phase 0h, v0.2.601-alpha) ── */
+    /* Reuses lb-row-label/lb-row-value above for visual consistency with the
+       NIP-78 leaderboard preview. Off by default; the body is filled only when
+       the operator opted in (GAMESTR_ENABLED || getGamestrEnabled()). */
+    #gamestr-leaderboard { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(52,211,153,0.20); }
+    #gamestr-leaderboard-label { font-size: 8px; letter-spacing: 1.5px; color: #a7f3d0; margin-bottom: 3px; }
+    #gamestr-leaderboard-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
+    #gamestr-leaderboard-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
     /* ── LIVE leaderboard publish control (M2, v0.2.294) ── */
     #leaderboard-publish { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
     #leaderboard-publish-btn {
@@ -813,6 +821,15 @@
           <span id="leaderboard-preview-badge">PERSISTED · NOSTR</span>
         </div>
         <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
+        <!-- Phase 0h — gamestr.io global leaderboard (kind 30762, read-side). A
+             sub-section below the NIP-78 preview; rendered only when the operator
+             opted in (GAMESTR_ENABLED || getGamestrEnabled()). Off by default so
+             no gamestr relay request fires on load. Rows reuse lb-row-label /
+             lb-row-value CSS. -->
+        <div id="gamestr-leaderboard">
+          <div id="gamestr-leaderboard-label">🌐 GAMESTR.IO</div>
+          <div id="gamestr-leaderboard-body"><!-- rows injected by main.js --></div>
+        </div>
         <div id="leaderboard-publish">
           <button id="leaderboard-publish-btn" type="button" disabled aria-label="publish my score to the leaderboard via Nostr">PUBLISH MY SCORE</button>
           <span id="leaderboard-publish-tag">LIVE · NIP-07 · SEC-1 crypto-gated</span>

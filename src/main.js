@@ -58,6 +58,12 @@ import {
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
 import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
+// Phase 0 (open-world): the OPEN-VISIT travel path — a pure leaf that turns a
+// world's https `website` into a hardened, traveller-tagged visit URL. This is
+// the DEFAULT n2n hop now (direct navigate, no signed handshake). The signed
+// handshake code below stays in place but UNUSED — reserved for an optional
+// future private/invite-only travel mode.
+import { buildVisitUrl } from './engine/gateway/openVisit.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -221,9 +227,9 @@ function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
       row.setAttribute('role', 'button');
       row.setAttribute('tabindex', '0');
       row.setAttribute('aria-label', `travel to ${label}`);
-      row.addEventListener('click', () => _gwTravel(w));
+      row.addEventListener('click', () => _gwOpenVisit(w));
       row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwTravel(w); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwOpenVisit(w); }
       });
     }
     const type = document.createElement('div');
@@ -257,6 +263,38 @@ function _renderGatewayActions(body, actions) {
   body.append(wrap);
 }
 
+// _gwOpenVisit(world) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
+// mode). Direct-navigate to the world's hardened https `website`, tagging the
+// traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
+// reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
+// default path. allowPrivate is gated on the dev/staging domain (localhost /
+// *.pplx.app) so production stays private-host-rejecting.
+function _gwOpenVisit(world) {
+  const allowPrivate = (() => {
+    try {
+      const h = (typeof location !== 'undefined' && location.hostname) || '';
+      return h === 'localhost' || h.endsWith('.pplx.app');
+    } catch { return false; }
+  })();
+  const visit = buildVisitUrl(world, { ourHex: state.nostrPubkey || '', allowPrivate });
+  if (!visit.ok) {
+    // Surface the error the same way _executeJump does — log + re-render the
+    // gateway card so the player sees the screen return to its live state.
+    console.warn('open-visit rejected:', visit.errors.join(', '));
+    renderGatewayCard();
+    return;
+  }
+  // MP-1: gracefully close the multiplayer WebSocket before we navigate, so the
+  // server logs a proper LEFT rather than a ping-timeout when we hop instances.
+  try { _arena?.stopMultiplayer?.('travel'); } catch (e) { /* best-effort */ }
+  try { window.location.href = visit.url; } catch (e) { renderGatewayCard(); }
+}
+
+// _gwTravel(world) — the SIGNED handshake hop. KEPT for an optional future
+// "private/invite-only travel mode" but is NOT the default path in Phase 0: the
+// in-world onTravel + the title-screen row click route to _gwOpenVisit above.
+// Left intact (not deleted) so re-enabling signed travel is a one-line routing
+// change, not a rebuild.
 async function _gwTravel(world) {
   await _handshake.requestTravel(world);
   renderGatewayCard();
@@ -1395,7 +1433,7 @@ async function ensureArenaReady(loadingLabel) {
           worlds: _worldsCache,
           scanStatus: _worldsScan,
           canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-          onTravel: (w) => _gwTravel(w),
+          onTravel: (w) => _gwOpenVisit(w),
         }),
       });
       // Apply character selection BEFORE boot so the MP host sends the

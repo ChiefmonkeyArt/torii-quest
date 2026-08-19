@@ -7,10 +7,14 @@
 //
 // Mockup-quality for now (v0.2.263): real online worlds passed by the host (from
 // the live kind:30078 relay scan) are listed first and are clickable when the
-// player is logged in. When the live scan is empty/offline, a set of clearly
-// PREVIEW-labeled mock npubs is shown so the screen is never blank. Clicking a
-// PREVIEW row closes the screen with a notice (no real travel). Clicking a real
-// world delegates to the host-injected onTravel(world).
+// player is logged in. The screen ALWAYS shows the live state — no fake worlds:
+//   - scanning / querying-relays → a live "Searching for worlds…" row (spinner)
+//   - empty result, not scanning → an honest empty-state row ("No other worlds
+//     online yet." + a hint)
+//   - offline (no account) → the existing "Login to travel…" row
+// Clicking a real world delegates to the host-injected onTravel(world).
+// (Phase 0 removed the PREVIEW mock npubs: the screen is never blank, but it is
+// also never fake — it reflects the real relay state.)
 //
 // Constraints by construction:
 //   - DISPLAY + CLICK ONLY. createElement + textContent + addEventListener. No
@@ -31,18 +35,6 @@
 //   isGatewayScreenOpen() — boolean
 
 export const GATEWAY_SCREEN_VERSION = 1;
-
-// Mockup npubs so the gateway screen is never empty. Clearly labeled PREVIEW in
-// the UI; their travel buttons are no-ops (close + notice). These mirror the
-// shape of a real online world so the host render path is identical.
-const MOCK_WORLDS = Object.freeze([
-  { title: 'Chiefmonkey HQ',       shortPubkey: 'npub1chi3f…monk3y', zoneType: 'nap zone',   mock: true },
-  { title: 'Plebeian Market Bazaar', shortPubkey: 'npub1pl3b1…market', zoneType: 'market',    mock: true },
-  { title: 'Nostrich Nest',        shortPubkey: 'npub1n0st1…ch420',  zoneType: 'arena',      mock: true },
-  { title: 'Satoshi Springs',      shortPubkey: 'npub1s4t0s…h1spr',  zoneType: 'nap zone',   mock: true },
-  { title: 'Hodlr Hideout',        shortPubkey: 'npub1h0dlr…d3nout', zoneType: 'hideout',    mock: true },
-  { title: 'Cyber Dojo',           shortPubkey: 'npub1cyb3r…d0j0',   zoneType: 'arena',      mock: true },
-]);
 
 let _el = null;
 let _open = false;
@@ -150,8 +142,7 @@ function _worldLabel(w) {
 
 function _rowDom(w, canTravel, onTravel) {
   const row = document.createElement('div');
-  const mock = !!w.mock;
-  const clickable = !mock && canTravel && typeof onTravel === 'function';
+  const clickable = canTravel && typeof onTravel === 'function';
   row.className = clickable ? 'gw-screen-row gw-screen-clickable' : 'gw-screen-row';
   row.setAttribute('role', clickable ? 'button' : 'listitem');
   if (clickable) { row.setAttribute('tabindex', '0'); row.setAttribute('aria-label', `travel to ${_worldLabel(w)}`); }
@@ -159,8 +150,8 @@ function _rowDom(w, canTravel, onTravel) {
     display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '0 12px',
     alignItems: 'center',
     padding: '9px 12px', borderRadius: '8px',
-    background: mock ? 'rgba(120,120,150,0.08)' : 'rgba(139,92,246,0.08)',
-    border: '1px solid ' + (mock ? 'rgba(120,120,150,0.22)' : 'rgba(139,92,246,0.28)'),
+    background: 'rgba(139,92,246,0.08)',
+    border: '1px solid rgba(139,92,246,0.28)',
     cursor: clickable ? 'pointer' : 'default',
     transition: 'background 0.12s, border-color 0.12s',
   });
@@ -176,13 +167,13 @@ function _rowDom(w, canTravel, onTravel) {
 
   // Dot
   const dot = document.createElement('div');
-  Object.assign(dot.style, { width: '8px', height: '8px', borderRadius: '50%', background: mock ? '#6b7280' : '#4cc9f0', boxShadow: mock ? 'none' : '0 0 8px rgba(76,201,240,0.8)' });
+  Object.assign(dot.style, { width: '8px', height: '8px', borderRadius: '50%', background: '#4cc9f0', boxShadow: '0 0 8px rgba(76,201,240,0.8)' });
 
   // Label + npub
   const lab = document.createElement('div');
   const name = document.createElement('div');
-  name.textContent = _worldLabel(w) + (mock ? '  · PREVIEW' : '');
-  Object.assign(name.style, { fontSize: '13px', color: mock ? '#9ca3af' : '#e9d5ff', letterSpacing: '0.5px' });
+  name.textContent = _worldLabel(w);
+  Object.assign(name.style, { fontSize: '13px', color: '#e9d5ff', letterSpacing: '0.5px' });
   const npub = document.createElement('div');
   npub.textContent = w.shortPubkey || (w.pubkey ? w.pubkey.slice(0, 16) + '…' : '—');
   Object.assign(npub.style, { fontSize: '10px', color: '#6b7280', marginTop: '1px', wordBreak: 'break-all' });
@@ -206,33 +197,44 @@ export function openGatewayScreen({ worlds = [], scanStatus = 'idle', canTravel 
   list.replaceChildren();
 
   const real = Array.isArray(worlds) ? worlds.filter((w) => w && typeof w === 'object') : [];
-  const showMock = !real.length || scanStatus === 'offline';
 
   let badgeText = '';
   if (scanStatus === 'scanning') badgeText = '● SCANNING RELAYS…';
-  else if (scanStatus === 'offline') badgeText = '● OFFLINE — SHOWING PREVIEW';
+  else if (scanStatus === 'offline') badgeText = '● OFFLINE';
   else if (real.length) badgeText = `● ONLINE · ${real.length} WORLD${real.length === 1 ? '' : 'S'}`;
-  else badgeText = '● NO WORLDS ONLINE — SHOWING PREVIEW';
+  else badgeText = '● NO WORLDS ONLINE';
   badge.textContent = badgeText;
 
+  // Live scanning state: a "Searching for worlds…" row with a spinner dot.
+  // Shown while relays are queried and no real worlds are listed yet.
   if (scanStatus === 'scanning' && !real.length) {
     const row = document.createElement('div');
-    row.textContent = 'querying relays…';
+    row.textContent = 'Searching for worlds…';
     Object.assign(row.style, { fontSize: '12px', color: '#9ca3af', padding: '8px 12px' });
+    const spin = document.createElement('div');
+    Object.assign(spin.style, { width: '8px', height: '8px', borderRadius: '50%',
+      background: '#f7931a', boxShadow: '0 0 8px rgba(247,147,26,0.8)', justifySelf: 'start' });
+    row.prepend(spin);
     list.append(row);
   }
 
   // Real worlds first (clickable when canTravel).
   for (const w of real.slice(0, 24)) list.append(_rowDom(w, canTravel, onTravel));
 
-  // Mock preview worlds when empty/offline so the screen demonstrates the
-  // gateway experience. Clearly PREVIEW-labeled; their travel buttons no-op.
-  if (showMock) {
-    const sep = document.createElement('div');
-    sep.textContent = 'PREVIEW WORLD LIST';
-    Object.assign(sep.style, { fontSize: '9px', letterSpacing: '1.5px', color: '#6b7280', textTransform: 'uppercase', margin: '6px 2px 2px' });
-    list.append(sep);
-    for (const w of MOCK_WORLDS) list.append(_rowDom(w, false, null));
+  // Honest empty state: not scanning, no real worlds → tell the player no
+  // other worlds are online yet (never fake worlds). A login hint when logged
+  // out; a discovery hint when logged in.
+  if (!real.length && scanStatus !== 'scanning') {
+    const row = document.createElement('div');
+    row.textContent = scanStatus === 'offline' ? 'Login to travel…' : 'No other worlds online yet.';
+    Object.assign(row.style, { fontSize: '12px', color: '#9ca3af', padding: '8px 12px' });
+    list.append(row);
+    if (scanStatus !== 'offline') {
+      const hint = document.createElement('div');
+      hint.textContent = 'Publish your world presence to be discoverable.';
+      Object.assign(hint.style, { fontSize: '10px', color: '#6b7280', marginTop: '4px', padding: '0 12px' });
+      list.append(hint);
+    }
   }
 
   if (!canTravel && real.length) {

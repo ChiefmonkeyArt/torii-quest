@@ -42,7 +42,10 @@ export function expandWorldComponents(world, registry, opts = {}) {
     const r = registry.load(id, config);
     if (!r.ok || !r.component) { errors.push(`components[${i}] (${id}): ${r.errors.join('; ')}`); continue; }
     const comp = r.component;
-    if (typeof comp.expand !== 'function') { errors.push(`components[${i}] (${id}): component does not expand`); continue; }
+    // A component without expand() is not a data-expanding component — it's a
+    // scene-mounted component (e.g. torii.gateway). Treat as 0 objects, no error
+    // (the runtime host handles its mount/unmount lifecycle separately).
+    if (typeof comp.expand !== 'function') { continue; }
     let objs;
     try {
       objs = comp.expand(config);

@@ -135,6 +135,75 @@ export function buildWorldTerrainCollider(data, { physicsWorld, Rapier } = {}) {
   return { ok: true, collider, dispose };
 }
 
+// buildWorldTerrainMesh(data, { THREE }) → { ok, error?, mesh, dispose }
+// Builds the visual ground mesh — a heightmap-displaced BufferGeometry authored
+// DIRECTLY in world space (mirrors terrain/terrainMesh.js buildZoneMesh: positions
+// [x, h, z], column-major vertex index col*rows+row — NOT PlaneGeometry, which is XY
+// + would need a rotation that's easy to get wrong). Vertex Y = heights[col*rows+row]
+// * scale[1] + offset[1] (heights scaled by heightScale + offset by centre Y —
+// matches the Rapier heightfield's local→world: heights * scale.y + translation.y).
+// XZ span is centred at the offset: gMinX = offset[0]-scale[0]/2, cellW = scale[0]/(cols-1).
+// Index winding a,d,b,b,d,c per cell matches the legacy (no back-face culling gap).
+// Simple MeshStandardMaterial (no vertex-colour vary / sea-discard shader — those are
+// zone-specific + need a sample() function; the world template can layer water itself).
+export function buildWorldTerrainMesh(data, { THREE } = {}) {
+  if (!data) return { ok: true, mesh: null, dispose: () => {} };
+  if (!THREE) return { ok: false, error: 'buildWorldTerrainMesh: THREE dep required' };
+  const { rows, cols, heights, scale, offset } = data;
+  const cellW = scale[0] / (cols - 1);
+  const cellD = scale[2] / (rows - 1);
+  const gMinX = offset[0] - scale[0] / 2;
+  const gMinZ = offset[2] - scale[2] / 2;
+
+  const vertCount = rows * cols;
+  const positions = new Float32Array(vertCount * 3);
+  const uvs = new Float32Array(vertCount * 2);
+  for (let col = 0; col < cols; col++) {
+    const x = gMinX + col * cellW;
+    for (let row = 0; row < rows; row++) {
+      const z = gMinZ + row * cellD;
+      const vi3 = (col * rows + row) * 3;
+      positions[vi3 + 0] = x;
+      positions[vi3 + 1] = heights[col * rows + row] * scale[1] + offset[1];
+      positions[vi3 + 2] = z;
+      const ui = (col * rows + row) * 2;
+      uvs[ui + 0] = col / (cols - 1);
+      uvs[ui + 1] = row / (rows - 1);
+    }
+  }
+  // Index build (two triangles per cell, column-major, winding a,d,b,b,d,c —
+  // matches terrainMesh.js so there's no back-face culling gap at cell seams).
+  const indices = new Uint32Array((cols - 1) * (rows - 1) * 6);
+  let p = 0;
+  for (let col = 0; col < cols - 1; col++) {
+    for (let row = 0; row < rows - 1; row++) {
+      const a = col * rows + row;
+      const b = (col + 1) * rows + row;
+      const c = (col + 1) * rows + (row + 1);
+      const d = col * rows + (row + 1);
+      indices[p++] = a; indices[p++] = d; indices[p++] = b;
+      indices[p++] = b; indices[p++] = d; indices[p++] = c;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xb9a06b, roughness: 0.95, metalness: 0 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.name = 'world-terrain';
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    try { geo.dispose(); } catch { /* best-effort */ }
+    try { mat.dispose(); } catch { /* best-effort */ }
+  };
+  return { ok: true, mesh, dispose };
+}
+
 // buildWorldTerrain(world, deps) → async { ok, error?, terrain }
 //   world  — a validated world object (worldSchema.validateWorld result .world).
 //             Only `world.terrain` is read.
@@ -159,16 +228,28 @@ export async function buildWorldTerrain(world, deps = {}) {
   if (!loaded.data) return { ok: true, terrain: null };
   const colliderResult = buildWorldTerrainCollider(loaded.data, deps);
   if (!colliderResult.ok) return { ok: false, error: colliderResult.error };
-  // The visual mesh (mirror terrain/terrainMesh.js) is a LATER sub-step. For now
-  // the terrain is physics-only (the collider is the walkable ground; the
-  // renderer can layer a legacy mesh above it until the data-driven mesh lands).
-  const dispose = () => { try { colliderResult.dispose && colliderResult.dispose(); } catch { /* best-effort */ } };
+  // Optional visual mesh (mirror terrain/terrainMesh.js). Built only when THREE is
+  // provided; absent THREE = physics-only (the renderer can layer a legacy mesh
+  // above the collider until the data-driven mesh is wired). A mesh build failure
+  // fails the WHOLE terrain (→ fall back to legacy) — a collider with no visible
+  // mesh means players walk on invisible ground, which is worse than legacy.
+  let meshes = [];
+  let meshDispose = () => {};
+  if (deps.THREE) {
+    const meshResult = buildWorldTerrainMesh(loaded.data, deps);
+    if (!meshResult.ok) return { ok: false, error: meshResult.error };
+    if (meshResult.mesh) { meshes = [meshResult.mesh]; meshDispose = meshResult.dispose; }
+  }
+  const dispose = () => {
+    try { colliderResult.dispose && colliderResult.dispose(); } catch { /* best-effort */ }
+    try { meshDispose(); } catch { /* best-effort */ }
+  };
   return {
     ok: true,
     terrain: {
       colliders: colliderResult.collider ? [colliderResult.collider] : [],
       bodies: [],
-      meshes: [],
+      meshes,
       dispose,
     },
   };

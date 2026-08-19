@@ -9,8 +9,34 @@ import { describe, it, expect } from 'vitest';
 import {
   buildWorldTerrain,
   buildWorldTerrainCollider,
+  buildWorldTerrainMesh,
   loadWorldTerrainData,
 } from '../src/engine/world/worldTerrain.js';
+
+// A fake THREE namespace. Records the geometry/material/mesh instances so tests can
+// assert the exact positions/indices written. Mirrors only the surface
+// buildWorldTerrainMesh touches (BufferGeometry, BufferAttribute, MeshStandardMaterial, Mesh).
+function mockThree() {
+  const disposed = { geo: 0, mat: 0 };
+  class BufferAttribute {
+    constructor(array, itemSize) { this.array = array; this.itemSize = itemSize; }
+  }
+  class BufferGeometry {
+    constructor() { this.attributes = {}; this.index = null; }
+    setAttribute(name, attr) { this.attributes[name] = attr; return this; }
+    setIndex(idx) { this.index = idx; return this; }
+    computeVertexNormals() {}
+    dispose() { disposed.geo++; }
+  }
+  class MeshStandardMaterial {
+    constructor(opts) { this.opts = opts; }
+    dispose() { disposed.mat++; }
+  }
+  class Mesh {
+    constructor(geo, mat) { this.geo = geo; this.mat = mat; this.name = ''; this.receiveShadow = false; }
+  }
+  return { BufferGeometry, BufferAttribute, MeshStandardMaterial, Mesh, _disposed: disposed };
+}
 
 // A fake Rapier namespace + physics world + loader. The heightfield() desc
 // records its args so tests can assert the exact nrows/ncols/scale passed; the
@@ -174,5 +200,127 @@ describe('loadWorldTerrainData + buildWorldTerrainCollider (unit seams)', () => 
     const r = buildWorldTerrainCollider(null, mockDeps({}));
     expect(r.ok).toBe(true);
     expect(r.collider).toBeNull();
+  });
+});
+
+describe('buildWorldTerrainMesh — world-space displaced geometry', () => {
+  // 2 rows × 3 cols, column-major heights with DISTINCT values per vertex so a
+  // row/col transposition (row*cols+col instead of col*rows+row) fails loudly:
+  // vertex (col0,row1) must read heights[1]=1, not the transposed heights[3]=3.
+  it('vertex Y maps to heights[col*rows+row] (column-major — catches transposition)', () => {
+    const THREE = mockThree();
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 1, 8], offset: [5, 0, 4] },
+      { THREE },
+    );
+    expect(r.ok).toBe(true);
+    const pos = r.mesh.geo.attributes.position.array;
+    // Y at vertex index i (every 3rd from 1) === heights[i] (scaleY=1, offsetY=0).
+    expect(pos[1]).toBe(0);   // heights[0] = vertex (col0,row0)
+    expect(pos[4]).toBe(1);   // heights[1] = vertex (col0,row1) — would be 3 if transposed
+    expect(pos[7]).toBe(2);   // heights[2] = vertex (col1,row0)
+    expect(pos[10]).toBe(3);  // heights[3] = vertex (col1,row1)
+    expect(pos[13]).toBe(4);  // heights[4] = vertex (col2,row0)
+    expect(pos[16]).toBe(5);  // heights[5] = vertex (col2,row1)
+  });
+
+  it('XZ span is centred at the offset: gMinX=offset-scale/2, cellW=scale/(cols-1)', () => {
+    const THREE = mockThree();
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 1, 8], offset: [5, 0, 4] },
+      { THREE },
+    );
+    const pos = r.mesh.geo.attributes.position.array;
+    // X: gMinX=5-5=0, then +5 per col → 0,5,10 across the 3 columns.
+    expect(pos[0]).toBe(0);   // x (col0,row0)
+    expect(pos[6]).toBe(5);   // x (col1,row0)
+    expect(pos[12]).toBe(10); // x (col2,row0)
+    // Z: gMinZ=4-4=0, then +8 per row → 0,8 across the 2 rows.
+    expect(pos[2]).toBe(0);   // z (col0,row0)
+    expect(pos[5]).toBe(8);   // z (col0,row1)
+    expect(pos[8]).toBe(0);   // z (col1,row0)
+  });
+
+  it('heights are scaled by scale[1] + offset by offset[1] (matches the Rapier heightfield)', () => {
+    const THREE = mockThree();
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 2, 8], offset: [5, 10, 4] },
+      { THREE },
+    );
+    const pos = r.mesh.geo.attributes.position.array;
+    // y = heights[i]*2 + 10. heights[2]=2 → 2*2+10=14 at vertex (col1,row0).
+    expect(pos[7]).toBe(14);
+    // heights[0]=0 → 0*2+10=10 at vertex (col0,row0).
+    expect(pos[1]).toBe(10);
+  });
+
+  it('emits 2 triangles per cell (column-major winding a,d,b,b,d,c — no culling gap)', () => {
+    const THREE = mockThree();
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 1, 8], offset: [5, 0, 4] },
+      { THREE },
+    );
+    const idx = r.mesh.geo.index.array;
+    // 2 cells (cols-1=2 × rows-1=1) × 6 = 12 indices.
+    expect(idx).toHaveLength(12);
+    // Cell (col0,row0): a=0,d=1,b=2,c=3 → a,d,b,b,d,c = 0,1,2,2,1,3.
+    expect(Array.from(idx.slice(0, 6))).toEqual([0, 1, 2, 2, 1, 3]);
+  });
+
+  it('returns ok + null mesh for null data (no terrain)', () => {
+    const r = buildWorldTerrainMesh(null, { THREE: mockThree() });
+    expect(r.ok).toBe(true);
+    expect(r.mesh).toBeNull();
+  });
+
+  it('fails when THREE is not provided', () => {
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 1, 8], offset: [5, 0, 4] },
+      {},
+    );
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/THREE dep required/);
+  });
+
+  it('dispose disposes the geometry + material (idempotent, best-effort)', () => {
+    const THREE = mockThree();
+    const r = buildWorldTerrainMesh(
+      { rows: 2, cols: 3, heights: HEIGHTS_2x3, scale: [10, 1, 8], offset: [5, 0, 4] },
+      { THREE },
+    );
+    r.dispose();
+    expect(THREE._disposed.geo).toBe(1);
+    expect(THREE._disposed.mat).toBe(1);
+    r.dispose(); // idempotent — no double-dispose
+    expect(THREE._disposed.geo).toBe(1);
+  });
+});
+
+describe('buildWorldTerrain — mesh integration', () => {
+  it('builds collider + mesh when THREE is provided', async () => {
+    const deps = { ...mockDeps({ './t.js': { buildHeightfieldArray: () => HEIGHTS_2x3 } }), THREE: mockThree() };
+    const r = await buildWorldTerrain({ terrain: TERRAIN_2x3 }, deps);
+    expect(r.ok).toBe(true);
+    expect(r.terrain.colliders).toHaveLength(1);
+    expect(r.terrain.meshes).toHaveLength(1);
+    expect(r.terrain.meshes[0].name).toBe('world-terrain');
+  });
+
+  it('is physics-only (no mesh) when THREE is absent', async () => {
+    const deps = mockDeps({ './t.js': { buildHeightfieldArray: () => HEIGHTS_2x3 } });
+    const r = await buildWorldTerrain({ terrain: TERRAIN_2x3 }, deps);
+    expect(r.ok).toBe(true);
+    expect(r.terrain.meshes).toEqual([]);
+    expect(r.terrain.colliders).toHaveLength(1);
+  });
+
+  it('disposes collider + mesh together', async () => {
+    const THREE = mockThree();
+    const deps = { ...mockDeps({ './t.js': { buildHeightfieldArray: () => HEIGHTS_2x3 } }), THREE };
+    const r = await buildWorldTerrain({ terrain: TERRAIN_2x3 }, deps);
+    r.terrain.dispose();
+    expect(deps.physicsWorld._removed).toHaveLength(1);
+    expect(THREE._disposed.geo).toBe(1);
+    expect(THREE._disposed.mat).toBe(1);
   });
 });

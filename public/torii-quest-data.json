@@ -1,6 +1,10 @@
 {
   "version": "v0.2.602-alpha",
+<<<<<<< HEAD
   "generatedAt": "2026-08-19T16:31:25.385Z",
+=======
+  "generatedAt": "2026-08-19T16:42:14.617Z",
+>>>>>>> phase0k8-sea-foliage
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -59,7 +63,11 @@
       {
         "label": "Total tests",
         "kind": "last-known",
+<<<<<<< HEAD
         "value": "2824 passing / 207 files"
+=======
+        "value": "2819 passing / 207 files"
+>>>>>>> phase0k8-sea-foliage
       },
       {
         "label": "Profile timings",
@@ -261,7 +269,11 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
+<<<<<<< HEAD
     "testLabel": "2824 passing / 207 files",
+=======
+    "testLabel": "2819 passing / 207 files",
+>>>>>>> phase0k8-sea-foliage
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
@@ -280,7 +292,11 @@
       },
       {
         "label": "Tests",
+<<<<<<< HEAD
         "value": "2824 passing / 207 files"
+=======
+        "value": "2819 passing / 207 files"
+>>>>>>> phase0k8-sea-foliage
       },
       {
         "label": "Test profiles",
@@ -454,7 +470,11 @@
       },
       {
         "label": "Test suite",
+<<<<<<< HEAD
         "value": "green — 2824 passing / 207 files"
+=======
+        "value": "green — 2819 passing / 207 files"
+>>>>>>> phase0k8-sea-foliage
       },
       {
         "label": "Explicit approval",

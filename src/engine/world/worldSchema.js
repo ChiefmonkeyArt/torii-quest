@@ -194,6 +194,16 @@ export function validateWorld(data) {
     }
   }
 
+  // sea (boolean) — when true, the runtime builds the procedural ocean mesh
+  // (terrain/sea.js buildSeaMesh) around the land. Visual-only; the wave shader
+  // animates via the shared tickSea(dt) already in the render loop.
+  if (data.sea === true) world.sea = true;
+
+  // foliage (boolean) — when true, the runtime builds the instanced grass +
+  // wildflowers (arena-foliage.js buildFoliage). Async (~7s, paint-yielded);
+  // tickFoliage(dt) animates the wind from the shared render loop.
+  if (data.foliage === true) world.foliage = true;
+
   // gateway { position, target?, relays? }
   if (data.gateway != null && typeof data.gateway === 'object' && !Array.isArray(data.gateway)) {
     const gateway = {};

@@ -518,5 +518,7 @@
       "type": "coastline-wall",
       "source": "coastline-wall.json"
     }
-  ]
+  ],
+  "sea": true,
+  "foliage": true
 }

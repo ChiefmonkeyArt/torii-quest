@@ -55,11 +55,16 @@ const SAFETY_FLAGS = Object.freeze([
 // the two captures agree, so this count can't quietly drift from the dashboard's.
 export const DEFAULT_TEST_STATUS = Object.freeze({
 <<<<<<< HEAD
+<<<<<<< HEAD
   passing: 2838,
 =======
   passing: 2838,
 >>>>>>> phase0k7-lights
   files: 209,
+=======
+  passing: 2838,
+  files: 209,
+>>>>>>> phase0k8-sea-foliage
   profile: 'full',
   ok: true,
 });

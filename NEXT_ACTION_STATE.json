@@ -23,11 +23,16 @@
   },
   "tests": {
 <<<<<<< HEAD
+<<<<<<< HEAD
     "passing": 2838,
 =======
     "passing": 2838,
 >>>>>>> phase0k7-lights
     "files": 209
+=======
+    "passing": 2838,
+    "files": 209
+>>>>>>> phase0k8-sea-foliage
   },
   "manualBlocker": {
     "pending": true,

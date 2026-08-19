@@ -21,7 +21,7 @@ import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
-import { tickSea } from './terrain/sea.js';
+import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
@@ -947,6 +947,15 @@ export function createArenaRuntime(hooks = {}) {
       _platformY = _worldRt.platformY || 0;
       endPhase('buildMinimalWorld');
       mark('boot-minimal-world-done');
+      // Phase 0k.8: procedural ocean. The legacy arena builds the sea in
+      // buildArena(); the data-driven world builds it here when world.sea is
+      // set. Visual-only — the wave shader animates via the shared tickSea(dt)
+      // already in the render loop (no per-world tick wiring needed).
+      if (_minimalWorld && _minimalWorld.sea) {
+        try { buildSeaMesh(scene); } catch (e) {
+          console.warn('[world] sea mesh failed:', e && e.message ? e.message : e);
+        }
+      }
       // Best-effort await of async GLB loads — non-fatal. The boot overlay can
       // show the world as soon as the sync scene is built; objects pop in when
       // ready. A rejection never escapes (allSettled). This yield is AFTER the
@@ -994,7 +1003,19 @@ export function createArenaRuntime(hooks = {}) {
       onBootProgress(4); // 'Loading physics…'
       await _yieldPaint();
     } else {
-      onBootProgress(4); // 'Loading physics…' (skip grass/mirror in minimal)
+      // Phase 0k.8: data-driven worlds can opt into the instanced grass +
+      // wildflowers via world.foliage. The legacy arena always grows grass
+      // (buildFoliage in the !_minimal branch above); the minimal world grows it
+      // only when the manifest asks. Same async paint-yielded build + shared
+      // tickFoliage(dt) from the render loop.
+      if (_minimalWorld && _minimalWorld.foliage) {
+        onBootProgress(3); // 'Growing grass…'
+        await buildFoliage((p) => {
+          onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
+        });
+        mark('boot-foliage-done');
+      }
+      onBootProgress(4); // 'Loading physics…' (skip mirror in minimal)
       await _yieldPaint();
     }
 

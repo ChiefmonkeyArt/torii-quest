@@ -34,7 +34,7 @@ const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point']);
 // named alias that resolves to the chiefmonkey gate GLB (torii-gate.glb).
 // NOTE: the ground heightfield is NOT an object type — it is the singular
 // top-level `terrain` field (one ground per world), validated separately below.
-const OBJECT_TYPES = Object.freeze(['gltf', 'box', 'cylinder', 'torii-gate', 'plane']);
+const OBJECT_TYPES = Object.freeze(['gltf', 'box', 'cylinder', 'torii-gate', 'plane', 'coastline-wall']);
 // Allowed collider.shape values (closed set, Phase 0i). `box` is a full-extent
 // cuboid (size = [x,y,z]); `cylinder` is a Y-axis cylinder (radius + height). A
 // malformed collider is SILENTLY OMITTED (the object stays valid + visual-only)
@@ -377,6 +377,16 @@ function _validateObject(item, index, errors) {
     return null;
   }
   obj.type = type;
+
+  // coastline-wall — collision-only segment-set. No position/mesh; it carries a
+  // `source` path to a baked segment-set JSON that the collider builder expands
+  // into N cuboid colliders at runtime. Validated like the terrain `source`.
+  if (type === 'coastline-wall') {
+    const source = _safeDataSourcePath(item.source, `${tag}.source`, errors);
+    if (!source) return null;
+    obj.source = source;
+    return obj;
+  }
 
   // position — required [x,y,z] numbers.
   const pos = _toVec3(item.position);

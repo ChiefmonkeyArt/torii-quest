@@ -19,6 +19,8 @@
 import { isComponent, validateManifest, COMPONENT_CONTRACT_VERSION } from './contract.js';
 import { createToriiGateway } from './toriiGateway.js';
 import { createProductDisplay } from './productDisplay.js';
+import { createArenaCrates } from './arenaCrates.js';
+import { createComponentBeacon } from './componentBeacon.js';
 
 // createRegistry() → an empty registry. `register(factory)` adds a built-in,
 // `load(id, config)` returns a fresh instance + a validation result.
@@ -102,6 +104,8 @@ export function createBuiltinRegistry() {
   const reg = createRegistry();
   reg.register(createToriiGateway);
   reg.register(createProductDisplay);
+  reg.register(createArenaCrates);
+  reg.register(createComponentBeacon);
   return reg;
 }
 

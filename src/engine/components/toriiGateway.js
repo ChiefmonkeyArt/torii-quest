@@ -24,10 +24,18 @@ export const GATEWAY_VERSION = '0.1.0';
 const DEFAULT_AUTHOR_NPUB = 'npub1torii0gateway0skeleton0placeholder0author0xxxxxxxxxxxxxx';
 
 // createToriiGateway(config) → a contract-valid component. `config` =
-//   { npub, relay, target, position }
+//   { npub, relay, target, position, model, rotation, scale }
 // supplies the gate's destination + placement defaults; per-mount `options`
 // override them, so one factory can serve many gates. Returns the object produced
-// by defineComponent (idempotent .mount(scene, options)/.unmount()/.mounted).
+// by defineComponent (idempotent .mount(scene, options)/.unmount()/.expand).
+//
+// 0l.3: the gateway is now an EXPANDING component. expandToriiGateway(config)
+// returns the travel-gateway's decorative GLTF object as a plain world.object —
+// the SAME shape buildWorldObjects already renders, so the gateway flows through
+// the standard renderer path as if authored inline. mount/unmount stay no-ops:
+// this is the DATA SHELL only — no travel, no auth, no click/raycast, no Nostr.
+// The dangerous travel/auth behavior is explicitly deferred (see NON-GOALS in
+// the 0l.3 PR).
 export function createToriiGateway(config = {}) {
   const {
     npub = DEFAULT_AUTHOR_NPUB,
@@ -49,17 +57,40 @@ export function createToriiGateway(config = {}) {
       // per-mount options can override these defaults at mount time.
       gateway: { npub, relay, target, position },
     },
-    // SKELETON no-op mount: attaches nothing today. defineComponent tracks the
-    // mounted flag and enforces idempotency, so this stays a safe, symmetric
-    // lifecycle. Per-mount `options` override the factory config.
-    // TODO(CMP-8): build the torii-gate portal mesh at (options.position ||
-    // position) and subscribe the n2n handoff (npub/relay → world-handoff) here.
+    // 0l.3 DATA SHELL: expand the travel-gateway's decorative GLTF object into a
+    // plain world.object. `config` carries { model, position, rotation, scale };
+    // the exact values are baked (Y from sampleNapHeight at authoring time) so
+    // there is NO runtime NAP-height sampling here. Returns [] if the model is
+    // missing/malformed (the resolver then omits the object, no error).
+    expand: () => expandToriiGateway(config),
+    // SKELETON no-op mount: attaches nothing today. The data shell handles the
+    // visual via expand; runtime travel/auth is a documented TODO, NOT built.
+    // TODO(CMP-8): build the torii-gate portal mesh + subscribe the n2n handoff
+    // (npub/relay → world-handoff) here — once travel behavior is owned.
     mount(_scene, _options = {}) { /* skeleton: no-op */ },
     // SKELETON no-op unmount — nothing was attached, so the contract symmetry
     // rule (unmount fully reverses mount) holds trivially.
     // TODO(CMP-8): remove the portal mesh + unsubscribe the handoff listeners.
     unmount() { /* skeleton: no-op */ },
   });
+}
+
+// expandToriiGateway(config) → the travel-gateway's decorative GLTF object as a
+// plain world.object (shape-equivalent to the 0k.4 baked inline object). Pure +
+// node-safe. `config` = { model, position, rotation, scale } (all baked). Returns
+// [] when the model is missing/malformed so the resolver omits it cleanly.
+export function expandToriiGateway(config = {}) {
+  const model = typeof config.model === 'string' ? config.model : null;
+  if (!model) return [];
+  const position = Array.isArray(config.position) && config.position.length >= 3
+    ? [Number(config.position[0]), Number(config.position[1]), Number(config.position[2])]
+    : null;
+  if (!position || position.some((n) => !Number.isFinite(n))) return [];
+  const rotation = Array.isArray(config.rotation) && config.rotation.length >= 3
+    ? [Number(config.rotation[0]), Number(config.rotation[1]), Number(config.rotation[2])]
+    : [0, 0, 0];
+  const scale = Number.isFinite(Number(config.scale)) ? Number(config.scale) : 1;
+  return [{ type: 'gltf', model, position, rotation, scale }];
 }
 
 // A ready, contract-valid default instance for SDK discovery / demos.

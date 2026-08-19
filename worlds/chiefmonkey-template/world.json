@@ -120,204 +120,6 @@
     {
       "type": "box",
       "position": [
-        -12,
-        1.6830141395524103,
-        -6
-      ],
-      "scale": [
-        1.5,
-        1.5,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          1.5,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        12,
-        2.1387991219278804,
-        -8
-      ],
-      "scale": [
-        1.5,
-        1.5,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          1.5,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        -14,
-        1.7983306124306158,
-        -10
-      ],
-      "scale": [
-        1.5,
-        1.5,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          1.5,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        14,
-        1.9982674203162512,
-        -10
-      ],
-      "scale": [
-        1.5,
-        1.5,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          1.5,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        -8,
-        1.39046901728876,
-        -12
-      ],
-      "scale": [
-        2,
-        1,
-        2
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          2,
-          1,
-          2
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        8,
-        1.4487567516766076,
-        -12
-      ],
-      "scale": [
-        2,
-        1,
-        2
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          2,
-          1,
-          2
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        -10,
-        2.0219242405951405,
-        0
-      ],
-      "scale": [
-        1.5,
-        2,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          2,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        10,
-        2.1620320116944316,
-        0
-      ],
-      "scale": [
-        1.5,
-        2,
-        1.5
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          1.5,
-          2,
-          1.5
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
-        -6,
-        1.3685151609661663,
-        -3
-      ],
-      "scale": [
-        3,
-        1,
-        1
-      ],
-      "color": "#4a4458",
-      "collider": {
-        "shape": "box",
-        "size": [
-          3,
-          1,
-          1
-        ]
-      }
-    },
-    {
-      "type": "box",
-      "position": [
         -24,
         0.9,
         3
@@ -500,25 +302,32 @@
       }
     },
     {
-      "type": "gltf",
-      "model": "torii-gateway-experience.glb",
-      "position": [
-        0,
-        0.885,
-        32
-      ],
-      "rotation": [
-        0,
-        1.5707963267948966,
-        0
-      ],
-      "scale": 4.16
-    },
-    {
       "type": "coastline-wall",
       "source": "coastline-wall.json"
     }
   ],
   "sea": true,
-  "foliage": true
+  "foliage": true,
+  "components": [
+    {
+      "id": "arena.crates"
+    },
+    {
+      "id": "torii.gateway",
+      "config": {
+        "model": "torii-gateway-experience.glb",
+        "position": [
+          0,
+          0.885,
+          32
+        ],
+        "rotation": [
+          0,
+          1.5707963267948966,
+          0
+        ],
+        "scale": 4.16
+      }
+    }
+  ]
 }

@@ -75,6 +75,9 @@ import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLo
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
 import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
 import { buildWorldTerrain, loadWorldTerrainData } from './engine/world/worldTerrain.js';
+import { expandWorldComponents } from './engine/world/worldComponents.js';
+import { mountWorldComponents } from './engine/world/worldComponentHost.js';
+import { createBuiltinRegistry } from './engine/components/registry.js';
 import { loadCoastlineWallData, buildCoastlineWallColliders } from './engine/world/worldCoastline.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 
@@ -510,6 +513,14 @@ export function createArenaRuntime(hooks = {}) {
   //                     the same lifetime); acceptable for v1.
   let _minimal = false;
   let _minimalWorld = null;
+  // The built-in component registry (pure, compile-time factories only — no
+  // remote code). Created once; expandWorldComponents resolves world.components
+  // instances against it at manifest-load time.
+  const _componentRegistry = createBuiltinRegistry();
+  // Phase 0l.2: runtime-mounted component handle. Once the minimal world scene
+  // exists, mountWorldComponents mounts scene-mounted component instances +
+  // stores them here; unmount is wired into stopMultiplayer (LIFO, never throws).
+  let _worldComponentMounts = null;
   // Phase 0k.5: the active world id (the manifest dir under worlds/). Captured
   // during boot so the terrain loader can resolve `terrain.source` paths against
   // `worlds/<worldId>/`. Empty in legacy mode (no data-driven world).
@@ -882,6 +893,23 @@ export function createArenaRuntime(hooks = {}) {
           _minimal = true;
           _minimalWorld = resolved.world;
           _worldId = worldId;
+          // Phase 0l.1: expand droppable component instances (world.components)
+          // into static world.objects now, BEFORE the terrain preflight + the
+          // build. Best-effort: a bad/unknown component is warned + skipped —
+          // its objects are omitted, the world still loads (mirrors the per-item
+          // omit style of the schema). The expanded objects flow through the
+          // SAME buildWorldObjects + buildWorldObjectColliders path as inline ones.
+          try {
+            const expanded = expandWorldComponents(_minimalWorld, _componentRegistry);
+            if (expanded.errors.length) {
+              console.warn('[world] component expansion issues:', expanded.errors.join(' | '));
+            }
+            if (expanded.expanded > 0) {
+              _minimalWorld = expanded.world;
+            }
+          } catch (e) {
+            console.warn('[world] component expansion failed:', e && e.message ? e.message : e);
+          }
           // Phase 0k.5: PREFLIGHT the terrain source/data BEFORE committing to the
           // minimal world. If the world declares a terrain but the source can't be
           // loaded or the heights are invalid (bad length, non-finite, wrong
@@ -946,6 +974,19 @@ export function createArenaRuntime(hooks = {}) {
       });
       _platformY = _worldRt.platformY || 0;
       endPhase('buildMinimalWorld');
+      // Phase 0l.2: mount RUNTIME component instances (world.components) now that
+      // the scene exists. Best-effort: a bad/unknown/throwing component is warned
+      // + skipped — it never fails the world. THREE is forwarded so visual
+      // components (beacons, decor) can build meshes without a top-level import.
+      try {
+        _worldComponentMounts = mountWorldComponents(_minimalWorld, _componentRegistry, scene, { THREE, worldId: _worldId });
+        if (_worldComponentMounts.errors.length) {
+          console.warn('[world] component mount issues:', _worldComponentMounts.errors.join(' | '));
+        }
+      } catch (e) {
+        console.warn('[world] component mount failed:', e && e.message ? e.message : e);
+        _worldComponentMounts = null;
+      }
       mark('boot-minimal-world-done');
       // Phase 0k.8: procedural ocean. The legacy arena builds the sea in
       // buildArena(); the data-driven world builds it here when world.sea is
@@ -1673,6 +1714,7 @@ export function createArenaRuntime(hooks = {}) {
     // mesh) on exit/travel so the physics world + scene don't leak across boots.
     if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
     if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
+    if (_worldComponentMounts) { try { _worldComponentMounts.unmount(); } catch { /* noop — never throw in teardown */ } _worldComponentMounts = null; }
     _worldCoastlineData = null;
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }

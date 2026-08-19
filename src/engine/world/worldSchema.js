@@ -204,6 +204,27 @@ export function validateWorld(data) {
   // tickFoliage(dt) animates the wind from the shared render loop.
   if (data.foliage === true) world.foliage = true;
 
+  // components [{ id, config? }] — droppable component instances whose
+  // expand(config) contributes static world.objects at manifest-load time (the
+  // 0l.1 data-expansion seam). The host resolver (expandWorldComponents) loads
+  // each from the built-in registry + appends the expanded objects to
+  // world.objects. Per-item validation: a bad entry is dropped (never fails the
+  // whole world). `id` must be a string; `config` an optional object.
+  if (Array.isArray(data.components)) {
+    const components = [];
+    for (const item of data.components) {
+      if (item == null || typeof item !== 'object' || Array.isArray(item)) continue;
+      const cId = _toStr(item.id);
+      if (!cId) continue;
+      const entry = { id: cId };
+      if (item.config != null && typeof item.config === 'object' && !Array.isArray(item.config)) {
+        entry.config = item.config;
+      }
+      components.push(entry);
+    }
+    if (components.length) world.components = components;
+  }
+
   // gateway { position, target?, relays? }
   if (data.gateway != null && typeof data.gateway === 'object' && !Array.isArray(data.gateway)) {
     const gateway = {};

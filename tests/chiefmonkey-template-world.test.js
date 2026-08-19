@@ -18,6 +18,8 @@ import {
 } from '../src/terrain/heightmap.js';
 import { CRATES } from '../src/config.js';
 import { isArenaPlayArea } from '../src/terrain/tomoeShape.js';
+import { createBuiltinRegistry } from '../src/engine/components/registry.js';
+import { expandWorldComponents } from '../src/engine/world/worldComponents.js';
 import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK,
@@ -115,11 +117,17 @@ describe('chiefmonkey-template world.json (real manifest)', () => {
 // terrain: center Y = fullH/2 + sampleArenaHeight(cx, cz), matching arena.js:144
 // + physics.js:152. Crates outside the play zone (isArenaPlayArea) are skipped.
 describe('chiefmonkey-template baked crates (0k.2)', () => {
+  // Phase 0l.1: crates are now a component instance (arena.crates) in
+  // world.components, not inline objects. Resolve them through the same
+  // expandWorldComponents the runtime uses, then assert against the expanded
+  // world — the crates must be byte/shape-equivalent to the legacy formula.
+  const registry = createBuiltinRegistry();
+  const expanded = expandWorldComponents(world, registry);
   // Filter crates by XZ (not just type:box+collider) so bridge decks (also boxes
   // with colliders) aren't counted as crates.
   const expected = CRATES.filter(([cx, cz]) => isArenaPlayArea(cx, cz));
   const crateXZ = new Set(expected.map(([cx, cz]) => `${cx},${cz}`));
-  const crates = world.objects.filter(
+  const crates = expanded.world.objects.filter(
     (o) => o.type === 'box' && o.collider && crateXZ.has(`${o.position[0]},${o.position[2]}`),
   );
 
@@ -247,12 +255,18 @@ describe('chiefmonkey-template torii gate + pillars (0k.3)', () => {
 // Decorative (no collider); the travel trigger is a separate sensor wired in
 // main.js. Mirrors arena.js _buildTravelGateway (v0.2.239).
 describe('chiefmonkey-template travel gateway (0k.4)', () => {
+  // Phase 0l.3: the travel-gateway GLTF is now a torii.gateway component
+  // instance, not an inline object. Resolve it through the same
+  // expandWorldComponents the runtime uses, then assert against the expanded
+  // world — the gateway object must be shape-equivalent to the 0k.4 baked object.
+  const registry = createBuiltinRegistry();
+  const expanded = expandWorldComponents(world, registry);
   const MODEL = 'torii-gateway-experience.glb';
   const TARGET_H = WALL_H * 1.6; // 4.16
   const r4 = (n) => Math.round(n * 10000) / 10000;
 
   it('has exactly one travel-gateway gltf loading the portal model', () => {
-    const gws = world.objects.filter((o) => o.type === 'gltf' && o.model === MODEL);
+    const gws = expanded.world.objects.filter((o) => o.type === 'gltf' && o.model === MODEL);
     expect(gws.length).toBe(1);
     const g = gws[0];
     expect(g.position[0]).toBeCloseTo(TRAVEL_GATE_X, 3);
@@ -263,7 +277,7 @@ describe('chiefmonkey-template travel gateway (0k.4)', () => {
   });
 
   it('ground Y is the baked NAP-surface height at the portal XZ', () => {
-    const g = world.objects.find((o) => o.type === 'gltf' && o.model === MODEL);
+    const g = expanded.world.objects.find((o) => o.type === 'gltf' && o.model === MODEL);
     const expectedY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
     expect(g.position[1]).toBeCloseTo(r4(expectedY), 3);
   });

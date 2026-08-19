@@ -65,6 +65,18 @@ export function isComponent(obj) {
   return !!obj && typeof obj.mount === 'function' && typeof obj.unmount === 'function';
 }
 
+// isExpandingComponent(obj) → does this component ALSO expose a pure data-expansion
+// path? An expanding component's expand(config) returns a list of plain
+// world.objects (the same validated shape buildWorldObjects/buildWorldObjectColliders
+// consume). This is the seam that lets a droppable component contribute STATIC
+// scenery data (crates, props, decor) without a runtime mount — the host resolves
+// the component into world.objects at manifest-load time, then the existing
+// renderer/collider path builds them as if they were authored inline. Shape check
+// only; does not run expand.
+export function isExpandingComponent(obj) {
+  return isComponent(obj) && typeof obj.expand === 'function';
+}
+
 // defineComponent(def) → wrap a plain definition into a validated component with
 // idempotent lifecycle bookkeeping. `def.mount(scene, options)` and
 // `def.unmount()` are required; `def.manifest` is validated. Throws on an invalid
@@ -89,9 +101,12 @@ export function defineComponent(def) {
     get mounted() { return _mounted; },
     mount(scene, options = {}) {
       if (_mounted) return false;      // idempotent — already mounted
-      def.mount(scene, options);
+      // The inner mount's boolean return value is preserved: false means "no-op
+      // (not applicable / no scene)" — the host notes it but does NOT count it as
+      // an error. Any other return (true/undefined) means mounted.
+      const ok = def.mount(scene, options);
       _mounted = true;
-      return true;
+      return ok === false ? false : true;
     },
     unmount() {
       if (!_mounted) return false;     // idempotent — already torn down
@@ -99,5 +114,12 @@ export function defineComponent(def) {
       _mounted = false;
       return true;
     },
+    // Pure data-expansion path (OPTIONAL). Only attached when def.expand is a
+    // function, so isExpandingComponent() is meaningful: it returns true only for
+    // components that actually contribute static world.objects. A component
+    // without expand simply has no `.expand` property; the host resolver treats
+    // that as "no data" (0 objects, no error) — a scene-mounted component (e.g.
+    // torii.gateway) is not an expanding component.
+    ...(typeof def.expand === 'function' ? { expand: (config = {}) => def.expand(config) } : {}),
   };
 }

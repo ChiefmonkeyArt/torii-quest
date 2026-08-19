@@ -1288,16 +1288,10 @@ export function createArenaRuntime(hooks = {}) {
       flyToggleFromInput();
     });
 
-    // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR
-    // paused, independent of the portal (unlike KeyF). Pressing M again while the
-    // menu is open closes it (toggle). Pause on open + exitPointerLock; resume on
-    // close. ESC closes the menu first (handled above) before pause.
-    onKeyDown(code => {
-      if (code !== 'KeyM') return;
-      if (!isPlaying() && !isPaused()) return;
-      if (isToriiMenuOpenHook()) { _closeToriiMenu(); return; }
-      _openToriiMenu();
-    });
+    // (v0.2.606) KeyM in-game menu toggle REMOVED — the operator confirmed it is
+    // not needed; the menu opens from the title/home burger button. The injected
+    // openToriiMenu hook + _openToriiMenu() are kept so the menu can still be
+    // surfaced in-game by other triggers if added later.
 
     const elResumeBtn = document.getElementById('btn-resume');
     const elHomeBtn   = document.getElementById('btn-home');
@@ -1707,6 +1701,11 @@ export function createArenaRuntime(hooks = {}) {
   // window.location.href navigates away, so the server-side close is graceful and
   // peers see us LEFT immediately instead of after a ping-timeout gap.
   function stopMultiplayer(reason = 'travel') {
+    // v0.2.606: release pointer lock on arena exit / travel / return-to-title.
+    // Without this, a stale pointer lock (canvas hidden but still in the DOM)
+    // could persist + swallow all mouse clicks on the title screen →
+    // "nothing clickable" / "game frozen, ESC unfreezes". Safe no-op when no lock.
+    try { if (typeof document !== 'undefined' && document.exitPointerLock) document.exitPointerLock(); } catch { /* never throw in teardown */ }
     if (_mp) { try { _mp.stop(reason); } catch {} _mp = null; }
     // v0.2.380-alpha: tear the leaderboard overlay down on arena exit / travel.
     try { _arenaLb.destroy(); } catch { /* noop */ }

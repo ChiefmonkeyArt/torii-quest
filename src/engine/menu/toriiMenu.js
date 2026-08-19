@@ -118,7 +118,7 @@ function _build() {
 
   // Footer hint
   const hint = document.createElement('div');
-  hint.textContent = 'ESC to close · M to toggle · click Visit to travel';
+  hint.textContent = 'ESC to close · click Visit to travel';
   Object.assign(hint.style, { fontSize: '10px', letterSpacing: '1px', color: '#6b7280', marginTop: '16px', textAlign: 'center', textTransform: 'uppercase' });
 
   card.append(head, subtitle, badge, list, hint);
@@ -220,7 +220,10 @@ function _rowDom(w, canTravel, onTravel) {
   // Website link — only when the world carries a safe https website (already
   // validated by gatewayRead.extractGatewayFromEvent via safeProfileUrl, so a
   // hostile value can never smuggle in a javascript:/data: scheme). Opens in a
-  // new tab with rel="noopener noreferrer". Rendered on its own line under the row.
+  // new tab with rel="noopener noreferrer". v0.2.606: clicking the link also
+  // closes the menu (no preventDefault — the new tab still opens) so a stale
+  // full-screen modal can't linger across the tab switch / bfcache return +
+  // reappear in a weird layer state.
   if (typeof w.website === 'string' && /^https:\/\//i.test(w.website)) {
     const linkRow = document.createElement('div');
     Object.assign(linkRow.style, { gridColumn: '1 / -1', marginTop: '4px' });
@@ -232,6 +235,7 @@ function _rowDom(w, canTravel, onTravel) {
     Object.assign(link.style, { fontSize: '10px', letterSpacing: '1px', color: '#4cc9f0', textDecoration: 'none' });
     link.addEventListener('mouseenter', () => { link.style.textDecoration = 'underline'; });
     link.addEventListener('mouseleave', () => { link.style.textDecoration = 'none'; });
+    link.addEventListener('click', () => { _close(); });
     linkRow.append(link);
     row.append(linkRow);
   }
@@ -414,6 +418,15 @@ function _renderAdmin(list, admin) {
 
 export function openToriiMenu({ getState = null, onClose = null } = {}) {
   const el = _build();
+  if (!el) return;
+
+  // v0.2.606: release pointer lock on EVERY menu open (not just the in-game
+  // path). If the arena acquired pointer lock + the user opened the menu from
+  // the title/home path (or returned to title with the canvas still in the DOM),
+  // a stale pointer lock would swallow all mouse clicks → "nothing clickable" /
+  // "game frozen, ESC unfreezes". Safe + idempotent; no-op when no lock is held.
+  try { if (typeof document !== 'undefined' && document.exitPointerLock) document.exitPointerLock(); } catch { /* never throw */ }
+
   _getState = typeof getState === 'function' ? getState : null;
   _onClose = onClose;
 
@@ -464,6 +477,13 @@ export function openToriiMenu({ getState = null, onClose = null } = {}) {
   }
 
   _open = true;
+  // v0.2.606: reassert the layer + pointer behaviour on every open so a cached
+  // singleton or a mutated inline style can never reappear at the old z-75
+  // (the "menu reappeared behind the panels" regression after a tab switch /
+  // bfcache return). zIndex + pointerEvents are set at build time, but we force
+  // them again here as belt-and-braces.
+  el.style.zIndex = '200';
+  el.style.pointerEvents = 'auto';
   el.style.display = 'flex';
   el.querySelector('button')?.focus?.();
 }

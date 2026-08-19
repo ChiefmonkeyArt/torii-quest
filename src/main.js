@@ -496,6 +496,15 @@ function _openHomepageStub() {
   openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
 }
 
+// v0.2.606: close any open full-screen modal + release pointer lock before the
+// arena boots, so a stale Torii menu / gateway-setup stub cannot sit over the
+// canvas and freeze input. Called by ENTER ARENA + ENTER NAP ZONE. Best-effort.
+function _closeModalsAndReleasePointerLock() {
+  try { closeToriiMenu(); } catch { /* best-effort */ }
+  try { closeHomepageStub(); } catch { /* best-effort */ }
+  try { if (typeof document !== 'undefined' && document.exitPointerLock) document.exitPointerLock(); } catch { /* best-effort */ }
+}
+
 // Title-screen secondary CTA → open the Gateway setup stub. A small button
 // placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
 // / LOGIN. Built lazily into the title centre column so it matches the existing
@@ -1900,6 +1909,8 @@ let _arenaBootstrapped = false;
 // arena spawn. The NAP button reuses the same bootstrap + sets a spawn override.
 elEnterBtn?.addEventListener('click', async () => {
   if (!isTitle()) return;
+  // v0.2.606: clear any open modal + stale pointer lock before booting the arena.
+  _closeModalsAndReleasePointerLock();
   // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
   // never a silent no-op (regression guard — tests assert a non-empty message here).
   showEntryStatus('Entering arena…');
@@ -1991,6 +2002,8 @@ function resetEnterButton() {
 // west across the grass field, skipping the torii-gate walk.
 elNapBtn?.addEventListener('click', async () => {
   if (!isTitle()) return;
+  // v0.2.606: clear any open modal + stale pointer lock before booting the arena.
+  _closeModalsAndReleasePointerLock();
   // IMMEDIATE visible status (mirrors ENTER ARENA) before the async bootstrap.
   showEntryStatus('Entering NAP zone…');
   resetTimings();

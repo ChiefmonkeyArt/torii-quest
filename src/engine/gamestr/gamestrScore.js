@@ -1,5 +1,5 @@
 // engine/gamestr/gamestrScore.js — PURE gamestr.io kind 30762 score-event builder
-// (Phase 0f, v0.2.601-alpha). Shapes an UNSIGNED gamestr.io-format score event so a
+// (Phase 0f, v0.2.602-alpha). Shapes an UNSIGNED gamestr.io-format score event so a
 // finalised run can appear on gamestr.io leaderboards. This is SEPARATE from the
 // in-app NIP-78 leaderboard (kind 30000 via leaderboard/livePublish.js): gamestr is a
 // distinct destination (gamestr relays + a few public relays) with its own event

@@ -1,5 +1,5 @@
 // engine/gamestr/gamestrPublisher.js — gamestr.io LIVE score publish wiring
-// (Phase 0f, v0.2.601-alpha). Promotes the kind 30762 score write to a REAL NIP-07
+// (Phase 0f, v0.2.602-alpha). Promotes the kind 30762 score write to a REAL NIP-07
 // sign + relay fan-out, BUT only ever behind the existing gates: the player's
 // explicit consent AND the operator's GAMESTR_ENABLED opt-in (off by default).
 //

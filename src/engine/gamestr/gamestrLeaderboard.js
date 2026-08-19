@@ -1,5 +1,5 @@
 // engine/gamestr/gamestrLeaderboard.js — PURE gamestr.io kind 30762 leaderboard
-// reader (Phase 0h, v0.2.601-alpha). The read-side companion to gamestrScore.js
+// reader (Phase 0h, v0.2.602-alpha). The read-side companion to gamestrScore.js
 // (Phase 0f publish): turns a raw batch of kind 30762 score events fetched from
 // the gamestr relays into a sorted, deduped leaderboard of [{pubkey, score,
 // duration?, createdAt}]. This is what the in-app "gamestr.io" sub-section

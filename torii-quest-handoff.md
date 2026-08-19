@@ -2,7 +2,7 @@
 
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
-**Current version:** v0.2.601-alpha - PER-BONE STICKER COLLIDERS ON BOTS. Prior: v0.2.574-alpha - PER-BONE NPC STICKER COLLIDERS. See §0 for the current snapshot.
+**Current version:** v0.2.602-alpha - PER-BONE STICKER COLLIDERS ON BOTS. Prior: v0.2.574-alpha - PER-BONE NPC STICKER COLLIDERS. See §0 for the current snapshot.
 
 **Recent shipped work (newest first):**
 - **v0.2.528-alpha - NAP ZONE LAYOUT FIX.** Fixed the NAP zone object layout to be left-to-right as the maintainer specified: leaderboard → torii gate → product panel → mirror, all flush with the curved NAP edge. The NAP zone edge is a CURVE (not a straight line) — each object's z-position must match the edge at its x-position. Previous attempts (v0.2.525–v0.2.527) failed because objects were placed at wrong z-values (not flush), the mirror was too wide (8.12m) and overlapped the torii gate, and the ordering was wrong. Final positions: Leaderboard (-6.5, 32.5) yaw=PI, Torii gate (0, 32) unchanged yaw=PI-PI/4-PI/18, Product panel (5, 31) yaw=PI+0.15, Mirror (9, 28.5) width shrunk to 5m yaw=PI+PI/4 (45° to follow edge curve). Mirror was shrunk from 8.12m to 5m to keep both edges on solid NAP land. Both mirror edges verified on land (h=0.92). NPC (napNpc.js) confirmed working in v0.2.526 console output: walks, loads 18 gesture clips. 2668 tests pass, 21 checks green.
@@ -26,7 +26,7 @@ Single-page onboarding for the next contributor — human or AI agent. Keep it c
 
 ## 0. Current snapshot (2026-08-17)
 
-- **Version:** v0.2.601-alpha (tag `v0.2.601-alpha`).
+- **Version:** v0.2.602-alpha (tag `v0.2.602-alpha`).
 - **Live:** https://chiefmonkey.art/quest/ (SHC VPS, Torii Suite install). The maintainer deploys manually with `sudo torii-deploy <tag>`; the update-runner resolves the git tag and builds with `--base=/quest/`.
 - **Multiplayer:** LIVE and working (`MP_ENABLED=true` in `src/config.js`). Two-npub in-world play confirmed 2026-08-15: idle players stay connected (v0.2.460), peers appear promptly on join (v0.2.462 warm pool), and mirror self-shoot reads correctly (v0.2.461).
 - **Tests:** 2668/2668 across 197 files; `node tools/regression-check.mjs` ALL GREEN at ship time.
@@ -243,9 +243,9 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 
 ## 9.5. Active task / next steps (2026-08-17)
 
-**PENDING DEPLOY:** v0.2.601-alpha is pushed to GitHub (tag `v0.2.601-alpha`) but NOT yet deployed to the VPS. The user needs to run:
+**PENDING DEPLOY:** v0.2.602-alpha is pushed to GitHub (tag `v0.2.602-alpha`) but NOT yet deployed to the VPS. The user needs to run:
 ```
-sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.601-alpha
+sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.602-alpha
 ```
 
 **WHAT WAS DONE THIS SESSION:**

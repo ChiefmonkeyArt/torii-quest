@@ -1486,6 +1486,15 @@ export function createArenaRuntime(hooks = {}) {
             } else if (result.terrain) {
               _worldTerrain = result.terrain;
               for (let i = 0; i < result.terrain.meshes.length; i++) scene.add(result.terrain.meshes[i]);
+              // The terrain mesh is now the visible ground — hide the cloud
+              // platform fallback meshes built by buildMinimalWorld (they stay
+              // visible if this branch is skipped on a runtime terrain failure,
+              // so the visible ground never vanishes).
+              if (_worldRt && Array.isArray(_worldRt.fallbackGround)) {
+                for (let i = 0; i < _worldRt.fallbackGround.length; i++) {
+                  _worldRt.fallbackGround[i].visible = false;
+                }
+              }
             }
           } catch (e) {
             console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);

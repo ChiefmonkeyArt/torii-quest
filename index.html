@@ -7,7 +7,8 @@
        Single source: tools/csp.mjs → emitted to dist/_headers (static host), the Vite
        preview server, and the Caddy/Nginx blocks in VPS_INSTALL.md. It uses nonce-free
        strict-dynamic + a sha256 of the inline bootstrap script below, which the build
-       rewrites to import('/assets/torii-entry.js') so strict-dynamic covers the whole
+       rewrites to import('./assets/torii-entry.js?v=<stamp>') (relative, so it
+       resolves under root, /quest/, or any sub-path deploy) so strict-dynamic covers the whole
        module graph. No third-party origin (Draco decoder vendored at /draco/, S4). -->
   <meta name="description" content="Torii Quest — an open-world arena shooter built on Nostr and Bitcoin. Sats. Shots. Sovereignty."/>
   <!-- Phase 0b: the 3D homepage (gateway-blank minimal world). Uncomment to

@@ -1,8 +1,16 @@
 // tests/quest-base-entry.test.js — emitted deploy-base contracts.
 //
-// The Suite mounts Torii Quest at `/quest/`. Real production builds lock both
-// the versioned entry-import graph and service-worker registration to the
-// configured Vite base. A root-relative regression would escape the mount.
+// The Suite mounts Torii Quest at `/quest/`, and the private deploy_website
+// preview serves the bundle under an arbitrary sub-path (unknown at build
+// time). Real production builds therefore emit the versioned entry-import
+// graph as RELATIVE specifiers so it resolves correctly at root, `/quest/`,
+// AND any preview sub-path — no build-time base knowledge is needed. A
+// root-absolute regression (`/assets/torii-entry.js`) would 404 under the
+// sub-path deploy and ship a dead bundle. The inline bootstrap (in index.html,
+// depth 0) uses `./assets/torii-entry.js?v=<stamp>`; every chunk back-reference
+// (in /assets/, depth 1) uses `./torii-entry.js?v=<stamp>` (peer-relative). Both
+// forms resolve to the same versioned entry module, so the browser dedupes to
+// one fresh fetch (CDN edge-cache busting still works via the shared `?v=`).
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
@@ -116,32 +124,53 @@ afterAll(() => {
   rmSync(QUEST_OUT, { recursive: true, force: true });
 });
 
-describe('quest-base entry-import — every torii-entry URL carries the /quest/ deploy base', () => {
-  it('the inline bootstrap imports the entry under the /quest/ base', () => {
+describe('quest-base entry-import — every torii-entry URL is relative + versioned (root, /quest/, and arbitrary sub-path safe)', () => {
+  it('the inline bootstrap imports the entry via a relative ./assets/ path', () => {
     const urls = collectEntryUrls(questBuild.indexHtml);
     expect(urls.length).toBe(1);
-    expect(urls[0]).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
+    expect(urls[0]).toMatch(/^\.\/assets\/torii-entry\.js\?v=/);
+    // No root-absolute regression: the inline bootstrap must NOT point at
+    // '/assets/...' (404s under a sub-path deploy) NOR carry a deploy base
+    // prefix like '/quest/assets/...' (also 404s under a different sub-path).
+    expect(urls[0].startsWith('/')).toBe(false);
   });
 
-  it('no dist artifact references the entry at root-relative /assets/', () => {
+  it('no dist artifact references the entry at a root-absolute /assets/ path', () => {
     const all = [...collectEntryUrls(questBuild.indexHtml), ...questBuild.chunkUrls];
+    expect(all.length).toBeGreaterThan(0);
     for (const url of all) {
-      expect(url.startsWith('/assets/torii-entry.js')).toBe(false);
-      expect(url).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
+      // Relative form only — never root-absolute '/...' (404s under sub-path)
+      // nor base-prefixed '/quest/...' (404s under a different sub-path).
+      expect(url.startsWith('/')).toBe(false);
+      expect(url).toMatch(/^\.\/(assets\/)?torii-entry\.js\?v=/);
     }
   });
 
-  it('the arenaRuntime chunk back-references the entry under /quest/', () => {
+  it('the arenaRuntime chunk back-references the entry via a relative ./torii-entry.js path', () => {
     expect(questBuild.arenaChunk.length).toBeGreaterThan(0);
     const urls = collectEntryUrls(questBuild.arenaChunk);
     expect(urls.length).toBeGreaterThanOrEqual(1);
-    for (const url of urls) expect(url).toMatch(/^\/quest\/assets\/torii-entry\.js\?v=/);
+    for (const url of urls) {
+      // Chunks live in /assets/, so the peer-relative form is './torii-entry.js'.
+      expect(url).toMatch(/^\.\/torii-entry\.js\?v=/);
+      expect(url.startsWith('/')).toBe(false);
+    }
   });
 
-  it('the inline bootstrap and every chunk agree on one entry URL', () => {
-    const all = [...collectEntryUrls(questBuild.indexHtml), ...questBuild.chunkUrls];
+  it('the inline bootstrap and every chunk share one ?v= stamp (one versioned entry graph)', () => {
+    const htmlUrls = collectEntryUrls(questBuild.indexHtml);
+    const chunkUrls = questBuild.chunkUrls;
+    const all = [...htmlUrls, ...chunkUrls];
     expect(all.length).toBeGreaterThanOrEqual(2);
-    expect(new Set(all).size).toBe(1);
+    // The HTML ('./assets/torii-entry.js?v=X') and chunk ('./torii-entry.js?v=X')
+    // forms are intentionally DIFFERENT strings (different depth) but MUST share
+    // the same cache-bust stamp so the browser dedupes to one fresh entry fetch.
+    const stamps = new Set(all.map((url) => url.match(/\?v=([^"']*)/)[1]));
+    expect(stamps.size).toBe(1);
+    // Every specifier targets the same pinned entry filename + is versioned.
+    for (const url of all) {
+      expect(url).toMatch(/torii-entry\.js\?v=/);
+    }
   });
 
   it('no static entry script tag survives', () => {

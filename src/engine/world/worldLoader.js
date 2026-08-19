@@ -153,15 +153,30 @@ function _fromResponse(res, worldId) {
 
 // ── DOM-touching helper (the ONLY function in this file that may touch the DOM)
 // ──────────────────────────────────────────────────────────────────────────────
-// readWorldIdFromDom() → string. Reads the `<meta name="torii-world">` content
-// and returns it trimmed, or '' if absent/blank/no document. This is the
-// feature flag: only when a world id is present does the loader attempt a
-// data-driven load; absent → the legacy buildArena() path runs unchanged.
+// readWorldIdFromDom(storage?) → string. Phase 0c: FIRST checks the localStorage
+// `torii.world.active` override (via the injected `storage`, default
+// globalThis.localStorage) so an owner can preview switching the homepage world
+// without a server endpoint; if set + non-blank, returns it. Otherwise falls back
+// to the `<meta name="torii-world">` content — the feature flag: a world id
+// present → data-driven load; absent → the legacy buildArena() path runs unchanged.
 //
-// The pure core (resolveWorldManifest) does NOT call this — a browser wrapper
-// in main.js reads the meta and passes the id in. Co-locating it here keeps the
-// world layer's DOM seam in one file rather than scattering it through the shell.
-export function readWorldIdFromDom() {
+// This is clearly a PREVIEW / this-browser-only override: the Suite `active`
+// pointer is the node-wide source of truth. The pure core (resolveWorldManifest)
+// does NOT call this — a browser wrapper in main.js reads the meta and passes the
+// id in. Co-locating it here keeps the world layer's DOM seam in one file rather
+// than scattering it through the shell. The `storage` arg keeps the pure leaf
+// testable in node (tests pass a fake Storage); never throws.
+export function readWorldIdFromDom(storage) {
+  // Phase 0c: localStorage `torii.world.active` override takes precedence.
+  try {
+    const store = storage === undefined ? globalThis.localStorage : storage;
+    if (store && typeof store.getItem === 'function') {
+      const v = store.getItem('torii.world.active');
+      if (typeof v === 'string' && v.trim() !== '') return v.trim();
+    }
+  } catch {
+    /* no localStorage / disabled — fall through to the meta tag */
+  }
   if (typeof document === 'undefined' || !document) return '';
   try {
     const meta = document.querySelector('meta[name="torii-world"]');

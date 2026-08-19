@@ -72,6 +72,55 @@ describe('buildVisitUrl — appends traveller when ourHex present', () => {
   });
 });
 
+describe('buildVisitUrl — NAP-zone routing (zoneSlug, Phase 0c)', () => {
+  it('appends #/zone/<slug> when a valid zoneSlug is provided', () => {
+    const r = buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: 'plebeian-market-bazaar' });
+    expect(r.ok).toBe(true);
+    expect(r.url).toContain('#/zone/plebeian-market-bazaar');
+  });
+
+  it('appends the zone hash AFTER the traveller param (both present)', () => {
+    const r = buildVisitUrl({ website: GOOD_HTTPS }, { ourHex: GOOD_HEX, zoneSlug: 'nap-garden' });
+    expect(r.ok).toBe(true);
+    expect(r.url).toContain('torii-traveller=');
+    expect(r.url).toContain(GOOD_HEX);
+    expect(r.url).toContain('#/zone/nap-garden');
+    // The hash comes after the query (WHATWG URL serialises hash last).
+    expect(r.url.indexOf('torii-traveller=')).toBeLessThan(r.url.indexOf('#/zone/'));
+  });
+
+  it('leaves the URL unchanged when zoneSlug is invalid (no hash appended)', () => {
+    const r = buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: 'Not A Slug!' });
+    expect(r.ok).toBe(true);
+    expect(r.url).not.toContain('#/zone/');
+    expect(r.url).toBe(GOOD_HTTPS);
+  });
+
+  it('leaves the URL unchanged when zoneSlug is absent (null)', () => {
+    const r = buildVisitUrl({ website: GOOD_HTTPS });
+    expect(r.ok).toBe(true);
+    expect(r.url).not.toContain('#/zone/');
+  });
+
+  it('leaves the URL unchanged when zoneSlug is an empty string', () => {
+    const r = buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: '' });
+    expect(r.ok).toBe(true);
+    expect(r.url).not.toContain('#/zone/');
+  });
+
+  it('rejects a non-https website even with a valid zoneSlug (ok:false)', () => {
+    const r = buildVisitUrl({ website: 'javascript:alert(1)' }, { zoneSlug: 'nap-garden' });
+    expect(r.ok).toBe(false);
+    expect(r.url).toBeNull();
+  });
+
+  it('never throws on a garbage zoneSlug', () => {
+    expect(() => buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: null })).not.toThrow();
+    expect(() => buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: 123 })).not.toThrow();
+    expect(() => buildVisitUrl({ website: GOOD_HTTPS }, { zoneSlug: {} })).not.toThrow();
+  });
+});
+
 describe('buildVisitUrl — input guards', () => {
   it('rejects a non-object world', () => {
     expect(buildVisitUrl(null).ok).toBe(false);

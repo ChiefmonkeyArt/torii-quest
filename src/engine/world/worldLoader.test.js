@@ -4,7 +4,7 @@
 // failure mode resolves to { fallback:'legacy' } so the host falls back to
 // buildArena() rather than crashing. No three/DOM.
 import { describe, it, expect } from 'vitest';
-import { resolveWorldManifest } from './worldLoader.js';
+import { resolveWorldManifest, readWorldIdFromDom } from './worldLoader.js';
 
 // A valid manifest the fake fetchImpl returns.
 const VALID_MANIFEST = {
@@ -153,5 +153,54 @@ describe('resolveWorldManifest — never throws', () => {
     expect(fetchedUrl).toBe('/worlds/x/world.json');
     expect(r.ok).toBe(true);
     expect(r.fallback).toBe('none');
+  });
+});
+
+describe('readWorldIdFromDom — localStorage override (Phase 0c)', () => {
+  // A minimal fake Storage for the injected `storage` arg.
+  function fakeStorage(initial = {}) {
+    const map = new Map(Object.entries(initial));
+    return {
+      getItem: (k) => (map.has(k) ? map.get(k) : null),
+      setItem: (k, v) => { map.set(k, String(v)); },
+      removeItem: (k) => { map.delete(k); },
+      clear: () => { map.clear(); },
+    };
+  }
+
+  it('returns the localStorage `torii.world.active` override first', () => {
+    const storage = fakeStorage({ 'torii.world.active': 'gateway-blank' });
+    expect(readWorldIdFromDom(storage)).toBe('gateway-blank');
+  });
+
+  it('trims whitespace from the localStorage override', () => {
+    const storage = fakeStorage({ 'torii.world.active': '  chiefmonkey-template  ' });
+    expect(readWorldIdFromDom(storage)).toBe('chiefmonkey-template');
+  });
+
+  it('falls back to the meta tag when the override is blank', () => {
+    const storage = fakeStorage({ 'torii.world.active': '   ' });
+    // No document in node → falls through to '' (no meta tag either).
+    expect(readWorldIdFromDom(storage)).toBe('');
+  });
+
+  it('falls back when the override key is absent', () => {
+    const storage = fakeStorage({});
+    expect(readWorldIdFromDom(storage)).toBe('');
+  });
+
+  it('returns "" when no storage is injected and no localStorage exists (node)', () => {
+    // In the node test env globalThis.localStorage is undefined → returns ''.
+    expect(readWorldIdFromDom()).toBe('');
+  });
+
+  it('never throws on a broken storage (getItem throws)', () => {
+    const broken = { getItem: () => { throw new Error('denied'); } };
+    expect(() => readWorldIdFromDom(broken)).not.toThrow();
+    expect(readWorldIdFromDom(broken)).toBe('');
+  });
+
+  it('never throws when storage is null', () => {
+    expect(() => readWorldIdFromDom(null)).not.toThrow();
   });
 });

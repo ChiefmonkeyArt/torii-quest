@@ -64,6 +64,15 @@ import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 // handshake code below stays in place but UNUSED — reserved for an optional
 // future private/invite-only travel mode.
 import { buildVisitUrl } from './engine/gateway/openVisit.js';
+// Phase 0c: the canonical NAP-zone slug validator (used to forward zoneSlug on
+// travel so visiting lands in the destination NAP zone).
+import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
+// Phase 0c: the persistent Torii menu — DOM presentation layer + pure
+// sub-partitioner + owner-admin localStorage prefs. The menu renders from a
+// getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
+import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
+import { classifySections } from './engine/menu/menuSections.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -87,6 +96,7 @@ const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
 const elEnterBtn = document.getElementById('btn-enter');
 const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
+const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
 // declaratively from the phase the FSM transitioned INTO. transition() stays the
@@ -227,9 +237,9 @@ function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
       row.setAttribute('role', 'button');
       row.setAttribute('tabindex', '0');
       row.setAttribute('aria-label', `travel to ${label}`);
-      row.addEventListener('click', () => _gwOpenVisit(w));
+      row.addEventListener('click', () => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }));
       row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwOpenVisit(w); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }); }
       });
     }
     const type = document.createElement('div');
@@ -263,20 +273,85 @@ function _renderGatewayActions(body, actions) {
   body.append(wrap);
 }
 
-// _gwOpenVisit(world) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
+// ── Phase 0c: persistent Torii menu state ─────────────────────────────────────
+// _getToriiMenuState() builds the snapshot the menu renders from. main.js owns ALL
+// the data (the live presence scan, the contact partition, the owner detection,
+// the admin prefs); the menu is a pure presentation layer. onTravel forwards the
+// destination world's zoneId as zoneSlug so visiting lands in the NAP zone.
+const _SHIPPED_WORLDS = Object.freeze([
+  { id: 'gateway-blank', name: 'Torii Gateway — Blank' },
+  { id: 'chiefmonkey-template', name: 'Chiefmonkey Template' },
+]);
+
+function _getToriiMenuState() {
+  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  const { friends, following, games, all } = classifySections({
+    worlds: _worldsCache,
+    userPubkey: canTravel ? state.nostrPubkey : '',
+    userContacts: _userContacts,
+    ownerContacts: _ownerContacts,
+  });
+  const cap = _updateCapability;
+  const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
+  return {
+    scanStatus: _worldsScan,
+    canTravel,
+    friends,
+    following,
+    games,
+    all,
+    isOwner,
+    admin: {
+      heartbeatIntent: getHeartbeatIntent(),
+      activeWorld: getActiveWorld(),
+      availableWorlds: _SHIPPED_WORLDS,
+      scoresEnabled: !!SCORE_PUBLISH_ENABLED,
+      onToggleHeartbeat: (next) => {
+        setHeartbeatIntent(next);
+        // Surface a notice that the first publish needs explicit signer consent.
+        // We do NOT auto-publish here — only set the intent.
+        showEntryStatus(next === 'on'
+          ? 'Heartbeat intent ON — first publish needs signer consent.'
+          : 'Heartbeat intent OFF.');
+      },
+      onSetActiveWorld: (id) => {
+        setActiveWorld(id);
+        showEntryStatus('Homepage world set — reloading to apply…');
+        // Local preview toggle: reload so the loader picks up the new active
+        // world from localStorage `torii.world.active`.
+        try { window.location.reload(); } catch { /* best-effort */ }
+      },
+    },
+    onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+  };
+}
+
+// Title-screen burger button → open the persistent Torii menu.
+elToriiMenuBtn?.addEventListener('click', () => {
+  if (isToriiMenuOpen()) { closeToriiMenu(); return; }
+  openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+});
+
+// _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
 // mode). Direct-navigate to the world's hardened https `website`, tagging the
 // traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
 // reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
 // default path. allowPrivate is gated on the dev/staging domain (localhost /
 // *.pplx.app) so production stays private-host-rejecting.
-function _gwOpenVisit(world) {
+//
+// Phase 0c: opts.zoneSlug (a valid NAP-zone slug) is forwarded to buildVisitUrl so
+// the canonical hash route `#/zone/<slug>` is appended — visiting lands in the
+// destination NAP zone. The in-world gateway gate + the menu's Visit button both
+// pass the destination world's zoneId here.
+function _gwOpenVisit(world, opts) {
   const allowPrivate = (() => {
     try {
       const h = (typeof location !== 'undefined' && location.hostname) || '';
       return h === 'localhost' || h.endsWith('.pplx.app');
     } catch { return false; }
   })();
-  const visit = buildVisitUrl(world, { ourHex: state.nostrPubkey || '', allowPrivate });
+  const zoneSlug = opts && typeof opts.zoneSlug === 'string' ? opts.zoneSlug : null;
+  const visit = buildVisitUrl(world, { ourHex: state.nostrPubkey || '', allowPrivate, zoneSlug });
   if (!visit.ok) {
     // Surface the error the same way _executeJump does — log + re-render the
     // gateway card so the player sees the screen return to its live state.
@@ -1433,8 +1508,15 @@ async function ensureArenaReady(loadingLabel) {
           worlds: _worldsCache,
           scanStatus: _worldsScan,
           canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-          onTravel: (w) => _gwOpenVisit(w),
+          onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
         }),
+        // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the
+        // SAME menu element the title-screen burger button opens — it calls this
+        // hook, which supplies getState + onClose (resume-on-close). arenaRuntime
+        // must NOT create its own menu DOM; it just calls the hook.
+        openToriiMenu: ({ onClose }) => openToriiMenu({ getState: _getToriiMenuState, onClose }),
+        closeToriiMenu,
+        isToriiMenuOpen,
       });
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.

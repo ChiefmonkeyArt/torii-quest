@@ -16,13 +16,17 @@
 // when buildVisitUrl returns ok:true. Uses only plain JS + the WHATWG URL global
 // (node 18+ + browsers), so it is importable in vitest's node env.
 //
-// Constrained by construction: buildVisitUrl(world, { ourHex, allowPrivate }) →
-// { ok, url, errors }. Never throws. A failure never yields a url. The caller
-// treats !ok as "do not visit" and surfaces the error.
+// Constrained by construction: buildVisitUrl(world, { ourHex, allowPrivate, zoneSlug })
+// → { ok, url, errors }. Never throws. A failure never yields a url. The caller
+// treats !ok as "do not visit" and surfaces the error. When `zoneSlug` is a
+// valid zone slug (isValidZoneSlug), the canonical NAP-zone hash route
+// `#/zone/<slug>` is appended to the hardened URL so the destination's
+// parseZoneRoute resolves the NAP zone the traveller lands in.
 
 import { hardenSpawnUrl, appendTraveller } from './urlHarden.js';
+import { isValidZoneSlug } from './zoneRoute.js';
 
-// buildVisitUrl(world, { ourHex, allowPrivate }) → { ok, url, errors }.
+// buildVisitUrl(world, { ourHex, allowPrivate, zoneSlug }) → { ok, url, errors }.
 //   world        — a gateway preview object carrying `.website` (an https URL, as
 //                 surfaced by gatewayRead.extractGatewayFromEvent via
 //                 safeProfileUrl). Non-https / blank → ok:false.
@@ -32,7 +36,12 @@ import { hardenSpawnUrl, appendTraveller } from './urlHarden.js';
 //   allowPrivate — boolean; passed through to hardenSpawnUrl so a dev/staging
 //                 host (localhost / *.pplx.app) can visit private-range worlds.
 //                 Default false (production-safe: private hosts rejected).
-export function buildVisitUrl(world, { ourHex = '', allowPrivate = false } = {}) {
+//   zoneSlug     — optional; a valid zone slug (isValidZoneSlug). When valid,
+//                 the canonical hash route `#/zone/<slug>` is appended AFTER
+//                 hardening + traveller append, so the destination's
+//                 parseZoneRoute resolves the NAP zone. An invalid/absent slug
+//                 leaves the URL unchanged (ok:true still). Never throws.
+export function buildVisitUrl(world, { ourHex = '', allowPrivate = false, zoneSlug = null } = {}) {
   const errors = [];
   const out = { ok: false, url: null, errors };
   if (!world || typeof world !== 'object') {
@@ -61,6 +70,21 @@ export function buildVisitUrl(world, { ourHex = '', allowPrivate = false } = {})
     out.url = tagged.url;
   } else {
     out.url = hardened.url;
+  }
+  // NAP-zone routing (Phase 0c): when a valid zoneSlug is provided, append the
+  // canonical hash route `#/zone/<slug>` so the destination's parseZoneRoute
+  // resolves the NAP zone and the traveller lands there. The hash fragment is
+  // never sent to the server, so the destination's root shell still serves.
+  // An invalid/absent slug leaves the URL unchanged (ok:true still). Never
+  // throws — a malformed URL here is unreachable (it just passed hardenSpawnUrl).
+  if (isValidZoneSlug(zoneSlug)) {
+    try {
+      const u = new URL(out.url);
+      u.hash = `/zone/${zoneSlug}`;
+      out.url = u.href;
+    } catch {
+      /* unreachable: out.url already hardened — keep the pre-hash URL */
+    }
   }
   out.ok = true;
   return out;

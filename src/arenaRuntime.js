@@ -461,6 +461,14 @@ export function createArenaRuntime(hooks = {}) {
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
     : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
+  // Phase 0c: the persistent Torii menu hooks (KeyM in-game). The shell owns the
+  // menu DOM + getState; arenaRuntime just calls these (it must NOT create its own
+  // menu DOM). openToriiMenu({ onClose }) opens the shared menu element; the
+  // onClose resume is wired below. Defaults are no-ops so a shell without the menu
+  // still works (mirrors the getGatewayScreenState fallback).
+  const openToriiMenuHook = typeof hooks.openToriiMenu === 'function' ? hooks.openToriiMenu : null;
+  const closeToriiMenuHook = typeof hooks.closeToriiMenu === 'function' ? hooks.closeToriiMenu : () => {};
+  const isToriiMenuOpenHook = typeof hooks.isToriiMenuOpen === 'function' ? hooks.isToriiMenuOpen : () => false;
 
   let _booted = false;
 
@@ -595,6 +603,22 @@ export function createArenaRuntime(hooks = {}) {
   }
   function _closeGatewayScreen() {
     closeGatewayScreen(); // triggers its onClose → _resume
+  }
+
+  // ── In-world Torii menu (KeyM, Phase 0c) ────────────────────────────────────
+  // The SAME menu element the title-screen burger button opens; arenaRuntime just
+  // calls the injected hook (it owns no menu DOM). Pause on open + exitPointerLock
+  // (mirror _openGatewayScreen); resume on close via the onClose callback. Works
+  // whenever playing OR paused, independent of the portal (unlike KeyF).
+  function _openToriiMenu() {
+    if (!openToriiMenuHook || isToriiMenuOpenHook()) return;
+    if (!isPlaying() && !isPaused()) return; // only when in-game (playing/paused)
+    if (isPlaying()) { if (!transition(GAME_EVENT.PAUSE)) return; } // PLAYING → PAUSED
+    document.exitPointerLock?.();
+    openToriiMenuHook({ onClose: () => _resume() });
+  }
+  function _closeToriiMenu() {
+    closeToriiMenuHook(); // triggers its onClose → _resume
   }
 
   function _openPause() {
@@ -1047,6 +1071,14 @@ export function createArenaRuntime(hooks = {}) {
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
       _escapeHandledOnKeyDown = true;
+      // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
+      // pause), mirroring the gateway-screen-first ordering below.
+      if (isToriiMenuOpenHook()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _closeToriiMenu();
+        return;
+      }
       if (isGatewayScreenOpen()) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1097,6 +1129,17 @@ export function createArenaRuntime(hooks = {}) {
       // v2: the ground/air-aware fly orchestration lives in player.js (hop from
       // ground, stop-mid-air / glide handoff in the air).
       flyToggleFromInput();
+    });
+
+    // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR
+    // paused, independent of the portal (unlike KeyF). Pressing M again while the
+    // menu is open closes it (toggle). Pause on open + exitPointerLock; resume on
+    // close. ESC closes the menu first (handled above) before pause.
+    onKeyDown(code => {
+      if (code !== 'KeyM') return;
+      if (!isPlaying() && !isPaused()) return;
+      if (isToriiMenuOpenHook()) { _closeToriiMenu(); return; }
+      _openToriiMenu();
     });
 
     const elResumeBtn = document.getElementById('btn-resume');

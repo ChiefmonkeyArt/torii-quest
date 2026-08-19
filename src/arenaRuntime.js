@@ -74,7 +74,7 @@ import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
 import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
-import { buildWorldTerrain } from './engine/world/worldTerrain.js';
+import { buildWorldTerrain, loadWorldTerrainData } from './engine/world/worldTerrain.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
@@ -876,6 +876,33 @@ export function createArenaRuntime(hooks = {}) {
           _minimal = true;
           _minimalWorld = resolved.world;
           _worldId = worldId;
+          // Phase 0k.5: PREFLIGHT the terrain source/data BEFORE committing to the
+          // minimal world. If the world declares a terrain but the source can't be
+          // loaded or the heights are invalid (bad length, non-finite, wrong
+          // export), fall back to the FULL LEGACY buildArena() — which has its own
+          // procedural terrain — NOT a flat minimal platform. The ground must match
+          // the world author's intent; a present-but-unbuildable terrain is a data
+          // failure, so the legacy arena (with terrain) is the correct fallback.
+          // (Runtime Rapier/THREE failures later are a separate, rarer case — those
+          // warn + keep the platform collider, since physics may not be ready yet.)
+          if (resolved.world.terrain) {
+            try {
+              const preflightLoader = makeTerrainLoader({
+                worldId: _worldId,
+                fetchImpl: fetch,
+                importModule: (url) => import(/* @vite-ignore */ url),
+                resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+              });
+              const preflight = await loadWorldTerrainData(resolved.world.terrain, { loadTerrainSource: preflightLoader });
+              if (!preflight.ok) {
+                console.warn('[world] terrain preflight failed; falling back to legacy arena:', preflight.error);
+                _minimal = false; _minimalWorld = null; _worldId = '';
+              }
+            } catch (e) {
+              console.warn('[world] terrain preflight threw; falling back to legacy arena:', e && e.message ? e.message : e);
+              _minimal = false; _minimalWorld = null; _worldId = '';
+            }
+          }
         }
       }
     } catch (e) {

@@ -140,7 +140,7 @@ describe('handshakeController — host side', () => {
     await c.tick();
     expect(c.view().mode).toBe('incoming');
     expect(c.view().actions).toEqual(expect.arrayContaining(['accept', 'deny']));
-    const r = await c.respondIncoming(true, { spawn: 'https://quest-torii.pplx.app' });
+    const r = await c.respondIncoming(true, { spawn: 'https://chiefmonkey.art/quest' });
     expect(r.ok).toBe(true);
     expect(publishedResponse.pubkey).toBe(HOST); // host signs
     expect(publishedResponse.tags).toContainEqual(['state', 'accepted']);

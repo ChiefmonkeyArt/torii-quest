@@ -106,7 +106,7 @@ describe('rc-snapshot — assembly + verdict', () => {
   it('FREEZE-CANDIDATE when the RC gate is a candidate and the dry-run is not blocked', () => {
     const m = buildRcSnapshotModel({
       version: V, packageVersion: '0.2.210-alpha', gitCommit: 'abc1234',
-      liveUrl: 'https://torii-quest.pplx.app',
+      liveUrl: 'https://chiefmonkey.art/quest',
       rcGate: readyGate, mvpReadiness: readyMvp, dryRun: nearDryRun,
       testStatus: { passing: 1342, files: 85, profile: 'full' },
       regression: { count: 15, expected: 15 },
@@ -182,7 +182,7 @@ describe('rc-snapshot — assembly + verdict', () => {
 
 describe('rc-snapshot — formatters', () => {
   const model = buildRcSnapshotModel({
-    version: V, gitCommit: 'abc1234', liveUrl: 'https://torii-quest.pplx.app',
+    version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art/quest',
     rcGate: readyGate, mvpReadiness: readyMvp, dryRun: nearDryRun,
     testStatus: { passing: 1342, files: 85, profile: 'full' },
     regression: { count: 15, expected: 15 },

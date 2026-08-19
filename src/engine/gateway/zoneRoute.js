@@ -6,7 +6,7 @@
 // maps a valid zone to an INERT local display state (title + placeholder notice).
 //
 // CANONICAL ROUTE = `/#/zone/<slug>` (URL FRAGMENT, v0.2.244). The published static host
-// (torii-quest.pplx.app) serves by EXACT static-asset path with NO SPA rewrite and NO
+// (chiefmonkey.art/quest) serves by EXACT static-asset path with NO SPA rewrite and NO
 // directory-index: it returns a JSON 404 for BOTH `/zone/<slug>` AND `/zone/<slug>/`, so
 // EVERY `/zone/*` PATH strategy fails live (v0.2.242 extensionless file → octet-stream
 // download; v0.2.243 directory-index shell → 404). Only the root path `/` reliably serves
@@ -52,7 +52,7 @@ export const ZONE_ROUTE_PREFIX = '/zone/';
 
 // The CANONICAL route prefix the portal trigger pushes (v0.2.244): a hash-fragment route
 // `/#/zone/<slug>`. The fragment is never sent to the server, so the request path stays `/`
-// and the root shell always renders — the only host-safe form on torii-quest.pplx.app.
+// and the root shell always renders — the only host-safe form on chiefmonkey.art/quest.
 export const ZONE_CANONICAL_PREFIX = '/#/zone/';
 
 // Max slug length (mirrors handoffPlan's SLUG_MAX_LEN so a route this parser accepts
@@ -214,7 +214,7 @@ export const DEMO_ZONE_ROUTE = '/#/zone/plebeian-market-bazaar';
 // DEPLOYABLE_ZONE_SLUGS — the zone slugs the app knows how to resolve client-side. Since
 // v0.2.244 the canonical route is the hash form `/#/zone/<slug>` (request path always `/`),
 // so NO per-slug static shell is generated: the published exact-path host
-// (torii-quest.pplx.app) has no SPA rewrite and no directory index and 404s every `/zone/*`
+// (chiefmonkey.art/quest) has no SPA rewrite and no directory index and 404s every `/zone/*`
 // PATH (both the v0.2.242 extensionless file and the v0.2.243 directory-index shell failed
 // live), while the root `/` always serves index.html as `text/html`. The hash fragment is
 // never sent to the server, so the root shell renders and the parser resolves the slug.

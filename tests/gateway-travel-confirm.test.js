@@ -21,13 +21,13 @@ const goodDest = (over = {}) => ({ zoneId: 'nap-garden', title: 'The Nap Garden'
 describe('sanitizeDestination', () => {
   it('builds a sanitised destination from a clean descriptor', () => {
     const r = sanitizeDestination(goodDest({
-      website: 'https://torii-quest.pplx.app/g', relays: ['wss://relay.example.com'],
+      website: 'https://chiefmonkey.art/quest/g', relays: ['wss://relay.example.com'],
     }));
     expect(r.ok).toBe(true);
     expect(r.destination.zoneId).toBe('nap-garden');
     expect(r.destination.title).toBe('The Nap Garden');
     expect(r.destination.zoneType).toBe('nap');
-    expect(r.destination.website).toBe('https://torii-quest.pplx.app/g');
+    expect(r.destination.website).toBe('https://chiefmonkey.art/quest/g');
     expect(r.destination.relays).toEqual(['wss://relay.example.com/']);
   });
 

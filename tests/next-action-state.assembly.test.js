@@ -25,7 +25,7 @@ describe('buildNextActionState — assembly', () => {
     expect(s.version).toBe(V);
     expect(s.packageVersion).toBe(PKG);
     expect(s.gitCommit).toBe('abc1234');
-    expect(s.liveUrl).toBe('https://torii-quest.pplx.app');
+    expect(s.liveUrl).toBe('https://chiefmonkey.art/quest');
     expect(s.release.ready).toBe(true);
     expect(s.release.gateStatus).toBe('READY');
     expect(s.release.gateCommand).toBe('npm run test:release');

@@ -6,7 +6,7 @@
   "version": "v0.2.606-alpha",
   "packageVersion": "0.2.606-alpha",
   "gitCommit": "31ceefe",
-  "liveUrl": "https://torii-quest.pplx.app",
+  "liveUrl": "https://chiefmonkey.art/quest",
   "release": {
     "ready": true,
     "gateStatus": "READY",
@@ -103,8 +103,8 @@
   "controlPanel": {
     "green": true,
     "version": "v0.2.606-alpha",
-    "liveUrl": "https://torii-quest.pplx.app",
-    "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
+    "liveUrl": "https://chiefmonkey.art/quest",
+    "dashboardUrl": "https://chiefmonkey.art/quest/dashboard.html",
     "entrySmoke": {
       "result": "pass",
       "pass": true,

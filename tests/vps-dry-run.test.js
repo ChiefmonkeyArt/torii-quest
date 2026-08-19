@@ -29,7 +29,7 @@ try_files {path} /index.html for /zone/ paths
 `;
 const GOOD_UPDATE = `metadata points at ${REAL_REPO_SLUG}`;
 const GOOD_HANDOFF = `
-Live: https://torii-quest.pplx.app self-hosted at torii.quest
+Live: https://chiefmonkey.art/quest self-hosted at torii.quest
 try_files $uri /index.html for /zone/ deep links
 `;
 
@@ -48,7 +48,7 @@ describe('constants', () => {
     expect(REQUIRED_VPS_SECTIONS).toEqual(expect.arrayContaining(['rollback', 'security']));
     expect(REQUIRED_BUILD_COMMANDS).toContain('npm run build');
     expect(REAL_REPO_SLUG).toBe('ChiefmonkeyArt/torii-quest');
-    expect(LIVE_URLS).toEqual(expect.arrayContaining(['torii.quest', 'torii-quest.pplx.app']));
+    expect(LIVE_URLS).toEqual(expect.arrayContaining(['torii.quest', 'chiefmonkey.art/quest']));
   });
 });
 

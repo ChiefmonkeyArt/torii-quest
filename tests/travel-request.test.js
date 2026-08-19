@@ -48,7 +48,7 @@ describe('buildTravelRequest', () => {
       fromZone: 'quest-torii',
       playerNpub: 'npub1' + 'a'.repeat(56),
       relays: ['wss://relay.damus.io'],
-      spawn: 'https://quest-torii.pplx.app',
+      spawn: 'https://chiefmonkey.art/quest',
       requestId: 'req-1',
     });
     expect(ok).toBe(true);

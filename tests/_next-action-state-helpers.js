@@ -8,7 +8,7 @@ export const handoff = (over = {}) => ({
   schema: 'torii.agent-handoff', schemaVersion: 1, generatedAt: null,
   badge: 'AGENT HANDOFF READINESS · LOCAL · READ-ONLY',
   version: V, packageVersion: PKG, gitCommit: 'abc1234',
-  liveUrl: 'https://torii-quest.pplx.app',
+  liveUrl: 'https://chiefmonkey.art/quest',
   gate: {
     statusLabel: 'READY', ready: true, gateCommand: 'npm run test:release',
     blockers: [], regression: { count: 15, expected: 15 },

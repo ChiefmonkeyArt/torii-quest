@@ -13,8 +13,8 @@
 // I/O — so the --write target resolver stays in this pure layer and is unit-tested.)
 import { isAbsolute, resolve, relative, sep } from 'node:path';
 
-// The live instance (a Perplexity Space). Display text for the handoff, NOT a fetched URL.
-export const HANDOFF_SUMMARY_LIVE_URL = 'https://torii-quest.pplx.app';
+// The live instance (VPS at chiefmonkey.art). Display text for the handoff, NOT a fetched URL.
+export const HANDOFF_SUMMARY_LIVE_URL = 'https://chiefmonkey.art/quest';
 
 // Shared, non-misleading wording for the stamped source commit (this brief is generated
 // before its own commit — see tools/commitStamp.mjs).

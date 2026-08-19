@@ -241,7 +241,7 @@ export const DEMO_HANDOFF_INPUT = Object.freeze({
     title: 'The Nap Garden',
     zoneType: 'nap',
     npub: 'npub1demo000000000000000000000000000000000000000000000000000',
-    website: 'https://torii-quest.pplx.app/nap-garden',
+    website: 'https://chiefmonkey.art/quest/nap-garden',
     relays: Object.freeze(['wss://relay.example.com']),
   }),
   origin: 'debug-shell',

@@ -6,10 +6,10 @@ import { hardenSpawnUrl, appendTraveller } from '../src/engine/gateway/urlHarden
 
 describe('urlHarden — hardenSpawnUrl accept path', () => {
   it('accepts a clean https URL and re-emits the canonical href', () => {
-    const r = hardenSpawnUrl('https://quest-torii.pplx.app');
+    const r = hardenSpawnUrl('https://arena.chiefmonkey.art');
     expect(r.ok).toBe(true);
     expect(r.errors).toEqual([]);
-    expect(r.url).toBe('https://quest-torii.pplx.app/');
+    expect(r.url).toBe('https://arena.chiefmonkey.art/');
   });
 
   it('preserves path + query on a valid https URL', () => {
@@ -18,8 +18,8 @@ describe('urlHarden — hardenSpawnUrl accept path', () => {
     expect(r.url).toBe('https://example.com/zone/nap?to=world-2');
   });
 
-  it('accepts a pplx.app host with a subdomain', () => {
-    const r = hardenSpawnUrl('https://other-host.pplx.app/');
+  it('accepts a subdomain host', () => {
+    const r = hardenSpawnUrl('https://other.chiefmonkey.art/');
     expect(r.ok).toBe(true);
   });
 });
@@ -102,23 +102,23 @@ describe('urlHarden — hardenSpawnUrl reject path (credentials / private hosts)
 
 describe('urlHarden — hardenSpawnUrl allowlist', () => {
   it('accepts a host on the allowlist', () => {
-    const r = hardenSpawnUrl('https://quest-torii.pplx.app/', {
-      allowHosts: ['quest-torii.pplx.app'],
+    const r = hardenSpawnUrl('https://arena.chiefmonkey.art/', {
+      allowHosts: ['arena.chiefmonkey.art'],
     });
     expect(r.ok).toBe(true);
   });
 
   it('rejects a host NOT on the allowlist (case-insensitive match)', () => {
     const r = hardenSpawnUrl('https://evil.example.com/', {
-      allowHosts: ['quest-torii.pplx.app'],
+      allowHosts: ['arena.chiefmonkey.art'],
     });
     expect(r.ok).toBe(false);
     expect(r.errors).toContain('host-not-allowlisted');
   });
 
   it('allowlist match is case-insensitive', () => {
-    const r = hardenSpawnUrl('https://Quest-Torii.PPLX.app/', {
-      allowHosts: ['quest-torii.pplx.app'],
+    const r = hardenSpawnUrl('https://Arena.ChiefMonkey.ART/', {
+      allowHosts: ['arena.chiefmonkey.art'],
     });
     expect(r.ok).toBe(true);
   });
@@ -143,8 +143,8 @@ describe('urlHarden — hardenSpawnUrl port enforcement (v0.2.260 S2)', () => {
   });
 
   it('rejects an allowlisted host that uses a non-default port (host + port enforced independently)', () => {
-    const r = hardenSpawnUrl('https://quest-torii.pplx.app:8443/', {
-      allowHosts: ['quest-torii.pplx.app'],
+    const r = hardenSpawnUrl('https://arena.chiefmonkey.art:8443/', {
+      allowHosts: ['arena.chiefmonkey.art'],
     });
     expect(r.ok).toBe(false);
     expect(r.errors).toContain('non-default-port-rejected');
@@ -154,7 +154,7 @@ describe('urlHarden — hardenSpawnUrl port enforcement (v0.2.260 S2)', () => {
 describe('urlHarden — appendTraveller', () => {
   const PK = 'a'.repeat(64);
   it('appends the traveller pubkey as a query param', () => {
-    const r = appendTraveller('https://quest-torii.pplx.app/', PK);
+    const r = appendTraveller('https://arena.chiefmonkey.art/', PK);
     expect(r.ok).toBe(true);
     expect(r.url).toContain('torii-traveller=' + PK);
   });

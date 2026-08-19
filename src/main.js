@@ -556,7 +556,7 @@ document.addEventListener('keydown', (e) => {
 // traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
 // reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
 // default path. allowPrivate is gated on the dev/staging domain (localhost /
-// *.pplx.app) so production stays private-host-rejecting.
+// *.chiefmonkey.art) so production stays private-host-rejecting.
 //
 // Phase 0c: opts.zoneSlug (a valid NAP-zone slug) is forwarded to buildVisitUrl so
 // the canonical hash route `#/zone/<slug>` is appended — visiting lands in the
@@ -566,7 +566,9 @@ function _gwOpenVisit(world, opts) {
   const allowPrivate = (() => {
     try {
       const h = (typeof location !== 'undefined' && location.hostname) || '';
-      return h === 'localhost' || h.endsWith('.pplx.app');
+      // Dev/staging only: localhost can visit private-range worlds. Production
+      // hosts (chiefmonkey.art and other Torii nodes) stay production-safe.
+      return h === 'localhost';
     } catch { return false; }
   })();
   const zoneSlug = opts && typeof opts.zoneSlug === 'string' ? opts.zoneSlug : null;

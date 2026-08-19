@@ -59,7 +59,7 @@ describe('release-package — constants', () => {
 describe('release-package — assembly', () => {
   it('folds version/commit/live/tests + a present map into an index model', () => {
     const m = buildReleasePackageModel({
-      version: V, gitCommit: 'abc1234', liveUrl: 'https://torii-quest.pplx.app',
+      version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art/quest',
       testStatus: { passing: 1310, files: 83, profile: 'full' },
       regression: { count: 15, expected: 15 },
       present: { 'release-notes': true, todo: false },
@@ -68,7 +68,7 @@ describe('release-package — assembly', () => {
     expect(m.index).toBe(true);
     expect(m.version).toBe(V);
     expect(m.gitCommit).toBe('abc1234');
-    expect(m.liveUrl).toBe('https://torii-quest.pplx.app');
+    expect(m.liveUrl).toBe('https://chiefmonkey.art/quest');
     expect(m.tests).toMatchObject({ passing: 1310, files: 83, profile: 'full' });
     expect(m.regression).toMatchObject({ count: 15, expected: 15 });
     expect(m.entries.length).toBe(RELEASE_PACKAGE_ENTRIES.length);
@@ -109,7 +109,7 @@ describe('release-package — assembly', () => {
 describe('release-package — formatters', () => {
   it('text block carries badge, version, files, advisories, and next action', () => {
     const m = buildReleasePackageModel({
-      version: V, gitCommit: 'abc1234', liveUrl: 'https://torii-quest.pplx.app',
+      version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art/quest',
       testStatus: { passing: 1310, files: 83, profile: 'full' },
       present: { 'release-notes': true },
       generatedAt: '2026-06-26T00:00:00Z',

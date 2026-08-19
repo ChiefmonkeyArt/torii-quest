@@ -226,7 +226,7 @@ describe('handoff / release control panel section (v0.2.233)', () => {
   it('renders the curated handoff panel section with version, live URLs, and principles', () => {
     const html = renderToriiQuestPage();
     expect(html).toContain('Handoff / release control panel');
-    expect(html).toContain('torii-quest.pplx.app');
+    expect(html).toContain('chiefmonkey.art/quest');
     expect(html).toContain('dashboard.html');
     // The curated panel is a complete (green) surface with the blocker still pending.
     expect(html).toContain('HANDOFF READY');

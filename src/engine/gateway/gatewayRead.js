@@ -340,7 +340,7 @@ export const DEMO_GATEWAY_EVENTS = Object.freeze([
       description: 'A quiet NAP zone to rest between arenas.',
       zoneType: 'nap',
       npub: 'npub1chiefmonkeyexampledestinationrecord00000000000000',
-      website: 'https://torii-quest.pplx.app/nap-garden',
+      website: 'https://chiefmonkey.art/quest/nap-garden',
       relays: ['wss://relay.example.com', 'wss://relay.example.com'],
       topics: [GATEWAY_TOPIC, 'nap'],
     }),

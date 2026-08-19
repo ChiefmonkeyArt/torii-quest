@@ -34,7 +34,7 @@ import { isValidZoneSlug } from './zoneRoute.js';
 //                 appended as ?torii-traveller=<hex64>. If absent/blank, the
 //                 visit URL is still returned (anonymous hop).
 //   allowPrivate — boolean; passed through to hardenSpawnUrl so a dev/staging
-//                 host (localhost / *.pplx.app) can visit private-range worlds.
+//                 host (localhost / *.chiefmonkey.art) can visit private-range worlds.
 //                 Default false (production-safe: private hosts rejected).
 //   zoneSlug     — optional; a valid zone slug (isValidZoneSlug). When valid,
 //                 the canonical hash route `#/zone/<slug>` is appended AFTER

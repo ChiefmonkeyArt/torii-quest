@@ -80,13 +80,13 @@ describe('playtest-checklist — constants', () => {
 describe('playtest-checklist — assembly', () => {
   it('builds a model that carries the curated checklist + stamped header', () => {
     const m = buildPlaytestChecklistModel({
-      version: V, gitCommit: 'abc1234', liveUrl: 'https://torii-quest.pplx.app',
+      version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art/quest',
     });
     expect(m.schema).toBe('torii.playtest-checklist');
     expect(m.manual).toBe(true);
     expect(m.version).toBe(V);
     expect(m.gitCommit).toBe('abc1234');
-    expect(m.liveUrl).toBe('https://torii-quest.pplx.app');
+    expect(m.liveUrl).toBe('https://chiefmonkey.art/quest');
     expect(m.sections.length).toBe(PLAYTEST_CHECKLIST_SECTIONS.length);
     expect(m.itemCount).toBe(playtestItemCount());
     expect(m.advisories.length).toBe(PLAYTEST_CHECKLIST_ADVISORIES.length);
@@ -113,7 +113,7 @@ describe('playtest-checklist — assembly', () => {
 describe('playtest-checklist — formatters', () => {
   it('text block carries badge, how-to, checkboxes, result fields, and advisories', () => {
     const m = buildPlaytestChecklistModel({
-      version: V, liveUrl: 'https://torii-quest.pplx.app',
+      version: V, liveUrl: 'https://chiefmonkey.art/quest',
       generatedAt: '2026-06-26T00:00:00Z',
     });
     const txt = formatPlaytestChecklist(m);

@@ -1,5 +1,5 @@
 // tests/zone-hard-refresh.test.js — the v0.2.244 HOST-SAFE canonical zone route. The
-// published exact-path static host (torii-quest.pplx.app) has NO SPA rewrite and NO
+// published exact-path static host (chiefmonkey.art/quest) has NO SPA rewrite and NO
 // directory index: it returns a JSON 404 for BOTH `/zone/<slug>` AND `/zone/<slug>/`, so
 // every `/zone/*` PATH strategy failed live (v0.2.242 extensionless file → octet-stream
 // download; v0.2.243 directory-index shell → 404). Only the root `/` reliably serves

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 // The CSP ships as an HTTP RESPONSE HEADER, never a <meta> tag. It is emitted in three
 // places, all derived from CSP_VALUE here so they cannot drift:
 //   1. dist/_headers  — written at build by the vite plugin; honoured by the static host
-//      (S3 / torii-quest.pplx.app, Netlify/Cloudflare-style `_headers`).
+//      (S3 / chiefmonkey.art/quest, Netlify/Cloudflare-style `_headers`).
 //   2. the Vite preview server (production-parity local serving).
 //   3. the Caddy / Nginx server blocks documented in VPS_INSTALL.md (VPS deploy path).
 //

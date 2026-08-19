@@ -27,8 +27,8 @@
 //     live Nostr write is ever implied.
 
 // The two live URLs the gate names so a tester knows where to run the manual playtest.
-export const MVP_GATE_LIVE_URL = 'https://torii-quest.pplx.app';
-export const MVP_GATE_DASHBOARD_URL = 'https://torii-quest.pplx.app/dashboard.html';
+export const MVP_GATE_LIVE_URL = 'https://chiefmonkey.art/quest';
+export const MVP_GATE_DASHBOARD_URL = 'https://chiefmonkey.art/quest/dashboard.html';
 
 export const MVP_APPROVAL_GATE_BADGE =
   'MVP APPROVAL GATE · LOCAL · READ-ONLY · GREEN CHECKS ≠ HUMAN APPROVAL';

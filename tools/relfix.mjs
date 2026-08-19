@@ -1,5 +1,5 @@
 // Post-build: rewrite absolute /assets/ and runtime /foo.ext asset refs to
-// relative paths so the dist works under a subpath deploy (e.g. sites.pplx.app
+// relative paths so the dist works under a subpath deploy (e.g. static-host example
 // proxy or any non-root hosting).
 //
 // Depth-aware: a file in dist/assets/ referencing /assets/X must resolve to

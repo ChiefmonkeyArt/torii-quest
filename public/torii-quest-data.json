@@ -1,6 +1,6 @@
 {
   "version": "v0.2.606-alpha",
-  "generatedAt": "2026-08-19T19:44:25.410Z",
+  "generatedAt": "2026-08-19T20:57:41.175Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.606-alpha",
-    "gitCommit": "689516d",
+    "gitCommit": "9565fe8",
     "signals": [
       {
         "key": "versionSync",
@@ -566,11 +566,11 @@
       },
       {
         "label": "Live game",
-        "value": "https://torii-quest.pplx.app"
+        "value": "https://chiefmonkey.art/quest"
       },
       {
         "label": "Live dashboard",
-        "value": "https://torii-quest.pplx.app/dashboard.html"
+        "value": "https://chiefmonkey.art/quest/dashboard.html"
       },
       {
         "label": "Entry smoke",

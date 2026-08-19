@@ -24,7 +24,7 @@ const summary = () => ({
   version: V,
   packageVersion: PKG,
   gitCommit: 'abc1234',
-  liveUrl: 'https://torii-quest.pplx.app',
+  liveUrl: 'https://chiefmonkey.art/quest',
   gate: {
     status: 'ready', statusLabel: 'READY', ready: true,
     gateCommand: 'npm run test:release', blockers: [], unknowns: [],
@@ -90,7 +90,7 @@ describe('buildAgentHandoff — assembly', () => {
     expect(h.version).toBe(V);
     expect(h.packageVersion).toBe(PKG);
     expect(h.gitCommit).toBe('abc1234');
-    expect(h.liveUrl).toBe('https://torii-quest.pplx.app');
+    expect(h.liveUrl).toBe('https://chiefmonkey.art/quest');
     expect(h.gate.statusLabel).toBe('READY');
     expect(h.gate.ready).toBe(true);
     expect(h.gate.regression).toEqual({ count: 15, expected: 15 });

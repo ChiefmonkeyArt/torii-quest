@@ -111,7 +111,7 @@ export const GAMESTR_ENABLED = false;
 // TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.
 // Ships FALSE by default (see MP_1_SPEC.md §6). An admin can toggle it at
 // runtime from Instance Settings; a per-zone flag can further narrow scope.
-export const MP_ENABLED     = true; // MP-1.5: sandbox-hosted arena, live on quest-torii.pplx.app
+export const MP_ENABLED     = true; // MP-1.5: VPS-hosted arena, live on chiefmonkey.art/quest
 // MP-1 WebSocket relative path on the operator's domain. Combined with
 // window.location.host at runtime — no client-side URL config.
 export const MP_WS_PATH     = '/mp';

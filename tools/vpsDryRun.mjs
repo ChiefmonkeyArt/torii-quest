@@ -39,7 +39,7 @@ export const REQUIRED_BUILD_COMMANDS = Object.freeze(['npm run build', 'npm run 
 export const REAL_REPO_SLUG = `${DEFAULT_SOURCE.owner}/${DEFAULT_SOURCE.repo}`;
 
 // The live deploy targets that should be unambiguous in the handoff docs.
-export const LIVE_URLS = Object.freeze(['torii.quest', 'torii-quest.pplx.app']);
+export const LIVE_URLS = Object.freeze(['torii.quest', 'chiefmonkey.art/quest']);
 
 const PASS = 'pass';
 const FAIL = 'fail';

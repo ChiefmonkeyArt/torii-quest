@@ -22,7 +22,7 @@ function readyInputs(over = {}) {
     version: V, packageVersion: PKG, gitCommit: 'abc1234',
     cleanTree: true, pushed: true,
     releaseNotesPresent: true, releasePackagePresent: true,
-    gateReady: true, liveUrl: 'https://torii-quest.pplx.app',
+    gateReady: true, liveUrl: 'https://chiefmonkey.art/quest',
     autoUpdateActionable: false,
     ...over,
   };

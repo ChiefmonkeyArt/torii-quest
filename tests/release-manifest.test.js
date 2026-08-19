@@ -68,7 +68,7 @@ describe('release-manifest — assembly + verdict', () => {
   it('COMPLETE when every required artifact is present', () => {
     const m = buildReleaseManifestModel({
       version: V, packageVersion: '0.2.212-alpha', gitCommit: 'abc1234',
-      liveUrl: 'https://torii-quest.pplx.app', artifacts: allPresent(),
+      liveUrl: 'https://chiefmonkey.art/quest', artifacts: allPresent(),
     });
     expect(m.schema).toBe('torii.release-manifest');
     expect(m.manifest).toBe(true);
@@ -133,7 +133,7 @@ describe('release-manifest — assembly + verdict', () => {
 describe('release-manifest — formatters', () => {
   const model = buildReleaseManifestModel({
     version: V, packageVersion: '0.2.212-alpha', gitCommit: 'abc1234',
-    liveUrl: 'https://torii-quest.pplx.app', artifacts: allPresent(),
+    liveUrl: 'https://chiefmonkey.art/quest', artifacts: allPresent(),
     reports: ['torii-v0.2.212-release-manifest-shellless-report.md'],
     generatedAt: '2026-06-26T00:00:00Z',
   });

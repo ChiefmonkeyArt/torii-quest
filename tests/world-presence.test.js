@@ -19,7 +19,7 @@ describe('buildPresenceEvent', () => {
       zoneId: 'quest-torii',
       title: 'Torii Quest',
       zoneType: 'arena',
-      website: 'https://quest-torii.pplx.app',
+      website: 'https://chiefmonkey.art/quest',
       relays: ['wss://relay.damus.io', 'wss://nos.lol'],
       npub: 'npub1' + 'a'.repeat(56),
     });
@@ -36,7 +36,7 @@ describe('buildPresenceEvent', () => {
     const content = JSON.parse(event.content);
     expect(content.zoneId).toBe('quest-torii');
     expect(content.title).toBe('Torii Quest');
-    expect(content.website).toBe('https://quest-torii.pplx.app/');
+    expect(content.website).toBe('https://chiefmonkey.art/quest');
     expect(content.relays).toEqual(['wss://relay.damus.io/', 'wss://nos.lol/']);
     // relay tags mirror the content relays.
     expect(event.tags.some((t) => t[0] === 'relay' && t[1] === 'wss://relay.damus.io/')).toBe(true);

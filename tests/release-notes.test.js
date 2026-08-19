@@ -73,13 +73,13 @@ describe('release-notes — assembly', () => {
   it('folds RC gate + rollup + handoff into a draft model', () => {
     const m = buildReleaseNotesModel({
       rcGate: rcGate(), mvpReadiness: rollup(), handoff: handoff(),
-      version: V, gitCommit: 'abc1234', liveUrl: 'https://torii-quest.pplx.app',
+      version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art/quest',
     });
     expect(m.schema).toBe('torii.release-notes');
     expect(m.draft).toBe(true);
     expect(m.version).toBe(V);
     expect(m.gitCommit).toBe('abc1234');
-    expect(m.liveUrl).toBe('https://torii-quest.pplx.app');
+    expect(m.liveUrl).toBe('https://chiefmonkey.art/quest');
     expect(m.candidate).toMatchObject({ present: true, status: 'READY', isCandidate: true, pct: 100 });
     expect(m.readiness).toMatchObject({ present: true, pct: 100, status: 'READY', ok: true });
     expect(m.sections.length).toBe(RELEASE_NOTES_SECTIONS.length);
@@ -124,7 +124,7 @@ describe('release-notes — formatters', () => {
   it('text block carries badge, candidate line, sections, and advisories', () => {
     const m = buildReleaseNotesModel({
       rcGate: rcGate(), mvpReadiness: rollup(), handoff: handoff(),
-      version: V, liveUrl: 'https://torii-quest.pplx.app',
+      version: V, liveUrl: 'https://chiefmonkey.art/quest',
       generatedAt: '2026-06-25T00:00:00Z',
     });
     const txt = formatReleaseNotes(m);

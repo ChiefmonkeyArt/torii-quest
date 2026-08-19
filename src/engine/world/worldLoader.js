@@ -1,19 +1,22 @@
 // engine/world/worldLoader.js — resolve + validate a data-driven world manifest
 // (Phase 0, open-world foundation). The loader half of the world layer: given a
-// world id, it fetches `${origin}/quest/worlds/${worldId}/world.json`, runs it
-// through validateWorld, and tells the caller whether to render from data
+// world id, it fetches the manifest at `<base>worlds/<worldId>/world.json` (where
+// <base> is the Vite deploy base — `/` in dev, `/quest/` on the Suite mount), runs
+// it through validateWorld, and tells the caller whether to render from data
 // (fallback:'none') or fall back to the legacy buildArena() path (fallback:
 // 'legacy'). This is the feature-flag seam: only when a world id is present
 // does the loader attempt a data-driven load; absent → the legacy path runs
 // unchanged, so nothing breaks.
 //
-// PURE + node-safe CORE: resolveWorldManifest takes an INJECTED fetchImpl and
-// an INJECTED origin — it never reads window/location and never touches the
-// DOM. A thin browser wrapper in main.js can pass `window.location.origin` and
-// the global `fetch`; tests pass a fake fetchImpl. It never throws — every
-// failure mode (blank id, fetch error, non-200, invalid JSON, invalid manifest)
-// resolves to { ok:false, fallback:'legacy' } so the host falls back to
-// buildArena() rather than crashing on a bad/missing manifest.
+// PURE + node-safe CORE: resolveWorldManifest takes an INJECTED fetchImpl and an
+// INJECTED baseUrl — it never reads window/location and never touches the DOM.
+// The manifest URL is built via assetUrl('worlds/<id>/world.json') so it resolves
+// in BOTH dev (vite base '/') AND prod (nginx/Suite base '/quest/'). A thin
+// browser wrapper in main.js can pass the global `fetch`; tests pass a fake
+// fetchImpl + a fake baseUrl. It never throws — every failure mode (blank id,
+// fetch error, non-200, invalid JSON, invalid manifest) resolves to
+// { ok:false, fallback:'legacy' } so the host falls back to buildArena() rather
+// than crashing on a bad/missing manifest.
 //
 // The ONE DOM-touching helper, readWorldIdFromDom(), is co-located here but is
 // clearly marked below — the pure core does NOT depend on it. It reads the
@@ -21,17 +24,48 @@
 // present → data-driven load; absent → legacy path.
 
 import { validateWorld } from './worldSchema.js';
+import { assetUrl } from '../../assetUrl.js';
 
 function _isBlank(v) { return v == null || v === ''; }
 
-// resolveWorldManifest({ worldId, fetchImpl, origin }) → { ok, world, source,
+// _manifestUrl(worldId, baseUrl) → string. Builds the base-relative manifest URL
+// `<base>worlds/<worldId>/world.json` where <base> is the injected `baseUrl` (a
+// Vite deploy base — `/` in dev, `/quest/` on the Suite mount) or, when not
+// injected, whatever assetUrl() resolves from import.meta.env.BASE_URL. The
+// browser path passes no baseUrl so this delegates to assetUrl() (the single
+// source of truth for base-relative asset paths, already used across the
+// codebase); tests inject a fixed baseUrl so the URL shape is deterministic
+// without depending on import.meta.env. The injected-base branch mirrors
+// assetUrl()'s normalisation (strip leading slashes, ensure trailing slash) so
+// both paths produce the identical URL shape. Pure; never throws.
+function _manifestUrl(worldId, baseUrl) {
+  const rel = `worlds/${worldId}/world.json`;
+  if (_isBlank(baseUrl) || typeof baseUrl !== 'string') {
+    // Browser path — let assetUrl read import.meta.env.BASE_URL (dev '/' or prod '/quest/').
+    return assetUrl(rel);
+  }
+  // Test path — inject a fixed base so the URL is deterministic in node.
+  const stripped = rel.replace(/^\/+/, '');
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return `${normalizedBase}${stripped}`;
+}
+
+// resolveWorldManifest({ worldId, fetchImpl, baseUrl }) → { ok, world, source,
 // fallback, errors? }. Pure; never throws.
 //   worldId    — string; blank → { ok:false, fallback:'legacy' } (caller uses buildArena).
 //   fetchImpl  — optional; defaults to the global `fetch`. Injected so tests
 //                can stub it and the leaf never imports a transport.
-//   origin     — string; the base the manifest URL is built from. A browser
-//                wrapper passes window.location.origin. Never read from window
-//                inside this leaf — it is injected.
+//   baseUrl    — optional string; the Vite deploy base used to build the manifest
+//                URL (defaults to import.meta.env.BASE_URL, falling back to '/'
+//                when that is unset — e.g. vitest's node env). The browser path
+//                passes nothing and lets assetUrl read import.meta.env.BASE_URL;
+//                tests inject a fixed baseUrl so the URL shape is deterministic.
+//                Never read from window inside this leaf — it is injected.
+//
+// The manifest URL is `assetUrl('worlds/<worldId>/world.json')` (base-relative)
+// so it resolves in dev (vite base '/') and prod (Suite base '/quest/'). When a
+// `baseUrl` is passed it overrides import.meta.env.BASE_URL inside assetUrl via
+// a local helper so the pure core stays deterministic in node tests.
 //
 // Returns:
 //   { ok:false, fallback:'legacy' }            — blank id / fetch fail / non-200 / invalid JSON
@@ -39,17 +73,14 @@ function _isBlank(v) { return v == null || v === ''; }
 //   { ok:true,  world, fallback:'legacy' }      — manifest valid but world.legacy === true
 //                                                  (renderer should still use buildArena)
 //   { ok:true,  world, fallback:'none' }        — manifest valid; render from data
-export function resolveWorldManifest({ worldId, fetchImpl, origin } = {}) {
+export function resolveWorldManifest({ worldId, fetchImpl, baseUrl } = {}) {
   if (_isBlank(worldId) || typeof worldId !== 'string') {
     return { ok: false, fallback: 'legacy' };
   }
   const fetchFn = typeof fetchImpl === 'function' ? fetchImpl : (typeof fetch === 'function' ? fetch : null);
   if (!fetchFn) return { ok: false, fallback: 'legacy' };
-  if (_isBlank(origin) || typeof origin !== 'string') {
-    return { ok: false, fallback: 'legacy' };
-  }
 
-  const url = `${origin}/quest/worlds/${worldId}/world.json`;
+  const url = _manifestUrl(worldId, baseUrl);
   let res;
   try {
     res = fetchFn(url);

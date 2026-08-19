@@ -10,6 +10,12 @@
        rewrites to import('/assets/torii-entry.js') so strict-dynamic covers the whole
        module graph. No third-party origin (Draco decoder vendored at /draco/, S4). -->
   <meta name="description" content="Torii Quest — an open-world arena shooter built on Nostr and Bitcoin. Sats. Shots. Sovereignty."/>
+  <!-- Phase 0b: the 3D homepage (gateway-blank minimal world). Uncomment to
+       activate the data-driven minimal world instead of the legacy arena. When
+       present, boot() fetches worlds/<content>/world.json and builds the small
+       space/cloud/gateway scene; absent (default) the legacy buildArena() path
+       runs unchanged. An operator/deploy choice — legacy stays the default. -->
+  <!-- <meta name="torii-world" content="gateway-blank" /> -->
   <meta property="og:title" content="Torii Quest"/>
   <meta property="og:description" content="An open-world arena shooter built on Nostr and Bitcoin. Sats. Shots. Sovereignty."/>
   <meta property="og:image" content="/torii-gate.png"/>

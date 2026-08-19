@@ -27,7 +27,7 @@
 // Allowed sky.type / platform.type / light.kind values (closed sets).
 const SKY_TYPES = Object.freeze(['space', 'clear', 'dusk']);
 const PLATFORM_TYPES = Object.freeze(['cloud', 'solid']);
-const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point']);
+const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point', 'hemisphere']);
 
 // Allowed object.type values (closed set). `gltf` loads a GLB/GLTF model; the
 // primitives (`box`/`cylinder`/`plane`) are placed meshes; `torii-gate` is a
@@ -230,6 +230,12 @@ export function validateWorld(data) {
       if (lIntensity !== undefined) light.intensity = lIntensity;
       const lPos = _toVec3(item.position);
       if (lPos) light.position = lPos;
+      // distance — optional, point lights only (legacy torii=10, travel=12, NAP=22).
+      const lDist = _toNum(item.distance);
+      if (lDist !== undefined && lDist > 0) light.distance = lDist;
+      // groundColor/skyColor — optional, hemisphere only (sky/ground fill).
+      const lGround = _toStr(item.groundColor);
+      if (lGround) light.groundColor = lGround;
       if (Object.keys(light).length) lights.push(light);
     }
     if (lights.length) world.lights = lights;

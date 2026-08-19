@@ -255,7 +255,8 @@ export function buildMinimalWorld(world, opts = {}) {
           created.push(dir);
         }
       } else if (light.kind === 'point') {
-        const pt = new T.PointLight(color, intensity, 30);
+        const dist = _numOr(light.distance, 30);
+        const pt = new T.PointLight(color, intensity, dist);
         if (Array.isArray(light.position)) {
           pt.position.set(
             _numOr(light.position[0], 0),
@@ -265,6 +266,13 @@ export function buildMinimalWorld(world, opts = {}) {
         }
         scene.add(pt);
         created.push(pt);
+      } else if (light.kind === 'hemisphere') {
+        // Sky/ground ambient fill. `color` is the sky color; `groundColor` the
+        // ground bounce (mirrors THREE.HemisphereLight(skyColor, groundColor, intensity)).
+        const groundHex = _parseColor(light.groundColor, 0xb9a06b, T);
+        const hemi = new T.HemisphereLight(color, new T.Color(groundHex), intensity);
+        scene.add(hemi);
+        created.push(hemi);
       }
     }
   }

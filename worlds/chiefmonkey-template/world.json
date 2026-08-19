@@ -48,27 +48,31 @@
       "type": "box",
       "position": [4, 0.5, -3],
       "scale": 1,
-      "color": "#8b5a2b"
+      "color": "#8b5a2b",
+      "collider": { "shape": "box", "size": [1, 1, 1] }
     },
     {
       "type": "box",
       "position": [5.2, 0.5, -2.2],
       "scale": 1,
       "rotation": [0, 0.6, 0],
-      "color": "#8b5a2b"
+      "color": "#8b5a2b",
+      "collider": { "shape": "box", "size": [1, 1, 1] }
     },
     {
       "type": "box",
       "position": [-5, 0.5, 2],
       "scale": 1.2,
-      "color": "#6b4423"
+      "color": "#6b4423",
+      "collider": { "shape": "box", "size": [1.2, 1.2, 1.2] }
     },
     {
       "type": "plane",
       "position": [0, 0.02, 0],
       "rotation": [-1.5708, 0, 0],
       "scale": [20, 0, 20],
-      "color": "#7a8a5a"
+      "color": "#7a8a5a",
+      "collider": { "shape": "box", "size": [20, 0.5, 20], "offset": [0, -0.25, 0] }
     }
   ]
 }

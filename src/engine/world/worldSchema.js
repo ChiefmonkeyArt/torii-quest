@@ -33,6 +33,12 @@ const LIGHT_KINDS = Object.freeze(['ambient', 'directional', 'point']);
 // primitives (`box`/`cylinder`/`plane`) are placed meshes; `torii-gate` is a
 // named alias that resolves to the chiefmonkey gate GLB (torii-gate.glb).
 const OBJECT_TYPES = Object.freeze(['gltf', 'box', 'cylinder', 'torii-gate', 'plane']);
+// Allowed collider.shape values (closed set, Phase 0i). `box` is a full-extent
+// cuboid (size = [x,y,z]); `cylinder` is a Y-axis cylinder (radius + height). A
+// malformed collider is SILENTLY OMITTED (the object stays valid + visual-only)
+// — it never pushes to errors, so a bad collider can never fail the whole world
+// (which would force fallback:legacy). Mirrors the optional scale/rotation style.
+const COLLIDER_SHAPES = Object.freeze(['box', 'cylinder']);
 // Hard cap on the objects array — a bad manifest must not create thousands of
 // meshes. Beyond this is a hard error (loud rejection, matching validateWorld's
 // strict style) so a malformed manifest is never silently truncated.
@@ -244,12 +250,62 @@ export function _safeModelPath(raw) {
   return s;
 }
 
+// _validateCollider(raw) → a normalised collider or undefined. Pure.
+// Validates the optional `collider` field of an objects[] entry (Phase 0i).
+// Returns a normalised { shape, size?/radius+height, offset, sensor } on success,
+// or undefined on ANY malformed field. CRITICAL contract: a malformed collider
+// is SILENTLY OMITTED — this helper NEVER pushes to `errors`. A bad collider must
+// not fail the whole world (which would force fallback:legacy); the object just
+// stays visual-only, exactly like a malformed optional `scale`/`rotation`.
+//   - absent / null / false / true / non-object → no collider (undefined).
+//   - shape: required, one of COLLIDER_SHAPES. Else undefined.
+//   - box: size [x,y,z] positive numbers (full extents). Else undefined.
+//   - cylinder: radius + height positive numbers. Else undefined.
+//   - offset: optional [x,y,z] numbers (any sign). Defaults to [0,0,0].
+//   - sensor: optional boolean. Defaults to false.
+function _validateCollider(raw) {
+  if (raw == null || raw === false || raw === true) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+
+  const shape = _toStr(raw.shape);
+  if (!shape || !COLLIDER_SHAPES.includes(shape)) return undefined;
+
+  const out = { shape };
+
+  if (shape === 'box') {
+    const size = _toVec3(raw.size);
+    if (!size) return undefined;
+    if (!(size[0] > 0 && size[1] > 0 && size[2] > 0)) return undefined;
+    out.size = size;
+  } else { // cylinder (Y-axis)
+    const radius = _toNum(raw.radius);
+    const height = _toNum(raw.height);
+    if (radius === undefined || height === undefined) return undefined;
+    if (!(radius > 0 && height > 0)) return undefined;
+    out.radius = radius;
+    out.height = height;
+  }
+
+  // offset — optional [x,y,z] numbers (any sign; a collider may sit below/above
+  // the object origin). Defaults to [0,0,0]. A malformed offset is dropped to the
+  // default rather than failing the whole collider (permissive, like scale).
+  const offset = _toVec3(raw.offset);
+  out.offset = offset || [0, 0, 0];
+
+  // sensor — optional boolean (a sensor collider reports contacts without
+  // physically blocking). A non-boolean is dropped to the default (false).
+  out.sensor = _isBool(raw.sensor) ? raw.sensor : false;
+
+  return out;
+}
+
 // _validateObject(item, index, errors) → a normalised object or null. Pure.
 // Validates a single objects[] entry. Required: `type` (closed set), `position`
 // ([x,y,z]). Optional: `rotation` ([x,y,z] radians), `scale` (number or
 // [x,y,z]), `color` (CSS hex string), `model` (required for `gltf`, forbidden
-// otherwise). A valid entry → a normalised object; invalid → an error is pushed
-// to `errors` + null returned (the caller drops it without failing the world).
+// otherwise), `collider` (Phase 0i; malformed → silently omitted). A valid entry
+// → a normalised object; invalid → an error is pushed to `errors` + null returned
+// (the caller drops it without failing the world).
 function _validateObject(item, index, errors) {
   const obj = {};
   const tag = `objects[${index}]`;
@@ -292,6 +348,13 @@ function _validateObject(item, index, errors) {
   // color — optional CSS hex string (validated like the existing color fields).
   const color = _toStr(item.color);
   if (color) obj.color = color;
+
+  // collider — optional per-object physics collider (Phase 0i). A malformed
+  // collider is SILENTLY OMITTED (the object stays valid + visual-only) — it
+  // never pushes to errors, so a bad collider can never fail the whole world.
+  // Mirrors the optional scale/rotation omit-on-bad-shape style.
+  const collider = _validateCollider(item.collider);
+  if (collider) obj.collider = collider;
 
   // model — required for type:'gltf', forbidden otherwise. For 'torii-gate' the
   // model is the named alias (torii-gate.glb) resolved by the renderer; a

@@ -360,3 +360,159 @@ describe('_safeModelPath (Phase 0e)', () => {
     expect(_safeModelPath('gate.txt')).toBeNull();
   });
 });
+
+// ── Phase 0i: optional `collider` field validation ────────────────────────────
+// A malformed collider is SILENTLY OMITTED (the object stays valid + visual-only)
+// — it never pushes to errors, so a bad collider can never fail the whole world
+// (which would force fallback:legacy). Mirrors the optional scale/rotation style.
+describe('validateWorld — objects collider validation (Phase 0i)', () => {
+  const baseWorld = { version: 1, id: 'col-test', name: 'Col Test' };
+
+  it('validates a box collider with size + offset + sensor', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'box', size: [2, 3, 4], offset: [1, 0, -1], sensor: true },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.errors).toEqual([]);
+    expect(r.world.objects[0].collider).toEqual({
+      shape: 'box', size: [2, 3, 4], offset: [1, 0, -1], sensor: true,
+    });
+  });
+
+  it('validates a cylinder collider with radius + height', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'cylinder', position: [0, 0, 0],
+        collider: { shape: 'cylinder', radius: 0.5, height: 2 },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toEqual({
+      shape: 'cylinder', radius: 0.5, height: 2, offset: [0, 0, 0], sensor: false,
+    });
+  });
+
+  it('defaults offset to [0,0,0] and sensor to false when omitted', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'box', size: [1, 1, 1] },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider.offset).toEqual([0, 0, 0]);
+    expect(r.world.objects[0].collider.sensor).toBe(false);
+  });
+
+  it('omits a collider with an unknown shape (object stays valid + visual-only)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'sphere', radius: 1 },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toBeUndefined();
+    expect(r.errors).toEqual([]); // silently omitted, no error pushed
+  });
+
+  it('omits a box collider missing the size field', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'box' },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toBeUndefined();
+    expect(r.errors).toEqual([]);
+  });
+
+  it('omits a box collider with non-positive size', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'box', size: [2, 0, 4] },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toBeUndefined();
+  });
+
+  it('omits a cylinder collider with non-positive radius/height', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [
+        { type: 'cylinder', position: [0, 0, 0], collider: { shape: 'cylinder', radius: -1, height: 2 } },
+        { type: 'cylinder', position: [1, 0, 0], collider: { shape: 'cylinder', radius: 1, height: 0 } },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toBeUndefined();
+    expect(r.world.objects[1].collider).toBeUndefined();
+  });
+
+  it('omits a collider that is not an object (true/false/string/array)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [
+        { type: 'box', position: [0, 0, 0], collider: true },
+        { type: 'box', position: [1, 0, 0], collider: false },
+        { type: 'box', position: [2, 0, 0], collider: 'box' },
+        { type: 'box', position: [3, 0, 0], collider: [1, 2, 3] },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects.every((o) => o.collider === undefined)).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('an object with no collider field stays visual-only (no collider key)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{ type: 'box', position: [0, 0, 0] }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(r.world.objects[0], 'collider')).toBe(false);
+  });
+
+  it('coerces numeric-string collider size/radius/height/offset', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [{
+        type: 'box', position: [0, 0, 0],
+        collider: { shape: 'box', size: ['2', '3', '4'], offset: ['1', '0', '-1'] },
+      }],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects[0].collider.size).toEqual([2, 3, 4]);
+    expect(r.world.objects[0].collider.offset).toEqual([1, 0, -1]);
+  });
+
+  it('a malformed collider does not fail the whole world (graceful omit)', () => {
+    const r = validateWorld({
+      ...baseWorld,
+      objects: [
+        { type: 'box', position: [0, 0, 0], collider: { shape: 'box', size: [1, 1, 1] } },
+        { type: 'box', position: [1, 0, 0], collider: { shape: 'nope' } }, // bad
+        { type: 'cylinder', position: [2, 0, 0], collider: { shape: 'cylinder', radius: 1, height: 2 } },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.objects).toHaveLength(3);
+    expect(r.world.objects[0].collider.shape).toBe('box');
+    expect(r.world.objects[1].collider).toBeUndefined(); // bad collider omitted
+    expect(r.world.objects[2].collider.shape).toBe('cylinder');
+    expect(r.errors).toEqual([]); // no errors from the bad collider
+  });
+});

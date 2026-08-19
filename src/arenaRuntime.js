@@ -73,6 +73,7 @@ import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
+import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -494,14 +495,21 @@ export function createArenaRuntime(hooks = {}) {
   // When there is no <meta name="torii-world"> or the manifest opts into the
   // legacy renderer (fallback:'legacy'), the EXISTING full buildArena() path runs
   // UNCHANGED — this slice must not alter legacy behaviour at all.
-  //   _minimal      — true in minimal mode (data-driven small scene).
-  //   _minimalWorld — the validated world object (or null in legacy mode).
-  //   _worldRt      — the minimal world's runtime ({ tick } from buildMinimalWorld).
-  //   _platformY    — the platform's TOP-surface Y (for the Rapier collider).
+  //   _minimal       — true in minimal mode (data-driven small scene).
+  //   _minimalWorld  — the validated world object (or null in legacy mode).
+  //   _worldRt       — the minimal world's runtime ({ tick } from buildMinimalWorld).
+  //   _platformY     — the platform's TOP-surface Y (for the Rapier collider).
+  //   _worldColliders — per-object physics colliders for the minimal world (Phase
+  //                     0i), or null. Built right after _addPlatformCollider so
+  //                     data-driven objects can have collision (not just meshes).
+  //                     Lives for the page lifetime — there is no explicit
+  //                     minimal-world teardown path (the platform collider has
+  //                     the same lifetime); acceptable for v1.
   let _minimal = false;
   let _minimalWorld = null;
   let _worldRt = null;
   let _platformY = 0;
+  let _worldColliders = null;
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
@@ -1397,6 +1405,18 @@ export function createArenaRuntime(hooks = {}) {
           resetPlayerPos();
         }
         _addPlatformCollider(_platformY);
+        // Phase 0i: build per-object physics colliders for the data-driven world
+        // (crates, ground, etc. that declare a `collider` field). Mirrors
+        // _addPlatformCollider — injected deps (getWorld/getRapier), best-effort
+        // try/catch, never breaks boot. Objects without a collider are visual-only.
+        try {
+          _worldColliders = buildWorldObjectColliders(_minimalWorld, {
+            physicsWorld: getWorld(),
+            Rapier: getRapier(),
+          });
+        } catch (e) {
+          console.warn('[world] per-object colliders failed:', e && e.message ? e.message : e);
+        }
       } catch (e) {
         console.warn('[world] minimal platform collider/spawn failed:', e && e.message ? e.message : e);
       }

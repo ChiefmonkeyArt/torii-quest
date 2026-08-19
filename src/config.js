@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.604-alpha';
+export const VERSION   = 'v0.2.605-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -116,7 +116,7 @@ export const MP_ENABLED     = true; // MP-1.5: sandbox-hosted arena, live on que
 // window.location.host at runtime — no client-side URL config.
 export const MP_WS_PATH     = '/mp';
 
-// v0.2.604-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
+// v0.2.605-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
 // QUEST_ADMIN_NPUB is read from the SERVER environment only (arena-ws), accepting
 // either an `npub1…` or a raw hex64 pubkey. An npub is a PUBLIC key, so surfacing
 // it (e.g. via the public capability endpoint) leaks nothing — but the value is

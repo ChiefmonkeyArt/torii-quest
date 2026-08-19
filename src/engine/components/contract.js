@@ -101,9 +101,12 @@ export function defineComponent(def) {
     get mounted() { return _mounted; },
     mount(scene, options = {}) {
       if (_mounted) return false;      // idempotent — already mounted
-      def.mount(scene, options);
+      // The inner mount's boolean return value is preserved: false means "no-op
+      // (not applicable / no scene)" — the host notes it but does NOT count it as
+      // an error. Any other return (true/undefined) means mounted.
+      const ok = def.mount(scene, options);
       _mounted = true;
-      return true;
+      return ok === false ? false : true;
     },
     unmount() {
       if (!_mounted) return false;     // idempotent — already torn down
@@ -111,12 +114,12 @@ export function defineComponent(def) {
       _mounted = false;
       return true;
     },
-    // Pure data-expansion path (optional). When a component declares
-    // def.expand(config), the host resolver calls it at manifest-load time to
-    // contribute static world.objects (scenery/props). Returns [] for a
-    // non-expanding component so callers can always treat the result as a list.
-    expand(config = {}) {
-      return typeof def.expand === 'function' ? def.expand(config) : [];
-    },
+    // Pure data-expansion path (OPTIONAL). Only attached when def.expand is a
+    // function, so isExpandingComponent() is meaningful: it returns true only for
+    // components that actually contribute static world.objects. A component
+    // without expand simply has no `.expand` property; the host resolver treats
+    // that as "no data" (0 objects, no error) — a scene-mounted component (e.g.
+    // torii.gateway) is not an expanding component.
+    ...(typeof def.expand === 'function' ? { expand: (config = {}) => def.expand(config) } : {}),
   };
 }

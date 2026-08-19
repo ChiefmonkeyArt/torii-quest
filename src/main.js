@@ -83,6 +83,10 @@ import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/to
 // the state + every callback; the stub is a pure renderer. No timer primitives,
 // no three import, browser-only, fail-safe (missing document → no-op).
 import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+// v0.2.607: the 3D landing scene behind #screen-title — the HOME SCREEN is 3D.
+// Lazy three import, fail-safe, unmounted when leaving the TITLE phase (no
+// orphan GL behind the arena). The homepage stub is now a glassy modal over it.
+import { installTitleScene, mountTitleScene, unmountTitleScene } from './engine/homepage/titleScene.js';
 import { classifySections } from './engine/menu/menuSections.js';
 import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
@@ -110,10 +114,24 @@ const elEnterBtn = document.getElementById('btn-enter');
 const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
 const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
+// Mount the 3D landing scene behind the title screen (the HOME SCREEN). The
+// scene host is the first child of #screen-title so all title content paints
+// above it; the title bg is made transparent so the 3D shows through.
+if (elTitle) {
+  installTitleScene(elTitle);
+  mountTitleScene(); // phase is TITLE on boot — mount immediately
+}
+
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
 // declaratively from the phase the FSM transitioned INTO. transition() stays the
 // single source of phase change; this just reacts. (phaseScreens.js has no three.)
-on(EV.PHASE_CHANGE, ({ to }) => applyPhaseScreens(to, { elTitle, elHud, elPause }));
+on(EV.PHASE_CHANGE, ({ to }) => {
+  applyPhaseScreens(to, { elTitle, elHud, elPause });
+  // Mount/unmount the 3D title scene with the TITLE phase (no orphan GL while
+  // the arena is running; re-mount when returning Home).
+  if (isTitle()) mountTitleScene();
+  else unmountTitleScene();
+});
 
 // ── Entry-status line ──────────────────────────────────────────────────────────
 const elEntryStatus = document.getElementById('entry-status');

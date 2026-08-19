@@ -51,8 +51,6 @@ const SHOWN_KEY = 'torii.homepage.stub.shown';
 let _el = null;
 let _open = false;
 let _onClose = null;
-let _scene = null;            // { unmount } | null — the 3D scene handle
-let _sceneMounting = false;  // guard so a rapid close→open doesn't double-mount
 
 // _doc() → the document object or null. Fail-safe: a missing document
 // (node/SSR/test) returns null so every public call is a no-op (never throws
@@ -134,15 +132,6 @@ function _build() {
     fontFamily: 'monospace',
   });
 
-  // 3D scene mount target — a full-bleed layer BEHIND the card. homepageScene.js
-  // creates its own <canvas> inside this host + sizes it via ResizeObserver.
-  // pointerEvents:none so clicks fall through to the backdrop/card as before.
-  const sceneHost = _doc().createElement('div');
-  sceneHost.id = 'torii-homepage-stub-scene';
-  Object.assign(sceneHost.style, {
-    position: 'absolute', inset: '0', zIndex: '0', overflow: 'hidden', pointerEvents: 'none',
-  });
-
   const card = _doc().createElement('div');
   Object.assign(card.style, {
     position: 'relative', zIndex: '1',
@@ -201,7 +190,7 @@ function _build() {
   Object.assign(hint.style, { fontSize: '10px', letterSpacing: '1px', color: '#6b7280', marginTop: '16px', textAlign: 'center', textTransform: 'uppercase' });
 
   card.append(head, subtitle, badge, list, hint);
-  backdrop.append(sceneHost, card);
+  backdrop.append(card);
 
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) _close(); });
   card.addEventListener('click', (e) => e.stopPropagation());
@@ -218,7 +207,6 @@ function _build() {
 function _close() {
   if (!_open) return;
   _open = false;
-  if (_scene) { try { _scene.unmount(); } catch { /* best-effort */ } _scene = null; }
   const el = _build();
   if (el) el.style.display = 'none';
   const cb = _onClose;
@@ -373,62 +361,19 @@ export function openHomepageStub(state = {}, callbacks = {}) {
 
   _open = true;
   el.style.display = 'flex';
-  _mountScene(el);
   el.querySelector('button')?.focus?.();
 }
-
-// _mountScene(el) — lazily import + mount the 3D homepage scene behind the card.
-// Non-blocking + fail-safe: the import + WebGL probe are async, so the DOM cards
-// are usable immediately. If three/WebGL is unavailable the scene never mounts
-// + the backdrop gradient remains (the home surface still works). Never throws
-// into the loop.
 
 export function closeHomepageStub() { _close(); }
 export function isHomepageStubOpen() { return _open; }
 
-// _hasWebGL() → true only if a throwaway canvas can acquire a WebGL context.
-// Used as a cheap capability gate before the dynamic import, so the 3D module
-// is never requested in headless/jsdom envs. Never throws. (homepageScene.js
-// does its own, stricter failIfMajorPerformanceCaveat probe before creating
-// the renderer.)
-function _hasWebGL() {
-  try {
-    const doc = _doc();
-    if (!doc || typeof doc.createElement !== 'function') return false;
-    const c = doc.createElement('canvas');
-    return !!(c.getContext && (c.getContext('webgl2') || c.getContext('webgl')));
-  } catch {
-    return false;
-  }
-}
-
-// _mountScene — see above (hoisted function declaration so openHomepageStub can
-// reference it before its definition in source order).
-async function _mountScene(el) {
-  if (_sceneMounting) return;
-  _sceneMounting = true;
-  try {
-    const host = el.querySelector('#torii-homepage-stub-scene');
-    if (!host) return;
-    if (_scene) { try { _scene.unmount(); } catch { /* best-effort */ } _scene = null; }
-    // Cheap browser-capability gate BEFORE the dynamic import: no WebGL context
-    // → no three. This keeps the three chunk out of node/jsdom tests entirely
-    // (jsdom has no WebGL) + avoids a pending async import leaking across cases.
-    if (!_hasWebGL()) return;
-    const mod = await import('./homepageScene.js');
-    const handle = await mod.mountHomepageScene(host);
-    // If the stub closed while we were importing, tear it straight down so no
-    // orphan GL context / rAF lingers behind a hidden overlay.
-    if (!_open || !_el) { if (handle) { try { handle.unmount(); } catch { /* best-effort */ } } return; }
-    _scene = handle;
-  } catch {
-    /* no three / no WebGL / import failed — DOM gradient remains the backdrop */
-  } finally {
-    _sceneMounting = false;
-  }
-}
+// The 3D landing scene now lives on the TITLE screen (titleScene.js), behind
+// #screen-title content. This stub is a glassy modal over it: its semi-
+// transparent backdrop + backdrop-filter blur show the title 3D blurred behind
+// the card. The stub no longer mounts its own scene (that would paint a dark
+// canvas over the title 3D) + stays three-free at import time.
 
 // _resetForTest() — TEST ONLY. Resets the module-internal DOM cache + open flag
 // so the lazily-built singleton does not leak across vitest cases (isolate:false
 // shares the module graph). Not imported by main.js; never call from production.
-export function _resetForTest() { _el = null; _open = false; _onClose = null; _scene = null; _sceneMounting = false; }
+export function _resetForTest() { _el = null; _open = false; _onClose = null; }

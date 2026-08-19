@@ -61,12 +61,12 @@ function _canUseWebGL(doc) {
 function _buildGate(THREE) {
   const g = new THREE.Group();
   const stone = new THREE.MeshStandardMaterial({
-    color: 0x2a2342, emissive: 0x8b5cf6, emissiveIntensity: 0.55,
-    roughness: 0.6, metalness: 0.1,
+    color: 0x3a2a5a, emissive: 0x8b5cf6, emissiveIntensity: 1.35,
+    roughness: 0.5, metalness: 0.15,
   });
   const accent = new THREE.MeshStandardMaterial({
-    color: 0x0a3d3a, emissive: 0x1ad6c4, emissiveIntensity: 0.9,
-    roughness: 0.5, metalness: 0.2,
+    color: 0x0a4a44, emissive: 0x1ad6c4, emissiveIntensity: 1.9,
+    roughness: 0.4, metalness: 0.25,
   });
   const pillarGeo = new THREE.CylinderGeometry(0.34, 0.42, 6.4, 18);
   const pL = new THREE.Mesh(pillarGeo, stone); pL.position.set(-2.1, 3.2, 0);
@@ -86,7 +86,7 @@ function _buildGate(THREE) {
 }
 
 // _buildStars(THREE, count) → a Points starfield in a wide shell around origin.
-function _buildStars(THREE, count = 1400) {
+function _buildStars(THREE, count = 2000) {
   const pos = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
     // Distribute on a sphere shell of radius 22–60 so the camera (r~30) is
@@ -101,8 +101,8 @@ function _buildStars(THREE, count = 1400) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
-    color: 0xc4b5fd, size: 0.45, sizeAttenuation: true,
-    transparent: true, opacity: 0.9, depthWrite: false,
+    color: 0xd4c5ff, size: 0.6, sizeAttenuation: true,
+    transparent: true, opacity: 1.0, depthWrite: false,
   });
   const stars = new THREE.Points(geo, mat);
   stars.userData.geo = geo; stars.userData.mat = mat;
@@ -147,13 +147,16 @@ export async function mountHomepageScene(container) {
   camera.position.set(0, 7.5, 30);
   camera.lookAt(0, 4, 0);
 
-  // Lights: low ambient so emissive carries the look; a purple point at the
-  // gate; a teal rim from behind for separation.
-  scene.add(new THREE.AmbientLight(0x3a3358, 0.55));
-  const key = new THREE.PointLight(0x8b5cf6, 60, 40, 1.6); key.position.set(0, 6, 6);
+  // Lights: ambient lifts the dark base so the gate reads; a bright purple key
+  // at the gate + a teal rim from behind for separation. Emissive carries the
+  // glow but the lights stop the gate from disappearing into the starfield.
+  scene.add(new THREE.AmbientLight(0x4a3a68, 0.9));
+  const key = new THREE.PointLight(0x8b5cf6, 140, 50, 1.6); key.position.set(0, 6, 6);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x1ad6c4, 0.5); rim.position.set(-6, 4, -8);
+  const rim = new THREE.DirectionalLight(0x1ad6c4, 0.9); rim.position.set(-6, 4, -8);
   scene.add(rim);
+  const fill = new THREE.PointLight(0x1ad6c4, 60, 40, 1.8); fill.position.set(4, 3, -5);
+  scene.add(fill);
 
   // Ground: a large dark disc — gives the gate a horizon + catches the fog.
   const groundGeo = new THREE.CircleGeometry(60, 48);
@@ -194,9 +197,9 @@ export async function mountHomepageScene(container) {
     // Starfield counter-rotates so the parallax reads against the gate.
     stars.rotation.y += dt * 0.02;
     // Soft pulse on the gate's accent seam.
-    const pulse = 0.7 + Math.sin(a * 0.9) * 0.25;
+    const pulse = 1.5 + Math.sin(a * 0.9) * 0.4;
     if (gate.userData.accent) gate.userData.accent.emissiveIntensity = pulse;
-    if (gate.userData.stone) gate.userData.stone.emissiveIntensity = 0.5 + pulse * 0.1;
+    if (gate.userData.stone) gate.userData.stone.emissiveIntensity = 1.2 + pulse * 0.15;
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);

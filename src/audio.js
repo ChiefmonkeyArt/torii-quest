@@ -29,10 +29,18 @@ _attachResumer();
 // playShoot — deeper soft laser "pow". Sine sweep ~440Hz → ~90Hz over 110ms,
 // peak gain 0.11. Lower fundamental gives more body/thump while staying soft.
 // A whisper of low-bandpassed noise adds breath without harshness.
+// v0.2.615: double-fire guard. SHOOT_CD (60ms) already spaces legit shots;
+// a second playShoot within 30ms can only come from a double-subscription /
+// double-emit regression (operator: "bullet sound doing it multiple times
+// AGAIN"). Refuse it at the audio layer so no future wiring bug can regress
+// the single-shot sound.
+let _lastShootAt = -1;
 export function playShoot() {
   const ctx = _audioCtx();
   if (!ctx) return;
   const t = ctx.currentTime;
+  if (t - _lastShootAt < 0.03) return;
+  _lastShootAt = t;
 
   // Tone — deeper sine sweep
   const osc  = ctx.createOscillator();

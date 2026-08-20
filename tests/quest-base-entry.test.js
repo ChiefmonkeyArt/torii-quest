@@ -65,7 +65,8 @@ function buildAtBase(outDir, base = null) {
 
 function expectWorkerRegistration(indexHtml, scriptUrl, scope) {
   const registration = new RegExp(
-    `navigator\\.serviceWorker\\.register\\(\\s*['"]${escapeRegExp(scriptUrl)}['"]\\s*,\\s*\\{\\s*scope:\\s*['"]${escapeRegExp(scope)}['"]\\s*,?\\s*\\}\\s*\\)`,
+    // v0.2.615: tolerate extra register options (updateViaCache:'none').
+    `navigator\\.serviceWorker\\.register\\(\\s*['"]${escapeRegExp(scriptUrl)}['"]\\s*,\\s*\\{\\s*scope:\\s*['"]${escapeRegExp(scope)}['"][\\s\\S]*?\\}\\s*\\)`,
   );
   expect(indexHtml).toMatch(registration);
   expect(indexHtml).not.toContain('%BASE_URL%');

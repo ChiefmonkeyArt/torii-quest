@@ -48,6 +48,8 @@ import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
  * @param {Function} [deps.emit]           observability sink
  * @param {Function} [deps.now]            () => ms clock
  * @param {Function} [deps.getCharacter]    () => string — active character key, sent in AUTH/AUTH_TOKEN
+ * @param {Function} [deps.getSelfNpub]     () => string|null — our own identity; roster/JOIN
+ *                                           entries matching it are dropped (crash-ghost seatbelt)
  */
 export function createMultiplayerHost(deps) {
   const {
@@ -62,6 +64,7 @@ export function createMultiplayerHost(deps) {
     emit = () => {},
     now = () => Date.now(),
     getCharacter = () => 'chiefmonkey',
+    getSelfNpub = () => null,
   } = deps || {};
 
   if (!scene || typeof scene.add !== 'function') {
@@ -141,11 +144,18 @@ export function createMultiplayerHost(deps) {
         return;
       }
       case 'roster': {
-        for (const p of payload.roster || []) roster.upsert(p);
+        // v0.2.615: never render our own ghost (a crashed session's lingering
+        // server-side socket shares our npub until the server reaps/evicts it).
+        const selfNpub = getSelfNpub();
+        for (const p of payload.roster || []) {
+          if (selfNpub && p && p.npub === selfNpub) continue;
+          roster.upsert(p);
+        }
         return;
       }
       case 'peerJoin': {
-        roster.upsert(payload);
+        const selfNpub = getSelfNpub();
+        if (!(selfNpub && payload && payload.npub === selfNpub)) roster.upsert(payload);
         return;
       }
       case 'peerLeft': {

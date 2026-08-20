@@ -544,6 +544,7 @@ export function createArenaRuntime(hooks = {}) {
   // no scene mutations. When enabled, the host owns the ws lifecycle + peer avatar
   // roster; the render loop only calls `_mp.tick(now)` and (throttled) `_mp.sendMove()`.
   let _mp = null;
+  let _selfNpub = null; // captured at MP sign time (v0.2.615 self-ghost filter)
   let _mpMoveAccum = 0;
   let _lastMovePos = null;
   let _mpMoveDt = 0;
@@ -675,11 +676,39 @@ export function createArenaRuntime(hooks = {}) {
     closeToriiMenuHook(); // triggers its onClose → _resume
   }
 
-  function _openPause() {
+  // v0.2.615: two-stage ESC (operator's "perfect" behaviour, restored):
+  //   stage 1 — pause the game + free the mouse, NO modal (a small PAUSED
+  //             hint pill shows instead). Triggered by the ESC keydown when
+  //             delivered, or by the pointer-lock exit itself on browsers
+  //             that reserve the locked ESC (see the pointerlockchange hook).
+  //   stage 2 — ESC again (paused, unlocked) reveals the resume/leave modal.
+  // Clicking the canvas at stage 1 resumes (and re-locks). The modal's
+  // Resume/Leave buttons are unchanged.
+  let _quietPause = false;
+  const _elPauseOverlay = () => document.getElementById('pause-overlay');
+  const _elPausedHint   = () => document.getElementById('paused-hint');
+  function _openPauseQuiet() {
     if (!transition(GAME_EVENT.PAUSE)) return;
+    document.exitPointerLock?.();
+    _quietPause = true;
+    // applyPhaseScreens (PHASE_CHANGE subscriber) already showed the modal —
+    // hide it again for the quiet stage; nothing else touches it while PAUSED.
+    _elPauseOverlay()?.classList.remove('show');
+    _elPausedHint()?.classList.add('show');
+  }
+  function _openPause() {
+    _quietPause = false;
+    _elPausedHint()?.classList.remove('show');
+    if (!transition(GAME_EVENT.PAUSE)) {
+      // Already PAUSED (quiet stage) → just reveal the modal.
+      if (isPaused()) _elPauseOverlay()?.classList.add('show');
+      return;
+    }
     document.exitPointerLock?.();
   }
   function _resume() {
+    _quietPause = false;
+    _elPausedHint()?.classList.remove('show');
     if (!transition(GAME_EVENT.RESUME)) return;
     requestLock(renderer.domElement);
   }
@@ -1223,9 +1252,15 @@ export function createArenaRuntime(hooks = {}) {
       else _elCrosshair?.classList.remove('active');
     });
 
-    // Canvas click → re-engage pointer lock when playing.
+    // Canvas click → re-engage pointer lock when playing; at the quiet-pause
+    // stage (v0.2.615) a click resumes the run instead.
     renderer.domElement.addEventListener('click', () => {
       if (needsPointerLock()) requestLock(renderer.domElement);
+      else if (_quietPause && isPaused()) _resume();
+    });
+    // The PAUSED hint pill is clickable too (its pointer-events are on).
+    document.getElementById('paused-hint')?.addEventListener('click', () => {
+      if (_quietPause && isPaused()) _resume();
     });
 
     // Visible in-world portal MARKER mesh (display-only; no collider/raycast/input).
@@ -1263,20 +1298,31 @@ export function createArenaRuntime(hooks = {}) {
         _closeGatewayScreen();
         return;
       }
-      // While locked, ESC is the browser's release gesture — let it through
-      // untouched so the pointer escapes (stage 1). The pause modal opens on
-      // the NEXT press, delivered as a normal keydown once unlocked.
-      if (state.pointerLocked) return;
+      // Stage 1 while locked: pause quietly (game halts, mouse is freed by
+      // the browser's own lock release). No preventDefault — the lock exit
+      // must proceed. Browsers that reserve the locked ESC never deliver this
+      // keydown; the pointerlockchange hook below covers them.
+      if (state.pointerLocked) { _openPauseQuiet(); return; }
       if (isPlaying()) {
+        // Unlocked but still PLAYING (e.g. lock dropped without pause) —
+        // treat as stage 1 completion: quiet pause, not the modal.
         e.preventDefault();
         e.stopImmediatePropagation();
-        _openPause();
+        _openPauseQuiet();
       } else if (isPaused()) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        _resume();
+        if (_quietPause) _openPause(); // stage 2: reveal resume/leave modal
+        else _resume();                // modal open → ESC resumes
       }
     }, true);
+    // Browsers that reserve the locked ESC expose no keydown — only the lock
+    // exit. Treat ANY lock loss while PLAYING as the stage-1 gesture (pause
+    // quietly). Deliberate exits (menu/gateway/pause) transition out of
+    // PLAYING first, so they never double-trigger this.
+    document.addEventListener('pointerlockchange', () => {
+      if (!document.pointerLockElement && isPlaying()) _openPauseQuiet();
+    });
 
     // L / Tab — toggle the live in-arena leaderboard overlay (v0.2.380-alpha).
     // No collision with movement/interact keys (WASD/arrows/shift/space/E/R/F/C).
@@ -1450,6 +1496,11 @@ export function createArenaRuntime(hooks = {}) {
         // is carried on the wire. Reached only when no session token is present.
         // getCharacter provides the active character key for AUTH/AUTH_TOKEN.
         getCharacter: () => getCharacter(),
+        // v0.2.615: the host filters roster/JOIN entries whose npub matches our
+        // own — a crashed-session ghost (same key, old socket) must never
+        // render as a duplicate of ourselves. Server-side eviction is the
+        // authoritative fix; this is the client seatbelt.
+        getSelfNpub: () => _selfNpub,
         signAuth: async ({ challenge }) => {
           if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
             throw new Error('multiplayer: NIP-07 signer unavailable');
@@ -1461,6 +1512,7 @@ export function createArenaRuntime(hooks = {}) {
             tags: [['challenge', challenge]],
           });
           const npub = await globalThis.nostr.getPublicKey?.();
+          _selfNpub = npub || null;
           return { npub, sig: event.sig, event };
         },
       });

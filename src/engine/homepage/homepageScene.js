@@ -258,11 +258,12 @@ export async function mountHomepageScene(container) {
   scene.background = new THREE.Color(SKY_HORIZON);
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
-  // v0.2.614: camera dropped to standing eye height so the character (~1.5m
-  // from the lens) fills the frame — his legs naturally fall off the BOTTOM
-  // of the viewport instead of being cut off at the ground.
+  // v0.2.615: camera stays at standing eye height; the character is ~1.1m
+  // from the lens so his head/shoulders fill the frame and his lower body
+  // falls off the BOTTOM of the viewport (no cut-off-at-the-ground trick).
   const BASE_CAM = new THREE.Vector3(0, 1.6, 26);
-  const BASE_LOOK = new THREE.Vector3(-0.15, 1.9, 0);
+  const BASE_LOOK = new THREE.Vector3(0, 2.2, 0);
+  const CHAR_BASE_X = -0.55; // greeter rests left-of-centre; parallax nudges from here
   camera.position.copy(BASE_CAM);
   camera.lookAt(BASE_LOOK);
 
@@ -310,11 +311,13 @@ export async function mountHomepageScene(container) {
   // Sun low on the horizon on the RIGHT, just behind/above the gate — clear of
   // the centre console card (the old x=3.5 projected directly behind it, so the
   // one bright focal point was hidden by the UI).
-  const sun = _buildSun(THREE); sun.position.set(16.5, 8.5, -50); scene.add(sun);
+  // v0.2.615: sun lifted above the far ridge line (at y 8.5 the 16-high ridge
+  // at z -34 occluded it entirely — operator: "no graphics of the sun").
+  const sun = _buildSun(THREE); sun.position.set(14, 22, -50); scene.add(sun);
 
   // Mountain ridges layered near → far for depth + fog falloff.
   const disposables = [];
-  const ridges = [];
+  const ridges = []; // each entry keeps its base x=0; parallax shifts per-layer
   const ridgeDefs = [
     { width: 150, height: 16, peaks: 8,  color: RIDGE_COLS[2], seed: 11, z: -34, y: 0 },
     { width: 130, height: 12, peaks: 7,  color: RIDGE_COLS[1], seed: 29, z: -22, y: 0 },
@@ -404,7 +407,10 @@ export async function mountHomepageScene(container) {
       gateObj.scale.setScalar(s);
       const box2 = new THREE.Box3().setFromObject(gateObj);
       gateObj.position.set(9.0, -box2.min.y, 2.0);
-      gateObj.rotation.y = -0.35; // face slightly toward centre/camera
+      // v0.2.615: operator measured the gate standing ~110° off-square on the
+      // live build (it read edge-on). Square it to the camera: -0.35 + 1.92
+      // ≈ +1.57 rad (90°) — the walk-through plane now faces the lens.
+      gateObj.rotation.y = 1.57;
       gateObj.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
       _fixGlb(gateObj);
       scene.add(gateObj);
@@ -427,8 +433,9 @@ export async function mountHomepageScene(container) {
       // viewport naturally because he's big + near (operator feedback: "I did
       // not mean cut them off — bring him up close so the bottom half is off
       // screen").
-      const CHAR_SCALE = 0.8;
+      const CHAR_SCALE = 1.0;
       charObj.scale.setScalar(CHAR_SCALE);
+      charObj.userData.baseX = CHAR_BASE_X;
 
       // Z-up fix (mirrors playerModel.js): the library GLB is authored Z-up —
       // detect by axis span and stand the rig up with quaternions (Euler XYZ
@@ -448,13 +455,19 @@ export async function mountHomepageScene(container) {
       if (isZUp) gMinY = -gMaxZ; // after +90° X the old +Z span becomes -Y
       const footLift = Number.isFinite(gMinY) ? -gMinY : 0;
 
-      charObj.position.set(-0.9, footLift * CHAR_SCALE, 24.6); // ~1.4m from the lens — waist-up, left of centre
+      // v0.2.615: closer still (~1.1m) and facing the camera square-on (the
+      // operator saw his back on the live build). CHAR_BASE_X is the parallax
+      // anchor — the loop nudges him a LITTLE around it.
+      // Slight lift: with the eye-height camera 1.5m away, his legs fall below
+      // the fold while head + shoulders hold the frame.
+      charObj.position.set(CHAR_BASE_X, footLift * CHAR_SCALE + 0.75, 24.5);
       if (isZUp) {
         const standUp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-        const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI + 0.35);
+        // π+0.35 faced him AWAY (operator screenshot); ~0 faces the lens.
+        const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), 0.10);
         charObj.quaternion.copy(face).multiply(standUp);
       } else {
-        charObj.rotation.y = 0.35; // face the camera/centre
+        charObj.rotation.y = 0.10; // face the camera
       }
       charObj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
       _fixGlb(charObj);
@@ -510,11 +523,19 @@ export async function mountHomepageScene(container) {
     const dt = Math.min(0.05, (t - t0) / 1000); t0 = t;
     const a = t / 1000;
 
-    // Parallax: ease the camera toward the pointer offset (lerp ~ smooth).
+    // v0.2.615 parallax rework (operator: "way too strong"): the camera moves
+    // GENTLY, the torii gate is the fixed pivot, the character nudges a
+    // little, and the background (ridges + sun + sky) moves a little MORE —
+    // nearest ridge least, farthest ridge most, so depth reads around the
+    // gate instead of the whole frame swinging.
     const k = Math.min(1, dt * 4);
-    camera.position.x += (BASE_CAM.x + mouse.x * 2.6 - camera.position.x) * k;
-    camera.position.y += (BASE_CAM.y + mouse.y * 1.4 - camera.position.y) * k;
+    camera.position.x += (BASE_CAM.x + mouse.x * 0.9 - camera.position.x) * k;
+    camera.position.y += (BASE_CAM.y + mouse.y * 0.5 - camera.position.y) * k;
     camera.lookAt(BASE_LOOK);
+    if (charObj) charObj.position.x = charObj.userData.baseX + mouse.x * 0.12;
+    for (let i = 0; i < ridges.length; i++) ridges[i].position.x = mouse.x * (i + 1) * 0.55;
+    sun.position.x = 14 + mouse.x * 1.8;
+    sky.rotation.y = mouse.x * 0.03;
 
     // Gentle sun halo breathing.
     const pulse = 0.5 + Math.sin(a * 0.7) * 0.5;

@@ -258,3 +258,56 @@ describe('multiplayerHost — outbound wire', () => {
     expect(() => host.tick(16.6)).not.toThrow();
   });
 });
+
+describe('self-ghost filter (v0.2.615)', () => {
+  // A crashed client leaves its server-side session alive for minutes; when the
+  // player logs back in with the same key, the roster + JOIN stream briefly
+  // contain an entry with OUR OWN npub. The host must never render it.
+  const SELF_NPUB = 'npub1' + 's'.repeat(58);
+
+  it('drops roster entries whose npub matches getSelfNpub()', async () => {
+    const { host } = makeHost();
+    // Re-create with the self-identity hook wired.
+    FakeWS.instances.length = 0;
+    const host2 = (await import('../../src/engine/multiplayer/multiplayerHost.js')).createMultiplayerHost({
+      scene: makeFakeScene(),
+      avatarLoader: async (p) => makeFakeObj(p.id),
+      signAuth: goodSignAuth,
+      origin: 'example.test',
+      mpEnabled: true,
+      WebSocketCtor: FakeWS,
+      getSelfNpub: () => SELF_NPUB,
+    });
+    host.stop();
+    host2.start();
+    const ws = FakeWS.instances[0];
+    await handshake(ws, { roster: [peerDesc('ghost1', { npub: SELF_NPUB }), peerDesc('real1')] });
+    expect(host2.roster._peek('ghost1')).toBeNull();
+    expect(host2.roster._peek('real1')).toBeDefined();
+    expect(host2.roster.size).toBe(1);
+    host2.stop();
+  });
+
+  it('drops a JOIN whose npub matches getSelfNpub()', async () => {
+    FakeWS.instances.length = 0;
+    const host = (await import('../../src/engine/multiplayer/multiplayerHost.js')).createMultiplayerHost({
+      scene: makeFakeScene(),
+      avatarLoader: async (p) => makeFakeObj(p.id),
+      signAuth: goodSignAuth,
+      origin: 'example.test',
+      mpEnabled: true,
+      WebSocketCtor: FakeWS,
+      getSelfNpub: () => SELF_NPUB,
+    });
+    host.start();
+    const ws = FakeWS.instances[0];
+    await handshake(ws);
+    ws._message({ t: MSG.JOIN, ...peerDesc('ghost2', { npub: SELF_NPUB }) });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(host.roster._peek('ghost2')).toBeNull();
+    ws._message({ t: MSG.JOIN, ...peerDesc('real2') });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(host.roster._peek('real2')).toBeDefined();
+    host.stop();
+  });
+});

@@ -52,7 +52,7 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.614-alpha';
+const EXPECTED_VERSION = 'v0.2.615-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
@@ -765,7 +765,8 @@ console.log('[21] service-worker deploy-base contract');
   const sw = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
   let ok = true;
 
-  const registration = /navigator\.serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/;
+  // v0.2.615: tolerate extra register options (updateViaCache:'none').
+  const registration = /navigator\.serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"][\s\S]*?\}\s*\)/;
   if (!registration.test(html)) {
     fail('index.html service-worker registration must use %BASE_URL% for script URL and scope');
     ok = false;

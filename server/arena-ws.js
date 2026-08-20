@@ -294,6 +294,20 @@ function verifyAuthEvent(sess, evt) {
 // authed peers), and JOIN broadcast. Reused by BOTH the NIP-42 AUTH path and the
 // v0.2.375 AUTH_TOKEN path so they converge on identical presence behaviour.
 function finishAuth(sess, { npub, pubkey, character }) {
+  // v0.2.615: one live session per identity. A crashed client (OS crash,
+  // power loss, killed browser) leaves its TCP socket half-open for minutes,
+  // far beyond the 90s idle reaper — when the player logs straight back in
+  // with the same key, BOTH sessions are authed and every peer sees TWO of
+  // them (operator report: "2 chiefmonkeys as well as myself"). Evict any
+  // existing authed session with the same pubkey before we join.
+  if (pubkey) {
+    for (const other of Array.from(sessions.values())) {
+      if (other.id !== sess.id && other.authed && other.pubkey === pubkey) {
+        log.info('evicting stale session for duplicate pubkey', other.id, '→', sess.id);
+        closeSession(other, 'superseded');
+      }
+    }
+  }
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;

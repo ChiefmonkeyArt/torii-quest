@@ -118,8 +118,11 @@ describe('index.html — service-worker registration self-heal', () => {
     const s = inlineRegistrationScript();
     expect(s).not.toBeNull();
     expect(s).toMatch(
-      /serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"]\s*,?\s*\}\s*\)/,
+      // v0.2.615: options object may carry updateViaCache:'none' (+ any future
+      // flags) — assert the scope pair, tolerate the rest.
+      /serviceWorker\.register\(\s*['"]%BASE_URL%sw\.js['"]\s*,\s*\{\s*scope:\s*['"]%BASE_URL%['"][\s\S]*?\}\s*\)/,
     );
+    expect(s).toMatch(/updateViaCache:\s*['"]none['"]/);
   });
 
   it('reloads once on controllerchange, guarded against a reload loop', () => {

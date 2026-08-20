@@ -4,6 +4,19 @@ import { state, isPlaying } from './state.js';
 export const keys = {};
 const _downCbs = [], _upCbs = [];
 
+// v0.2.612: stuck-key guard ("sticky movement"). The browser SWALLOWS keyup
+// events when the window loses focus, the tab hides, or a pointer-lock exit /
+// extension prompt (NIP-07 signer) steals the gesture — a held W/A/S/D then
+// stays latched true and the player keeps running after the key is released.
+// Clear every held key on those transitions; the next real keydown re-latches.
+export function clearKeys() { for (const k in keys) keys[k] = false; }
+if (typeof window !== 'undefined') {
+  window.addEventListener('blur', clearKeys);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearKeys();
+});
+
 document.addEventListener('keydown', e => {
   keys[e.code] = true;
   _downCbs.forEach(fn => fn(e.code));
@@ -67,6 +80,7 @@ document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement !== null;
   if (!locked) {
     _lockReleasedAt = performance.now();
+    clearKeys(); // lock exit can eat keyups for held movement keys
   }
   state.pointerLocked = locked;
 });

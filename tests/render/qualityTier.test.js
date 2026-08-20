@@ -41,8 +41,10 @@ describe('createQualityTier', () => {
       shadowMapSize: 512,
       muzzleLights: 4,
     });
+    // v0.2.612: LOW keeps a 256px shadow map — the renderer.shadowMap.enabled
+    // toggle is gone (runtime flip = full scene shader recompile = frame stall).
     expect(TIERS.LOW).toMatchObject({
-      shadowMapSize: 0,
+      shadowMapSize: 256,
       muzzleLights: 0,
     });
   });
@@ -88,7 +90,8 @@ describe('createQualityTier', () => {
     expect(d.calls.composerSetPixelRatio.at(-1)).toBe(1.0);
     expect(d.calls.composerSetSize.at(-1)).toEqual([1280, 720]);
     expect(d.bloomPass.enabled).toBe(false);
-    expect(d.renderer.shadowMap.enabled).toBe(false);
+    // v0.2.612: shadows stay enabled at LOW (map shrinks to 256px instead).
+    expect(d.renderer.shadowMap.enabled).toBe(true);
   });
 
   it('stays at LOW under continued low FPS', () => {

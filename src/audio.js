@@ -131,6 +131,21 @@ let _splashBuf = null;       // decoded AudioBuffer once ready
 let _splashPending = false;  // fetch/decode in flight (guards against re-fetch)
 let _splashFailed = false;   // decode failed → always use synth fallback
 
+// v0.2.613: first-shot freeze fix. The first SFX call after the arena enters
+// pays AudioContext creation + (for the splash path) a WAV fetch + decodeAudioData
+// ON THE COMBAT FRAME — the user felt the whole game freeze on their opening
+// shots. warmAudio() is called from the arena boot path (a user gesture, so
+// the context may start) to create + resume the context and pre-decode the
+// splash buffer BEFORE the first firefight. Cheap + idempotent.
+export function warmAudio() {
+  try {
+    const ctx = _audioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    _loadSplash(ctx);
+  } catch { /* best-effort — audio is non-critical */ }
+}
+
 function _loadSplash(ctx) {
   if (_splashBuf || _splashPending || _splashFailed) return;
   _splashPending = true;

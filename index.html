@@ -177,7 +177,10 @@
     .side-card {
       width: 300px; flex-shrink: 0;
       border-radius: 10px;
-      background: rgba(12,12,22,0.95);
+      /* v0.2.613: translucent glass so the 3D scene reads through the panels. */
+      background: rgba(12,12,22,0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       display: flex; flex-direction: column;
     }
     .side-card-purple { border: 1px solid rgba(217,154,61,0.55); box-shadow: 0 0 30px rgba(217,154,61,0.07); }
@@ -194,9 +197,12 @@
     /* ── Centre column ── */
     #title-centre {
       flex: 1;
-      border: 1px solid rgba(220,38,38,0.6);
+      border: 1px solid rgba(220,38,38,0.45);
       border-radius: 10px;
-      background: rgba(12,4,4,0.97);
+      /* v0.2.613: translucent glass (was near-opaque 0.97). */
+      background: rgba(12,4,4,0.55);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 0 60px rgba(220,38,38,0.18), inset 0 0 40px rgba(220,38,38,0.05);
       display: flex; flex-direction: column; align-items: center;
       padding: 32px 24px 28px;
@@ -442,7 +448,10 @@
     #update-preview {
       margin-top: 10px; width: 240px; text-align: left;
       border: 1px solid rgba(96,165,250,0.30); border-radius: 6px;
-      background: rgba(10,24,46,0.35); padding: 7px 9px;
+      /* v0.2.613: glass, matching the other panels. */
+      background: rgba(10,24,46,0.40); padding: 7px 9px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     #update-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
     #update-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #bfdbfe; text-transform: uppercase; }
@@ -731,69 +740,29 @@
   <!-- Three columns -->
   <div id="title-columns">
 
-    <!-- LEFT: Player stats (purple) + leaderboard preview -->
+    <!-- LEFT: identity card (v0.2.613 — was the PLAYER stats card) -->
     <div class="side-col">
     <div class="side-card side-card-purple">
       <div class="side-card-header">
-        <span>■ PLAYER</span>
+        <span>■ IDENTITY</span>
         <span id="stats-status" style="color:#333;">NOT LOGGED IN</span>
       </div>
       <div class="side-card-body">
-
-        <!-- Identity -->
+        <!-- v0.2.613: the PLAYER card is now a translucent IDENTITY card —
+             WHO is on this node (guest / visitor / admin), not a stats dump.
+             The big-number row + accuracy donut were removed (the operator:
+             "Remove the Players stats panel"); live sats/kills/HP live in the
+             in-game HUD, and rankings in the Arena Shooter leaderboard (KeyL).
+             playerStats.js + nostr.js write the surviving ids only and bail
+             cleanly on the removed ones (getElementById null guards). -->
         <div id="stats-identity">
           <div id="nostr-avatar-ph">👤</div>
           <img id="nostr-avatar-img" alt="nostrich avatar"/>
           <div id="nostr-display-name">ANON</div>
-          <div id="stats-status-sub" style="font-size:8px;color:#444;letter-spacing:1px;margin-top:2px;">connect wallet to load stats</div>
+          <div id="identity-role" style="margin-top:10px;font-size:13px;letter-spacing:3px;font-weight:700;color:#a0a8b8;">GUEST</div>
+          <div id="identity-role-sub" style="font-size:8px;color:#9a8a72;letter-spacing:1px;margin-top:4px;">exploring as a guest — log in with nostr</div>
         </div>
-
-        <!-- Big stat numbers -->
-        <div class="stat-big-row">
-          <div class="stat-big orange">
-            <div class="num" id="big-sats">—</div>
-            <div class="lbl">⚡ SATS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-kills">—</div>
-            <div class="lbl">KILLS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-runs">—</div>
-            <div class="lbl">RUNS</div>
-          </div>
-        </div>
-
-        <!-- Donut: accuracy -->
-        <div id="donut-wrap">
-          <div id="donut-svg-wrap">
-            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="18" cy="18" r="14" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
-              <circle id="donut-hits-arc" cx="18" cy="18" r="14"
-                stroke="rgba(139,92,246,0.85)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="66 88" stroke-dashoffset="22"
-                transform="rotate(-90 18 18)"
-                style="filter:drop-shadow(0 0 3px rgba(217,154,61,0.5));transition:stroke-dasharray 0.6s ease;"/>
-              <circle id="donut-got-arc" cx="18" cy="18" r="14"
-                stroke="rgba(255,68,68,0.7)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="22 88" stroke-dashoffset="-66"
-                transform="rotate(-90 18 18)"
-                style="transition:stroke-dasharray 0.6s ease;"/>
-            </svg>
-            <div id="donut-centre">
-              <div id="donut-pct">75%</div>
-              <div id="donut-sub">ACC</div>
-            </div>
-          </div>
-          <div class="donut-legend">
-            <div class="dl-row"><div class="dl-dot" style="background:#d99a3d;"></div><span>HITS LANDED</span><span class="dl-count" id="legend-hits">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#ff4444;"></div><span>TIMES HIT</span><span class="dl-count" id="legend-gothit">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#4ade80;"></div><span>KILLS</span><span class="dl-count" id="legend-kills">—</span></div>
-          </div>
-        </div>
-
       </div>
-    </div>
 
       <!-- v0.2.611: the home-screen leaderboard card was REMOVED — scores live
            in the in-game "Arena Shooter" leaderboard panel (KeyL overlay). The
@@ -805,7 +774,10 @@
     <div id="title-centre">
       <!-- v0.2.611: the centre panel leads with the world-builder promise — the
            logo/sub/tag stack moved off (logo stays in the header above). -->
-      <div id="centre-promise">Your world your rules…</div>
+      <!-- v0.2.613: retitled at the operator's request ("Your world your rules"
+           was a placeholder). The torii gate is the threshold you step through
+           — the line now says that. -->
+      <div id="centre-promise">Step through the gate…</div>
 
       <div class="c-divider"></div>
 
@@ -839,7 +811,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.612-alpha</div>
+      <div id="version-label">v0.2.613-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
@@ -923,7 +895,7 @@
        arenaRuntime.js guard their minimap lookups (null-safe), so the draw
        calls simply no-op. -->
 
-  <div id="ver">v0.2.612-alpha · torii quest</div>
+  <div id="ver">v0.2.613-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

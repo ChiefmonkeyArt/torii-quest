@@ -1778,6 +1778,37 @@ function _armRetryButton() {
 // NOSTR_LOGIN handler already fires on both admit + delayed-login.
 on(EV.NOSTR_LOGIN, _refreshUpdateButton);
 
+// ── Identity panel (v0.2.613) ───────────────────────────────────────────────
+// The left card now answers "who is on this node": GUEST (no login), VISITOR
+// (logged in, not the node operator), or ADMIN (logged-in npub matches the
+// deployment host pubkey — the same isAdminOperator gate as the update button
+// and the Torii-menu admin rows). Refreshes on login + once at boot.
+function _refreshIdentityPanel() {
+  const roleEl = document.getElementById('identity-role');
+  const subEl = document.getElementById('identity-role-sub');
+  if (!roleEl || !subEl) return;
+  const pk = state.nostrPubkey || '';
+  const cap = _updateCapability;
+  const isAdmin = !!(pk && cap && isAdminOperator(pk, cap.adminPubkey));
+  // Fallback when the capability probe hasn't answered yet: the host meta tag.
+  const isHost = !isAdmin && !!pk && pk === _hostIdentity();
+  if (!pk) {
+    roleEl.textContent = 'GUEST';
+    roleEl.style.color = '#a0a8b8';
+    subEl.textContent = 'exploring as a guest — log in with nostr';
+  } else if (isAdmin || isHost) {
+    roleEl.textContent = '⛩ ADMIN';
+    roleEl.style.color = '#f7931a';
+    subEl.textContent = 'node operator — full admin controls unlocked';
+  } else {
+    roleEl.textContent = '⚡ VISITOR';
+    roleEl.style.color = '#8b5cf6';
+    subEl.textContent = 'logged in with nostr — welcome to this node';
+  }
+}
+on(EV.NOSTR_LOGIN, _refreshIdentityPanel);
+_refreshIdentityPanel();
+
 // LIVE update-check: paint an immediate "checking…" row, then resolve against the
 // real GitHub TAGS endpoint (cached client-side) and repaint. In parallel, probe
 // the server capability endpoint (public, no auth). Failure degrades to an inert
@@ -1793,7 +1824,7 @@ function renderUpdatePreview() {
   const httpBase = resolveMpHttpBase();
   if (httpBase) {
     fetchCapability({ httpBase })
-      .then((cap) => { _updateCapability = cap; _refreshUpdateButton(); })
+      .then((cap) => { _updateCapability = cap; _refreshUpdateButton(); _refreshIdentityPanel(); })
       .catch(() => { _updateCapability = { autoUpdate: false, adminPubkey: null }; });
   }
 
@@ -1913,6 +1944,7 @@ function _yieldToPaint() {
 // then lazy-load Rapier + spawn the player. Subsequent entries just start a fresh
 // run. A failed bootstrap resets the button + shows a visible message.
 let _arena = null;            // arenaRuntime API once imported
+let _arenaModule = null;      // v0.2.613: module object warmed by the preloader
 let _arenaBootstrapped = false;
 
 // v0.2.275: the ENTER ARENA handler. Shared bootstrap lives in ensureArenaReady
@@ -1926,6 +1958,20 @@ let _arenaBootstrapped = false;
 // three-vendor chunk + Rapier ONCE, then returns the ready arena API. Both title
 // buttons call this before enter(); the NAP button additionally sets a one-shot
 // spawn override so the player drops straight into the NAP far-left corner.
+// v0.2.613: the ENTER dynamic import retries ONCE after two animation frames.
+// A transient chunk-fetch flake (service worker mid-update, a slow mobile
+// link) used to hard-fail the click with '⚠ Arena failed to load — Failed to
+// fetch dynamically imported module' even though the same fetch succeeded a
+// moment later. Two rAFs ≈ one painted frame — no timers needed.
+async function _importArenaRuntimeWithRetry() {
+  try {
+    return await import('./arenaRuntime.js');
+  } catch (firstErr) {
+    await _nextFrame();
+    return import('./arenaRuntime.js'); // throws only if the retry also fails
+  }
+}
+
 async function ensureArenaReady(loadingLabel) {
   if (_arenaBootstrapped) return _arena;
   elEnterBtn.textContent = loadingLabel;
@@ -1935,7 +1981,9 @@ async function ensureArenaReady(loadingLabel) {
       _setBootProgress(0); // 'Loading engine…'
       startPhase('import-runtime');
       // ← THE deferred three-vendor load. Nothing the shell imports touches three.
-      const mod = await import('./arenaRuntime.js');
+      // v0.2.613: prefer the copy already warmed by the title-screen preloader.
+      const mod = _arenaModule || await _importArenaRuntimeWithRetry();
+      _arenaModule = mod;
       endPhase('import-runtime');
       _setBootProgress(1); // 'Building scene…'
       _arena = mod.createArenaRuntime({
@@ -2078,6 +2126,13 @@ function startPreloading() {
   _preloadedAssets._rapier = import('@dimforge/rapier3d-compat')
     .then(r => { r.init(); return r; })
     .catch(() => null);
+  // v0.2.613: warm the arena runtime chunk itself during title-screen idle, so
+  // the ENTER click's dynamic import resolves from the module cache instead of
+  // hitting the network (which flaked with 'Failed to fetch dynamically
+  // imported module' right after a deploy / on slow links).
+  _preloadedAssets._runtime = import('./arenaRuntime.js')
+    .then(m => { _arenaModule = m; return true; })
+    .catch(() => null); // failure is harmless — ENTER retries on demand
 }
 requestAnimationFrame(() => requestAnimationFrame(startPreloading));
 

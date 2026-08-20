@@ -148,19 +148,32 @@ function _clearBossFlash() {
   _bossBarTrackEl.style.borderColor = 'rgba(255,132,84,0.36)';
   _bossBarTrackEl.style.boxShadow = 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(255,92,48,0.08)';
 }
-function _positionBossBar(el, { screenX, screenY, anchored } = {}) {
+// v0.2.613: distance scaling. The bar was a fixed 150px at any range, so it
+// looked like a banner across the arena and "tiny" up close. Now it scales
+// with distance (clamped 0.55–1.30) like a nameplate pinned to his chest —
+// big in your face up close, small far away, always centred on the torso.
+const BOSS_BAR_SCALE_NEAR = 5;    // metres → 1.30×
+const BOSS_BAR_SCALE_FAR = 42;    // metres → 0.55×
+function _bossBarScale(dist) {
+  if (!Number.isFinite(dist)) return 1;
+  const t = Math.min(1, Math.max(0, (dist - BOSS_BAR_SCALE_NEAR) / (BOSS_BAR_SCALE_FAR - BOSS_BAR_SCALE_NEAR)));
+  return 1.30 - t * 0.75; // 1.30 near → 0.55 far
+}
+function _positionBossBar(el, { screenX, screenY, anchored, dist } = {}) {
   if (Number.isFinite(screenX)) el.style.left = `${Math.round(screenX)}px`;
   if (Number.isFinite(screenY)) el.style.top = `${Math.round(screenY)}px`;
+  const s = _bossBarScale(dist);
+  el.style.transform = `translate(-50%, -50%) scale(${s.toFixed(3)})`;
   el.style.opacity = anchored === true ? '1' : '0';
 }
-export function setBossBar({ id = null, name, hp, maxHp, alive, screenX = null, screenY = null, anchored = false } = {}) {
+export function setBossBar({ id = null, name, hp, maxHp, alive, screenX = null, screenY = null, anchored = false, dist = NaN } = {}) {
   const prevHp = _prevBossHp;
   const prevBossId = _bossId;
   const next = decideBossBarUpdate(_bossBarState, { id, name, hp, maxHp, alive });
   if (!next.visible) { hideBossBar(); return; }
   _bossBarState = next;
   const el = _bossBarDom();
-  _positionBossBar(el, { screenX, screenY, anchored });
+  _positionBossBar(el, { screenX, screenY, anchored, dist });
   if (!next.changed) {
     _prevBossHp = next.hp;
     _bossId = next.identity;

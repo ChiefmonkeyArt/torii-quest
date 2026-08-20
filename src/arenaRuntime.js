@@ -61,7 +61,7 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
-import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
+import { playShoot, playFootstep, playJumpLand, playSplash, warmAudio } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
@@ -867,6 +867,10 @@ export function createArenaRuntime(hooks = {}) {
     if (_firstFrameMarked && !_firstFrameEnded) {
       _firstFrameEnded = true;
       endPhase('first-render');
+      // v0.2.613: warm the WebAudio graph on the FIRST RENDERED FRAME instead
+      // of the first SHOT — the opening playShoot() used to pay context init +
+      // splash decode mid-firefight (the "froze on my first shots" report).
+      warmAudio();
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());

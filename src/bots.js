@@ -51,7 +51,9 @@ let _netMode = false;
 const _botNet = createBotNetState();
 const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 const ARENA_HALF = 20;
-const BOSS_BAR_ENGAGE_RANGE = 14;
+// v0.2.613: 14 → 30. The bar popped in only at near-melee range, which read as
+// "no health bar until I'm on top of him"; 30m covers a firefight approach.
+const BOSS_BAR_ENGAGE_RANGE = 30;
 const BOSS_BAR_RECENT_HIT_MS = 4000;
 const BOSS_BAR_VIEWPORT_MARGIN = 24;
 const _bossBarAnchorV = new THREE.Vector3();
@@ -505,6 +507,7 @@ function _tickNet(dt) {
     screenX: anchor.screenX,
     screenY: anchor.screenY,
     anchored: anchor.visible,
+    dist, // v0.2.613: the bar scales with distance — reads as ON his chest
   });
 }
 

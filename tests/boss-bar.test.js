@@ -218,7 +218,8 @@ describe('setBossBar', () => {
     expect(bar.style.left).toBe('436px');
     expect(bar.style.top).toBe('208px');
     // v0.2.611: chest-mounted compact readout — centred on the anchor point.
-    expect(bar.style.transform).toBe('translate(-50%, -50%)');
+    // v0.2.613: distance scaling appended (scale(1.000) when no dist passed).
+    expect(bar.style.transform).toBe('translate(-50%, -50%) scale(1.000)');
     expect(bar.style.opacity).toBe('1');
   });
 });

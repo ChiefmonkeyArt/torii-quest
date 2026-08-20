@@ -267,6 +267,16 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   // until the server's BOT_HIT lands a round-trip later.
   if (!local && _isNetMode() && aimHit && aimHit.bot && aimHit.bot.alive) {
     emit(EV.BOT_HIT_PREDICTED, { bot: aimHit.bot });
+    // v0.2.613 hit-reg diagnostic: the aim ray struck a live bot's LOCAL
+    // collider in MP, so the player sees a flinch — but damage is the server's
+    // call. If the server's lag-compensated rewind disagrees (or the SHOT was
+    // gated), the bot never dies (the "unkillable bot" report). One tagged log
+    // per shot lets us correlate with the server's [SHOT-RESOLVE] lines.
+    console.log('[HIT-REG] local ray hit bot', aimHit.bot.state?.id ?? aimHit.bot.name ?? '?',
+      'dist', Math.round((aimHit.toi || 0) * 10) / 10, '— awaiting server verdict');
+  } else if (!local && _isNetMode() && aimHit && aimHit.bot && !aimHit.bot.alive) {
+    console.log('[HIT-REG] ray hit DEAD bot wrapper', aimHit.bot.state?.id ?? '?',
+      '— server has not relayed the kill (or this client missed it)');
   }
   // Bullet line (muzzle → convergence) — what the projectile would hit if static.
   const predHit = raycastService.ray(d.origin.x, d.origin.y, d.origin.z, d.dir.x, d.dir.y, d.dir.z, DIAG_RANGE, excl);

@@ -119,10 +119,17 @@ const SUN_GLOW = 0xff8c1f;   // deep orange glow
 // ridges are DARKER silhouettes against it — the old palette (fog 0x2a1a0c vs
 // ridges 0x241709–0x4a3320) was tonally identical, so the mountains vanished
 // into the haze.
-const FOG_COL  = 0x4a2c12;   // warm bronze haze (brightened so silhouettes read)
+// v0.2.613 sky fix: the old uniform bronze fog read as an empty brown void —
+// the user reported "sky and mountains are not loaded". Now a real gradient
+// SKY DOME (dusky violet zenith → molten gold horizon) sits behind everything,
+// the fog tints toward the horizon colour so the ridges melt into it, and the
+// ridge silhouettes stay dark for contrast.
+const FOG_COL  = 0x9a5522;   // warm haze — blends ridges into the horizon glow
 const AMBIENT  = 0x8a6a4a;   // warm ambient lift
 const KEY_COL  = 0xffb95c;   // golden key light
-const RIDGE_COLS = [0x160b04, 0x201206, 0x2e1c0b]; // near → far mountain silhouettes
+const RIDGE_COLS = [0x1a0d05, 0x2a1709, 0x3c2410]; // near → far mountain silhouettes
+const SKY_TOP = 0x2a1030;    // dusky violet zenith
+const SKY_HORIZON = 0xe8822e; // molten gold horizon
 
 // _buildSun(THREE) → a layered sun low on the horizon: an emissive core disc +
 // two larger transparent halo discs for a soft glow. Flat (double-sided) so it
@@ -145,6 +152,32 @@ function _buildSun(THREE) {
   g.add(glow, halo, core);
   g.userData.halo = halo; g.userData.glow = glow;
   return g;
+}
+
+// _buildSky(THREE) → a huge inward-facing sphere with a vertical gradient
+// shader (horizon gold → zenith violet). Unaffected by fog, never depth-writes,
+// renders behind the ridges. Cheap: 1 draw call, 2 uniforms, no textures.
+function _buildSky(THREE) {
+  const geo = new THREE.SphereGeometry(180, 24, 16);
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, fog: false, depthWrite: false,
+    uniforms: {
+      top: { value: new THREE.Color(SKY_TOP) },
+      bottom: { value: new THREE.Color(SKY_HORIZON) },
+    },
+    vertexShader:
+      'varying vec3 vP;\n' +
+      'void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader:
+      'uniform vec3 top; uniform vec3 bottom; varying vec3 vP;\n' +
+      'void main(){ float h = normalize(vP).y * 0.5 + 0.5;\n' +
+      '  vec3 c = mix(bottom, top, smoothstep(0.03, 0.55, h));\n' +
+      '  gl_FragColor = vec4(c, 1.0); }',
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.userData.geo = geo; m.userData.mat = mat;
+  m.renderOrder = -1;
+  return m;
 }
 
 // _buildMountainRidge(THREE, {width, height, peaks, color, seed}) → a jagged
@@ -213,8 +246,11 @@ export async function mountHomepageScene(container) {
   const scene = new THREE.Scene();
   // v0.2.611: fog density 0.016 → 0.010 so the far ridge keeps silhouette
   // contrast instead of fogging out to the exact sky colour.
-  scene.fog = new THREE.FogExp2(FOG_COL, 0.010);
-  scene.background = new THREE.Color(FOG_COL);
+  scene.fog = new THREE.FogExp2(FOG_COL, 0.009);
+  // v0.2.613: the flat background colour is replaced by the gradient sky dome
+  // (added below, once `disposables` exists); the clear colour stays as a
+  // fallback behind any sphere seam.
+  scene.background = null;
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
   const BASE_CAM = new THREE.Vector3(0, 5.4, 26);
@@ -227,23 +263,33 @@ export async function mountHomepageScene(container) {
   // v0.2.611: the GLBs arrive nearly black (no texture; MeshStandardMaterial
   // with weak default UVs) — raise ambient + fill + key and push an emissive
   // lift onto the loaded meshes so the gate/character actually read.
-  scene.add(new THREE.AmbientLight(AMBIENT, 1.4));
-  const key = new THREE.DirectionalLight(KEY_COL, 1.5); key.position.set(4, 8, -6); scene.add(key);
-  const fill = new THREE.PointLight(0xffc9a0, 90, 90, 1.6); fill.position.set(0, 6, 12); scene.add(fill);
+  scene.add(new THREE.AmbientLight(AMBIENT, 1.7));
+  const key = new THREE.DirectionalLight(KEY_COL, 1.8); key.position.set(4, 8, -6); scene.add(key);
+  // v0.2.613: stronger frontal fill so the gate's vermillion skin + the
+  // character read against the bright horizon (they were near-silhouette).
+  const fill = new THREE.PointLight(0xffc9a0, 170, 110, 1.5); fill.position.set(0, 6, 14); scene.add(fill);
   const rim = new THREE.PointLight(0xff9a4a, 50, 70, 1.7); rim.position.set(-6, 5, -8); scene.add(rim);
 
-  // _liftGlb(root) — emissive lift so untextured/dark GLB materials read against
-  // the sunrise. Best-effort, per-material.
-  const _liftGlb = (root) => {
+  // _fixGlb(root) — v0.2.613 texture fix: these GLBs export alphaMode:BLEND,
+  // which makes every material TRANSLUCENT (the "skin not loaded" clay look —
+  // z-sort washing drowns the albedo texture). Force fully opaque, the same
+  // fix botModel.js/playerModel.js already apply in-game. The warm emissive
+  // lift now applies ONLY to materials with NO texture map, so a real albedo
+  // texture is no longer drowned in orange.
+  const _fixGlb = (root) => {
     root.traverse(o => {
       if (!o.isMesh || !o.material) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         try {
-          if (m.emissive && typeof m.emissive.setHex === 'function') {
+          m.transparent = false;
+          m.alphaTest = 0;
+          m.depthWrite = true;
+          if (!m.map && m.emissive && typeof m.emissive.setHex === 'function') {
             m.emissive.setHex(0x6a4526);
             m.emissiveIntensity = 1.0;
           }
+          m.needsUpdate = true;
         } catch { /* best-effort */ }
       }
     });
@@ -269,6 +315,11 @@ export async function mountHomepageScene(container) {
     disposables.push(r.userData.geo, r.userData.mat);
   }
 
+  // Gradient sky dome behind the ridges (v0.2.613 — the "sky not loaded" fix).
+  const sky = _buildSky(THREE);
+  scene.add(sky);
+  disposables.push(sky.userData.geo, sky.userData.mat);
+
   // Misty warm ground plain so the horizon glows into the fog.
   const groundGeo = new THREE.CircleGeometry(120, 48);
   const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a180b, roughness: 1, metalness: 0 });
@@ -293,10 +344,34 @@ export async function mountHomepageScene(container) {
   // rAF, so a slow/flaky chunk fetch left a mounted canvas that never rendered
   // (the "3D homescreen not loading" report). Now the procedural scene paints
   // immediately and the gate/character pop in whenever they arrive.
+  // v0.2.613: "summoning the world…" loading badge — the user reported "no
+  // details/graphics loading..." because the gate + character pop in silently.
+  // A small bottom-left badge shows while GLBs are in flight, then fades.
+  let loadingEl = null;
+  let _loadingFade = -1; // frames left in the fade-out (-1 = not fading)
+  let _assetsPending = 2; // gate + character
+  try {
+    loadingEl = doc.createElement('div');
+    loadingEl.id = 'home-scene-loading';
+    loadingEl.textContent = '⛩  SUMMONING THE WORLD…';
+    Object.assign(loadingEl.style, {
+      position: 'absolute', left: '18px', bottom: '16px', zIndex: '2',
+      fontFamily: 'monospace', fontSize: '10px', letterSpacing: '2.5px',
+      color: '#ffd9a8', textShadow: '0 0 10px rgba(255,150,60,0.55)',
+      pointerEvents: 'none', opacity: '0.92', transition: 'opacity 0.9s ease',
+    });
+    container.appendChild(loadingEl);
+  } catch { loadingEl = null; }
+  const _assetReady = () => {
+    _assetsPending -= 1;
+    if (_assetsPending > 0) return;
+    if (loadingEl) { loadingEl.style.opacity = '0'; _loadingFade = 60; }
+  };
+
   let draco = null; // disposed on unmount
   const _loadGlbs = async () => {
     const GltfLoader = await _loadGltfLoader();
-    if (!GltfLoader || !alive) return;
+    if (!GltfLoader || !alive) { _assetReady(); _assetReady(); return; }
     const loader = new GltfLoader();
     const DracoLoader = await _loadDracoLoader();
     if (!alive) return;
@@ -319,45 +394,74 @@ export async function mountHomepageScene(container) {
       gateObj.position.set(9.0, -box2.min.y, 2.0);
       gateObj.rotation.y = -0.35; // face slightly toward centre/camera
       gateObj.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
-      _liftGlb(gateObj);
+      _fixGlb(gateObj);
       scene.add(gateObj);
-    }, undefined, (e) => { console.warn('[home-scene] gate load failed:', e && e.message || e); });
+      _assetReady('gate');
+    }, undefined, (e) => { console.warn('[home-scene] gate load failed:', e && e.message || e); _assetReady('gate'); });
 
-    // Chiefmonkey rested idle — LEFT side.
-    loader.load(_assetPath('/chiefmonkey6.glb'), gltf => {
+    // Chiefmonkey greeter — LEFT, CLOSE to the camera (v0.2.613). The user
+    // asked for the Idle_02 animation, which lives in the PLAYER model file
+    // (models/animation-library.glb — the chiefmonkey mesh with the 18 library
+    // clips baked on), NOT in chiefmonkey6.glb (its only numbered idle is the
+    // arms-out weapon stance Idle_03). This file is already title-screen
+    // preloaded (main.js PRELOAD_ASSETS), so it pops in fast. Scale 1.0 like
+    // the arena (metre-scale rig); framed waist-up by the camera, so the legs
+    // crop below the frame — no special culling needed.
+    loader.load(_assetPath('/models/animation-library.glb'), gltf => {
       if (!alive) return;
       charObj = gltf.scene;
-      // v0.2.611: use the ARENA's scale, not box-normalisation. The GLB carries
-      // a 0.01 armature node scale; Box3 measures the ~170-unit bind-pose
-      // geometry, so the old `4.6/size.y` scalar multiplied it down to ~4.6 cm
-      // — an invisible speck. The arena loads the same file at 1.0 (≈1.7 m).
-      // ~2.0× reads as a clear foreground figure without dwarfing the gate.
-      charObj.scale.setScalar(2.0);
-      charObj.updateMatrixWorld(true);
-      const box2 = new THREE.Box3().setFromObject(charObj);
-      charObj.position.set(-7.5, -box2.min.y, 4.0);
-      charObj.rotation.y = 0.35; // face the camera/center
+      // v0.2.613: much closer to the camera, waist-up framing — scaled up and
+      // sunk ~0.95m so the ground plane crops the lower legs (the operator:
+      // "we do not need to see bottom half of his legs").
+      const CHAR_SCALE = 1.9;
+      charObj.scale.setScalar(CHAR_SCALE);
+
+      // Z-up fix (mirrors playerModel.js): the library GLB is authored Z-up —
+      // detect by axis span and stand the rig up with quaternions (Euler XYZ
+      // would rotate around the wrong axis and flip him back down).
+      let gMinY = Infinity, gMaxY = -Infinity, gMinZ = Infinity, gMaxZ = -Infinity;
+      charObj.traverse(o => {
+        if (o.isMesh && o.geometry) {
+          o.geometry.computeBoundingBox();
+          const b = o.geometry.boundingBox;
+          if (b) {
+            gMinY = Math.min(gMinY, b.min.y); gMaxY = Math.max(gMaxY, b.max.y);
+            gMinZ = Math.min(gMinZ, b.min.z); gMaxZ = Math.max(gMaxZ, b.max.z);
+          }
+        }
+      });
+      const isZUp = (gMaxZ - gMinZ) > (gMaxY - gMinY) * 1.2;
+      if (isZUp) gMinY = -gMaxZ; // after +90° X the old +Z span becomes -Y
+      const footLift = Number.isFinite(gMinY) ? -gMinY : 0;
+
+      charObj.position.set(-3.2, footLift * CHAR_SCALE - 0.95, 13.5); // close foreground, left of centre
+      if (isZUp) {
+        const standUp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+        const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI + 0.35);
+        charObj.quaternion.copy(face).multiply(standUp);
+      } else {
+        charObj.rotation.y = 0.35; // face the camera/centre
+      }
       charObj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
-      _liftGlb(charObj);
+      _fixGlb(charObj);
       scene.add(charObj);
 
-      // Rested idle: prefer a calm idle clip, loop it.
+      // Idle_02 — the player's own idle clip (calm standing breathe).
       const clips = gltf.animations || [];
       const byName = {};
       clips.forEach(c => { byName[c.name] = c; });
-      // v0.2.611: relaxed/standing first — 'idle_to_push_up' is a floor
-      // exercise and 'Idle_03' is an arms-out weapon-idle stance, both of
-      // which read broken on a greeter. Walking reads as strolling-in-place.
-      const idle = byName['Stylish_Walk_inplace'] || byName['Walking']
-        || byName['Idle_03'] || byName['Idle_11'] || byName['Idle']
-        || clips.find(c => /idle|walk/i.test(c.name || '')) || null;
+      const idle = byName['Idle_02'] || byName['Idle_03'] || byName['Idle']
+        || clips.find(c => /idle/i.test(c.name || '')) || null;
       if (idle) {
         mixer = new THREE.AnimationMixer(charObj);
         const action = mixer.clipAction(idle);
         action.setLoop(THREE.LoopRepeat, Infinity);
         action.play();
+        // Tick once so the first painted frame is already out of bind pose.
+        mixer.update(0.016);
       }
-    }, undefined, (e) => { console.warn('[home-scene] chiefmonkey load failed:', e && e.message || e); });
+      _assetReady('character');
+    }, undefined, (e) => { console.warn('[home-scene] chiefmonkey load failed:', e && e.message || e); _assetReady('character'); });
   };
 
   // Size to the container now (ResizeObserver fires once on observe too, but
@@ -403,6 +507,16 @@ export async function mountHomepageScene(container) {
     if (sun.userData.halo) sun.userData.halo.userData.mat.opacity = 0.22 + pulse * 0.12;
     if (sun.userData.glow) sun.userData.glow.userData.mat.opacity = 0.10 + pulse * 0.08;
 
+    // Fade-out + removal of the loading badge, counted in rAF frames (no
+    // timers — the regression-gate bans setTimeout here).
+    if (_loadingFade > 0) {
+      _loadingFade -= 1;
+      if (_loadingFade === 0 && loadingEl) {
+        try { if (loadingEl.parentNode === container) container.removeChild(loadingEl); } catch { /* best-effort */ }
+        loadingEl = null;
+      }
+    }
+
     // Advance Chiefmonkey's idle animation.
     if (mixer) mixer.update(dt);
 
@@ -421,6 +535,8 @@ export async function mountHomepageScene(container) {
       try { ro.disconnect(); } catch { /* best-effort */ }
       try { if (mixer) { mixer.stopAllAction(); mixer = null; } } catch { /* best-effort */ }
       try { if (draco) { draco.dispose(); draco = null; } } catch { /* best-effort */ }
+      try { if (loadingEl && loadingEl.parentNode === container) container.removeChild(loadingEl); } catch { /* best-effort */ }
+      loadingEl = null;
       // Dispose GLB geometries/materials.
       for (const root of [gateObj, charObj]) {
         if (!root) continue;

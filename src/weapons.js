@@ -260,6 +260,14 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   if (local) {
     localHitP = { x: aimHit.point.x, y: aimHit.point.y, z: aimHit.point.z, part: aimHit.bodyPart };
   }
+  // v0.2.609 — MP client-predicted hit feedback: resolveLocalHitscan returns
+  // null in netMode (the server is authoritative for damage), but the aim ray
+  // still hits the bot's LOCAL collider. Emit a predicted-hit event so the
+  // crosshair flashes + the bot flinches instantly, instead of staying silent
+  // until the server's BOT_HIT lands a round-trip later.
+  if (!local && _isNetMode() && aimHit && aimHit.bot && aimHit.bot.alive) {
+    emit(EV.BOT_HIT_PREDICTED, { bot: aimHit.bot });
+  }
   // Bullet line (muzzle → convergence) — what the projectile would hit if static.
   const predHit = raycastService.ray(d.origin.x, d.origin.y, d.origin.z, d.dir.x, d.dir.y, d.dir.z, DIAG_RANGE, excl);
   _describeInto(d.pred, predHit);

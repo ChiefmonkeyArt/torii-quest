@@ -1,6 +1,6 @@
 # Torii Quest ToDo
 
-Current version: `v0.2.608-alpha` - 3D HOMEPAGE SCENE (starfield + torii gate + slow camera orbit behind the home-surface card; lazy `import('three')`, single rAF, full dispose on unmount; fail-safe to the DOM gradient when WebGL is absent; no fetch/sign/navigate in the homepage layer). Prior: `v0.2.606-alpha` - COMPONENT SEAM (0l.1 expand path + crates-as-components, 0l.2 runtime host + beacon, 0l.3 portal/NAP data-shell). Prior: `v0.2.602-alpha` - PER-BONE STICKER COLLIDERS ON BOTS (extended to bots, castRay default excludes bone sensors). Prior: `v0.2.574-alpha` - PER-BONE NPC STICKER COLLIDERS (per-bone Rapier ball sensors + Object3D.attach).
+Current version: `v0.2.609-alpha` - 3D HOMEPAGE SCENE (starfield + torii gate + slow camera orbit behind the home-surface card; lazy `import('three')`, single rAF, full dispose on unmount; fail-safe to the DOM gradient when WebGL is absent; no fetch/sign/navigate in the homepage layer). Prior: `v0.2.606-alpha` - COMPONENT SEAM (0l.1 expand path + crates-as-components, 0l.2 runtime host + beacon, 0l.3 portal/NAP data-shell). Prior: `v0.2.602-alpha` - PER-BONE STICKER COLLIDERS ON BOTS (extended to bots, castRay default excludes bone sensors). Prior: `v0.2.574-alpha` - PER-BONE NPC STICKER COLLIDERS (per-bone Rapier ball sensors + Object3D.attach).
 
 ## 🚨 TOP OF QUEUE
 

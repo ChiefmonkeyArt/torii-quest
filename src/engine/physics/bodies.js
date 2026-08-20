@@ -100,13 +100,17 @@ export function createDynamic(x, y, z) {
 }
 
 // ── Bot bodies ───────────────────────────────────────────────────────────────
-export function createBotBody(bot, x, y, z) {
+// `scale` (default 1) grows the collider for a bigger bot (the Augustink boss,
+// rendered at BOSS_TARGET_HEIGHT=3.0m ≈ 1.76× the 1.7m regular model). Without
+// it the boss got a regular-sized hitbox (top at 1.6m) while its visual model
+// reached 3m — shots at the chest/head sailed over the collider (v0.2.609 fix).
+export function createBotBody(bot, x, y, z, scale = 1) {
   if (!_world) return null;
   const body = _world.createRigidBody(
     _RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
   );
   const collider = _world.createCollider(
-    _RAPIER.ColliderDesc.capsule(BOT_BODY_HALF_H, BOT_BODY_RADIUS),
+    _RAPIER.ColliderDesc.capsule(BOT_BODY_HALF_H * scale, BOT_BODY_RADIUS * scale),
     body
   );
   colliderToBot.set(collider.handle, bot);
@@ -115,13 +119,13 @@ export function createBotBody(bot, x, y, z) {
 }
 
 // Bot head — separate kinematic sphere collider on its own rigid body.
-export function createBotHead(bot, x, y, z) {
+export function createBotHead(bot, x, y, z, scale = 1) {
   if (!_world) return null;
   const body = _world.createRigidBody(
     _RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z)
   );
   const collider = _world.createCollider(
-    _RAPIER.ColliderDesc.ball(BOT_HEAD_RADIUS),
+    _RAPIER.ColliderDesc.ball(BOT_HEAD_RADIUS * scale),
     body
   );
   colliderToBot.set(collider.handle, bot);

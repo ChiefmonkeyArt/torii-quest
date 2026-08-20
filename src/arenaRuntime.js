@@ -28,7 +28,7 @@ import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
+import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, predictBotHit } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -1136,6 +1136,15 @@ export function createArenaRuntime(hooks = {}) {
 
     on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
       hitBot(bot, dmg);
+      if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
+      flashCross();
+    });
+
+    // v0.2.609: MP predicted-hit feedback — the aim ray struck a bot's local
+    // collider, so show the impact + flinch + crosshair flash NOW rather than
+    // a server round-trip later. Damage remains server-authoritative (BOT_HIT).
+    on(EV.BOT_HIT_PREDICTED, ({ bot }) => {
+      predictBotHit(bot);
       if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
       flashCross();
     });

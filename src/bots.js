@@ -13,7 +13,7 @@
 // exact signatures + externally observable behaviour — this is a pure refactor.
 import * as THREE from 'three';
 import { scene, camera } from './scene.js';
-import { state, isPlaying } from './state.js';
+import { state, isPlaying, isLive } from './state.js';
 import { emit, EV } from './events.js';
 import { setBossBar, hideBossBar } from './hud.js';
 import {
@@ -34,7 +34,7 @@ import { isFlyEnabled } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
-import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
+import { createBotSim, COVER_MARGIN, BOT_R } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
 import { decideBossEngagement } from './bossBarState.js';
 import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
@@ -278,23 +278,32 @@ function _attachModelBot(st, renderKind = 'regular') {
   return bot;
 }
 
+// v0.2.609: collider scale per bot kind. The boss renders ~3m tall and the
+// SERVER resolves its hits with a 2× collider (BOSS_RADIUS / BOT_R). The client
+// colliders must match, both for SP damage and for MP predicted-hit feedback.
+function _botColliderScale(bot) {
+  return bot.state?.kind === 'boss' ? (BOSS_RADIUS / BOT_R) : 1;
+}
+
 // Create (or re-position) both the body capsule AND head sphere for a bot.
-// Body centre  = foot + BOT_BODY_CENTRE_Y_OFFSET (0.76)
-// Head  centre = foot + BOT_HEAD_CENTRE_Y_OFFSET (1.55)
+// Body centre  = foot + BOT_BODY_CENTRE_Y_OFFSET * scale (0.80 regular)
+// Head  centre = foot + BOT_HEAD_CENTRE_Y_OFFSET * scale (1.55 regular)
 function _ensureBotColliders(bot, x, z) {
   if (!physicsReady) return;
+  const scale = _botColliderScale(bot);
+  bot._colliderScale = scale;
   const fy = _footY(x, z);
   if (!bot.rapierBody) {
-    const h = createBotBody(bot, x, fy + BOT_BODY_CENTRE_Y_OFFSET, z);
+    const h = createBotBody(bot, x, fy + BOT_BODY_CENTRE_Y_OFFSET * scale, z, scale);
     if (h) { bot.rapierBody = h.body; bot.rapierCollider = h.collider; }
   } else {
-    setBotBodyPos(bot.rapierBody, x, fy + BOT_BODY_CENTRE_Y_OFFSET, z);
+    setBotBodyPos(bot.rapierBody, x, fy + BOT_BODY_CENTRE_Y_OFFSET * scale, z);
   }
   if (!bot.rapierHeadBody) {
-    const h = createBotHead(bot, x, fy + BOT_HEAD_CENTRE_Y_OFFSET, z);
+    const h = createBotHead(bot, x, fy + BOT_HEAD_CENTRE_Y_OFFSET * scale, z, scale);
     if (h) { bot.rapierHeadBody = h.body; bot.rapierHeadCollider = h.collider; }
   } else {
-    setBotBodyPos(bot.rapierHeadBody, x, fy + BOT_HEAD_CENTRE_Y_OFFSET, z);
+    setBotBodyPos(bot.rapierHeadBody, x, fy + BOT_HEAD_CENTRE_Y_OFFSET * scale, z);
   }
   // Per-bone colliders — only for model bots with a SkinnedMesh (v0.2.575).
   if (bot.model?.loaded && bot.model.skinnedMesh && bot.boneColliders.length === 0) {
@@ -375,6 +384,10 @@ export function ingestBotState(states) {
 // the single-player shotCallback so the visual/audio is identical.
 export function applyBotShot(originArr, dirArr) {
   if (!Array.isArray(originArr) || !Array.isArray(dirArr)) return;
+  // v0.2.609: gate on the live phase — the server keeps broadcasting BOT_SHOT
+  // after the player exits to the title screen, and the ungated playBotShoot()
+  // kept the fire audio running (reported as "shots still firing after exit").
+  if (!isLive()) return;
   const origin = { x: originArr[0], y: originArr[1], z: originArr[2] };
   const dir = { x: dirArr[0], y: dirArr[1], z: dirArr[2] };
   if (_spawnBulletFn) _spawnBulletFn(origin, dir, false);
@@ -389,6 +402,14 @@ export function applyBotHit(botId, hp) {
   const bot = _botById(botId);
   if (!bot) return;
   bot.state.hp = hp;
+  bot.state._isHit = true;
+  bot.state._hitTimer = 0.3;
+}
+
+// v0.2.609: client-predicted hit feedback (MP). The local aim ray hit this
+// bot's collider — flinch immediately; the server's BOT_HIT still owns the hp.
+export function predictBotHit(bot) {
+  if (!bot || !bot.state || !bot.state.alive) return;
   bot.state._isHit = true;
   bot.state._hitTimer = 0.3;
 }
@@ -532,8 +553,9 @@ function _syncNetBot(bot, pose, dt) {
   if (!bot.rapierBody || !bot.rapierHeadBody) {
     _ensureBotColliders(bot, pose.x, pose.z);
   } else {
-    setBotBodyPos(bot.rapierBody,     pose.x, fy + BOT_BODY_CENTRE_Y_OFFSET, pose.z);
-    setBotBodyPos(bot.rapierHeadBody, pose.x, fy + BOT_HEAD_CENTRE_Y_OFFSET, pose.z);
+    const cs = bot._colliderScale || 1;
+    setBotBodyPos(bot.rapierBody,     pose.x, fy + BOT_BODY_CENTRE_Y_OFFSET * cs, pose.z);
+    setBotBodyPos(bot.rapierHeadBody, pose.x, fy + BOT_HEAD_CENTRE_Y_OFFSET * cs, pose.z);
   }
 
   const pPos = _playerObj.position;
@@ -604,8 +626,9 @@ function _syncBot(bot, dt) {
     _ensureBotColliders(bot, st.pos.x, st.pos.z);
   } else {
     const fy = _footY(st.pos.x, st.pos.z);
-    setBotBodyPos(bot.rapierBody,     st.pos.x, fy + BOT_BODY_CENTRE_Y_OFFSET, st.pos.z);
-    setBotBodyPos(bot.rapierHeadBody, st.pos.x, fy + BOT_HEAD_CENTRE_Y_OFFSET, st.pos.z);
+    const cs = bot._colliderScale || 1;
+    setBotBodyPos(bot.rapierBody,     st.pos.x, fy + BOT_BODY_CENTRE_Y_OFFSET * cs, st.pos.z);
+    setBotBodyPos(bot.rapierHeadBody, st.pos.x, fy + BOT_HEAD_CENTRE_Y_OFFSET * cs, st.pos.z);
   }
 
   const pPos = _playerObj.position;

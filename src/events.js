@@ -15,6 +15,10 @@ export const EV = Object.freeze({
   PLAYER_RESPAWN: 'player:respawn',
   BOT_HIT:        'bot:hit',
   BOT_HIT_BY_PLAYER: 'bot:hitByPlayer', // weapon bullet struck a bot; payload {bot,dmg}
+  // v0.2.609: MP client-predicted bot hit (aim ray) — fired the instant the
+  // reticle is on a bot, BEFORE the server's authoritative BOT_HIT arrives.
+  // Used for immediate crosshair/flinch feedback so a hit never feels silent.
+  BOT_HIT_PREDICTED: 'bot:hitPredicted', // payload {bot}
   BOT_KILLED:     'bot:killed',
   SHOOT:          'player:shoot',
   NOSTR_LOGIN:    'nostr:login',

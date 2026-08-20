@@ -139,9 +139,9 @@ function _build() {
     maxHeight: '88vh', overflow: 'auto',
     background: 'linear-gradient(160deg, rgba(26,22,48,0.78), rgba(16,16,30,0.82))',
     backdropFilter: 'blur(10px)',
-    border: '1.5px solid rgba(139,92,246,0.55)',
+    border: '1.5px solid rgba(217,154,61,0.55)',
     borderRadius: '14px',
-    boxShadow: '0 0 50px rgba(139,92,246,0.35), 0 0 24px rgba(76,201,240,0.25), 0 8px 30px rgba(0,0,0,0.6)',
+    boxShadow: '0 0 50px rgba(217,154,61,0.35), 0 0 24px rgba(76,201,240,0.25), 0 8px 30px rgba(0,0,0,0.6)',
     color: '#f4f9ff',
     padding: '22px 24px 20px',
   });
@@ -151,18 +151,18 @@ function _build() {
   Object.assign(head.style, { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' });
   const title = _doc().createElement('div');
   title.textContent = '⛩  GATEWAY SETUP';
-  Object.assign(title.style, { fontSize: '20px', letterSpacing: '4px', fontWeight: 'bold', color: '#e9d5ff', textShadow: '0 0 14px rgba(196,181,253,0.7)' });
+  Object.assign(title.style, { fontSize: '20px', letterSpacing: '4px', fontWeight: 'bold', color: '#ffe6bd', textShadow: '0 0 14px rgba(240,200,132,0.7)' });
   const closeBtn = _doc().createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '×';
   closeBtn.setAttribute('aria-label', 'Close Gateway setup');
   Object.assign(closeBtn.style, {
-    background: 'transparent', color: '#c4b5fd', border: '1px solid rgba(196,181,253,0.4)',
+    background: 'transparent', color: '#f0c884', border: '1px solid rgba(240,200,132,0.4)',
     borderRadius: '8px', fontSize: '22px', lineHeight: '1', width: '34px', height: '34px',
     cursor: 'pointer', padding: '0', transition: 'background 0.15s, color 0.15s',
   });
-  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(196,181,253,0.15)'; closeBtn.style.color = '#fff'; });
-  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'transparent'; closeBtn.style.color = '#c4b5fd'; });
+  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.background = 'rgba(240,200,132,0.15)'; closeBtn.style.color = '#fff'; });
+  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.background = 'transparent'; closeBtn.style.color = '#f0c884'; });
   closeBtn.addEventListener('click', _close);
   head.append(title, closeBtn);
 
@@ -240,8 +240,8 @@ function _cardDom(card, state, callbacks) {
     display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0 12px',
     alignItems: 'center',
     padding: '12px 14px', borderRadius: '8px',
-    background: 'rgba(139,92,246,0.08)',
-    border: '1px solid rgba(139,92,246,0.28)',
+    background: 'rgba(217,154,61,0.08)',
+    border: '1px solid rgba(217,154,61,0.28)',
   });
 
   const icon = _doc().createElement('div');
@@ -251,7 +251,7 @@ function _cardDom(card, state, callbacks) {
   const body = _doc().createElement('div');
 
   const label = _doc().createElement('div');
-  Object.assign(label.style, { fontSize: '13px', color: '#e9d5ff', letterSpacing: '0.5px' });
+  Object.assign(label.style, { fontSize: '13px', color: '#ffe6bd', letterSpacing: '0.5px' });
 
   const sub = _doc().createElement('div');
   Object.assign(sub.style, { fontSize: '10px', color: '#9ca3af', marginTop: '2px' });
@@ -279,15 +279,15 @@ function _cardDom(card, state, callbacks) {
   Object.assign(btn.style, {
     fontSize: '11px', letterSpacing: '1px', padding: '5px 12px', borderRadius: '6px',
     cursor: enabled ? 'pointer' : 'default',
-    background: enabled ? 'rgba(139,92,246,0.25)' : 'rgba(139,92,246,0.10)',
-    color: enabled ? '#e9d5ff' : '#6b7280',
-    border: '1px solid rgba(139,92,246,0.45)',
+    background: enabled ? 'rgba(217,154,61,0.25)' : 'rgba(217,154,61,0.10)',
+    color: enabled ? '#ffe6bd' : '#6b7280',
+    border: '1px solid rgba(217,154,61,0.45)',
     justifySelf: 'end', alignSelf: 'center',
   });
 
   if (enabled) {
-    btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.4)'; });
-    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.25)'; });
+    btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(217,154,61,0.4)'; });
+    btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(217,154,61,0.25)'; });
     btn.addEventListener('click', () => {
       const cb = callbacks && typeof callbacks[card.cb] === 'function' ? callbacks[card.cb] : null;
       if (!cb) return;

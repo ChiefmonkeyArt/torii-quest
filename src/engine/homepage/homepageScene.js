@@ -1,28 +1,38 @@
 // engine/homepage/homepageScene.js — the 3D landing scene behind the home surface.
 //
-// A self-contained Three.js scene: a starfield, a glowing torii gate, a dark
-// ground, + a slow camera orbit. Display + rAF ONLY — no fetch, no sign, no
-// relay, no navigation, no DOM event routing beyond resize. Every action still
-// lives in the DOM cards the stub already owns.
+// v0.2.609 golden-sunrise redesign: a misty mountain range, a low warm sun, the
+// Torii GATEWAY EXPERIENCE gate on the RIGHT, + Chiefmonkey in a rested-idle
+// animation on the LEFT. Mouse movement pans the camera with parallax so the
+// scene, gate, + character shift with perspective.
 //
-// Loading: `three` is imported LAZILY inside mount() (a dynamic `import()`).
-// homepageStub.js never imports three at module-eval time, so the homepage layer
-// stays three-free + node-testable (mirrors the arena's ENTER ARENA bootstrap).
-// three is already in the production bundle (the arena uses it), so this adds
-// no new dependency — only reuses it on the home surface.
+// Self-contained Three.js scene. Display + rAF ONLY — no fetch, no sign, no
+// relay, no navigation, no DOM event routing beyond resize + mousemove. Every
+// action still lives in the DOM cards the stub already owns.
+//
+// Loading: `three` + the GLB loaders are imported LAZILY inside mount()
+// (dynamic `import()`). homepageStub.js never imports three at module-eval
+// time, so the homepage layer stays three-free + node-testable (mirrors the
+// arena's ENTER ARENA bootstrap). three is already in the production bundle
+// (the arena uses it), so this adds no new dependency — only reuses it on the
+// home surface.
+//
+// The two GLB meshes (gate + character) load from /public via assetUrl() so
+// they resolve correctly under the /quest/ Suite path prefix. Both are optional
+// + fail-safe: a failed load leaves the procedural scene (mountains, sun, fog)
+// intact — the home surface still works.
 //
 // Lifecycle: mountHomepageScene(container) → Promise<{unmount}|null>. The scene
 // creates its own <canvas> inside `container`, sizes it to the container, + runs
-// a single rAF loop. unmount() cancels the rAF, disposes every geometry /
-// material / texture / renderer, disconnects the ResizeObserver, + removes the
-// canvas — no orphaned GL context, no leaked listeners. Fail-safe: a missing
-// `three`, a missing WebGL context, or any throw → returns null so the caller
-// falls back to the existing DOM gradient (the home surface still works).
+// a single rAF loop. unmount() cancels the rAF, removes the mousemove listener,
+// disposes every geometry / material / texture / mixer / renderer, disconnects
+// the ResizeObserver, + removes the canvas — no orphaned GL context, no leaked
+// listeners. Fail-safe: a missing `three`, a missing WebGL context, or any throw
+// → returns null so the caller falls back to the existing DOM gradient.
 //
 // Regression-guard: rAF is the ONLY scheduling primitive (no setInterval /
 // setTimeout), + it is always cancelled on unmount. No new hot-path allocs in
-// the loop — geometries/materials are built once at mount; per-frame work is
-// just matrix + a couple of scalar writes on existing objects.
+// the loop — geometries/materials/mixers are built once at mount; per-frame work
+// is matrix/scalar writes on existing objects + a single mixer.update(dt).
 
 let _Three = null;
 
@@ -36,6 +46,31 @@ async function _loadThree() {
   } catch {
     return null;
   }
+}
+
+// _loadGltfLoader() → a GLTFLoader class (cached) or null. Lazy + fail-safe.
+// DRACO is not needed for the two homepage GLBs (both are uncompressed), so a
+// plain loader keeps the homepage chunk small.
+let _GltfLoader = null;
+async function _loadGltfLoader() {
+  if (_GltfLoader) return _GltfLoader;
+  try {
+    const mod = await import('three/addons/loaders/GLTFLoader.js');
+    _GltfLoader = mod.GLTFLoader ?? null;
+    return _GltfLoader;
+  } catch {
+    return null;
+  }
+}
+
+// _assetPath(rel) → a URL for a /public asset, honouring the Vite base. Kept
+// local (no module-eval import of assetUrl.js) so this file stays side-effect
+// free in node tests; mirrors src/assetUrl.js logic for the build base.
+function _assetPath(rel) {
+  const r = String(rel).replace(/^\/+/, '');
+  const base = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || '/';
+  const nb = base.endsWith('/') ? base : `${base}/`;
+  return `${nb}${r}`;
 }
 
 // _canUseWebGL(doc) → true if a WebGL context is available. Probes with a
@@ -55,58 +90,70 @@ function _canUseWebGL(doc) {
   }
 }
 
-// _buildGate(THREE) → a Group: two pillars, a lintel (kasagi), + a crossbeam
-// (nuki). Purple emissive stone + teal accent ring at the lintel. Built once at
-// mount; the loop only nudges emissiveIntensity for a soft pulse.
-function _buildGate(THREE) {
+// ── Palettes (golden sunrise) ────────────────────────────────────────────────
+const SUN_CORE = 0xffd9a0;   // pale gold sun disc
+const SUN_HALO = 0xffa03c;   // orange halo
+const SUN_GLOW = 0xff8c1f;   // deep orange glow
+const FOG_COL  = 0x2a1a0c;   // warm bronze haze
+const AMBIENT  = 0x8a6a4a;   // warm ambient lift
+const KEY_COL  = 0xffb95c;   // golden key light
+const RIDGE_COLS = [0x4a3320, 0x352415, 0x241709]; // near → far mountain silhouettes
+
+// _buildSun(THREE) → a layered sun low on the horizon: an emissive core disc +
+// two larger transparent halo discs for a soft glow. Flat (double-sided) so it
+// always faces the camera. Per-frame the loop gently breathes the halo opacity.
+function _buildSun(THREE) {
   const g = new THREE.Group();
-  const stone = new THREE.MeshStandardMaterial({
-    color: 0x3a2a5a, emissive: 0x8b5cf6, emissiveIntensity: 1.35,
-    roughness: 0.5, metalness: 0.15,
-  });
-  const accent = new THREE.MeshStandardMaterial({
-    color: 0x0a4a44, emissive: 0x1ad6c4, emissiveIntensity: 1.9,
-    roughness: 0.4, metalness: 0.25,
-  });
-  const pillarGeo = new THREE.CylinderGeometry(0.34, 0.42, 6.4, 18);
-  const pL = new THREE.Mesh(pillarGeo, stone); pL.position.set(-2.1, 3.2, 0);
-  const pR = pillarGeo.clone(); const mR = new THREE.Mesh(pR, stone);
-  mR.position.set(2.1, 3.2, 0);
-  const lintelGeo = new THREE.BoxGeometry(6.0, 0.7, 0.7);
-  const lintel = new THREE.Mesh(lintelGeo, stone); lintel.position.set(0, 6.5, 0);
-  const nukiGeo = new THREE.BoxGeometry(5.4, 0.45, 0.5);
-  const nuki = new THREE.Mesh(nukiGeo, stone); nuki.position.set(0, 5.0, 0);
-  // Teal accent ring across the lintel (the gate's "active" seam).
-  const ringGeo = new THREE.BoxGeometry(6.2, 0.12, 0.74);
-  const ring = new THREE.Mesh(ringGeo, accent); ring.position.set(0, 6.5, 0.02);
-  g.add(pL, mR, lintel, nuki, ring);
-  g.userData.stone = stone; g.userData.accent = accent;
-  g.userData.geos = [pillarGeo, pR, lintelGeo, nukiGeo, ringGeo];
+  const mk = (r, color, opacity) => {
+    const geo = new THREE.CircleGeometry(r, 48);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity, side: THREE.DoubleSide,
+      fog: false, depthWrite: false,
+    });
+    const m = new THREE.Mesh(geo, mat);
+    m.userData.geo = geo; m.userData.mat = mat;
+    return m;
+  };
+  const glow = mk(9.5, SUN_GLOW, 0.14);
+  const halo = mk(6.0, SUN_HALO, 0.30);
+  const core = mk(3.4, SUN_CORE, 0.95);
+  g.add(glow, halo, core);
+  g.userData.halo = halo; g.userData.glow = glow;
   return g;
 }
 
-// _buildStars(THREE, count) → a Points starfield in a wide shell around origin.
-function _buildStars(THREE, count = 2000) {
-  const pos = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    // Distribute on a sphere shell of radius 22–60 so the camera (r~30) is
-    // always inside the field — stars pan past as the camera orbits.
-    const r = 22 + Math.random() * 38;
-    const th = Math.random() * Math.PI * 2;
-    const ph = Math.acos(2 * Math.random() - 1);
-    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
-    pos[i * 3 + 1] = r * Math.cos(ph) * 0.6; // squash vertically for a horizon feel
-    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+// _buildMountainRidge(THREE, {width, height, peaks, color, seed}) → a jagged
+// silhouette ridge (a flat shape) in a given colour. Peaks are deterministic
+// (seeded) so the skyline is stable across reloads. The shape's base sits at
+// y=0; it rises to `height` at its tallest peak.
+function _ridgeHeight(seed, n) {
+  // Deterministic pseudo-random in [0,1) from a seed integer.
+  let s = (seed * 9301 + 49297) % 233280;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const hs = [];
+  for (let i = 0; i <= n; i++) hs.push(0.35 + rnd() * 0.65);
+  // Smooth so the ridge reads as rolling peaks, not spikes.
+  for (let p = 0; p < 2; p++) {
+    for (let i = 1; i < n; i++) hs[i] = (hs[i - 1] + hs[i] * 2 + hs[i + 1]) / 4;
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const mat = new THREE.PointsMaterial({
-    color: 0xd4c5ff, size: 0.6, sizeAttenuation: true,
-    transparent: true, opacity: 1.0, depthWrite: false,
-  });
-  const stars = new THREE.Points(geo, mat);
-  stars.userData.geo = geo; stars.userData.mat = mat;
-  return stars;
+  return hs;
+}
+function _buildMountainRidge(THREE, opts) {
+  const { width = 120, height = 14, peaks = 9, color = 0x352415, seed = 7 } = opts || {};
+  const hs = _ridgeHeight(seed, peaks);
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2, 0);
+  for (let i = 0; i <= peaks; i++) {
+    const x = -width / 2 + (width * i) / peaks;
+    shape.lineTo(x, hs[i] * height);
+  }
+  shape.lineTo(width / 2, 0);
+  shape.lineTo(-width / 2, 0);
+  const geo = new THREE.ShapeGeometry(shape);
+  const mat = new THREE.MeshBasicMaterial({ color, fog: true, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(geo, mat);
+  m.userData.geo = geo; m.userData.mat = mat;
+  return m;
 }
 
 // mountHomepageScene(container) → { unmount } | null. Fail-safe at every step:
@@ -118,8 +165,6 @@ export async function mountHomepageScene(container) {
 
   const doc = container.ownerDocument || (typeof globalThis !== 'undefined' && globalThis.document);
   if (!doc || typeof doc.createElement !== 'function') return null;
-  // Probe with a throwaway canvas — NEVER the real render canvas (see _canUseWebGL),
-  // so Three never receives a canvas whose context was already lost.
   if (!_canUseWebGL(doc)) return null;
 
   const canvas = doc.createElement('canvas');
@@ -132,52 +177,134 @@ export async function mountHomepageScene(container) {
 
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
+    renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true, powerPreference: 'high-performance' });
   } catch {
     try { if (canvas.parentNode) canvas.parentNode.removeChild(canvas); } catch { /* best-effort */ }
     return null;
   }
-  renderer.setClearColor(0x000000, 0);
+  renderer.setClearColor(FOG_COL, 1);
   renderer.setPixelRatio(Math.min((typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2));
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x08081a, 0.012);
+  scene.fog = new THREE.FogExp2(FOG_COL, 0.016);
+  scene.background = new THREE.Color(FOG_COL);
 
-  const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 200);
-  camera.position.set(0, 7.5, 30);
-  camera.lookAt(0, 4, 0);
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+  const BASE_CAM = new THREE.Vector3(0, 5.4, 26);
+  const BASE_LOOK = new THREE.Vector3(0, 3.6, 0);
+  camera.position.copy(BASE_CAM);
+  camera.lookAt(BASE_LOOK);
 
-  // Lights: ambient lifts the dark base so the gate reads; a bright purple key
-  // at the gate + a teal rim from behind for separation. Emissive carries the
-  // glow but the lights stop the gate from disappearing into the starfield.
-  scene.add(new THREE.AmbientLight(0x4a3a68, 0.9));
-  const key = new THREE.PointLight(0x8b5cf6, 140, 50, 1.6); key.position.set(0, 6, 6);
-  scene.add(key);
-  const rim = new THREE.DirectionalLight(0x1ad6c4, 0.9); rim.position.set(-6, 4, -8);
-  scene.add(rim);
-  const fill = new THREE.PointLight(0x1ad6c4, 60, 40, 1.8); fill.position.set(4, 3, -5);
-  scene.add(fill);
+  // Lights: a warm ambient lift + a golden key from the sun's direction + a
+  // soft fill so the gate/character read against the bright horizon.
+  scene.add(new THREE.AmbientLight(AMBIENT, 0.9));
+  const key = new THREE.DirectionalLight(KEY_COL, 1.5); key.position.set(4, 8, -6); scene.add(key);
+  const fill = new THREE.PointLight(0xffc9a0, 40, 60, 1.8); fill.position.set(0, 5, 10); scene.add(fill);
 
-  // Ground: a large dark disc — gives the gate a horizon + catches the fog.
-  const groundGeo = new THREE.CircleGeometry(60, 48);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x0c0a16, roughness: 0.95, metalness: 0.0 });
+  // Sun low on the horizon, behind the gate, centre-right of the composition.
+  const sun = _buildSun(THREE); sun.position.set(3.5, 6.0, -40); scene.add(sun);
+
+  // Mountain ridges layered near → far for depth + fog falloff.
+  const disposables = [];
+  const ridges = [];
+  const ridgeDefs = [
+    { width: 150, height: 16, peaks: 8,  color: RIDGE_COLS[2], seed: 11, z: -34, y: 0 },
+    { width: 130, height: 12, peaks: 7,  color: RIDGE_COLS[1], seed: 29, z: -22, y: 0 },
+    { width: 120, height: 8,  peaks: 6,  color: RIDGE_COLS[0], seed: 47, z: -11, y: 0 },
+  ];
+  for (const d of ridgeDefs) {
+    const r = _buildMountainRidge(THREE, d);
+    r.position.set(0, d.y, d.z);
+    scene.add(r); ridges.push(r);
+    disposables.push(r.userData.geo, r.userData.mat);
+  }
+
+  // Misty warm ground plain so the horizon glows into the fog.
+  const groundGeo = new THREE.CircleGeometry(120, 48);
+  const groundMat = new THREE.MeshStandardMaterial({ color: 0x1d120a, roughness: 1, metalness: 0 });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05;
   scene.add(ground);
+  disposables.push(groundGeo, groundMat);
 
-  const stars = _buildStars(THREE); scene.add(stars);
-  const gate = _buildGate(THREE); scene.add(gate);
+  // Track sun halo meshes for the breathing pulse + disposal.
+  disposables.push(sun.userData.halo.userData.geo, sun.userData.halo.userData.mat,
+                   sun.userData.glow.userData.geo, sun.userData.glow.userData.mat);
+
+  // ── Gate + character (GLB, fail-safe) ──────────────────────────────────────
+  let mixer = null;             // Chiefmonkey AnimationMixer (if loaded)
+  let gateObj = null;
+  let charObj = null;
+  let alive = true;             // set false on unmount so late loads no-op
+
+  const GltfLoader = await _loadGltfLoader();
+  if (GltfLoader && alive) {
+    const loader = new GltfLoader();
+
+    // Torii GATEWAY EXPERIENCE gate — RIGHT side.
+    loader.load(_assetPath('/torii-gateway-experience.glb'), gltf => {
+      if (!alive) return;
+      gateObj = gltf.scene;
+      // Normalise scale to ~7 units tall, feet on the ground.
+      const box = new THREE.Box3().setFromObject(gateObj);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const s = size.y > 0 ? 7 / size.y : 1;
+      gateObj.scale.setScalar(s);
+      const box2 = new THREE.Box3().setFromObject(gateObj);
+      gateObj.position.set(9.0, -box2.min.y, 2.0);
+      gateObj.rotation.y = -0.35; // face slightly toward centre/camera
+      gateObj.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
+      scene.add(gateObj);
+    }, undefined, () => { /* gate optional — procedural scene still works */ });
+
+    // Chiefmonkey rested idle — LEFT side.
+    loader.load(_assetPath('/chiefmonkey6.glb'), gltf => {
+      if (!alive) return;
+      charObj = gltf.scene;
+      const box = new THREE.Box3().setFromObject(charObj);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const s = size.y > 0 ? 3.4 / size.y : 1;
+      charObj.scale.setScalar(s);
+      const box2 = new THREE.Box3().setFromObject(charObj);
+      charObj.position.set(-8.2, -box2.min.y, 3.0);
+      charObj.rotation.y = 0.4; // face slightly toward centre/camera
+      charObj.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
+      scene.add(charObj);
+
+      // Rested idle: prefer a calm idle clip, loop it.
+      const clips = gltf.animations || [];
+      const byName = {};
+      clips.forEach(c => { byName[c.name] = c; });
+      const idle = byName['Idle_03'] || byName['Idle_11'] || byName['Idle'] || clips[0] || null;
+      if (idle) {
+        mixer = new THREE.AnimationMixer(charObj);
+        const action = mixer.clipAction(idle);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.play();
+      }
+    }, undefined, () => { /* character optional — procedural scene still works */ });
+  }
 
   // Size to the container now (ResizeObserver fires once on observe too, but
   // set an explicit baseline so the first frame isn't 300x150).
-  _resize(renderer, camera, container, THREE);
-
-  const ro = new ResizeObserver(() => _resize(renderer, camera, container, THREE));
+  _resize(renderer, camera, container);
+  const ro = new ResizeObserver(() => _resize(renderer, camera, container));
   ro.observe(container);
 
-  let raf = 0; let alive = true;
-  // Pick the clock ONCE (not per frame). `nowFn()` returns ms since epoch-ish;
-  // one call per frame feeds both the dt delta + the orbit/pulse phase `a`.
+  // ── Mouse parallax ─────────────────────────────────────────────────────────
+  // Track the pointer in [-1,1]; ease the camera toward a small offset each
+  // frame so the scene, gate, + character shift with perspective. Registered on
+  // the document (the title content sits above the canvas) + removed on unmount.
+  const mouse = { x: 0, y: 0 };
+  const onMove = (e) => {
+    const w = (typeof innerWidth === 'number' && innerWidth) || 1;
+    const h = (typeof innerHeight === 'number' && innerHeight) || 1;
+    mouse.x = ((e.clientX ?? 0) / w) * 2 - 1;
+    mouse.y = -(((e.clientY ?? 0) / h) * 2 - 1);
+  };
+  try { doc.addEventListener('mousemove', onMove, { passive: true }); } catch { /* best-effort */ }
+
+  let raf = 0;
   const nowFn = (typeof performance !== 'undefined' && performance.now)
     ? () => performance.now()
     : () => Date.now();
@@ -187,19 +314,23 @@ export async function mountHomepageScene(container) {
     if (!alive) return;
     raf = requestAnimationFrame(loop);
     const t = nowFn();
-    const dt = (t - t0) / 1000; t0 = t;
+    const dt = Math.min(0.05, (t - t0) / 1000); t0 = t;
     const a = t / 1000;
-    // Slow camera orbit — a gentle drift, not a spin.
-    camera.position.x = Math.cos(a * 0.08) * 30;
-    camera.position.z = Math.sin(a * 0.08) * 30;
-    camera.position.y = 7.5 + Math.sin(a * 0.05) * 0.8;
-    camera.lookAt(0, 4, 0);
-    // Starfield counter-rotates so the parallax reads against the gate.
-    stars.rotation.y += dt * 0.02;
-    // Soft pulse on the gate's accent seam.
-    const pulse = 1.5 + Math.sin(a * 0.9) * 0.4;
-    if (gate.userData.accent) gate.userData.accent.emissiveIntensity = pulse;
-    if (gate.userData.stone) gate.userData.stone.emissiveIntensity = 1.2 + pulse * 0.15;
+
+    // Parallax: ease the camera toward the pointer offset (lerp ~ smooth).
+    const k = Math.min(1, dt * 4);
+    camera.position.x += (BASE_CAM.x + mouse.x * 2.6 - camera.position.x) * k;
+    camera.position.y += (BASE_CAM.y + mouse.y * 1.4 - camera.position.y) * k;
+    camera.lookAt(BASE_LOOK);
+
+    // Gentle sun halo breathing.
+    const pulse = 0.5 + Math.sin(a * 0.7) * 0.5;
+    if (sun.userData.halo) sun.userData.halo.userData.mat.opacity = 0.22 + pulse * 0.12;
+    if (sun.userData.glow) sun.userData.glow.userData.mat.opacity = 0.10 + pulse * 0.08;
+
+    // Advance Chiefmonkey's idle animation.
+    if (mixer) mixer.update(dt);
+
     renderer.render(scene, camera);
   };
   raf = requestAnimationFrame(loop);
@@ -208,14 +339,27 @@ export async function mountHomepageScene(container) {
     unmount() {
       alive = false;
       if (raf) cancelAnimationFrame(raf);
+      try { doc.removeEventListener('mousemove', onMove); } catch { /* best-effort */ }
       try { ro.disconnect(); } catch { /* best-effort */ }
+      try { if (mixer) { mixer.stopAllAction(); mixer = null; } } catch { /* best-effort */ }
+      // Dispose GLB geometries/materials.
+      for (const root of [gateObj, charObj]) {
+        if (!root) continue;
+        try {
+          root.traverse(o => {
+            if (o.isMesh) {
+              try { if (o.geometry) o.geometry.dispose(); } catch { /* best-effort */ }
+              const mats = Array.isArray(o.material) ? o.material : [o.material];
+              for (const m of mats) {
+                if (!m) continue;
+                try { if (m.map) m.map.dispose(); } catch { /* best-effort */ }
+                try { m.dispose(); } catch { /* best-effort */ }
+              }
+            }
+          });
+        } catch { /* best-effort */ }
+      }
       try { renderer.dispose(); } catch { /* best-effort */ }
-      // Dispose all geometries + materials we created (no shared refs escape).
-      const disposables = [groundGeo, groundMat, stars.userData.geo, stars.userData.mat];
-      const geos = gate.userData.geos || [];
-      for (const gg of geos) disposables.push(gg);
-      if (gate.userData.stone) disposables.push(gate.userData.stone);
-      if (gate.userData.accent) disposables.push(gate.userData.accent);
       for (const d of disposables) {
         try { if (d && typeof d.dispose === 'function') d.dispose(); } catch { /* best-effort */ }
       }
@@ -224,10 +368,9 @@ export async function mountHomepageScene(container) {
   };
 }
 
-// _resize(renderer, camera, container, THREE) — size the renderer + camera to
-// the container's client box. Never throws (a 0-size box just keeps the prior
-// size — the next observe callback fixes it).
-function _resize(renderer, camera, container, THREE) {
+// _resize(renderer, camera, container) — size the renderer + camera to the
+// container's client box. Never throws (a 0-size box just keeps the prior size).
+function _resize(renderer, camera, container) {
   const w = container.clientWidth || 1;
   const h = container.clientHeight || 1;
   renderer.setSize(w, h, false);

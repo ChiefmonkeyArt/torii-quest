@@ -26,6 +26,12 @@ import {
   BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
 } from '../../src/config.js';
 import { createHeadlessLos } from './headlessLos.js';
+// v0.2.610 fix: Bridge 2 walkability + entry waypoints. The server sim ran with
+// isBridgeWalkable=()=>false and NO bridgeWaypoints, so a bot whose target was
+// on the other arena island steered into the coastline clamp and BEACHED at the
+// water's edge — the operator-reported "bots not honing/aware" in MP (SP routes
+// over Bridge 2 via src/bots.js). Both sides now share the same pure module.
+import { isOnBridge2, BRIDGE2_WAYPOINTS } from '../../src/engine/entities/bridge2Walk.js';
 import { buildBotColliders, rayVsBot } from './botColliders.js';
 import { createBotSnapshotRing, pushBotSnap, sampleBotsAt } from './botSnapshotRing.js';
 
@@ -65,6 +71,8 @@ export function createArenaBotSim(opts = {}) {
       BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
     },
     playerSafeCorner: NO_SAFE_CORNER,
+    isBridgeWalkable: isOnBridge2,
+    bridgeWaypoints: BRIDGE2_WAYPOINTS,
     // v0.2.378 fix 2: lift the SIM-LOCAL origin (y = EYE_Y above feet) to the
     // bot's real world eye height and re-aim at the player world-eye `target`, so
     // the bot→player ray starts at the muzzle and reaches the capsule. The old

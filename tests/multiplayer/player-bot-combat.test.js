@@ -28,6 +28,17 @@ const PLAYER_EYE = 1.7;
 function spawnSim() {
   const sim = createArenaBotSim({});
   sim.spawn(BOT_COUNT);
+  // v0.2.610 flake fix: spawnAll scatters bots RANDOMLY across both islands, so
+  // a random second bot could land on the test ray's path and eat the shot
+  // (~1-in-50 runs). These tests assert combat GEOMETRY, not spawn placement —
+  // park every bot except the front regular far away so the ray is isolated.
+  const front = [...sim.bots]
+    .filter((b) => b.alive && b.kind !== 'boss')
+    .sort((a, b) => b.pos.x - a.pos.x)[0] || null;
+  for (const b of sim.bots) {
+    if (b === front) continue;
+    b.pos.x = -30; b.pos.z = 30; // far corner, off every test ray
+  }
   return sim;
 }
 

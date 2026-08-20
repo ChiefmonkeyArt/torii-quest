@@ -24,7 +24,7 @@ import {
   pickCover, obstacleAvoid,
   effectiveSight, effectiveCooldown, effectiveSpread,
 } from './bot-tactics.js';
-import { isNapLand, whichIsland, ISLAND_BL, ISLAND_BR } from '../../terrain/tomoeShape.js';
+import { isNapLand, whichIsland, ISLAND_BL, ISLAND_BR, ISLAND_NAP } from '../../terrain/tomoeShape.js';
 
 // ── Tuning (mirrors src/bots.js exactly) ─────────────────────────────────────
 export const BOT_R = 0.4;
@@ -404,7 +404,19 @@ export function createBotSim(deps) {
       if (bridgeWaypoints && !isBoss && !state._coverPoint) {
         const botIsland = whichIsland(px, pz);
         const playerIsland = whichIsland(pp.x, pp.z);
-        if (botIsland === ISLAND_BL && playerIsland === ISLAND_BR) {
+        // v0.2.610 fix: a bot standing ON the bridge deck reports
+        // whichIsland() === ISLAND_NONE — the old island-only condition then
+        // dropped the waypoint on the very next tick and beached the bot at the
+        // entry corner forever. While on the deck, keep routing to the FAR-side
+        // waypoint (the one nearest the target) so the crossing completes.
+        if (isBridgeWalkable(px, pz) && playerIsland !== ISLAND_NAP) {
+          const w0 = bridgeWaypoints[0], w1 = bridgeWaypoints[1];
+          const d0 = (pp.x - w0[0]) ** 2 + (pp.z - w0[1]) ** 2;
+          const d1 = (pp.x - w1[0]) ** 2 + (pp.z - w1[1]) ** 2;
+          const far = d0 <= d1 ? w0 : w1;
+          usingBridgeWaypoint = true;
+          tx = far[0]; tz = far[1];
+        } else if (botIsland === ISLAND_BL && playerIsland === ISLAND_BR) {
           // Bot on BL, player on BR — head to bridge entry on BL side
           usingBridgeWaypoint = true;
           tx = bridgeWaypoints[0][0]; tz = bridgeWaypoints[0][1];

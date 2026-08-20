@@ -24,7 +24,7 @@ import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-fo
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, wasLockReleasedRecently } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -1263,12 +1263,16 @@ export function createArenaRuntime(hooks = {}) {
     }, true);
     // Some browsers reserve the first Escape while pointer-locked and expose
     // only its keyup after releasing the lock. Treat that keyup as the same
-    // pause gesture, but only when no keydown handler already processed it.
+    // pause gesture, but ONLY when it is the tail of a genuine pointer-lock
+    // exit (lock released moments ago) and no keydown handler already processed
+    // it. Without the recency gate, ANY stray ESC keyup while playing unlocked
+    // (dismissing a NIP-07 signer prompt, the browser find bar, devtools…)
+    // opened the pause modal — the operator-reported "unprompted pause".
     document.addEventListener('keyup', e => {
       if (e.code !== 'Escape') return;
       const handled = _escapeHandledOnKeyDown;
       _escapeHandledOnKeyDown = false;
-      if (!handled && isPlaying() && !document.pointerLockElement) {
+      if (!handled && isPlaying() && !document.pointerLockElement && wasLockReleasedRecently()) {
         e.preventDefault();
         e.stopImmediatePropagation();
         _openPause();

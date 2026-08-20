@@ -37,7 +37,9 @@ import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/c
 import { createBotSim, COVER_MARGIN, BOT_R } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
 import { decideBossEngagement } from './bossBarState.js';
-import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
+// v0.2.610: Bridge 2 walkability + entry waypoints now live in a shared PURE
+// module so the SERVER bot sim runs identical inter-island routing (v0.2.533).
+import { isOnBridge2 as _isOnBridge2, BRIDGE2_WAYPOINTS as _BRIDGE2_WAYPOINTS } from './engine/entities/bridge2Walk.js';
 
 export const bots = [];
 
@@ -128,21 +130,6 @@ const _coverPoints = buildCoverPoints(_arenaBoxes, COVER_MARGIN);
 let _spawnBulletFn = null;
 let _playerObj     = null;
 let _modelsReady   = false;
-
-// v0.2.533: Bridge 2 walkable zone — lets bots walk between Arena BL and BR
-// islands over the bridge. Includes a margin so the bot center stays on deck.
-// Bridge 2 is axis-aligned (no rotation), so this is a simple AABB check.
-const _BR2_HALF_L = BRIDGE2_LEN / 2 + 0.3;   // 0.3m margin for bot radius
-const _BR2_HALF_W = BRIDGE2_WIDTH / 2 + 0.3;
-function _isOnBridge2(x, z) {
-  return Math.abs(x - BRIDGE2_X) <= _BR2_HALF_L &&
-         Math.abs(z - BRIDGE2_Z) <= _BR2_HALF_W;
-}
-// Bridge 2 entry waypoints (one per island side) for inter-island pathing.
-const _BRIDGE2_WAYPOINTS = [
-  [BRIDGE2_X - _BR2_HALF_L, BRIDGE2_Z],  // BL-side entry
-  [BRIDGE2_X + _BR2_HALF_L, BRIDGE2_Z],  // BR-side entry
-];
 
 // The pure headless brain. All render/audio/physics access is injected — the sim
 // itself imports none of it. shotCallback wraps spawnBullet + bot-shoot audio; the
@@ -328,6 +315,22 @@ function _makeCapsuleBot(st, i = st.id) {
   bots.push(bot);
   if (physicsReady) _ensureBotColliders(bot, st.pos.x, st.pos.z);
   return bot;
+}
+
+// v0.2.610 (MP): a wrapper whose GLB never materialised (load rejected after
+// _attachModelBot consumed the capsule, or a mid-round attach raced a dispose)
+// renders NOTHING while the server still reports the bot alive — the
+// "invisible bot dealing damage" report. Re-materialise the capsule placeholder
+// in place so every server-alive bot always has a visible body.
+function _ensureNetCapsule(bot, x, z) {
+  if (bot._capsuleMesh) return;
+  const mesh = new THREE.Mesh(
+    _botGeo,
+    new THREE.MeshStandardMaterial({ color: _colors[(bot.state.id || 0) % _colors.length], roughness: 0.6 })
+  );
+  mesh.position.set(x, _footY(x, z) + BOT_BODY_CENTRE_Y_OFFSET, z);
+  scene.add(mesh);
+  bot._capsuleMesh = mesh;
 }
 
 function _spawnCapsuleBots() {
@@ -525,9 +528,18 @@ function _syncNetBot(bot, pose, dt) {
       // −14 m/s²): height = 9t − 7t², a ~2.9 m peak at ~0.64 s, back to ground by
       // ~1.3 s — the corpse now flies up and back across the arena as it did in SP.
       bot._deathT = (bot._deathT || 0) + dt;
-      const arc = Math.max(0, 9.0 * bot._deathT - 7.0 * bot._deathT * bot._deathT);
-      bot.model.syncTo(pose.x, fy + arc, pose.z, pose.rotY);
-      bot.model.tick(dt);
+      if (bot._deathT <= 1.4) {
+        const arc = Math.max(0, 9.0 * bot._deathT - 7.0 * bot._deathT * bot._deathT);
+        bot.model.syncTo(pose.x, fy + arc, pose.z, pose.rotY);
+        bot.model.tick(dt);
+      } else if (bot.model.root?.visible) {
+        // v0.2.610: hide the corpse once the launch arc has fully landed
+        // (arc zero at t = 9/7 ≈ 1.29s; 1.4s adds a small settle margin) and
+        // stop paying the mixer tick for it. The MP dead branch previously ran
+        // forever, leaving a dead model standing at the kill spot until respawn
+        // — a "ghost bot" that can't be shot. Respawn re-shows via _prevAlive.
+        bot.model.hide();
+      }
     } else if (bot._capsuleMesh) {
       bot._capsuleMesh.visible = false;
     }
@@ -549,6 +561,10 @@ function _syncNetBot(bot, pose, dt) {
     _ensureBotColliders(bot, pose.x, pose.z);
     if (bot.model?.root) { bot.model.show(); bot.model.play('Walking', true); }
     else if (bot._capsuleMesh) bot._capsuleMesh.visible = true;
+    // v0.2.610: last-resort render guarantee — if NEITHER representation exists
+    // at a (re)spawn, materialise the capsule placeholder so the bot can never
+    // be alive-and-shooting while invisible.
+    else _ensureNetCapsule(bot, pose.x, pose.z);
   }
   if (!bot.rapierBody || !bot.rapierHeadBody) {
     _ensureBotColliders(bot, pose.x, pose.z);

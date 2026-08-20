@@ -12,7 +12,11 @@ describe('pause modal input boundary', () => {
   it('opens pause from Escape keydown or a browser-consumed pointer-lock Escape keyup', () => {
     expect(RUNTIME).toMatch(/if \(e\.code !== 'Escape' \|\| e\.repeat\) return;/);
     expect(RUNTIME).toMatch(/_escapeHandledOnKeyDown/);
-    expect(RUNTIME).toMatch(/!handled && isPlaying\(\) && !document\.pointerLockElement/);
+    expect(RUNTIME).toMatch(/!handled && isPlaying\(\) && !document\.pointerLockElement && wasLockReleasedRecently\(\)/);
+    // The keyup fallback must be gated on a RECENT pointer-lock release, else a
+    // stray ESC keyup (signer prompt, find bar, devtools) pauses mid-game.
+    expect(INPUT).toMatch(/export function wasLockReleasedRecently/);
+    expect(INPUT).toMatch(/_lockReleasedAt > 0 && \(performance\.now\(\) - _lockReleasedAt\) <= windowMs/);
     expect(RUNTIME).not.toMatch(/onPointerLockLost/);
     expect(INPUT).not.toMatch(/_lockLostCbs|onPointerLockLost/);
     // _openPause transitions out of PLAYING before pointer-lock release. The

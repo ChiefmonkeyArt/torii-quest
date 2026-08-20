@@ -109,7 +109,9 @@ describe('bot placeholder hitbox alignment', () => {
       /(?:mesh|bot\._capsuleMesh)\.position\.set\([\s\S]*?\);/g,
     )];
 
-    expect(placeholderPositions).toHaveLength(4);
+    // 4 original placements + 1 from the v0.2.610 _ensureNetCapsule self-heal
+    // (re-materialises a placeholder for a live MP bot with no render mesh).
+    expect(placeholderPositions).toHaveLength(5);
     for (const match of placeholderPositions) {
       expect(match[0]).toContain('BOT_BODY_CENTRE_Y_OFFSET');
     }

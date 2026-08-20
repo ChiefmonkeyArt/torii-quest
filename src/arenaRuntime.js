@@ -1091,6 +1091,9 @@ export function createArenaRuntime(hooks = {}) {
       on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
         const aim = aimOrigin || origin;
         const ad = aimDir || dir;
+        // v0.2.611: recoil + SFX fire ONCE per shot. They used to fire again in
+        // the arena branch below (the operator's "triple shot" gun sound — the
+        // same buffer started twice a few ms apart).
         triggerRecoil();
         playShoot();
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
@@ -1105,8 +1108,6 @@ export function createArenaRuntime(hooks = {}) {
         if (aimOrigin && aimDir) {
           recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
         }
-        triggerRecoil();
-        playShoot();
         // MP-2 peer combat (outbound): every arena shot reports to the authoritative
         // server, which ray-resolves it against lag-compensated peer snapshots and
         // no-ops when it hits no peer. Gate + payload live in the pure peerCombat

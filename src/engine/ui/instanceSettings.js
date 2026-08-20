@@ -249,6 +249,15 @@ export function buildInstanceSettingsModel(opts) {
   const sections = [
     access,
     {
+      // v0.2.611: Gateway setup moved INTO admin settings (was a title-screen
+      // CTA + login auto-open). Opens the homepage stub overlay via main.js
+      // (data-action="open-gateway-setup"); the panel stays the pure renderer.
+      key: 'gateway',
+      title: 'Gateway setup',
+      status: 'live',
+      note: 'Choose your homepage world (blank / your world as template), visit a node, or publish your node presence.',
+    },
+    {
       key: 'multiplayer',
       title: 'Multiplayer',
       status: 'placeholder',
@@ -367,6 +376,9 @@ export function renderInstanceSettingsPanel(model) {
         </form>
         ${readOnly}
         ${status}`;
+    }
+    if (s && s.key === 'gateway') {
+      body = `<button type="button" class="is-save" data-action="open-gateway-setup">OPEN GATEWAY SETUP</button>`;
     }
     if (s && s.key === 'multiplayer') {
       const current = _escape(s.current || 'disabled');

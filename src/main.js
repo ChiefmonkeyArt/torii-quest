@@ -82,7 +82,7 @@ import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/to
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
 // no three import, browser-only, fail-safe (missing document → no-op).
-import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+import { openHomepageStub, closeHomepageStub, isHomepageStubOpen } from './engine/homepage/homepageStub.js';
 // v0.2.607: the 3D landing scene behind #screen-title — the HOME SCREEN is 3D.
 // Lazy three import, fail-safe, unmounted when leaving the TITLE phase (no
 // orphan GL behind the arena). The homepage stub is now a glassy modal over it.
@@ -110,9 +110,14 @@ import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/de
 const elTitle = document.getElementById('screen-title');
 const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
-const elEnterBtn = document.getElementById('btn-enter');
-const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
+// v0.2.611: the home screen has ONE entry button — #btn-enter-nap (labelled
+// ENTER) is the canonical entry; elEnterBtn is its alias so the bootstrap /
+// status / readiness code keeps working unchanged. The old #btn-enter (ENTER
+// ARENA) was removed from index.html.
+const elEnterBtn = document.getElementById('btn-enter-nap');
+const elNapBtn    = document.getElementById('btn-enter-nap'); // canonical ENTER (NAP spawn)
 const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
+const elToriiMenuHudBtn = document.getElementById('btn-torii-menu-hud'); // v0.2.611: in-game burger
 
 // Mount the 3D landing scene behind the title screen (the HOME SCREEN). The
 // scene host is the first child of #screen-title so all title content paints
@@ -423,6 +428,15 @@ elToriiMenuBtn?.addEventListener('click', () => {
   openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
 });
 
+// v0.2.611: in-game HUD burger (top-left) → the SAME Torii menu (KeyM path).
+// The menu releases pointer lock on open; closing resumes play via the same
+// onClose the KeyM path uses (arenaRuntime owns the resume/pause semantics —
+// here we just toggle the overlay).
+elToriiMenuHudBtn?.addEventListener('click', () => {
+  if (isToriiMenuOpen()) { closeToriiMenu(); return; }
+  openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* menu close resumes via arenaRuntime */ } });
+});
+
 // ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
 // A three-free DOM overlay (mirrors toriiMenu.js) with 4 cards. 3 of 4 actions
 // are ALREADY BUILT — this is the UI panel + wiring, not a reimplementation:
@@ -523,37 +537,9 @@ function _closeModalsAndReleasePointerLock() {
   try { if (typeof document !== 'undefined' && document.exitPointerLock) document.exitPointerLock(); } catch { /* best-effort */ }
 }
 
-// Title-screen secondary CTA → open the Gateway setup stub. A small button
-// placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
-// / LOGIN. Built lazily into the title centre column so it matches the existing
-// title-screen visual style (no external CSS framework).
-(function _installHomepageStubCta() {
-  if (typeof document === 'undefined' || !document.getElementById) return;
-  const centre = document.getElementById('title-centre');
-  if (!centre) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.id = 'btn-homepage-stub';
-  btn.textContent = '⛩ GATEWAY SETUP';
-  btn.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
-  Object.assign(btn.style, {
-    width: '220px', fontSize: '10px', letterSpacing: '2px', padding: '9px',
-    marginTop: '10px', marginBottom: '4px', cursor: 'pointer',
-    background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',
-    border: '1px solid rgba(139,92,246,0.45)', borderRadius: '6px',
-  });
-  btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.25)'; btn.style.color = '#fff'; });
-  btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.12)'; btn.style.color = '#c4b5fd'; });
-  btn.addEventListener('click', () => {
-    if (isHomepageStubOpen()) { closeHomepageStub(); return; }
-    _openHomepageStub();
-  });
-  // Insert below the ENTER ARENA button (the last of the ENTER buttons) so it
-  // reads as a secondary CTA, not a replacement.
-  const enter = document.getElementById('btn-enter');
-  if (enter && enter.parentNode) enter.parentNode.insertBefore(btn, enter.nextSibling);
-  else centre.append(btn);
-})();
+// v0.2.611: the title-screen GATEWAY SETUP CTA was REMOVED. Gateway setup is
+// owner-only admin surface now: it opens from Instance Settings (title) and
+// from the Torii menu's Node settings panel (in-game, burger / KeyM).
 
 // ESC closes the stub first (mirror the menu's ESC-closes-menu-first pattern).
 // arenaRuntime.js owns the in-game ESC handler (UNTOUCHED) and already closes
@@ -945,14 +931,9 @@ on(EV.NOSTR_LOGIN, () => {
   // would show the panel to the wrong people. The shown-this-session flag
   // (sessionStorage `torii.homepage.stub.shown`) keeps it to once per browser
   // session. No timer — rides the existing login-resolved callback.
-  try {
-    const cap = _updateCapability;
-    const owner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
-    if (owner && !getActiveWorld() && !hasShownThisSession()) {
-      setShownThisSession();
-      _openHomepageStub();
-    }
-  } catch { /* auto-open is best-effort; never throw into the login path */ }
+  // v0.2.611: the login-time Gateway-setup auto-open was REMOVED — LOGIN WITH
+  // NOSTR just logs in again. The stub opens only on explicit owner action
+  // (Instance Settings → Gateway setup, or the Torii menu Node panel).
 });
 
 // ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────
@@ -1151,6 +1132,16 @@ if (_elInstanceSettingsPanel) {
     if (t && t.getAttribute && t.getAttribute('data-action') === 'close') {
       e.preventDefault();
       _closeInstanceSettingsPanel();
+      return;
+    }
+    // v0.2.611: Gateway setup lives in admin settings — open the stub overlay
+    // over the panel (owner-only surface; the stub itself fail-closes its
+    // owner-gated cards for non-owners).
+    const opener = t && t.closest && t.closest('[data-action="open-gateway-setup"]');
+    if (opener) {
+      e.preventDefault();
+      _closeInstanceSettingsPanel();
+      _openHomepageStub();
     }
   });
   _elInstanceSettingsPanel.addEventListener('change', (e) => {
@@ -1927,24 +1918,9 @@ let _arenaBootstrapped = false;
 // v0.2.275: the ENTER ARENA handler. Shared bootstrap lives in ensureArenaReady
 // below (hoisted, so callable here); on success it drops into the canonical SW
 // arena spawn. The NAP button reuses the same bootstrap + sets a spawn override.
-elEnterBtn?.addEventListener('click', async () => {
-  if (!isTitle()) return;
-  // v0.2.606: clear any open modal + stale pointer lock before booting the arena.
-  _closeModalsAndReleasePointerLock();
-  // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
-  // never a silent no-op (regression guard — tests assert a non-empty message here).
-  showEntryStatus('Entering arena…');
-  resetTimings();
-  mark('enter-click');
-  showBootOverlay();
-  await _yieldToPaint();
-  try {
-    await ensureArenaReady('LOADING ARENA…');
-  } catch { hideBootOverlay(); return; }
-  showEntryStatus('');
-  hideBootOverlay();
-  _arena.enter();
-});
+// v0.2.611: the standalone ENTER ARENA handler was removed with its button —
+// the single ENTER button (elNapBtn, below) is the only entry path.
+
 
 // v0.2.275: shared bootstrap for ENTER ARENA + ENTER NAP ZONE. Lazy-loads the
 // three-vendor chunk + Rapier ONCE, then returns the ready arena API. Both title
@@ -1953,7 +1929,7 @@ elEnterBtn?.addEventListener('click', async () => {
 async function ensureArenaReady(loadingLabel) {
   if (_arenaBootstrapped) return _arena;
   elEnterBtn.textContent = loadingLabel;
-  elEnterBtn.disabled = true;
+  elEnterBtn.disabled = true; // v0.2.611: elEnterBtn === the ENTER (NAP) button
   try {
     if (!_arena) {
       _setBootProgress(0); // 'Loading engine…'
@@ -1995,7 +1971,7 @@ async function ensureArenaReady(loadingLabel) {
     endPhase('bootstrap-physics');
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
-    elEnterBtn.textContent = 'ENTER ARENA';
+    elEnterBtn.textContent = 'ENTER';
     elEnterBtn.disabled = false;
     // v0.2.277: show the REAL error (bootstrapPhysics now throws a step-tagged
     // message; fall back to e.message for import/boot failures). The generic
@@ -2012,7 +1988,7 @@ async function ensureArenaReady(loadingLabel) {
 
 function resetEnterButton() {
   if (elEnterBtn) {
-    elEnterBtn.textContent = 'ENTER ARENA';
+    elEnterBtn.textContent = 'ENTER';
     elEnterBtn.disabled = false;
   }
 }
@@ -2024,37 +2000,23 @@ elNapBtn?.addEventListener('click', async () => {
   if (!isTitle()) return;
   // v0.2.606: clear any open modal + stale pointer lock before booting the arena.
   _closeModalsAndReleasePointerLock();
-  // IMMEDIATE visible status (mirrors ENTER ARENA) before the async bootstrap.
-  showEntryStatus('Entering NAP zone…');
+  // IMMEDIATE visible status before the async bootstrap (no silent no-op).
+  showEntryStatus('Entering…');
   resetTimings();
   mark('enter-click-nap');
   showBootOverlay();
   await _yieldToPaint();
   try {
-    await ensureArenaReady('LOADING NAP…');
+    await ensureArenaReady('LOADING…');
   } catch { hideBootOverlay(); return; }
   showEntryStatus('');
   hideBootOverlay();
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
-// ── Dev free-fly toggle (three-free, title-screen) ──────────────────────────────
-// Reads/writes state.flyMode purely in the DOM before the arena boots; the ENTER
-// handler enables ToriiDebug.fly when this is true. In-game F toggles also sync
-// this button's label via the arena runtime's onToggle callback.
-(function wireFlyToggle() {
-  const btn = document.getElementById('btn-fly-toggle');
-  if (!btn) return;
-  const stateEl = btn.querySelector('.fly-switch-state');
-  const paint = () => {
-    const on = state.flyMode;
-    btn.classList.toggle('is-on', on);
-    btn.setAttribute('aria-checked', on ? 'true' : 'false');
-    if (stateEl) stateEl.textContent = on ? 'ON' : 'OFF';
-  };
-  btn.addEventListener('click', () => { state.flyMode = !state.flyMode; paint(); });
-  paint();
-})();
+// v0.2.611: the title-screen FLY MODE switch was removed with the button.
+// Fly mode remains available in-game on F (arenaRuntime flyToggleFromInput);
+// state.flyMode simply stays false until then.
 
 // v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is
 // bound, so it stands down. The shell wires this synchronously (no three), so the

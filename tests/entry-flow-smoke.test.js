@@ -22,8 +22,10 @@ const BOOT = readFileSync(join(ROOT, 'src/engine/ui/loginBootstrap.js'), 'utf8')
 const NOSTR = readFileSync(join(ROOT, 'src/nostr.js'), 'utf8');
 
 describe('entry-flow smoke — title-screen buttons exist (regression)', () => {
+  // v0.2.611: ONE entry button — #btn-enter-nap (labelled ENTER) is the only
+  // entry control; the old #btn-enter (ENTER ARENA) was removed.
   for (const { id, label } of [
-    { id: 'btn-enter', label: 'ENTER ARENA' },
+    { id: 'btn-enter-nap', label: 'ENTER' },
     { id: 'btn-nostr-centre', label: 'LOGIN WITH NOSTR' },
   ]) {
     it(`index.html declares the ${label} button (id="${id}")`, () => {
@@ -31,9 +33,15 @@ describe('entry-flow smoke — title-screen buttons exist (regression)', () => {
     });
   }
 
-  it('main.js resolves #btn-enter into elEnterBtn and binds a click handler (ENTER ARENA)', () => {
-    expect(MAIN).toMatch(/elEnterBtn\s*=\s*document\.getElementById\(\s*['"]btn-enter['"]\s*\)/);
-    expect(MAIN).toMatch(/elEnterBtn\??\.addEventListener\(\s*['"]click['"]/);
+  it('index.html no longer declares the removed ENTER ARENA button (id="btn-enter")', () => {
+    expect(HTML).not.toMatch(/id="btn-enter"/);
+  });
+
+  it('main.js resolves #btn-enter-nap into elEnterBtn and binds a click handler (ENTER)', () => {
+    expect(MAIN).toMatch(/elEnterBtn\s*=\s*document\.getElementById\(\s*['"]btn-enter-nap['"]\s*\)/);
+    // The click handler is bound via the elNapBtn alias (same element).
+    expect(MAIN).toMatch(/elNapBtn\s*=\s*document\.getElementById\(\s*['"]btn-enter-nap['"]\s*\)/);
+    expect(MAIN).toMatch(/elNapBtn\??\.addEventListener\(\s*['"]click['"]/);
   });
 
   it('loginBootstrap.js resolves #btn-nostr-centre and binds a click handler (LOGIN WITH NOSTR)', () => {
@@ -43,7 +51,7 @@ describe('entry-flow smoke — title-screen buttons exist (regression)', () => {
   });
 
   it('the ENTER handler is gated to the title screen (no fire mid-game)', () => {
-    expect(MAIN).toMatch(/elEnterBtn\??\.addEventListener\(\s*['"]click['"]/);
+    expect(MAIN).toMatch(/elNapBtn\??\.addEventListener\(\s*['"]click['"]/);
     expect(MAIN).toMatch(/if\s*\(\s*!isTitle\(\)\s*\)\s*return/);
   });
 });
@@ -66,13 +74,22 @@ describe('entry-flow no-silent-noop — visible feedback on every click (v0.2.22
   });
 
   it('the ENTER catch surfaces a user-facing message AND re-enables the button (no silent reset)', () => {
-    const block = MAIN.slice(
-      MAIN.indexOf("elEnterBtn?.addEventListener('click'"),
+    // The click handler delegates the bootstrap to ensureArenaReady; its catch
+    // hides the boot overlay and returns…
+    const handler = MAIN.slice(
+      MAIN.indexOf("elNapBtn?.addEventListener('click'"),
       MAIN.indexOf('window.__toriiEnterReady'),
     );
-    expect(block).toMatch(/catch\s*\(/);
-    expect(block).toMatch(/showEntryStatus\(/);
-    expect(block).toMatch(/elEnterBtn\.disabled\s*=\s*false/);
+    expect(handler).toMatch(/catch\s*\{/);
+    // …while ensureArenaReady's OWN catch surfaces the user-facing message and
+    // re-enables the button (the no-silent-reset guarantee).
+    const ensure = MAIN.slice(
+      MAIN.indexOf('async function ensureArenaReady'),
+      MAIN.indexOf('function resetEnterButton'),
+    );
+    expect(ensure).toMatch(/catch\s*\(/);
+    expect(ensure).toMatch(/showEntryStatus\(/);
+    expect(ensure).toMatch(/elEnterBtn\.disabled\s*=\s*false/);
   });
 
   it('the LOGIN handler shows its result on the visible status line', () => {
@@ -85,7 +102,7 @@ describe('entry-flow no-silent-noop — visible feedback on every click (v0.2.22
 describe('entry-flow visibility — immediate feedback + clean a11y tree (v0.2.229 regression)', () => {
   it('the ENTER click shows an IMMEDIATE visible status (not a clear) before awaiting bootstrap', () => {
     const block = MAIN.slice(
-      MAIN.indexOf("elEnterBtn?.addEventListener('click'"),
+      MAIN.indexOf("elNapBtn?.addEventListener('click'"),
       MAIN.indexOf('window.__toriiEnterReady'),
     );
     const beforeTry = block.slice(0, block.indexOf('try {'));
@@ -123,7 +140,7 @@ describe('entry-flow runtime proof — inline bundle-independent bootstrap (v0.2
 
   it('the inline script binds a click handler to BOTH entry buttons (works even if the bundle is dead)', () => {
     const s = inlineScript();
-    expect(s).toMatch(/getElementById\(\s*['"]btn-enter['"]\s*\)/);
+    expect(s).toMatch(/getElementById\(\s*['"]btn-enter-nap['"]\s*\)/);
     expect(s).toMatch(/getElementById\(\s*['"]btn-nostr-centre['"]\s*\)/);
     expect((s.match(/addEventListener\(\s*['"]click['"]/g) || []).length).toBeGreaterThanOrEqual(2);
   });
@@ -142,7 +159,7 @@ describe('entry-flow runtime proof — inline bundle-independent bootstrap (v0.2
 
   it('main.js sets the ENTER readiness flag AFTER binding the real handler', () => {
     expect(MAIN).toMatch(/window\.__toriiEnterReady\s*=\s*true/);
-    const enterBind = MAIN.indexOf("elEnterBtn?.addEventListener('click'");
+    const enterBind = MAIN.indexOf("elNapBtn?.addEventListener('click'");
     const enterFlag = MAIN.indexOf('window.__toriiEnterReady = true');
     expect(enterBind).toBeGreaterThanOrEqual(0);
     expect(enterFlag).toBeGreaterThan(enterBind);

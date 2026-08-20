@@ -6,7 +6,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
-import { BOSS_TARGET_HEIGHT, BOSS_NAME } from './config.js';
+import { BOSS_TARGET_HEIGHT } from './config.js';
 
 // ── Clip name map — regular (banker) bot ─────────────────────────────────────
 const ANIM = {
@@ -92,7 +92,8 @@ export class BotModel {
     this._oneshotTimer = 0;
     this._oneshotFade  = '';
     this._footY  = 0; // vertical offset to keep feet at y=0
-    this._nameplate = null;
+    // v0.2.611: the floating "Augustink" nameplate is gone — the operator
+    // removed the name label above the boss's head.
     this.skinnedMesh = null; // SkinnedMesh ref for per-bone colliders
   }
 
@@ -146,10 +147,6 @@ export class BotModel {
     });
 
     scene.add(this.root);
-
-    // Boss gets a floating "Augustink" nameplate sprite tracked in world space.
-    if (this.isBoss) this._nameplate = _makeNameplate(BOSS_NAME);
-    if (this._nameplate) scene.add(this._nameplate);
 
     // Mixer + actions from shared clips
     this.mixer = new THREE.AnimationMixer(this.root);
@@ -213,11 +210,6 @@ export class BotModel {
     if (!this.root) return;
     this.root.position.set(x, this._footY + y, z);
     this.root.rotation.y = rotY;
-    if (this._nameplate) {
-      // Float the label a little above the boss's head.
-      const top = this._footY + y + (TEMPLATES[this.kind].target || TARGET_HEIGHT) + 0.7;
-      this._nameplate.position.set(x, top, z);
-    }
   }
 
   tick(dt) {
@@ -246,50 +238,14 @@ export class BotModel {
 
   show() {
     if (this.root) this.root.visible = true;
-    if (this._nameplate) this._nameplate.visible = true;
   }
   hide() {
     if (this.root) this.root.visible = false;
-    if (this._nameplate) this._nameplate.visible = false;
   }
 
   dispose() {
     if (this.root) { scene.remove(this.root); this.root = null; }
-    if (this._nameplate) {
-      scene.remove(this._nameplate);
-      this._nameplate.material?.map?.dispose?.();
-      this._nameplate.material?.dispose?.();
-      this._nameplate = null;
-    }
     this.mixer = null; this.loaded = false;
-  }
-}
-
-// ── Nameplate sprite — a small canvas-textured label floated over the boss. ───
-// Guarded so a headless/canvas-less environment (tests) degrades gracefully.
-function _makeNameplate(text) {
-  try {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext && canvas.getContext('2d');
-    if (!ctx) return null;
-    canvas.width = 256; canvas.height = 64;
-    ctx.font = 'bold 40px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    ctx.strokeText(text, 128, 32);
-    ctx.fillStyle = '#ffcf33';
-    ctx.fillText(text, 128, 32);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.needsUpdate = true;
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(2.4, 0.6, 1);
-    sprite.renderOrder = 999;
-    return sprite;
-  } catch {
-    return null;
   }
 }
 

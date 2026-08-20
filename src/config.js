@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.610-alpha';
+export const VERSION   = 'v0.2.611-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -94,18 +94,21 @@ export const BULLET_LIFE    = 2.5;
 export const ENTRY_SATS     = 100;
 export const RESPAWN_TIME   = 4.0;
 export const godMode        = false; // NEVER deploy true
-// Development safety switch. Local/server SCORE frames and caches stay active,
-// but no score event may reach NIP-07 or a relay while this is false.
-export const SCORE_PUBLISH_ENABLED = false;
+// v0.2.611: score publishing is LIVE. Local/server SCORE frames and caches stay
+// active; relay writes remain consent-gated — nothing reaches NIP-07 or a relay
+// except through the explicit "PUBLISH MY SCORE" click (the sign IS the
+// consent) or the same-click auto-report on return-to-title.
+export const SCORE_PUBLISH_ENABLED = true;
 
-// Phase 0f — gamestr.io score integration (kind 30762). OFF by default; the
-// operator opts in. When true AND the player explicitly publishes a score (the
-// existing "PUBLISH MY SCORE" consent path), a gamestr.io-format event is signed
-// via NIP-07 and fanned out to GAMESTR_RELAYS. This is SEPARATE from the in-app
-// NIP-78 leaderboard (kind 30000, gated by SCORE_PUBLISH_ENABLED above): gamestr
-// is a distinct destination with its own toggle. A gamestr failure is best-effort
-// and must never block the in-app leaderboard publish.
-export const GAMESTR_ENABLED = false;
+// Phase 0f — gamestr.io score integration (kind 30762). v0.2.611: ON — the
+// operator asked for Arena Shooter scores on gamestr.io. When true AND the
+// player explicitly publishes a score (the existing "PUBLISH MY SCORE" consent
+// path), a gamestr.io-format event is signed via NIP-07 and fanned out to
+// GAMESTR_RELAYS. This is SEPARATE from the in-app NIP-78 leaderboard (kind
+// 30000, gated by SCORE_PUBLISH_ENABLED above): gamestr is a distinct
+// destination with its own toggle. A gamestr failure is best-effort and must
+// never block the in-app leaderboard publish.
+export const GAMESTR_ENABLED = true; // v0.2.611: Arena Shooter scores ship to gamestr.io (same consent click)
 
 // MP-1 multiplayer flag. FALSE = single-player, identical to pre-MP-1 behaviour;
 // TRUE = client dials wss://<origin>/mp on entry and syncs with other peers.

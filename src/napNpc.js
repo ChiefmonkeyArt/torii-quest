@@ -164,8 +164,15 @@ export function buildNapNpc() {
     const loader2 = new GLTFLoader();
     loader2.setDRACOLoader(draco2);
     loader2.load(assetUrl('/chiefmonkey-npc-animations.glb'), animGltf => {
-      _gestureClips = animGltf.animations || [];
-      console.log('[napNpc] loaded', _gestureClips.length, 'gesture clips:', _gestureClips.map(c => c.name));
+      // v0.2.611: IN-PLACE clips only — the operator asked that the NPC never
+      // travels from his position mid-gesture. Measured hip travel in the GLB:
+      // Flying_Fist_Kick (~249m), Ground_Flip_and_Sweep_Up (~521m),
+      // Roundhouse_Kick (~233m), Indoor_Swing (~62m), FunnyDancing_01 (~26m)
+      // and golf_drive (~15m) all drag the model across the plaza; Backflip
+      // and Gangnam_Groove drift (~0.5m). Excluded. The rest stay in place.
+      const TRAVELLING = /Flying_Fist_Kick|Ground_Flip|Roundhouse_Kick|Indoor_Swing|FunnyDancing_01|golf_drive|Backflip|Gangnam_Groove/i;
+      _gestureClips = (animGltf.animations || []).filter(c => !TRAVELLING.test(c.name || ''));
+      console.log('[napNpc] loaded', _gestureClips.length, 'in-place gesture clips:', _gestureClips.map(c => c.name));
     }, undefined, err => {
       console.warn('[napNpc] gesture GLB load failed:', err);
     });

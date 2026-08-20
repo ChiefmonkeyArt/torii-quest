@@ -42,11 +42,11 @@ describe('v0.2.606 pointer-lock release', () => {
     expect(stopFn).toMatch(/exitPointerLock/);
   });
 
-  it('ENTER ARENA + ENTER NAP ZONE clear modals + release pointer lock first', () => {
-    // Prevents a stale full-screen modal sitting over the canvas ("game frozen").
+  it('the ENTER button clears modals + releases pointer lock first', () => {
+    // v0.2.611: ONE entry button (elNapBtn, labelled ENTER) — the old ENTER
+    // ARENA button was removed. Prevents a stale full-screen modal sitting
+    // over the canvas ("game frozen").
     expect(MAIN).toMatch(/_closeModalsAndReleasePointerLock/);
-    const enterHandler = MAIN.slice(MAIN.indexOf("elEnterBtn?.addEventListener('click'"));
-    expect(enterHandler.slice(0, 600)).toMatch(/_closeModalsAndReleasePointerLock/);
     const napHandler = MAIN.slice(MAIN.indexOf("elNapBtn?.addEventListener('click'"));
     expect(napHandler.slice(0, 600)).toMatch(/_closeModalsAndReleasePointerLock/);
   });

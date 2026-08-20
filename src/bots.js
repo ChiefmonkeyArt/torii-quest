@@ -71,9 +71,11 @@ function _projectBossBarAnchor(pose) {
   if (!(width > 0 && height > 0) || !pose) {
     return { visible: false, screenX: 0, screenY: 0 };
   }
+  // v0.2.611: anchor at the boss's CHEST (not above the head) — the operator
+  // wants the compact HP readout sitting on the torso, not floating overhead.
   _bossBarAnchorV.set(
     pose.x,
-    _footY(pose.x, pose.z) + BOSS_TARGET_HEIGHT + 0.4,
+    _footY(pose.x, pose.z) + BOSS_TARGET_HEIGHT * 0.55,
     pose.z,
   );
   _bossBarAnchorV.project(camera);

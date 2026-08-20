@@ -95,6 +95,13 @@ export function createArenaLeaderboard(opts = {}) {
   root.dataset.v380 = 'v0.2.380-alpha';
   root.style.display = 'none';
 
+  // v0.2.611: the overlay is titled ARENA SHOOTER — the game's public name,
+  // matching the gamestr.io game id its scores publish under.
+  const title = doc.createElement('div');
+  title.className = 'tq-arena-lb-title';
+  title.innerHTML = '🏆 ARENA SHOOTER <span class="tq-arena-lb-title-sub">LEADERBOARD</span>';
+  root.appendChild(title);
+
   const tabs = doc.createElement('div');
   tabs.className = 'tq-arena-lb-tabs';
   const tabLocal = doc.createElement('button');

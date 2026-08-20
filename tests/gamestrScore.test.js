@@ -54,15 +54,15 @@ describe('buildGamestrScoreEvent — required tags (d/game/score/p)', () => {
     const d = event.tags.find((t) => t[0] === 'd');
     expect(d).toBeDefined();
     expect(d[1]).toBe(`${GAMESTR_GAME_ID}:${PK}`);
-    expect(d[1]).toBe(`torii-quest:${PK}`);
+    expect(d[1]).toBe(`arena-shooter:${PK}`); // v0.2.611: the game id is Arena Shooter
   });
 
-  it('emits game = "torii-quest"', () => {
+  it('emits game = "arena-shooter"', () => {
     const { ok, event } = buildGamestrScoreEvent({ score: 5 }, { signerPubkey: PK, now: NOW });
     expect(ok).toBe(true);
     const game = event.tags.find((t) => t[0] === 'game');
     expect(game).toBeDefined();
-    expect(game[1]).toBe('torii-quest');
+    expect(game[1]).toBe('arena-shooter');
   });
 
   it('emits score as a numeric string', () => {

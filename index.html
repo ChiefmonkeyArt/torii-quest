@@ -128,6 +128,12 @@
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
     .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #444; margin-top: 5px; }
+    /* v0.2.611: centre-panel promise line (replaces the logo/sub/tag stack). */
+    #centre-promise {
+      font-size: 2rem; letter-spacing: 2px; color: #f5e8d5; text-align: center;
+      text-shadow: 0 0 40px rgba(247,147,26,0.45), 0 2px 10px rgba(0,0,0,0.8);
+      margin: 0.4rem 0 0.2rem;
+    }
     /* Phase 0c: persistent Torii/burger menu button (title-screen header). A
        fixed-position torii-gate glyph so it stays reachable on the title screen;
        KeyM opens the same menu in-game. */
@@ -142,6 +148,9 @@
     }
     .btn-torii-menu:hover { background: rgba(139,92,246,0.25); color: #fff; border-color: rgba(196,181,253,0.6); }
     .btn-torii-menu svg { display: block; }
+    /* v0.2.611: the in-game burger reuses the title-screen button style but
+       sits inline in the HUD topbar (not fixed). */
+    #hud .hud-burger { position: static; flex: 0 0 auto; margin-right: 10px; }
 
     /* Three-column layout — half-height cards */
     #title-columns {
@@ -391,16 +400,22 @@
     #leaderboard-publish-status[data-tone="ok"] { color: #34d399; }
     #leaderboard-publish-status[data-tone="fail"] { color: #f87171; }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.608-alpha) ── */
+    /* ── Live in-arena leaderboard overlay (v0.2.608-alpha; v0.2.611 ARENA SHOOTER title) ── */
     .tq-arena-lb {
       position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
-      z-index: 40; width: 320px; max-height: 70vh; overflow-y: auto;
+      z-index: 40; width: 340px; max-height: 70vh; overflow-y: auto;
       font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
       color: #c4ecd9; text-align: left;
       border: 1px solid rgba(52,211,153,0.35); border-radius: 8px;
       background: rgba(6,26,20,0.88); padding: 10px 12px;
       box-shadow: 0 6px 24px rgba(0,0,0,0.45); pointer-events: auto;
     }
+    .tq-arena-lb-title {
+      font-size: 12px; letter-spacing: 3px; color: #f7931a; text-align: center;
+      margin-bottom: 8px; padding-bottom: 7px; border-bottom: 1px solid rgba(247,147,26,0.3);
+      text-shadow: 0 0 14px rgba(247,147,26,0.35);
+    }
+    .tq-arena-lb-title-sub { font-size: 8px; letter-spacing: 2px; color: #a7f3d0; }
     .tq-arena-lb-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
     .tq-arena-lb-tab {
       flex: 1; font-size: 8px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
@@ -704,6 +719,7 @@
   <div id="title-header">
     <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
     <div class="title-tagline-sm">SATS · SHOTS · SOVEREIGNTY</div>
+    <div class="title-tagline-sm" style="margin-top:7px; color:#8a6a4a; letter-spacing:6px;">OPEN WORLD · FREE MARKET</div>
     <!-- Phase 0c: persistent Torii/burger menu button. Opens the same menu from
          the title screen AND from inside the game (KeyM). The menu is a DOM
          overlay owned by main.js; this button just calls openToriiMenu(). -->
@@ -779,39 +795,17 @@
       </div>
     </div>
 
-      <!-- Leaderboard card. Rank rows combine the latest server-authoritative
-           local SCORE frame with verified persisted Nostr scores, never mock data.
-           v0.2.294 (M2) adds the LIVE
-           publish control below: a real NIP-07 sign + relay fan-out, armed only
-           when logged in and gated by explicit consent AND the SEC-1 publishGate. -->
-      <div id="leaderboard-preview" aria-label="leaderboard — persisted standings + live NIP-07 publish">
-        <div id="leaderboard-preview-head">
-          <span id="leaderboard-preview-title">🏆 SCORE — LEADERBOARD</span>
-          <span id="leaderboard-preview-badge">PERSISTED · NOSTR</span>
-        </div>
-        <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
-        <!-- Phase 0h — gamestr.io global leaderboard (kind 30762, read-side). A
-             sub-section below the NIP-78 preview; rendered only when the operator
-             opted in (GAMESTR_ENABLED || getGamestrEnabled()). Off by default so
-             no gamestr relay request fires on load. Rows reuse lb-row-label /
-             lb-row-value CSS. -->
-        <div id="gamestr-leaderboard">
-          <div id="gamestr-leaderboard-label">🌐 GAMESTR.IO</div>
-          <div id="gamestr-leaderboard-body"><!-- rows injected by main.js --></div>
-        </div>
-        <div id="leaderboard-publish">
-          <button id="leaderboard-publish-btn" type="button" disabled aria-label="publish my score to the leaderboard via Nostr">PUBLISH MY SCORE</button>
-          <span id="leaderboard-publish-tag">LIVE · NIP-07 · SEC-1 crypto-gated</span>
-        </div>
-        <div id="leaderboard-publish-status" role="status" aria-live="polite" style="display:none"></div>
-      </div>
+      <!-- v0.2.611: the home-screen leaderboard card was REMOVED — scores live
+           in the in-game "Arena Shooter" leaderboard panel (KeyL overlay). The
+           main.js render/publish functions no-op cleanly on the missing
+           elements (they bail on getElementById null). -->
     </div><!-- /side-col (left) -->
 
     <!-- CENTRE: boxed console -->
     <div id="title-centre">
-      <div id="centre-logo">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-      <div id="centre-sub">OPEN WORLD · FREE MARKET</div>
-      <div id="centre-tag">SOVEREIGN · ATMOSPHERIC · ABUNDANT</div>
+      <!-- v0.2.611: the centre panel leads with the world-builder promise — the
+           logo/sub/tag stack moved off (logo stays in the header above). -->
+      <div id="centre-promise">Your world your rules…</div>
 
       <div class="c-divider"></div>
 
@@ -824,19 +818,12 @@
         </div>
       </div>
       <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
-      <!-- v0.2.275: shortcut into the NAP zone far-left corner — skips the torii-gate
-           walk so the grass field is immediately visible. Same bootstrap as ENTER ARENA,
-           just sets a one-shot spawn override before enter(). -->
-      <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER NAP ZONE</button>
-      <button class="btn" id="btn-enter">ENTER ARENA</button>
-      <!-- Dev/debug free-fly camera toggle. Read on the three-free title screen (DOM
-           only) and honoured at ENTER: a true flyMode enables ToriiDebug.fly once the
-           arena boots. In-game F also toggles it. -->
-      <button class="fly-switch" id="btn-fly-toggle" role="switch" aria-checked="false" style="margin-top:16px;margin-bottom:10px;padding:9px 12px;cursor:pointer;">
-        <span class="fly-switch-label">✈ FLY MODE</span>
-        <span class="fly-switch-track"><span class="fly-switch-knob"></span></span>
-        <span class="fly-switch-state">OFF</span>
-      </button>
+      <!-- v0.2.611: ONE entry button. ENTER boots the arena via the same shared
+           bootstrap and drops the player into the NAP far-left corner (config:
+           NAP_SPAWN_*) facing west across the grass field. The old ENTER ARENA /
+           FLY MODE controls were removed from the home screen (fly mode is still
+           available in-game on F for dev). -->
+      <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER</button>
       <!-- Entry feedback line (v0.2.228). Both entry buttons write here so a
            cloud/no-extension click is never a silent no-op: ENTER ARENA surfaces
            a clear failure/gated message if physics fails to load, and LOGIN WITH
@@ -852,7 +839,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.610-alpha</div>
+      <div id="version-label">v0.2.611-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
@@ -861,18 +848,9 @@
            npub matches the deployment's host pubkey (`_hostIdentity()`). -->
       <a id="instance-settings-link" href="#" hidden>⚙ INSTANCE SETTINGS</a>
 
-      <!-- Gateway / n2n world-presence LIVE card (v0.2.251, P0). Rendered by main.js
-           from a REAL read-only relay scan (kind 30078, topic `torii-gateway`). It
-           shows which other Torii worlds are online and NEVER navigates. Our own
-           presence is published only on explicit NIP-07 login. The badge is set
-           live by main.js (LIVE · SCANNING… / LIVE · n ONLINE / LIVE · OFFLINE). -->
-      <div id="gateway-preview" aria-label="gateway worlds online (live read)">
-        <div id="gateway-preview-head">
-          <span id="gateway-preview-title">⛩ 1 · TRAVEL — GATEWAY</span>
-          <span id="gateway-preview-badge">LIVE · SCANNING…</span>
-        </div>
-        <div id="gateway-preview-body"><!-- rows injected by main.js --></div>
-      </div>
+      <!-- v0.2.611: the TRAVEL — GATEWAY home card was REMOVED. The gateway
+           directory + travel actions live in the Torii menu (burger / KeyM).
+           main.js renderGatewayPreview() bails cleanly on the missing element. -->
     </div>
 
     <!-- RIGHT: update-check preview (the mock LIVE CHAT panel was removed in
@@ -910,7 +888,12 @@
 ══════════════════════════════════════════ -->
 <div id="hud" class="hidden">
   <div id="topbar">
-    <div class="hud-logo">TORII<span>⚡</span>QUEST</div>
+    <!-- v0.2.611: the in-game TORII QUEST logo was removed; a burger button now
+         occupies the top-left and opens the same Torii menu as KeyM (admin
+         settings live there). -->
+    <button type="button" id="btn-torii-menu-hud" class="btn-torii-menu hud-burger" aria-label="Open Torii menu" title="Torii menu (M)">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M3 5h18v2.4H3z"/><path d="M3 10.8h18v2.4H3z"/><path d="M3 16.6h18v2.4H3z"/></svg>
+    </button>
     <div id="scoreboard">
       <div class="sb-stat">
         <span class="sb-val" id="sb-sats" style="color:var(--orange)">100</span>
@@ -936,10 +919,11 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
-  <div id="minimap-wrap"></div>
+  <!-- v0.2.611: the minimap canvas + wrap were removed from the HUD. hud.js /
+       arenaRuntime.js guard their minimap lookups (null-safe), so the draw
+       calls simply no-op. -->
 
-  <div id="ver">v0.2.610-alpha · torii quest</div>
+  <div id="ver">v0.2.611-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -992,8 +976,10 @@
       el.textContent = msg || '';
       el.style.display = msg ? 'block' : 'none';
     }
-    var enterBtn = document.getElementById('btn-enter');
-    if (enterBtn) enterBtn.addEventListener('click', function () {
+    // v0.2.611: ONE entry button — #btn-enter-nap (labelled ENTER) is the only
+    // entry control; the old #btn-enter (ENTER ARENA) was removed.
+    var napBtn = document.getElementById('btn-enter-nap');
+    if (napBtn) napBtn.addEventListener('click', function () {
       // When the module is live it owns the click (real arena bootstrap + its own
       // immediate status); only act as the fallback when the bundle never wired up.
       if (window.__toriiEnterReady) return;
@@ -1006,13 +992,6 @@
       // with a dead bundle. textContent only (via entryStatus); no secret/markup.
       if (!window.nostr) { entryStatus('NIP-07 extension not found'); return; }
       entryStatus('Login still loading - reload the page if this persists.');
-    });
-    // v0.2.275: NAP-zone shortcut shares the arena bootstrap, so it defers to the
-    // same __toriiEnterReady flag the module raises once the real handler is bound.
-    var napBtn = document.getElementById('btn-enter-nap');
-    if (napBtn) napBtn.addEventListener('click', function () {
-      if (window.__toriiEnterReady) return;
-      entryStatus('Engine still loading - reload the page if this persists.');
     });
   })();
 

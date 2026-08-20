@@ -22,7 +22,9 @@
 // appear on gamestr.io.
 
 export const GAMESTR_KIND = 30762;
-export const GAMESTR_GAME_ID = 'torii-quest';
+// v0.2.611: the shooter game is "Arena Shooter" — this is the game id shared
+// with gamestr.io scores (the slug form of the display name).
+export const GAMESTR_GAME_ID = 'arena-shooter';
 
 // GAMESTR_RELAYS — the gamestr relay (authoritative) + a few public relays for
 // discoverability (gamestr.io's own guidance: 3-5 public relays). Frozen so a

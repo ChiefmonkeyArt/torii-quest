@@ -66,18 +66,20 @@ function _bossBarDom() {
   if (_bossBarEl) return _bossBarEl;
   _bossBarEl = document.createElement('div');
   _bossBarEl.id = 'boss-hp-bar';
+  // v0.2.611: compact chest-mounted readout (was a 360px overhead banner).
+  // Centred on the anchor point (translate -50%,-50%) so it sits on the torso.
   Object.assign(_bossBarEl.style, {
     position: 'fixed',
     top: '0px',
     left: '0px',
-    transform: 'translate(-50%, -100%)',
-    width: '360px',
-    maxWidth: '72vw',
-    padding: '7px 10px 8px',
-    background: 'linear-gradient(180deg, rgba(30,7,8,0.92), rgba(12,4,5,0.84))',
-    border: '1px solid rgba(255,120,88,0.52)',
-    borderRadius: '10px',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.42), 0 0 24px rgba(130,18,18,0.22)',
+    transform: 'translate(-50%, -50%)',
+    width: '150px',
+    maxWidth: '40vw',
+    padding: '3px 6px 4px',
+    background: 'linear-gradient(180deg, rgba(30,7,8,0.78), rgba(12,4,5,0.66))',
+    border: '1px solid rgba(255,120,88,0.42)',
+    borderRadius: '6px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
     pointerEvents: 'none',
     opacity: '0',
     transition: 'opacity 0.22s ease',
@@ -88,28 +90,28 @@ function _bossBarDom() {
     display: 'flex',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    gap: '8px',
-    marginBottom: '6px',
+    gap: '6px',
+    marginBottom: '3px',
   });
   _bossBarNameEl = document.createElement('div');
   Object.assign(_bossBarNameEl.style, {
     color: '#ffd8c8',
     fontFamily: 'monospace',
-    fontSize: '11px',
+    fontSize: '8px',
     fontWeight: 'bold',
-    letterSpacing: '2px',
+    letterSpacing: '1px',
     textTransform: 'uppercase',
-    textShadow: '0 0 12px rgba(255,124,96,0.72), 0 1px 2px rgba(0,0,0,0.82)',
+    textShadow: '0 0 8px rgba(255,124,96,0.6), 0 1px 2px rgba(0,0,0,0.82)',
     whiteSpace: 'nowrap',
   });
   _bossBarHpEl = document.createElement('div');
   Object.assign(_bossBarHpEl.style, {
     color: '#ffe7de',
     fontFamily: 'monospace',
-    fontSize: '10px',
+    fontSize: '8px',
     fontWeight: 'bold',
-    letterSpacing: '1px',
-    textShadow: '0 0 10px rgba(255,140,112,0.42), 0 1px 2px rgba(0,0,0,0.82)',
+    letterSpacing: '0.5px',
+    textShadow: '0 0 8px rgba(255,140,112,0.4), 0 1px 2px rgba(0,0,0,0.82)',
     whiteSpace: 'nowrap',
   });
   head.appendChild(_bossBarNameEl);
@@ -117,12 +119,12 @@ function _bossBarDom() {
   _bossBarTrackEl = document.createElement('div');
   Object.assign(_bossBarTrackEl.style, {
     position: 'relative',
-    height: '13px',
+    height: '6px',
     overflow: 'hidden',
     background: 'rgba(18, 4, 5, 0.84)',
     border: '1px solid rgba(255,132,84,0.36)',
     borderRadius: '999px',
-    boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.72), 0 0 12px rgba(255,92,48,0.08)',
+    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.72)',
   });
   _bossBarFillEl = document.createElement('div');
   Object.assign(_bossBarFillEl.style, {

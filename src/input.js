@@ -53,7 +53,11 @@ export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down 
 const _clickCbs = [];
 export function onShoot(fn) { _clickCbs.push(fn); }
 document.addEventListener('mousedown', e => {
-  if (e.button === 0 && isPlaying()) {
+  // v0.2.614: require pointer lock. The click that RE-ACQUIRES lock (canvas
+  // click while PLAYING-but-unlocked) must not also fire a shot — it fired at
+  // whatever the stale camera faced (operator: "first click always shoots the
+  // sats symbol"). Now: 1st click locks, subsequent clicks fire where aimed.
+  if (e.button === 0 && isPlaying() && state.pointerLocked) {
     _clickCbs.forEach(fn => fn());
   }
 });
@@ -68,13 +72,8 @@ export function requestLock(el) {
   el.requestPointerLock();
 }
 
-// True only within `windowMs` of the last pointer-lock release. Used to
-// distinguish the browser-reserved ESC (lock exits at keydown, only keyup is
-// delivered ~instantly) from a plain ESC press while already unlocked — the
-// latter must NOT auto-pause (operator-reported "ESC fires pause unprompted").
-export function wasLockReleasedRecently(windowMs = 1500) {
-  return _lockReleasedAt > 0 && (performance.now() - _lockReleasedAt) <= windowMs;
-}
+// v0.2.614: wasLockReleasedRecently removed — its only consumer (the ESC keyup
+// pause fallback) was deleted for the two-stage ESC semantics.
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement !== null;

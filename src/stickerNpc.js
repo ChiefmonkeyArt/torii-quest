@@ -42,7 +42,10 @@ const EXCLUDE_NAMES = new Set([
 ]);
 
 const FLY_SIZE = 0.6;
-const ATTACHED_SIZE = 0.08;
+// v0.2.614: 8cm decals read as invisible past a couple of metres (operator:
+// "no stickers after multiple shots" — they fired, but landed sub-pixel).
+// 24cm is readable at conversational range without dominating a surface.
+const ATTACHED_SIZE = 0.24;
 const ATTACHED_RATIO = 0.6;
 const FLIGHT_DURATION = 0.22;
 const MAX_ATTACHED = 120;

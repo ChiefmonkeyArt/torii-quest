@@ -9,19 +9,23 @@ const RUNTIME = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 const INPUT = readFileSync(join(ROOT, 'src/input.js'), 'utf8');
 
 describe('pause modal input boundary', () => {
-  it('opens pause from Escape keydown or a browser-consumed pointer-lock Escape keyup', () => {
+  it('ESC is two-stage: 1st press releases pointer lock only, 2nd opens pause (v0.2.614)', () => {
     expect(RUNTIME).toMatch(/if \(e\.code !== 'Escape' \|\| e\.repeat\) return;/);
-    expect(RUNTIME).toMatch(/_escapeHandledOnKeyDown/);
-    expect(RUNTIME).toMatch(/!handled && isPlaying\(\) && !document\.pointerLockElement && wasLockReleasedRecently\(\)/);
-    // The keyup fallback must be gated on a RECENT pointer-lock release, else a
-    // stray ESC keyup (signer prompt, find bar, devtools) pauses mid-game.
-    expect(INPUT).toMatch(/export function wasLockReleasedRecently/);
-    expect(INPUT).toMatch(/_lockReleasedAt > 0 && \(performance\.now\(\) - _lockReleasedAt\) <= windowMs/);
+    // While pointer-locked the ESC keydown must be ignored so the browser's own
+    // lock release disengages play WITHOUT opening the pause modal. The modal
+    // opens on the NEXT press, delivered as a normal keydown once unlocked.
+    expect(RUNTIME).toMatch(/if \(state\.pointerLocked\) return;/);
+    // The old keyup fallback paused on the FIRST press (browsers that reserve
+    // the locked ESC expose only its keyup) — it must stay removed.
+    expect(RUNTIME).not.toMatch(/_escapeHandledOnKeyDown/);
+    expect(RUNTIME).not.toMatch(/wasLockReleasedRecently/);
     expect(RUNTIME).not.toMatch(/onPointerLockLost/);
     expect(INPUT).not.toMatch(/_lockLostCbs|onPointerLockLost/);
     // _openPause transitions out of PLAYING before pointer-lock release. The
     // existing shoot gate therefore still blocks clicks on the pause panel.
-    expect(INPUT).toMatch(/e\.button === 0 && isPlaying\(\)/);
+    // v0.2.614: shots additionally require pointer lock, so the click that
+    // re-acquires lock can never fire a shot at the stale aim point.
+    expect(INPUT).toMatch(/e\.button === 0 && isPlaying\(\) && state\.pointerLocked/);
   });
 
   it('clears held keys on blur / tab-hide / pointer-lock exit (stuck-key guard, v0.2.612)', () => {

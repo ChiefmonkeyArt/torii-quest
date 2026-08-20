@@ -250,11 +250,19 @@ export async function mountHomepageScene(container) {
   // v0.2.613: the flat background colour is replaced by the gradient sky dome
   // (added below, once `disposables` exists); the clear colour stays as a
   // fallback behind any sphere seam.
-  scene.background = null;
+  // v0.2.614: the sky SPHERE renders on real GPUs; but software/rasterising
+  // fallbacks (SwiftShader, throttled GPUs) can z-fight or drop BackSide
+  // spheres — the operator saw a black sky after a mid-SW-transition load.
+  // A solid horizon-coloured background sits UNDER the sphere so the frame
+  // is never pure black even if the shader never draws.
+  scene.background = new THREE.Color(SKY_HORIZON);
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
-  const BASE_CAM = new THREE.Vector3(0, 5.4, 26);
-  const BASE_LOOK = new THREE.Vector3(0, 3.6, 0);
+  // v0.2.614: camera dropped to standing eye height so the character (~1.5m
+  // from the lens) fills the frame — his legs naturally fall off the BOTTOM
+  // of the viewport instead of being cut off at the ground.
+  const BASE_CAM = new THREE.Vector3(0, 1.6, 26);
+  const BASE_LOOK = new THREE.Vector3(-0.15, 1.9, 0);
   camera.position.copy(BASE_CAM);
   camera.lookAt(BASE_LOOK);
 
@@ -268,6 +276,10 @@ export async function mountHomepageScene(container) {
   // v0.2.613: stronger frontal fill so the gate's vermillion skin + the
   // character read against the bright horizon (they were near-silhouette).
   const fill = new THREE.PointLight(0xffc9a0, 170, 110, 1.5); fill.position.set(0, 6, 14); scene.add(fill);
+  // v0.2.614: a soft warm key right at the lens so the close-up character's
+  // face/torso read — the gate fill is 10m behind him now and he was a dark
+  // silhouette.
+  const charKey = new THREE.PointLight(0xffd9b0, 26, 12, 1.4); charKey.position.set(-1.5, 2.2, 27.5); scene.add(charKey);
   const rim = new THREE.PointLight(0xff9a4a, 50, 70, 1.7); rim.position.set(-6, 5, -8); scene.add(rim);
 
   // _fixGlb(root) — v0.2.613 texture fix: these GLBs export alphaMode:BLEND,
@@ -410,10 +422,12 @@ export async function mountHomepageScene(container) {
     loader.load(_assetPath('/models/animation-library.glb'), gltf => {
       if (!alive) return;
       charObj = gltf.scene;
-      // v0.2.613: much closer to the camera, waist-up framing — scaled up and
-      // sunk ~0.95m so the ground plane crops the lower legs (the operator:
-      // "we do not need to see bottom half of his legs").
-      const CHAR_SCALE = 1.9;
+      // v0.2.614: closer to the camera so he FILLS the frame — feet stay ON
+      // the ground (no sinking); the legs scroll off the bottom of the
+      // viewport naturally because he's big + near (operator feedback: "I did
+      // not mean cut them off — bring him up close so the bottom half is off
+      // screen").
+      const CHAR_SCALE = 0.8;
       charObj.scale.setScalar(CHAR_SCALE);
 
       // Z-up fix (mirrors playerModel.js): the library GLB is authored Z-up —
@@ -434,7 +448,7 @@ export async function mountHomepageScene(container) {
       if (isZUp) gMinY = -gMaxZ; // after +90° X the old +Z span becomes -Y
       const footLift = Number.isFinite(gMinY) ? -gMinY : 0;
 
-      charObj.position.set(-3.2, footLift * CHAR_SCALE - 0.95, 13.5); // close foreground, left of centre
+      charObj.position.set(-0.9, footLift * CHAR_SCALE, 24.6); // ~1.4m from the lens — waist-up, left of centre
       if (isZUp) {
         const standUp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
         const face = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI + 0.35);
@@ -506,6 +520,13 @@ export async function mountHomepageScene(container) {
     const pulse = 0.5 + Math.sin(a * 0.7) * 0.5;
     if (sun.userData.halo) sun.userData.halo.userData.mat.opacity = 0.22 + pulse * 0.12;
     if (sun.userData.glow) sun.userData.glow.userData.mat.opacity = 0.10 + pulse * 0.08;
+
+    // Debug handle: lets headless probes + the operator verify scene state
+    // (character position, camera, clip) from the console without touching
+    // the game. Read-only; tiny.
+    if (!window.__toriiHomeScene) {
+      window.__toriiHomeScene = { camera, charRef: () => charObj, gateRef: () => gateObj, scene };
+    }
 
     // Fade-out + removal of the loading badge, counted in rAF frames (no
     // timers — the regression-gate bans setTimeout here).

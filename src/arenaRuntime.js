@@ -24,7 +24,7 @@ import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-fo
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys, wasLockReleasedRecently } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -1239,12 +1239,16 @@ export function createArenaRuntime(hooks = {}) {
       }, renderer);
     }
 
-    // ESC — universal override: pause/resume both directions; closes the gateway
-    // screen first when it is open. Capture phase so nothing swallows it first.
-    let _escapeHandledOnKeyDown = false;
+    // ESC — v0.2.614 two-stage semantics (operator request):
+    //   1st press while pointer-locked → the browser's own lock release
+    //     disengages play (mouse escapes to the desktop). NO pause modal.
+    //   2nd press (now unlocked, still PLAYING) → resume/leave pause modal.
+    // The menu/gateway closes still take priority. No keyup fallback: browsers
+    // that reserve the locked ESC only expose its keyup AFTER the lock exits —
+    // treating that keyup as a pause gesture (the old behaviour) fired the
+    // modal on the FIRST press, which is exactly what this change removes.
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
-      _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.
       if (isToriiMenuOpenHook()) {
@@ -1259,6 +1263,10 @@ export function createArenaRuntime(hooks = {}) {
         _closeGatewayScreen();
         return;
       }
+      // While locked, ESC is the browser's release gesture — let it through
+      // untouched so the pointer escapes (stage 1). The pause modal opens on
+      // the NEXT press, delivered as a normal keydown once unlocked.
+      if (state.pointerLocked) return;
       if (isPlaying()) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1267,23 +1275,6 @@ export function createArenaRuntime(hooks = {}) {
         e.preventDefault();
         e.stopImmediatePropagation();
         _resume();
-      }
-    }, true);
-    // Some browsers reserve the first Escape while pointer-locked and expose
-    // only its keyup after releasing the lock. Treat that keyup as the same
-    // pause gesture, but ONLY when it is the tail of a genuine pointer-lock
-    // exit (lock released moments ago) and no keydown handler already processed
-    // it. Without the recency gate, ANY stray ESC keyup while playing unlocked
-    // (dismissing a NIP-07 signer prompt, the browser find bar, devtools…)
-    // opened the pause modal — the operator-reported "unprompted pause".
-    document.addEventListener('keyup', e => {
-      if (e.code !== 'Escape') return;
-      const handled = _escapeHandledOnKeyDown;
-      _escapeHandledOnKeyDown = false;
-      if (!handled && isPlaying() && !document.pointerLockElement && wasLockReleasedRecently()) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        _openPause();
       }
     }, true);
 

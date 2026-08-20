@@ -28,13 +28,39 @@ export function initLoop(onUpdate, onFatal = null) {
 }
 export function getFrame() { return _frame; }
 export function isLoopStopped() { return _stopped; }
+export function getLongFrameCount() { return _longFrames; } // v0.2.614 watchdog
+
+// v0.2.614: long-frame watchdog (operator: "arena froze several times"). Raw
+// rAF gap > LONG_FRAME_MS (vs the dt-clamped game clock) logs a compact
+// diagnostic line with frame, gap, and JS heap when available — throttled to
+// one line per LONG_FRAME_LOG_EVERY frames so a hitch storm doesn't flood the
+// console. Zero timers; reads happen inside the existing rAF tick.
+export const LONG_FRAME_MS = 250;
+const LONG_FRAME_LOG_EVERY = 30;
+let _lastRafAt = 0;
+let _longFrames = 0;
 
 export function startLoop() {
   _stopped = false;
   _errStreak = 0;
+  _lastRafAt = 0;
+  _longFrames = 0;
 
   function _tick() {
     _frame++;
+    const _now = performance.now();
+    if (_lastRafAt > 0) {
+      const gap = _now - _lastRafAt;
+      if (gap > LONG_FRAME_MS && !document.hidden) {
+        _longFrames++;
+        if (_longFrames === 1 || _longFrames % LONG_FRAME_LOG_EVERY === 0) {
+          const heap = (performance.memory && performance.memory.usedJSHeapSize)
+            ? ` heapMB=${Math.round(performance.memory.usedJSHeapSize / 1048576)}` : '';
+          console.warn(`[LONG-FRAME] frame=${_frame} gapMs=${Math.round(gap)} streak=${_longFrames}${heap}`);
+        }
+      }
+    }
+    _lastRafAt = _now;
     const dt = Math.min(_clock.getDelta(), 0.05);
     if (_onUpdate) {
       try {

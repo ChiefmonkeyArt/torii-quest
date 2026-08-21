@@ -130,6 +130,13 @@ const KEY_COL  = 0xffb95c;   // golden key light
 const RIDGE_COLS = [0x1a0d05, 0x2a1709, 0x3c2410]; // near → far mountain silhouettes
 const SKY_TOP = 0x2a1030;    // dusky violet zenith
 const SKY_HORIZON = 0xe8822e; // molten gold horizon
+// v0.2.616 landscape palette: a teal sea band + a green grass field so the
+// home surface reads as a full landscape (sky → sun → mountains → sea → grass),
+// not flat colour bands. Sea sits behind the gate; grass fills the foreground
+// under the gate + chiefmonkey.
+const SEA_COL_A = 0x14556e;   // deep teal water
+const SEA_COL_B = 0x3aa0b8;   // lighter teal crest
+const GRASS_COL = 0x3f7d3a;   // grass field green
 
 // _buildSun(THREE) → a layered sun low on the horizon: an emissive core disc +
 // two larger transparent halo discs for a soft glow. Flat (double-sided) so it
@@ -212,6 +219,69 @@ function _buildMountainRidge(THREE, opts) {
   const m = new THREE.Mesh(geo, mat);
   m.userData.geo = geo; m.userData.mat = mat;
   return m;
+}
+
+// _buildSea(THREE) → an animated water band (a wide plane with a gentle sine
+// swell in the vertex shader). Cheap: 1 draw call, 2 colour uniforms, 1 time
+// uniform ticked per-frame. No physics, no reflection — a landing-scene sea.
+function _buildSea(THREE) {
+  const geo = new THREE.PlaneGeometry(220, 46, 48, 10);
+  geo.rotateX(-Math.PI / 2);
+  const mat = new THREE.ShaderMaterial({
+    fog: true,
+    uniforms: {
+      uTime: { value: 0 },
+      colorA: { value: new THREE.Color(SEA_COL_A) },
+      colorB: { value: new THREE.Color(SEA_COL_B) },
+    },
+    vertexShader:
+      'uniform float uTime; varying float vWave;\n' +
+      'void main(){ vec3 p = position;\n' +
+      '  float w = sin(p.x * 0.22 + uTime * 1.1) * 0.16 + sin(p.z * 0.4 + uTime * 0.8) * 0.12;\n' +
+      '  p.y += w; vWave = w;\n' +
+      '  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }',
+    fragmentShader:
+      'uniform vec3 colorA; uniform vec3 colorB; varying float vWave;\n' +
+      'void main(){ float t = clamp(vWave * 2.4 + 0.5, 0.0, 1.0);\n' +
+      '  gl_FragColor = vec4(mix(colorA, colorB, t), 1.0); }',
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.userData.geo = geo; m.userData.mat = mat;
+  return m;
+}
+
+// _buildGrass(THREE) → an instanced grass field (thin blades scattered over the
+// foreground). One InstancedMesh = 1 draw call. Blades are deterministic (seeded)
+// so the field is stable across reloads. A subtle per-blade height/lean variation
+// reads as grass rather than a flat green plane.
+function _buildGrass(THREE, count = 500) {
+  const bladeGeo = new THREE.ConeGeometry(0.06, 0.7, 4);
+  const mat = new THREE.MeshStandardMaterial({ color: GRASS_COL, roughness: 1, metalness: 0 });
+  const mesh = new THREE.InstancedMesh(bladeGeo, mat, count);
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const s = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  let seed = 20260821;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (let i = 0; i < count; i++) {
+    // Scatter over the foreground + mid ground (z -14 .. 22), avoiding the
+    // character's immediate standing spot so he isn't buried in blades.
+    const x = (rnd() - 0.5) * 44;
+    const z = -14 + rnd() * 36;
+    if (Math.abs(x - (-0.55)) < 1.2 && z > 20) { i--; continue; }
+    const h = 0.5 + rnd() * 0.5;
+    p.set(x, 0, z);
+    e.set((rnd() - 0.5) * 0.35, rnd() * Math.PI, (rnd() - 0.5) * 0.35);
+    q.setFromEuler(e);
+    s.set(1, h, 1);
+    m4.compose(p, q, s);
+    mesh.setMatrixAt(i, m4);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.userData.geo = bladeGeo; mesh.userData.mat = mat;
+  return mesh;
 }
 
 // mountHomepageScene(container) → { unmount } | null. Fail-safe at every step:
@@ -335,13 +405,28 @@ export async function mountHomepageScene(container) {
   scene.add(sky);
   disposables.push(sky.userData.geo, sky.userData.mat);
 
-  // Misty warm ground plain so the horizon glows into the fog.
+  // Grass field ground (v0.2.616) — the foreground reads as green grass instead
+  // of a flat brown band. Sits under the gate + chiefmonkey.
   const groundGeo = new THREE.CircleGeometry(120, 48);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a180b, roughness: 1, metalness: 0 });
+  const groundMat = new THREE.MeshStandardMaterial({ color: GRASS_COL, roughness: 1, metalness: 0 });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05;
   scene.add(ground);
   disposables.push(groundGeo, groundMat);
+
+  // Sea band (v0.2.616) — a teal water plane behind the gate, between the
+  // mountains and the grass field, so the horizon reads sky → sun → mountains →
+  // sea → grass. Slightly below the grass so the shoreline is clean.
+  const sea = _buildSea(THREE);
+  sea.position.set(0, -0.35, -16);
+  scene.add(sea);
+  disposables.push(sea.userData.geo, sea.userData.mat);
+
+  // Instanced grass blades (v0.2.616) — texture on the foreground field.
+  const grass = _buildGrass(THREE, 500);
+  grass.position.set(0, -0.02, 0);
+  scene.add(grass);
+  disposables.push(grass.userData.geo, grass.userData.mat);
 
   // Track sun halo meshes for the breathing pulse + disposal.
   disposables.push(sun.userData.halo.userData.geo, sun.userData.halo.userData.mat,
@@ -407,6 +492,7 @@ export async function mountHomepageScene(container) {
       gateObj.scale.setScalar(s);
       const box2 = new THREE.Box3().setFromObject(gateObj);
       gateObj.position.set(9.0, -box2.min.y, 2.0);
+      gateObj.userData.baseX = 9.0; // parallax anchor (v0.2.616)
       // v0.2.615: operator measured the gate standing ~110° off-square on the
       // live build (it read edge-on). Square it to the camera: -0.35 + 1.92
       // ≈ +1.57 rad (90°) — the walk-through plane now faces the lens.
@@ -455,12 +541,11 @@ export async function mountHomepageScene(container) {
       if (isZUp) gMinY = -gMaxZ; // after +90° X the old +Z span becomes -Y
       const footLift = Number.isFinite(gMinY) ? -gMinY : 0;
 
-      // v0.2.615: closer still (~1.1m) and facing the camera square-on (the
-      // operator saw his back on the live build). CHAR_BASE_X is the parallax
-      // anchor — the loop nudges him a LITTLE around it.
-      // Slight lift: with the eye-height camera 1.5m away, his legs fall below
-      // the fold while head + shoulders hold the frame.
-      charObj.position.set(CHAR_BASE_X, footLift * CHAR_SCALE + 0.75, 24.5);
+      // v0.2.616: LOWER in the frame + a little CLOSER to the lens (operator:
+      // "lower chiefmonkey a bit more and bring him a little closer"). The lift
+      // is reduced (+0.75 → +0.3) so he sits lower, and z moves 24.5 → 25.3
+      // (~0.7m from the eye-height camera) so he fills the frame waist-up.
+      charObj.position.set(CHAR_BASE_X, footLift * CHAR_SCALE + 0.3, 25.3);
       if (isZUp) {
         const standUp = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
         // π+0.35 faced him AWAY (operator screenshot); ~0 faces the lens.
@@ -523,24 +608,31 @@ export async function mountHomepageScene(container) {
     const dt = Math.min(0.05, (t - t0) / 1000); t0 = t;
     const a = t / 1000;
 
-    // v0.2.615 parallax rework (operator: "way too strong"): the camera moves
-    // GENTLY, the torii gate is the fixed pivot, the character nudges a
-    // little, and the background (ridges + sun + sky) moves a little MORE —
-    // nearest ridge least, farthest ridge most, so depth reads around the
-    // gate instead of the whole frame swinging.
+    // v0.2.616 parallax rework (operator: "too strong", "pivot between the gate
+    // and chiefmonkey"): the camera drifts GENTLY, chiefmonkey nudges a LITTLE
+    // (clamped so he never leaves the frame), the gate moves a touch (shifting
+    // the apparent pivot forward between gate + character), and the background
+    // (ridges + sun + sky) moves a little MORE. The sun travels side-to-side but
+    // is clamped so it never leaves the screen.
     const k = Math.min(1, dt * 4);
-    camera.position.x += (BASE_CAM.x + mouse.x * 0.9 - camera.position.x) * k;
-    camera.position.y += (BASE_CAM.y + mouse.y * 0.5 - camera.position.y) * k;
+    camera.position.x += (BASE_CAM.x + mouse.x * 0.6 - camera.position.x) * k;
+    camera.position.y += (BASE_CAM.y + mouse.y * 0.35 - camera.position.y) * k;
     camera.lookAt(BASE_LOOK);
-    if (charObj) charObj.position.x = charObj.userData.baseX + mouse.x * 0.12;
-    for (let i = 0; i < ridges.length; i++) ridges[i].position.x = mouse.x * (i + 1) * 0.55;
-    sun.position.x = 14 + mouse.x * 1.8;
-    sky.rotation.y = mouse.x * 0.03;
+    if (charObj) {
+      charObj.position.x = Math.max(-1.3, Math.min(0.2, charObj.userData.baseX + mouse.x * 0.1));
+    }
+    if (gateObj) gateObj.position.x = gateObj.userData.baseX + mouse.x * 0.18;
+    for (let i = 0; i < ridges.length; i++) ridges[i].position.x = mouse.x * (i + 1) * 0.4;
+    sun.position.x = Math.max(6, Math.min(22, 14 + mouse.x * 7));
+    sky.rotation.y = mouse.x * 0.02;
 
     // Gentle sun halo breathing.
     const pulse = 0.5 + Math.sin(a * 0.7) * 0.5;
     if (sun.userData.halo) sun.userData.halo.userData.mat.opacity = 0.22 + pulse * 0.12;
     if (sun.userData.glow) sun.userData.glow.userData.mat.opacity = 0.10 + pulse * 0.08;
+
+    // Animate the sea swell (v0.2.616) — a single time uniform, no timers.
+    if (sea.userData.mat && sea.userData.mat.uniforms) sea.userData.mat.uniforms.uTime.value = a;
 
     // Debug handle: lets headless probes + the operator verify scene state
     // (character position, camera, clip) from the console without touching

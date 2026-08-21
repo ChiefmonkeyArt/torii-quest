@@ -106,6 +106,31 @@ import {
 } from './config.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
+// ── v0.2.619: duplicate-entry boot guard ──────────────────────────────────────
+// A NIP-07 signer extension (Plebeian Signer, id ijbiankmnehjephbkfdgphckcdgbgoho
+// observed in the field) can `import()` this entry chunk a SECOND time from a
+// hardcoded, stale versioned URL it cached on a previous visit. The browser
+// treats the two URLs (`torii-entry.js?v=<A>` and `?v=<B>`) as distinct modules
+// and evaluates BOTH, pulling in TWO copies of arenaRuntime.js (each with its
+// own hashed chunk name) that both install pointerlock listeners, both write
+// the version panel, and race for the DOM — visible as "crosshair missing" and
+// "Installed vX shows the OLD version".
+//
+// The guard aborts the second module evaluation BEFORE any side effects run.
+// Transitive static imports above have already resolved by the time this code
+// runs, but their side effects have not yet fired for THIS invocation, so
+// throwing here prevents the duplicate boot cascade (dynamic arenaRuntime
+// import at the tail of this file never runs, no second listeners install).
+// The dynamic import()'s promise rejection is swallowed by whoever called us.
+if (typeof window !== 'undefined') {
+  if (window.__toriiEntryBooted) {
+    // Best-effort log; don't touch DOM or state.
+    try { console.warn('[torii] duplicate entry import blocked (extension re-boot?):', import.meta.url); } catch {}
+    throw new Error('__TORII_DUPLICATE_ENTRY_ABORT__');
+  }
+  window.__toriiEntryBooted = true;
+}
+
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
 const elTitle = document.getElementById('screen-title');
 const elHud   = document.getElementById('hud');

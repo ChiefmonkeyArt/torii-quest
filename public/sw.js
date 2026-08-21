@@ -8,7 +8,7 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.619-alpha';
+const CACHE_VERSION = 'tq-v0.2.620-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
 // Static assets to precache on install — ONLY immutable binary assets whose URL never
@@ -88,6 +88,25 @@ self.addEventListener('fetch', event => {
 
   const path = url.pathname;
 
+  // v0.2.620: entry-chunk stamp normalisation. A NIP-07 signer extension
+  // (Plebeian Signer, id ijbiankmnehjephbkfdgphckcdgbgoho observed in the
+  // field) hardcodes a `torii-entry.js?v=<old-stamp>` URL cached from a
+  // previous visit and re-`import()`s it every session. The browser evaluates
+  // that stale URL as a distinct module from the fresh `?v=<current-stamp>`
+  // the inline bootstrap uses — two arenaRuntimes race for the DOM and the
+  // OLD one wins the version panel + installs its (older, buggy) listeners.
+  // Rewrite ALL `?v=<anything>` requests to the SAME canonical entry, so the
+  // extension's stale URL receives the CURRENT chunk's bytes. Two boots still
+  // happen (browser module-registry keys on the requested URL), but they now
+  // both run the CURRENT code — the in-chunk `window.__toriiEntryBooted` guard
+  // (added v0.2.619) then correctly aborts the second boot instead of the
+  // second boot being of a different, older version. Any `?v=` query is
+  // dropped from the served URL so cache lookups are unified.
+  if (path.endsWith('/assets/torii-entry.js') && url.search) {
+    event.respondWith(entryNormalised(url.origin + path));
+    return;
+  }
+
   // Cache-first: GLBs, images, fonts — these never change between deploys
   if (isStaticAsset(path)) {
     event.respondWith(cacheFirst(event.request));
@@ -105,6 +124,28 @@ function isStaticAsset(path) {
     || path.endsWith('.png')
     || path.endsWith('.woff2')
     || path.endsWith('.wasm'); // Rapier WASM
+}
+
+// v0.2.620: entry-chunk normaliser. Fetches the canonical (query-less)
+// `/assets/torii-entry.js` and returns it as the response to a `?v=<anything>`
+// request. Uses `cache: 'no-store'` on the underlying fetch so a badly-stale
+// browser HTTP cache entry can't feed us back the OLD chunk we're trying to
+// rewrite away from. Fall back to the current cache if network is offline.
+async function entryNormalised(canonicalUrl) {
+  try {
+    const response = await fetch(canonicalUrl, { cache: 'no-store' });
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(canonicalUrl, response.clone());
+      return response;
+    }
+    // Non-ok (404/5xx): try cache before giving up
+    const cached = await caches.match(canonicalUrl);
+    return cached || response;
+  } catch {
+    const cached = await caches.match(canonicalUrl);
+    return cached || new Response('Offline', { status: 503 });
+  }
 }
 
 // Cache-first: serve from cache, fall back to network, store result

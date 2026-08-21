@@ -24,7 +24,7 @@ import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-fo
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, wasLockReleasedRecently } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -676,39 +676,11 @@ export function createArenaRuntime(hooks = {}) {
     closeToriiMenuHook(); // triggers its onClose → _resume
   }
 
-  // v0.2.615: two-stage ESC (operator's "perfect" behaviour, restored):
-  //   stage 1 — pause the game + free the mouse, NO modal (a small PAUSED
-  //             hint pill shows instead). Triggered by the ESC keydown when
-  //             delivered, or by the pointer-lock exit itself on browsers
-  //             that reserve the locked ESC (see the pointerlockchange hook).
-  //   stage 2 — ESC again (paused, unlocked) reveals the resume/leave modal.
-  // Clicking the canvas at stage 1 resumes (and re-locks). The modal's
-  // Resume/Leave buttons are unchanged.
-  let _quietPause = false;
-  const _elPauseOverlay = () => document.getElementById('pause-overlay');
-  const _elPausedHint   = () => document.getElementById('paused-hint');
-  function _openPauseQuiet() {
-    if (!transition(GAME_EVENT.PAUSE)) return;
-    document.exitPointerLock?.();
-    _quietPause = true;
-    // applyPhaseScreens (PHASE_CHANGE subscriber) already showed the modal —
-    // hide it again for the quiet stage; nothing else touches it while PAUSED.
-    _elPauseOverlay()?.classList.remove('show');
-    _elPausedHint()?.classList.add('show');
-  }
   function _openPause() {
-    _quietPause = false;
-    _elPausedHint()?.classList.remove('show');
-    if (!transition(GAME_EVENT.PAUSE)) {
-      // Already PAUSED (quiet stage) → just reveal the modal.
-      if (isPaused()) _elPauseOverlay()?.classList.add('show');
-      return;
-    }
+    if (!transition(GAME_EVENT.PAUSE)) return;
     document.exitPointerLock?.();
   }
   function _resume() {
-    _quietPause = false;
-    _elPausedHint()?.classList.remove('show');
     if (!transition(GAME_EVENT.RESUME)) return;
     requestLock(renderer.domElement);
   }
@@ -1252,15 +1224,9 @@ export function createArenaRuntime(hooks = {}) {
       else _elCrosshair?.classList.remove('active');
     });
 
-    // Canvas click → re-engage pointer lock when playing; at the quiet-pause
-    // stage (v0.2.615) a click resumes the run instead.
+    // Canvas click → re-engage pointer lock when playing.
     renderer.domElement.addEventListener('click', () => {
       if (needsPointerLock()) requestLock(renderer.domElement);
-      else if (_quietPause && isPaused()) _resume();
-    });
-    // The PAUSED hint pill is clickable too (its pointer-events are on).
-    document.getElementById('paused-hint')?.addEventListener('click', () => {
-      if (_quietPause && isPaused()) _resume();
     });
 
     // Visible in-world portal MARKER mesh (display-only; no collider/raycast/input).
@@ -1274,16 +1240,12 @@ export function createArenaRuntime(hooks = {}) {
       }, renderer);
     }
 
-    // ESC — v0.2.614 two-stage semantics (operator request):
-    //   1st press while pointer-locked → the browser's own lock release
-    //     disengages play (mouse escapes to the desktop). NO pause modal.
-    //   2nd press (now unlocked, still PLAYING) → resume/leave pause modal.
-    // The menu/gateway closes still take priority. No keyup fallback: browsers
-    // that reserve the locked ESC only expose its keyup AFTER the lock exits —
-    // treating that keyup as a pause gesture (the old behaviour) fired the
-    // modal on the FIRST press, which is exactly what this change removes.
+    // ESC — universal override: pause/resume both directions; closes the gateway
+    // screen first when it is open. Capture phase so nothing swallows it first.
+    let _escapeHandledOnKeyDown = false;
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
+      _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.
       if (isToriiMenuOpenHook()) {
@@ -1298,31 +1260,33 @@ export function createArenaRuntime(hooks = {}) {
         _closeGatewayScreen();
         return;
       }
-      // Stage 1 while locked: pause quietly (game halts, mouse is freed by
-      // the browser's own lock release). No preventDefault — the lock exit
-      // must proceed. Browsers that reserve the locked ESC never deliver this
-      // keydown; the pointerlockchange hook below covers them.
-      if (state.pointerLocked) { _openPauseQuiet(); return; }
       if (isPlaying()) {
-        // Unlocked but still PLAYING (e.g. lock dropped without pause) —
-        // treat as stage 1 completion: quiet pause, not the modal.
         e.preventDefault();
         e.stopImmediatePropagation();
-        _openPauseQuiet();
+        _openPause();
       } else if (isPaused()) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        if (_quietPause) _openPause(); // stage 2: reveal resume/leave modal
-        else _resume();                // modal open → ESC resumes
+        _resume();
       }
     }, true);
-    // Browsers that reserve the locked ESC expose no keydown — only the lock
-    // exit. Treat ANY lock loss while PLAYING as the stage-1 gesture (pause
-    // quietly). Deliberate exits (menu/gateway/pause) transition out of
-    // PLAYING first, so they never double-trigger this.
-    document.addEventListener('pointerlockchange', () => {
-      if (!document.pointerLockElement && isPlaying()) _openPauseQuiet();
-    });
+    // Some browsers reserve the first Escape while pointer-locked and expose
+    // only its keyup after releasing the lock. Treat that keyup as the same
+    // pause gesture, but ONLY when it is the tail of a genuine pointer-lock
+    // exit (lock released moments ago) and no keydown handler already processed
+    // it. Without the recency gate, ANY stray ESC keyup while playing unlocked
+    // (dismissing a NIP-07 signer prompt, the browser find bar, devtools…)
+    // opened the pause modal — the operator-reported "unprompted pause".
+    document.addEventListener('keyup', e => {
+      if (e.code !== 'Escape') return;
+      const handled = _escapeHandledOnKeyDown;
+      _escapeHandledOnKeyDown = false;
+      if (!handled && isPlaying() && !document.pointerLockElement && wasLockReleasedRecently()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _openPause();
+      }
+    }, true);
 
     // L / Tab — toggle the live in-arena leaderboard overlay (v0.2.380-alpha).
     // No collision with movement/interact keys (WASD/arrows/shift/space/E/R/F/C).

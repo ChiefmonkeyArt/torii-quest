@@ -72,8 +72,13 @@ export function requestLock(el) {
   el.requestPointerLock();
 }
 
-// v0.2.614: wasLockReleasedRecently removed — its only consumer (the ESC keyup
-// pause fallback) was deleted for the two-stage ESC semantics.
+// True only within `windowMs` of the last pointer-lock release. Used to
+// distinguish the browser-reserved ESC (lock exits at keydown, only keyup is
+// delivered ~instantly) from a plain ESC press while already unlocked — the
+// latter must NOT auto-pause (operator-reported "ESC fires pause unprompted").
+export function wasLockReleasedRecently(windowMs = 1500) {
+  return _lockReleasedAt > 0 && (performance.now() - _lockReleasedAt) <= windowMs;
+}
 
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement !== null;

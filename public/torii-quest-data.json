@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.605-alpha",
-  "generatedAt": "2026-08-19T18:36:08.951Z",
+  "version": "v0.2.621-alpha",
+  "generatedAt": "2026-08-21T17:08:53.414Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.605-alpha"
+        "value": "v0.2.621-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "21 / 21 regression checks GREEN · last green v0.2.605-alpha"
+        "value": "21 / 21 regression checks GREEN · last green v0.2.621-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.605-alpha",
-    "gitCommit": "1a34037",
+    "version": "v0.2.621-alpha",
+    "gitCommit": "689516d",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.605-alpha / pkg 0.2.605-alpha"
+        "detail": "config v0.2.621-alpha / pkg 0.2.621-alpha"
       },
       {
         "key": "tests",
@@ -221,7 +221,7 @@
         "label": "Bundle baseline",
         "state": "advisory",
         "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-CpKjtDGP.js"
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-BWH327mG.js"
       },
       {
         "key": "zoneFallback",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.605-alpha",
+    "version": "v0.2.621-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -268,7 +268,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.605-alpha"
+        "value": "v0.2.621-alpha"
       },
       {
         "label": "Release manifest",
@@ -400,7 +400,7 @@
     "pill": "no-blocker",
     "status": "approved",
     "approved": true,
-    "version": "v0.2.605-alpha",
+    "version": "v0.2.621-alpha",
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.605-alpha"
+        "value": "v0.2.621-alpha"
       },
       {
         "label": "Approved by",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.605-alpha"
+        "value": "v0.2.621-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.605-alpha",
+    "version": "v0.2.621-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

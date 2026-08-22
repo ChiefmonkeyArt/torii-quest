@@ -43,6 +43,8 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0013](./0013-bot-identity-and-diagnostics.md) | Bot identity (dwarf names) + [SHOT]/[KILL]/[RESPAWN] diagnostics layer | Accepted |
 | [0014](./0014-trigger-fire-diagnostics.md) | Per-trigger [FIRE] diagnostic log line | Accepted |
 | [0015](./0015-mp-hit-reg-alive-window.md) | MP hit-reg alive-window fix (wasAlive ‖ isAlive gate) | Accepted |
+| [0016](./0016-client-bot-state-sync.md) | Client bot state sync (nameplate lifecycle + dead-bot LOD) | Accepted |
+| [0017](./0017-server-zone-in-bot-hit.md) | Plumb zone from server BOT_HIT into client applyBotHit | Accepted |
 
 ## Workflow for a new decision
 

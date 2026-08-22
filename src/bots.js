@@ -51,6 +51,10 @@ let _netMode = false;
 const _botNet = createBotNetState();
 const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 const ARENA_HALF = 20;
+// ADR-0016 D-2: after this many seconds the death arc has decayed to zero
+// (arc = max(0, 9t − 7t²) hits 0 at t ≈ 9/7 s). During the arc the corpse is
+// force-visible; after it, LOD may cull distant corpses.
+const DEATH_ARC_DURATION = 1.3;
 const BOSS_BAR_ENGAGE_RANGE = 14;
 const BOSS_BAR_RECENT_HIT_MS = 4000;
 const BOSS_BAR_VIEWPORT_MARGIN = 24;
@@ -535,6 +539,19 @@ function _syncNetBot(bot, pose, dt) {
       const arc = Math.max(0, 9.0 * bot._deathT - 7.0 * bot._deathT * bot._deathT);
       bot.model.syncTo(pose.x, fy + arc, pose.z, pose.rotY);
       bot.model.tick(dt);
+      // ADR-0016 D-2: during the death arc keep the corpse visible so the
+      // ragdoll flight can never pop mid-animation. After the arc completes,
+      // run LOD so distant old corpses cull consistently with live bots.
+      if (bot._deathT > DEATH_ARC_DURATION) {
+        const pPosDead = _playerObj.position;
+        const lodDead = getLodLevel(pose.x, pose.z, pPosDead.x, pPosDead.z, bot.state?.id);
+        applyLod(bot.model, lodDead);
+      } else if (bot.model.root) {
+        bot.model.root.visible = true;
+      }
+      // ADR-0016 D-1/D-3: nameplate visible iff body visible AND alive.
+      // Dead → hide, unconditionally.
+      bot.model.setNameplateVisible(false);
     } else if (bot._capsuleMesh) {
       bot._capsuleMesh.visible = false;
     }
@@ -584,6 +601,12 @@ function _syncNetBot(bot, pose, dt) {
   if (bot.boneColliders.length > 0 && bot.model?.root) {
     bot.model.root.updateMatrixWorld(true);
     syncNpcBoneColliders(bot.boneColliders);
+  }
+  // ADR-0016 D-1/D-4: nameplate visible iff body visible AND alive. The alive
+  // branch already ran applyLod; sample root.visible after LOD has decided.
+  if (bot.model) {
+    const bodyVisible = bot.model.root?.visible === true;
+    bot.model.setNameplateVisible(bodyVisible && st.alive === true);
   }
   bot._prevAlive = true;
 }
@@ -666,6 +689,12 @@ function _syncBot(bot, dt) {
   if (bot.boneColliders.length > 0 && bot.model?.root) {
     bot.model.root.updateMatrixWorld(true);
     syncNpcBoneColliders(bot.boneColliders);
+  }
+
+  // ADR-0016 D-1/D-4: nameplate visible iff body visible AND alive.
+  if (bot.model) {
+    const bodyVisible = bot.model.root?.visible === true;
+    bot.model.setNameplateVisible(bodyVisible && st.alive === true);
   }
 
   bot._prevDying = st._isDying;

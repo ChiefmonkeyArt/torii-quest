@@ -264,6 +264,13 @@ export class BotModel {
     if (this._nameplate) this._nameplate.visible = false;
   }
 
+  // ADR-0016: nameplate visibility is enforced by the caller each frame so it
+  // tracks body visibility 1:1 (no ghost labels when the body is LOD-culled or
+  // the bot is dead). No-op when the bot has no nameplate.
+  setNameplateVisible(v) {
+    if (this._nameplate) this._nameplate.visible = !!v;
+  }
+
   dispose() {
     if (this.root) { scene.remove(this.root); this.root = null; }
     if (this._nameplate) {

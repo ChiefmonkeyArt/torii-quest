@@ -1391,7 +1391,9 @@ export function createArenaRuntime(hooks = {}) {
           return;
         }
         if (name === 'mp_botHit') {
-          applyBotHit(p.botId, p.hp);
+          // ADR-0017: pass zone through so [SHOT] diagnostics show head/body
+          // instead of 'unknown'. Zone is server-authoritative.
+          applyBotHit(p.botId, p.hp, p.zone);
           if (_mp && p.shooterId === _mp.selfId) {
             for (let i = 0; i < bots.length; i++) {
               if (bots[i].state?.id === p.botId) {

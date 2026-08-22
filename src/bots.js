@@ -538,7 +538,7 @@ function _syncNetBot(bot, pose, dt) {
 
   const pPos = _playerObj.position;
   const dist = Math.hypot(pPos.x - pose.x, pPos.z - pose.z);
-  const lod = getLodLevel(pose.x, pose.z, pPos.x, pPos.z);
+  const lod = getLodLevel(pose.x, pose.z, pPos.x, pPos.z, bot.state?.id);
   applyLod(bot.model, lod);
   if (bot.model?.loaded) {
     bot.model.syncTo(pose.x, fy, pose.z, pose.rotY);
@@ -612,7 +612,7 @@ function _syncBot(bot, dt) {
   const dist = Math.hypot(pPos.x - st.pos.x, pPos.z - st.pos.z);
 
   // LOD — skip mixer on distant bots, hide very distant ones.
-  const lod = getLodLevel(st.pos.x, st.pos.z, pPos.x, pPos.z);
+  const lod = getLodLevel(st.pos.x, st.pos.z, pPos.x, pPos.z, st.id);
   applyLod(bot.model, lod);
 
   if (bot.model?.loaded) {

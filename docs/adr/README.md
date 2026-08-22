@@ -38,6 +38,8 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0008](./0008-leaderboard-read-path.md) | Leaderboard reads only `kind:30078#d=torii-quest` + `kind:1#t=torii-quest-score` | Accepted |
 | [0009](./0009-spa-zone-fallback.md) | `index.html` SPA fallback for `/zone/*` deep-links | Accepted |
 | [0010](./0010-crosshair-esc-pointerlock-baseline.md) | Crosshair, ESC, and pointer-lock baseline is v0.2.605 | Accepted |
+| [0011](./0011-combat-classifier-bot-tactics-lod-hysteresis.md) | Combat classifier, bot tactics, and LOD hysteresis (v0.2.608 forward-port) | Accepted |
+| [0012](./0012-stuck-key-guard-and-quality-tier-no-shadow-toggle.md) | Stuck-key guard and quality-tier no-shadow-toggle (v0.2.612 forward-port) | Accepted |
 
 ## Workflow for a new decision
 

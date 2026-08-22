@@ -215,7 +215,7 @@ describe('botSim LOS gate', () => {
     const { deps, shots } = makeDeps();
     const sim = createBotSim(deps);
     const bots = sim.spawnAll(BOT_COUNT);
-    // one hard-tier bot at index 1 (reaction 0.12, cooldown fast); park others.
+    // one hard-tier bot at index 1 (reaction 0.22, cooldown fast); park others.
     const bot = bots[1];
     bots.forEach((b, i) => { if (i !== 1) b.alive = false; });
     bot.pos.x = 5; bot.pos.z = 0;

@@ -561,8 +561,11 @@ export function createArenaRuntime(hooks = {}) {
     bloomPass,
     window,
     onTierChange: (def) => {
+      // v0.2.612: resize the sun's shadow map only — NEVER toggle
+      // renderer.shadowMap.enabled at runtime (that invalidates every material
+      // program → full shader recompile → frame stall; flapping tiers made the
+      // game feel jittery). Shadows stay enabled all session.
       const size = def.shadowMapSize;
-      renderer.shadowMap.enabled = size > 0;
       if (size <= 0) return;
       sun.shadow.mapSize.set(size, size);
       if (sun.shadow.map) {

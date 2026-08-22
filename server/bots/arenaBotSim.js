@@ -53,11 +53,19 @@ function _envInt(key, def) {
   const n = Number(raw);
   return Number.isFinite(n) && n >= 0 && Number.isInteger(n) ? n : def;
 }
-const _BOT_COUNT_EFF  = _envInt('BOT_COUNT_OVERRIDE',  BOT_COUNT);
-const _BOSS_COUNT_EFF = _envInt('BOSS_COUNT_OVERRIDE', BOSS_COUNT);
-if (_BOT_COUNT_EFF !== BOT_COUNT || _BOSS_COUNT_EFF !== BOSS_COUNT) {
+// TEST_MODE is the one-stop flag for a clean, fast test rig: defaults the roster
+// to 1 regular bot / 0 bosses (granular overrides still win) AND enables instant
+// respawn (no death arc, no 8s wait). Any of '1'/'true'/'yes'/'on' enables it.
+function _envBool(key) {
+  const raw = (process.env[key] || '').trim().toLowerCase();
+  return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+}
+const _TEST_MODE = _envBool('TEST_MODE');
+const _BOT_COUNT_EFF  = _envInt('BOT_COUNT_OVERRIDE',  _TEST_MODE ? 1 : BOT_COUNT);
+const _BOSS_COUNT_EFF = _envInt('BOSS_COUNT_OVERRIDE', _TEST_MODE ? 0 : BOSS_COUNT);
+if (_TEST_MODE || _BOT_COUNT_EFF !== BOT_COUNT || _BOSS_COUNT_EFF !== BOSS_COUNT) {
   // eslint-disable-next-line no-console
-  console.log(`[BOT_SIM] env override active: BOT_COUNT=${_BOT_COUNT_EFF} BOSS_COUNT=${_BOSS_COUNT_EFF} (defaults ${BOT_COUNT}/${BOSS_COUNT})`);
+  console.log(`[BOT_SIM] env override active: TEST_MODE=${_TEST_MODE} BOT_COUNT=${_BOT_COUNT_EFF} BOSS_COUNT=${_BOSS_COUNT_EFF} (defaults ${BOT_COUNT}/${BOSS_COUNT})`);
 }
 
 /**
@@ -79,10 +87,11 @@ export function createArenaBotSim(opts = {}) {
     arenaBoxes: ARENA_BOXES,
     coverPoints: COVER_POINTS,
     config: {
-      // ADR-0018: env-driven overrides so operators can flip a single-bot test
+      // ADR-0018/0019: env-driven overrides so operators can flip a single-bot test
       // environment via systemd env without a code change. Defaults unchanged.
       BOT_COUNT: _BOT_COUNT_EFF, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
       BOSS_COUNT: _BOSS_COUNT_EFF, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+      TEST_MODE: _TEST_MODE,
     },
     playerSafeCorner: NO_SAFE_CORNER,
     // v0.2.378 fix 2: lift the SIM-LOCAL origin (y = EYE_Y above feet) to the

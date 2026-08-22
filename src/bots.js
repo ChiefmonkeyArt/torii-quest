@@ -97,6 +97,11 @@ function _projectBossBarAnchor(pose) {
 export function setBotNetMode(on) {
   _netMode = !!on;
   if (!_netMode) {
+    // ADR-0019: drop the interpolation buffer on disconnect. Bots that the
+    // server no longer has (roster changed, e.g. a boss removed by a test-mode
+    // restart) must not linger as frozen nameplates. _botNet is MP-only — SP
+    // reads sim.bots directly — so clearing here cannot affect single-player.
+    _botNet.clear();
     _resetBossBarTracking();
     hideBossBar();
   }

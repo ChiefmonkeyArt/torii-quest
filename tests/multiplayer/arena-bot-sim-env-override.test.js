@@ -1,5 +1,5 @@
 // tests/multiplayer/arena-bot-sim-env-override.test.js
-// ADR-0018 (v0.2.627-alpha): env-var override for controlled test environments.
+// ADR-0018 (v0.2.628-alpha): env-var override for controlled test environments.
 //
 // This test asserts REAL behaviour end-to-end from process.env → arenaBotSim
 // spawn → sim.bots roster. It does NOT mock the module under test or mirror
@@ -10,22 +10,26 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BOT_COUNT, BOSS_COUNT, BOT_HP, BOSS_HP } from '../../src/config.js';
 
-// Snapshot ONLY the two vars we touch so we don't stomp anything else vitest
+// Snapshot ONLY the vars we touch so we don't stomp anything else vitest
 // or CI has set. Delete after each case; restore explicit prior values.
 const ORIG_BOT_COUNT_OVERRIDE = process.env.BOT_COUNT_OVERRIDE;
 const ORIG_BOSS_COUNT_OVERRIDE = process.env.BOSS_COUNT_OVERRIDE;
+const ORIG_TEST_MODE = process.env.TEST_MODE;
 
 beforeEach(() => {
   delete process.env.BOT_COUNT_OVERRIDE;
   delete process.env.BOSS_COUNT_OVERRIDE;
+  delete process.env.TEST_MODE;
   vi.resetModules();
 });
 
 afterEach(() => {
   delete process.env.BOT_COUNT_OVERRIDE;
   delete process.env.BOSS_COUNT_OVERRIDE;
+  delete process.env.TEST_MODE;
   if (ORIG_BOT_COUNT_OVERRIDE !== undefined) process.env.BOT_COUNT_OVERRIDE = ORIG_BOT_COUNT_OVERRIDE;
   if (ORIG_BOSS_COUNT_OVERRIDE !== undefined) process.env.BOSS_COUNT_OVERRIDE = ORIG_BOSS_COUNT_OVERRIDE;
+  if (ORIG_TEST_MODE !== undefined) process.env.TEST_MODE = ORIG_TEST_MODE;
   // Reset the module registry so any OTHER test file that imports arenaBotSim
   // AFTER this file gets a clean re-import with the restored (or absent) env.
   vi.resetModules();
@@ -103,5 +107,26 @@ describe('ADR-0018 env overrides (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE)', ()
     const sim = createArenaBotSim({});
     sim.spawn(4); // explicit arg wins
     expect(sim.snapshot()).toHaveLength(4);
+  });
+
+  it('TEST_MODE=1 alone → 1 regular bot, 0 bosses (one-stop flag)', async () => {
+    process.env.TEST_MODE = '1';
+    const { createArenaBotSim } = await importFresh();
+    const sim = createArenaBotSim({});
+    sim.spawn();
+    const snap = sim.snapshot();
+    expect(snap).toHaveLength(1);
+    expect(snap[0].id).toBe(0);
+    expect(snap[0].kind).not.toBe(1);
+  });
+
+  it('TEST_MODE=1 does not override an explicit BOT_COUNT_OVERRIDE', async () => {
+    process.env.TEST_MODE = '1';
+    process.env.BOT_COUNT_OVERRIDE = '3';
+    process.env.BOSS_COUNT_OVERRIDE = '0';
+    const { createArenaBotSim } = await importFresh();
+    const sim = createArenaBotSim({});
+    sim.spawn();
+    expect(sim.snapshot()).toHaveLength(3);
   });
 });

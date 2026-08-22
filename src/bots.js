@@ -169,6 +169,22 @@ const _coverPoints = buildCoverPoints(_arenaBoxes, COVER_MARGIN);
 let _spawnBulletFn = null;
 let _playerObj     = null;
 let _modelsReady   = false;
+// ADR-0022: MP owns its own boss-GLB preload. The SP path only kicks off
+// preloadBossModel() inside the (now net-gated) initBots continuation, so in MP
+// nothing ever fetched the boss template.
+let _bossModelReady      = false;
+let _bossPreloadStarted  = false;
+let _bossFallbackRegular = false;
+function _ensureBossPreload() {
+  if (_bossPreloadStarted) return;
+  _bossPreloadStarted = true;
+  preloadBossModel()
+    .then(() => { _bossModelReady = true; })
+    .catch(err => {
+      console.warn('[bots] boss GLB load failed in MP, using regular model:', err);
+      _bossFallbackRegular = true;
+    });
+}
 
 // v0.2.533: Bridge 2 walkable zone — lets bots walk between Arena BL and BR
 // islands over the bridge. Includes a margin so the bot center stays on deck.
@@ -502,6 +518,27 @@ function _tickNet(dt) {
       };
       bot = _makeCapsuleBot(st, p.id);
       bot._prevAlive = p.alive;
+    }
+    // ADR-0022 — MP must attach its OWN models. _tickNet materialises every
+    // authoritative row as a capsule placeholder, but nothing ever upgraded that
+    // placeholder to the GLB: `_modelsReady` was set and never read, and
+    // `_attachModelBot` was called only from the SP init path. MP therefore
+    // worked by accident — it reused the LOCAL roster's already-modelled
+    // wrappers whenever a server id happened to match. With the local roster
+    // correctly removed (ADR-0021) only the capsule remained: no GLB, no
+    // SkinnedMesh, and so no per-bone limb colliders. Upgrade in place as soon
+    // as the relevant template is ready (BotModel.init is synchronous once the
+    // template is cached, and sets skinnedMesh → bone colliders get built).
+    if (_modelsReady && !bot.model) {
+      if (p.kind !== 'boss') {
+        _attachModelBot(bot.state, 'regular');
+      } else if (_bossModelReady) {
+        _attachModelBot(bot.state, 'boss');
+      } else if (_bossFallbackRegular) {
+        _attachModelBot(bot.state, 'regular');
+      } else {
+        _ensureBossPreload();   // stays a capsule until the boss GLB lands
+      }
     }
     _syncNetBot(bot, p, dt);
     if (!bossPose && p.kind === 'boss') bossPose = p;

@@ -79,7 +79,10 @@ const FADE = 0.12;
 
 // ── BotModel class — one instance per bot ────────────────────────────────────
 export class BotModel {
-  constructor(kind = 'regular') {
+  // `label` (ADR-0013, v0.2.623): optional display name floated over the bot's
+  // head as a world-space sprite. If omitted, regulars get no nameplate
+  // (backward-compatible with pre-v0.2.623 callers); the boss uses BOSS_NAME.
+  constructor(kind = 'regular', label = null) {
     this.kind    = TEMPLATES[kind] ? kind : 'regular';
     this.isBoss  = this.kind === 'boss';
     this._anim   = TEMPLATES[this.kind].anim;
@@ -93,6 +96,7 @@ export class BotModel {
     this._oneshotFade  = '';
     this._footY  = 0; // vertical offset to keep feet at y=0
     this._nameplate = null;
+    this._label = label;
     this.skinnedMesh = null; // SkinnedMesh ref for per-bone colliders
   }
 
@@ -147,9 +151,16 @@ export class BotModel {
 
     scene.add(this.root);
 
-    // Boss gets a floating "Augustink" nameplate sprite tracked in world space.
-    if (this.isBoss) this._nameplate = _makeNameplate(BOSS_NAME);
-    if (this._nameplate) scene.add(this._nameplate);
+    // Nameplate sprite — boss uses BOSS_NAME; regulars use the label supplied
+    // by the caller (ADR-0013). Regulars with no label render no nameplate
+    // (backward-compat with pre-v0.2.623 callers that didn't pass one).
+    const nameText = this.isBoss ? BOSS_NAME : this._label;
+    if (nameText) this._nameplate = _makeNameplate(nameText);
+    if (this._nameplate) {
+      // Raycast off — the sprite must never intercept shots (ADR-0013).
+      this._nameplate.raycast = () => {};
+      scene.add(this._nameplate);
+    }
 
     // Mixer + actions from shared clips
     this.mixer = new THREE.AnimationMixer(this.root);
@@ -251,6 +262,13 @@ export class BotModel {
   hide() {
     if (this.root) this.root.visible = false;
     if (this._nameplate) this._nameplate.visible = false;
+  }
+
+  // ADR-0016: nameplate visibility is enforced by the caller each frame so it
+  // tracks body visibility 1:1 (no ghost labels when the body is LOD-culled or
+  // the bot is dead). No-op when the bot has no nameplate.
+  setNameplateVisible(v) {
+    if (this._nameplate) this._nameplate.visible = !!v;
   }
 
   dispose() {

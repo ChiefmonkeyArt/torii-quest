@@ -1,4 +1,5 @@
 import { writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
 import {
@@ -8,6 +9,7 @@ import {
   cspValueForSha,
   inlineBootstrapSha256Of,
 } from './tools/csp.mjs';
+import { buildReleaseMeta, validateReleaseMeta } from './tools/releaseMeta.mjs';
 
 // CSP via HTTP header (S3, v0.2.266). The policy lives in tools/csp.mjs (single source).
 // This plugin: (1) rewrites the BUILT index.html so the trusted classic inline bootstrap
@@ -123,6 +125,36 @@ function cspHeaderPlugin() {
         if (sha) body = headersFileBodyForSha(sha);
       }
       writeFileSync(join(dir, '_headers'), body);
+
+      // v0.2.604: stamp a FRESH dist/release-metadata.json from the live version +
+      // git commit + build timestamp on every build. The committed
+      // public/release-metadata.json stays a deterministic template (never churns
+      // the working tree); only the DEPLOYED dist copy carries provenance. Fixes
+      // the stale-metadata bug where the deployed file was stuck at v0.2.232 with
+      // generatedAt:null + commit:null, which made torii-deploy falsely warn "not
+      // found on live site" + the in-app version panel read stale data. Safe:
+      // best-effort commit (null when git is unavailable); the metadata is
+      // descriptive-only (update.autoUpdate stays false).
+      try {
+        const cfgSrc = readFileSync(join(process.cwd(), 'src/config.js'), 'utf8');
+        const vMatch = cfgSrc.match(/VERSION\s*=\s*['"]([^'"]+)['"]/);
+        const version = vMatch ? vMatch[1] : null;
+        let commit = null;
+        try {
+          commit = execSync('git rev-parse --short HEAD', { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim() || null;
+        } catch { /* git unavailable — null commit */ }
+        const meta = buildReleaseMeta({
+          version,
+          commit,
+          generatedAt: new Date().toISOString(),
+        });
+        writeFileSync(join(dir, 'release-metadata.json'), JSON.stringify(meta, null, 2) + '\n');
+        const { ok, errors } = validateReleaseMeta(meta);
+        if (!ok) console.warn(`[torii-release-meta] wrote INVALID metadata: ${errors.join('; ')}`);
+      } catch (e) {
+        // Non-fatal: a missing config.js or a read error must never fail the build.
+        console.warn(`[torii-release-meta] skipped (non-fatal): ${e?.message || e}`);
+      }
     },
     configurePreviewServer(server) {
       // Serve the CSP that matches the built dist inline script if one exists; otherwise

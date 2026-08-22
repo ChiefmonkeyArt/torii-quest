@@ -189,17 +189,33 @@ export function createMultiplayerHost(deps) {
   function tick(renderTime) { roster.tick(renderTime); }
 
   // v0.2.392 hit-reg: how far BEHIND live the local player's view of the bots
-  // is, in ms. = the client interpolation delay (bots are rendered
-  // DEFAULT_INTERP_DELAY_MS in the past) + the network one-way (the snapshot
-  // that produced the current render arrived one-way ago). Sent on the SHOT as
-  // `viewLag`; the SERVER rewinds its bot/peer rings to (server_now - viewLag)
-  // in its own clock frame, testing the collider where the player actually SAW
-  // the bot, not where it currently is. Clamped to 250ms so it stays inside the
-  // server's 300ms lag-comp window. one-way is counted exactly ONCE here — the
-  // server does NOT subtract it again.
+  // is, in ms. Sent on the SHOT as `viewLag`; the SERVER rewinds its bot/peer
+  // rings to (server_now - viewLag) in its own clock frame, testing the collider
+  // where the player actually SAW the bot, not where it currently is.
+  //
+  // v0.2.633 (ADR-0024) hit-reg: this is TWO one-way trips, not one.
+  // botNetState.ingest() stamps each sample with the CLIENT RECEIVE time, and
+  // sample() renders at (receive_now - DEFAULT_INTERP_DELAY_MS). So the pose on
+  // screen was generated on the SERVER interpDelay + one-way ago: the downlink
+  // trip is already baked into the receive stamps. The server then applies
+  // viewLag to the shot's ARRIVAL time, which is a further uplink trip after the
+  // player clicked. Deriving it in one aligned frame (fire = click instant):
+  //   seen on screen    : server content at fire - interpDelay - ow   (downlink)
+  //   server tests at   : (fire + ow) - viewLag                       (uplink)
+  // Those are only equal when viewLag = interpDelay + 2*ow. With a single ow the
+  // server rewound to a state one one-way trip TOO RECENT, so a moving bot was
+  // tested ~ow of travel ahead of where the player saw it — measured as 0.10-0.35m
+  // of lateral error at observed bot speeds (1.5-5.5 m/s, ow~64ms), which is the
+  // width of the 0.35m head collider and matched the tight head misses in the
+  // v0.2.632 capture (headHorz 0.350/0.383/0.531 just outside the radius).
+  //
+  // Still clamped to 250ms so it stays inside the server's 300ms lag-comp window
+  // (LAG_COMP_MS); the server clamps again independently. ow is itself already
+  // capped at 250 by wsClient, so the worst case here saturates the clamp rather
+  // than overflowing the window.
   function viewLagMs() {
     const ow = ws && Number.isFinite(ws.oneWayMs) ? ws.oneWayMs : 0;
-    const v = DEFAULT_INTERP_DELAY_MS + ow;
+    const v = DEFAULT_INTERP_DELAY_MS + 2 * ow;
     return v > 250 ? 250 : v;
   }
 

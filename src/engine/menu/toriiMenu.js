@@ -12,6 +12,11 @@
 // action delegates to a host-injected callback (onTravel / onToggleHeartbeat /
 // onSetActiveWorld). Never fakes data; never renders mock worlds.
 //
+// The guest/logged-in/owner gating, the scan badge text, the "searching for
+// worlds" state, + the ordered section list live in the PURE sibling module
+// toriiMenuModel.js (node-testable, no DOM). This module only mounts that model
+// into the DOM — behavior is unchanged, only the decision logic is separable.
+//
 // Constraints by construction (mirrors gatewayScreen.js):
 //   - DISPLAY + CLICK ONLY. createElement + textContent + addEventListener. No
 //     innerHTML for world data, no eval, no fetch, no signing, no relay publish.
@@ -29,6 +34,14 @@
 //   closeToriiMenu()  — programmatic close (calls onClose once)
 //   isToriiMenuOpen() — boolean
 
+import {
+  normaliseToriiMenuState,
+  toriiMenuBadgeText,
+  shouldShowSearchingForWorlds,
+  toriiMenuSections,
+  shouldShowLoginToTravelNote,
+} from './toriiMenuModel.js';
+
 export const TORII_MENU_VERSION = 1;
 
 let _el = null;
@@ -44,7 +57,7 @@ function _build() {
   backdrop.setAttribute('aria-modal', 'true');
   backdrop.setAttribute('aria-label', 'Torii menu — worlds online + node settings');
   Object.assign(backdrop.style, {
-    position: 'fixed', inset: '0', zIndex: '75',
+    position: 'fixed', inset: '0', zIndex: '200',
     display: 'none',
     alignItems: 'center', justifyContent: 'center',
     background: 'radial-gradient(circle at 50% 40%, rgba(20,18,40,0.82), rgba(8,8,18,0.94))',
@@ -409,21 +422,15 @@ export function openToriiMenu({ getState = null, onClose = null } = {}) {
   list.replaceChildren();
 
   const st = _getState ? _getState() : {};
-  const scanStatus = st.scanStatus || 'idle';
-  const canTravel = !!st.canTravel;
-  const onTravel = typeof st.onTravel === 'function' ? st.onTravel : null;
+  const m = normaliseToriiMenuState(st);
+  const canTravel = m.canTravel;
+  const onTravel = m.onTravel;
 
-  let badgeText = '';
-  const total = [st.friends, st.following, st.games, st.all].reduce(
-    (n, a) => n + (Array.isArray(a) ? a.length : 0), 0);
-  if (scanStatus === 'scanning') badgeText = '● SCANNING RELAYS…';
-  else if (scanStatus === 'offline') badgeText = '● OFFLINE';
-  else if (total) badgeText = `● ONLINE · ${total} NODE${total === 1 ? '' : 'S'}`;
-  else badgeText = '● NO NODES ONLINE';
-  badge.textContent = badgeText;
+  badge.textContent = toriiMenuBadgeText(m);
 
-  // Scanning hint row when no worlds yet.
-  if (scanStatus === 'scanning' && total === 0) {
+  // Scanning hint row when no worlds yet (the live "searching for worlds" state —
+  // never a mock/fake world fallback).
+  if (shouldShowSearchingForWorlds(m)) {
     const row = document.createElement('div');
     row.textContent = 'Searching for worlds…';
     Object.assign(row.style, { fontSize: '12px', color: '#9ca3af', padding: '8px 12px' });
@@ -434,24 +441,22 @@ export function openToriiMenu({ getState = null, onClose = null } = {}) {
     list.append(row);
   }
 
-  // 1. Mutuals
-  _renderSection(list, 'Mutuals', st.friends, canTravel, onTravel, scanStatus, 'No mutuals online yet');
-  // 2. People you follow
-  if (canTravel) {
-    _renderSection(list, 'People you follow', st.following, canTravel, onTravel, scanStatus, 'No followed worlds online');
-  } else {
-    _sectionHeader(list, 'People you follow');
-    _emptyRow(list, 'Log in to see who you follow.');
+  // The four sections, in fixed order (mirrors toriiMenuModel.TORII_MENU_SECTION_ORDER).
+  // A gated section (guest viewing "People you follow") renders a log-in hint
+  // instead of its (empty) world list.
+  for (const s of toriiMenuSections(m)) {
+    if (s.gated) {
+      _sectionHeader(list, s.title);
+      _emptyRow(list, s.gatedHint);
+      continue;
+    }
+    _renderSection(list, s.title, s.worlds, canTravel, onTravel, m.scanStatus, s.emptyHint);
   }
-  // 3. Games & experiences
-  _renderSection(list, 'Games & experiences', st.games, canTravel, onTravel, scanStatus, 'No games online yet');
-  // 4. All live nodes
-  _renderSection(list, 'All live nodes', st.all, canTravel, onTravel, scanStatus, 'No other nodes online');
 
   // Owner-only admin panel
-  if (st.isOwner) _renderAdmin(list, st.admin);
+  if (m.isOwner) _renderAdmin(list, m.admin);
 
-  if (!canTravel && total > 0) {
+  if (shouldShowLoginToTravelNote(m)) {
     const note = document.createElement('div');
     note.textContent = 'login with nostr to travel';
     Object.assign(note.style, { fontSize: '10px', color: '#f7931a', marginTop: '8px', textAlign: 'center', letterSpacing: '1px' });

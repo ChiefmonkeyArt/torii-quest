@@ -23,12 +23,12 @@ describe('difficulty tiers', () => {
     }
   });
 
-  it('keeps the `normal` tier at the pre-M4-G1 contract (all 1.0 scales)', () => {
+  it('keeps the `normal` tier at the v0.2.608 contract (nerfed from 1.0 scales)', () => {
     const n = BOT_TIERS.normal;
     expect(n.sightScale).toBe(1.0);
     expect(n.speedScale).toBe(1.0);
-    expect(n.aimError).toBe(1.0);
-    expect(n.cooldownScale).toBe(1.0);
+    expect(n.aimError).toBe(1.2);
+    expect(n.cooldownScale).toBe(1.1);
     // normal sight must not fall below the BOT_SIGHT (14m) safe-zone contract
     expect(effectiveSight(n)).toBeCloseTo(BOT_SIGHT, 12);
   });

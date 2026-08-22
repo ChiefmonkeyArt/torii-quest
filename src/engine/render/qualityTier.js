@@ -6,7 +6,15 @@
 //
 //   HIGH:   DPR 1.5,  bloom ON,  1024px shadows, 8 muzzle lights
 //   NORMAL: DPR 1.25, bloom OFF,  512px shadows,  4 muzzle lights
-//   LOW:    DPR 1.0,  bloom OFF,  shadows off,    muzzle lights off
+//   LOW:    DPR 1.0,  bloom OFF,  256px shadows,  muzzle lights off
+//
+// v0.2.612: shadows are NEVER toggled off at runtime. Flipping
+// renderer.shadowMap.enabled invalidates EVERY material program in the scene
+// (full shader recompile → multi-hundred-ms stall), and with FPS hovering near
+// the thresholds the LOW↔NORMAL flapping produced exactly the "jittery /
+// stuttering" gameplay the operator reported. LOW now keeps shadows at a tiny
+// 256px map instead — cheap, and the resize disposes only the shadow target
+// (no scene-wide recompile).
 //
 // Step DOWN a tier when the rolling average FPS stays < FPS_LOW for DOWN_HOLD_MS.
 // Step UP a tier when it stays > FPS_HIGH for UP_HOLD_MS. The sustained-time
@@ -19,7 +27,7 @@
 export const TIERS = {
   HIGH:   { name: 'HIGH',   dpr: 1.5,  bloom: true,  shadowMapSize: 1024, muzzleLights: 8 },
   NORMAL: { name: 'NORMAL', dpr: 1.25, bloom: false, shadowMapSize: 512,  muzzleLights: 4 },
-  LOW:    { name: 'LOW',    dpr: 1.0,  bloom: false, shadowMapSize: 0,    muzzleLights: 0 },
+  LOW:    { name: 'LOW',    dpr: 1.0,  bloom: false, shadowMapSize: 256,  muzzleLights: 0 },
 };
 
 // Ordered worst → best so index math (+1 up, -1 down) is unambiguous.
@@ -74,11 +82,11 @@ export function createQualityTier({
       if (composer && typeof composer.setSize === 'function') composer.setSize(w, h);
     }
     if (bloomPass) bloomPass.enabled = def.bloom;
-    // Shadow map resolution lives on the light, but the renderer gate can be
-    // applied here without importing THREE. The callback updates the light.
-    if (renderer && renderer.shadowMap) {
-      renderer.shadowMap.enabled = def.shadowMapSize > 0;
-    }
+    // v0.2.612: do NOT flip renderer.shadowMap.enabled here (see header — a
+    // runtime toggle forces a full scene shader recompile and stalls frames).
+    // Shadows stay enabled for the whole session; the onTierChange callback
+    // only resizes the sun's shadow map. Kept as a truthy check so the light
+    // handle stays optional.
     _metrics.tier = def.name;
     _metrics.dpr = def.dpr;
     if (typeof onTierChange === 'function') onTierChange(def);

@@ -19,4 +19,13 @@ describe('pause modal input boundary', () => {
     // existing shoot gate therefore still blocks clicks on the pause panel.
     expect(INPUT).toMatch(/e\.button === 0 && isPlaying\(\)/);
   });
+
+  it('clears held keys on blur / tab-hide / pointer-lock exit (stuck-key guard, v0.2.612)', () => {
+    // The browser swallows keyups when focus leaves mid-hold — a latched W/A/S/D
+    // reads as "sticky movement" (player keeps running after key release).
+    expect(INPUT).toMatch(/export function clearKeys\(\)/);
+    expect(INPUT).toMatch(/window\.addEventListener\('blur', clearKeys\)/);
+    expect(INPUT).toMatch(/document\.addEventListener\('visibilitychange'/);
+    expect(INPUT).toMatch(/pointerlockchange[\s\S]*clearKeys\(\)/);
+  });
 });

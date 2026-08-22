@@ -47,7 +47,7 @@ describe('constants', () => {
     expect(REQUIRED_DOCS).toContain('VPS_INSTALL.md');
     expect(REQUIRED_VPS_SECTIONS).toEqual(expect.arrayContaining(['rollback', 'security']));
     expect(REQUIRED_BUILD_COMMANDS).toContain('npm run build');
-    expect(REAL_REPO_SLUG).toBe('ChiefmonkeyArt/torii-gate');
+    expect(REAL_REPO_SLUG).toBe('ChiefmonkeyArt/torii-quest');
     expect(LIVE_URLS).toEqual(expect.arrayContaining(['torii.quest', 'torii-quest.pplx.app']));
   });
 });

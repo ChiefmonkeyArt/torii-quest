@@ -41,6 +41,7 @@ import { shotDamage } from './engine/combat/damage.js';
 // at fire time (matching the MP server path) instead of via the travelling
 // projectile. Pure resolver so the SP-only gate + damage/head rules are tested.
 import { resolveLocalHitscan } from './engine/combat/localShot.js';
+import { logShotFired } from './engine/entities/fireDiagnostics.js';
 // v0.2.345 — safe-zone backstop. A live-bound import (read only at call time, never
 // during module init) so the player.js↔weapons.js cycle stays safe. Bot bullets
 // already in flight deal no damage once the player steps outside the fence.
@@ -260,6 +261,19 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
   if (local) {
     localHitP = { x: aimHit.point.x, y: aimHit.point.y, z: aimHit.point.z, part: aimHit.bodyPart };
   }
+  // ADR-0014 (v0.2.624): one [FIRE] line per trigger pull. Runs AFTER
+  // resolveLocalHitscan so the reported `resolved` matches what damage did,
+  // but BEFORE the bullet-line raycast overwrites the shared scratch on
+  // `aimHit.point` — the classifier below reads that point.
+  let _fireZone = '-';
+  if (aimHit && aimHit.bot) {
+    const isHead = classifyHeadshot(
+      aimHit.point.x, aimHit.point.y, aimHit.point.z,
+      aimHit.bodyPart, aimHit.bot,
+    );
+    _fireZone = isHead ? 'head' : 'body';
+  }
+  logShotFired({ netMode: _isNetMode(), aimHit, local, zone: _fireZone });
   // Bullet line (muzzle → convergence) — what the projectile would hit if static.
   const predHit = raycastService.ray(d.origin.x, d.origin.y, d.origin.z, d.dir.x, d.dir.y, d.dir.z, DIAG_RANGE, excl);
   _describeInto(d.pred, predHit);

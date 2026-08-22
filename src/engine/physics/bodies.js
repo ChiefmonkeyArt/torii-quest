@@ -290,6 +290,28 @@ export function removeNpcBoneColliders(boneColliders) {
   }
 }
 
+// Remove a bot's body + head + bone colliders from the physics world and clear
+// their collider→bot/part lookups. Used when a bot wrapper is torn down — e.g.
+// the MP roster is cleared on disconnect (ADR-0019 stale-bot cleanup).
+export function removeBotColliders(bot) {
+  if (!_world) return;
+  if (bot.rapierCollider) {
+    colliderToBot.delete(bot.rapierCollider.handle);
+    colliderToPart.delete(bot.rapierCollider.handle);
+    _world.removeCollider(bot.rapierCollider, true);
+  }
+  if (bot.rapierBody) _world.removeRigidBody(bot.rapierBody);
+  if (bot.rapierHeadCollider) {
+    colliderToBot.delete(bot.rapierHeadCollider.handle);
+    colliderToPart.delete(bot.rapierHeadCollider.handle);
+    _world.removeCollider(bot.rapierHeadCollider, true);
+  }
+  if (bot.rapierHeadBody) _world.removeRigidBody(bot.rapierHeadBody);
+  removeNpcBoneColliders(bot.boneColliders || []);
+  bot.rapierBody = bot.rapierCollider = bot.rapierHeadBody = bot.rapierHeadCollider = null;
+  bot.boneColliders = [];
+}
+
 export function getBoneForColliderHandle(h) {
   return colliderToBone.get(h) || null;
 }

@@ -27,7 +27,7 @@ import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET,
-         createBotBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders } from './physics.js';
+         createBotBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders, removeBotColliders } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
 import { buildCoverPoints } from './engine/entities/bot-tactics.js';
 import { isFlyEnabled } from './engine/debug/flyCamera.js';
@@ -97,14 +97,33 @@ function _projectBossBarAnchor(pose) {
 export function setBotNetMode(on) {
   _netMode = !!on;
   if (!_netMode) {
-    // ADR-0019: drop the interpolation buffer on disconnect. Bots that the
+    // ADR-0019: tear down the whole MP bot scene on disconnect. Bots that the
     // server no longer has (roster changed, e.g. a boss removed by a test-mode
-    // restart) must not linger as frozen nameplates. _botNet is MP-only — SP
-    // reads sim.bots directly — so clearing here cannot affect single-player.
+    // restart) must not linger as frozen nameplates. This clears BOTH the
+    // interpolation buffer (_botNet) AND the wrapper array (bots[]) that owns
+    // the THREE.js models + nameplate sprites — clearing only _botNet left the
+    // stale nameplates in the scene. _botNet/bots are MP-only (SP reads sim.bots
+    // directly), so this cannot affect single-player.
     _botNet.clear();
+    _clearAllBots();
     _resetBossBarTracking();
     hideBossBar();
   }
+}
+
+// Remove every bot wrapper from the scene + physics world and empty the array.
+// Disposes each model (root + nameplate sprite) and its body/head/bone colliders.
+function _clearAllBots() {
+  for (const bot of bots) {
+    if (bot.model) { bot.model.dispose(); bot.model = null; }
+    if (bot._capsuleMesh) {
+      scene.remove(bot._capsuleMesh);
+      bot._capsuleMesh.material?.dispose?.();
+      bot._capsuleMesh = null;
+    }
+    removeBotColliders(bot);
+  }
+  bots.length = 0;
 }
 export function isBotNetMode() { return _netMode; }
 

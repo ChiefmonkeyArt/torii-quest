@@ -36,7 +36,7 @@ export {
   createStatic, createDynamicCrate, getBotForColliderHandle, getBodyPartForColliderHandle,
   createNpcCollider, setNpcColliderPos, getNpcForColliderHandle,
   createNpcBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders, getBoneForColliderHandle,
-  createBotBoneColliders,
+  createBotBoneColliders, removeBotColliders,
   PLAYER_CAPSULE_HALF_H, PLAYER_CAPSULE_RADIUS, PLAYER_BODY_CENTRE_OFFSET,
   BOT_BODY_HALF_H, BOT_BODY_RADIUS, BOT_BODY_CENTRE_Y_OFFSET,
   BOT_HEAD_RADIUS, BOT_HEAD_CENTRE_Y_OFFSET,

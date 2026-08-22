@@ -36,6 +36,8 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
+import { nameForBotId } from './engine/entities/botIdentity.js';
+import { logBotShot, logBotKill, logBotRespawn } from './engine/entities/botDiagnostics.js';
 import { decideBossEngagement } from './bossBarState.js';
 import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
 
@@ -245,7 +247,11 @@ function _attachModelBot(st, renderKind = 'regular') {
   // wrapper in place instead of adding a duplicate bot with the same id.
   const existing = _botById(st.id);
   const current = existing?.state;
-  const model = new BotModel(renderKind);
+  // ADR-0013: regulars get a dwarf-name nameplate; boss keeps BOSS_NAME.
+  // `st.name` is the authoritative name when MP is on; SP falls back to
+  // the same deterministic mapping so the label matches either way.
+  const label = renderKind === 'boss' ? null : (st.name || nameForBotId(st.id));
+  const model = new BotModel(renderKind, label);
   const x = current?.pos?.x ?? st.pos.x;
   const z = current?.pos?.z ?? st.pos.z;
   model.init({ x, y: _footY(x, z), z });
@@ -382,24 +388,46 @@ export function applyBotShot(originArr, dirArr) {
 }
 
 // Server says a player's shot hit a bot — sync authoritative HP + hit flash.
-export function applyBotHit(botId, hp) {
+export function applyBotHit(botId, hp, zone) {
   // Fold the authoritative hp into botNetState FIRST so the next _syncNetBot
   // frame samples the event hp — not the stale pre-hit snapshot (v0.2.383 fix).
+  const before = _botById(botId)?.state?.hp;
   _botNet.applyHit(botId, hp);
   const bot = _botById(botId);
   if (!bot) return;
   bot.state.hp = hp;
   bot.state._isHit = true;
   bot.state._hitTimer = 0.3;
+  // ADR-0013 diagnostics: log MP-authoritative hits.
+  const pp = _playerObj?.position;
+  const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
+  logBotShot({
+    botId,
+    name: bot.state?.name,
+    hpBefore: before ?? hp,
+    hpAfter: hp,
+    zone: zone || 'unknown',
+    alive: bot.state.alive,
+    isDying: bot.state._isDying,
+    lod: bot.model?.loaded ? 'full' : 'capsule',
+    dist,
+  });
 }
 
 // Server says a bot died — mark it dead so the render path hides it. Fold the
 // kill into botNetState (sets alive=false + snaps) so the next _syncNetBot frame
 // sees dead — not the stale pre-kill snapshot that would un-kill it (v0.2.383).
-export function applyBotKill(botId) {
+export function applyBotKill(botId, meta) {
   _botNet.applyKill(botId);
   const bot = _botById(botId);
   if (bot) bot.state.alive = false;
+  // ADR-0013 diagnostics: log MP-authoritative kills.
+  logBotKill({
+    botId,
+    name: bot?.state?.name,
+    causedBy: meta?.causedBy || 'unknown',
+    headshot: !!meta?.headshot,
+  });
 }
 
 function _tickNet(dt) {
@@ -525,6 +553,8 @@ function _syncNetBot(bot, pose, dt) {
   st.alive = true;
   // Spawn/respawn transition — (re)create + show.
   if (!bot._prevAlive) {
+    // ADR-0013 diagnostics: log the alive-transition (spawn OR respawn).
+    logBotRespawn({ botId: pose.id, name: pose.name || st.name, x: pose.x, z: pose.z });
     _ensureBotColliders(bot, pose.x, pose.z);
     if (bot.model?.root) { bot.model.show(); bot.model.play('Walking', true); }
     else if (bot._capsuleMesh) bot._capsuleMesh.visible = true;
@@ -579,6 +609,8 @@ function _syncBot(bot, dt) {
   // Revive transition — mirror the original _reviveBot render; the full AI tick
   // resumes next frame (the sim likewise skips movement on the revive frame).
   if (!bot._prevAlive) {
+    // ADR-0013 diagnostics: log the SP alive-transition (spawn OR respawn).
+    logBotRespawn({ botId: st.id, name: st.name, x: st.pos.x, z: st.pos.z });
     _ensureBotColliders(bot, st.pos.x, st.pos.z);
     if (bot.model?.root) {
       bot.model.show();
@@ -641,14 +673,38 @@ function _syncBot(bot, dt) {
 }
 
 // ── Hit / Kill ────────────────────────────────────────────────────────────────
-export function hitBot(bot, dmg) {
+export function hitBot(bot, dmg, meta) {
   // MP: damage is server-authoritative (resolved via the SHOT path → BOT_HIT).
   // The client must NEVER apply local bot damage.
   if (_netMode) return;
   const pp = _playerObj ? _playerObj.position : null;
+  const hpBefore = bot.state.hp;
   const res = sim.hitBot(bot.state, dmg, pp);
-  if (res.killed) _applyKillRender(bot);
-  else emit(EV.BOT_HIT, { bot });
+  const hpAfter = bot.state.hp;
+  const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
+  // ADR-0013 diagnostics: log SP-path shots so SP + MP look the same in logs.
+  logBotShot({
+    botId: bot.state.id,
+    name: bot.state?.name,
+    hpBefore,
+    hpAfter,
+    zone: meta?.zone || (meta?.isHead ? 'head' : 'body'),
+    alive: bot.state.alive,
+    isDying: bot.state._isDying,
+    lod: bot.model?.loaded ? 'full' : 'capsule',
+    dist,
+  });
+  if (res.killed) {
+    logBotKill({
+      botId: bot.state.id,
+      name: bot.state?.name,
+      causedBy: 'player',
+      headshot: !!meta?.isHead,
+    });
+    _applyKillRender(bot);
+  } else {
+    emit(EV.BOT_HIT, { bot });
+  }
 }
 
 // The render + game-state side-effects of a kill (the sim only mutated the pure

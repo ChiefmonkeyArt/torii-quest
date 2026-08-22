@@ -19,6 +19,7 @@
 // parking) stay in the wrapper — killBot merely returns { killed:true } so the
 // wrapper can fire them.
 import { engageSpeed, steerComponent } from './bot-agent.js';
+import { nameForBotId } from './botIdentity.js';
 import {
   tierForIndex, flankSlotForIndex, flankAnchor,
   pickCover, obstacleAvoid,
@@ -182,10 +183,15 @@ export function createBotSim(deps) {
   // ── Spawn ─────────────────────────────────────────────────────────────────
   function _spawnBot(i, profile = REGULAR_PROFILE) {
     const { x, z } = _safeSpawnPos();
+    // ADR-0013 (v0.2.623): regulars get a deterministic dwarf name (`Doc`,
+    // `Grumpy`, …) via nameForBotId(i). Boss keeps its explicit profile.name
+    // (BOSS_NAME). name is authoritative-in-MP-when-supplied; SP falls back
+    // to the same mapping via the client so the label matches either way.
+    const dwarfName = profile.name || nameForBotId(i);
     const state = {
       id: i,
       kind: profile.kind,
-      name: profile.name,
+      name: dwarfName,
       pos: { x, z },
       hp: profile.hp,
       maxHp: profile.hp,

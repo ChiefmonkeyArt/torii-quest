@@ -458,7 +458,9 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
   if (throttled && !result && !botResult) return;
   _shotLogAt.set(shooterId, now);
   const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
-  const bot  = botResult ? `${botResult.botId}@t=${botResult.t.toFixed(2)}` : 'null';
+  const bot  = botResult
+    ? `${botResult.botId}@t=${botResult.t.toFixed(2)}@${botResult.zone || '?'}`
+    : 'null';
   // v0.2.382 combat hotfix diagnostic: the reported miss (player→bot shots not
   // registering) could not be reproduced headlessly — server geometry HITS. This
   // compact Y-frame line lets us confirm the vertical alignment on a LIVE server:
@@ -495,8 +497,24 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
            ` rew=(${rd.rew.x.toFixed(2)},${rd.rew.z.toFixed(2)}) dxz=${rd.dxz.toFixed(2)}`;
     }
   }
+  // ADR-0023: on a MISS, log how far off the ray was. `decision=miss` alone
+  // cannot separate a 4cm graze (lag-comp / aim precision) from a metre-wide
+  // shot (framing or occlusion), and those need different fixes. headGap and
+  // bodyGap are distance-minus-radius, so >0 is the miss margin in metres;
+  // headVert/headHorz split the head miss so "over the hat" is distinguishable
+  // from "beside the head". rng is the range to closest approach.
+  let mg = '';
+  if (!botResult && BOT_SIM_ENABLED && shotMsg.origin && shotMsg.dir &&
+      Number.isFinite(rewindTs) && typeof arenaBotSim.missGeomDiag === 'function') {
+    const g = arenaBotSim.missGeomDiag(shotMsg.origin, shotMsg.dir, rewindTs, srvNow, LAG_COMP_MS);
+    if (g) {
+      mg = ` missBot=${g.botId} headGap=${g.headGap.toFixed(3)}` +
+           ` headVert=${g.headVert.toFixed(3)} headHorz=${g.headHorz.toFixed(3)}` +
+           ` bodyGap=${g.bodyGap.toFixed(3)} rng=${g.rng.toFixed(2)}`;
+    }
+  }
   log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}`);
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}${mg}`);
 }
 
 function resolveAndBroadcast(shooter, shotMsg) {

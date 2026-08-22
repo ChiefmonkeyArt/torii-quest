@@ -253,6 +253,73 @@ export function createArenaBotSim(opts = {}) {
     return { botId: near.botId, cur, rew, dxz };
   }
 
+  // Closest distance between a ray (origin o, UNIT dir u, t>=0) and the segment
+  // p0->p1. Used only by missGeomDiag. Minimising |o + s*u - (p0 + t*v)|^2 gives
+  // s = t*b - (u.w0) when |u|=1; t is clamped to the segment and s to the ray.
+  function _raySegDist(o, u, p0, p1) {
+    const v  = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    const w0 = [o[0] - p0[0], o[1] - p0[1], o[2] - p0[2]];
+    const b  = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+    const c  = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    const dd = u[0] * w0[0] + u[1] * w0[1] + u[2] * w0[2];
+    const e  = v[0] * w0[0] + v[1] * w0[1] + v[2] * w0[2];
+    const den = c - b * b;   // a = |u|^2 = 1
+    let t = den < 1e-9 ? (c > 1e-9 ? e / c : 0) : (e - b * dd) / den;
+    t = Math.min(1, Math.max(0, t));
+    const s = Math.max(0, b * t - dd);
+    const ps = [o[0] + u[0] * s, o[1] + u[1] * s, o[2] + u[2] * s];
+    const qt = [p0[0] + v[0] * t, p0[1] + v[1] * t, p0[2] + v[2] * t];
+    return Math.hypot(ps[0] - qt[0], ps[1] - qt[1], ps[2] - qt[2]);
+  }
+
+  // Diagnostic (ADR-0023): HOW FAR a shot missed by, and in which dimension.
+  //
+  // `decision=miss` alone cannot distinguish "grazed the head sphere by 4cm"
+  // (a lag-comp / aim-precision issue) from "went a metre wide" (a framing or
+  // occlusion issue) - those have completely different fixes. For the nearest
+  // alive bot, rewound exactly as resolution does, report the ray's closest
+  // approach to the head sphere centre and to the body capsule axis, each with
+  // its signed GAP (distance - radius; >0 means missed by that much), plus the
+  // head miss split into vertical and horizontal parts so an "over the hat"
+  // miss is distinguishable from a "beside the head" one.
+  //
+  // DESIGN INTENT - do not "fix" this: the head sphere deliberately reaches
+  // foot+1.90 on a 1.70m model. These bots wear hats and the hat is
+  // INTENTIONALLY part of the headshot zone, because they are small characters
+  // and their size would otherwise be an unfair advantage in a shooter. A
+  // positive headVert near the top of the sphere is therefore EXPECTED and must
+  // NOT be corrected by shrinking the sphere.
+  //
+  // Never used for hit resolution - log line only.
+  function missGeomDiag(origin, dir, rewindTs, now, lagCompMs) {
+    if (!origin || !dir) return null;
+    const near = nearestBotDiag(origin);
+    if (!near) return null;
+    const rows = shotTimeRows(rewindTs, now, lagCompMs);
+    const r = rows.find((row) => row.id === near.botId);
+    if (!r) return null;
+    const col = buildBotColliders(r.x, r.z, r.footY, r.radius / BOT_R);
+    const dl = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+    const u = [dir[0] / dl, dir[1] / dl, dir[2] / dl];
+
+    const hc = col.headSphere.c;
+    const hr = col.headSphere.r;
+    const w  = [hc[0] - origin[0], hc[1] - origin[1], hc[2] - origin[2]];
+    const tH = Math.max(0, w[0] * u[0] + w[1] * u[1] + w[2] * u[2]);
+    const p  = [origin[0] + u[0] * tH, origin[1] + u[1] * tH, origin[2] + u[2] * tH];
+    const headDist = Math.hypot(p[0] - hc[0], p[1] - hc[1], p[2] - hc[2]);
+    const bodyDist = _raySegDist(origin, u, col.bodyCap.p0, col.bodyCap.p1);
+
+    return {
+      botId: near.botId,
+      headDist, headGap: headDist - hr,
+      headVert: p[1] - hc[1],
+      headHorz: Math.hypot(p[0] - hc[0], p[2] - hc[2]),
+      bodyDist, bodyGap: bodyDist - col.bodyCap.r,
+      rng: tH,
+    };
+  }
+
   function getBot(botId) { return sim.bots.find((b) => b.id === botId) || null; }
 
   // Apply authoritative damage to a bot. playerPos ({x,z}) drives blowback dir.
@@ -265,7 +332,7 @@ export function createArenaBotSim(opts = {}) {
 
   return {
     spawn, tick, snapshot, recordSnapshot,
-    resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag, rewoundNearestDiag,
+    resolvePlayerShot, applyBotDamage, getBot, nearestBotDiag, rewoundNearestDiag, missGeomDiag,
     get bots() { return sim.bots; },
   };
 }

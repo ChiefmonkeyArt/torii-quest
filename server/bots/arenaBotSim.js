@@ -162,13 +162,22 @@ export function createArenaBotSim(opts = {}) {
     const rows = shotTimeRows(shotTs, now, lagCompMs);
     let best = null;
     for (const r of rows) {
-      // Position is rewound to what the client rendered, but damage eligibility
-      // follows the current authoritative life state. The client applies
-      // BOT_KILL/BOT_STATE life changes immediately while rendering position
-      // behind live; using the older snapshot's `alive` flag made a freshly
-      // respawned bot visible but unhittable for the whole rewind window.
+      // ADR-0015 (v0.2.625-alpha): accept a hit when the bot was alive at the
+      // rewound shot instant OR is alive right now. The pre-0.2.625 gate
+      // (`live.alive` only) fixed the respawn-side window (v0.2.383: a freshly
+      // respawned bot must be hittable immediately) but opened the mirror
+      // window on the death side — for the ~viewLag ms between server-death
+      // and BOT_KILL reaching the client, every client-confirmed hit was
+      // silently dropped even though the shooter saw a live target. The v0.2.624
+      // diagnostics captured 8-14 consecutive [FIRE] hit=bot with zero [SHOT]
+      // matching this exact fingerprint. `wasAlive || isAlive` closes the death
+      // window without reopening the respawn one. Damage against a bot that
+      // has since died is safely absorbed by applyDamage's hp≤0 short-circuit
+      // (outcome.applied=0, outcome.killed=false) — no double-kill risk.
       const live = getBot(r.id);
-      if (!live?.alive) continue;
+      const wasAlive = !!r.alive;
+      const isAlive = !!live?.alive;
+      if (!wasAlive && !isAlive) continue;
       const colliders = buildBotColliders(r.x, r.z, r.footY, r.radius / BOT_R);
       const res = rayVsBot(origin, dir, colliders);
       if (!res.hit) continue;

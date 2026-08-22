@@ -40,6 +40,9 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0010](./0010-crosshair-esc-pointerlock-baseline.md) | Crosshair, ESC, and pointer-lock baseline is v0.2.605 | Accepted |
 | [0011](./0011-combat-classifier-bot-tactics-lod-hysteresis.md) | Combat classifier, bot tactics, and LOD hysteresis (v0.2.608 forward-port) | Accepted |
 | [0012](./0012-stuck-key-guard-and-quality-tier-no-shadow-toggle.md) | Stuck-key guard and quality-tier no-shadow-toggle (v0.2.612 forward-port) | Accepted |
+| [0013](./0013-bot-identity-and-diagnostics.md) | Bot identity (dwarf names) + [SHOT]/[KILL]/[RESPAWN] diagnostics layer | Accepted |
+| [0014](./0014-trigger-fire-diagnostics.md) | Per-trigger [FIRE] diagnostic log line | Accepted |
+| [0015](./0015-mp-hit-reg-alive-window.md) | MP hit-reg alive-window fix (wasAlive ‖ isAlive gate) | Accepted |
 
 ## Workflow for a new decision
 

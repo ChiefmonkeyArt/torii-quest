@@ -28,4 +28,11 @@ describe('pause modal input boundary', () => {
     expect(INPUT).toMatch(/document\.addEventListener\('visibilitychange'/);
     expect(INPUT).toMatch(/pointerlockchange[\s\S]*clearKeys\(\)/);
   });
+
+  it('drops Ctrl/Cmd-modified keys before movement (ADR-0025 Kami Mode guard)', () => {
+    // Ctrl+E is Kami Mode's hotkey; bare E is a jump alias. The keydown handler
+    // must return early on ctrlKey/metaKey so a modified press never reaches the
+    // `keys` map (which would latch a jump AND double-fire the ema capture).
+    expect(INPUT).toMatch(/if \(e\.ctrlKey \|\| e\.metaKey\) return;/);
+  });
 });

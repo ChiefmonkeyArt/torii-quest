@@ -50,6 +50,9 @@ import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
 import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
+import { promises as fsPromises } from 'fs';
+import { createKamiStore, SCREENSHOT_KEEP_DEFAULT } from './kami/kamiStore.js';
+import { validateKamiBatch, storeKamiBatch } from './kami/kamiRoute.js';
 
 // ---------- config ----------
 
@@ -59,6 +62,12 @@ const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
 const SERVER_VERSION = 'v0.2.602-alpha';
+
+// Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
+// holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
+const KAMI_DIR = process.env.KAMI_DIR || '/var/lib/torii-quest/kami';
+const KAMI_BODY_CAP = Number(process.env.KAMI_BODY_CAP || (16 * 1024 * 1024)); // 16 MiB
+const kamiStore = createKamiStore({ dir: KAMI_DIR, fs: fsPromises, keep: SCREENSHOT_KEEP_DEFAULT });
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -809,6 +818,30 @@ function readJsonBody(req, res, cb) {
   req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
 }
 
+// Same as readJsonBody but with a caller-chosen cap (for the Kami ema route, whose
+// sealed-screenshot batches far exceed MAX_LOGIN_BODY). cb may be async.
+function readJsonBodyCapped(req, res, cap, cb) {
+  const chunks = [];
+  let size = 0;
+  let tooBig = false;
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > cap) { tooBig = true; req.destroy(); return; }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (tooBig) return sendJson(res, 413, { error: 'body too large' });
+    let parsed;
+    try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+    catch { return sendJson(res, 400, { error: 'bad json' }); }
+    return Promise.resolve(cb(parsed)).catch((err) => {
+      log.error('kami body handler failed', err && err.message);
+      try { sendJson(res, 500, { error: 'handler failed' }); } catch { /* noop */ }
+    });
+  });
+  req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
+}
+
 const httpServer = createServer((req, res) => {
   // Path without query. The reverse proxy may prefix a mount (/quest, or the
   // sandbox /port/5000), so match by suffix — same tolerance as the WS upgrade.
@@ -880,6 +913,27 @@ const httpServer = createServer((req, res) => {
       const result = adminUpdate.requestUpdate({ event: parsed && parsed.event });
       if (result.ok) return sendJson(res, 200, { ok: true, state: result.state });
       return sendJson(res, result.code || 403, { ok: false, error: result.error || 'denied' });
+    });
+    return;
+  }
+
+  // v0.2.634-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
+  // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
+  // reject any ema with a shot. The server only ever holds ciphertext.
+  if (req.method === 'POST' && path.endsWith('/mp/kami/ema')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBodyCapped(req, res, KAMI_BODY_CAP, async (parsed) => {
+      const batch = validateKamiBatch(parsed);
+      if (!batch) return sendJson(res, 400, { error: 'bad batch' });
+      try {
+        const result = await storeKamiBatch(batch, admin, kamiStore);
+        return sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        log.error('kami/ema store failed', err && err.message);
+        return sendJson(res, 500, { error: 'store failed' });
+      }
     });
     return;
   }

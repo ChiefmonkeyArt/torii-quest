@@ -18,6 +18,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 document.addEventListener('keydown', e => {
+  // ADR-0025: Ctrl/Cmd-modified keys are APPLICATION shortcuts, not movement.
+  // Two reasons to drop them here rather than at each call site:
+  //   1. Collision. `KeyE` is a jump alias (player.js), so Kami Mode's Ctrl+E
+  //      would both hang an ema AND make the player jump. Call sites receive
+  //      only `e.code`, so they cannot tell a modified press from a bare one —
+  //      this is the only layer that can.
+  //   2. Stuck keys. Browser-level combos (Ctrl+R, Cmd+Tab) often swallow the
+  //      matching keyup, which would latch the key true forever — the exact
+  //      "sticky movement" class of bug the v0.2.612 guard above exists for.
+  if (e.ctrlKey || e.metaKey) return;
   keys[e.code] = true;
   _downCbs.forEach(fn => fn(e.code));
 });

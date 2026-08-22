@@ -590,6 +590,123 @@
       opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6);
     }
 
+    /* ── EMAKAKE (ADR-0025) — the ema rack / todo panel ──
+       An emakake (絵馬掛け) is the wooden rack at a shrine where visitors' ema
+       plaques hang together. This is the working list view of that rack.
+
+       DELIBERATELY GLASS, NOT A CARD. The .side-card fill is rgba(12,12,22,0.95)
+       — near-opaque, correct for a menu card over a dark background, wrong here.
+       This panel also floats over the live 3D world in-game, where a solid fill
+       would read as a browser dialog bolted onto the screen. Very low alpha plus
+       a backdrop blur makes it read as a heads-up surface hanging in the air:
+       the world stays visible through it and only the glass moves with the HUD.
+
+       ENGROSSED UX, NOT A CARD. The world must be fully visible and SHARP — this
+       is a VR visor, not a browser dialog. So the panel itself carries NO fill
+       and NO border: only the individual components (header chip, each row) are
+       tinted glass. The space between rows is fully transparent, so the 3D world
+       reads straight through the gaps.
+
+       NO backdrop-filter. Every earlier build used backdrop-filter (blur, then
+       brightness-only) and in EVERY case it smeared the world behind the chip —
+       brightness alone still forces the browser to re-rasterize the backdrop
+       into a separate layer, and that re-raster blurs it. The user could not see
+       the world behind the components. So: NO backdrop-filter at all. Each chip
+       is a plain semi-transparent dark fill. The world shows through it sharp and
+       only slightly darkened, exactly like looking through tinted glass.
+
+       Rule being satisfied: the world is fully visible and sharp, the writing
+       never is. */
+    #emakake {
+      width: 300px; flex-shrink: 0; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      gap: 8px; padding: 4px;
+      /* NO background, NO border, NO box-shadow here. Only the children are
+         tinted glass; the panel is just a layout frame the world shows through. */
+      background: transparent; border: 0; box-shadow: none;
+    }
+    /* In-game the rack hangs off the right edge over the live 3D world, which
+       is where the transparency actually earns its keep. Tall by default so a
+       full backlog fits without scrolling on a normal screen. */
+    #emakake.floating {
+      position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
+      z-index: 40; max-height: 80vh; pointer-events: auto;
+    }
+    #emakake[hidden] { display: none; }
+
+    /* Smoked-glass component: the header chip and every row. A darker tinted
+       fill plus a LIGHT blur (6px) gives the smoked-glass look the user asked for
+       — enough to read as glass, not so much it smears the world. The world stays
+       visible through it, just smoked. Readability comes from the fill + text glow. */
+    #emakake-header,
+    .ema-row {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    #emakake-header {
+      padding: 10px 14px; font-size: 9px; letter-spacing: 3px;
+      color: #ffd36a;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #emakake-count { color: #ffe8be; font-size: 8px;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.9); }
+    #emakake-body {
+      padding: 8px; display: flex; flex-direction: column; gap: 6px;
+      overflow-y: auto; min-height: 0; max-height: 78vh;
+    }
+    #emakake-body::-webkit-scrollbar { width: 3px; }
+    #emakake-body::-webkit-scrollbar-track { background: transparent; }
+    #emakake-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
+
+    /* One hanging plaque. Slightly warmer glass than the panel so rows read as
+       objects ON the rack rather than text printed on it. */
+    /* A row is a smoked chip, not a card. No border-bottom seam, no separate
+       border-left rail — the chip border carries it. */
+    .ema-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 9px; cursor: pointer;
+      border-left: 2px solid #e0a020;
+    }
+    .ema-row:hover {
+      border-color: rgba(255,194,71,0.85);
+    }
+    /* Resolved ema stay in the list but stop competing for attention, and stop
+       being drawn in the world entirely (see emaModel.openEma). */
+    .ema-row.resolved { opacity: 0.5; border-left-color: #4ade80; }
+    .ema-stud {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+      background: #e0a020; box-shadow: 0 0 6px rgba(224,160,32,0.8);
+    }
+    .ema-row.resolved .ema-stud { background: #4ade80; box-shadow: none; }
+    .ema-main { flex: 1; min-width: 0; }
+    .ema-note {
+      font-size: 10px; line-height: 1.4; color: #fff8e8;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+      overflow-wrap: anywhere;
+    }
+    .ema-meta {
+      font-family: monospace; font-size: 8px; margin-top: 3px;
+      color: #ffe8be;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.9);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ema-shot { width: 34px; height: 22px; border-radius: 3px; flex-shrink: 0; object-fit: cover;
+      border: 1px solid rgba(217,179,130,0.35); }
+    #emakake-empty {
+      padding: 18px 12px; text-align: center;
+      font-size: 9px; letter-spacing: 2px; color: rgba(255,232,190,0.9);
+      text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.95);
+    }
+
+    /* No backdrop-filter fallback needed: there is no backdrop-filter. The rgba
+       fill darkens the chip on its own. */
+
     /* ══════════════════════════════════════════
        HUD
     ══════════════════════════════════════════ */
@@ -885,7 +1002,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.633-alpha</div>
+      <div id="version-label">v0.2.634-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
@@ -905,6 +1022,20 @@
           <span id="gateway-preview-badge">LIVE · SCANNING…</span>
         </div>
         <div id="gateway-preview-body"><!-- rows injected by main.js --></div>
+      </div>
+    </div>
+
+    <!-- RIGHT-OF-CENTRE: Emakake (ADR-0025) — the ema rack, beside the chat.
+         Owner-only: main.js removes the [hidden] attribute solely when the
+         logged-in pubkey matches this instance's admin. Rows are injected by
+         emakakePanel.js; the empty state below is what a fresh rack looks like. -->
+    <div id="emakake" hidden aria-label="emakake — ema rack">
+      <div id="emakake-header">
+        <span>⛩ EMAKAKE</span>
+        <span id="emakake-count">0 OPEN</span>
+      </div>
+      <div id="emakake-body">
+        <div id="emakake-empty">RACK IS EMPTY<br><span style="font-size:8px;">CTRL+E TO HANG AN EMA</span></div>
       </div>
     </div>
 
@@ -1064,7 +1195,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.633-alpha · torii quest</div>
+  <div id="ver">v0.2.634-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -1083,6 +1214,7 @@
   <div id="pause-box">
     <div id="pause-title">PAUSED</div>
     <button class="btn" id="btn-resume">▶ RESUME</button>
+    <button class="btn btn-secondary" id="btn-kami" style="margin-top:8px">⛩ HANG AN EMA</button>
     <button class="btn btn-secondary" id="btn-home" style="margin-top:8px">EXIT THE GAME</button>
   </div>
 </div>

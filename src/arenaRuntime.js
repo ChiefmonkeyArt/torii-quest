@@ -67,6 +67,7 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
+import { installKamiMode, kamiCapture } from './engine/kami/kamiMode.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -1181,6 +1182,15 @@ export function createArenaRuntime(hooks = {}) {
       } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
     });
 
+    // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
+    // the hotkey + mouse tracker unconditionally (inert); the owner check is lazy
+    // (first capture fetches the instance capability). Only the VPS owner ever sees
+    // the emakake rack — non-admins get "OWNER ONLY" and nothing is sealed/sent.
+    installKamiMode({
+      getOwnerPubkey: () => state.nostrPubkey || '',
+      requestPointerLock: () => { try { requestLock(); } catch { /* noop */ } },
+    });
+
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
     // callback fired on every enable/disable (from F, ToriiDebug.fly, or ENTER).
     initFlyCamera({
@@ -1304,7 +1314,12 @@ export function createArenaRuntime(hooks = {}) {
 
     const elResumeBtn = document.getElementById('btn-resume');
     const elHomeBtn   = document.getElementById('btn-home');
+    const elKamiBtn   = document.getElementById('btn-kami');
     elResumeBtn?.addEventListener('click', _resume);
+    // ADR-0025: pause-modal ema button. Opens the note box against whatever UI
+    // control is under the cursor (the pause buttons themselves, when paused).
+    // The owner-gate is checked inside kamiCapture; non-owners see "OWNER ONLY".
+    elKamiBtn?.addEventListener('click', () => { try { kamiCapture(); } catch { /* noop */ } });
     elHomeBtn?.addEventListener('click', () => {
       transition(GAME_EVENT.HOME);
       document.exitPointerLock?.();

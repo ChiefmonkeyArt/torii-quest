@@ -95,15 +95,26 @@ function _projectBossBarAnchor(pose) {
 }
 
 export function setBotNetMode(on) {
+  const was = _netMode;
   _netMode = !!on;
-  if (!_netMode) {
-    // ADR-0019: tear down the whole MP bot scene on disconnect. Bots that the
-    // server no longer has (roster changed, e.g. a boss removed by a test-mode
-    // restart) must not linger as frozen nameplates. This clears BOTH the
-    // interpolation buffer (_botNet) AND the wrapper array (bots[]) that owns
-    // the THREE.js models + nameplate sprites — clearing only _botNet left the
-    // stale nameplates in the scene. _botNet/bots are MP-only (SP reads sim.bots
-    // directly), so this cannot affect single-player.
+  if (_netMode && !was) {
+    // ADR-0021 — THE frozen-bot / floating-nameplate root cause.
+    // initBots() ALWAYS spawns a full LOCAL roster (sim.spawnAll(BOT_COUNT) =
+    // 5 regulars + the Augustink boss) from CLIENT config, because MP connects
+    // only AFTER init. The moment MP turns on, tickBots switches to _tickNet and
+    // renders only rows the server sends — so every local bot the server does
+    // not have stops ticking and stays frozen forever at its spawn point with
+    // its nameplate still drawn (Augustink's spawn is in the water).
+    // In MP the server is authoritative: drop the local roster on entry so only
+    // server rows are rendered. _tickNet recreates wrappers on demand.
+    _botNet.clear();
+    _clearAllBots();
+    _resetBossBarTracking();
+    hideBossBar();
+  }
+  if (!_netMode && was) {
+    // ADR-0019: tear down the MP bot scene on disconnect so server rows that no
+    // longer exist cannot linger as frozen nameplates.
     _botNet.clear();
     _clearAllBots();
     _resetBossBarTracking();
@@ -219,6 +230,11 @@ export function initBots(playerObj, spawnBulletFn) {
   // (falling back to the regular model if the boss GLB fails).
   preloadBotModel().then(() => {
     _modelsReady = true;
+    // ADR-0021: never spawn the LOCAL roster once MP is authoritative. This
+    // continuation is async, so MP can connect between initBots() and here —
+    // without this guard the local bots are re-created after setBotNetMode(true)
+    // already cleared them, and freeze again.
+    if (_netMode) return;
     sim.spawnAll(BOT_COUNT);
 
     const bossStates = sim.bots.filter(st => st.kind === 'boss');
@@ -237,10 +253,14 @@ export function initBots(playerObj, spawnBulletFn) {
 
     // Phase 2: attach the boss once its (parallel) GLB resolves.
     bossReady.then(bossOk => {
+      // ADR-0021: the boss GLB is ~7.6MB, so this resolves late — MP has often
+      // connected by now. Attaching here would re-add the frozen Augustink.
+      if (_netMode) return;
       bossStates.forEach(st => _attachModelBot(st, bossOk ? 'boss' : 'regular'));
     });
   }).catch(err => {
     console.warn('[bots] GLB load failed, falling back to capsules:', err);
+    if (_netMode) return;   // ADR-0021: server is authoritative in MP.
     _spawnCapsuleBots();
   });
 }

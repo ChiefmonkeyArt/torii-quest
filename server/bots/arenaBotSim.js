@@ -42,6 +42,24 @@ const COVER_POINTS = buildCoverPoints(ARENA_BOXES, COVER_MARGIN);
 // neutral disc far outside the fence so spawns are never rejected by it.
 const NO_SAFE_CORNER = Object.freeze({ x: 9999, z: 9999, radius: 0 });
 
+// ADR-0018 (v0.2.627-alpha): env-var overrides for controlled test environments.
+// BOT_COUNT_OVERRIDE  — total bot roster size (regulars + bosses). Default: BOT_COUNT.
+// BOSS_COUNT_OVERRIDE — how many of the roster are bosses. Default: BOSS_COUNT.
+// Non-negative integers only; invalid values fall back to the config default.
+// Server-only; client is untouched (learns roster from BOT_STATE snapshots in MP).
+function _envInt(key, def) {
+  const raw = process.env[key];
+  if (raw === undefined || raw === '') return def;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && Number.isInteger(n) ? n : def;
+}
+const _BOT_COUNT_EFF  = _envInt('BOT_COUNT_OVERRIDE',  BOT_COUNT);
+const _BOSS_COUNT_EFF = _envInt('BOSS_COUNT_OVERRIDE', BOSS_COUNT);
+if (_BOT_COUNT_EFF !== BOT_COUNT || _BOSS_COUNT_EFF !== BOSS_COUNT) {
+  // eslint-disable-next-line no-console
+  console.log(`[BOT_SIM] env override active: BOT_COUNT=${_BOT_COUNT_EFF} BOSS_COUNT=${_BOSS_COUNT_EFF} (defaults ${BOT_COUNT}/${BOSS_COUNT})`);
+}
+
 /**
  * @param {object} opts
  * @param {(origin:{x:number,y:number,z:number}, dir:{x:number,y:number,z:number}) => void} opts.onBotShot
@@ -61,8 +79,10 @@ export function createArenaBotSim(opts = {}) {
     arenaBoxes: ARENA_BOXES,
     coverPoints: COVER_POINTS,
     config: {
-      BOT_COUNT, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
-      BOSS_COUNT, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
+      // ADR-0018: env-driven overrides so operators can flip a single-bot test
+      // environment via systemd env without a code change. Defaults unchanged.
+      BOT_COUNT: _BOT_COUNT_EFF, BOT_HP, BOT_SHOOT_CD, CRATES, BOT_SPEED, BOT_DAMAGE,
+      BOSS_COUNT: _BOSS_COUNT_EFF, BOSS_HP, BOSS_SPEED, BOSS_DAMAGE, BOSS_SHOOT_CD, BOSS_RADIUS, BOSS_NAME,
     },
     playerSafeCorner: NO_SAFE_CORNER,
     // v0.2.378 fix 2: lift the SIM-LOCAL origin (y = EYE_Y above feet) to the
@@ -86,7 +106,10 @@ export function createArenaBotSim(opts = {}) {
     getPlayerCollider: () => null,
   });
 
-  function spawn(count = BOT_COUNT) { return sim.spawnAll(count); }
+  // ADR-0018: default to the env-driven effective count so `arenaBotSim.spawn()`
+  // in arena-ws.js picks up BOT_COUNT_OVERRIDE without an explicit arg. Callers
+  // that pass a count still override (used by unit tests).
+  function spawn(count = _BOT_COUNT_EFF) { return sim.spawnAll(count); }
 
   // Advance the AI one tick against the live player roster.
   // players = [{ x, y, z, outsideFence, flyEnabled }]

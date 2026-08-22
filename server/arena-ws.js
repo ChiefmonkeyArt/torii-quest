@@ -176,7 +176,10 @@ const respawnTimers = new Map();
 const arenaBotSim = createArenaBotSim({
   onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
 });
-if (BOT_SIM_ENABLED) arenaBotSim.spawn(BOT_COUNT);
+// ADR-0018 (v0.2.627-alpha): let arenaBotSim.spawn() use its env-driven default
+// (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE). Passing BOT_COUNT here would defeat
+// the override.
+if (BOT_SIM_ENABLED) arenaBotSim.spawn();
 // Synthetic shooter id carried on bot→player HIT/KILL so the existing client
 // peerCombat handler applies damage exactly as it does for a peer shot.
 const BOT_SHOOTER_ID = 'bot';

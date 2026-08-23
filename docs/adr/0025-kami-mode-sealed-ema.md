@@ -168,3 +168,10 @@ nothing in the client is trusted.
 - An in-world rack that renders ema as 3D plaques at their pinned positions
   ("ship to players as world-building") is deferred; v0.2.634 ships the panel
   beside the chat and the pause-modal button.
+
+## Spelling correction (ADR-0033, 2026-08-23)
+
+This document's original text spells the rack "emakake." Confirmed against
+Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
+rendaku k→g). Left as-written above for the historical record; see ADR-0033
+for the rename applied across code, DOM IDs, and docs.

@@ -1,6 +1,6 @@
 // tests/plebeian/auction-panel.test.js
 // ADR-0026 — tests the pure panel helpers + the render() against a tiny fake DOM
-// (no jsdom). Mirrors how emakakePanel keeps its pure rules unit-testable.
+// (no jsdom). Mirrors how emagakePanel keeps its pure rules unit-testable.
 
 import { describe, it, expect } from 'vitest';
 import {

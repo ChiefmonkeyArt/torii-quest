@@ -1,5 +1,5 @@
 // engine/plebeian/auctionPanel.js — ADR-0026. DOM renderer for a Plebeian auction.
-// Mirrors emakakePanel.js: pure formatting helpers + a render(snapshot, {doc}) that
+// Mirrors emagakePanel.js: pure formatting helpers + a render(snapshot, {doc}) that
 // writes into #auction-panel-body (DOM that already exists in index.html).
 //
 // SPLIT ON PURPOSE: the formatting + row/chip string builders are pure and

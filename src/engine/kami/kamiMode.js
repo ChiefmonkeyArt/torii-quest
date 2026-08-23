@@ -9,7 +9,7 @@
 //   emaModel.js     — record shape, tray rules, lifecycle, cull policy (pure)
 //   uiTarget.js     — pointer → DOM control description (pure)
 //   kamiSeal.js      — sealed-box encryption (pure + WebCrypto)
-//   emakakePanel.js  — rack list render (one DOM writer)
+//   emagakePanel.js  — rack list render (one DOM writer)
 //   scene.js         — requestFrameGrab(), the same-tick canvas capture
 // What is left here is genuinely browser-shaped: hotkey wiring, pointer-lock
 // juggling, overlay DOM, one fetch, and the owner-gate.
@@ -54,7 +54,7 @@ import { sealJson, sealTo, toB64 } from './kamiSeal.js';
 import {
   EMA_KIND, TRAY_MAX, makeEma, makeEmaId, addToTray, removeFromTray, noteIsValid,
 } from './emaModel.js';
-import { renderEmakake, showEmakake, hideEmakake } from './emakakePanel.js';
+import { renderEmagake, showEmagake, hideEmagake } from './emagakePanel.js';
 
 // The Kami public key. Its private half lives OFF this box, so ema stay readable
 // by the maintainer without the VPS ever holding a key that opens them.
@@ -231,10 +231,10 @@ async function enterKamiMode() {
   // pubkey before honouring it — see arena-ws.js isKamiActive().
   _deps.sendKamiState?.(true);
   // The rack goes live the moment the owner enters Kami Mode: floating over the
-  // world in-game, as a column in a menu. showEmakake removes `hidden` + pins it
+  // world in-game, as a column in a menu. showEmagake removes `hidden` + pins it
   // right via .floating; the panels live at body scope (ADR-0028) so they survive
   // #screen-title being display:none during PLAYING.
-  showEmakake({ floating: isPlaying(), doc: _deps.getDocument() });
+  showEmagake({ floating: isPlaying(), doc: _deps.getDocument() });
   setKamiBadge(true);
   renderRack();
   // Invincible-spirit suppressions: shooting off, movement + look KEPT. The
@@ -268,7 +268,7 @@ function exitKamiMode() {
   _deps.sendKamiState?.(false);
   // If the ema note was still open, close it + remove its keydown listener.
   _closeNoteIfOpen();
-  hideEmakake({ doc: _deps.getDocument() });
+  hideEmagake({ doc: _deps.getDocument() });
   setKamiBadge(false);
   // Restore normal input: shoot back on, full-suppress cleared.
   _deps.setShootingSuppressed?.(false);
@@ -382,7 +382,7 @@ function setStatus(msg) {
 }
 
 // ADR-0030 — KAMI MODE badge (#kami-mode-badge): a persistent top-center pill so
-// the owner unambiguously sees they are in spirit mode. The emakake rack alone
+// the owner unambiguously sees they are in spirit mode. The emagake rack alone
 // was too easy to miss over the weapon (empty rack = a few lines of floating
 // text). This badge is the unmistakable "you are in KAMI" signal. Toggled in
 // enterKamiMode / exitKamiMode so every entry shows it + every exit hides it.
@@ -394,9 +394,9 @@ function setKamiBadge(visible) {
   else el.setAttribute('hidden', '');
 }
 
-/** Paint the emakake rack from the current tray. Called on every add/discard/hang. */
+/** Paint the emagake rack from the current tray. Called on every add/discard/hang. */
 function renderRack() {
-  renderEmakake(_tray, { doc: _deps.getDocument() });
+  renderEmagake(_tray, { doc: _deps.getDocument() });
 }
 
 // ── capture ────────────────────────────────────────────────────────────────

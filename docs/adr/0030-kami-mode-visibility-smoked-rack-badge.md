@@ -115,3 +115,10 @@ covers the emakake) is **not** addressed here. It remains a separate, deferred
 auction-button slice: stop the auto-show, add a product-panel
 button → `#auction-panel`, gate logged-in only. This ADR-0030 is the kami
 visibility fix; that slice keeps its own commit/ADR.
+
+## Spelling correction (ADR-0033, 2026-08-23)
+
+This document's original text spells the ema rack "emakake." Confirmed against
+Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
+rendaku k→g). Left as-written above for the historical record; see ADR-0033
+for the rename applied across code, DOM IDs, and docs.

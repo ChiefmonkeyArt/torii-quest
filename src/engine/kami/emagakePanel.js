@@ -1,12 +1,12 @@
-// emakakePanel.js — ADR-0025. The emakake: list view of the ema rack.
+// emagakePanel.js — ADR-0025. The emagake: list view of the ema rack.
 //
-// An emakake (絵馬掛け) is the wooden rack at a shrine where every visitor's ema
+// An emagake (絵馬掛け) is the wooden rack at a shrine where every visitor's ema
 // hangs side by side. This is that rack as a working list — the owner's todo
 // panel, sitting beside the chat and floating over the world in-game.
 //
 // SPLIT ON PURPOSE: the ordering, counting and meta-line formatting below are
 // pure functions taking plain records, so the rules that decide what the owner
-// sees first are unit-testable without a browser. Only `renderEmakake` touches
+// sees first are unit-testable without a browser. Only `renderEmagake` touches
 // the DOM, and it only writes into markup that already exists in index.html.
 //
 // It renders OPEN and RESOLVED alike: a rack you can only see unfinished work on
@@ -77,7 +77,7 @@ export function metaLine(rec) {
 }
 
 /**
- * Render the rack into #emakake. Idempotent: rebuilds the body from scratch each
+ * Render the rack into #emagake. Idempotent: rebuilds the body from scratch each
  * call, which is correct at this scale (hundreds of rows at most) and removes any
  * chance of stale rows surviving a status change.
  *
@@ -87,21 +87,21 @@ export function metaLine(rec) {
  *   onSelect {(rec) => void}  row click — used to waypoint to the ema's pin
  *   shotUrl  {(rec) => string|null}  thumbnail lookup, if images are loaded
  */
-export function renderEmakake(records, opts = {}) {
+export function renderEmagake(records, opts = {}) {
   const doc = opts.doc || (typeof document !== 'undefined' ? document : null);
   if (!doc) return 0;
-  const body = doc.getElementById('emakake-body');
+  const body = doc.getElementById('emagake-body');
   if (!body) return 0;
 
   const rows = sortForRack(records);
-  const countEl = doc.getElementById('emakake-count');
+  const countEl = doc.getElementById('emagake-count');
   if (countEl) countEl.textContent = rackSummary(rows);
 
   body.textContent = '';
 
   if (rows.length === 0) {
     const empty = doc.createElement('div');
-    empty.id = 'emakake-empty';
+    empty.id = 'emagake-empty';
     empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">CTRL+E TO HANG AN EMA</span>';
     body.appendChild(empty);
     return 0;
@@ -151,15 +151,15 @@ export function renderEmakake(records, opts = {}) {
  * Show the rack. `floating` switches it from a menu column to a pane hanging off
  * the right edge over the 3D world.
  */
-export function showEmakake({ doc = document, floating = false } = {}) {
-  const el = doc.getElementById('emakake');
+export function showEmagake({ doc = document, floating = false } = {}) {
+  const el = doc.getElementById('emagake');
   if (!el) return false;
   el.classList.toggle('floating', !!floating);
   el.removeAttribute('hidden');
   return true;
 }
 
-export function hideEmakake({ doc = document } = {}) {
-  const el = doc.getElementById('emakake');
+export function hideEmagake({ doc = document } = {}) {
+  const el = doc.getElementById('emagake');
   if (el) el.setAttribute('hidden', '');
 }

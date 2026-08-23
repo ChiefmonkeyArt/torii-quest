@@ -1,5 +1,5 @@
 // tests/floating-panels-nesting.test.js — ADR-0028 regression guard.
-// The emakake rack (#emakake) + Plebeian auction panel (#auction-panel) are
+// The emagake rack (#emagake) + Plebeian auction panel (#auction-panel) are
 // position:fixed floating overlays shown during PLAYING. They MUST live at
 // top-level body scope, NOT nested inside #screen-title.
 //
@@ -38,20 +38,20 @@ function closingDivOf(html, idAttr) {
 
 describe('ADR-0028: floating panels must not nest inside #screen-title', () => {
   const screenTitleEnd = closingDivOf(HTML, 'id="screen-title"');
-  const emakakePos = HTML.indexOf('id="emakake"');
+  const emagakePos = HTML.indexOf('id="emagake"');
   const auctionPos = HTML.indexOf('id="auction-panel"');
 
   it('#screen-title is present + balanced in index.html', () => {
     expect(screenTitleEnd).toBeGreaterThan(-1);
   });
 
-  it('#emakake + #auction-panel exist as elements in index.html', () => {
-    expect(emakakePos).toBeGreaterThan(-1);
+  it('#emagake + #auction-panel exist as elements in index.html', () => {
+    expect(emagakePos).toBeGreaterThan(-1);
     expect(auctionPos).toBeGreaterThan(-1);
   });
 
-  it('#emakake is NOT nested inside #screen-title (must be a body sibling)', () => {
-    expect(emakakePos).toBeGreaterThan(screenTitleEnd);
+  it('#emagake is NOT nested inside #screen-title (must be a body sibling)', () => {
+    expect(emagakePos).toBeGreaterThan(screenTitleEnd);
   });
 
   it('#auction-panel is NOT nested inside #screen-title (must be a body sibling)', () => {
@@ -61,8 +61,8 @@ describe('ADR-0028: floating panels must not nest inside #screen-title', () => {
   it('both panels sit after #screen-title and before #hud (top-level overlay band)', () => {
     const hudPos = HTML.indexOf('id="hud"');
     expect(hudPos).toBeGreaterThan(-1);
-    expect(emakakePos).toBeGreaterThan(screenTitleEnd);
-    expect(emakakePos).toBeLessThan(hudPos);
+    expect(emagakePos).toBeGreaterThan(screenTitleEnd);
+    expect(emagakePos).toBeLessThan(hudPos);
     expect(auctionPos).toBeGreaterThan(screenTitleEnd);
     expect(auctionPos).toBeLessThan(hudPos);
   });

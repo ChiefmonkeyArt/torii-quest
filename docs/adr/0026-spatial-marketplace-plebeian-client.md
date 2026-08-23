@@ -221,3 +221,10 @@ them; it specifies the first concrete world-surface commerce surface and defers
 the napplet contract formalisation. The market stall is built as a Quest
 component first and can be reframed as a `nap-torii-world` applet later without
 changing the read contract.
+
+## Spelling correction (ADR-0033, 2026-08-23)
+
+This document's original text spells the ema rack "emakake." Confirmed against
+Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
+rendaku k→g). Left as-written above for the historical record; see ADR-0033
+for the rename applied across code, DOM IDs, and docs.

@@ -34,7 +34,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
   beforeAll(() => {
     prevPhase = state.phase;
     // Minimal DOM the glue touches: the rack container + the note overlay shell.
-    document.body.innerHTML = '<div id="emakake" hidden></div><div id="kami-overlay" style="display:none"></div>';
+    document.body.innerHTML = '<div id="emagake" hidden></div><div id="kami-overlay" style="display:none"></div>';
     // jsdom has no elementFromPoint; captureTarget falls back to it when not
     // pointer-locked. Returning null → "NOTHING TO PIN HERE" → openNote no-ops.
     document.elementFromPoint = () => null;
@@ -72,7 +72,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     expect(kamiActive()).toBe(true);
     expect(kamiInvincible()).toBe(true);
     // Rack shown (hidden attribute removed).
-    expect(document.getElementById('emakake').hasAttribute('hidden')).toBe(false);
+    expect(document.getElementById('emagake').hasAttribute('hidden')).toBe(false);
     // Shooting suppressed (invincible spirit doesn't fire); movement NOT suppressed.
     expect(shootingSuppressedCalls).toContain(true);
     expect(fullSuppressedCalls).not.toContain(true);
@@ -91,7 +91,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     kamiExit();
     expect(kamiActive()).toBe(false);
     expect(kamiInvincible()).toBe(false);
-    expect(document.getElementById('emakake').hasAttribute('hidden')).toBe(true);
+    expect(document.getElementById('emagake').hasAttribute('hidden')).toBe(true);
     expect(shootingSuppressedCalls).toContain(false);
     // ADR-0032: leaving Kami tells the server too, so the owner becomes a
     // normal targetable/vulnerable player again.
@@ -105,7 +105,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     // Emulate the Home button / exit-to-title transition.
     emit(EV.PHASE_CHANGE, { to: PHASE.TITLE, from: PHASE.PLAYING });
     expect(kamiActive()).toBe(false);
-    expect(document.getElementById('emakake').hasAttribute('hidden')).toBe(true);
+    expect(document.getElementById('emagake').hasAttribute('hidden')).toBe(true);
   });
 
   test('2nd Ctrl+E while in KAMI attempts a note but stays in KAMI (no re-enter)', async () => {

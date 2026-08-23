@@ -1191,7 +1191,7 @@ export function createArenaRuntime(hooks = {}) {
     // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
     // the hotkey + mouse tracker unconditionally (inert); the owner check is lazy
     // (first capture fetches the instance capability). Only the VPS owner ever sees
-    // the emakake rack — non-admins get "OWNER ONLY" and nothing is sealed/sent.
+    // the emagake rack — non-admins get "OWNER ONLY" and nothing is sealed/sent.
     installKamiMode({
       getOwnerPubkey: () => state.nostrPubkey || '',
       requestPointerLock: () => { try { requestLock(); } catch { /* noop */ } },

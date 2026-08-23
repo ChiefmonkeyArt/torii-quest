@@ -186,3 +186,10 @@ Still required post-deploy: 1st Ctrl+E enters KAMI (rack on right, can't shoot,
 can move/look); 2nd Ctrl+E opens ema; Enter saves to rack; Esc in ema → back to
 KAMI; Esc in KAMI → exit (rack hidden, shooting restored); leaving the arena
 resets; hard refresh keeps the rack hidden until Ctrl+E.
+
+## Spelling correction (ADR-0033, 2026-08-23)
+
+This document's original text spells the ema rack "emakake." Confirmed against
+Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
+rendaku k→g). Left as-written above for the historical record; see ADR-0033
+for the rename applied across code, DOM IDs, and docs.

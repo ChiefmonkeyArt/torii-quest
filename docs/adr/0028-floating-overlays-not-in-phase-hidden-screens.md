@@ -121,3 +121,10 @@ These guard the exact regression: if either panel is ever re-nested under
 
 Full suite: **3084 passing / 236 files** (was 3079 / 235 before this ADR; +5
 nesting tests, +1 file).
+
+## Spelling correction (ADR-0033, 2026-08-23)
+
+This document's original text spells the ema rack "emakake." Confirmed against
+Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
+rendaku k→g). Left as-written above for the historical record; see ADR-0033
+for the rename applied across code, DOM IDs, and docs.

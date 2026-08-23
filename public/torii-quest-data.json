@@ -1,6 +1,6 @@
 {
   "version": "v0.2.652-alpha",
-  "generatedAt": "2026-08-23T15:03:16.800Z",
+  "generatedAt": "2026-08-23T18:43:37.569Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -54,12 +54,12 @@
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 241"
+        "value": "fast 5 · foundation 25 · full 243"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "3125 passing / 241 files"
+        "value": "3150 passing / 243 files"
       },
       {
         "label": "Profile timings",
@@ -101,7 +101,7 @@
       {
         "pct": 10,
         "label": "Foundation coverage",
-        "sub": "25/241 files"
+        "sub": "25/243 files"
       }
     ]
   },
@@ -189,18 +189,18 @@
     "statusCommand": "npm run release:status",
     "gateCommand": "npm run test:release",
     "kind": "generated",
-    "status": "ready",
-    "statusLabel": "READY",
-    "ready": true,
+    "status": "not-ready",
+    "statusLabel": "NOT READY",
+    "ready": false,
     "version": "v0.2.652-alpha",
-    "gitCommit": "e1711f1",
+    "gitCommit": "9b0dfe0",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
-        "state": "ok",
-        "pill": "no-blocker",
-        "detail": "config v0.2.652-alpha / pkg 0.2.652-alpha"
+        "state": "blocked",
+        "pill": "gated",
+        "detail": "config v0.2.652-alpha / pkg 0.2.653-alpha"
       },
       {
         "key": "tests",
@@ -238,7 +238,9 @@
         "detail": "continuity docs carry current version"
       }
     ],
-    "blockers": [],
+    "blockers": [
+      "versionSync"
+    ],
     "unknowns": [],
     "nextTask": {
       "title": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -250,8 +252,8 @@
   "rcStatus": {
     "badge": "RC / RELEASE MANIFEST · LOCAL · READ-ONLY",
     "kind": "generated",
-    "band": "gates-green",
-    "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
+    "band": "near",
+    "statusLabel": "NEAR · LOCAL GATES",
     "pill": "manual",
     "version": "v0.2.652-alpha",
     "manifestStatus": "COMPLETE",
@@ -261,10 +263,10 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "3125 passing / 241 files",
+    "testLabel": "3150 passing / 243 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
-    "gateStatusLabel": "READY",
+    "gateStatusLabel": "NOT READY",
     "metrics": [
       {
         "label": "Source version",
@@ -280,7 +282,7 @@
       },
       {
         "label": "Tests",
-        "value": "3125 passing / 241 files"
+        "value": "3150 passing / 243 files"
       },
       {
         "label": "Test profiles",
@@ -292,7 +294,7 @@
       },
       {
         "label": "Last release gate",
-        "value": "READY"
+        "value": "NOT READY"
       }
     ],
     "note": "Release-candidate artifact posture — the release-artifact MANIFEST (required/optional present) and RC package-doc coverage, the curated test count, the manual validation still outstanding, and the last local release-gate verdict, folded into one read-only band. GENERATED at packaging time from on-disk artifact presence; LAST-KNOWN when not regenerated this build. It releases/tags/publishes/deploys NOTHING — manual live-browser validation and explicit user approval stay required (run: npm run rc:snapshot / npm run release:manifest)."
@@ -300,8 +302,8 @@
   "manualValidation": {
     "badge": "MANUAL VALIDATION · MVP PLAYTEST · READ-ONLY",
     "kind": "generated",
-    "band": "gates-green",
-    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
+    "band": "manual-outstanding",
+    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
     "pill": "manual",
     "sections": 13,
     "items": 17,
@@ -311,7 +313,7 @@
     "validationAreas": 7,
     "checklistDocPresent": true,
     "resultsTemplatePresent": true,
-    "gateStatusLabel": "READY",
+    "gateStatusLabel": "NOT READY",
     "areas": [
       "Launch / title screen",
       "Shooter loop",
@@ -324,7 +326,7 @@
     "metrics": [
       {
         "label": "Local automated gates",
-        "value": "READY · 20/20 local checks green"
+        "value": "NOT READY"
       },
       {
         "label": "Manual playtest",
@@ -442,7 +444,7 @@
       },
       {
         "label": "Release gate",
-        "value": "green (confidence only, not approval)"
+        "value": "not yet (confidence only, not approval)"
       },
       {
         "label": "Entry smoke",
@@ -454,7 +456,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 3125 passing / 241 files"
+        "value": "green — 3150 passing / 243 files"
       },
       {
         "label": "Explicit approval",
@@ -582,7 +584,7 @@
       },
       {
         "label": "Manual blocker",
-        "value": "PENDING — LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING"
+        "value": "PENDING — MANUAL VALIDATION OUTSTANDING"
       },
       {
         "label": "MVP approval",

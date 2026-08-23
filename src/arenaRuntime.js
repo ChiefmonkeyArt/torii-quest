@@ -58,6 +58,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
+import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
+import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
@@ -65,7 +67,7 @@ import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive } from './engine/plebeian/marketStall.js';
-import { setBoardsActive } from './engine/plebeian/ownerBoards.js';
+import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
@@ -639,6 +641,21 @@ export function createArenaRuntime(hooks = {}) {
     promptText: portalPromptLabel({ slug: 'plebeian-market-bazaar' }),
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
   });
+  // ADR-0036: the in-world PRODUCT sign (product-stall-panel, standing between
+  // the mirror and the torii gate) gets its first-ever interaction. Walking
+  // into range shows a prompt; pressing Q opens the auction-panel + the three
+  // ADR-0035 boards together. Unrelated to Kami Mode and to the gateway portal
+  // above — this trigger only opens; a close control on each panel closes them.
+  const _productPanelSpec = getProofSurfaceSpec('product-stall-panel');
+  const _productPanelPos = _productPanelSpec
+    ? { x: _productPanelSpec.position.x, y: _productPanelSpec.position.y + sampleNapHeight(_productPanelSpec.position.x, _productPanelSpec.position.z), z: _productPanelSpec.position.z }
+    : null;
+  const _productPanelTrigger = createProductPanelTrigger({
+    panelPos: _productPanelPos,
+    range: 3,
+    onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
+    onOpen: () => { setMarketActive(true); setBoardsActive(true); },
+  });
   // Stable portal geometry reused each frame to drive the approach glow without
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
   const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
@@ -779,20 +796,14 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal) {
       tickNapNpc(dt);
       tickStickerNpc(dt);
-      // v0.2.635-alpha (ADR-0026): the market stall panel mirrors the NAP toggle —
-      // it shows the live Plebeian auction only while the player is in the market
-      // zone, and is hidden (subscription kept warm) the moment they leave.
       const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
       setNapMode(_inNapNow);
-      // ADR-0034: no panel may auto-pop-up while the owner is in Kami Mode —
-      // Kami Mode shows only its own components (emagake rack right, ema
-      // editor bottom). ADR-0035: the owner boards follow the identical gate
-      // — they are market UI too, shown in the NAP zone, never while roaming
-      // as Kami.
-      const _marketVisible = _inNapNow && !kamiActive();
-      setMarketActive(_marketVisible);
-      setBoardsActive(_marketVisible);
+      // ADR-0036: the market auction-panel + ADR-0035 boards no longer
+      // auto-show on NAP-zone entry and have no relationship to Kami Mode.
+      // They open ONLY via the in-world PRODUCT sign's proximity+Q trigger,
+      // and close only via an explicit close control on each panel.
       if (isPlaying()) {
+        _productPanelTrigger.tick(playerObj.position);
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).
         const ap = portalApproachState({
@@ -801,6 +812,7 @@ export function createArenaRuntime(hooks = {}) {
         setPortalApproach(ap.intensity);
       } else {
         _portalTrigger.reset();
+        _productPanelTrigger.reset();
       }
       tickMirror(dt);
       tickFoliage(dt);
@@ -1342,6 +1354,13 @@ export function createArenaRuntime(hooks = {}) {
       flyToggleFromInput();
     });
 
+    // KeyQ (ADR-0036) — in range of the in-world PRODUCT sign: open the
+    // auction-panel + the three ADR-0035 boards. A no-op outside range.
+    onKeyDown(code => {
+      if (code !== 'KeyQ' || !isPlaying()) return;
+      _productPanelTrigger.interact();
+    });
+
     // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR
     // paused, independent of the portal (unlike KeyF). Pressing M again while the
     // menu is open closes it (toggle). Pause on open + exitPointerLock; resume on
@@ -1357,6 +1376,14 @@ export function createArenaRuntime(hooks = {}) {
     const elHomeBtn   = document.getElementById('btn-home');
     const elKamiBtn   = document.getElementById('btn-kami');
     elResumeBtn?.addEventListener('click', _resume);
+    // ADR-0036: each panel opened by the PRODUCT sign trigger closes
+    // independently. The auction-panel's own close turns off setMarketActive
+    // (single panel, no siblings); each owner-board's close hides only that
+    // board's DOM — the sibling boards' live data keeps flowing.
+    document.getElementById('auction-panel-close')?.addEventListener('click', () => { setMarketActive(false); });
+    for (const btn of document.querySelectorAll('[data-board-close]')) {
+      btn.addEventListener('click', () => { hideOwnerBoard(btn.getAttribute('data-board-close')); });
+    }
     // ADR-0025: pause-modal ema button. Opens the note box against whatever UI
     // control is under the cursor (the pause buttons themselves, when paused).
     // The owner-gate is checked inside kamiCapture; non-owners see "OWNER ONLY".

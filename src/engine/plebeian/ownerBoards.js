@@ -76,6 +76,20 @@ export function setBoardsActive(active) {
   if (active) { start(); render(); }
 }
 
+/**
+ * ADR-0036: hide ONE board by its DOM id, independent of the other two —
+ * used by that board's own close button. Does NOT touch `_active`/the
+ * shared subscriptions, so the sibling boards keep receiving live data;
+ * re-opening via setBoardsActive(true) or the trigger re-shows all three
+ * (showHide re-adds 'floating' to every board, including this one).
+ */
+export function hideOwnerBoard(boardId) {
+  const root = document.getElementById(boardId);
+  if (!root) return;
+  root.setAttribute('hidden', '');
+  root.classList.remove('floating');
+}
+
 /** Test/debug hook: force-close both subscriptions + reset state. */
 export function _resetOwnerBoards() {
   stop();

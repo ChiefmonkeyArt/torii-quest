@@ -712,6 +712,8 @@
       position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
       z-index: 40; max-height: 82vh; pointer-events: auto;
     }
+    /* .floating already sets position:fixed on #auction-panel itself, so the
+       absolutely-positioned close button above anchors to it directly. */
     #auction-panel[hidden] { display: none; }
 
     #auction-panel-poster {
@@ -831,6 +833,21 @@
       backdrop-filter: blur(6px); border: 1px solid rgba(255, 194, 71, 0.22);
       padding: 8px; display: flex; flex-direction: column; gap: 6px;
       overflow-y: auto; min-height: 0; flex: 1;
+    }
+    /* ADR-0036: explicit close control, one per panel (auction-panel + each
+       owner-board) — opening is a proximity+Q trigger, so closing must be an
+       equally explicit action, never an auto-hide or re-trigger toggle. */
+    .owner-board-close {
+      flex-shrink: 0; width: 18px; height: 18px; padding: 0; margin-left: 8px;
+      border-radius: 4px; border: 1px solid rgba(255, 194, 71, 0.30);
+      background: rgba(8, 10, 20, 0.55); color: #ffd36a;
+      font-size: 13px; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      text-shadow: 0 1px 1px rgba(0,0,0,1);
+    }
+    .owner-board-close:hover { background: rgba(255, 194, 71, 0.20); }
+    #auction-panel-close {
+      position: absolute; top: 10px; right: 10px; z-index: 1;
     }
     .owner-board-body::-webkit-scrollbar { width: 3px; }
     .owner-board-body::-webkit-scrollbar-track { background: transparent; }
@@ -1386,9 +1403,11 @@
 <div id="kami-mode-badge" hidden aria-label="Kami Mode active">⛩ KAMI MODE · K FOR EMA · ESC EXIT</div>
 
 <!-- ADR-0026 / ADR-0028 — Plebeian market stall panel (watch-only auction reader).
-     Mirrors the emagake smoked-glass rack. arenaRuntime setMarketActive() shows it
-     in the NAP market zone. Top-level so it is not hidden by #screen-title. -->
+     ADR-0036: opens via the in-world PRODUCT sign's proximity+Q trigger, not
+     NAP-zone auto-show; closes via #auction-panel-close. Top-level so it is
+     not hidden by #screen-title. -->
 <div id="auction-panel" hidden aria-label="plebeian market stall — live auction">
+  <button id="auction-panel-close" class="owner-board-close" aria-label="close auction panel" type="button">×</button>
   <div id="auction-panel-poster" hidden></div>
   <div id="auction-panel-header">
     <div id="auction-panel-title">Loading auction…</div>
@@ -1410,13 +1429,15 @@
      Three separate DOM-overlay boards (not tabs), same smoked-glass component
      family as #emagake/#auction-panel. Stack on the LEFT edge so they never
      overlap the emagake rack or the auction-panel stall, both on the right.
-     arenaRuntime setBoardsActive() shows/hides all three together, gated
-     identically to setMarketActive (NAP zone, never during Kami Mode).
+     ADR-0036: setBoardsActive() opens all three together via the in-world
+     PRODUCT sign's proximity+Q trigger, not NAP-zone auto-show; unrelated to
+     Kami Mode. Each board closes independently via its own .owner-board-close.
      Read-only: no buy/bid/checkout, display only. -->
 <div id="product-board" class="owner-board" hidden aria-label="plebeian live products">
   <div class="owner-board-header">
     <span>⛩ LIVE PRODUCTS</span>
     <span id="product-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="product-board" aria-label="close live products" type="button">×</button>
   </div>
   <div id="product-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
 </div>
@@ -1425,6 +1446,7 @@
   <div class="owner-board-header">
     <span>⛩ LIVE AUCTIONS</span>
     <span id="live-auction-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="live-auction-board" aria-label="close live auctions" type="button">×</button>
   </div>
   <div id="live-auction-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
 </div>
@@ -1433,6 +1455,7 @@
   <div class="owner-board-header">
     <span>⛩ PAST AUCTIONS</span>
     <span id="past-auction-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="past-auction-board" aria-label="close past auctions" type="button">×</button>
   </div>
   <div id="past-auction-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
 </div>

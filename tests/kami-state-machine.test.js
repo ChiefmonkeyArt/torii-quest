@@ -16,9 +16,11 @@ import { state, PHASE } from '../src/state.js';
 
 const OWNER_PUBKEY = 'a'.repeat(64);
 
+// ADR-0031: bare K, no Ctrl/Cmd — Ctrl/Cmd+E never reached the page because
+// Brave (and most Chromium browsers) reserves that combo for the address bar.
 function ctrlE(shift = false) {
   document.body.dispatchEvent(new KeyboardEvent('keydown', {
-    code: 'KeyE', ctrlKey: true, shiftKey: shift, bubbles: true,
+    code: 'KeyK', shiftKey: shift, bubbles: true,
   }));
 }
 function flush() { return new Promise(r => setTimeout(r, 0)); }
@@ -100,5 +102,31 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     // Still in KAMI; enterKamiMode is a no-op fast path (no extra suppress call).
     expect(kamiActive()).toBe(true);
     expect(shootingSuppressedCalls.length).toBe(callsBefore);
+  });
+
+  // ADR-0031 regression: bare K enters Kami, but Ctrl+K / Cmd+K must NOT — those
+  // are real browser-reserved combos (Ctrl/Cmd+K focuses the address bar in
+  // Chromium browsers) and must reach the browser chrome untouched, exactly the
+  // failure mode that made Ctrl+E silently do nothing in Brave.
+  test('Ctrl+K / Cmd+K do NOT enter Kami Mode (browser owns that combo)', async () => {
+    expect(kamiActive()).toBe(false);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', ctrlKey: true, bubbles: true }));
+    await flush();
+    expect(kamiActive()).toBe(false);
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', metaKey: true, bubbles: true }));
+    await flush();
+    expect(kamiActive()).toBe(false);
+  });
+
+  // A focused text field owns bare K (typing the letter k must not open Kami).
+  test('bare K typed into a focused text field does not enter Kami Mode', async () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    expect(kamiActive()).toBe(false);
+    input.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyK', bubbles: true }));
+    await flush();
+    expect(kamiActive()).toBe(false);
+    input.remove();
   });
 });

@@ -62,7 +62,8 @@ import { renderEmakake, showEmakake, hideEmakake } from './emakakePanel.js';
 // Continuum) is one more entry, not a format change.
 export const KAMI_PUBKEY = 'f69bbd44782c4e0c075260fc9159555d8d08085102731529649404fdcdddf30c';
 
-const HOTKEY_CODE = 'KeyE'; // with Ctrl — plain E is already a jump alias.
+const HOTKEY_CODE = 'KeyK'; // bare key, no modifier — see ADR-0031. Plain E is
+// already the jump alias (player.js), so Kami Mode cannot reuse bare E either.
 
 let _installed = false;
 let _tray = [];
@@ -197,7 +198,7 @@ async function armIfOwner() {
   const ok = await checkOwner();
   if (!ok) return false;
   _armed = true;
-  console.log('[kami] Kami Mode armed — Ctrl+E to enter Kami Mode');
+  console.log('[kami] Kami Mode armed — press K to enter Kami Mode');
   return true;
 }
 
@@ -232,7 +233,7 @@ async function enterKamiMode() {
   // Invincible-spirit suppressions: shooting off, movement + look KEPT. The
   // full setGameInputSuppressed(true) is reserved for the ema textarea (finish).
   _deps.setShootingSuppressed?.(true);
-  console.log('[kami] entered Kami Mode — Ctrl+E for an ema, Esc to leave');
+  console.log('[kami] entered Kami Mode — press K for an ema, Esc to leave');
   return true;
 }
 
@@ -574,14 +575,20 @@ export function installKamiMode(deps = {}) {
   const doc = _deps.getDocument();
   doc.addEventListener('mousemove', trackMouse);
   doc.addEventListener('keydown', (ev) => {
-    // ADR-0029: accept BOTH Ctrl+E (⌃E, the spec'd hotkey) and Cmd+E (⌘E).
-    // Mac users instinctively reach for ⌘ for shortcuts; the handler previously
-    // checked ev.ctrlKey alone, so ⌘E was silently ignored (no [kami] log at all
-    // — the "logged in, no kami" symptom). input.js ADR-0025 already treats
-    // ctrlKey || metaKey as app-shortcut modifiers, so this is consistent.
-    if (!(ev.ctrlKey || ev.metaKey) || ev.code !== HOTKEY_CODE) return;
+    // ADR-0031: bare K, no Ctrl/Cmd. Ctrl+E (and Cmd+E) never reached the page —
+    // Brave (and most Chromium browsers) reserves Ctrl/Cmd+E to focus the address
+    // bar as a search shortcut, so the keydown was consumed by the browser chrome
+    // before it ever fired here (zero [kami] console output, not even this
+    // diagnostic log, was the symptom). A bare key has no browser-chrome meaning
+    // while the page has focus, so it can't be intercepted the same way. Any
+    // Ctrl/Cmd modifier on KeyK is ignored here — only the unmodified press counts.
+    if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.code !== HOTKEY_CODE) return;
+    // A focused text field (chat, login, the ema textarea itself) owns bare
+    // keystrokes — don't steal K from typing. Mirrors input.js's ADR-0027 guard.
+    const _t = ev.target;
+    if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.tagName === 'SELECT' || _t.isContentEditable)) return;
     ev.preventDefault();
-    // ADR-0029 diagnostic: log every hotkey press so a non-firing Ctrl+E is
+    // ADR-0031 diagnostic: log every hotkey press so a non-firing K is
     // distinguishable from a downstream guard (isPlaying / owner-check) failure.
     console.log('[kami] hotkey pressed, isPlaying=' + isPlaying() + ' phase=' + state.phase);
     // ADR-0029: Kami Mode is an in-arena authoring surface. It must NOT engage
@@ -590,12 +597,12 @@ export function installKamiMode(deps = {}) {
     // (kamiCapture) still works from PAUSED because it calls openNote directly,
     // not through this hotkey. Guarding the hotkey on isPlaying() also closes the
     // title-re-entry bug: after exitKamiMode on PHASE_CHANGE→TITLE, a stray
-    // Ctrl+E on the home screen no longer re-enters + re-shows the rack.
+    // K on the home screen no longer re-enters + re-shows the rack.
     if (!isPlaying()) return;
     if (ev.shiftKey) hangTray();
-    // ADR-0029: 1st Ctrl+E enters Kami Mode (rack visible, invincible spirit,
-    // shooting off, movement/look live). 2nd Ctrl+E (already in Kami) opens a
-    // new ema note. Shift+Ctrl+E seals + sends the tray (unchanged).
+    // ADR-0029: 1st K enters Kami Mode (rack visible, invincible spirit,
+    // shooting off, movement/look live). 2nd K (already in Kami) opens a
+    // new ema note. Shift+K seals + sends the tray (unchanged).
     else if (!_kamiActive) enterKamiMode();
     else openNote();
   });

@@ -421,7 +421,7 @@ function renderTray() {
     return;
   }
   el.removeAttribute('hidden');
-  el.textContent = `${_tray.length} EMA ON THE RACK · CTRL+SHIFT+E TO HANG`;
+  el.textContent = `${_tray.length} EMA ON THE RACK · SHIFT+K TO HANG`;
 }
 
 function setStatus(msg) {

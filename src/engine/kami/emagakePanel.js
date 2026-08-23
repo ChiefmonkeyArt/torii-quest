@@ -118,7 +118,7 @@ export function renderEmagake(records, opts = {}) {
   if (rows.length === 0 && replies.length === 0) {
     const empty = doc.createElement('div');
     empty.id = 'emagake-empty';
-    empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">CTRL+E TO HANG AN EMA</span>';
+    empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">SHIFT+K TO HANG</span>';
     body.appendChild(empty);
     return 0;
   }

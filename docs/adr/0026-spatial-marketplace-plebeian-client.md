@@ -1,7 +1,7 @@
 # ADR-0026 — Spatial Marketplace: Quest as a watch-only Plebeian client
 
-**Status:** Accepted (slices 1-2 shipped v0.2.635-alpha)
-**Version:** v0.2.635-alpha
+**Status:** Accepted (slices 1-2 shipped v0.2.635-alpha; slice 3 shipped v0.2.636-alpha)
+**Version:** v0.2.636-alpha
 **Date:** 2026-08-23
 **Type:** Feature direction (new subsystem; no gameplay behaviour change)
 **Follows:** ADR-0025 (Kami Mode)
@@ -128,6 +128,53 @@ in `arenaRuntime.js`, mirroring `setNapMode`). The relay subscription is lazy �
 first NAP entry starts it, re-entry keeps it warm. Footer links out to the
 canonical `auctions.plebeian.market` listing URL — **watch-only, no bidding in the
 panel.** Modules: `src/engine/plebeian/{auctionModel,plebeianRelay,auctionPanel,marketStall}.js`.
+
+## Slice 3 — Bidder identity + reverse-order bids (shipped v0.2.636-alpha)
+
+Owner feedback on the slice-2 panel: (1) bids were oldest-first; (2) the second
+(column) showed the raw 8-hex bidder pubkey; (3) no avatar. Slice 3 changes only
+the panel's *rendering* + a read-only profile fetch — no wire, no bidding, no
+server change.
+
+- **Descending order.** `renderAuctionPanel` sorts the bid history by amount
+  descending before rendering (`[...vm.bids].sort((a,b) => b.amount - a.amount)`),
+  so the highest bid is row 1. The underlying `buildBidHistory` order (and its
+  `isHighBid`/`isMonotonic` flags) is unchanged for callers that read the model
+  directly.
+- **Bidder identity.** `auctionModel.parseProfileEvent` parses a kind-0 Nostr
+  profile → `{pubkey, name, picture}`; `resolveBidder(pubkey, profiles)` returns a
+  display `{name, picture, initial, hue}` — the profile `name`/`picture` where a
+  kind-0 exists, else a deterministic colored circle (`hashHue` from the pubkey)
+  with the first alphanumeric of the pubkey as the initial. `buildBidHistory` now
+  accepts an optional `profiles` Map and attaches `bidder` to each row.
+- **Avatar rendering.** `renderBidRow` renders a 22px circular avatar: the profile
+  picture `<img>` (object-fit cover) sits absolutely over a colored-circle fallback
+  carrying the initial; on `<img>` load error the img hides and the fallback shows.
+  The display name (or short pubkey fallback) replaces the raw 8-hex column.
+- **Profile fetch.** `plebeianRelay.fetchProfiles(pubkeys, relays)` queries kind-0
+  from all given relays in parallel (6s collection window per relay, 8s overall
+  timeout, first name/picture wins). `marketStall.scheduleProfileFetch` debounces
+  (400ms) a fetch of the current bidders' pubkeys from both
+  `wss://relay.staging.plebeian.market` + `wss://relay.plebeian.market` once bids
+  have arrived, then re-renders. Read-only; a missing or broken profile degrades
+  gracefully to the colored-circle avatar — the panel never blocks on profiles.
+- **Top-bid flag.** `isTopBid` (only the single highest bid) is now used for the
+  gold "high bid" flag + `.high` class, replacing `isHighBid` (every ascending
+  bid) so the flag reads cleanly in a highest-first list. The pre-existing grey
+  "below high" flag (`!isMonotonic`) is unchanged — it marks bids placed under the
+  running high at their time.
+- **Tests.** 8 new (5 in `auction-model.test.js`: parseProfileEvent,
+  resolveBidder, isTopBid single-flag, bidder+profile resolution; 3 in
+  `auction-panel.test.js`: colored-circle fallback avatar, picture avatar when a
+  profile is present, descending order). 35 plebeian tests + 3072 full suite
+  green.
+
+**Reality check on live data:** of the 5 unique bidders on the staging test
+auction, only 2 carry a kind-0 profile on the Plebeian relays ("Gay Fox" — name
+only, no picture; "sandwich" — name + picture). The other 3 fall back to the
+deterministic colored-circle avatar + short pubkey, which is the intended
+degradation — bidders who never set a Nostr profile get a stable, distinct avatar
+anyway.
 
 ## Build order (slices, smallest first)
 

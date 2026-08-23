@@ -76,6 +76,21 @@ export function metaLine(rec) {
   return parts.filter(Boolean).join(' · ');
 }
 
+// ADR-0039: merge AI reply records into the rack. The browser polls
+// GET /mp/kami/replies and holds a session-scoped list; this merges incoming
+// replies (already-in-memory + newly polled) deduped by id, newest-first, capped.
+export function mergeReplies(prev, incoming) {
+  const seen = new Set();
+  const out = [];
+  for (const r of [...(incoming || []), ...(prev || [])]) {
+    if (!r || !r.id || seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  out.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return out.slice(0, 64);
+}
+
 /**
  * Render the rack into #emagake. Idempotent: rebuilds the body from scratch each
  * call, which is correct at this scale (hundreds of rows at most) and removes any
@@ -94,17 +109,54 @@ export function renderEmagake(records, opts = {}) {
   if (!body) return 0;
 
   const rows = sortForRack(records);
+  const replies = Array.isArray(opts.replies) ? mergeReplies([], opts.replies) : [];
   const countEl = doc.getElementById('emagake-count');
   if (countEl) countEl.textContent = rackSummary(rows);
 
   body.textContent = '';
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && replies.length === 0) {
     const empty = doc.createElement('div');
     empty.id = 'emagake-empty';
     empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">CTRL+E TO HANG AN EMA</span>';
     body.appendChild(empty);
     return 0;
+  }
+
+  // ADR-0039: AI replies render as a distinct block above the ema rack.
+  // Newest-first, self-contained (each row carries an optional short quote of
+  // the ema it replies to, since the browser cannot decrypt the original ema).
+  // textContent only — never innerHTML — reply text is AI-generated and must
+  // not be able to inject markup into the owner's own panel.
+  for (const r of replies) {
+    const row = doc.createElement('div');
+    row.className = 'ema-row kami-reply';
+    row.dataset.replyId = String(r.id || '');
+
+    const stud = doc.createElement('div');
+    stud.className = 'ema-stud kami-reply-stud';
+    stud.textContent = '⛩';
+
+    const main = doc.createElement('div');
+    main.className = 'ema-main';
+    if (r.quote) {
+      const q = doc.createElement('div');
+      q.className = 'ema-quote';
+      q.textContent = '› ' + r.quote;
+      main.appendChild(q);
+    }
+    const note = doc.createElement('div');
+    note.className = 'ema-note';
+    note.textContent = r.text || '';
+    const meta = doc.createElement('div');
+    meta.className = 'ema-meta';
+    meta.textContent = formatTime(r.ts) + (r.ref ? ' · re ' + String(r.ref).slice(0, 8) : '');
+    main.appendChild(note);
+    main.appendChild(meta);
+
+    row.appendChild(stud);
+    row.appendChild(main);
+    body.appendChild(row);
   }
 
   for (const rec of rows) {

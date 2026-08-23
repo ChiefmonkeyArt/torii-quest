@@ -53,6 +53,8 @@ import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
 import { promises as fsPromises } from 'fs';
 import { createKamiStore, SCREENSHOT_KEEP_DEFAULT } from './kami/kamiStore.js';
 import { validateKamiBatch, storeKamiBatch } from './kami/kamiRoute.js';
+import { makeReplyStore } from './kami/kamiReplyStore.js';
+import { parseSince, shapeReplyResponse } from './kami/kamiReplyRoute.js';
 
 // ---------- config ----------
 
@@ -68,6 +70,12 @@ const SERVER_VERSION = 'v0.2.602-alpha';
 const KAMI_DIR = process.env.KAMI_DIR || '/var/lib/torii-quest/kami';
 const KAMI_BODY_CAP = Number(process.env.KAMI_BODY_CAP || (16 * 1024 * 1024)); // 16 MiB
 const kamiStore = createKamiStore({ dir: KAMI_DIR, fs: fsPromises, keep: SCREENSHOT_KEEP_DEFAULT });
+
+// ADR-0039: AI "Kami replies" feed. Plaintext (AI-generated, derived from the
+// owner's own notes). The browser polls GET /mp/kami/replies and renders these
+// in the emagake rack — the browser cannot decrypt kamiSeal envelopes (NIP-07
+// has no ECDH), so replies are a separate readable feed, not sealed.
+const replyStore = makeReplyStore({ dir: KAMI_DIR, fs: fsPromises });
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -956,6 +964,31 @@ const httpServer = createServer((req, res) => {
       if (result.ok) return sendJson(res, 200, { ok: true, state: result.state });
       return sendJson(res, result.code || 403, { ok: false, error: result.error || 'denied' });
     });
+    return;
+  }
+
+  // v0.2.634-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
+  // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
+  // reject any ema with a shot. The server only ever holds ciphertext.
+  // v0.2.655-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // owner (bearer session token) sees the AI's replies in their emagake rack.
+  // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
+  // are a separate plaintext feed the rack polls and renders (text, not HTML).
+  if (req.method === 'GET' && path.endsWith('/mp/kami/replies')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    (async () => {
+      try {
+        const q = (req.url || '').split('?')[1] || '';
+        const since = parseSince(new URLSearchParams(q).get('since'));
+        const replies = await replyStore.readRepliesSince(since);
+        return sendJson(res, 200, shapeReplyResponse(replies));
+      } catch (err) {
+        log.error('kami/replies read failed', err && err.message);
+        return sendJson(res, 500, { error: 'read failed' });
+      }
+    })();
     return;
   }
 

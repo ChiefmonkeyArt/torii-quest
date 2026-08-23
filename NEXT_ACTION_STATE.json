@@ -1,17 +1,18 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-23T19:34:10.028Z",
+  "generatedAt": "2026-08-23T22:16:55.124Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.654-alpha",
+  "version": "v0.2.655-alpha",
   "packageVersion": "0.2.654-alpha",
-  "gitCommit": "a441453",
+  "gitCommit": "17e6d91",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": false,
     "gateStatus": "NOT READY",
     "gateCommand": "npm run test:release",
     "blockers": [
+      "versionSync",
       "docs"
     ],
     "regression": {
@@ -24,8 +25,8 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 3151,
-    "files": 243
+    "passing": 3175,
+    "files": 246
   },
   "manualBlocker": {
     "pending": true,
@@ -33,11 +34,11 @@
     "pill": "manual"
   },
   "mvpApproval": {
-    "status": "approved",
-    "approved": true,
-    "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
-    "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.654-alpha"
+    "status": "pending",
+    "approved": false,
+    "approvedBy": null,
+    "approvedAt": null,
+    "version": "v0.2.655-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -104,7 +105,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.654-alpha",
+    "version": "v0.2.655-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -126,8 +127,8 @@
     "impliesPlaytestComplete": false
   },
   "mvpGate": {
-    "verdict": "approved",
-    "approved": true,
+    "verdict": "signals-incomplete",
+    "approved": false,
     "confidenceGreen": false,
     "confidenceSignals": {
       "releaseReady": false,
@@ -135,7 +136,7 @@
       "dashboardSmokePass": true,
       "suiteGreen": true
     },
-    "approvalStatus": "approved",
+    "approvalStatus": "pending",
     "focusCount": 11,
     "impliesApproval": false,
     "impliesPlaytestComplete": false

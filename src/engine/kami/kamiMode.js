@@ -54,19 +54,29 @@ import { sealJson, sealTo, toB64 } from './kamiSeal.js';
 import {
   EMA_KIND, TRAY_MAX, makeEma, makeEmaId, addToTray, removeFromTray, noteIsValid,
 } from './emaModel.js';
-import { renderEmagake, showEmagake, hideEmagake } from './emagakePanel.js';
+import { renderEmagake, showEmagake, hideEmagake, mergeReplies } from './emagakePanel.js';
 
 // The Kami public key. Its private half lives OFF this box, so ema stay readable
 // by the maintainer without the VPS ever holding a key that opens them.
 // Recipients are a LIST by design: adding an owner's own agent later (Routstr,
 // Continuum) is one more entry, not a format change.
-export const KAMI_PUBKEY = 'f69bbd44782c4e0c075260fc9159555d8d08085102731529649404fdcdddf30c';
+// ADR-0038: rotated keypair. The matching private key lives OFF this box at
+// /home/user/workspace/.secrets/kami-priv.hex (chmod 600, never printed, never
+// committed). It is the AI's read key for decrypting ema. Rotatable at any time.
+export const KAMI_PUBKEY = 'ea3ff08e8509ee77bf2188e4834ff5a5eb789cd5cfb4927325de10f5488d37a3';
 
 const HOTKEY_CODE = 'KeyK'; // bare key, no modifier — see ADR-0031. Plain E is
 // already the jump alias (player.js), so Kami Mode cannot reuse bare E either.
 
 let _installed = false;
 let _tray = [];
+// ADR-0039: AI reply feed the emagake rack polls while in Kami Mode. The browser
+// cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies are a separate
+// plaintext feed (GET /mp/kami/replies) rendered as distinct rack rows.
+let _replies = [];
+let _lastReplyTs = 0;
+let _replyPollTimer = null;
+const REPLY_POLL_MS = 5000;
 let _lastMouse = { x: 0, y: 0 };
 let _noteOpen = false;
 
@@ -237,6 +247,8 @@ async function enterKamiMode() {
   showEmagake({ floating: isPlaying(), doc: _deps.getDocument() });
   setKamiBadge(true);
   renderRack();
+  // ADR-0039: begin polling the AI replies feed so 2-way comms show in the rack.
+  startReplyPoll();
   // Invincible-spirit suppressions: shooting off, movement + look KEPT. The
   // full setGameInputSuppressed(true) is reserved for the ema textarea (finish).
   _deps.setShootingSuppressed?.(true);
@@ -269,6 +281,8 @@ function exitKamiMode() {
   // If the ema note was still open, close it + remove its keydown listener.
   _closeNoteIfOpen();
   hideEmagake({ doc: _deps.getDocument() });
+  // ADR-0039: stop polling the AI replies feed on exit.
+  stopReplyPoll();
   setKamiBadge(false);
   // Restore normal input: shoot back on, full-suppress cleared.
   _deps.setShootingSuppressed?.(false);
@@ -432,7 +446,45 @@ function setKamiBadge(visible) {
 
 /** Paint the emagake rack from the current tray. Called on every add/discard/hang. */
 function renderRack() {
-  renderEmagake(_tray, { doc: _deps.getDocument() });
+  renderEmagake(_tray, { doc: _deps.getDocument(), replies: _replies });
+}
+
+// ADR-0039: poll the AI replies feed while the owner is in Kami Mode. Replies are
+// plaintext AI-generated responses derived from the owner's own notes — low
+// sensitivity, and the key is rotatable. Polls only when owner + token present;
+// stops on exit. Dedupes by id via mergeReplies; advances the high-water mark so
+// each poll only fetches new rows.
+async function pollReplies() {
+  if (!_kamiActive) return;
+  try {
+    const base = resolveMpHttpBase();
+    const token = getStoredToken();
+    if (!token) return;
+    const res = await _deps.fetchImpl(`${base}/kami/replies?since=${_lastReplyTs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const body = await res.json().catch(() => ({}));
+    const list = Array.isArray(body && body.replies) ? body.replies : [];
+    if (list.length === 0) return;
+    _replies = mergeReplies(_replies, list);
+    let maxTs = _lastReplyTs;
+    for (const r of list) { const ts = Number(r && r.ts) || 0; if (ts > maxTs) maxTs = ts; }
+    _lastReplyTs = maxTs;
+    renderRack();
+  } catch (err) {
+    console.warn('[kami] replies poll failed', err);
+  }
+}
+
+function startReplyPoll() {
+  stopReplyPoll();
+  pollReplies(); // immediate first fetch so the rack isn't empty for 5s on enter
+  _replyPollTimer = setInterval(pollReplies, REPLY_POLL_MS);
+}
+
+function stopReplyPoll() {
+  if (_replyPollTimer) { clearInterval(_replyPollTimer); _replyPollTimer = null; }
 }
 
 // ── capture ────────────────────────────────────────────────────────────────

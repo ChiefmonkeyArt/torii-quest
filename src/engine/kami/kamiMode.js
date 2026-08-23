@@ -77,6 +77,24 @@ function _dbg(msg) {
     if (el) el.textContent = (el.textContent === 'K7: (idle)' ? 'K7: ' : el.textContent + ' | ') + msg;
   } catch (_) { /* debug only */ }
 }
+
+// ADR-0027 persistent trace: a red-on-black banner pinned to the top-right
+// corner that survives modal open/close. Shows the Ctrl+E -> openNote flow
+// so the owner can see WHY the ema didn't open (owner-check? nothing-to-pin?)
+// without DevTools. Diagnostic only — strip with the [K7] probes.
+function _trace(msg) {
+  try {
+    if (typeof document === 'undefined') return;
+    let el = document.getElementById('kami-trace');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'kami-trace';
+      el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;font:11px monospace;color:#fff;background:#600;padding:4px 7px;border:1px solid #f99;max-width:340px;word-break:break-all;pointer-events:none;white-space:pre-wrap';
+      document.body.appendChild(el);
+    }
+    el.textContent = (el.textContent ? el.textContent + ' | ' : '') + msg;
+  } catch (_) { /* debug only */ }
+}
 let _deps = null;
 
 // Lazy owner-gate state. _ownerCheck is a memo of the capability fetch so the
@@ -131,8 +149,10 @@ function dataUrlToBytes(dataUrl) {
 
 /** Decide which kind of ema this capture is, and describe its target. */
 function captureTarget() {
+  _trace('cap:ptrLock=' + !!state.pointerLocked);
   if (state.pointerLocked) {
     const pos = playerPos();
+    _trace('cap:playerPos=' + (pos ? 'yes' : 'no'));
     if (pos) {
       return { kind: EMA_KIND.WORLD, world: { pos, yaw: getYaw(), pitch: getPitch() } };
     }
@@ -141,6 +161,7 @@ function captureTarget() {
   }
   const doc = _deps.getDocument();
   const el = doc.elementFromPoint(_lastMouse.x, _lastMouse.y);
+  _trace('cap:elAt=' + (el ? el.tagName : 'none') + '.' + (el ? el.id || el.className : ''));
   const ui = describeUiTarget(el, { phase: state.phase });
   return ui ? { kind: EMA_KIND.UI, ui } : null;
 }
@@ -277,13 +298,17 @@ function renderRack() {
 // ── capture ────────────────────────────────────────────────────────────────
 
 async function openNote() {
-  if (_noteOpen) return;
-  if (!(await armIfOwner())) {
+  if (_noteOpen) { _trace('openNote:alreadyOpen'); return; }
+  _trace('openNote:armCheck');
+  const armed = await armIfOwner();
+  _trace('armed=' + armed);
+  if (!armed) {
     setStatus('KAMI: OWNER ONLY');
     setTimeout(renderTray, 1800);
     return;
   }
   const target = captureTarget();
+  _trace('target=' + (target ? target.kind : 'null'));
   if (!target) {
     setStatus('KAMI: NOTHING TO PIN HERE');
     setTimeout(renderTray, 1600);
@@ -454,6 +479,7 @@ export function installKamiMode(deps = {}) {
   doc.addEventListener('keydown', (ev) => {
     if (!ev.ctrlKey || ev.code !== HOTKEY_CODE) return;
     ev.preventDefault();
+    _trace('CtrlE');
     if (ev.shiftKey) hangTray();
     else openNote();
   });

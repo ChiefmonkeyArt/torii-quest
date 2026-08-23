@@ -274,6 +274,7 @@ async function openNote() {
     return;
   }
   _noteOpen = true;
+  console.log('[K7] openNote: _noteOpen=true, ta=', doc.getElementById('kami-note-input')?.tagName);
   // ADR-0027: suppress ALL game input while the note is open — a bare Space / E
   // must not jump the player and a click must not fire a shot, regardless of
   // where focus lands (textarea, overlay, body). Re-enabled in finish().
@@ -299,6 +300,7 @@ async function openNote() {
   ta.focus();
 
   const finish = (commit) => {
+    console.log('[K7] finish: commit=', commit, '_noteOpen=', _noteOpen);
     if (!_noteOpen) return;
     _noteOpen = false;
     _deps.setGameInputSuppressed(false); // ADR-0027: hand game input back
@@ -335,6 +337,7 @@ async function openNote() {
   };
 
   function onKey(ev) {
+    console.log('[K7] onKey: key=', ev.key, 'target=', ev.target?.tagName, 'id=', ev.target?.id);
     if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); return; }
     if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
   }

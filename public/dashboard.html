@@ -115,7 +115,7 @@
     <h1>Torii Quest <span class="v">v0.2.637-alpha</span></h1>
     <div class="sub">Project oversight dashboard</div>
     <div class="badge">PROJECT OVERSIGHT · STATIC · READ-ONLY</div>
-    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-08-23T07:48:38.738Z</span></div>
+    <div class="live">Live: torii-quest.pplx.app · godMode false · build truth (live trails — manual deploy) · packaged: <span id="generated-at">2026-08-23T08:12:51.349Z</span></div>
   </header>
   <main>
     <section>
@@ -159,7 +159,7 @@
         <tr><td>Docs consistency</td><td><span class="pill pill-no-blocker">ok</span></td><td>continuity docs carry current version</td></tr>
         </tbody>
       </table>
-      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.637-alpha</b> @ 18f05d4. Full gate: <b>npm run test:release</b>.</div>
+      <div class="focus">The last local release-readiness verdict (run: npm run release:status) plus the recommended next SAFE task. Read-only oversight — it mirrors the gate, never runs a deploy/publish. GENERATED at packaging time from the live signals; LAST-KNOWN (last green gate) when not regenerated this build. The regression gate stays the authority. Verdict for <b>v0.2.637-alpha</b> @ ff6a0ff. Full gate: <b>npm run test:release</b>.</div>
     </section>
 
     <section>
@@ -256,7 +256,7 @@
         <div class="metric"><span class="metric-label">Awaiting user</span><span class="metric-value">MVP playtest + explicit approval (manual, live-browser) — the ONLY user-gated item</span></div>
         <div class="metric"><span class="metric-label">Active now</span><span class="metric-value">42 in progress</span></div>
         <div class="metric"><span class="metric-label">Next up</span><ul class="mini"><li>12 queued</li><li>next-12</li></ul></div>
-        <div class="metric"><span class="metric-label">Archive / done</span><ul class="mini"><li>11 landed clusters</li><li>27 done (24h)</li><li>19 struck markers</li></ul></div>
+        <div class="metric"><span class="metric-label">Archive / done</span><ul class="mini"><li>11 landed clusters</li><li>28 done (24h)</li><li>19 struck markers</li></ul></div>
       </div>
       <div class="focus">No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the active/next/archive counts are DERIVED from the same parsed torii-quest-todo.md/torii-quest-progress.md the rest of the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING.</div>
     </section>
@@ -350,7 +350,7 @@
       <div class="totals">
         <div class="tot"><span class="tot-v" data-k="tasksAhead">12</span><span class="tot-l">tasks ahead</span></div>
         <div class="tot"><span class="tot-v" data-k="activeTasks">3</span><span class="tot-l">active</span></div>
-        <div class="tot"><span class="tot-v" data-k="completedLast24h">27</span><span class="tot-l">done (24h)</span></div>
+        <div class="tot"><span class="tot-v" data-k="completedLast24h">28</span><span class="tot-l">done (24h)</span></div>
         <div class="tot"><span class="tot-v" data-k="archivedClusters">11</span><span class="tot-l">archive clusters</span></div>
         <div class="tot"><span class="tot-v" data-k="trackCount">6</span><span class="tot-l">tracks</span></div>
         <div class="tot"><span class="tot-v" data-k="milestones">0 / 5</span><span class="tot-l">milestones</span></div>
@@ -542,8 +542,9 @@
           </ul>
         </div>
         <div>
-          <h3>DONE · Last 24h <span class="count">27</span></h3>
+          <h3>DONE · Last 24h <span class="count">28</span></h3>
           <ul>
+        <li class="done">v0.2.637-alpha — Kami ema input owned (ADR-0027). Two bugs from live-testing the v0.2.636 auction panel in Kami Mode: (1) pressing Space while typing in the ema note also jumped the player; (2) Escape could not close the ema modal. Root cause by reading the code: input.js&#39;s document keydown latched keys + fired movement callbacks WITHOUT checking whether a text field had focus (so Space leaked to player.js&#39;s jump); and arenaRuntime.js&#39;s capture-phase Escape listener fired before the textarea&#39;s own keydown, called stopImmediatePropagation + opened the pause menu (since openNote doesn&#39;t pause, isPlaying() was true), so the ema&#39;s finish(false)→close never ran. Fix: input.js early-returns on a focused form field AND exposes setGameInputSuppressed(bool) — while the ema is open the arena sets it, so keys is never latched, downCbs never fire, AND mousedown never fires a shot, no matter where focus landed; arenaRuntime.js&#39;s capture Escape handler yields when kamiNoteOpen() is true so the textarea receives Escape + discards (and the pointer-lock keyup fallback sees handled so it doesn&#39;t open pause); the ema onKey also stopPropagations its Escape/Enter. clearKeys() runs on enable so no held movement key carries into the modal. 9 input-boundary tests + 3078 full suite green.</li>
         <li class="done">v0.2.207 — GitHub MVP release dry-run checklist (buildGithubReleaseDryRunModel/formatGithubReleaseDryRun/formatGithubReleaseDryRunMarkdown in tools/githubReleaseDryRun.mjs + CLI tools/github-release-dry-run.mjs, npm run release:dry-run): a pure, node-safe LOCAL dry-run that validates the prerequisites for a FUTURE GitHub MVP proof release WITHOUT creating one. Folds a frozen 9-item prerequisite set (version marker/version↔package sync/clean tree/pushed/release-notes draft/release package/RC gate/live URL/no-autoUpdate metadata) + 3 known advisories into {schema:&#39;torii.github-release-dry-run&#39;/v1, dryRun:true, status(ready/near/blocked), prerequisites[], missing[], approvalRequired:true, futureCommands[] (INERT TEXT), safety (all false), rendered:false, actionable:false}; the CLI reads version/package/short-commit + READ-ONLY git (status --porcelain, rev-parse @{u} — no fetch) + the release-metadata autoUpdate read, modes text/--json/--markdown, READ-ONLY except an opt-in bounded --write[=path] (default GITHUB_RELEASE_DRY_RUN.md). DRY-RUN ONLY — no git tag, no push, no gh release, no deploy/publish/announce, no network; suggested commands are text-only each carrying &quot;do not run without user approval&quot;. DOCS/TOOLING-ONLY; godMode false; no new setTimeout/Vector3/Matrix4. +16 tests.</li>
         <li class="done">v0.2.206 — MVP release package index (buildReleasePackageModel/formatReleasePackage/formatReleasePackageMarkdown in tools/releasePackage.mjs + CLI tools/release-package.mjs, npm run release:package): a pure, node-safe release-package INDEX generator emitting a single discoverability artifact (MVP_RELEASE_PACKAGE.md) so humans and future agents can find every MVP-proof file fast. A frozen 10-entry index (grouped by category) points at the release-notes draft, playtest checklist/results template, handoff docs, progress/todo, update/VPS docs, and zone-fallback readiness, folding in version/commit, the curated test-count, the live URL, the known non-blocking advisories, and the next safe action. The present map is INJECTED by the CLI (helper stays fs-free); modes text / --json (schema torii.release-package v1) / --markdown; READ-ONLY except an opt-in bounded in-repo --write[=path]. INDEX ONLY — no GitHub release / git tag / announce / deploy / publish / network. DOCS/TOOLING-ONLY; godMode false; no new setTimeout/Vector3/Matrix4. +12 tests.</li>
         <li class="done">v0.2.205 — Playtest checklist doc warning cleanup (tools/playtestChecklist.mjs): cleared the non-blocking WARN from the v0.2.204 security review where two illustrative v0.2.203-alpha example strings (plus a dated (v0.2.203) authorship stamp) lingered in the checklist tooling&#39;s comments/examples and were re-flagged each review as &quot;stale&quot;. Made them version-neutral (the LAUNCH-1 expected example + the buildPlaytestChecklistModel version doc-comment now read &quot;a vX.Y.Z-alpha marker&quot;; the header stamp drops the bare (v0.2.203)) so future reviews stop tripping on them. Docs/comment cleanup ONLY — no behavior/CLI/schema/output change and no new test file. NON-GOALS held: no gameplay/physics/shooter/Rapier change; no Nostr signing/publishing/live network write; godMode stays false; no new setTimeout/Vector3/Matrix4.</li>
@@ -619,7 +620,7 @@
         <li>torii-quest-progress.md remains the visual execution DASHBOARD source document — this page is curated from it.</li>
     </ul>
     Static, read-only oversight surface — generated from packaged project data each deploy; a page refresh shows the latest packaged state. No live writes, signing, relay publishing, or admin actions. Regenerate with <b>npm run build:torii-quest-dashboard</b>.
-    Dashboard lists generated from <b>torii-quest-progress.md + torii-quest-todo.md</b> at build time — parsed: next12 (12), completed24h (27), archive (11); fell back to curated for: 1 section(s).
+    Dashboard lists generated from <b>torii-quest-progress.md + torii-quest-todo.md</b> at build time — parsed: next12 (12), completed24h (28), archive (11); fell back to curated for: 1 section(s).
   </footer>
   <script>
   // Best-effort refresh from the packaged SAME-ORIGIN data file. No external URL,

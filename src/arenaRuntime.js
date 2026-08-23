@@ -1253,7 +1253,8 @@ export function createArenaRuntime(hooks = {}) {
       // this guard Escape is stolen (stopImmediatePropagation below) and the
       // modal can never close. Mark Escape as handled so the pointer-lock keyup
       // fallback below doesn't open pause either.
-      if (kamiNoteOpen()) { _escapeHandledOnKeyDown = true; return; }
+      if (kamiNoteOpen()) { console.log('[K7] capture Escape: kamiNoteOpen=true -> yield'); _escapeHandledOnKeyDown = true; return; }
+      console.log('[K7] capture Escape: kamiNoteOpen=false -> opening pause/menu');
       _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.

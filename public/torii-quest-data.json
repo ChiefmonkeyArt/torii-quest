@@ -1,11 +1,11 @@
 {
   "version": "v0.2.637-alpha",
-  "generatedAt": "2026-08-23T07:48:38.738Z",
+  "generatedAt": "2026-08-23T08:12:51.349Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
     "activeTasks": 3,
-    "completedLast24h": 27,
+    "completedLast24h": 28,
     "archivedClusters": 11,
     "trackCount": 6,
     "milestoneCount": 5,
@@ -26,13 +26,13 @@
     "todoCompletedMarkers": 19,
     "next12": 12,
     "activeNow": null,
-    "completed24h": 27,
+    "completed24h": 28,
     "archiveClusters": 11
   },
   "derived": {
     "parsed": [
       "next12 (12)",
-      "completed24h (27)",
+      "completed24h (28)",
       "archive (11)"
     ],
     "gaps": [
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.637-alpha",
-    "gitCommit": "18f05d4",
+    "gitCommit": "ff6a0ff",
     "signals": [
       {
         "key": "versionSync",
@@ -361,7 +361,7 @@
     "activeNow": 42,
     "nextUp": 12,
     "archiveClusters": 11,
-    "completed24h": 27,
+    "completed24h": 28,
     "todoCompletedMarkers": 19,
     "manualPending": true,
     "metrics": [
@@ -387,7 +387,7 @@
       },
       {
         "label": "Archive / done",
-        "value": "11 landed clusters · 27 done (24h) · 19 struck markers"
+        "value": "11 landed clusters · 28 done (24h) · 19 struck markers"
       }
     ],
     "note": "No-blocker queue — what an AI agent can pick up NEXT without any user input. The next safe task is a no-runtime-risk infra/docs/tooling slice (no deploy, no gate to unlock); the active/next/archive counts are DERIVED from the same parsed torii-quest-todo.md/torii-quest-progress.md the rest of the dashboard uses (no second source of truth). The ONLY thing waiting on a human is the MVP playtest + explicit approval (see the Manual validation card). GENERATED at packaging time; LAST-KNOWN when not regenerated this build. It queues/runs/deploys NOTHING."

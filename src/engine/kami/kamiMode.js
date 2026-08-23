@@ -209,6 +209,10 @@ function ensureOverlay() {
     'align-items:center', 'justify-content:center',
     'background:rgba(8,6,14,0.72)', 'font-family:inherit',
   ].join(';');
+  // ADR-0027: the cssText above sets display:flex, which overrides the UA
+  // [hidden]{display:none} rule — so setAttribute('hidden','') would NOT hide
+  // the overlay. Toggle style.display directly instead (see openNote/finish).
+  root.style.display = 'none';
 
   const box = doc.createElement('div');
   box.style.cssText = [
@@ -337,16 +341,19 @@ async function openNote() {
     ? `world · x ${target.world.pos.x.toFixed(1)} y ${target.world.pos.y.toFixed(1)} z ${target.world.pos.z.toFixed(1)}`
     : `ui · ${target.ui.selector}${target.ui.text ? ` · "${target.ui.text}"` : ''}`;
   ta.value = '';
-  root.removeAttribute('hidden');
+  root.style.display = 'flex';
   ta.focus();
 
   const finish = (commit) => {
     _dbg('FIN:' + commit + (commit ? '' : '(discard)'));
     _trace('FIN:' + commit);
+    // ADR-0027: ALWAYS hide + hand input back, even on a stray second Enter/Esc,
+    // so the overlay can never get stuck visible with _noteOpen already false
+    // (which is what let Escape fall through to the pause menu before).
+    root.style.display = 'none';
+    _deps.setGameInputSuppressed(false);
     if (!_noteOpen) return;
     _noteOpen = false;
-    _deps.setGameInputSuppressed(false); // ADR-0027: hand game input back
-    root.setAttribute('hidden', '');
     ta.removeEventListener('keydown', onKey);
     if (commit && noteIsValid(ta.value)) {
       const ts = Date.now();

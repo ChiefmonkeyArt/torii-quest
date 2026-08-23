@@ -100,7 +100,22 @@ this is a **no-op until bot return-fire / MP peer-fire exists** — but it is wi
 so that path is one guard away. It is NOT client-trusted for MP; the server must
 also admin-gate damage for the owner pubkey.
 
-## Race + cancel guard
+## Owner-check memoization (v0.2.645 fix)
+
+`checkOwner()` is memoised **by pubkey**, and only a confirmed-owner result is
+cached. An empty pubkey (login not yet resolved) or a non-match is NOT cached.
+
+The arena becomes PLAYING before the async NIP-07 login (`nostrLogin()` in
+`src/nostr.js`) resolves `state.nostrPubkey`. If the owner pressed Ctrl+E in
+that window, the original memo cached `false` from an empty pubkey and every
+later Ctrl+E silently returned "KAMI: OWNER ONLY" — the rack never appeared
+while shooting kept working, because `enterKamiMode()`'s body never ran. The
+symptom looked like "logged in, no kami."
+
+The fix: re-check on the next Ctrl+E whenever the pubkey is empty or the result
+is false. A confirmed owner is still cached (instant re-arm). A `[kami]
+owner-check` log line is emitted on each fetch so the branch can be diagnosed
+without guessing.
 
 The first Ctrl+E awaits an owner-capability fetch (`checkOwner` →
 `fetchCapability`). While that is in flight:

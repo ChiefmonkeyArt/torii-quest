@@ -71,9 +71,15 @@ let _noteOpen = false;
 
 let _deps = null;
 
-// Lazy owner-gate state. _ownerCheck is a memo of the capability fetch so the
-// first Ctrl+E pays one round-trip and every later capture is instant.
+// Lazy owner-gate state. _ownerCheck is a memo of the capability fetch keyed by
+// pubkey so the first Ctrl+E pays one round-trip and every later capture is
+// instant — but ONLY a confirmed-owner result is cached. A false result is NOT
+// cached: the arena can be PLAYING before the async NIP-07 login resolves, so a
+// Ctrl+E fired before state.nostrPubkey is set must re-check on the next press,
+// or the owner is silently locked out of Kami Mode for the whole session
+// (exactly the "logged in, no rack, shooting still works" symptom).
 let _ownerCheck = null;
+let _checkedPubkey = '';
 let _isOwner = false;
 let _armed = false; // true once the owner is confirmed and the rack CAN go live
 // ADR-0029 Kami state machine. _armed = owner is verified + crypto is ready
@@ -159,16 +165,28 @@ function captureTarget() {
   return ui ? { kind: EMA_KIND.UI, ui } : null;
 }
 
-/** Lazily confirm the logged-in user is the instance admin. Memoised. */
+/** Lazily confirm the logged-in user is the instance admin. Memoised by pubkey
+ *  — but ONLY a confirmed-owner result is cached. An empty pubkey (login not yet
+ *  resolved) or a non-match is NOT cached, so a Ctrl+E fired before/around login
+ *  re-checks on the next press instead of locking the owner out for the session. */
 async function checkOwner() {
-  if (_ownerCheck) return _ownerCheck;
+  const owner = String(_deps.getOwnerPubkey() || '').toLowerCase();
+  // Login not ready yet (NIP-07 getPubKey still resolving, or logged out): do not
+  // memoise — a later Ctrl+E once login resolves must re-check, not return a
+  // stale false from before the pubkey existed.
+  if (!owner) { _isOwner = false; _ownerCheck = null; _checkedPubkey = ''; return false; }
+  // Cache hit for the same pubkey (the owner re-presses Ctrl+E: instant).
+  if (_ownerCheck && _checkedPubkey === owner) return _ownerCheck;
+  _checkedPubkey = owner;
   _ownerCheck = (async () => {
-    const owner = String(_deps.getOwnerPubkey() || '').toLowerCase();
-    if (!owner) { _isOwner = false; return false; }
     const httpBase = resolveMpHttpBase();
     const cap = await fetchCapability({ httpBase, fetchImpl: _deps.fetchImpl });
     const admin = String(cap && cap.adminPubkey || '').toLowerCase();
     _isOwner = !!(admin && owner === admin);
+    // A non-match is not cached: the user may switch identity, or the capability
+    // fetch may have transiently failed. Re-check on the next Ctrl+E.
+    if (!_isOwner) { _ownerCheck = null; _checkedPubkey = ''; }
+    console.log('[kami] owner-check owner=' + owner.slice(0,8) + ' admin=' + admin.slice(0,8) + ' isOwner=' + _isOwner);
     return _isOwner;
   })();
   return _ownerCheck;

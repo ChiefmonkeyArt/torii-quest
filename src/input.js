@@ -4,6 +4,18 @@ import { state, isPlaying } from './state.js';
 export const keys = {};
 const _downCbs = [], _upCbs = [];
 
+// ADR-0027 Kami Mode: while the ema note input is open, ALL game input is
+// suppressed — not just keystrokes that happen to land on the textarea. Focus
+// can slip to the overlay/body (a click on the modal, a tab, a pointer-lock
+// edge) and a bare Space / E would still fire the jump onKeyDown callback, or a
+// mousedown would fire a shot. This flag is the single source of truth the
+// arena toggles; `keys` is never latched + downCbs never fire while it is set.
+let _inputSuppressed = false;
+export function setGameInputSuppressed(suppressed) {
+  _inputSuppressed = suppressed;
+  if (suppressed) clearKeys(); // drop any held movement keys carried into the modal
+}
+
 // v0.2.612: stuck-key guard ("sticky movement"). The browser SWALLOWS keyup
 // events when the window loses focus, the tab hides, or a pointer-lock exit /
 // extension prompt (NIP-07 signer) steals the gesture — a held W/A/S/D then
@@ -28,6 +40,13 @@ document.addEventListener('keydown', e => {
   //      matching keyup, which would latch the key true forever — the exact
   //      "sticky movement" class of bug the v0.2.612 guard above exists for.
   if (e.ctrlKey || e.metaKey) return;
+  // ADR-0027: game input is suppressed while the Kami ema note is open — a
+  // bare Space / E must not jump the player, no matter where focus landed.
+  if (_inputSuppressed) return;
+  // ADR-0027: a keystroke destined for any other focused text field (chat
+  // input, login, etc.) belongs to the field, not the game — same Space/E leak.
+  const _t = e.target;
+  if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.tagName === 'SELECT' || _t.isContentEditable)) return;
   keys[e.code] = true;
   _downCbs.forEach(fn => fn(e.code));
 });
@@ -63,6 +82,7 @@ export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down 
 const _clickCbs = [];
 export function onShoot(fn) { _clickCbs.push(fn); }
 document.addEventListener('mousedown', e => {
+  if (_inputSuppressed) return; // ADR-0027: clicking the ema modal must not fire a shot
   if (e.button === 0 && isPlaying()) {
     _clickCbs.forEach(fn => fn());
   }

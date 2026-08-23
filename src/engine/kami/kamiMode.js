@@ -274,6 +274,10 @@ async function openNote() {
     return;
   }
   _noteOpen = true;
+  // ADR-0027: suppress ALL game input while the note is open — a bare Space / E
+  // must not jump the player and a click must not fire a shot, regardless of
+  // where focus lands (textarea, overlay, body). Re-enabled in finish().
+  _deps.setGameInputSuppressed(true);
 
   // Frame FIRST — before the overlay is shown, so the picture is the game.
   let shotUrl = null;
@@ -297,6 +301,7 @@ async function openNote() {
   const finish = (commit) => {
     if (!_noteOpen) return;
     _noteOpen = false;
+    _deps.setGameInputSuppressed(false); // ADR-0027: hand game input back
     root.setAttribute('hidden', '');
     ta.removeEventListener('keydown', onKey);
     if (commit && noteIsValid(ta.value)) {
@@ -330,8 +335,8 @@ async function openNote() {
   };
 
   function onKey(ev) {
-    if (ev.key === 'Escape') { ev.preventDefault(); finish(false); return; }
-    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finish(true); }
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); return; }
+    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
   }
   ta.addEventListener('keydown', onKey);
 }
@@ -418,6 +423,7 @@ export function installKamiMode(deps = {}) {
     getDebug: deps.getDebug || (() => (typeof window !== 'undefined' ? window.ToriiDebug : null)),
     requestPointerLock: deps.requestPointerLock || (() => {}),
     getDocument: deps.getDocument || (() => document),
+    setGameInputSuppressed: deps.setGameInputSuppressed || (() => {}),
     fetchImpl: deps.fetchImpl || ((...a) => fetch(...a)),
   };
 
@@ -436,6 +442,9 @@ export function installKamiMode(deps = {}) {
 
 /** Open the note box from a UI control (the pause-modal button). */
 export function kamiCapture() { if (_installed) openNote(); }
+/** Is the ema note input currently open? Arena input guards on this so Escape /
+ *  movement keys aren't stolen from the textarea while the owner is writing. */
+export function kamiNoteOpen() { return _noteOpen; }
 /** Hang the tray from a UI control. */
 export function kamiHang() { if (_installed) hangTray(); }
 /** Test/diagnostic read of pending tray state. */

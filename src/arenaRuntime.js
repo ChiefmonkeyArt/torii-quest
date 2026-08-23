@@ -24,7 +24,7 @@ import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-fo
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
@@ -68,7 +68,7 @@ import { setMarketActive } from './engine/plebeian/marketStall.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
-import { installKamiMode, kamiCapture } from './engine/kami/kamiMode.js';
+import { installKamiMode, kamiCapture, kamiNoteOpen } from './engine/kami/kamiMode.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -1195,6 +1195,7 @@ export function createArenaRuntime(hooks = {}) {
     installKamiMode({
       getOwnerPubkey: () => state.nostrPubkey || '',
       requestPointerLock: () => { try { requestLock(); } catch { /* noop */ } },
+      setGameInputSuppressed,
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
@@ -1246,6 +1247,13 @@ export function createArenaRuntime(hooks = {}) {
     let _escapeHandledOnKeyDown = false;
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
+      // ADR-0027 Kami Mode: if the ema note input is open, let the textarea's own
+      // Escape handler discard the note — don't open the pause menu here. This
+      // capture-phase listener fires BEFORE the textarea's keydown, so without
+      // this guard Escape is stolen (stopImmediatePropagation below) and the
+      // modal can never close. Mark Escape as handled so the pointer-lock keyup
+      // fallback below doesn't open pause either.
+      if (kamiNoteOpen()) { _escapeHandledOnKeyDown = true; return; }
       _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.

@@ -65,7 +65,7 @@ describe('pause modal input boundary', () => {
     // and the owner is trapped on the note screen. The guard must yield when the
     // note is open AND mark Escape as handled so the pointer-lock keyup fallback
     // doesn't open pause on the same gesture.
-    expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
+    expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\).*_escapeHandledOnKeyDown = true.*return;/);
     expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
   });

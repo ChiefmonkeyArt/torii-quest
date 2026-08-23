@@ -68,33 +68,6 @@ let _tray = [];
 let _lastMouse = { x: 0, y: 0 };
 let _noteOpen = false;
 
-// ADR-0027 debug helper: write a visible trace into the ema modal's #kami-debug
-// line so the owner can see (without DevTools) whether openNote/onKey/finish
-// fire + in what order. Pure DOM, no-op if the element is absent.
-function _dbg(msg) {
-  try {
-    const el = (typeof document !== 'undefined') && document.getElementById('kami-debug');
-    if (el) el.textContent = (el.textContent === 'K7: (idle)' ? 'K7: ' : el.textContent + ' | ') + msg;
-  } catch (_) { /* debug only */ }
-}
-
-// ADR-0027 persistent trace: a red-on-black banner pinned to the top-right
-// corner that survives modal open/close. Shows the Ctrl+E -> openNote flow
-// so the owner can see WHY the ema didn't open (owner-check? nothing-to-pin?)
-// without DevTools. Diagnostic only — strip with the [K7] probes.
-function _trace(msg) {
-  try {
-    if (typeof document === 'undefined') return;
-    let el = document.getElementById('kami-trace');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'kami-trace';
-      el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;font:11px monospace;color:#fff;background:#600;padding:4px 7px;border:1px solid #f99;max-width:340px;word-break:break-all;pointer-events:none;white-space:pre-wrap';
-      document.body.appendChild(el);
-    }
-    el.textContent = (el.textContent ? el.textContent + ' | ' : '') + msg;
-  } catch (_) { /* debug only */ }
-}
 let _deps = null;
 
 // Lazy owner-gate state. _ownerCheck is a memo of the capability fetch so the
@@ -149,10 +122,8 @@ function dataUrlToBytes(dataUrl) {
 
 /** Decide which kind of ema this capture is, and describe its target. */
 function captureTarget() {
-  _trace('cap:ptrLock=' + !!state.pointerLocked);
   if (state.pointerLocked) {
     const pos = playerPos();
-    _trace('cap:playerPos=' + (pos ? 'yes' : 'no'));
     if (pos) {
       return { kind: EMA_KIND.WORLD, world: { pos, yaw: getYaw(), pitch: getPitch() } };
     }
@@ -161,7 +132,6 @@ function captureTarget() {
   }
   const doc = _deps.getDocument();
   const el = doc.elementFromPoint(_lastMouse.x, _lastMouse.y);
-  _trace('cap:elAt=' + (el ? el.tagName : 'none') + '.' + (el ? el.id || el.className : ''));
   const ui = describeUiTarget(el, { phase: state.phase });
   return ui ? { kind: EMA_KIND.UI, ui } : null;
 }
@@ -244,16 +214,10 @@ function ensureOverlay() {
   hint.style.cssText = 'font-size:11px;margin-top:8px;opacity:0.7';
   hint.textContent = 'Enter — hang · Shift+Enter — new line · Esc — discard';
 
-  const dbg = doc.createElement('div');
-  dbg.id = 'kami-debug';
-  dbg.style.cssText = 'font-size:10px;font-family:monospace;margin-top:6px;color:#b00;background:#fff3e0;border:1px dashed #b00;padding:3px 5px;min-height:14px;word-break:break-all';
-  dbg.textContent = 'K7: (idle)';
-
   box.appendChild(title);
   box.appendChild(ctx);
   box.appendChild(ta);
   box.appendChild(hint);
-  box.appendChild(dbg);
   root.appendChild(box);
   doc.body.appendChild(root);
   return root;
@@ -302,24 +266,20 @@ function renderRack() {
 // ── capture ────────────────────────────────────────────────────────────────
 
 async function openNote() {
-  if (_noteOpen) { _trace('openNote:alreadyOpen'); return; }
-  _trace('openNote:armCheck');
+  if (_noteOpen) return;
   const armed = await armIfOwner();
-  _trace('armed=' + armed);
   if (!armed) {
     setStatus('KAMI: OWNER ONLY');
     setTimeout(renderTray, 1800);
     return;
   }
   const target = captureTarget();
-  _trace('target=' + (target ? target.kind : 'null'));
   if (!target) {
     setStatus('KAMI: NOTHING TO PIN HERE');
     setTimeout(renderTray, 1600);
     return;
   }
   _noteOpen = true;
-  _dbg('OPEN');
   // ADR-0027: suppress ALL game input while the note is open — a bare Space / E
   // must not jump the player and a click must not fire a shot, regardless of
   // where focus lands (textarea, overlay, body). Re-enabled in finish().
@@ -345,13 +305,11 @@ async function openNote() {
   ta.focus();
 
   const finish = (commit) => {
-    _dbg('FIN:' + commit + (commit ? '' : '(discard)'));
-    _trace('FIN:' + commit);
     // ADR-0027: ALWAYS hide + hand input back, even on a stray second Enter/Esc,
     // so the overlay can never get stuck visible with _noteOpen already false
     // (which is what let Escape fall through to the pause menu before).
     root.style.display = 'none';
-    _deps.setGameInputSuppressed(false);
+    _deps.setGameInputSuppressed(false); // ADR-0027: hand game input back
     if (!_noteOpen) return;
     _noteOpen = false;
     ta.removeEventListener('keydown', onKey);
@@ -386,8 +344,6 @@ async function openNote() {
   };
 
   function onKey(ev) {
-    _dbg('KEY:' + ev.key);
-    _trace('KEY:' + ev.key);
     if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); finish(false); return; }
     if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
   }
@@ -485,7 +441,6 @@ export function installKamiMode(deps = {}) {
   doc.addEventListener('keydown', (ev) => {
     if (!ev.ctrlKey || ev.code !== HOTKEY_CODE) return;
     ev.preventDefault();
-    _trace('CtrlE');
     if (ev.shiftKey) hangTray();
     else openNote();
   });

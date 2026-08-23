@@ -65,9 +65,31 @@ describe('pause modal input boundary', () => {
     // and the owner is trapped on the note screen. The guard must yield when the
     // note is open AND mark Escape as handled so the pointer-lock keyup fallback
     // doesn't open pause on the same gesture.
-    expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\).*_escapeHandledOnKeyDown = true.*return;/);
+    expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
     expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
+  });
+
+  it('hides the ema overlay via style.display, not the dead [hidden] attribute (ADR-0027)', () => {
+    // ROOT CAUSE of the Esc/Enter bug: the overlay's inline cssText set
+    // display:flex, which beats the UA [hidden]{display:none} rule — so
+    // root.setAttribute('hidden','') did NOT hide the modal. finish() set
+    // _noteOpen=false but the box stayed visible, so the next Escape saw
+    // kamiNoteOpen()=false + opened the pause menu. The overlay must toggle
+    // style.display directly ('flex' to show, 'none' to hide), and the hide
+    // + input release must run BEFORE the _noteOpen guard so a stuck-visible
+    // modal always closes.
+    const KAMI = readFileSync(join(ROOT, 'src/engine/kami/kamiMode.js'), 'utf8');
+    expect(KAMI).toMatch(/root\.style\.display = 'none';/);
+    expect(KAMI).toMatch(/root\.style\.display = 'flex';/);
+    // the hide + suppression release must precede the `if (!_noteOpen) return` guard
+    const finishIdx = KAMI.indexOf('const finish = (commit) =>');
+    const guardIdx = KAMI.indexOf('if (!_noteOpen) return;', finishIdx);
+    const hideIdx = KAMI.indexOf("root.style.display = 'none';", finishIdx);
+    expect(hideIdx).toBeGreaterThan(-1);
+    expect(hideIdx).toBeLessThan(guardIdx);
+    // the dead [hidden] attribute toggle must NOT remain as the hide mechanism
+    expect(KAMI.slice(finishIdx, finishIdx + 400)).not.toMatch(/setAttribute\('hidden', ''\)/);
   });
 });
 

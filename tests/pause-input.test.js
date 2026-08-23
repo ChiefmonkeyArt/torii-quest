@@ -55,7 +55,10 @@ describe('pause modal input boundary', () => {
     // a shot — no matter where focus landed.
     expect(INPUT).toMatch(/export function setGameInputSuppressed/);
     expect(INPUT).toMatch(/if \(_inputSuppressed\) return;/);
-    expect(INPUT).toMatch(/if \(_inputSuppressed\) return; \/\/ ADR-0027: clicking the ema modal must not fire a shot/);
+    // ADR-0029: the mousedown shoot path now gates on the shooting-only suppress
+    // too (Kami Mode keeps movement/look live but disables fire).
+    expect(INPUT).toMatch(/if \(_inputSuppressed \|\| _shootingSuppressed\) return;/);
+    expect(INPUT).toMatch(/export function setShootingSuppressed/);
   });
 
   it('does not steal Escape into the pause menu while the ema note is open (ADR-0027)', () => {
@@ -66,7 +69,7 @@ describe('pause modal input boundary', () => {
     // note is open AND mark Escape as handled so the pointer-lock keyup fallback
     // doesn't open pause on the same gesture.
     expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
-    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen \}/);
+    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
   });
 
@@ -106,7 +109,10 @@ describe('kami ema note input boundary (ADR-0027)', () => {
   });
   it('toggles game-input suppression on open + finish', () => {
     expect(KAMI).toMatch(/setGameInputSuppressed\(true\)/);
-    expect(KAMI).toMatch(/setGameInputSuppressed\(false\); \/\/ ADR-0027: hand game input back/);
+    // ADR-0029: finish() restores the KAMI state (not full-normal): clears the
+    // full input-suppress used for typing, then re-applies the shooting-only
+    // suppress so the invincible-spirit state holds while the rack stays visible.
+    expect(KAMI).toMatch(/_deps\.setGameInputSuppressed\(false\);[\s\S]*?_deps\.setShootingSuppressed\?\.\(_kamiActive\)/);
   });
   it('stops propagation on its own Escape + Enter so no later listener sees them', () => {
     expect(KAMI).toMatch(/Escape'\) \{ ev\.preventDefault\(\); ev\.stopPropagation\(\); finish\(false\)/);

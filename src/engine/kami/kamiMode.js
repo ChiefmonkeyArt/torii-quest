@@ -43,7 +43,8 @@
 // Nothing is sent until the owner hangs the tray: one seal pass, one POST.
 
 import { VERSION } from '../../config.js';
-import { state, isPlaying } from '../../state.js';
+import { state, isPlaying, PHASE } from '../../state.js';
+import { on, EV } from '../../events.js';
 import { getYaw, getPitch } from '../../input.js';
 import { requestFrameGrab } from '../../scene.js';
 import { resolveMpHttpBase, getStoredToken } from '../multiplayer/sessionAuth.js';
@@ -53,7 +54,7 @@ import { sealJson, sealTo, toB64 } from './kamiSeal.js';
 import {
   EMA_KIND, TRAY_MAX, makeEma, makeEmaId, addToTray, removeFromTray, noteIsValid,
 } from './emaModel.js';
-import { renderEmakake, showEmakake } from './emakakePanel.js';
+import { renderEmakake, showEmakake, hideEmakake } from './emakakePanel.js';
 
 // The Kami public key. Its private half lives OFF this box, so ema stay readable
 // by the maintainer without the VPS ever holding a key that opens them.
@@ -74,7 +75,29 @@ let _deps = null;
 // first Ctrl+E pays one round-trip and every later capture is instant.
 let _ownerCheck = null;
 let _isOwner = false;
-let _armed = false; // true once the owner is confirmed and the rack is live
+let _armed = false; // true once the owner is confirmed and the rack CAN go live
+// ADR-0029 Kami state machine. _armed = owner is verified + crypto is ready
+// (a capability, not a mode). _kamiActive = the admin is currently IN Kami Mode
+// (the invincible-spirit state: rack visible, shooting suppressed, movement +
+// look live, bots running). _noteOpen = the ema textarea editor is open (full
+// input suppressed for typing). _invincible = recorded so the damage path can
+// no-op the owner's HP while in Kami Mode; today nothing damages the local
+// player in single-player (bots are targets, not return-fire), so this is a
+// no-op flag until bot return-fire / MP damage exists — but it is wired so that
+// path is one guard away.
+let _kamiActive = false;
+let _invincible = false;
+// ADR-0029 async-enter race guard. The first Ctrl+E awaits an owner-capability
+// fetch (checkOwner). While that is in flight, Esc must NOT fall through to the
+// pause menu, and a late owner resolution must NOT show the rack after the user
+// backed out. _entering marks a pending enter; _enterToken is a cancel counter —
+// enterKamiMode captures it, exitKamiMode/Kami-cancel bump it, so a stale
+// resolution sees token !== _enterToken and aborts. _noteCleanup removes the
+// textarea keydown listener so a forced exit (Esc-in-KAMI / phase→TITLE) can't
+// leave a stale onKey bound to a hidden note.
+let _entering = false;
+let _enterToken = 0;
+let _noteCleanup = null;
 
 // Screenshots are held OUT of the tray records until seal time, so the tray
 // stays a list of small JSON objects rather than megabytes of data URLs.
@@ -156,12 +179,79 @@ async function armIfOwner() {
   const ok = await checkOwner();
   if (!ok) return false;
   _armed = true;
-  // The rack goes live the moment the owner is confirmed: floating over the
-  // world in-game, as a column in a menu.
+  console.log('[kami] Kami Mode armed — Ctrl+E to enter Kami Mode');
+  return true;
+}
+
+// ── ADR-0029 Kami state machine ───────────────────────────────────────────
+// NORMAL --Ctrl+E--> KAMI --Ctrl+E--> EMA_OPEN ; EMA_OPEN --Enter/Esc--> KAMI ;
+// KAMI --Esc--> NORMAL. enterKamiMode shows the rack + flips on the invincible-
+// spirit suppressions (shooting off, movement/look live). It does NOT open a
+// note — that is the 2nd Ctrl+E. exitKamiMode hides the rack + restores normal
+// play. The tray is NOT cleared on exit: prior ema reappear on the next arm.
+
+async function enterKamiMode() {
+  if (_kamiActive || _entering) return true;
+  _entering = true;
+  const token = ++_enterToken; // cancel token: exit/supersede bumps this
+  const armed = await armIfOwner();
+  if (token !== _enterToken) return false; // superseded — user backed out or re-pressed
+  _entering = false;
+  if (!armed) {
+    setStatus('KAMI: OWNER ONLY');
+    setTimeout(renderTray, 1800);
+    return false;
+  }
+  _kamiActive = true;
+  _invincible = true;
+  // The rack goes live the moment the owner enters Kami Mode: floating over the
+  // world in-game, as a column in a menu. showEmakake removes `hidden` + pins it
+  // right via .floating; the panels live at body scope (ADR-0028) so they survive
+  // #screen-title being display:none during PLAYING.
   showEmakake({ floating: isPlaying(), doc: _deps.getDocument() });
   renderRack();
-  console.log('[kami] Kami Mode armed — Ctrl+E to hang an ema');
+  // Invincible-spirit suppressions: shooting off, movement + look KEPT. The
+  // full setGameInputSuppressed(true) is reserved for the ema textarea (finish).
+  _deps.setShootingSuppressed?.(true);
+  console.log('[kami] entered Kami Mode — Ctrl+E for an ema, Esc to leave');
   return true;
+}
+
+function exitKamiMode() {
+  // Cancel any pending enter first so a late owner-check can't show the rack
+  // after the user backed out, + clear the entering flag so the Esc guard stops
+  // yielding once we're out.
+  _enterToken++;
+  _entering = false;
+  if (!_kamiActive) {
+    // Not actually in KAMI (e.g. Esc during the owner-check): still make sure no
+    // half-applied suppressions linger, then bail.
+    _invincible = false;
+    _deps.setShootingSuppressed?.(false);
+    _deps.setGameInputSuppressed?.(false);
+    _closeNoteIfOpen();
+    return;
+  }
+  _kamiActive = false;
+  _invincible = false;
+  // If the ema note was still open, close it + remove its keydown listener.
+  _closeNoteIfOpen();
+  hideEmakake({ doc: _deps.getDocument() });
+  // Restore normal input: shoot back on, full-suppress cleared.
+  _deps.setShootingSuppressed?.(false);
+  _deps.setGameInputSuppressed?.(false);
+  setStatus('');
+  console.log('[kami] left Kami Mode');
+}
+
+/** Hard-close an open note: hide the overlay + remove the textarea keydown
+ *  listener so a forced exit can't leave a stale onKey bound to a hidden note. */
+function _closeNoteIfOpen() {
+  if (!_noteOpen) return;
+  const root = _deps.getDocument().getElementById('kami-overlay');
+  if (root) root.style.display = 'none';
+  _noteOpen = false;
+  if (_noteCleanup) { try { _noteCleanup(); } catch { /* noop */ } _noteCleanup = null; }
 }
 
 // ── overlay DOM ────────────────────────────────────────────────────────────
@@ -267,12 +357,11 @@ function renderRack() {
 
 async function openNote() {
   if (_noteOpen) return;
-  const armed = await armIfOwner();
-  if (!armed) {
-    setStatus('KAMI: OWNER ONLY');
-    setTimeout(renderTray, 1800);
-    return;
-  }
+  // ADR-0029: opening a note first enters Kami Mode (arms + shows the rack +
+  // flips on the invincible-spirit suppressions). If already in Kami Mode this is
+  // a no-op fast path. enterKamiMode owns the owner-gate + rack show now.
+  const entered = await enterKamiMode();
+  if (!entered) return; // owner-only / status handled inside enterKamiMode
   const target = captureTarget();
   if (!target) {
     setStatus('KAMI: NOTHING TO PIN HERE');
@@ -309,10 +398,17 @@ async function openNote() {
     // so the overlay can never get stuck visible with _noteOpen already false
     // (which is what let Escape fall through to the pause menu before).
     root.style.display = 'none';
-    _deps.setGameInputSuppressed(false); // ADR-0027: hand game input back
+    // ADR-0029: commit/discard returns to KAMI (not NORMAL): clear the full
+    // input-suppress used for typing (movement + look back on) but re-apply the
+    // shooting-only suppress so the invincible-spirit state holds. The rack
+    // stays visible (shown on enterKamiMode, not hidden here). The suppress is
+    // gated on _kamiActive: if a phase→TITLE exit already cleared KAMI while the
+    // note was open, shooting must come back ON, not stay suppressed.
+    _deps.setGameInputSuppressed(false);
+    _deps.setShootingSuppressed?.(_kamiActive);
     if (!_noteOpen) return;
     _noteOpen = false;
-    ta.removeEventListener('keydown', onKey);
+    if (_noteCleanup) { try { _noteCleanup(); } catch { /* noop */ } _noteCleanup = null; }
     if (commit && noteIsValid(ta.value)) {
       const ts = Date.now();
       const rec = makeEma({
@@ -348,6 +444,10 @@ async function openNote() {
     if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); ev.stopPropagation(); finish(true); }
   }
   ta.addEventListener('keydown', onKey);
+  // ADR-0029: record the cleanup so a FORCED exit (Esc-in-KAMI / phase→TITLE)
+  // can remove this listener via _closeNoteIfOpen — otherwise a hidden note
+  // keeps a stale onKey bound, and a later re-open would stack a second one.
+  _noteCleanup = () => ta.removeEventListener('keydown', onKey);
 }
 
 // ── hang (seal + send) ─────────────────────────────────────────────────────
@@ -433,6 +533,7 @@ export function installKamiMode(deps = {}) {
     requestPointerLock: deps.requestPointerLock || (() => {}),
     getDocument: deps.getDocument || (() => document),
     setGameInputSuppressed: deps.setGameInputSuppressed || (() => {}),
+    setShootingSuppressed: deps.setShootingSuppressed || (() => {}),
     fetchImpl: deps.fetchImpl || ((...a) => fetch(...a)),
   };
 
@@ -441,19 +542,53 @@ export function installKamiMode(deps = {}) {
   doc.addEventListener('keydown', (ev) => {
     if (!ev.ctrlKey || ev.code !== HOTKEY_CODE) return;
     ev.preventDefault();
+    // ADR-0029: Kami Mode is an in-arena authoring surface. It must NOT engage
+    // on the title / pause / gameover screens — only while PLAYING (the arena +
+    // the NAP zone, which lives inside PLAYING). The pause-modal button
+    // (kamiCapture) still works from PAUSED because it calls openNote directly,
+    // not through this hotkey. Guarding the hotkey on isPlaying() also closes the
+    // title-re-entry bug: after exitKamiMode on PHASE_CHANGE→TITLE, a stray
+    // Ctrl+E on the home screen no longer re-enters + re-shows the rack.
+    if (!isPlaying()) return;
     if (ev.shiftKey) hangTray();
+    // ADR-0029: 1st Ctrl+E enters Kami Mode (rack visible, invincible spirit,
+    // shooting off, movement/look live). 2nd Ctrl+E (already in Kami) opens a
+    // new ema note. Shift+Ctrl+E seals + sends the tray (unchanged).
+    else if (!_kamiActive) enterKamiMode();
     else openNote();
   });
+
+  // ADR-0029: leaving the arena (PAUSED→TITLE via the Home button, or any path
+  // that transitions to TITLE) auto-exits Kami Mode so the rack doesn't persist
+  // across exit/re-enter. _tray is NOT cleared — prior ema reappear on re-arm.
+  on(EV.PHASE_CHANGE, ({ to }) => { if (to === PHASE.TITLE) exitKamiMode(); });
 
   _installed = true;
   return true;
 }
 
-/** Open the note box from a UI control (the pause-modal button). */
+/** Open the note box from a UI control (the pause-modal button). Enters Kami
+ *  Mode first if not already in it (so the pause button works from NORMAL). */
 export function kamiCapture() { if (_installed) openNote(); }
 /** Is the ema note input currently open? Arena input guards on this so Escape /
  *  movement keys aren't stolen from the textarea while the owner is writing. */
 export function kamiNoteOpen() { return _noteOpen; }
+/** ADR-0029: is the admin currently in Kami Mode (invincible-spirit state)?
+ *  The arena's capture-phase Escape listener yields to this so Esc exits Kami
+ *  instead of opening the pause menu. */
+export function kamiActive() { return _kamiActive; }
+/** ADR-0029: is Kami Mode active OR a first-enter (owner check) pending? The
+ *  arena's capture-phase Escape listener yields to this so Esc pressed while the
+ *  async owner-check is still in flight CANCELS the pending enter instead of
+ *  falling through to the pause menu. */
+export function kamiBusy() { return _kamiActive || _entering; }
+/** ADR-0029: is the owner invincible right now (in Kami Mode)? The damage path
+ *  (player.takeDamage) no-ops while this is true. No-op in single-player today
+ *  (nothing damages the local player); live for MP peer-fire / future bot
+ *  return-fire. */
+export function kamiInvincible() { return _invincible; }
+/** ADR-0029: exit Kami Mode from a UI control / external caller. */
+export function kamiExit() { exitKamiMode(); }
 /** Hang the tray from a UI control. */
 export function kamiHang() { if (_installed) hangTray(); }
 /** Test/diagnostic read of pending tray state. */

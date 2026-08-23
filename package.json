@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.643-alpha",
+  "version": "0.2.644-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -47,6 +47,7 @@
     "@gltf-transform/extensions": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
     "draco3d": "^1.5.7",
+    "jsdom": "^29.1.1",
     "vite": "^8.0.16",
     "vitest": "^3.2.4"
   },

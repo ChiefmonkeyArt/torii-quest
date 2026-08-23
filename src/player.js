@@ -16,6 +16,7 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
+import { kamiInvincible } from './engine/kami/kamiMode.js'; // ADR-0029: Kami Mode invincibility
 // Player entity boundary (v0.2.114): geometry, spawn shape, and look-down POV
 // math live here now. PLAYER_SAFE_CORNER is re-exported below so bots.js can keep
 // importing it from player.js.
@@ -369,6 +370,10 @@ export function startReload() {
 
 export function takeDamage(dmg) {
   if (godMode) return;
+  // ADR-0029: while in Kami Mode the owner is an invincible spirit — peer fire
+  // (MP) / future bot return-fire must not damage them. No-op in single-player
+  // today (nothing calls this from bot AI), but wired so the guard is one line.
+  if (kamiInvincible()) return;
   state.hp = Math.max(0, state.hp - dmg);
   emit(EV.PLAYER_HIT, { dmg });
   emit(EV.HUD_UPDATE);

@@ -16,6 +16,17 @@ export function setGameInputSuppressed(suppressed) {
   if (suppressed) clearKeys(); // drop any held movement keys carried into the modal
 }
 
+// ADR-0029 Kami Mode: a FINER suppression than setGameInputSuppressed. While the
+// admin is in Kami Mode (the invincible-spirit state, NOT the ema note editor),
+// movement + mouse-look stay live so they can roam + aim where the next ema pins —
+// but shooting is disabled (a kami spirit doesn't fire). The full
+// setGameInputSuppressed(true) is still used while the ema textarea is open
+// (typing needs every input off). This flag gates ONLY the mousedown shoot path;
+// the movement-keys path above is deliberately NOT gated by it.
+let _shootingSuppressed = false;
+export function setShootingSuppressed(suppressed) { _shootingSuppressed = suppressed; }
+export function isShootingSuppressed() { return _shootingSuppressed; }
+
 // v0.2.612: stuck-key guard ("sticky movement"). The browser SWALLOWS keyup
 // events when the window loses focus, the tab hides, or a pointer-lock exit /
 // extension prompt (NIP-07 signer) steals the gesture — a held W/A/S/D then
@@ -82,7 +93,10 @@ export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down 
 const _clickCbs = [];
 export function onShoot(fn) { _clickCbs.push(fn); }
 document.addEventListener('mousedown', e => {
-  if (_inputSuppressed) return; // ADR-0027: clicking the ema modal must not fire a shot
+  // ADR-0027: clicking the ema modal must not fire a shot.
+  // ADR-0029: in Kami Mode the shoot path is suppressed independently of
+  // movement (the spirit roams + aims but doesn't fire).
+  if (_inputSuppressed || _shootingSuppressed) return;
   if (e.button === 0 && isPlaying()) {
     _clickCbs.forEach(fn => fn());
   }

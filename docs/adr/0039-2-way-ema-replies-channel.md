@@ -46,6 +46,11 @@ Add a **separate plaintext "replies" feed** alongside the sealed ema store.
   text: the reply text is read from a file (`--text-file`) or stdin, not a shell
   arg; only short safe strings may use `--text`. It validates, length-caps, and
   atomically appends to `replies.jsonl`.
+  **Must run as the `torii-quest` service user** — the kami dir
+  (`/var/lib/torii-quest/kami`, mode 700, owned `torii-quest`) is not writable by
+  `ubuntu`. The arena-ws server already writes there as that user; the manual tool
+  must match: `sudo -u torii-quest node tools/kami-reply.mjs --text-file /tmp/r.txt`.
+  The tool imports only `node:fs` (no `@noble/curves`), so no deps are needed.
 - **Client:** `kamiMode.js` polls `GET /mp/kami/replies?since=<lastTs>` every ~5s
   while in Kami Mode + an owner token is present, stops on exit. `emagakePanel.js`
   renders reply rows as a distinct block above the ema rack (`ema-row kami-reply`,

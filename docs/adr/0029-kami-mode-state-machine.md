@@ -100,7 +100,16 @@ this is a **no-op until bot return-fire / MP peer-fire exists** — but it is wi
 so that path is one guard away. It is NOT client-trusted for MP; the server must
 also admin-gate damage for the owner pubkey.
 
-## Owner-check memoization (v0.2.645 fix)
+## Mac hotkey: ⌃E and ⌘E (v0.2.646)
+
+The Ctrl+E handler now accepts **both** `ev.ctrlKey` (⌃E, the spec'd hotkey)
+and `ev.metaKey` (⌘E). Mac users instinctively reach for ⌘ for shortcuts; the
+handler previously checked `ev.ctrlKey` alone, so ⌘E was silently ignored — no
+`[kami]` log fired at all, the exact "logged in, no kami" symptom. `input.js`
+ADR-0025 already treats `ctrlKey || metaKey` as app-shortcut modifiers, so this
+is consistent. A `[kami] hotkey pressed, isPlaying=… phase=…` log is emitted on
+every press so a non-firing key is distinguishable from a downstream guard
+(isPlaying / owner-check) failure.
 
 `checkOwner()` is memoised **by pubkey**, and only a confirmed-owner result is
 cached. An empty pubkey (login not yet resolved) or a non-match is NOT cached.

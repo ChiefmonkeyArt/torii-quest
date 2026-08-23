@@ -558,8 +558,16 @@ export function installKamiMode(deps = {}) {
   const doc = _deps.getDocument();
   doc.addEventListener('mousemove', trackMouse);
   doc.addEventListener('keydown', (ev) => {
-    if (!ev.ctrlKey || ev.code !== HOTKEY_CODE) return;
+    // ADR-0029: accept BOTH Ctrl+E (⌃E, the spec'd hotkey) and Cmd+E (⌘E).
+    // Mac users instinctively reach for ⌘ for shortcuts; the handler previously
+    // checked ev.ctrlKey alone, so ⌘E was silently ignored (no [kami] log at all
+    // — the "logged in, no kami" symptom). input.js ADR-0025 already treats
+    // ctrlKey || metaKey as app-shortcut modifiers, so this is consistent.
+    if (!(ev.ctrlKey || ev.metaKey) || ev.code !== HOTKEY_CODE) return;
     ev.preventDefault();
+    // ADR-0029 diagnostic: log every hotkey press so a non-firing Ctrl+E is
+    // distinguishable from a downstream guard (isPlaying / owner-check) failure.
+    console.log('[kami] hotkey pressed, isPlaying=' + isPlaying() + ' phase=' + state.phase);
     // ADR-0029: Kami Mode is an in-arena authoring surface. It must NOT engage
     // on the title / pause / gameover screens — only while PLAYING (the arena +
     // the NAP zone, which lives inside PLAYING). The pause-modal button

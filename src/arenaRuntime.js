@@ -64,6 +64,7 @@ import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
+import { setMarketActive } from './engine/plebeian/marketStall.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
@@ -777,7 +778,12 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal) {
       tickNapNpc(dt);
       tickStickerNpc(dt);
-      setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
+      // v0.2.635-alpha (ADR-0026): the market stall panel mirrors the NAP toggle —
+      // it shows the live Plebeian auction only while the player is in the market
+      // zone, and is hidden (subscription kept warm) the moment they leave.
+      const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
+      setNapMode(_inNapNow);
+      setMarketActive(_inNapNow);
       if (isPlaying()) {
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).

@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.634-alpha';
+export const VERSION   = 'v0.2.635-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -115,6 +115,16 @@ export const MP_ENABLED     = true; // MP-1.5: sandbox-hosted arena, live on que
 // MP-1 WebSocket relative path on the operator's domain. Combined with
 // window.location.host at runtime — no client-side URL config.
 export const MP_WS_PATH     = '/mp';
+
+// ADR-0026 — Spatial Marketplace. Quest is a watch-only Plebeian client (same
+// family, first-party interop — the owner is the founder of Plebeian). The relay
+// may be Plebeian's own (relay.plebeian.market prod / relay.staging.plebeian.market
+// dev) or a Torii-local relay on the same VPS. Ordered: first reachable wins.
+// PLEBEIAN_AUCTION_ID defaults to the first test auction ("Building from Strength
+// to Strength") so the market stall panel has live data on first load; an admin
+// can point it at any kind-30408 auction id.
+export const PLEBEIAN_RELAYS   = ['wss://relay.staging.plebeian.market'];
+export const PLEBEIAN_AUCTION_ID = '55d80b60877693e4e5e8a20c358b6a03657fc74912bab90abf1fc7221266f6cb';
 
 // v0.2.624-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
 // QUEST_ADMIN_NPUB is read from the SERVER environment only (arena-ws), accepting

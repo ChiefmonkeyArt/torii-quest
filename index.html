@@ -664,6 +664,96 @@
     #emakake-body::-webkit-scrollbar-track { background: transparent; }
     #emakake-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
 
+    /* ── ADR-0026 — Plebeian market stall panel (auction reader) ──
+       Same smoked-glass component language as #emakake: the rack itself carries
+       NO fill/border/backdrop-filter — only the children (header, stats, each bid
+       row) are tinted glass, so the 3D world reads sharp through the gaps. This is
+       a VR-visor surface hanging in the air over the NAP market zone, not a dialog.
+       Read-only: the footer link is display-only, no bidding/checkout/zap. */
+    #auction-panel {
+      width: 320px; flex-shrink: 0; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      gap: 6px; padding: 4px;
+      background: transparent; border: 0; box-shadow: none;
+    }
+    #auction-panel.floating {
+      position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
+      z-index: 40; max-height: 82vh; pointer-events: auto;
+    }
+    #auction-panel[hidden] { display: none; }
+
+    #auction-panel-poster {
+      height: 96px; border-radius: 8px; background: #111 center/cover no-repeat;
+      border: 1px solid rgba(255, 194, 71, 0.30); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    #auction-panel-poster[hidden] { display: none; }
+
+    #auction-panel-header,
+    #auction-panel-stats,
+    .bid {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    #auction-panel-header { padding: 10px 12px 8px; }
+    #auction-panel-title {
+      font-size: 15px; font-weight: 600; line-height: 1.2; color: #f3efe3;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+    }
+    #auction-panel-summary {
+      font-size: 11px; color: #b9b2a3; margin-top: 3px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+    }
+    #auction-panel-chips { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+    #auction-panel-chips .chip {
+      font-size: 9px; padding: 3px 6px; border-radius: 5px;
+      background: rgba(255,255,255,0.06); color: #b9b2a3;
+    }
+    #auction-panel-chips .chip.live { color: #7ee29a; }
+    #auction-panel-chips .chip.ended { color: #ff7a7a; }
+    #auction-panel-chips .chip.upcoming { color: #7dc8ff; }
+    #auction-panel-stats {
+      display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px;
+    }
+    #auction-panel-high {
+      font-size: 22px; font-weight: 700; color: #ffc247;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 8px rgba(255,194,71,0.25);
+    }
+    #auction-panel-high .cur { font-size: 11px; color: #b9b2a3; font-weight: 500; margin-left: 3px; }
+    #auction-panel-next { font-size: 10px; color: #b9b2a3; text-align: right; }
+    #auction-panel-body {
+      padding: 4px; display: flex; flex-direction: column; gap: 4px;
+      overflow-y: auto; min-height: 0; max-height: 52vh;
+    }
+    #auction-panel-body::-webkit-scrollbar { width: 3px; }
+    #auction-panel-body::-webkit-scrollbar-track { background: transparent; }
+    #auction-panel-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
+    .auction-empty { font-size: 11px; color: #b9b2a3; text-align: center; padding: 16px 8px; }
+    .bid {
+      display: flex; align-items: center; gap: 9px; padding: 5px 10px; font-size: 12px;
+    }
+    .bid .t { width: 40px; font-size: 9.5px; color: #b9b2a3; font-variant-numeric: tabular-nums; }
+    .bid .who {
+      flex: 1; font-family: ui-monospace, monospace; font-size: 10.5px; color: #b9b2a3;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .bid .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bid.high .amt { color: #ffc247; }
+    .bid.note .amt { color: #8a8472; }
+    .bid .flag {
+      font-size: 8.5px; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 5px; border-radius: 4px;
+    }
+    .bid.high .flag { background: rgba(255,194,71,0.15); color: #ffc247; }
+    .bid.note .flag { background: rgba(150,150,150,0.12); color: #8a8472; }
+    #auction-panel-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 9.5px; color: #b9b2a3; padding: 0 4px;
+    }
+    #auction-panel-link { color: #ffc247; text-decoration: none; }
+
     /* One hanging plaque. Slightly warmer glass than the panel so rows read as
        objects ON the rack rather than text printed on it. */
     /* A row is a smoked chip, not a card. No border-bottom seam, no separate
@@ -1002,7 +1092,7 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.634-alpha</div>
+      <div id="version-label">v0.2.635-alpha</div>
       <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
            tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
       <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
@@ -1036,6 +1126,28 @@
       </div>
       <div id="emakake-body">
         <div id="emakake-empty">RACK IS EMPTY<br><span style="font-size:8px;">CTRL+E TO HANG AN EMA</span></div>
+      </div>
+    </div>
+
+    <!-- ADR-0026 — Plebeian market stall panel (watch-only auction reader).
+         Mirrors the emakake smoked-glass rack: no panel background, only the
+         components are tinted glass so the world reads through the gaps. Hidden
+         until the player enters the NAP market zone (arenaRuntime → setMarketActive). -->
+    <div id="auction-panel" hidden aria-label="plebeian market stall — live auction">
+      <div id="auction-panel-poster" hidden></div>
+      <div id="auction-panel-header">
+        <div id="auction-panel-title">Loading auction…</div>
+        <div id="auction-panel-summary"></div>
+        <div id="auction-panel-chips"></div>
+      </div>
+      <div id="auction-panel-stats">
+        <div id="auction-panel-high">— <span class="cur">SAT</span></div>
+        <div id="auction-panel-next"></div>
+      </div>
+      <div id="auction-panel-body"><div class="auction-empty">Waiting for relay…</div></div>
+      <div id="auction-panel-footer">
+        <span id="auction-panel-status">watch-only · connecting</span>
+        <a id="auction-panel-link" target="_blank" rel="noopener">View on Plebeian ↗</a>
       </div>
     </div>
 
@@ -1195,7 +1307,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.634-alpha · torii quest</div>
+  <div id="ver">v0.2.635-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

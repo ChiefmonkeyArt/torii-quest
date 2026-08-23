@@ -227,6 +227,7 @@ async function enterKamiMode() {
   // right via .floating; the panels live at body scope (ADR-0028) so they survive
   // #screen-title being display:none during PLAYING.
   showEmakake({ floating: isPlaying(), doc: _deps.getDocument() });
+  setKamiBadge(true);
   renderRack();
   // Invincible-spirit suppressions: shooting off, movement + look KEPT. The
   // full setGameInputSuppressed(true) is reserved for the ema textarea (finish).
@@ -248,6 +249,7 @@ function exitKamiMode() {
     _deps.setShootingSuppressed?.(false);
     _deps.setGameInputSuppressed?.(false);
     _closeNoteIfOpen();
+    setKamiBadge(false);
     return;
   }
   _kamiActive = false;
@@ -255,6 +257,7 @@ function exitKamiMode() {
   // If the ema note was still open, close it + remove its keydown listener.
   _closeNoteIfOpen();
   hideEmakake({ doc: _deps.getDocument() });
+  setKamiBadge(false);
   // Restore normal input: shoot back on, full-suppress cleared.
   _deps.setShootingSuppressed?.(false);
   _deps.setGameInputSuppressed?.(false);
@@ -364,6 +367,19 @@ function setStatus(msg) {
   el.removeAttribute('hidden');
   el.textContent = msg;
   if (!msg) renderTray();
+}
+
+// ADR-0030 — KAMI MODE badge (#kami-mode-badge): a persistent top-center pill so
+// the owner unambiguously sees they are in spirit mode. The emakake rack alone
+// was too easy to miss over the weapon (empty rack = a few lines of floating
+// text). This badge is the unmistakable "you are in KAMI" signal. Toggled in
+// enterKamiMode / exitKamiMode so every entry shows it + every exit hides it.
+function setKamiBadge(visible) {
+  const doc = _deps.getDocument();
+  const el = doc && doc.getElementById('kami-mode-badge');
+  if (!el) return;
+  if (visible) el.removeAttribute('hidden');
+  else el.setAttribute('hidden', '');
 }
 
 /** Paint the emakake rack from the current tray. Called on every add/discard/hang. */

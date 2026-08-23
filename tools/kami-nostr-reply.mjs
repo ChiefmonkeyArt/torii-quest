@@ -17,6 +17,7 @@
 //
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { WebSocket as UndiciWebSocket } from 'undici'; // Node 18+ built-in
 import { ADMIN_PUBKEY_HEX } from '../src/config.js';
 import { makeReplyStore, REPLY_TEXT_CAP, REPLY_QUOTE_CAP } from '../server/kami/kamiReplyStore.js';
 import { buildGiftWrap, publishEventToRelay, DEFAULT_NOSTR_RELAYS } from '../server/kami/kamiNostr.js';
@@ -82,7 +83,11 @@ if (args.dryRun) {
 // 3) Publish the NIP-17 gift wrap to relays (best-effort; the in-game feed is
 //    already written, so a relay failure does not lose the reply).
 const relays = args.relays && args.relays.length ? args.relays : DEFAULT_NOSTR_RELAYS;
-const results = await Promise.all(relays.map((url) => publishEventToRelay(url, wrap)));
+// Node 20 has no global WebSocket; undici (Node 18+ built-in) is browser-API
+// compatible (onopen/onmessage/onerror/onclose + send). Falls back to a global
+// WebSocket if present (Node 22+ / browser).
+const NodeWS = typeof WebSocket !== 'undefined' ? WebSocket : UndiciWebSocket;
+const results = await Promise.all(relays.map((url) => publishEventToRelay(url, wrap, { WebSocketCtor: NodeWS })));
 const accepted = results.filter(r => r.accepted).map(r => r.relay);
 const rejected = results.filter(r => !r.accepted).map(r => `${r.relay}(${r.reason})`);
 

@@ -74,8 +74,11 @@ export function publishEventToRelay(url, event, { WebSocketCtor, timeoutMs = 800
       catch (e) { finish({ ok: false, relay: url, accepted: false, reason: 'send-failed' }); }
     };
     ws.onmessage = (msg) => {
+      const raw = msg && msg.data;
+      // undici gives a string for text frames; the `ws` pkg gives a Buffer.
+      const s = typeof raw === 'string' ? raw : (raw && typeof raw.toString === 'function' ? raw.toString('utf8') : String(raw));
       let frame;
-      try { frame = JSON.parse(typeof msg.data === 'string' ? msg.data : String(msg.data)); }
+      try { frame = JSON.parse(s); }
       catch (_) { return; }
       if (!Array.isArray(frame) || frame[0] !== 'OK') return;
       const accepted = frame[2] === true || frame[2] === 'true';

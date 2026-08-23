@@ -52,11 +52,14 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.651-alpha';
+const EXPECTED_VERSION = 'v0.2.652-alpha';
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
   'src/engine/multiplayer/wsClient.js', // MP-1 reconnect timer (setTimeoutFn is injectable)
+  'src/engine/kami/kamiMode.js', // ADR-0027/0034: status-badge auto-revert + note-highlight pulse-revert timers
+  'src/engine/plebeian/marketStall.js', // ADR-0026: lazy market-panel status-message auto-revert timer
+  'src/engine/plebeian/plebeianRelay.js', // ADR-0026/0035: relay reconnect-with-backoff + connect-error retry timers
 ]);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -115,7 +118,7 @@ console.log('[3] setTimeout allowlist');
     const n = (txt.match(/setTimeout\s*\(/g) || []).length;
     if (n > 0 && !SETTIMEOUT_ALLOWED.has(f)) { fail(`${n} setTimeout in non-allowed ${f}`); bad = true; }
   }
-  if (!bad) pass('setTimeout only in nostr.js + hud.js + multiplayer/wsClient.js');
+  if (!bad) pass('setTimeout only in allowlisted files (nostr/hud/wsClient/kamiMode/marketStall/plebeianRelay)');
 }
 
 // 4. no hot-path allocations in new/foundation modules

@@ -65,6 +65,7 @@ import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive } from './engine/plebeian/marketStall.js';
+import { setBoardsActive } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
@@ -783,7 +784,14 @@ export function createArenaRuntime(hooks = {}) {
       // zone, and is hidden (subscription kept warm) the moment they leave.
       const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
       setNapMode(_inNapNow);
-      setMarketActive(_inNapNow);
+      // ADR-0034: no panel may auto-pop-up while the owner is in Kami Mode —
+      // Kami Mode shows only its own components (emagake rack right, ema
+      // editor bottom). ADR-0035: the owner boards follow the identical gate
+      // — they are market UI too, shown in the NAP zone, never while roaming
+      // as Kami.
+      const _marketVisible = _inNapNow && !kamiActive();
+      setMarketActive(_marketVisible);
+      setBoardsActive(_marketVisible);
       if (isPlaying()) {
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).

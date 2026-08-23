@@ -34,7 +34,7 @@ Two hard constraints from the owner shaped everything:
 A shrine gate (torii) is where the kami (the spirit) inhabits the shrine. Kami Mode
 is the owner standing inside their own world, unseen, able to mark and change it.
 The notes are **ema** (絵馬) — the wooden plaques a visitor writes on and hangs up.
-The rack they hang on is the **emakake** (絵馬掛け).
+The rack they hang on is the **emagake** (絵馬掛け).
 
 **Capture flow** (ordered deliberately):
 
@@ -111,7 +111,7 @@ does not expose the owner's private key, and the Kami private key is off-box.
 
 Consequences, accepted for v0.2.634:
 
-- The in-browser emakake rack shows the **current session's** notes (pending +
+- The in-browser emagake rack shows the **current session's** notes (pending +
   just-hung this session). After a page reload, the rack starts empty — the
   backlog is on disk, sealed.
 - The sealed backlog is read back by a **node-side tool** (`tools/kami-read.mjs`)
@@ -142,7 +142,7 @@ nothing in the client is trusted.
 | `src/engine/kami/kamiSeal.js` | Sealed-box crypto (ECDH+HKDF+AES-GCM) | 14 tests |
 | `src/engine/kami/emaModel.js` | Record shape, tray rules, lifecycle, cull policy | 21 tests |
 | `src/engine/kami/uiTarget.js` | Pointer → DOM control description | (via capture) |
-| `src/engine/kami/emakakePanel.js` | Rack list render (one DOM writer, textContent-only) | (via render) |
+| `src/engine/kami/emagakePanel.js` | Rack list render (one DOM writer, textContent-only) | (via render) |
 | `src/engine/kami/kamiMode.js` | Browser glue: hotkey, capture, seal+POST, tray | (round-trip) |
 | `server/kami/kamiStore.js` | On-disk JSONL + shot ring buffer | 8 tests |
 | `server/kami/kamiRoute.js` | Batch validation + store loop (pure) | 4 tests |
@@ -168,10 +168,3 @@ nothing in the client is trusted.
 - An in-world rack that renders ema as 3D plaques at their pinned positions
   ("ship to players as world-building") is deferred; v0.2.634 ships the panel
   beside the chat and the pause-modal button.
-
-## Spelling correction (ADR-0033, 2026-08-23)
-
-This document's original text spells the rack "emakake." Confirmed against
-Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
-rendaku k→g). Left as-written above for the historical record; see ADR-0033
-for the rename applied across code, DOM IDs, and docs.

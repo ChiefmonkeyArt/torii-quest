@@ -289,6 +289,14 @@ function _closeNoteIfOpen() {
 
 // ── overlay DOM ────────────────────────────────────────────────────────────
 
+// ADR-0034: the ema editor used to be a full-screen rgba(8,6,14,0.72) backdrop
+// with a centered wooden-plaque box — it darkened and blocked the whole
+// screen. The owner's instruction is that Kami Mode must keep the world
+// fully visible at all times, exactly like the emagake rack. This is now an
+// inline, non-blocking bar anchored to the BOTTOM of the screen, styled with
+// the same smoked-glass component language as #emagake-header/.ema-row
+// (rgba(8,10,20,0.45) fill + 6px blur + amber border) — no backdrop dimming,
+// nothing between the owner and the game.
 function ensureOverlay() {
   const doc = _deps.getDocument();
   let root = doc.getElementById('kami-overlay');
@@ -298,44 +306,54 @@ function ensureOverlay() {
   root.id = 'kami-overlay';
   root.setAttribute('hidden', '');
   root.style.cssText = [
-    'position:fixed', 'inset:0', 'z-index:200', 'display:flex',
-    'align-items:center', 'justify-content:center',
-    'background:rgba(8,6,14,0.72)', 'font-family:inherit',
+    'position:fixed', 'left:50%', 'bottom:14px', 'transform:translateX(-50%)',
+    'z-index:140', 'display:flex', 'font-family:inherit',
+    'width:min(560px,92vw)', 'box-sizing:border-box',
+    'pointer-events:auto',
   ].join(';');
-  // ADR-0027: the cssText above sets display:flex, which overrides the UA
-  // [hidden]{display:none} rule — so setAttribute('hidden','') would NOT hide
-  // the overlay. Toggle style.display directly instead (see openNote/finish).
+  // ADR-0027 (carried forward): the cssText above sets display:flex, which
+  // overrides the UA [hidden]{display:none} rule — so setAttribute('hidden','')
+  // would NOT hide the bar. Toggle style.display directly (see openNote/finish).
   root.style.display = 'none';
 
   const box = doc.createElement('div');
+  box.id = 'kami-note-box';
   box.style.cssText = [
-    'background:#d9b382', 'color:#4a3010', 'border:1px solid #8a5f2f',
-    'border-radius:6px', 'padding:20px 22px', 'width:min(480px,86vw)',
-    'box-sizing:border-box',
+    'width:100%', 'box-sizing:border-box', 'border-radius:8px',
+    'background:rgba(8,10,20,0.55)', '-webkit-backdrop-filter:blur(6px)',
+    'backdrop-filter:blur(6px)', 'border:1px solid rgba(255,194,71,0.45)',
+    'box-shadow:inset 0 1px 0 rgba(255,255,255,0.08)',
+    'padding:12px 16px', 'color:#f3efe3',
   ].join(';');
 
   const title = doc.createElement('div');
   title.id = 'kami-note-title';
   title.textContent = 'HANG AN EMA';
-  title.style.cssText = 'font-size:12px;letter-spacing:3px;margin-bottom:4px;opacity:0.75';
+  title.style.cssText = [
+    'font-size:10px', 'letter-spacing:3px', 'margin-bottom:4px', 'color:#ffd36a',
+    'text-shadow:0 1px 1px rgba(0,0,0,1),0 0 6px rgba(0,0,0,0.9)',
+  ].join(';');
 
   const ctx = doc.createElement('div');
   ctx.id = 'kami-note-context';
-  ctx.style.cssText = 'font-size:11px;font-family:monospace;margin-bottom:10px;opacity:0.65';
+  ctx.style.cssText = [
+    'font-size:11px', 'font-family:ui-monospace,monospace', 'margin-bottom:8px',
+    'color:#b9b2a3', 'text-shadow:0 1px 2px rgba(0,0,0,0.95)',
+  ].join(';');
 
   const ta = doc.createElement('textarea');
   ta.id = 'kami-note-input';
-  ta.rows = 3;
+  ta.rows = 2;
   ta.placeholder = 'what should happen here?';
   ta.style.cssText = [
-    'width:100%', 'box-sizing:border-box', 'background:#f0d9b5', 'color:#4a3010',
-    'border:1px solid #a9793f', 'border-radius:4px', 'padding:8px 10px',
-    'font:inherit', 'font-size:14px', 'resize:none',
+    'width:100%', 'box-sizing:border-box', 'background:rgba(8,10,20,0.55)',
+    'color:#f3efe3', 'border:1px solid rgba(255,194,71,0.30)', 'border-radius:6px',
+    'padding:8px 10px', 'font:inherit', 'font-size:13px', 'resize:none',
   ].join(';');
 
   const hint = doc.createElement('div');
-  hint.style.cssText = 'font-size:11px;margin-top:8px;opacity:0.7';
-  hint.textContent = 'Enter — hang · Shift+Enter — new line · Esc — discard';
+  hint.style.cssText = 'font-size:10px;margin-top:6px;color:#8a8472;letter-spacing:0.5px';
+  hint.textContent = 'Enter — hang · Shift+Enter — new line · Esc — discard · K — focus';
 
   box.appendChild(title);
   box.appendChild(ctx);
@@ -344,6 +362,24 @@ function ensureOverlay() {
   root.appendChild(box);
   doc.body.appendChild(root);
   return root;
+}
+
+/** ADR-0034: highlight the already-open editor instead of no-op. A brief
+ *  border pulse via inline style + focus() on the textarea — the owner asked
+ *  for a 2nd K while the editor is open to draw the eye to it, not reopen a
+ *  second box (there is only ever one #kami-overlay). Pure presentation. */
+function highlightOpenNote() {
+  const doc = _deps.getDocument();
+  const box = doc.getElementById('kami-note-box');
+  const ta = doc.getElementById('kami-note-input');
+  if (ta) ta.focus();
+  if (!box) return;
+  box.style.borderColor = 'rgba(255,224,140,0.95)';
+  box.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 10px rgba(255,194,71,0.55)';
+  setTimeout(() => {
+    box.style.borderColor = 'rgba(255,194,71,0.45)';
+    box.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.08)';
+  }, 450);
 }
 
 function ensureTrayBadge() {
@@ -402,7 +438,10 @@ function renderRack() {
 // ── capture ────────────────────────────────────────────────────────────────
 
 async function openNote() {
-  if (_noteOpen) return;
+  // ADR-0034: 2nd K while the editor is already open highlights/focuses it
+  // instead of silently no-op'ing — the owner wants a visible response to
+  // every K press, not a press that appears to do nothing.
+  if (_noteOpen) { highlightOpenNote(); return; }
   // ADR-0029: opening a note first enters Kami Mode (arms + shows the rack +
   // flips on the invincible-spirit suppressions). If already in Kami Mode this is
   // a no-op fast path. enterKamiMode owns the owner-gate + rack show now.

@@ -4,19 +4,19 @@
 **Version:** v0.2.643-alpha
 **Date:** 2026-08-23
 **Type:** Bug fix (DOM structure; no gameplay/physics/protocol/collider change)
-**Follows:** ADR-0025 (Kami Mode / emakake rack), ADR-0026 (Plebeian auction panel)
+**Follows:** ADR-0025 (Kami Mode / emagake rack), ADR-0026 (Plebeian auction panel)
 **Related:** ADR-0027 (ema input isolation — same live-test session)
 
 ## Context
 
 After the ADR-0027 Esc/Enter fix shipped (v0.2.642-alpha), the owner reported that
-**hung emas were nowhere to be seen** — the emakake rack did not appear on the
+**hung emas were nowhere to be seen** — the emagake rack did not appear on the
 right-hand side of the arena, even after arming Kami Mode (`Ctrl+E`) and hanging
 emas with Enter. The same symptom affected the **Plebeian auction panel**, which
 should surface in the NAP market zone.
 
 Both panels are `position: fixed` smoked-glass overlays meant to float over the
-in-game world: `#emakake` (the ema rack, shown by `kamiMode.showEmakake()` when
+in-game world: `#emagake` (the ema rack, shown by `kamiMode.showEmagake()` when
 armed) and `#auction-panel` (the watch-only Plebeian auction, shown by
 `arenaRuntime` `setMarketActive()` on NAP-zone entry).
 
@@ -53,12 +53,12 @@ ancestor `#screen-title` was removed from the render tree.
 
 ### Proof (live browser, reproduced against the deployed v0.2.642 site)
 
-1. `#emakake` unhid + `.floating` added while `#screen-title` was **visible**
+1. `#emagake` unhid + `.floating` added while `#screen-title` was **visible**
    (title screen): rect `300×123` at `x:1606` — pinned right, visible.
 2. `#screen-title.classList.add('hidden')` (simulate the PLAYING transition) with
-   `#emakake` still nested inside it: rect `w:0, h:0` — **not rendered**, even
+   `#emagake` still nested inside it: rect `w:0, h:0` — **not rendered**, even
    though the panel's own computed style was `display: flex; position: static`.
-3. `document.body.appendChild(#emakake)` (move it out of `#screen-title`) with
+3. `document.body.appendChild(#emagake)` (move it out of `#screen-title`) with
    `#screen-title` still hidden + `.floating` added: rect `300×123` at `x:1606`,
    `position: fixed; right: 14px; top: 500.5px; z-index: 40` — **visible again**.
 
@@ -67,7 +67,7 @@ CSS. The fix is structural: the panels must not live under `#screen-title`.
 
 ## Decision
 
-Move `#emakake` and `#auction-panel` out of `#screen-title` / `#title-columns` to
+Move `#emagake` and `#auction-panel` out of `#screen-title` / `#title-columns` to
 **top-level body scope** (direct children of `<body>`, siblings of `#hud` and
 `#pause-overlay`, placed immediately after `#screen-title` closes and before the
 HUD block). They are hidden by default (`hidden` attribute) and shown on demand
@@ -89,7 +89,7 @@ descendants.
 ## Consequences
 
 - The ema rack is now visible on the right-hand side of the arena once Kami Mode
-  is armed (`showEmakake({ floating: isPlaying() })` removes `hidden` and adds
+  is armed (`showEmagake({ floating: isPlaying() })` removes `hidden` and adds
   `.floating`). Hung emas appear in the rack after Enter commits
   (`finish(true)` → `addToTray` → `renderRack()`).
 - The Plebeian auction panel is now visible in the NAP market zone when
@@ -98,7 +98,7 @@ descendants.
 - On the title screen, the rack (if ever shown there) floats on the right rather
   than sitting as a column inside `#title-columns`; this is acceptable because the
   rack is `hidden` by default and only armed in the arena.
-- No JS controller changes were needed: `showEmakake` / `renderEmakake` /
+- No JS controller changes were needed: `showEmagake` / `renderEmagake` /
   `setMarketActive` all look up the panel by id (`getElementById`), which is
   location-independent. The move is purely structural (HTML).
 
@@ -109,8 +109,8 @@ descendants.
 
 - `#screen-title` is present and balanced (its closing `</div>` is findable via a
   nested-`<div>` depth scan from its opening tag).
-- `#emakake` and `#auction-panel` exist as elements.
-- `#emakake` and `#auction-panel` are **NOT** nested inside `#screen-title`
+- `#emagake` and `#auction-panel` exist as elements.
+- `#emagake` and `#auction-panel` are **NOT** nested inside `#screen-title`
   (their opening-tag byte offset is greater than `#screen-title`'s closing
   `</div>` byte offset).
 - Both panels sit in the top-level overlay band (after `#screen-title` closes,
@@ -121,10 +121,3 @@ These guard the exact regression: if either panel is ever re-nested under
 
 Full suite: **3084 passing / 236 files** (was 3079 / 235 before this ADR; +5
 nesting tests, +1 file).
-
-## Spelling correction (ADR-0033, 2026-08-23)
-
-This document's original text spells the ema rack "emakake." Confirmed against
-Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
-rendaku k→g). Left as-written above for the historical record; see ADR-0033
-for the rename applied across code, DOM IDs, and docs.

@@ -9,12 +9,12 @@
 
 ## Context
 
-After ADR-0028 shipped (v0.2.643-alpha), the owner live-tested the emakake +
+After ADR-0028 shipped (v0.2.643-alpha), the owner live-tested the emagake +
 auction panels in the arena. Two bugs surfaced, plus the owner specified the
 intended Kami Mode workflow:
 
 **Bugs**
-1. **The emakake rack never hides.** `hideEmakake()` existed but was never
+1. **The emagake rack never hides.** `hideEmagake()` existed but was never
    called. Once armed, the rack stayed visible forever — through Esc, through
    exiting the arena, through re-entering. The only reset was a hard page
    refresh.
@@ -26,7 +26,7 @@ intended Kami Mode workflow:
 > 1st ctrl+e enters into kami mode… it pauses play for the admin, it makes them
 > invincible (can't be hit), it doesn't pause the game for the bots… but any
 > previously created ema are listed on the right as we've already done.
-> The 2nd ctrl+e opens a new ema… on hitting enter they are added to the emakake.
+> The 2nd ctrl+e opens a new ema… on hitting enter they are added to the emagake.
 > Pressing esc is like pressing a 'back' button… if inside an ema, esc will
 > discard and back out to the kami main screen… Pressing esc for a 2nd time will
 > back out of kami mode and back to normal play.
@@ -59,9 +59,9 @@ KAMI --Esc--> NORMAL
 - `_noteCleanup` — removes the textarea keydown listener on forced exit.
 
 ### Transitions
-- `enterKamiMode()` — arm, `showEmakake`, set `_kamiActive`/`_invincible`,
+- `enterKamiMode()` — arm, `showEmagake`, set `_kamiActive`/`_invincible`,
   `setShootingSuppressed(true)`. Does NOT open a note.
-- `exitKamiMode()` — `hideEmakake`, clear flags, restore shooting. Centralised;
+- `exitKamiMode()` — `hideEmagake`, clear flags, restore shooting. Centralised;
   called from Esc-in-KAMI, phase→TITLE, and `kamiExit()`.
 - Ctrl+E handler: `if (!_kamiActive) enterKamiMode(); else openNote();`
   Shift+Ctrl+E (seal + send tray) unchanged.
@@ -186,10 +186,3 @@ Still required post-deploy: 1st Ctrl+E enters KAMI (rack on right, can't shoot,
 can move/look); 2nd Ctrl+E opens ema; Enter saves to rack; Esc in ema → back to
 KAMI; Esc in KAMI → exit (rack hidden, shooting restored); leaving the arena
 resets; hard refresh keeps the rack hidden until Ctrl+E.
-
-## Spelling correction (ADR-0033, 2026-08-23)
-
-This document's original text spells the ema rack "emakake." Confirmed against
-Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
-rendaku k→g). Left as-written above for the historical record; see ADR-0033
-for the rename applied across code, DOM IDs, and docs.

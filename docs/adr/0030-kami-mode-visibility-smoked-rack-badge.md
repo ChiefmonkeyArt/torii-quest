@@ -27,7 +27,7 @@ to the eye.
 
 The rack **was** rendering. Verified in a cloud browser against the live arena:
 `document.elementFromPoint()` at the rack's center returned the rack's own child
-(`emakake-empty`), `isRackOnTop: true`, computed style `display:flex;
+(`emagake-empty`), `isRackOnTop: true`, computed style `display:flex;
 position:fixed; right:14px; z-index:40`, rect 300×123 at the right edge. The 3D
 canvas is `z-index:auto` (appended to `document.body` by `scene.js`), so the
 z-index:40 rack stacks above it correctly.
@@ -40,7 +40,7 @@ The rack was **camouflaged**, not absent:
 2. **It was empty.** No prior ema hung yet, so the only content was
    `RACK IS EMPTY` + the `CTRL+E TO HANG AN EMA` hint.
 3. **The body had no backing.** Per the original smoked-glass design, only the
-   header chip + rows carry smoked glass; `#emakake-body` (where the empty-state
+   header chip + rows carry smoked glass; `#emagake-body` (where the empty-state
    text lives) was `background:transparent`. So the text floated bare over the
    gun with nothing behind it.
 
@@ -56,16 +56,16 @@ only been partially honored.
 Make Kami Mode entry **unmistakable** without repositioning the rack (the right
 edge / "beside chat" placement is the owner's stated intent):
 
-1. **Tall rack even when empty.** `#emakake.floating` gains `min-height: 46vh`.
+1. **Tall rack even when empty.** `#emagake.floating` gains `min-height: 46vh`.
    An empty rack is now a visible tall smoked-glass panel, not ~120px of
    floating text.
 
-2. **Smoked-glass body.** `#emakake-body` gains `background:
+2. **Smoked-glass body.** `#emagake-body` gains `background:
    rgba(8,10,20,0.38)` + `backdrop-filter: blur(6px)` + a faint border, so the
    whole rack reads as a readable smoked panel the world shows through — not
    bare text over the gun. Honors "increase the smokiness."
 
-3. **Larger, centered empty state.** `#emakake-empty` is centered (`margin:auto`)
+3. **Larger, centered empty state.** `#emagake-empty` is centered (`margin:auto`)
    + tinted, so `RACK IS EMPTY` + the hint are clearly part of the panel.
 
 4. **Persistent KAMI MODE badge.** A new `#kami-mode-badge` — a small
@@ -111,14 +111,7 @@ table only if a future screenshot still shows the rack fighting the weapon.
 ## Deferred
 
 The NAP-zone auction auto-show (`setMarketActive(true)` on market entry, which
-covers the emakake) is **not** addressed here. It remains a separate, deferred
+covers the emagake) is **not** addressed here. It remains a separate, deferred
 auction-button slice: stop the auto-show, add a product-panel
 button → `#auction-panel`, gate logged-in only. This ADR-0030 is the kami
 visibility fix; that slice keeps its own commit/ADR.
-
-## Spelling correction (ADR-0033, 2026-08-23)
-
-This document's original text spells the ema rack "emakake." Confirmed against
-Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
-rendaku k→g). Left as-written above for the historical record; see ADR-0033
-for the rename applied across code, DOM IDs, and docs.

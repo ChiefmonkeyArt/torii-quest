@@ -91,3 +91,14 @@ Confirmed via [gogonihon.com](https://gogonihon.com/en/blog/ema-in-japan/)
 [omikujijapan.com](https://omikujijapan.com/en/journal/ema-wishes-on-wood)
 ("Hanging: Tie it to the designated rack (`Ema-kake`)" — same
 compound, hyphenated). No source surveyed used "emakake."
+
+## Amendment (2026-08-23)
+
+The owner asked for the footnote approach to be reversed: ADR-0025,
+0026, 0028, 0029, 0030, and 0031 are now fully rewritten in place to say
+"emagake" throughout, and their appended "Spelling correction
+(ADR-0033)" footnote sections have been removed. This ADR's own
+Decision and Alternatives-considered sections above are left as
+originally written — they record what was decided on 2026-08-23 at the
+time this ADR was accepted, superseded by this later, explicit
+instruction the same day.

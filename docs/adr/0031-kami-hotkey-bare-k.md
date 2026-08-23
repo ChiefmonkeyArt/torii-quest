@@ -57,7 +57,7 @@ alias in `player.js`, so `K` was chosen as the first unused, unbound key.
   does not trigger Kami Mode.
 - Shift+K still seals + sends the tray (was Shift+Ctrl+E), unchanged
   behavior otherwise.
-- All in-game copy (`#emakake-empty`, `#kami-mode-badge`) and console
+- All in-game copy (`#emagake-empty`, `#kami-mode-badge`) and console
   diagnostics updated from "CTRL/⌘+E" to "K".
 
 ## Consequences
@@ -102,10 +102,3 @@ alias in `player.js`, so `K` was chosen as the first unused, unbound key.
 - 3093/3093 tests passing (238 files), build clean, regression check
   shows only the 3 pre-existing (unrelated) `setTimeout` advisories
   present since before v0.2.642.
-
-## Spelling correction (ADR-0033, 2026-08-23)
-
-This document's original text spells the ema rack "emakake." Confirmed against
-Japanese-language sources: the correct romanization is **emagake** (絵馬掛け,
-rendaku k→g). Left as-written above for the historical record; see ADR-0033
-for the rename applied across code, DOM IDs, and docs.

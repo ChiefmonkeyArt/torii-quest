@@ -1,16 +1,23 @@
-// engine/plebeian/plebeianRelay.js — ADR-0026. Browser WebSocket client for
-// Plebeian's Nostr relay. Subscribes to one auction (kind 30408 by id) + its bids
-// (kind 1023 by #e) and emits {auction, bids} snapshots via onUpdate.
+// engine/plebeian/plebeianRelay.js — ADR-0026 + ADR-0035. Browser WebSocket
+// client for Plebeian's Nostr relay. `subscribeAuction` (ADR-0026, unchanged)
+// subscribes to one auction (kind 30408 by id) + its bids (kind 1023 by #e).
+// `subscribeByAuthor` (ADR-0035, additive) subscribes to every event of a
+// given kind (or kinds) from one author — the query shape the new boards use
+// to list ALL of the owner's products/auctions rather than one hardcoded id.
 //
-// SPLIT ON PURPOSE: `reduceEvents` is a pure function over Nostr wire frames, so
-// the accumulation + dedup rules are unit-testable without a browser. Only
-// `subscribeAuction` touches a WebSocket. READ-ONLY: this client never publishes,
-// signs, or sends anything but REQ subscriptions.
+// SPLIT ON PURPOSE: `reduceEvents` / `reduceAuthorEvents` are pure functions
+// over Nostr wire frames, so the accumulation + dedup rules are unit-testable
+// without a browser. Only the `subscribe*` functions touch a WebSocket.
+// READ-ONLY: this client never publishes, signs, or sends anything but REQ
+// subscriptions.
 
 import { parseProfileEvent } from './auctionModel.js';
 
 export const PLEBEIAN_AUCTION_KIND = 30408;
 export const PLEBEIAN_BID_KIND = 1023;
+// ADR-0035: NIP-99 classified listing (product) kind, confirmed against a
+// real staging event (see docs/adr/0035-product-auction-boards.md).
+export const PLEBEIAN_PRODUCT_KIND = 30402;
 
 /**
  * Fold one Nostr wire frame into the subscription state. Pure — no I/O.
@@ -68,6 +75,91 @@ export function subscribeAuction(opts) {
       let frame;
       try { frame = JSON.parse(msg.data); } catch { return; }
       const next = reduceEvents(state, frame);
+      if (next !== state) { state = next; emit(); }
+    };
+    ws.onerror = () => { if (onStatus) onStatus('error'); };
+    ws.onclose = () => {
+      if (closed) return;
+      if (onStatus) onStatus('reconnecting');
+      retry = setTimeout(connect, 3000);
+    };
+  }
+  connect();
+  return {
+    close() {
+      closed = true;
+      if (retry) clearTimeout(retry);
+      if (ws) { try { ws.close(); } catch { /* noop */ } }
+    },
+  };
+}
+
+/**
+ * ADR-0035: fold one Nostr wire frame into an author-scoped event list. Pure —
+ * no I/O. state = { events: event[], eosed: bool }. Replaces an existing event
+ * with the same `d` tag + kind (NIP-33 parameterized replaceable: a re-edit of
+ * the same product/auction carries the same `d`, and only the newest should
+ * be kept) rather than appending a duplicate. Falls back to id-dedup for any
+ * event with no `d` tag. Returns the SAME ref when nothing changed.
+ */
+export function reduceAuthorEvents(state, frame) {
+  const s = state || { events: [], eosed: false };
+  if (!Array.isArray(frame) || frame.length < 2) return s;
+  const [type, , event] = frame;
+  if (type === 'EVENT' && event && event.id) {
+    const dTag = (event.tags || []).find((t) => t[0] === 'd');
+    const dVal = dTag ? dTag[1] : null;
+    const matches = (e) => (dVal != null
+      ? e.kind === event.kind && (e.tags || []).some((t) => t[0] === 'd' && t[1] === dVal)
+      : e.id === event.id);
+    const idx = s.events.findIndex(matches);
+    if (idx === -1) return { ...s, events: [...s.events, event] };
+    // Newer created_at wins; an out-of-order older copy changes nothing.
+    if ((s.events[idx].created_at || 0) >= (event.created_at || 0)) return s;
+    const next = s.events.slice();
+    next[idx] = event;
+    return { ...s, events: next };
+  }
+  if (type === 'EOSE') return { ...s, eosed: true };
+  return s;
+}
+
+/**
+ * ADR-0035: open a live subscription to every event of `kinds` authored by
+ * `author` (hex pubkey). Generalizes `subscribeAuction`'s single-id query into
+ * a by-author-and-kind query, additive and independent — existing callers of
+ * `subscribeAuction` are untouched. opts: { url, author, kinds:number[],
+ * onUpdate(events), onStatus(status) }. Returns { close() }. Auto-reconnects
+ * with backoff on close, same policy as `subscribeAuction`.
+ */
+export function subscribeByAuthor(opts) {
+  const { url, author, kinds, onUpdate, onStatus } = opts || {};
+  let state = { events: [], eosed: false };
+  let closed = false;
+  let ws = null;
+  let retry;
+
+  function emit() {
+    if (onUpdate) onUpdate(state.events.slice());
+  }
+  function connect() {
+    if (closed) return;
+    if (!author || !Array.isArray(kinds) || !kinds.length) return;
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      if (onStatus) onStatus('error');
+      retry = setTimeout(connect, 3000);
+      return;
+    }
+    ws.onopen = () => {
+      if (onStatus) onStatus('open');
+      ws.send(JSON.stringify(['REQ', 'byauthor', { authors: [author], kinds, limit: 500 }]));
+    };
+    ws.onmessage = (msg) => {
+      let frame;
+      try { frame = JSON.parse(msg.data); } catch { return; }
+      const next = reduceAuthorEvents(state, frame);
       if (next !== state) { state = next; emit(); }
     };
     ws.onerror = () => { if (onStatus) onStatus('error'); };

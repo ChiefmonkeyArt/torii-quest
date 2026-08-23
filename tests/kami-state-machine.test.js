@@ -10,7 +10,7 @@ vi.mock('../src/scene.js', () => ({ requestFrameGrab: () => {} }));
 // resolves true) + a minimal DOM. Covers: 1st Ctrl+E enters KAMI (rack shown,
 // shooting suppressed, invincible flag on); kamiExit() restores NORMAL (rack
 // hidden, shooting restored); leaving the arena (PHASE_CHANGE → TITLE) auto-exits.
-import { installKamiMode, kamiActive, kamiInvincible, kamiExit } from '../src/engine/kami/kamiMode.js';
+import { installKamiMode, kamiActive, kamiInvincible, kamiExit, kamiNoteOpen } from '../src/engine/kami/kamiMode.js';
 import { emit, EV } from '../src/events.js';
 import { state, PHASE } from '../src/state.js';
 
@@ -144,5 +144,86 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     await flush();
     expect(kamiActive()).toBe(false);
     input.remove();
+  });
+});
+
+// ADR-0034: the note bar's visual shape (bottom-anchored, no full-screen
+// backdrop) + the 2nd-K-while-open highlight behavior. Reuses the single
+// installKamiMode() instance above (the module is a singleton — see
+// vite.config.js's isolate:false comment: a second install in this worker
+// would silently no-op and leave the wrong fixture's elementFromPoint wired
+// up). Temporarily swaps document.elementFromPoint to a real element so
+// captureTarget() resolves and openNote() actually opens, then restores the
+// outer suite's null stub in afterAll so those tests are unaffected.
+describe('Kami note bar (ADR-0034)', () => {
+  let prevElementFromPoint;
+  let clickable;
+
+  beforeAll(() => {
+    prevElementFromPoint = document.elementFromPoint;
+    clickable = document.createElement('button');
+    clickable.id = 'some-ui-target';
+    document.body.appendChild(clickable);
+    document.elementFromPoint = () => clickable;
+    // The outer suite's beforeAll seeded a plain empty '#kami-overlay' shell
+    // (just enough for its own display-toggle assertions). ensureOverlay()
+    // returns early on any existing '#kami-overlay', so that empty shell has
+    // no '#kami-note-box'/'#kami-note-input' children — remove it so the real
+    // note bar gets built fresh here.
+    document.getElementById('kami-overlay')?.remove();
+  });
+  afterAll(() => {
+    document.elementFromPoint = prevElementFromPoint;
+    clickable.remove();
+  });
+  beforeEach(() => {
+    state.phase = 'playing';
+    kamiExit();
+  });
+
+  test('1st K enters KAMI, 2nd K opens the note as a bottom-anchored bar (not a full-screen backdrop)', async () => {
+    ctrlE();
+    await flush();
+    expect(kamiActive()).toBe(true);
+    expect(kamiNoteOpen()).toBe(false);
+
+    ctrlE();
+    await flush();
+    expect(kamiNoteOpen()).toBe(true);
+
+    const overlay = document.getElementById('kami-overlay');
+    expect(overlay).not.toBeNull();
+    // Bottom-anchored bar, not the old full-screen dark backdrop — no inset
+    // fill, positioned via bottom + left:50%/translateX, not a centered
+    // fixed-viewport cover.
+    expect(overlay.style.bottom).toBe('14px');
+    expect(overlay.style.cssText).not.toContain('inset');
+    expect(overlay.style.display).toBe('flex');
+
+    const box = document.getElementById('kami-note-box');
+    expect(box).not.toBeNull();
+    // Smoked-glass component language matching #emagake-header/.ema-row.
+    expect(box.style.background).toBe('rgba(8, 10, 20, 0.55)');
+    expect(box.style.border).toContain('rgba(255, 194, 71, 0.45)');
+  });
+
+  test('a 3rd K while the note is already open highlights it instead of no-op', async () => {
+    ctrlE();
+    await flush();
+    ctrlE();
+    await flush();
+    expect(kamiNoteOpen()).toBe(true);
+    const box = document.getElementById('kami-note-box');
+    const input = document.getElementById('kami-note-input');
+    const focusSpy = vi.spyOn(input, 'focus');
+
+    ctrlE(); // 3rd press: note already open → highlight, not reopen/no-op
+    await flush();
+
+    expect(kamiNoteOpen()).toBe(true); // still open, unaffected
+    expect(focusSpy).toHaveBeenCalled();
+    // Pulsed border/shadow applied immediately (revert is on a 450ms timer,
+    // not asserted here to keep the test fast/deterministic).
+    expect(box.style.borderColor).toBe('rgba(255, 224, 140, 0.95)');
   });
 });

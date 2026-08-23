@@ -70,10 +70,18 @@ function showHide(active) {
  * Kami" rule the owner already asked for. No-op when unchanged.
  */
 export function setBoardsActive(active) {
-  if (active === _active) return;
+  const wasActive = _active;
   _active = active;
+  // Always force-show/hide all three boards — even when already active, a
+  // board may have been individually hidden via hideOwnerBoard() (an ADR-0036
+  // close button) and a fresh trigger press must re-show it. Without this,
+  // setBoardsActive(true) short-circuited when _active was already true, so the
+  // boards stayed hidden after a close→reopen cycle (the auction panel reopened
+  // via setMarketActive(true), the boards did not).
   showHide(active);
-  if (active) { start(); render(); }
+  // (Re)start the relay subscriptions + render only on the false→true edge to
+  // avoid redundant WebSocket churn on repeated trigger presses.
+  if (active && !wasActive) { start(); render(); }
 }
 
 /**

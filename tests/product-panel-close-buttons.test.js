@@ -90,11 +90,34 @@ describe('owner-board close (hideOwnerBoard) — independent per board', () => {
     setBoardsActive(true);
     hideOwnerBoard('product-board');
     expect(isHidden('product-board')).toBe(true);
-    // Re-trigger from the PRODUCT sign: setBoardsActive is a no-op when
-    // _active is already true, so simulate the real close→reopen cycle.
-    setBoardsActive(false);
+    // Re-trigger from the PRODUCT sign: onOpen calls setBoardsActive(true) only
+    // (it does NOT reset to false first). This must re-show individually-hidden
+    // boards. Regression for the v0.2.653 bug where the short-circuit
+    // `if (active === _active) return` left boards hidden after a close cycle.
     setBoardsActive(true);
     expect(isShown('product-board')).toBe(true);
+  });
+
+  it('regression: open → close all boards individually → press Q again reopens ALL boards', () => {
+    // First trigger press: all open.
+    setBoardsActive(true);
+    expect(isShown('product-board')).toBe(true);
+    expect(isShown('live-auction-board')).toBe(true);
+    expect(isShown('past-auction-board')).toBe(true);
+    // Close each board via its own close button (the ADR-0036 close path).
+    hideOwnerBoard('product-board');
+    hideOwnerBoard('live-auction-board');
+    hideOwnerBoard('past-auction-board');
+    expect(isHidden('product-board')).toBe(true);
+    expect(isHidden('live-auction-board')).toBe(true);
+    expect(isHidden('past-auction-board')).toBe(true);
+    // Second trigger press: onOpen → setBoardsActive(true) only.
+    // Boards were hidden via hideOwnerBoard (which never touched _active),
+    // so _active is still true here — this used to short-circuit and NOT re-show.
+    setBoardsActive(true);
+    expect(isShown('product-board')).toBe(true);
+    expect(isShown('live-auction-board')).toBe(true);
+    expect(isShown('past-auction-board')).toBe(true);
   });
 
   it('hideOwnerBoard on an unknown id is a safe no-op', () => {

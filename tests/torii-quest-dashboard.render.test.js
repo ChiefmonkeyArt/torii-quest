@@ -34,7 +34,7 @@ describe('renderToriiQuestPage', () => {
   it('returns a self-contained HTML document with the version', () => {
     expect(typeof html).toBe('string');
     expect(html).toMatch(/^<!DOCTYPE html>/);
-    expect(html).toContain('v0.2.653-alpha');
+    expect(html).toContain('v0.2.654-alpha');
     expect(html).toContain('Torii Quest');
   });
 

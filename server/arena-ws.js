@@ -100,6 +100,19 @@ const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || ''
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
+// ADR-0032 (v0.2.650-alpha): server-side truth for "is this session the owner,
+// currently in Kami Mode". The client's KAMI_STATE message only ever SETS
+// sess.kamiActive; whether it's honoured is decided here by re-checking the
+// session's own authenticated pubkey (set once at AUTH, not client-suppliable
+// per-message) against ADMIN_PUBKEY_HEX. A non-admin session can set the flag
+// on itself but isKamiActive() below will always read false for it, so combat
+// code that only calls isKamiActive() never needs to re-check the pubkey.
+function isKamiActive(sess) {
+  if (!sess || !sess.kamiActive) return false;
+  if (!ADMIN_PUBKEY_HEX) return false;
+  return typeof sess.pubkey === 'string' && sess.pubkey.toLowerCase() === ADMIN_PUBKEY_HEX;
+}
+
 // Per-session rate limits (msg / sec).
 const RATE = Object.freeze({
   MOVE: 25,
@@ -448,6 +461,16 @@ async function handleMessage(sess, raw) {
       return;
     }
     case MSG.PONG: return;
+    case MSG.KAMI_STATE: {
+      // ADR-0032: record the claim unconditionally (cheap, harmless for a
+      // non-admin session) but every combat/targeting site reads through
+      // isKamiActive(sess), which re-verifies sess.pubkey === ADMIN_PUBKEY_HEX
+      // before honouring it. A non-admin flipping this flag on themselves has
+      // no effect anywhere.
+      sess.kamiActive = !!msg.active;
+      log.info('KAMI_STATE', sess.id, 'active=' + sess.kamiActive, 'honoured=' + isKamiActive(sess));
+      return;
+    }
     // Ignore anything a client shouldn't be sending.
     default: return;
   }
@@ -579,6 +602,13 @@ function resolveAndBroadcast(shooter, shotMsg) {
   const dmg = damageFor(result.zone);
   if (dmg <= 0) return;
 
+  // ADR-0032 backstop: a peer's shot resolved as hitting a kami-active admin.
+  // The bot roster exclusion doesn't cover peer-vs-peer fire, so this is the
+  // only guard on that path — drop the shot with no damage applied and no
+  // HIT/KILL broadcast, exactly as if it had missed.
+  const targetSess = sessions.get(result.targetId);
+  if (isKamiActive(targetSess)) return;
+
   const outcome = applyDamage(hpLedger, result.targetId, dmg);
   // Server-issued HIT — broadcast to ALL so shooter also sees definitive result.
   broadcastToAll({
@@ -702,6 +732,11 @@ function onBotShot(origin, dir, dmg) {
   let best = null;
   for (const sess of sessions.values()) {
     if (!sess.authed) continue;
+    // ADR-0032 backstop: a kami-active admin is already excluded from the bot
+    // brain's target roster, so in steady state no bot ray should ever reach
+    // here for them. Excluded again anyway — a bullet already in flight from
+    // the tick before Kami Mode was confirmed must not land.
+    if (isKamiActive(sess)) continue;
     const colliders = buildColliders({ pos: sess.pos });
     const r = rayVsPeer(originArr, dirArr, colliders);
     if (!r.hit) continue;
@@ -744,6 +779,13 @@ if (BOT_SIM_ENABLED) {
     const players = [];
     for (const sess of sessions.values()) {
       if (!sess.authed) continue;
+      // ADR-0032: a session in verified Kami Mode is omitted from the roster
+      // the bot brain sees this tick — bots have no target to acquire, aim
+      // at, or shoot, so they carry on with existing patrol/idle behaviour as
+      // if that player were not present. This is the primary "bots ignore
+      // the admin" mechanism; isKamiActive() re-verifies pubkey, not just the
+      // client-claimed flag.
+      if (isKamiActive(sess)) continue;
       const [x, y, z] = sess.pos;
       // `id` gives the bot brain a stable per-player key for target-switch
       // hysteresis (v0.2.378 fix 3) across ticks.

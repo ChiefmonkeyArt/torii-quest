@@ -221,3 +221,31 @@ describe('isKnownType', () => {
     expect(isKnownType(undefined)).toBe(false);
   });
 });
+
+// ---------- KAMI_STATE (ADR-0032) ----------
+
+describe('KAMI_STATE — client tells server it entered/exited Kami Mode', () => {
+  it('accepts active:true and active:false', () => {
+    expect(decode({ t: MSG.KAMI_STATE, active: true }).ok).toBe(true);
+    expect(decode({ t: MSG.KAMI_STATE, active: false }).ok).toBe(true);
+  });
+
+  it('rejects a missing or non-boolean active field', () => {
+    expect(decode({ t: MSG.KAMI_STATE }).ok).toBe(false);
+    expect(decode({ t: MSG.KAMI_STATE, active: 'true' }).ok).toBe(false);
+    expect(decode({ t: MSG.KAMI_STATE, active: 1 }).ok).toBe(false);
+  });
+
+  it('sanitize strips extra client-injected fields', () => {
+    const r = decode({ t: MSG.KAMI_STATE, active: true, isAdmin: true, id: 'forged' });
+    expect(r.ok).toBe(true);
+    expect(sanitize(r.msg)).toEqual({ t: MSG.KAMI_STATE, active: true });
+  });
+
+  it('round-trips through encode/decode', () => {
+    const wire = encode({ t: MSG.KAMI_STATE, active: true });
+    const r = decode(wire);
+    expect(r.ok).toBe(true);
+    expect(r.msg).toEqual({ t: MSG.KAMI_STATE, active: true });
+  });
+});

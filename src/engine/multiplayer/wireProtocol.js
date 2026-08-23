@@ -56,6 +56,13 @@ export const MSG = Object.freeze({
   BOT_SHOT:  'BOT_SHOT',
   BOT_HIT:   'BOT_HIT',
   BOT_KILL:  'BOT_KILL',
+  // ADR-0032 (v0.2.650-alpha): client→server. Tells the server the sending
+  // session just entered/exited Kami Mode. Purely additive, PROTOCOL_VERSION
+  // unchanged — legacy servers/clients drop it via the UNKNOWN_TYPE guard.
+  // The server NEVER trusts this alone: it re-checks the session's own
+  // authenticated pubkey against the configured admin pubkey before acting on
+  // it (see arena-ws.js). A non-admin session sending this is a no-op.
+  KAMI_STATE: 'KAMI_STATE',
 });
 
 // Animation hint labels a bot state may carry (mirrors botSim _animHint).
@@ -257,6 +264,10 @@ const validators = {
     if (m.shooterId !== undefined && !isStr(m.shooterId, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'shooterId');
     return ok(m);
   },
+  [MSG.KAMI_STATE](m) {
+    if (typeof m.active !== 'boolean') return fail('BAD_FIELD', 'active');
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -324,6 +335,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.BOT_SHOT]:  ['origin', 'dir', 'botId'],
   [MSG.BOT_HIT]:   ['botId', 'dmg', 'zone', 'hp', 'shooterId'],
   [MSG.BOT_KILL]:  ['botId', 'shooterId'],
+  [MSG.KAMI_STATE]: ['active'],
 });
 
 /** Is this a known message type? */

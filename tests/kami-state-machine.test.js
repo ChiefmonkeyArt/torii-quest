@@ -28,6 +28,7 @@ function flush() { return new Promise(r => setTimeout(r, 0)); }
 describe('Kami Mode state machine (ADR-0029)', () => {
   let shootingSuppressedCalls = [];
   let fullSuppressedCalls = [];
+  let kamiStateCalls = [];
   let prevPhase;
 
   beforeAll(() => {
@@ -44,6 +45,10 @@ describe('Kami Mode state machine (ADR-0029)', () => {
       getDocument: () => document,
       setGameInputSuppressed: (v) => { fullSuppressedCalls.push(v); },
       setShootingSuppressed: (v) => { shootingSuppressedCalls.push(v); },
+      // ADR-0032: records every outbound KAMI_STATE the client would have sent
+      // to the server (the real sender lives in multiplayerHost.js — this fake
+      // only proves kamiMode.js calls it at the right moments).
+      sendKamiState: (active) => { kamiStateCalls.push(active); },
       // Fake owner-capability endpoint: returns the owner pubkey as admin.
       fetchImpl: async () => ({ ok: true, json: async () => ({ adminPubkey: OWNER_PUBKEY }) }),
     });
@@ -53,9 +58,11 @@ describe('Kami Mode state machine (ADR-0029)', () => {
   beforeEach(() => {
     shootingSuppressedCalls = [];
     fullSuppressedCalls = [];
+    kamiStateCalls = [];
     state.phase = 'playing';
     // Reset to NORMAL before each scenario.
     kamiExit();
+    kamiStateCalls = []; // drop the exit-side effect of the reset above
   });
 
   test('1st Ctrl+E enters KAMI (not a note): rack shown, shooting suppressed, invincible on', async () => {
@@ -69,17 +76,26 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     // Shooting suppressed (invincible spirit doesn't fire); movement NOT suppressed.
     expect(shootingSuppressedCalls).toContain(true);
     expect(fullSuppressedCalls).not.toContain(true);
+    // ADR-0032: entering Kami tells the server so it excludes us from bot
+    // targeting and blocks damage — this is what makes invincibility real
+    // in multiplayer (the local _invincible flag above never reached the
+    // server on its own).
+    expect(kamiStateCalls).toEqual([true]);
   });
 
   test('kamiExit() restores NORMAL: rack hidden, shooting restored, invincible off', async () => {
     ctrlE();
     await flush();
     expect(kamiActive()).toBe(true);
+    kamiStateCalls = []; // isolate this test's exit call from ctrlE()'s enter call
     kamiExit();
     expect(kamiActive()).toBe(false);
     expect(kamiInvincible()).toBe(false);
     expect(document.getElementById('emakake').hasAttribute('hidden')).toBe(true);
     expect(shootingSuppressedCalls).toContain(false);
+    // ADR-0032: leaving Kami tells the server too, so the owner becomes a
+    // normal targetable/vulnerable player again.
+    expect(kamiStateCalls).toEqual([false]);
   });
 
   test('leaving the arena (PHASE_CHANGE → TITLE) auto-exits KAMI', async () => {

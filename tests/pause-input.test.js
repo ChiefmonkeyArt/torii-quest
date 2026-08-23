@@ -69,7 +69,8 @@ describe('pause modal input boundary', () => {
     // note is open AND mark Escape as handled so the pointer-lock keyup fallback
     // doesn't open pause on the same gesture.
     expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
-    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit \}/);
+    // ADR-0032: kamiActive appended to the named-import list (reconnect resync).
+    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
   });
 

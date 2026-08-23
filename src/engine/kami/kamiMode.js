@@ -223,6 +223,13 @@ async function enterKamiMode() {
   }
   _kamiActive = true;
   _invincible = true;
+  // ADR-0032: tell the server we're invincible NOW, before the rack/anything
+  // else, so the earliest possible bot tick already excludes us from
+  // targeting. Client-side _invincible above only ever protected local SP
+  // damage math that nothing calls; this is what actually stops MP bots/
+  // peers from hurting the owner. The server independently re-verifies our
+  // pubkey before honouring it — see arena-ws.js isKamiActive().
+  _deps.sendKamiState?.(true);
   // The rack goes live the moment the owner enters Kami Mode: floating over the
   // world in-game, as a column in a menu. showEmakake removes `hidden` + pins it
   // right via .floating; the panels live at body scope (ADR-0028) so they survive
@@ -247,6 +254,7 @@ function exitKamiMode() {
     // Not actually in KAMI (e.g. Esc during the owner-check): still make sure no
     // half-applied suppressions linger, then bail.
     _invincible = false;
+    _deps.sendKamiState?.(false);
     _deps.setShootingSuppressed?.(false);
     _deps.setGameInputSuppressed?.(false);
     _closeNoteIfOpen();
@@ -255,6 +263,9 @@ function exitKamiMode() {
   }
   _kamiActive = false;
   _invincible = false;
+  // ADR-0032: tell the server invincibility/bot-ignore is OFF the moment we
+  // leave — the owner becomes a normal, vulnerable, targetable player again.
+  _deps.sendKamiState?.(false);
   // If the ema note was still open, close it + remove its keydown listener.
   _closeNoteIfOpen();
   hideEmakake({ doc: _deps.getDocument() });
@@ -570,6 +581,11 @@ export function installKamiMode(deps = {}) {
     setGameInputSuppressed: deps.setGameInputSuppressed || (() => {}),
     setShootingSuppressed: deps.setShootingSuppressed || (() => {}),
     fetchImpl: deps.fetchImpl || ((...a) => fetch(...a)),
+    // ADR-0032: notifies the server of enter/exit so it can independently
+    // re-verify our pubkey and exclude us from bot targeting + damage.
+    // Defaults to a no-op so single-player / no-MP-host callers need not
+    // pass it.
+    sendKamiState: deps.sendKamiState || (() => {}),
   };
 
   const doc = _deps.getDocument();

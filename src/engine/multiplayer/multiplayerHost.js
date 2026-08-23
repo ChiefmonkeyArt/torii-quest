@@ -82,7 +82,7 @@ export function createMultiplayerHost(deps) {
     roster,
     _enabled: !!mpEnabled,
     start, stop,
-    sendMove, sendShot, sendHit, sendKill, sendChat,
+    sendMove, sendShot, sendHit, sendKill, sendChat, sendKamiState,
     tick, viewLagMs,
   };
 
@@ -185,6 +185,14 @@ export function createMultiplayerHost(deps) {
   function sendHit(_m) { return false; }
   function sendKill(m) { return _send({ t: MSG.KILL, shooterId: m.shooterId, victimId: m.victimId, weapon: m.weapon }); }
   function sendChat(msg) { return _send({ t: MSG.CHAT, msg }); }
+  // ADR-0032 (v0.2.650-alpha): tell the server this session just entered/
+  // exited Kami Mode, so it can exclude the admin from bot targeting and
+  // damage resolution. The server independently re-verifies the sending
+  // session's own pubkey before honouring this — see arena-ws.js
+  // isKamiActive(). A no-op (returns false) while disconnected/not yet
+  // CONNECTED; kamiMode.js does not need to care — nothing damages the local
+  // player while offline/single-player anyway.
+  function sendKamiState(active) { return _send({ t: MSG.KAMI_STATE, active: !!active }); }
 
   function tick(renderTime) { roster.tick(renderTime); }
 

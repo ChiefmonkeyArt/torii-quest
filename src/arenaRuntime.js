@@ -68,7 +68,7 @@ import { setMarketActive } from './engine/plebeian/marketStall.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
-import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit } from './engine/kami/kamiMode.js';
+import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive } from './engine/kami/kamiMode.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -1197,6 +1197,11 @@ export function createArenaRuntime(hooks = {}) {
       requestPointerLock: () => { try { requestLock(); } catch { /* noop */ } },
       setGameInputSuppressed,
       setShootingSuppressed,
+      // ADR-0032: lazy accessor — _mp is assigned after this install() call, so
+      // kamiMode.js must read it at call time, not capture it now. No-op
+      // (undefined _mp) is fine: single-player has nothing that damages the
+      // local player anyway, so there is nothing to tell a server about.
+      sendKamiState: (active) => { try { _mp?.sendKamiState?.(active); } catch { /* noop */ } },
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
@@ -1408,6 +1413,11 @@ export function createArenaRuntime(hooks = {}) {
         if (name === 'mp_state') {
           if (p.state === WS_STATE.CONNECTED) {
             setBotNetMode(true);
+            // ADR-0032: a fresh/reconnected server session has no memory of a
+            // Kami Mode that was already active client-side (e.g. brief drop
+            // + reconnect mid-session) — resync so bots/peers don't suddenly
+            // start targeting the owner again after a reconnect.
+            if (kamiActive()) { try { _mp?.sendKamiState?.(true); } catch { /* noop */ } }
             // v0.2.529: Defer peer prewarm until after first visible frame — the
             // warm pool builds a full avatar (skeletonClone + traverse + mixer +
             // gun attach) per character, which is several seconds of main-thread

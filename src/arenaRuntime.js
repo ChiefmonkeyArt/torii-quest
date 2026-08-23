@@ -1253,9 +1253,8 @@ export function createArenaRuntime(hooks = {}) {
       // this guard Escape is stolen (stopImmediatePropagation below) and the
       // modal can never close. Mark Escape as handled so the pointer-lock keyup
       // fallback below doesn't open pause either.
-      if (kamiNoteOpen()) { console.log('[K7] capture Escape: kamiNoteOpen=true -> yield'); _escapeHandledOnKeyDown = true; try { const d = document.getElementById('kami-debug'); if (d) d.textContent = (d.textContent === 'K7: (idle)' ? 'K7: ' : d.textContent + ' | ') + 'CAP:yield'; } catch (_) {} return; }
-      console.log('[K7] capture Escape: kamiNoteOpen=false -> opening pause/menu');
-      try { const d = document.getElementById('kami-debug'); if (d) d.textContent = (d.textContent === 'K7: (idle)' ? 'K7: ' : d.textContent + ' | ') + 'CAP:openPause'; } catch (_) {}
+      if (kamiNoteOpen()) { _escapeHandledOnKeyDown = true; try { const d = document.getElementById('kami-debug'); if (d) d.textContent = (d.textContent === 'K7: (idle)' ? 'K7: ' : d.textContent + ' | ') + 'CAP:yield'; const t = document.getElementById('kami-trace'); if (t) t.textContent = (t.textContent ? t.textContent + ' | ' : '') + 'CAP:yield'; } catch (_) {} return; }
+      try { const t = document.getElementById('kami-trace'); if (t) t.textContent = (t.textContent ? t.textContent + ' | ' : '') + 'CAP:openPause'; } catch (_) {}
       _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.

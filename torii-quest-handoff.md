@@ -319,3 +319,16 @@ DEPLOY:      NO (maintainer publishes) unless explicitly instructed
 ```
 
 Keep changes incremental and reversible. If scope balloons, stop at a green checkpoint and report what remains rather than half-landing a broad rewrite.
+
+## 11. Deferred — Auction-button slice (ADR-0030, not yet started)
+
+Shipped v0.2.644-alpha (ADR-0029 Kami state machine) leaves the auction panel
+still auto-showing on NAP-zone entry for guests. The deferred slice:
+- Stop `setMarketActive(true)` auto-show on NAP entry (src/engine/plebeian/marketStall.js).
+- Add a button to the existing product panel (src/engine/components/productPanel*.js)
+  that opens `#auction-panel`.
+- Gate logged-in admin only.
+- Full admin-stall rework (display fixed-price products + auctions from the
+  owner's Plebeian stall) is further deferred — this slice is just the button trigger.
+Separate commit + ADR-0030. Owner said: "we will focus on this in a bit… please
+make a note to do that in a bit."

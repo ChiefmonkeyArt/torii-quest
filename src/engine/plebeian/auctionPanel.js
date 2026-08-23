@@ -39,13 +39,22 @@ export function renderChips(vm) {
   ].join('');
 }
 
-/** One bid row as HTML. `r` is a row from buildBidHistory (has isHighBid, isMonotonic). Pure. */
+/** One bid row as HTML. `r` is a row from buildBidHistory (has isTopBid, isMonotonic, bidder). Pure.
+ *  Layout left-to-right: avatar · time · bidder name · amount · flag. */
 export function renderBidRow(r) {
-  const who = shortBidder(r.bidderPubkey);
-  const flag = r.isHighBid ? 'high bid' : !r.isMonotonic ? 'below high' : '';
-  const cls = ['bid', r.isHighBid ? 'high' : '', !r.isMonotonic ? 'note' : ''].filter(Boolean).join(' ');
+  const bd = r.bidder || {};
+  const who = bd.name || shortBidder(r.bidderPubkey);
+  // The colored-circle fallback is always rendered; a profile picture img sits on
+  // top of it and hides itself on load error, so a broken picture URL falls back
+  // gracefully to the initial-letter avatar.
+  const fallback = `<span class="avatar fallback" style="background-color:hsl(${bd.hue || 0} 55% 45%)">${bd.initial || '?'}</span>`;
+  const avatar = bd.picture
+    ? `<span class="avatar-wrap">${fallback}<img class="avatar img" src="${bd.picture}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'"></span>`
+    : fallback;
+  const flag = r.isTopBid ? 'high bid' : !r.isMonotonic ? 'below high' : '';
+  const cls = ['bid', r.isTopBid ? 'high' : '', !r.isMonotonic ? 'note' : ''].filter(Boolean).join(' ');
   const flagHtml = flag ? `<span class="flag">${flag}</span>` : '';
-  return `<div class="${cls}"><span class="t">${fmtClock(r.time)}</span><span class="who">${who}</span><span class="amt">${r.amount.toLocaleString()}</span>${flagHtml}</div>`;
+  return `<div class="${cls}">${avatar}<span class="t">${fmtClock(r.time)}</span><span class="who">${who}</span><span class="amt">${r.amount.toLocaleString()}</span>${flagHtml}</div>`;
 }
 
 /**
@@ -62,7 +71,7 @@ export function renderAuctionPanel(snapshot, opts = {}) {
   if (!root) return 0;
   const body = doc.getElementById('auction-panel-body');
   const statusEl = doc.getElementById('auction-panel-status');
-  const vm = buildAuctionViewModel(snapshot.auction, snapshot.bids);
+  const vm = buildAuctionViewModel(snapshot.auction, snapshot.bids, undefined, snapshot.profiles);
   if (!vm) {
     if (body) body.innerHTML = '<div class="auction-empty">Waiting for relay…</div>';
     if (statusEl) statusEl.textContent = 'watch-only · connecting';
@@ -85,7 +94,7 @@ export function renderAuctionPanel(snapshot, opts = {}) {
     : `starting ${vm.auction.startingBid} · 0 bids`);
   const link = doc.getElementById('auction-panel-link');
   if (link) link.href = `https://auctions.plebeian.market/auctions/${vm.auction.id}`;
-  if (body) body.innerHTML = vm.bids.map(renderBidRow).join('');
+  if (body) body.innerHTML = [...vm.bids].sort((a, b) => b.amount - a.amount).map(renderBidRow).join('');
   if (statusEl) statusEl.textContent = `watch-only · ${vm.bidCount} bids`;
   return vm.bids.length;
 }

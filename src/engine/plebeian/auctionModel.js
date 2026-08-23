@@ -12,6 +12,35 @@ function posterImage(event) {
   return (still || imgs[0] || [])[1] || null;
 }
 
+/** Parse a kind-0 Nostr profile (metadata) event into {pubkey, name, picture}. Pure. */
+export function parseProfileEvent(event) {
+  if (!event || event.kind !== 0 || !event.pubkey) return null;
+  let c = {};
+  try { c = JSON.parse(event.content || '{}'); } catch { /* malformed content */ }
+  const name = c.display_name || c.name || c.username || null;
+  const picture = c.picture || c.avatar || null;
+  if (!name && !picture) return null;
+  return { pubkey: event.pubkey, name, picture };
+}
+
+/** Deterministic hue (0-359) from a string — stable per pubkey. */
+function hashHue(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h % 360;
+}
+
+/** Resolve a bidder's display identity from a profile map (pubkey -> {name, picture}).
+ *  Falls back to a colored-circle avatar + initial when no profile exists. Pure. */
+export function resolveBidder(pubkey, profiles) {
+  const p = (profiles && pubkey && profiles.get(pubkey)) || null;
+  const name = (p && p.name) || null;
+  const picture = (p && p.picture) || null;
+  const initial = name ? name[0].toUpperCase() : (pubkey ? pubkey[0].toUpperCase() : '?');
+  const hue = hashHue(pubkey || '?');
+  return { name, picture, initial, hue };
+}
+
 /** All still image urls (excludes video). */
 function galleryImages(event) {
   return (event.tags || [])
@@ -103,8 +132,11 @@ export function parseBidEvent(event) {
  * Build the bid history: sort by time, track the running high bid, flag bids that
  * FAIL the English-auction monotonic-increase rule (amount <= prior high) — these
  * are the "buggy" bids the owner saw accepted.
+ *
+ * @param {Array} bidEvents raw kind-1023 events
+ * @param {Map<string,{name,picture}>} [profiles] resolved bidder profiles
  */
-export function buildBidHistory(bidEvents) {
+export function buildBidHistory(bidEvents, profiles) {
   const bids = bidEvents
     .map(parseBidEvent)
     .filter(Boolean)
@@ -113,14 +145,17 @@ export function buildBidHistory(bidEvents) {
   let highBid = null;
   const rows = bids.map((b) => {
     const beatsReserve = b.amount > 0; // informational
-    const isHigh = b.amount > high;
     const isMonotonic = b.amount > high; // English auction: must strictly exceed prior high
-    if (isHigh) {
+    if (isMonotonic) {
       high = b.amount;
       highBid = b.id;
     }
-    return { ...b, isHighBid: isHigh, isMonotonic, beatsReserve };
+    return { ...b, isHighBid: isMonotonic, isMonotonic, beatsReserve, bidder: resolveBidder(b.bidderPubkey, profiles) };
   });
+  // Mark only THE single top bid as the "high bid" shown in the panel — every
+  // ascending bid raised the running high, but flagging all of them reads as noise
+  // in a highest-first list. isHighBid is kept for back-compat / tests.
+  for (const r of rows) r.isTopBid = highBid !== null && r.id === highBid;
   return {
     bids: rows,
     bidCount: rows.length,
@@ -143,11 +178,14 @@ export function auctionStatus(auction, nowSec) {
   return { phase: 'ended', secondsRemaining: 0, secondsSinceEnd: now - end };
 }
 
-/** Full view-model: auction + bids + status. The panel renders from this. */
-export function buildAuctionViewModel(auctionEvent, bidEvents, nowSec) {
+/** Full view-model: auction + bids + status. The panel renders from this.
+ *  @param {Array} bidEvents raw kind-1023 events
+ *  @param {Map<string,{name,picture}>} [profiles] resolved bidder profiles
+ */
+export function buildAuctionViewModel(auctionEvent, bidEvents, nowSec, profiles) {
   const auction = parseAuctionEvent(auctionEvent);
   if (!auction) return null;
-  const history = buildBidHistory(bidEvents);
+  const history = buildBidHistory(bidEvents, profiles);
   const status = auctionStatus(auction, nowSec);
   return {
     auction,

@@ -92,6 +92,26 @@ describe('renderChips + renderBidRow', () => {
     expect(html).toContain('class="bid note"');
     expect(html).toContain('below high');
   });
+
+  it('renders a colored-circle fallback avatar + initial when no profile', () => {
+    const { buildBidHistory } = require('../../src/engine/plebeian/auctionModel.js');
+    const h = buildBidHistory(bidEvents);
+    const row = h.bids.find((r) => r.isTopBid);
+    const html = renderBidRow(row);
+    expect(html).toContain('avatar fallback');
+    expect(html).toContain('background-color:hsl(');
+  });
+
+  it('renders the display name + img avatar when a profile is present', () => {
+    const { buildBidHistory } = require('../../src/engine/plebeian/auctionModel.js');
+    const prof = new Map([['bidder2', { name: 'sandwich', picture: 'https://x/a.png' }]]);
+    const h = buildBidHistory(bidEvents, prof);
+    const row = h.bids.find((r) => r.bidderPubkey === 'bidder2');
+    const html = renderBidRow(row);
+    expect(html).toContain('sandwich');
+    expect(html).toContain('avatar img');
+    expect(html).toContain('https://x/a.png');
+  });
 });
 
 describe('renderAuctionPanel', () => {
@@ -107,6 +127,14 @@ describe('renderAuctionPanel', () => {
     expect(els['auction-panel-body']._html).toContain('169,000');
     expect(els['auction-panel-body']._html).toContain('below high');
     expect(els['auction-panel-link']._href).toBe(`https://auctions.plebeian.market/auctions/${AUC_ID}`);
+  });
+
+  it('renders bids in descending order (highest bid first)', () => {
+    const { doc, els } = fakeDoc();
+    renderAuctionPanel({ auction: auctionEvent, bids: bidEvents }, { doc });
+    const html = els['auction-panel-body']._html;
+    // 169,000 (the peak) must appear before 4,200 in the rendered list
+    expect(html.indexOf('169,000')).toBeLessThan(html.indexOf('4,200'));
   });
 
   it('sets the poster background image and unhides it', () => {

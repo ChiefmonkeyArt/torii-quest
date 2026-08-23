@@ -7,6 +7,8 @@ import { describe, it, expect } from 'vitest';
 import {
   parseAuctionEvent,
   parseBidEvent,
+  parseProfileEvent,
+  resolveBidder,
   buildBidHistory,
   auctionStatus,
   buildAuctionViewModel,
@@ -143,5 +145,50 @@ describe('buildAuctionViewModel', () => {
     expect(vm.nextMinBid).toBe(169000 + 10);
     expect(vm.status.phase).toBe('live');
     expect(vm.invalidBids.length).toBe(2);
+  });
+});
+
+describe('bidder profiles (kind 0)', () => {
+  it('parseProfileEvent extracts name + picture from a kind-0 event', () => {
+    const p = parseProfileEvent({ kind: 0, pubkey: 'abc', content: JSON.stringify({ display_name: 'sandwich', picture: 'https://x/a.png' }) });
+    expect(p).toEqual({ pubkey: 'abc', name: 'sandwich', picture: 'https://x/a.png' });
+  });
+  it('parseProfileEvent returns null for non-kind-0 or identity-less events', () => {
+    expect(parseProfileEvent({ kind: 1, pubkey: 'x' })).toBeNull();
+    expect(parseProfileEvent({ kind: 0, pubkey: 'x', content: '{}' })).toBeNull();
+    expect(parseProfileEvent({ kind: 0, content: '{"name":"y"}' })).toBeNull();
+  });
+  it('resolveBidder uses profile name/picture, falls back to colored-circle initial', () => {
+    const prof = new Map([['abc', { name: 'sandwich', picture: 'https://x/a.png' }]]);
+    const r = resolveBidder('abc', prof);
+    expect(r.name).toBe('sandwich');
+    expect(r.picture).toBe('https://x/a.png');
+    expect(r.initial).toBe('S');
+    expect(r.hue).toBeGreaterThanOrEqual(0);
+    expect(r.hue).toBeLessThan(360);
+    // fallback: no profile at all
+    const f = resolveBidder('def', prof);
+    expect(f.name).toBeNull();
+    expect(f.picture).toBeNull();
+    expect(f.initial).toBe('D');
+    expect(f.hue).toBeGreaterThanOrEqual(0);
+    expect(resolveBidder(null, null).initial).toBe('?');
+  });
+});
+
+describe('isTopBid (single high-bid flag for highest-first display)', () => {
+  it('marks only the single top bid as isTopBid', () => {
+    const h = buildBidHistory(bidEvents);
+    const tops = h.bids.filter((r) => r.isTopBid);
+    expect(tops.length).toBe(1);
+    expect(tops[0].amount).toBe(169000);
+  });
+  it('attaches a bidder identity to every row, resolving names from profiles', () => {
+    const h = buildBidHistory(bidEvents);
+    expect(h.bids.every((r) => r.bidder && typeof r.bidder.hue === 'number')).toBe(true);
+    const prof = new Map([['bidder1', { name: 'sandwich', picture: null }]]);
+    const h2 = buildBidHistory(bidEvents, prof);
+    const row = h2.bids.find((r) => r.bidderPubkey === 'bidder1');
+    expect(row.bidder.name).toBe('sandwich');
   });
 });

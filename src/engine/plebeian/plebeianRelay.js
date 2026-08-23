@@ -7,6 +7,8 @@
 // `subscribeAuction` touches a WebSocket. READ-ONLY: this client never publishes,
 // signs, or sends anything but REQ subscriptions.
 
+import { parseProfileEvent } from './auctionModel.js';
+
 export const PLEBEIAN_AUCTION_KIND = 30408;
 export const PLEBEIAN_BID_KIND = 1023;
 
@@ -83,4 +85,52 @@ export function subscribeAuction(opts) {
       if (ws) { try { ws.close(); } catch { /* noop */ } }
     },
   };
+}
+
+/**
+ * Resolve bidder display identities (kind-0 profiles) for a set of pubkeys.
+ * Queries every relay in `relays` in parallel, merges results (first name/picture
+ * wins per pubkey), resolves once all close or after `timeoutMs`. Read-only: only
+ * sends REQ subscriptions, never publishes.
+ * @returns {Promise<Map<string,{name:string|null,picture:string|null}>>}
+ */
+export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
+  return new Promise((resolve) => {
+    const out = new Map();
+    const list = (pubkeys && pubkeys.length) ? [...new Set(pubkeys)] : [];
+    const urls = (relays && relays.length) ? [...new Set(relays)] : [];
+    if (!list.length || !urls.length) { resolve(out); return; }
+    let pending = urls.length;
+    const finish = () => {
+      if (pending < 0) return;
+      pending = -1;
+      resolve(out);
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    urls.forEach((url) => {
+      let ws;
+      try { ws = new WebSocket(url); } catch { if (--pending <= 0) { clearTimeout(timer); finish(); } return; }
+      let done = false;
+      const settle = () => { if (done) return; done = true; if (--pending <= 0) { clearTimeout(timer); finish(); } };
+      ws.onopen = () => {
+        try { ws.send(JSON.stringify(['REQ', 'prof', { authors: list, kinds: [0] }])); } catch { settle(); return; }
+        // give each relay a 6s collection window, then close
+        setTimeout(() => { try { ws.close(); } catch { /* noop */ } settle(); }, 6000);
+      };
+      ws.onmessage = (msg) => {
+        let frame;
+        try { frame = JSON.parse(msg.data); } catch { return; }
+        if (frame[0] !== 'EVENT' || !frame[2]) return;
+        const p = parseProfileEvent(frame[2]);
+        if (!p) return;
+        const prev = out.get(p.pubkey) || { name: null, picture: null };
+        out.set(p.pubkey, {
+          name: prev.name || p.name,
+          picture: prev.picture || p.picture,
+        });
+      };
+      ws.onerror = () => {};
+      ws.onclose = () => settle();
+    });
+  });
 }

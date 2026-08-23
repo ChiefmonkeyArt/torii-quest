@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.656-alpha",
+  "version": "0.2.657-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -54,6 +54,7 @@
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
     "@noble/curves": "^2.2.0",
+    "nostr-tools": "^2.24.3",
     "three": "^0.184.0",
     "ws": "^8.21.0"
   }

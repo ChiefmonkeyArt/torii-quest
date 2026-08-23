@@ -1,7 +1,7 @@
 # ADR-0027 — Kami ema input isolation: the note owns its keystrokes while open
 
-**Status:** Accepted (shipped v0.2.637-alpha)
-**Version:** v0.2.637-alpha
+**Status:** Accepted (shipped v0.2.637-alpha; Esc/Enter root cause fixed v0.2.641–v0.2.642)
+**Version:** v0.2.642-alpha
 **Date:** 2026-08-23
 **Type:** Bug fix (input boundary; no gameplay/physics/collider/damage change)
 **Follows:** ADR-0025 (Kami Mode)
@@ -196,3 +196,73 @@ After deploy: `Ctrl+E` to open the ema. Type words with spaces — no jump. Pres
 bare `E` — no jump. Press Escape — the ema closes and the pause menu does NOT
 open. Press `Ctrl+E` again, type a note, press Enter — the note commits (and
 seals). Movement + shooting resume immediately on close.
+
+## Revision (v0.2.641–v0.2.642): the real Esc/Enter root cause
+
+The v0.2.637 changes above fixed the Space-leak + made the capture Escape yield
+*correctly*, but live testing showed Enter still did not close the ema and Escape
+still opened the pause menu. The actual root cause was **not** the input boundary
+— it was a CSS-specificity bug in the overlay's own hide code.
+
+### Root cause
+
+`ensureOverlay()` built the `#kami-overlay` element with an inline `cssText`
+that included `display:flex`:
+
+```js
+root.style.cssText = ['position:fixed','inset:0','z-index:200','display:flex', ...].join(';');
+root.setAttribute('hidden', '');
+```
+
+The browser's UA stylesheet rule `[hidden] { display: none }` has **lower
+specificity** than an inline `style="...;display:flex;..."` declaration. So
+`finish()`'s `root.setAttribute('hidden', '')` did **nothing** — the overlay
+stayed `display:flex` (visible) even though `_noteOpen` had already been set to
+`false`.
+
+The consequences were exactly what the owner reported:
+
+1. **Enter "did not work"** — `finish(true)` ran, set `_noteOpen = false`,
+   called `root.setAttribute('hidden','')`… and the box stayed on screen. The
+   note was committed to the tray, but the modal never closed, so it looked like
+   nothing happened.
+2. **Escape opened the pause menu** — because `finish()` had already flipped
+   `_noteOpen` to `false` (on the prior Enter), the capture listener's
+   `kamiNoteOpen()` guard now returned `false`. So Escape fell through to the
+   pause-menu path instead of yielding to the (already-"closed") ema.
+
+This is why the v0.2.637 input-boundary work looked correct in source + tests
+but failed at runtime: the bug lived in the overlay's CSS, not the key path.
+
+### Fix
+
+Toggle `root.style.display` directly instead of relying on the `[hidden]`
+attribute:
+
+- `ensureOverlay()`: after the `cssText` (which sets `display:flex`), set
+  `root.style.display = 'none'` so the overlay starts hidden.
+- `openNote()`: `root.style.display = 'flex'` to show.
+- `finish()`: `root.style.display = 'none'` to hide — and this **plus** the
+  `setGameInputSuppressed(false)` call are moved to **before** the
+  `if (!_noteOpen) return` guard, so a stuck-visible modal (with
+  `_noteOpen` already false from a prior finish) always closes + always hands
+  input back on the next keystroke.
+
+### Tests added
+
+`tests/pause-input.test.js` gains a source-contract test asserting the overlay
+hides via `root.style.display = 'none'` / shows via `= 'flex'`, that the hide +
+suppression release precede the `_noteOpen` guard, and that the dead
+`setAttribute('hidden', '')` is NOT used as the hide mechanism inside
+`finish()`. Pause-input block now 10 tests; full suite 3079/3079 green.
+
+### Diagnostic note (stripped)
+
+The root cause was pinned down with a temporary visible trace (`#kami-trace`
+top-right banner + `#kami-debug` in-modal line, tags `v0.2.638`–`v0.2.640`)
+after the owner reported the bundle was correct but the modal never opened.
+An earlier debug build (`v0.2.638-alpha-debug`) also exposed a separate TDZ
+regression — a `[K7]` `console.log` referenced `doc` before its `const`
+declaration, throwing `ReferenceError: Cannot access 'i' before initialization`
+after `_noteOpen = true`, so the modal never showed at all. Both the trace
+probes and that log were removed in v0.2.642-alpha.

@@ -1,7 +1,7 @@
 # ADR-0040 — Nostr-native Kami chat bridge (staged)
 
 Date: 2026-08-24
-Status: Accepted
+Status: Accepted (Stage 1 shipped v0.2.659-alpha; VPS key custody + extension-driven signing deferred)
 Supersedes (comms path only): the plaintext `replies.jsonl` channel from ADR-0039
 remains as the in-game fallback; it is NOT retired by this ADR.
 
@@ -44,9 +44,11 @@ long-term key on every message: the outer wrap reveals only an ephemeral key +
 the recipient tag. The recipient (the owner) unwraps with their own private key.
 
 Crucially, **Kami only needs the owner's public npub to publish** — it never
-needs the owner's private key. NIP-44 (XChaCha20-Poly1305) is performed
-server-side in Node via `nostr-tools` (`nip44.encrypt`/`nip17.wrapEvent`), where
-there is no NIP-07 constraint. The VPS already holds `kami-priv.hex` (ADR-0038).
+needs the owner's private key. NIP-44 (XChaCha20-Poly1305) is performed in Node
+via `nostr-tools` (`nip44.encrypt`/`nip17.wrapEvent`), where there is no NIP-07
+constraint. The signing key (`kami-priv.hex`, ADR-0038) currently lives OFF-BOX
+in a trusted sandbox only; it is NOT on the VPS. Stage 1's tool signs when run
+from a trusted machine holding the key — see § Key custody (deferred) below.
 
 ### The browser still cannot decrypt NIP-17
 
@@ -93,6 +95,50 @@ unwraps with `kami-priv`, and generates a reply. This is sovereign-bot territory
 (see knowledge-wiki `concepts/torii-sovereign-bot-genesis`) and is explicitly
 deferred — Stage 1 proves the outbound wire and the NIP-17 crypto first.
 
+## Key custody (deferred)
+
+`kami-priv.hex` is NOT installed on the VPS. The owner reviewed the tradeoff
+(2026-08-24) and chose to defer putting a private key on the server. Findings:
+
+- **Without the key on the VPS, nothing current breaks.** The in-game emagake
+  rack (ADR-0039 plaintext `replies.jsonl` + HTTP poll) needs no key. Reading ema,
+  creating tasks, and managing milestones are unrelated to `kami-priv` (it is a
+  pure crypto key for NIP-17 signing + ema decryption). Ema decryption can run
+  from the trusted sandbox that already holds the key.
+- **What the key gates** (all deferrable): (1) autonomous VPS-side NIP-17
+  signing; (2) ema decryption server-side; (3) Stage 2 inbound unwrapping of
+  owner→Kami DMs.
+- **Buzz / Nostr-client DMs still work without it**: outbound Kami DMs are
+  published from the trusted sandbox (smoke-proven: 3/4 relays accepted); the
+  owner reads them in Buzz with their OWN identity (no `kami-priv` involved).
+  Inbound (owner→Kami via Buzz) lands on relays and can be unwrapped on demand
+  from the sandbox; only the always-on real-time listener is missing (Stage 2).
+
+### Future custody option — Plebeian Signer (NIP-07 extension)
+
+When Nostr-native DMs are revisited, the preferred path is the **Plebeian
+Signer** browser extension rather than a raw key on the VPS:
+
+- It is a NIP-07 (`window.nostr`) signer with full `signEvent` + **NIP-04/NIP-44
+  encrypt/decrypt** support — exactly the primitives a NIP-17 gift-wrap needs.
+- Load Kami's identity into the extension; the in-game rack signs DMs as Kami
+  in-browser via `signEvent` (inner rumor + seal) + `nip44.encrypt` (encryption
+  layers); the browser generates the ephemeral outer wrap itself (no key needed).
+- `kami-priv` stays in the extension vault on the owner's own machine — never
+  the VPS.
+- `src/engine/kami/kamiNostrCap.js` (built this session) already feature-detects
+  `nip07`/`nip04`/`nip44` for exactly this path. The extension-driven signing
+  itself is NOT yet wired up — it is the future build.
+
+**Tradeoff**: NIP-07 signing is interactive (the owner approves each sign in the
+extension popup), so this is NOT autonomous. For autonomous always-on Kami
+(Stage 2 inbound), a real NIP-46 bunker (nsecBunker / Amber / self-hosted)
+holding Kami's key would be needed — a separate, larger build. The Plebeian
+Signer is a browser extension, not a NIP-46 bunker the VPS can call remotely.
+
+### Status: DEFERRED. No VPS key install. No extension wiring. Revisit when the
+owner returns to Buzz / Nostr-native DMs.
+
 ## Consequences
 
 - **No regression risk**: the in-game rack keeps working exactly as in v0.2.656.
@@ -100,9 +146,11 @@ deferred — Stage 1 proves the outbound wire and the NIP-17 crypto first.
   module + tests).
 - **Buzz interop is real**: Kami's replies appear as NIP-17 DMs in any
   NIP-17-capable client. Verified against Buzz's published NIP support table.
-- **Dependency**: adds `nostr-tools` as a server-only dep (bundled into the
-  arena-ws server build + the VPS tool; NOT shipped to the browser bundle —
-  the browser still does no NIP-44).
+- **Dependency**: adds `nostr-tools` + `undici` (`^7.29.0`) as server-only deps
+  (`undici` provides the browser-API-compatible `WebSocket` for the VPS relay
+  publish — Node 20 has no global WebSocket; bundled into the arena-ws server
+  build + the VPS tool; NOT shipped to the browser bundle — the browser still
+  does no NIP-44).
 - **Metadata leak**: NIP-17 gift-wrap outer is signed by an ephemeral key, but
   the `#p` recipient tag + timestamps are visible on the relay. Content is
   E2E encrypted. Acceptable for the "banal" comms per ADR-0039.

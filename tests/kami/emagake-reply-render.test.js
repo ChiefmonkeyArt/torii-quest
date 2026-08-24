@@ -116,3 +116,36 @@ describe('renderEmagake reply rows', () => {
     expect(doc2.body.children.some((c) => c.id === 'emagake-empty')).toBe(false);
   });
 });
+
+describe('renderEmagake send-state tag (ADR-0042)', () => {
+  it('shows no tag on a SENT (hung) note', () => {
+    const doc = dom();
+    const records = [{ id: 'e1', status: 'open', note: 'hung note', world: null, ts: 1, postState: 'sent' }];
+    renderEmagake(records, { doc });
+    const row = doc.body.children.find((c) => c.dataset.emaId === 'e1');
+    const main = row._children.find((c) => c.className === 'ema-main');
+    expect(main._children.some((c) => c.className && c.className.startsWith('ema-post'))).toBe(false);
+  });
+
+  it('shows a SENDING tag on a PENDING note', () => {
+    const doc = dom();
+    const records = [{ id: 'e1', status: 'open', note: 'in flight', world: null, ts: 1, postState: 'pending' }];
+    renderEmagake(records, { doc });
+    const row = doc.body.children.find((c) => c.dataset.emaId === 'e1');
+    const main = row._children.find((c) => c.className === 'ema-main');
+    const tag = main._children.find((c) => c.className === 'ema-post pending');
+    expect(tag).toBeTruthy();
+    expect(tag._text).toBe('SENDING');
+  });
+
+  it('shows a RETRY tag on a FAILED note', () => {
+    const doc = dom();
+    const records = [{ id: 'e1', status: 'open', note: 'failed post', world: null, ts: 1, postState: 'failed' }];
+    renderEmagake(records, { doc });
+    const row = doc.body.children.find((c) => c.dataset.emaId === 'e1');
+    const main = row._children.find((c) => c.className === 'ema-main');
+    const tag = main._children.find((c) => c.className === 'ema-post failed');
+    expect(tag).toBeTruthy();
+    expect(tag._text).toBe('RETRY');
+  });
+});

@@ -13,7 +13,7 @@
 // hides the fact that something was fixed. Resolved rows fade back (and stop
 // being drawn in the world entirely — see emaModel.openEma) rather than vanish.
 
-import { EMA_KIND, EMA_STATUS } from './emaModel.js';
+import { EMA_KIND, EMA_STATUS, POST_STATE } from './emaModel.js';
 
 /**
  * Rack order: OPEN before RESOLVED, newest first within each group.
@@ -118,7 +118,7 @@ export function renderEmagake(records, opts = {}) {
   if (rows.length === 0 && replies.length === 0) {
     const empty = doc.createElement('div');
     empty.id = 'emagake-empty';
-    empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">SHIFT+K TO HANG</span>';
+    empty.innerHTML = 'RACK IS EMPTY<br><span style="font-size:8px;">ENTER TO HANG · SHIFT+K RETRIES</span>';
     body.appendChild(empty);
     return 0;
   }
@@ -180,6 +180,15 @@ export function renderEmagake(records, opts = {}) {
     meta.textContent = metaLine(rec);
     main.appendChild(note);
     main.appendChild(meta);
+    // ADR-0042: send-state tag. SENT notes are "hung" (no tag). PENDING shows
+    // SENDING; FAILED shows RETRY — both flagged so the owner sees the POST is
+    // in flight or needs a Shift+K retry, never a silent loss.
+    if (rec.postState === POST_STATE.PENDING || rec.postState === POST_STATE.FAILED) {
+      const tag = doc.createElement('span');
+      tag.className = 'ema-post ' + rec.postState;
+      tag.textContent = rec.postState === POST_STATE.FAILED ? 'RETRY' : 'SENDING';
+      main.appendChild(tag);
+    }
 
     row.appendChild(stud);
     row.appendChild(main);

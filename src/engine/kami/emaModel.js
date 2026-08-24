@@ -25,6 +25,11 @@
 export const EMA_KIND = { WORLD: 'world', UI: 'ui' };
 export const EMA_STATUS = { OPEN: 'open', RESOLVED: 'resolved' };
 
+// ADR-0042: send-state of a note on the rack. PENDING = just written, POST in
+// flight; SENT = sealed + POSTed to the VPS (hung); FAILED = POST rejected,
+// retryable via Shift+K. Independent of `status` (open/resolved reply state).
+export const POST_STATE = { PENDING: 'pending', SENT: 'sent', FAILED: 'failed' };
+
 // Note cap. Long enough for a real thought, short enough that the JSONL stays
 // greppable and a runaway paste cannot bloat a batch.
 export const NOTE_MAX = 600;
@@ -155,6 +160,16 @@ export function addToTray(tray, rec, max = TRAY_MAX) {
 export function removeFromTray(tray, id) {
   const list = Array.isArray(tray) ? tray : [];
   return list.filter((r) => r && r.id !== id);
+}
+
+/** ADR-0042: drop the oldest already-hung (SENT) note so a freshly-written note
+ *  always has room on the rack. Pending/failed notes are never evicted — only
+ *  the owner can clear those. Returns the tray unchanged if nothing is evictable. */
+export function evictOldestSent(tray) {
+  const list = Array.isArray(tray) ? tray : [];
+  const idx = list.findIndex((r) => r && r.postState === POST_STATE.SENT);
+  if (idx < 0) return list;
+  return list.filter((_, i) => i !== idx);
 }
 
 /** Rough sealed size of the pending batch, for a size hint in the tray UI. */

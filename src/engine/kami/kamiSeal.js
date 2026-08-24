@@ -156,7 +156,14 @@ async function aesDecrypt(subtle, rawKey, iv, ciphertext) {
  * @returns {Promise<object>}            JSON-serialisable envelope
  */
 export async function sealTo(payload, recipientPubkeys, deps = {}) {
-  if (!(payload instanceof Uint8Array)) throw new Error('kamiSeal: payload must be Uint8Array');
+  // Realm-agnostic byte check: a Uint8Array produced in another realm (a
+  // browser iframe/worker, or the vitest jsdom context) fails `instanceof
+  // Uint8Array` because the constructor references differ. Any TypedArray /
+  // DataView / ArrayBuffer carries a numeric byteLength, which is all
+  // subtle.encrypt needs (it accepts any BufferSource).
+  if (!payload || typeof payload.byteLength !== 'number') {
+    throw new Error('kamiSeal: payload must be a byte array (Uint8Array)');
+  }
   const recipients = Array.isArray(recipientPubkeys) ? recipientPubkeys.filter(Boolean) : [];
   if (recipients.length === 0) throw new Error('kamiSeal: at least one recipient required');
 

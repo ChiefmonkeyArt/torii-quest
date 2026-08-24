@@ -7,8 +7,8 @@
 // Pure: plain data in, plain data out. No DOM, no crypto, no network.
 import { describe, it, expect } from 'vitest';
 import {
-  EMA_KIND, EMA_STATUS, NOTE_MAX, TRAY_MAX, SCREENSHOT_KEEP,
-  makeEma, makeEmaId, noteIsValid, addToTray, removeFromTray, trayBytes,
+  EMA_KIND, EMA_STATUS, POST_STATE, NOTE_MAX, TRAY_MAX, SCREENSHOT_KEEP,
+  makeEma, makeEmaId, noteIsValid, addToTray, removeFromTray, evictOldestSent, trayBytes,
   screenshotsToCull, resolveEma, openEma,
   normaliseWorldTarget, normaliseUiTarget,
 } from '../../src/engine/kami/emaModel.js';
@@ -141,5 +141,40 @@ describe('emaModel — lifecycle and cull', () => {
     expect(noteIsValid('ok')).toBe(true);
     expect(noteIsValid('   ')).toBe(false);
     expect(noteIsValid('x'.repeat(NOTE_MAX + 1))).toBe(false);
+  });
+});
+
+describe('emaModel — send state (ADR-0042)', () => {
+  it('exposes the three postStates', () => {
+    expect(POST_STATE).toEqual({ PENDING: 'pending', SENT: 'sent', FAILED: 'failed' });
+  });
+
+  it('evictOldestSent drops the oldest SENT note and keeps pending/failed', () => {
+    const a = makeEma(base({ id: 'a' })); a.postState = POST_STATE.SENT;
+    const b = makeEma(base({ id: 'b' })); b.postState = POST_STATE.PENDING;
+    const c = makeEma(base({ id: 'c' })); c.postState = POST_STATE.FAILED;
+    const d = makeEma(base({ id: 'd' })); d.postState = POST_STATE.SENT;
+    const out = evictOldestSent([a, b, c, d]);
+    // Oldest SENT (a) is evicted; pending b + failed c + newer SENT d remain.
+    expect(out.map((r) => r.id)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('evictOldestSent is a no-op when nothing is evictable (tray full of pending)', () => {
+    const tray = [];
+    for (let i = 0; i < TRAY_MAX; i++) {
+      const r = makeEma(base({ id: `p${i}` })); r.postState = POST_STATE.PENDING;
+      tray.push(r);
+    }
+    const out = evictOldestSent(tray);
+    expect(out).toHaveLength(TRAY_MAX);
+    expect(out.map((r) => r.id)).toEqual(tray.map((r) => r.id));
+  });
+
+  it('evictOldestSent never mutates the input tray', () => {
+    const a = makeEma(base({ id: 'a' })); a.postState = POST_STATE.SENT;
+    const tray = [a];
+    evictOldestSent(tray);
+    expect(tray).toHaveLength(1);
+    expect(tray[0].id).toBe('a');
   });
 });

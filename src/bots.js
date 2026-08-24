@@ -452,6 +452,11 @@ export function applyBotShot(originArr, dirArr) {
 }
 
 // Server says a player's shot hit a bot — sync authoritative HP + hit flash.
+// ADR-0042: drive a visible bot reaction on every server-confirmed hit — a red
+// emissive flash (flashHit) + an HP chip redraw on the nameplate
+// (updateNameplate). Bots are excluded from the sticker decal raycaster by
+// design (botModel.js `isBotMesh` flag), so this flash + chip + the death anim
+// ARE the owner's hit feedback, not a sticker on the mesh.
 export function applyBotHit(botId, hp, zone) {
   // Fold the authoritative hp into botNetState FIRST so the next _syncNetBot
   // frame samples the event hp — not the stale pre-hit snapshot (v0.2.383 fix).
@@ -462,6 +467,10 @@ export function applyBotHit(botId, hp, zone) {
   bot.state.hp = hp;
   bot.state._isHit = true;
   bot.state._hitTimer = 0.3;
+  // ADR-0042: visible reaction — tint the bot red + redraw the HP chip.
+  bot.model?.flashHit();
+  const maxHp = (bot.state.kind === 'boss') ? BOSS_HP : BOT_HP;
+  bot.model?.updateNameplate(bot.state?.name || bot.state?.kind || '', hp / maxHp);
   // ADR-0013 diagnostics: log MP-authoritative hits.
   const pp = _playerObj?.position;
   const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
@@ -484,7 +493,15 @@ export function applyBotHit(botId, hp, zone) {
 export function applyBotKill(botId, meta) {
   _botNet.applyKill(botId);
   const bot = _botById(botId);
-  if (bot) bot.state.alive = false;
+  if (bot) {
+    bot.state.alive = false;
+    // ADR-0042: drain HP to 0 so the nameplate chip empties + a final red
+    // flash so the death reads as a hit, not a silent disappear. The death
+    // animation itself is driven by the render loop passing `!st.alive`.
+    bot.state.hp = 0;
+    bot.model?.flashHit();
+    bot.model?.updateNameplate(bot.state?.name || bot.state?.kind || '', 0);
+  }
   // ADR-0013 diagnostics: log MP-authoritative kills.
   logBotKill({
     botId,
@@ -754,8 +771,23 @@ function _syncBot(bot, dt) {
   if (bot.model?.loaded) {
     bot.model.syncTo(st.pos.x, _footY(st.pos.x, st.pos.z), st.pos.z, st.rotY);
     if (lod === 'full') {
-      bot.model.updateAnim(dist, st.isShooting, false, st._isHit);
+      // ADR-0042: decay the one-shot hit flag so the flinch animation plays
+      // once per confirmed hit instead of replaying every frame while
+      // `_isHit` stays true. Also pass the authoritative death state through
+      // (previously hard-coded `false`) so the death anim actually plays.
+      if (st._isHit && st._hitTimer > 0) {
+        st._hitTimer -= dt;
+        if (st._hitTimer <= 0) st._isHit = false;
+      }
+      bot.model.updateAnim(dist, st.isShooting, !st.alive, st._isHit);
       bot.model.tick(dt);
+      // ADR-0042: keep the HP chip in sync whenever HP changes (hit OR
+      // respawn), not only on the applyBotHit frame.
+      if (st._lastHpShown !== st.hp) {
+        st._lastHpShown = st.hp;
+        const maxHp = (st.kind === 'boss') ? BOSS_HP : BOT_HP;
+        bot.model.updateNameplate(st.name || st.kind || '', st.hp / maxHp);
+      }
     }
   } else if (bot._capsuleMesh && !bot.model) {
     bot._capsuleMesh.position.set(

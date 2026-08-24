@@ -52,7 +52,8 @@ import { fetchCapability } from '../update/adminUpdateClient.js';
 import { describeUiTarget } from './uiTarget.js';
 import { sealJson, sealTo, toB64 } from './kamiSeal.js';
 import {
-  EMA_KIND, TRAY_MAX, makeEma, makeEmaId, addToTray, removeFromTray, noteIsValid,
+  EMA_KIND, TRAY_MAX, POST_STATE, makeEma, makeEmaId, addToTray,
+  removeFromTray, evictOldestSent, noteIsValid,
 } from './emaModel.js';
 import { renderEmagake, showEmagake, hideEmagake, mergeReplies } from './emagakePanel.js';
 
@@ -439,7 +440,7 @@ function renderTray() {
     return;
   }
   el.removeAttribute('hidden');
-  el.textContent = `${_tray.length} EMA ON THE RACK · SHIFT+K TO HANG`;
+  el.textContent = `${_tray.length} EMA ON THE RACK · ENTER HANGS · SHIFT+K RETRIES`;
 }
 
 function setStatus(msg) {
@@ -582,10 +583,34 @@ async function openNote() {
         rec.shotBytes = Math.round((shotUrl.length * 3) / 4);
         _shots.set(rec.shotId, shotUrl);
       }
+      // ADR-0042: make room for the new note by evicting the oldest already-hung
+      // (SENT) note when the rack is full. Pending/failed notes are never evicted.
+      if (_tray.length >= TRAY_MAX) _tray = evictOldestSent(_tray);
+      rec.postState = POST_STATE.PENDING;
       const res = addToTray(_tray, rec, TRAY_MAX);
       _tray = res.tray;
-      if (!res.added) setStatus(`KAMI: ${res.reason.toUpperCase()} — HANG FIRST`);
-      else { renderRack(); renderTray(); }
+      if (!res.added) {
+        setStatus(`KAMI: ${res.reason.toUpperCase()} — DISCARD AN OLD ONE`);
+        renderRack(); renderTray();
+      } else {
+        renderRack(); renderTray();
+        // ADR-0042: Enter seals + POSTs instantly — no Shift+K required. The note
+        // shows PENDING on the rack, then flips to SENT (hung) or FAILED (retry
+        // with Shift+K) when the POST resolves. Fire-and-forget so input hands
+        // back immediately; the .then re-renders the rack on resolution.
+        sealAndPost([rec]).then((r) => {
+          if (r.ok) {
+            rec.postState = POST_STATE.SENT;
+            if (rec.shotId) _shots.delete(rec.shotId);
+            setStatus('KAMI: HUNG 1');
+            renderRack(); renderTray();
+          } else {
+            rec.postState = POST_STATE.FAILED;
+            setStatus('KAMI: HANG FAILED — RETRY SHIFT+K');
+            renderRack(); renderTray();
+          }
+        });
+      }
     } else {
       renderRack();
       renderTray();
@@ -607,26 +632,22 @@ async function openNote() {
 
 // ── hang (seal + send) ─────────────────────────────────────────────────────
 
-async function hangTray() {
-  if (_tray.length === 0) { setStatus('KAMI: RACK IS EMPTY'); setTimeout(renderTray, 1400); return; }
-  if (!(await armIfOwner())) {
-    setStatus('KAMI: OWNER ONLY');
-    setTimeout(renderTray, 1800);
-    return;
-  }
-  const count = _tray.length;
-  setStatus(`KAMI: SEALING ${count}…`);
-
+// ADR-0042: the reusable seal+POST. Seals the given records (text as JSON,
+// screenshots as raw bytes) + POSTs one batch to /kami/ema. Does NOT touch the
+// tray or the shot cache — the caller owns the postState transitions + cleanup.
+// Returns { ok, stored } on success or { ok:false, error } on failure.
+async function sealAndPost(records) {
+  if (records.length === 0) return { ok: true, stored: 0 };
+  if (!(await armIfOwner())) return { ok: false, error: 'OWNER ONLY' };
   const ownerPub = _deps.getOwnerPubkey();
   // Owner-only mode means the owner's key is always present; sealing to the Kami
   // key alone would silently make a note the owner cannot read back.
-  if (!ownerPub) { setStatus('KAMI: NOT LOGGED IN — CANNOT SEAL'); setTimeout(renderTray, 2400); return; }
+  if (!ownerPub) return { ok: false, error: 'NOT LOGGED IN — CANNOT SEAL' };
   const recipients = [ownerPub, KAMI_PUBKEY];
-
   try {
     const batch = [];
-    for (const rec of _tray) {
-      const { shotBytes, ...clean } = rec; // drop bookkeeping before sealing
+    for (const rec of records) {
+      const { shotBytes, postState, ...clean } = rec; // drop bookkeeping before sealing
       // Split seal: the small ema record seals as JSON; the large screenshot
       // seals as raw bytes. The server stores the text forever and rings the
       // shot to 420 — it cannot do either if they were one blob.
@@ -650,17 +671,33 @@ async function hangTray() {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body = await res.json().catch(() => ({}));
-    _tray = [];
-    _shots.clear();
-    setStatus(`KAMI: HUNG ${body.stored ?? count}`);
-    renderRack();
-    setTimeout(renderTray, 2000);
+    return { ok: true, stored: body.stored ?? records.length };
   } catch (err) {
     // Keep the tray intact on failure — losing a batch of considered notes is
     // far worse than showing an error and letting the owner retry.
     console.warn('[kami] hang failed', err);
+    return { ok: false, error: String((err && err.message) || err) };
+  }
+}
+
+// ADR-0042: Shift+K is now the RETRY path — it re-seals + re-POSTs every note
+// still pending or failed. Enter's instant POST already handled the rest.
+async function hangTray() {
+  const unsent = _tray.filter((r) => r && r.postState !== POST_STATE.SENT);
+  if (unsent.length === 0) { setStatus('KAMI: RACK ALL HUNG'); setTimeout(renderTray, 1400); return; }
+  setStatus(`KAMI: SEALING ${unsent.length}…`);
+  const r = await sealAndPost(unsent);
+  if (r.ok) {
+    for (const rec of unsent) {
+      rec.postState = POST_STATE.SENT;
+      if (rec.shotId) _shots.delete(rec.shotId);
+    }
+    setStatus(`KAMI: HUNG ${r.stored}`);
+    renderRack(); renderTray();
+  } else {
+    for (const rec of unsent) rec.postState = POST_STATE.FAILED;
     setStatus('KAMI: HANG FAILED — RACK KEPT');
-    setTimeout(renderTray, 2600);
+    renderRack(); renderTray();
   }
 }
 
@@ -727,7 +764,8 @@ export function installKamiMode(deps = {}) {
     if (ev.shiftKey) hangTray();
     // ADR-0029: 1st K enters Kami Mode (rack visible, invincible spirit,
     // shooting off, movement/look live). 2nd K (already in Kami) opens a
-    // new ema note. Shift+K seals + sends the tray (unchanged).
+    // new ema note. ADR-0042: Enter on an open note seals + POSTs it instantly
+    // (PENDING → SENT/FAILED). Shift+K only retries the unsent (failed/pending).
     else if (!_kamiActive) enterKamiMode();
     else openNote();
   });
@@ -771,3 +809,27 @@ export function kamiTrayState() { return { count: _tray.length, ids: _tray.map((
 export function kamiDiscard(id) { _tray = removeFromTray(_tray, id); _shots.delete(`${id}.jpg`); renderRack(); renderTray(); }
 /** Exposed for tests/diagnostics: is the owner gate satisfied? */
 export function kamiIsOwner() { return _isOwner; }
+
+// ADR-0042: test-only reset. vite.config runs the suite with
+// poolOptions.threads.isolate:false, so test files in one worker share one
+// kamiMode module registry — module-level state (_armed, _noteOpen, _tray,
+// …) would otherwise leak from a file that entered KAMI into the next. Each
+// kamiMode test file that mutates that state calls this in afterAll so it
+// starts the next file from a clean slate. Not for production use.
+export function __resetKamiForTests() {
+  _installed = false;
+  _tray = [];
+  _noteOpen = false;
+  _ownerCheck = null;
+  _checkedPubkey = '';
+  _isOwner = false;
+  _armed = false;
+  _kamiActive = false;
+  _invincible = false;
+  _entering = false;
+  _enterToken = 0;
+  _noteCleanup = null;
+  _replyPollTimer = null;
+  _shots.clear();
+  _deps = null;
+}

@@ -59,6 +59,9 @@ export function buildSnapshot(p = {}) {
     player:  vec3(safe(p.getPlayerPos)),
     combat:  buildCombatReport(p),
     physics: buildPhysicsReport(p),
+    // ADR-0045 v0.2.666: per-bot render state so an ema tells us WHICH branch is
+    // broken when bots appear as cubes / floating nameplates with no body.
+    bots:     safe(p.getBotRenderStates),
     config:  safe(() => p.config) ?? null,
   };
 }

@@ -74,6 +74,39 @@ export function installToriiDebug(refs) {
     getBodyCount:     () => { const w = getWorld && getWorld(); return w ? w.bodies.len() : null; },
     getColliderCount: () => { const w = getWorld && getWorld(); return w ? w.colliders.len() : null; },
     getBotSummary: () => ({ total: bots.length, alive: bots.filter(b => b.alive).length }),
+    // ADR-0045 v0.2.666: per-bot render state. Read behind safe() so an ema
+    // snapshot never throws even if a bot wrapper is half-attached. Tells us which
+    // branch is broken when bots show as cubes / floating nameplates with no body:
+    //   template load fail? modelLoaded=false
+    //   capsule never upgraded? hasModel=false / hasCapsule=true
+    //   LOD hiding root but not nameplate? rootVisible=false && nameplateVisible=true
+    //   model loaded but tiny? scale far from 1
+    getBotRenderStates: () => {
+      const pp = playerObj && playerObj.position ? playerObj.position : null;
+      return bots.map(b => {
+        const m = b.model;
+        const bp = b.pos;
+        const dist = pp && bp ? Math.round(Math.hypot(pp.x - bp.x, pp.z - bp.z) * 100) / 100 : null;
+        const s = m && m.root ? m.root.scale : null;
+        return {
+          id: b.state && b.state.id != null ? b.state.id : null,
+          label: m ? m._label : null,
+          kind: m ? m.kind : null,
+          hp: b.state && b.state.hp != null ? b.state.hp : null,
+          alive: !!(b.state && b.state.alive),
+          isDying: !!(b.state && b.state._isDying),
+          hasModel: !!b.model,
+          modelLoaded: !!(m && m.loaded),
+          hasRoot: !!(m && m.root),
+          rootVisible: m && m.root ? m.root.visible : null,
+          nameplateVisible: m && m._nameplate ? m._nameplate.visible : null,
+          hasCapsule: !!b._capsuleMesh,
+          capsuleVisible: b._capsuleMesh ? b._capsuleMesh.visible : null,
+          dist,
+          scale: s ? { x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, z: Math.round(s.z * 100) / 100 } : null,
+        };
+      });
+    },
     getCrateSummary,
     config,
   };

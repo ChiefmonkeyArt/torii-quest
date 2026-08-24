@@ -428,7 +428,9 @@ export function leaderboardSubmitReport(input = DEMO_SUBMIT_INPUT, grant = null)
 // (`navigated`/`signed`/`published`/`performed:false` pinned). Defaults to the
 // deterministic DEMO sample (no network).
 export function gatewayReadReport(input = DEMO_GATEWAY_EVENTS) {
-  const r = readGateways(input);
+  // ADR-0053: pin the clock to the frozen demo sample's timestamps so the inert
+  // preview still shows its two zones (liveness filtering would otherwise drop them).
+  const r = readGateways(input, { nowSec: 1_700_000_500 });
   return {
     title: 'GATEWAY DESTINATION READ',
     badge: 'PREVIEW · INERT · NO NAVIGATION',

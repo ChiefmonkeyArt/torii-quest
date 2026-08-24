@@ -250,6 +250,29 @@ function _toEventArray(input) {
   return null;
 }
 
+// _presenceLive(event, nowSec) → true when a kind-30078 event is a LIVE world
+// presence record (not a travel handshake, not expired). Presence records carry a
+// zoneType tag and NO `state` tag; travel request/response records carry a `state`
+// tag ('request'/'accepted'/'denied'). NIP-40: an `expiration` tag in the past
+// means the record is stale. Records with NO expiration tag (pre-NIP-40) fall back
+// to a grace window so ancient records don't linger forever.
+const PRESENCE_GRACE_SEC = 3600; // 1 hour fallback for records without expiration
+function _presenceLive(event, nowSec) {
+  if (!event || !Array.isArray(event.tags)) return false;
+  let expiration = null;
+  for (const t of event.tags) {
+    if (!Array.isArray(t)) continue;
+    if (t[0] === 'state') return false; // travel handshake, not presence
+    if (t[0] === 'expiration') {
+      const n = Number(t[1]);
+      if (Number.isFinite(n)) expiration = n;
+    }
+  }
+  const created = Number.isFinite(event.created_at) ? event.created_at : 0;
+  if (expiration !== null) return expiration >= nowSec;
+  return created >= nowSec - PRESENCE_GRACE_SEC;
+}
+
 // readGateways(input, options) → a read-only gateway destination report:
 //
 //   {
@@ -275,6 +298,7 @@ function _toEventArray(input) {
 // — an unusable top-level shape degrades to ok:false with an empty destination list.
 export function readGateways(input, options = {}) {
   const filter = buildGatewayFilter(options);
+  const nowSec = Number.isFinite(options.nowSec) ? options.nowSec : Math.floor(Date.now() / 1000);
   const result = {
     ok: true,
     filter,
@@ -282,6 +306,7 @@ export function readGateways(input, options = {}) {
     gateways: [],
     skipped: [],
     duplicates: 0,
+    stale: 0,
     navigated: false,
     signed: false,
     published: false,
@@ -312,6 +337,12 @@ export function readGateways(input, options = {}) {
     const ex = extractGatewayFromEvent(event);
     if (!ex.ok) {
       result.skipped.push({ event, errors: ex.errors });
+      continue;
+    }
+    // ADR-0053: drop travel handshake records + expired/stale presence so the
+    // directory only ever lists LIVE worlds.
+    if (!_presenceLive(event, nowSec)) {
+      result.stale += 1;
       continue;
     }
     extracted.push(ex.gateway);

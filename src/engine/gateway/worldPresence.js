@@ -172,7 +172,9 @@ export async function fetchOnlineWorlds(opts = {}) {
   out.used = Array.isArray(raw.used) ? raw.used : [];
   out.failed = Array.isArray(raw.failed) ? raw.failed : [];
 
-  const report = readGateways(events);
+  // ADR-0053: pass the caller's clock through so liveness filtering is testable
+  // (defaults to Date.now() inside readGateways when nowSec is absent).
+  const report = readGateways(events, { nowSec: o.nowSec });
   if (!report.ok) {
     out.errors.push(...(report.errors || []));
     return out;

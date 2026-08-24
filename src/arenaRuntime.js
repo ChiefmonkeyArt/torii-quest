@@ -488,7 +488,7 @@ export function createArenaRuntime(hooks = {}) {
   const onBootPct = typeof hooks.onBootPct === 'function' ? hooks.onBootPct : () => {};
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
-    : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
+    : () => ({ friends: [], following: [], games: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
   // Phase 0c: the persistent Torii menu hooks (KeyM in-game). The shell owns the
   // menu DOM + getState; arenaRuntime just calls these (it must NOT create its own
   // menu DOM). openToriiMenu({ onClose }) opens the shared menu element; the
@@ -669,7 +669,9 @@ export function createArenaRuntime(hooks = {}) {
     document.exitPointerLock?.();
     const gw = getGatewayScreenState();
     openGatewayScreen({
-      worlds: gw.worlds,
+      friends: gw.friends,
+      following: gw.following,
+      games: gw.games,
       scanStatus: gw.scanStatus,
       canTravel: gw.canTravel,
       onTravel: (w) => gw.onTravel(w),

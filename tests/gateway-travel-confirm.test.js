@@ -32,7 +32,7 @@ describe('sanitizeDestination', () => {
   });
 
   it('consumes a v0.2.164 gatewayRead preview model directly (idempotent)', () => {
-    const read = readGateways(DEMO_GATEWAY_EVENTS);
+    const read = readGateways(DEMO_GATEWAY_EVENTS, { nowSec: 1_700_000_500 });
     const model = read.gateways[0];
     const r = sanitizeDestination(model);
     expect(r.ok).toBe(true);

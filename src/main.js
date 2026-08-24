@@ -1721,12 +1721,26 @@ async function ensureArenaReady(loadingLabel) {
         resetEnterButton,
         onBootProgress: _setBootProgress,
         onBootPct: _setBootPct,
-        getGatewayScreenState: () => ({
-          worlds: _worldsCache,
-          scanStatus: _worldsScan,
-          canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-          onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
-        }),
+        getGatewayScreenState: () => {
+          const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+          // ADR-0054: the gateway screen now shows three columns (Friends /
+          // Follows / Games) — reuse the same classifySections partition the
+          // Torii menu (KeyM) already uses.
+          const { friends, following, games } = classifySections({
+            worlds: _worldsCache,
+            userPubkey: canTravel ? state.nostrPubkey : '',
+            userContacts: _userContacts,
+            ownerContacts: _ownerContacts,
+          });
+          return {
+            friends,
+            following,
+            games,
+            scanStatus: _worldsScan,
+            canTravel,
+            onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+          };
+        },
         // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the
         // SAME menu element the title-screen burger button opens — it calls this
         // hook, which supplies getState + onClose (resume-on-close). arenaRuntime

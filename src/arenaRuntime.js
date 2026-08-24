@@ -17,6 +17,7 @@ import { emit, on, EV } from './events.js';
 import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
+import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
@@ -591,6 +592,16 @@ export function createArenaRuntime(hooks = {}) {
     getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
   });
 
+  // ADR-0056: live amber "RECORDING" HUD indicator for the ADR-0055 auto-capture
+  // ring. Owner-gated (not debug-gated) so the owner sees the 1Hz ring is live while
+  // they play. Pure CSS glow animation; rAF only throttles text/state. Zero cost + no
+  // DOM when not recording (non-owner, title screen, or capability unresolved).
+  const _recIndicator = createRecIndicator({
+    window,
+    getReport: () => _autoCap.report(),
+    isActive: () => _autoCapOwnerChecked && _autoCapIsOwner && isPlaying(),
+  });
+
   // v0.2.380-alpha: live in-arena leaderboard overlay (toggle: L / Tab).
   //  • LOCAL tab — server-authoritative live tallies fed from the mp_score frames
   //    the server now broadcasts on kill + a ~5s tick. 0 signer prompts, session-
@@ -930,6 +941,7 @@ export function createArenaRuntime(hooks = {}) {
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
+    _recIndicator.update(performance.now());
 
     // ADR-0055: 1Hz auto-capture. Driven BEFORE renderFrame so the queued frame
     // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).

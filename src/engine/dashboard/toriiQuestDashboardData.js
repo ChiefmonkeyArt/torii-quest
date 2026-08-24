@@ -36,7 +36,7 @@ import { buildHandoffControlPanel, buildHandoffControlPanelCard } from '../statu
 import { buildMvpApprovalGate, buildMvpApprovalGateCard } from '../status/mvpApprovalGate.js';
 import { buildPlaytestVerdictCard } from '../status/playtestVerdict.js';
 
-export const TORII_QUEST_VERSION = 'v0.2.679-alpha';
+export const TORII_QUEST_VERSION = 'v0.2.680-alpha';
 export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 
 // CURRENT_TEST_STATUS (v0.2.200) — the SINGLE curated source of truth for the test-suite
@@ -51,8 +51,8 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // stays a curated capture (running vitest at static-page-build time is out of scope), but it
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
-  passing: 3287,
-  files: 257,
+  passing: 3298,
+  files: 259,
   fastProfile: 5,
   foundationProfile: 25,
 });
@@ -81,6 +81,23 @@ export const HEALTH_LASTKNOWN = Object.freeze({
   bundle: '2.9 MB raw / ~1022 KB gzip (rapier chunk >700 KB, expected)',
   regression: '21 / 21',
   lastGreen: TORII_QUEST_VERSION,
+});
+
+// LIVE_DIAGNOSTICS (ADR-0055) — a STATIC, read-only note on the in-game auto-capture
+// diagnostic. The dashboard itself never makes a network call; this card only documents
+// the feature + where the live ring lives + how to retrieve it. The live amber
+// "RECORDING" indicator itself renders in the arena HUD (recIndicator.js), not here.
+export const LIVE_DIAGNOSTICS = Object.freeze({
+  autocap: {
+    adr: 'ADR-0055',
+    label: 'EMA auto-capture (1Hz ring)',
+    ringCap: 120,                       // mirrors AUTOCAP_RING_CAP (kamiAutoCapture.js)
+    ringPath: '/var/lib/torii-quest/kami/autocap/',
+    separateFrom: 'ema.jsonl (forever) + shots/ (cap 420) — the ring never evicts a real manual ema',
+    gate: 'owner-only (admin capability check) + playing-only + inflight backpressure',
+    retrieval: 'node tools/kami-autocap-dump.mjs --ring <autocap-dir> --out <frames-dir> [--video]',
+    indicator: 'in-arena amber glowing “RECORDING” HUD (recIndicator.js) — owner-only, zero cost when off',
+  },
 });
 
 // buildHealthModel(input) — PURE, browser-safe builder for the Engineering-health
@@ -2273,6 +2290,14 @@ ${next12}
 ${_riskRows(m.risks)}
         </tbody>
       </table>
+    </section>
+
+    <section>
+      ${_h2('Live diagnostics', 1)}
+      <div class="lead">In-game runtime diagnostics — documented here; the live indicator renders in the arena HUD, not on this static page.</div>
+      <div class="grid">
+        <div class="metric"><span class="metric-label">${escapeHtml(LIVE_DIAGNOSTICS.autocap.label)} <span class="badge">${escapeHtml(LIVE_DIAGNOSTICS.autocap.adr)}</span></span><ul class="mini"><li>1Hz rolling ring of sealed frame + snapshot, captured while the owner plays</li><li>Ring cap: ${LIVE_DIAGNOSTICS.autocap.ringCap} frames at <code>${escapeHtml(LIVE_DIAGNOSTICS.autocap.ringPath)}</code></li><li>Separate from ${escapeHtml(LIVE_DIAGNOSTICS.autocap.separateFrom)}</li><li>Gate: ${escapeHtml(LIVE_DIAGNOSTICS.autocap.gate)}</li><li>Retrieval: <code>${escapeHtml(LIVE_DIAGNOSTICS.autocap.retrieval)}</code></li><li>${escapeHtml(LIVE_DIAGNOSTICS.autocap.indicator)}</li></ul></div>
+      </div>
     </section>
   </main>
   <footer>

@@ -16,9 +16,9 @@ import { assetUrl } from './assetUrl.js';
 // behaviour-identical today; it gives the weapon ray path one injectable seam for
 // future tests/components.
 import { raycastService } from './engine/physics/raycastService.js';
-import { getLastShot, getLastMiss, setLastShot, setLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, mkDiag as _mkDiag, mkTarget as _mkTarget } from './engine/combat/lastShotStore.js';
+import { getLastShot, getLastMiss, setLastShot, setLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions, mkDiag as _mkDiag, mkTarget as _mkTarget } from './engine/combat/lastShotStore.js';
 
-export { getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot };
+export { getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions };
 // v0.2.120 — the shared headshot classifier was extracted to a pure module
 // (no Three/Rapier) so it can be unit tested. Re-exported here unchanged so
 // every existing `from './weapons.js'` import site keeps working.

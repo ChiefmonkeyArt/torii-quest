@@ -29,7 +29,7 @@ import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlaye
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot } from './weapons.js';
+import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
@@ -1165,6 +1165,10 @@ export function createArenaRuntime(hooks = {}) {
               muzzleDir: [dir.x, dir.y, dir.z],
               aimOrigin: aimOrigin ? [aimOrigin.x, aimOrigin.y, aimOrigin.z] : null,
               aimDir: aimDir ? [aimDir.x, aimDir.y, aimDir.z] : null,
+              // ADR-0047 v0.2.668: the client's RENDERED bot positions at shot
+              // time, so a miss ema can be diffed against the server SHOT-RESOLVE
+              // cur=/rew= to expose the client/server bot-position desync.
+              bots: snapshotBotPositions(bots),
             };
             setLastSentShot(sentDiag);
             setLastShotSent(sentDiag);

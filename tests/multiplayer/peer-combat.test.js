@@ -114,6 +114,27 @@ describe('setLastShotSent — ADR-0046 v0.2.667 sent-ray diagnostic', () => {
   });
 });
 
+describe('snapshotBotPositions — ADR-0047 v0.2.668 rendered-position diagnostic', () => {
+  it('maps each bot wrapper to {id,x,z,alive,hp} with x/z rounded to 2dp', () => {
+    const { snapshotBotPositions } = require('../../src/engine/combat/lastShotStore.js');
+    const bots = [
+      { state: { id: 1, alive: true, hp: 5 }, pos: { x: -8.0041, z: -9.5612 } },
+      { state: { id: 4, alive: false, hp: 0 }, pos: { x: 17.8765, z: -8.3033 } },
+    ];
+    expect(snapshotBotPositions(bots)).toEqual([
+      { id: 1, x: -8.0, z: -9.56, alive: true, hp: 5 },
+      { id: 4, x: 17.88, z: -8.3, alive: false, hp: 0 },
+    ]);
+  });
+
+  it('returns [] for a non-array and nulls for missing state/pos', () => {
+    const { snapshotBotPositions } = require('../../src/engine/combat/lastShotStore.js');
+    expect(snapshotBotPositions(null)).toEqual([]);
+    expect(snapshotBotPositions(undefined)).toEqual([]);
+    expect(snapshotBotPositions([{}])).toEqual([{ id: null, x: null, z: null, alive: false, hp: null }]);
+  });
+});
+
 // ---------- inbound ----------
 
 function makeCombat(overrides = {}) {

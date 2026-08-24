@@ -34,6 +34,26 @@ export function setLastShotSent(sent) { if (_lastShot) _lastShot.sent = sent; }
 
 export function mkTarget() { return { kind: 'none', isHead: false, botName: null, dist: Infinity }; }
 
+// ADR-0047 v0.2.668: snapshot the client's RENDERED bot positions (the
+// interpolated pose.x/z synced into each wrapper's `pos`) at shot time. Pure +
+// unit-testable so the client/server bot-position desync can be diffed without a
+// live playtest: this array vs the server SHOT-RESOLVE log's `cur=(x,z)`/`rew=`.
+// Each entry is {id,x,z,alive,hp}; x/z rounded to 2dp to keep the ema compact.
+export function snapshotBotPositions(bots) {
+  if (!Array.isArray(bots)) return [];
+  return bots.map((b) => {
+    const st = b && b.state ? b.state : null;
+    const p = b && b.pos ? b.pos : null;
+    return {
+      id: st && st.id != null ? st.id : null,
+      x: p && Number.isFinite(p.x) ? Math.round(p.x * 100) / 100 : null,
+      z: p && Number.isFinite(p.z) ? Math.round(p.z * 100) / 100 : null,
+      alive: !!(st && st.alive),
+      hp: st && st.hp != null ? st.hp : null,
+    };
+  });
+}
+
 export function mkDiag() {
   return {
     origin: { x: 0, y: 0, z: 0 }, dir: { x: 0, y: 0, z: 0 },

@@ -95,6 +95,11 @@ export function installToriiDebug(refs) {
           hp: b.state && b.state.hp != null ? b.state.hp : null,
           alive: !!(b.state && b.state.alive),
           isDying: !!(b.state && b.state._isDying),
+          // ADR-0047 v0.2.668: rendered (interpolated) position, so the ema's
+          // `bots` array can be diffed against the server's authoritative bot
+          // position to expose the client/server desync on a miss.
+          x: bp ? Math.round(bp.x * 100) / 100 : null,
+          z: bp ? Math.round(bp.z * 100) / 100 : null,
           hasModel: !!b.model,
           modelLoaded: !!(m && m.loaded),
           hasRoot: !!(m && m.root),

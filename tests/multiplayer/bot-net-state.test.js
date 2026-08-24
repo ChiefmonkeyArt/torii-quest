@@ -260,3 +260,36 @@ describe('shouldApplyLocalBotDamage', () => {
     expect(shouldApplyLocalBotDamage(false)).toBe(true);
   });
 });
+
+describe('diagnose — ADR-0048 v0.2.669 ingest-rate diagnostic', () => {
+  it('reports ingestCount + lastIngestAge and per-bot sample ages', () => {
+    const net = createBotNetState();
+    net.ingest([row(1, 4, 5, 0)], 1000);
+    net.ingest([row(1, 4.2, 5, 0)], 1066);
+    net.ingest([row(1, 4.4, 5, 0)], 1132);
+    const d = net.diagnose(1200);
+    expect(d.ingestCount).toBe(3);
+    expect(d.lastIngestAge).toBe(68); // 1200 - 1132
+    expect(d.bots).toEqual([
+      { id: 1, sampleCount: 3, newestAge: 68, oldestAge: 200 },
+    ]);
+  });
+
+  it('reports a large lastIngestAge when the stream stalls', () => {
+    const net = createBotNetState();
+    net.ingest([row(1, 4, 5, 0)], 1000);
+    // 10s later, no new ingest — the stream has stalled.
+    const d = net.diagnose(11000);
+    expect(d.ingestCount).toBe(1);
+    expect(d.lastIngestAge).toBe(10000);
+    expect(d.bots[0].newestAge).toBe(10000); // the freshest sample is 10s old
+  });
+
+  it('returns null ages before any ingest', () => {
+    const net = createBotNetState();
+    const d = net.diagnose(500);
+    expect(d.ingestCount).toBe(0);
+    expect(d.lastIngestAge).toBeNull();
+    expect(d.bots).toEqual([]);
+  });
+});

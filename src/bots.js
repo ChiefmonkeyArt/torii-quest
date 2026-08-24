@@ -441,6 +441,13 @@ export function ingestBotState(states) {
   _botNet.ingest(states, _nowMs());
 }
 
+// ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic, read at shot
+// time so a miss ema proves whether the client is RECEIVING BOT_STATE (or the
+// stream stalled) — the open question behind the ~12m bot-position desync.
+export function getBotNetDiagnostic() {
+  return _botNet.diagnose(_nowMs());
+}
+
 // A bot fired — spawn the enemy tracer bullet + play the bot-shoot cue. Mirrors
 // the single-player shotCallback so the visual/audio is identical.
 export function applyBotShot(originArr, dirArr) {

@@ -28,7 +28,7 @@ import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed,
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
+import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -1169,6 +1169,11 @@ export function createArenaRuntime(hooks = {}) {
               // time, so a miss ema can be diffed against the server SHOT-RESOLVE
               // cur=/rew= to expose the client/server bot-position desync.
               bots: snapshotBotPositions(bots),
+              // ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic,
+              // so a miss ema proves whether the client is RECEIVING BOT_STATE
+              // (lastIngestAge ~66ms) or the stream stalled (>>1s) — the cause of
+              // the ~12m desync.
+              botNet: getBotNetDiagnostic(),
             };
             setLastSentShot(sentDiag);
             setLastShotSent(sentDiag);

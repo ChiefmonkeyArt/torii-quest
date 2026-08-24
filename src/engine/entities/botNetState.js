@@ -30,11 +30,21 @@ export function createBotNetState(opts = {}) {
 
   /** @type {Map<number, {samples:Array<{t,x,z,rotY}>, hp:number, alive:boolean, animHint:string, snap:boolean}>} */
   const bots = new Map();
+  // ADR-0048 v0.2.669: ingest-rate diagnostic. Tracks how many BOT_STATE arrays
+  // have been ingested + when the last one arrived, so a miss ema can prove whether
+  // the client is RECEIVING updates (lastIngestAge ~66ms @15Hz) or the stream has
+  // stalled (lastIngestAge >> 1s) — the open question behind the ~12m bot-position
+  // desync. `nowMs` is the SAME monotonic clock (performance.now) used to stamp
+  // samples, so ages are directly comparable.
+  let _ingestCount = 0;
+  let _lastIngestAt = 0;
 
   // Ingest one BOT_STATE array (or a full-snapshot array). `nowMs` is the client
   // receive clock. Detects discontinuities and marks the bot to SNAP on next read.
   function ingest(states, nowMs) {
     if (!Array.isArray(states)) return;
+    _ingestCount++;
+    _lastIngestAt = nowMs;
     for (const s of states) {
       let b = bots.get(s.id);
       if (!b) {
@@ -166,7 +176,34 @@ export function createBotNetState(opts = {}) {
   function clear() { bots.clear(); }
   function has(id) { return bots.has(id); }
 
-  return { ingest, sample, forceSnap, applyHit, applyKill, remove, clear, has, _bots: bots };
+  // ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic. Pure, so it
+  // unit-tests in node. `nowMs` must be the SAME monotonic clock that stamps
+  // samples (performance.now). Returns:
+  //   { ingestCount, lastIngestAge, bots: [{id, sampleCount, newestAge, oldestAge}] }
+  // `lastIngestAge` ~66ms ⇒ stream flowing @15Hz; >>1s ⇒ stalled. `newestAge` per
+  // bot is the age of the freshest sample — if a bot's newestAge is ~10s while
+  // others are ~100ms, that bot's samples stopped advancing (the desync suspect).
+  function diagnose(nowMs) {
+    const out = [];
+    for (const [id, b] of bots) {
+      const s = b.samples;
+      const newest = s.length ? s[s.length - 1] : null;
+      const oldest = s.length ? s[0] : null;
+      out.push({
+        id,
+        sampleCount: s.length,
+        newestAge: newest ? Math.round(nowMs - newest.t) : null,
+        oldestAge: oldest ? Math.round(nowMs - oldest.t) : null,
+      });
+    }
+    return {
+      ingestCount: _ingestCount,
+      lastIngestAge: _lastIngestAt ? Math.round(nowMs - _lastIngestAt) : null,
+      bots: out,
+    };
+  }
+
+  return { ingest, sample, forceSnap, applyHit, applyKill, remove, clear, has, diagnose, _bots: bots };
 }
 
 // Shortest-arc angle lerp.

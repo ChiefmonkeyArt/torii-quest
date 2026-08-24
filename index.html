@@ -33,29 +33,40 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0a0f;
-      --accent: #8b5cf6;
+      /* v0.3 recolor — orange/bronze palette sampled from the torii-gate
+         sunset reference (sky #a26d4b/#9d6e52, rust #754223, plains
+         #31200e/#241510). Replaces the dark-neon-purple theme. --accent2
+         is the old purple, kept ONLY for the few remaining player-facing
+         surfaces not yet migrated (none currently reference it after this
+         pass; kept as an escape hatch, not active decor). */
+      --bg: #140d09;
+      --accent: #e8842c;
+      --accent-soft: #c9793a;
       --orange: #f7931a;
       --danger: #ff4444;
-      --muted: rgba(255,255,255,0.35);
+      --muted: rgba(255,232,214,0.35);
       --font: 'Courier New', monospace;
+      --panel-glass: rgba(30,18,12,0.62);
+      --panel-glass-border: rgba(232,178,120,0.35);
+      --panel-text: #f5e6d8;
+      --panel-text-dim: #c9b19d;
     }
-    body { background: var(--bg); color: #e8e8f0; font-family: var(--font); overflow: hidden; }
+    body { background: var(--bg); color: var(--panel-text); font-family: var(--font); overflow: hidden; }
     canvas { display: block; }
 
     /* ── Shared button ── */
     .btn {
       display: inline-block; padding: 11px 20px;
       background: var(--accent); border: 1px solid transparent; border-radius: 4px;
-      color: #fff; font-family: var(--font); font-size: 13px;
+      color: #1c0f06; font-family: var(--font); font-size: 13px;
       letter-spacing: 3px; cursor: pointer;
       transition: opacity 0.15s, background 0.15s;
     }
     .btn:hover { opacity: 0.85; }
     .btn-secondary {
       background: transparent;
-      border: 1px solid rgba(139,92,246,0.5);
-      color: rgba(180,150,255,0.9);
+      border: 1px solid rgba(232,178,120,0.5);
+      color: rgba(245,224,200,0.9);
     }
     /* ── Free-fly toggle switch (v2) ── pill switch with a sliding knob.
        Still a <button> (role="switch") for click/a11y; OFF = neutral grey,
@@ -64,9 +75,9 @@
       display: flex; align-items: center; gap: 10px;
       width: 220px; box-sizing: border-box;
       background: transparent;
-      border: 1px solid rgba(139,92,246,0.5);
+      border: 1px solid rgba(232,178,120,0.5);
       border-radius: 6px;
-      color: rgba(180,150,255,0.9);
+      color: rgba(245,224,200,0.9);
       font-family: var(--font); font-size: 10px; letter-spacing: 2px;
       transition: border-color 0.15s, color 0.15s;
     }
@@ -103,126 +114,94 @@
     /* ══════════════════════════════════════════
        HOME SCREEN
     ══════════════════════════════════════════ */
+    /* v0.3 recolor: torii-gate sunset photo as the full-bleed page background
+       (fixed + cover, dimmed via the gradient overlay so foreground text
+       stays readable), with header/console content on frosted glass above
+       it (see .glass-panel). */
     #screen-title {
       position: fixed; inset: 0; z-index: 100;
       display: flex; flex-direction: column; align-items: center;
-      background: radial-gradient(ellipse at 50% 30%, rgba(60,20,100,0.25) 0%, #08080f 70%);
+      background:
+        linear-gradient(180deg, rgba(20,13,9,0.55) 0%, rgba(20,13,9,0.72) 55%, rgba(14,9,6,0.88) 100%),
+        url('/torii-gate-sunset.jpg');
+      background-size: cover;
+      background-position: center 60%;
+      background-attachment: fixed;
       overflow-y: auto;
     }
     #screen-title.hidden { display: none; }
+    /* Shared frosted-glass surface for content sitting over the background photo. */
+    .glass-panel {
+      background: var(--panel-glass);
+      backdrop-filter: blur(10px) saturate(120%);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      border: 1px solid var(--panel-glass-border);
+      border-radius: 12px;
+    }
 
     /* Header */
     #title-header {
       position: relative;
       width: 100%; text-align: center;
       padding: 32px 20px 18px;
-      border-bottom: 1px solid rgba(139,92,246,0.15);
+      border-bottom: 1px solid rgba(232,178,120,0.18);
     }
     .title-logo-text {
-      font-size: 2.4rem; letter-spacing: 10px; color: #e8e8f0;
-      text-shadow: 0 0 60px rgba(139,92,246,0.5);
+      font-size: 2.4rem; letter-spacing: 10px; color: #f5e6d8;
+      text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
     /* v0.2.624-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
-    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #444; margin-top: 5px; }
-    /* Phase 0c: persistent Torii/burger menu button (title-screen header). A
-       fixed-position torii-gate glyph so it stays reachable on the title screen;
-       KeyM opens the same menu in-game. */
+    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #a88b6f; margin-top: 5px; }
+    /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
+       v0.3: moved top-right → top-left per design direction; now opens the
+       new settings panel (nav-left/content-right) instead of the old
+       toriiMenu overlay. */
     .btn-torii-menu {
-      position: absolute; top: 18px; right: 18px;
+      position: absolute; top: 18px; left: 18px;
       width: 40px; height: 40px; border-radius: 8px;
-      background: rgba(26,22,48,0.85); color: #c4b5fd;
-      border: 1px solid rgba(139,92,246,0.4);
+      background: rgba(40,26,16,0.85); color: #e8c9a8;
+      border: 1px solid rgba(232,178,120,0.4);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
       z-index: 20;
     }
-    .btn-torii-menu:hover { background: rgba(139,92,246,0.25); color: #fff; border-color: rgba(196,181,253,0.6); }
+    .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* Three-column layout — half-height cards */
+    /* Single-column homepage layout (v0.3 cleanup — was a 3-column flex). */
     #title-columns {
-      display: flex; gap: 20px;
+      display: flex; justify-content: center;
       padding: 28px 28px 0;
       max-width: 1160px; width: 100%;
-      align-items: flex-start; /* cards don't stretch to fill */
-    }
-    /* v0.2.340: side columns stack their side-card + a moved preview card
-       (leaderboard under PLAYER, update under CHAT) so the centre column stays
-       uncluttered. */
-    .side-col {
-      display: flex; flex-direction: column; gap: 12px;
-      width: 300px; flex-shrink: 0;
-    }
-    .side-col .side-card { width: 100%; }
-    /* Moved preview cards fill the side column (override the 240px centre width). */
-    .side-col #leaderboard-preview,
-    .side-col #update-preview {
-      width: 100%; margin-top: 0; box-sizing: border-box;
     }
 
-    /* ── Side cards ── */
-    .side-card {
-      width: 300px; flex-shrink: 0;
-      border-radius: 10px;
-      background: rgba(12,12,22,0.95);
-      display: flex; flex-direction: column;
-    }
-    .side-card-purple { border: 1px solid rgba(139,92,246,0.55); box-shadow: 0 0 30px rgba(139,92,246,0.07); }
-    .side-card-orange { border: 1px solid rgba(247,147,26,0.55);  box-shadow: 0 0 30px rgba(247,147,26,0.07); }
-    .side-card-header {
-      padding: 10px 16px; font-size: 9px; letter-spacing: 3px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .side-card-purple .side-card-header { color: #a78bfa; }
-    .side-card-orange .side-card-header { color: #fb923c; }
-    .side-card-body { padding: 16px; }
-
-    /* ── Centre column ── */
+    /* ── Centre console — now the single glass panel over the sunset photo ── */
     #title-centre {
-      flex: 1;
-      border: 1px solid rgba(220,38,38,0.6);
-      border-radius: 10px;
-      background: rgba(12,4,4,0.97);
-      box-shadow: 0 0 60px rgba(220,38,38,0.18), inset 0 0 40px rgba(220,38,38,0.05);
+      flex: 0 1 460px; width: 100%;
       display: flex; flex-direction: column; align-items: center;
       padding: 32px 24px 28px;
     }
-    #centre-logo {
-      font-size: 2.0rem; letter-spacing: 8px; color: #e8e8f0;
-      text-shadow: 0 0 50px rgba(220,38,38,0.7);
-      text-align: center; line-height: 1; white-space: nowrap;
+    #title-centre.glass-panel {
+      box-shadow: 0 0 60px rgba(232,132,44,0.14), inset 0 0 40px rgba(232,132,44,0.04);
     }
-    #centre-logo span { color: #f7931a; }
-    #centre-sub { font-size: 10px; letter-spacing: 5px; color: #ef4444; margin-top: 8px; }
-    #centre-tag { font-size: 8px; letter-spacing: 4px; color: #4a1010; margin-top: 4px; }
 
     /* Divider */
     .c-divider {
       width: 80%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(220,38,38,0.5), transparent);
+      background: linear-gradient(to right, transparent, rgba(232,178,120,0.45), transparent);
       margin: 22px 0;
     }
 
-    /* Enter button — wide, prominent */
-    #btn-enter {
-      width: 220px; padding: 14px; font-size: 13px; letter-spacing: 4px;
-      background: linear-gradient(135deg, #7c3aed, #6d28d9);
-      border: 1px solid rgba(139,92,246,0.7);
-      box-shadow: 0 0 30px rgba(139,92,246,0.3);
-    }
-    #btn-enter:hover { box-shadow: 0 0 50px rgba(139,92,246,0.5); opacity: 1; }
-
-    /* v0.2.275: NAP-zone shortcut */
+    /* v0.3: single merged entry button (was #btn-enter + #btn-enter-nap). */
     #btn-enter-nap {
-      width: 220px; padding: 11px; font-size: 11px; letter-spacing: 3px;
-      color: #dfe9d2;
+      width: 220px; padding: 14px; font-size: 13px; letter-spacing: 4px;
+      color: #1c0f06;
     }
-    #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(107,142,90,0.5); opacity: 1; }
+    #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(232,132,44,0.5); opacity: 1; }
 
     /* Login button in centre — v0.2.624-alpha: promoted to the primary CTA with a
        solid mint/green fill (matches the on-brand green accent used elsewhere) so
@@ -254,144 +233,110 @@
       color: #36e0c8; text-decoration: none; border: 1px solid rgba(54,224,200,0.35);
       border-radius: 3px; padding: 2px 8px; }
     #torii-quest-dashboard-link:hover { border-color: #36e0c8; }
-    /* Instance Settings link (v0.2.358, ACC-1) — title-screen admin corner link.
-       Hidden by default; main.js unhides it only when the logged-in operator's
-       npub matches the deployment's host pubkey. Sibling styling to the project
-       dashboard link so the two sit together as a quiet corner cluster. */
-    #instance-settings-link { display: inline-block; margin-top: 7px; margin-left: 6px;
-      font-size: 9px; letter-spacing: 2px; color: #a88bfa; text-decoration: none;
-      border: 1px solid rgba(168,139,250,0.35); border-radius: 3px; padding: 2px 8px;
-      cursor: pointer; background: transparent; }
-    #instance-settings-link:hover { border-color: #a88bfa; }
-    #instance-settings-link[hidden] { display: none; }
-    /* Instance Settings panel (v0.2.358) — inert overlay on the title screen.
-       Rendered by main.js from the pure `instanceSettings.js` view-model. No
-       gate change, no relay call, no navigation. */
-    #instance-settings-backdrop {
-      position: fixed; inset: 0; background: rgba(4,6,14,0.72);
-      z-index: 40; display: block;
-    }
-    #instance-settings-backdrop[hidden] { display: none; }
-    #instance-settings-panel {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
-      overflow: auto; z-index: 41;
-      background: rgba(14,10,26,0.96); color: #d8d4ee;
-      border: 1px solid rgba(168,139,250,0.45); border-radius: 8px;
-      padding: 14px 16px; font-family: inherit; text-align: left;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
-    }
-    #instance-settings-panel[hidden] { display: none; }
-    #instance-settings-panel .is-header { display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid rgba(168,139,250,0.25); padding-bottom: 8px; margin-bottom: 10px; }
-    #instance-settings-panel .is-title { margin: 0; font-size: 14px; letter-spacing: 2px;
-      color: #d8d4ee; text-transform: uppercase; flex: 1; }
-    #instance-settings-panel .is-admin { font-size: 10px; color: #a0a8b8; }
-    #instance-settings-panel .is-admin code { color: #a88bfa; background: rgba(168,139,250,0.08);
+    /* v0.3: #instance-settings-link / #instance-settings-backdrop / floating
+       #instance-settings-panel dialog chrome REMOVED — the button and the
+       standalone floating-dialog positioning are gone (the settings icon now
+       opens the new nav-left/content-right shell below). The .is-* content
+       styles are KEPT and re-themed bronze/amber: renderInstanceSettingsPanel()
+       still emits the same .is-* markup, now mounted straight into the
+       shell's content pane (#torii-settings-content) instead of a floating
+       card, so only the outer positioning rules were dropped. */
+    #torii-settings-content .is-header { display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(232,178,120,0.25); padding-bottom: 8px; margin-bottom: 10px; }
+    #torii-settings-content .is-title { margin: 0; font-size: 14px; letter-spacing: 2px;
+      color: var(--panel-text); text-transform: uppercase; flex: 1; }
+    #torii-settings-content .is-admin { font-size: 10px; color: var(--panel-text-dim); }
+    #torii-settings-content .is-admin code { color: var(--accent); background: rgba(232,178,120,0.1);
       padding: 1px 5px; border-radius: 3px; font-size: 10px; }
-    #instance-settings-panel .is-close { background: transparent; border: 1px solid rgba(255,255,255,0.15);
-      color: #d8d4ee; border-radius: 3px; width: 24px; height: 24px; font-size: 16px;
+    #torii-settings-content .is-close { background: transparent; border: 1px solid rgba(255,255,255,0.15);
+      color: var(--panel-text); border-radius: 3px; width: 24px; height: 24px; font-size: 16px;
       line-height: 1; cursor: pointer; padding: 0; }
-    #instance-settings-panel .is-close:hover { border-color: #a88bfa; }
-    #instance-settings-panel .is-section { margin-bottom: 12px; padding: 10px 12px;
-      background: rgba(18,12,34,0.6); border: 1px solid rgba(168,139,250,0.18); border-radius: 6px; }
-    #instance-settings-panel .is-section-title { margin: 0 0 6px 0; font-size: 11px;
-      letter-spacing: 2px; color: #a88bfa; text-transform: uppercase; }
-    #instance-settings-panel .is-row { display: flex; justify-content: space-between; align-items: center;
+    #torii-settings-content .is-close:hover { border-color: var(--accent); }
+    #torii-settings-content .is-section { margin-bottom: 12px; padding: 10px 12px;
+      background: rgba(30,18,12,0.5); border: 1px solid rgba(232,178,120,0.18); border-radius: 6px; }
+    #torii-settings-content .is-section-title { margin: 0 0 6px 0; font-size: 11px;
+      letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+    #torii-settings-content .is-row { display: flex; justify-content: space-between; align-items: center;
       padding: 4px 0; font-size: 12px; }
-    #instance-settings-panel .is-row-label { color: #a0a8b8; }
-    #instance-settings-panel .is-row-value { color: #d8d4ee; font-weight: 600; text-transform: uppercase;
+    #torii-settings-content .is-row-label { color: var(--panel-text-dim); }
+    #torii-settings-content .is-row-value { color: var(--panel-text); font-weight: 600; text-transform: uppercase;
       letter-spacing: 1px; font-size: 11px; }
-    #instance-settings-panel .is-coming-soon { margin-top: 8px; padding-top: 8px;
-      border-top: 1px dashed rgba(168,139,250,0.22); }
-    #instance-settings-panel .is-coming-soon-head { font-size: 9px; letter-spacing: 2px;
-      color: #a88bfa; text-transform: uppercase; margin-bottom: 4px; }
-    #instance-settings-panel .is-mode-list { margin: 0; padding: 0; list-style: none; }
-    #instance-settings-panel .is-mode-list li { display: flex; flex-direction: column;
-      padding: 4px 0; border-bottom: 1px dotted rgba(168,139,250,0.12); }
-    #instance-settings-panel .is-mode-list li:last-child { border-bottom: 0; }
-    #instance-settings-panel .is-mode-label { color: #d8d4ee; font-size: 11px; font-weight: 600; }
-    #instance-settings-panel .is-mode-hint { color: #a0a8b8; font-size: 10px; margin-top: 2px; }
-    #instance-settings-panel .is-note { margin: 8px 0 0 0; font-size: 10px; color: #a0a8b8;
+    #torii-settings-content .is-coming-soon { margin-top: 8px; padding-top: 8px;
+      border-top: 1px dashed rgba(232,178,120,0.22); }
+    #torii-settings-content .is-coming-soon-head { font-size: 9px; letter-spacing: 2px;
+      color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+    #torii-settings-content .is-mode-list { margin: 0; padding: 0; list-style: none; }
+    #torii-settings-content .is-mode-list li { display: flex; flex-direction: column;
+      padding: 4px 0; border-bottom: 1px dotted rgba(232,178,120,0.12); }
+    #torii-settings-content .is-mode-list li:last-child { border-bottom: 0; }
+    #torii-settings-content .is-mode-label { color: var(--panel-text); font-size: 11px; font-weight: 600; }
+    #torii-settings-content .is-mode-hint { color: var(--panel-text-dim); font-size: 10px; margin-top: 2px; }
+    #torii-settings-content .is-note { margin: 8px 0 0 0; font-size: 10px; color: var(--panel-text-dim);
       font-style: normal; }
-    #instance-settings-panel .is-footer { border-top: 1px solid rgba(168,139,250,0.18);
-      padding-top: 8px; margin-top: 4px; font-size: 10px; color: #7d8494; text-align: center; }
+    #torii-settings-content .is-footer { border-top: 1px solid rgba(232,178,120,0.18);
+      padding-top: 8px; margin-top: 4px; font-size: 10px; color: var(--panel-text-dim); text-align: center; }
 
-    /* ── MVP loop header — frames the four preview cards as one loop (v0.2.143) ── */
-    #mvp-loop {
-      margin-top: 16px; width: 240px; text-align: left;
-      border: 1px solid rgba(168,139,250,0.45); border-radius: 6px;
-      background: rgba(18,12,34,0.5); padding: 8px 9px;
+    /* ── New settings panel shell (v0.3): nav-left/content-right, bronze/amber ── */
+    #torii-settings-backdrop { font-family: var(--font); }
+    .ts-card {
+      display: flex; width: min(880px, calc(100vw - 32px)); height: min(600px, calc(100vh - 64px));
+      background: rgba(20,13,9,0.92); border: 1px solid rgba(232,178,120,0.35); border-radius: 0.75rem;
+      overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
     }
-    #mvp-loop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #mvp-loop-title { font-size: 9px; letter-spacing: 1.5px; color: #ddd6fe; }
-    #mvp-loop-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #mvp-loop-flow { font-size: 10px; letter-spacing: 1px; color: #c4b5fd; }
-    #mvp-loop-note { font-size: 8px; letter-spacing: 0.5px; color: #6b7280; margin-top: 3px; }
+    .ts-nav {
+      display: flex; flex-direction: column; width: 232px; flex: 0 0 232px;
+      background: rgba(14,9,6,0.7); border-right: 1px solid rgba(232,178,120,0.2);
+      padding: 16px 12px;
+    }
+    .ts-brand { font-size: 12px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase;
+      margin-bottom: 18px; padding: 0 6px; }
+    .ts-nav-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .ts-nav-item {
+      text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px;
+      color: var(--panel-text-dim); font-family: inherit; font-size: 12px; letter-spacing: 0.5px;
+      padding: 10px 12px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .ts-nav-item:hover { background: rgba(232,178,120,0.08); color: var(--panel-text); }
+    .ts-nav-item.is-active { background: rgba(232,178,120,0.16); color: var(--accent); border-color: rgba(232,178,120,0.35); font-weight: 600; }
+    .ts-nav-close {
+      margin-top: 12px; background: transparent; border: 1px solid rgba(255,255,255,0.15);
+      color: var(--panel-text-dim); border-radius: 6px; font-family: inherit; font-size: 11px;
+      padding: 8px 12px; cursor: pointer; text-align: left;
+    }
+    .ts-nav-close:hover { border-color: var(--accent); color: var(--panel-text); }
+    .ts-content { flex: 1; overflow-y: auto; padding: 20px 24px; color: var(--panel-text); text-align: left; }
 
-    /* ── Gateway/NAP-to-NAP preview (inert, v0.2.139) ── */
-    #gateway-preview {
-      margin-top: 12px; width: 240px; text-align: left;
-      border: 1px solid rgba(139,92,246,0.35); border-radius: 6px;
-      background: rgba(26,10,46,0.35); padding: 7px 9px;
+    /* ── Gateway Setup tab cards (v0.3) ── */
+    .gs-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+      border-bottom: 1px solid rgba(232,178,120,0.25); padding-bottom: 8px; margin-bottom: 4px; }
+    .gs-title { margin: 0; font-size: 14px; letter-spacing: 2px; color: var(--panel-text); text-transform: uppercase; }
+    .gs-badge { font-size: 10px; letter-spacing: 1px; color: var(--accent); white-space: nowrap; }
+    .gs-subtitle { font-size: 11px; color: var(--panel-text-dim); margin: 6px 0 14px; }
+    .gs-list { display: flex; flex-direction: column; gap: 10px; }
+    .gs-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+      background: rgba(30,18,12,0.5); border: 1px solid rgba(232,178,120,0.18); border-radius: 8px; }
+    .gs-icon { font-size: 20px; flex: 0 0 auto; }
+    .gs-body { flex: 1; min-width: 0; }
+    .gs-label { font-size: 12px; font-weight: 600; color: var(--panel-text); }
+    .gs-hint { font-size: 10px; color: var(--panel-text-dim); margin-top: 2px; }
+    .gs-gate { font-size: 10px; color: var(--accent-soft); margin-top: 4px; }
+    .gs-btn {
+      flex: 0 0 auto; background: var(--accent); color: #1c0f06; border: none; border-radius: 6px;
+      font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+      padding: 8px 14px; cursor: pointer; text-transform: uppercase;
     }
-    #gateway-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #gateway-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #c4b5fd; }
-    #gateway-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #gateway-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    .gw-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
-    .gw-row-value { font-size: 9px; color: #d1c4ec; word-break: break-all; }
-    /* v0.2.252 (P1): clickable world rows + handshake action buttons. */
-    .gw-section-title { grid-column: 1 / auto; font-size: 8px; letter-spacing: 1.2px; color: #c4b5fd; text-transform: uppercase; margin-top: 5px; }
-    .gw-more { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #6b7280; padding: 1px 0 0 4px; }
-    .gw-world-row { grid-column: 1 / -1; font-size: 9px; color: #d1c4ec; padding: 1px 0; }
-    .gw-world-clickable { cursor: pointer; color: #e9d5ff; border-left: 2px solid transparent; padding-left: 4px; transition: background 0.12s, border-color 0.12s; }
-    .gw-world-clickable:hover, .gw-world-clickable:focus-visible { background: rgba(196,181,253,0.10); border-left-color: #c4b5fd; outline: none; }
-    .gw-actions { grid-column: 1 / -1; display: flex; gap: 4px; margin-top: 3px; }
-    .gw-btn { font-size: 8px; letter-spacing: 0.8px; color: #ede9fe; background: rgba(139,92,246,0.18); border: 1px solid rgba(139,92,246,0.45); border-radius: 3px; padding: 2px 7px; cursor: pointer; transition: background 0.12s; }
-    .gw-btn:hover, .gw-btn:focus-visible { background: rgba(139,92,246,0.32); outline: none; }
-    .gw-btn-accept { color: #d1fae5; border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.16); }
-    .gw-btn-accept:hover, .gw-btn-accept:focus-visible { background: rgba(16,185,129,0.3); }
-    .gw-btn-deny { color: #fecaca; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.14); }
-    .gw-btn-deny:hover, .gw-btn-deny:focus-visible { background: rgba(239,68,68,0.28); }
-    .gw-btn-jump { color: #fde68a; border-color: rgba(247,147,26,0.55); background: rgba(247,147,26,0.16); }
-    .gw-btn-jump:hover, .gw-btn-jump:focus-visible { background: rgba(247,147,26,0.3); }
-
-    /* ── Local/mock leaderboard preview (inert, read-only, no publish, v0.2.141) ── */
-    #leaderboard-preview {
-      margin-top: 10px; width: 240px; text-align: left;
-      border: 1px solid rgba(52,211,153,0.30); border-radius: 6px;
-      background: rgba(10,40,30,0.3); padding: 7px 9px;
-    }
-    #leaderboard-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #leaderboard-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #a7f3d0; }
-    #leaderboard-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #leaderboard-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    #leaderboard-preview-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
-    .lb-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
-    .lb-row-value { font-size: 9px; color: #c4ecd9; word-break: break-all; }
-    /* ── gamestr.io global leaderboard sub-section (Phase 0h, v0.2.624-alpha) ── */
-    /* Reuses lb-row-label/lb-row-value above for visual consistency with the
-       NIP-78 leaderboard preview. Off by default; the body is filled only when
-       the operator opted in (GAMESTR_ENABLED || getGamestrEnabled()). */
-    #gamestr-leaderboard { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(52,211,153,0.20); }
-    #gamestr-leaderboard-label { font-size: 8px; letter-spacing: 1.5px; color: #a7f3d0; margin-bottom: 3px; }
-    #gamestr-leaderboard-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    #gamestr-leaderboard-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
-    /* ── LIVE leaderboard publish control (M2, v0.2.294) ── */
-    #leaderboard-publish { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
-    #leaderboard-publish-btn {
-      font-size: 8px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
-      color: #052e1c; background: #34d399; border: none; border-radius: 4px; padding: 4px 8px;
-    }
-    #leaderboard-publish-btn:disabled { cursor: not-allowed; opacity: 0.45; }
-    #leaderboard-publish-tag { font-size: 7px; letter-spacing: 1px; color: #f7931a; }
-    #leaderboard-publish-status { font-size: 8px; letter-spacing: 0.5px; margin-top: 5px; color: #9ca3af; }
-    #leaderboard-publish-status[data-tone="pending"] { color: #fbbf24; }
-    #leaderboard-publish-status[data-tone="ok"] { color: #34d399; }
-    #leaderboard-publish-status[data-tone="fail"] { color: #f87171; }
+    .gs-btn:hover { background: var(--accent-soft); }
+    .gs-btn:disabled { background: rgba(255,255,255,0.08); color: var(--panel-text-dim); cursor: not-allowed; }
+    .gs-note { margin-top: 14px; font-size: 10px; color: var(--panel-text-dim); }
 
     /* ── Live in-arena leaderboard overlay (v0.2.624-alpha) ── */
+    /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
+       (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
+       #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
+       CSS) were deleted here — those cards were removed from index.html in
+       an earlier pass. This in-arena overlay block below (.tq-arena-lb*/
+       .tq-leaderboard*) is a SEPARATE, still-live module (arenaLeaderboard.js
+       / leaderboardPanel.js) and is kept. */
     .tq-arena-lb {
       position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
       z-index: 40; width: 320px; max-height: 70vh; overflow-y: auto;
@@ -504,91 +449,11 @@
     }
     #update-status-line[hidden] { display: none !important; }
 
-    /* ── LEFT: Stats panel ── */
-    #stats-identity {
-      display: flex; flex-direction: column; align-items: center;
-      padding-bottom: 14px; margin-bottom: 14px;
-      border-bottom: 1px solid rgba(139,92,246,0.12);
-    }
-    #nostr-avatar-ph {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: rgba(139,92,246,0.15); border: 2px solid rgba(139,92,246,0.4);
-      display: flex; align-items: center; justify-content: center; font-size: 26px;
-    }
-    #nostr-avatar-img {
-      display: none; width: 56px; height: 56px; border-radius: 50%;
-      border: 2px solid #8b5cf6; object-fit: cover;
-    }
-    #nostr-display-name {
-      font-size: 13px; color: #e0aaff; margin-top: 8px; letter-spacing: 2px;
-    }
-    #stats-status { font-size: 8px; color: #444; letter-spacing: 1px; margin-top: 2px; }
-
-    /* Big stat numbers */
-    .stat-big-row {
-      display: flex; gap: 8px; margin-bottom: 14px;
-    }
-    .stat-big {
-      flex: 1; background: rgba(139,92,246,0.07);
-      border: 1px solid rgba(139,92,246,0.2); border-radius: 6px;
-      padding: 10px 8px; text-align: center;
-    }
-    .stat-big .num { font-size: 1.8rem; color: #a78bfa; line-height: 1; }
-    .stat-big .lbl { font-size: 8px; color: #555; letter-spacing: 2px; margin-top: 4px; }
-    .stat-big.orange { border-color: rgba(247,147,26,0.25); background: rgba(247,147,26,0.06); }
-    .stat-big.orange .num { color: #fb923c; }
-
-    /* Donut chart */
-    #donut-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-    #donut-svg-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
-    #donut-svg-wrap svg { width: 72px; height: 72px; }
-    #donut-centre {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    #donut-pct { font-size: 14px; color: #e0aaff; font-weight: bold; }
-    #donut-sub { font-size: 7px; color: #555; letter-spacing: 1px; }
-    .donut-legend { flex: 1; }
-    .dl-row { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #666; margin-bottom: 5px; }
-    .dl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .dl-count { margin-left: auto; color: #aaa; }
-
-    /* ── RIGHT: Chat panel ── */
-    #chat-feed {
-      display: flex; flex-direction: column; gap: 10px;
-      max-height: 340px; overflow-y: auto;
-    }
-    #chat-feed::-webkit-scrollbar { width: 3px; }
-    #chat-feed::-webkit-scrollbar-track { background: transparent; }
-    #chat-feed::-webkit-scrollbar-thumb { background: rgba(247,147,26,0.3); border-radius: 2px; }
-    .chat-msg { display: flex; align-items: flex-start; gap: 8px; }
-    .chat-avatar {
-      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: bold; color: #fff;
-      background: rgba(255,255,255,0.1);
-    }
-    .chat-bubble { flex: 1; }
-    .chat-name { font-size: 9px; letter-spacing: 1px; font-weight: bold; }
-    .chat-text { font-size: 10px; color: #999; margin-top: 1px; line-height: 1.4; }
-    .chat-time { font-size: 8px; color: #333; margin-top: 1px; }
-
-    #chat-input-row {
-      display: flex; gap: 6px; margin-top: 10px;
-      padding-top: 10px; border-top: 1px solid rgba(247,147,26,0.1);
-    }
-    #chat-input {
-      flex: 1; background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(247,147,26,0.25); border-radius: 4px;
-      padding: 7px 10px; color: #e8e8f0; font-size: 10px;
-      font-family: monospace; outline: none;
-    }
-    #chat-input:focus { border-color: rgba(247,147,26,0.5); }
-    #chat-send { padding: 7px 12px; font-size: 9px; letter-spacing: 2px; }
-    /* Mock chat is not wired to any network — show inputs as clearly inactive. */
-    #chat-input:disabled, #chat-send:disabled {
-      opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6);
-    }
+    /* v0.3 cleanup: the homepage player-stats card (#stats-identity,
+       .stat-big*, #donut*, .dl-*) and the mock chat panel (#chat-feed,
+       .chat-*, #chat-input*, #chat-send) were both removed from index.html
+       in an earlier pass — their CSS (previously here) had no matching
+       elements left and has been deleted. */
 
     /* ── EMAGAKE (ADR-0025) — the ema rack / todo panel ──
        An emagake (絵馬掛け) is the wooden rack at a shrine where visitors' ema
@@ -1076,134 +941,45 @@
 <div id="screen-title">
 
   <!-- Header -->
-  <div id="title-header">
-    <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-    <div class="title-tagline-sm">SATS · SHOTS · SOVEREIGNTY</div>
-    <!-- Phase 0c: persistent Torii/burger menu button. Opens the same menu from
-         the title screen AND from inside the game (KeyM). The menu is a DOM
-         overlay owned by main.js; this button just calls openToriiMenu(). -->
-    <button type="button" id="btn-torii-menu" class="btn-torii-menu" aria-label="Open Torii menu" title="Torii menu (M)">
+  <div id="title-header" class="glass-panel">
+    <!-- Settings entry point (moved top-right → top-left). Opens the new
+         settings panel (nav-left/content-right), replacing the old Torii
+         menu overlay. Same button element/id kept for main.js wiring
+         continuity; only its position + destination changed. -->
+    <button type="button" id="btn-torii-menu" class="btn-torii-menu" aria-label="Open settings" title="Settings">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/></svg>
     </button>
+    <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
+    <div class="title-tagline-sm">SOVEREIGNTY · OPEN WORLD · FREE MARKET · ABUNDANCE</div>
   </div>
 
-  <!-- Three columns -->
+  <!-- Simplified single-column homepage (v0.3 cleanup). Player stats,
+       leaderboard, live chat, and the gateway-worlds preview panel were all
+       removed from the homepage per design direction — settings-style
+       content (instance settings, gateway/node setup) now lives inside the
+       new settings panel opened via #btn-torii-menu, and the rest was pure
+       decorative/preview clutter with no unique data not available
+       elsewhere. #update-preview (the live version/upgrade check) is kept
+       since it is a genuine operational surface, not decorative. -->
   <div id="title-columns">
 
-    <!-- LEFT: Player stats (purple) + leaderboard preview -->
-    <div class="side-col">
-    <div class="side-card side-card-purple">
-      <div class="side-card-header">
-        <span>■ PLAYER</span>
-        <span id="stats-status" style="color:#333;">NOT LOGGED IN</span>
-      </div>
-      <div class="side-card-body">
-
-        <!-- Identity -->
-        <div id="stats-identity">
-          <div id="nostr-avatar-ph">👤</div>
-          <img id="nostr-avatar-img" alt="nostrich avatar"/>
-          <div id="nostr-display-name">ANON</div>
-          <div id="stats-status-sub" style="font-size:8px;color:#444;letter-spacing:1px;margin-top:2px;">connect wallet to load stats</div>
-        </div>
-
-        <!-- Big stat numbers -->
-        <div class="stat-big-row">
-          <div class="stat-big orange">
-            <div class="num" id="big-sats">—</div>
-            <div class="lbl">⚡ SATS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-kills">—</div>
-            <div class="lbl">KILLS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-runs">—</div>
-            <div class="lbl">RUNS</div>
-          </div>
-        </div>
-
-        <!-- Donut: accuracy -->
-        <div id="donut-wrap">
-          <div id="donut-svg-wrap">
-            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="18" cy="18" r="14" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
-              <circle id="donut-hits-arc" cx="18" cy="18" r="14"
-                stroke="rgba(139,92,246,0.85)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="66 88" stroke-dashoffset="22"
-                transform="rotate(-90 18 18)"
-                style="filter:drop-shadow(0 0 3px rgba(139,92,246,0.5));transition:stroke-dasharray 0.6s ease;"/>
-              <circle id="donut-got-arc" cx="18" cy="18" r="14"
-                stroke="rgba(255,68,68,0.7)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="22 88" stroke-dashoffset="-66"
-                transform="rotate(-90 18 18)"
-                style="transition:stroke-dasharray 0.6s ease;"/>
-            </svg>
-            <div id="donut-centre">
-              <div id="donut-pct">75%</div>
-              <div id="donut-sub">ACC</div>
-            </div>
-          </div>
-          <div class="donut-legend">
-            <div class="dl-row"><div class="dl-dot" style="background:#8b5cf6;"></div><span>HITS LANDED</span><span class="dl-count" id="legend-hits">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#ff4444;"></div><span>TIMES HIT</span><span class="dl-count" id="legend-gothit">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#4ade80;"></div><span>KILLS</span><span class="dl-count" id="legend-kills">—</span></div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-      <!-- Leaderboard card. Rank rows combine the latest server-authoritative
-           local SCORE frame with verified persisted Nostr scores, never mock data.
-           v0.2.294 (M2) adds the LIVE
-           publish control below: a real NIP-07 sign + relay fan-out, armed only
-           when logged in and gated by explicit consent AND the SEC-1 publishGate. -->
-      <div id="leaderboard-preview" aria-label="leaderboard — persisted standings + live NIP-07 publish">
-        <div id="leaderboard-preview-head">
-          <span id="leaderboard-preview-title">🏆 SCORE — LEADERBOARD</span>
-          <span id="leaderboard-preview-badge">PERSISTED · NOSTR</span>
-        </div>
-        <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
-        <!-- Phase 0h — gamestr.io global leaderboard (kind 30762, read-side). A
-             sub-section below the NIP-78 preview; rendered only when the operator
-             opted in (GAMESTR_ENABLED || getGamestrEnabled()). Off by default so
-             no gamestr relay request fires on load. Rows reuse lb-row-label /
-             lb-row-value CSS. -->
-        <div id="gamestr-leaderboard">
-          <div id="gamestr-leaderboard-label">🌐 GAMESTR.IO</div>
-          <div id="gamestr-leaderboard-body"><!-- rows injected by main.js --></div>
-        </div>
-        <div id="leaderboard-publish">
-          <button id="leaderboard-publish-btn" type="button" disabled aria-label="publish my score to the leaderboard via Nostr">PUBLISH MY SCORE</button>
-          <span id="leaderboard-publish-tag">LIVE · NIP-07 · SEC-1 crypto-gated</span>
-        </div>
-        <div id="leaderboard-publish-status" role="status" aria-live="polite" style="display:none"></div>
-      </div>
-    </div><!-- /side-col (left) -->
-
-    <!-- CENTRE: boxed console -->
-    <div id="title-centre">
-      <div id="centre-logo">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-      <div id="centre-sub">OPEN WORLD · FREE MARKET</div>
-      <div id="centre-tag">SOVEREIGN · ATMOSPHERIC · ABUNDANT</div>
-
-      <div class="c-divider"></div>
-
+    <!-- CENTRE: boxed console, now a frosted-glass panel over the sunset photo -->
+    <div id="title-centre" class="glass-panel">
       <!-- Character selector -->
       <div id="char-select" style="margin:0.7rem 0 0.5rem; text-align:center;">
-        <div style="font-size:0.65rem;letter-spacing:0.12em;color:#8b5cf6;margin-bottom:0.4rem;">CHARACTER</div>
+        <div style="font-size:0.65rem;letter-spacing:0.12em;color:#e8a662;margin-bottom:0.4rem;">CHARACTER</div>
         <div style="display:flex;gap:0.5rem;justify-content:center;">
-          <button class="char-btn active" data-char="chiefmonkey" style="padding:0.35rem 0.8rem;border:1.5px solid #8b5cf6;border-radius:6px;background:#1a0a2e;color:#e2d8f0;font-size:0.75rem;cursor:pointer;">&#x1F412; Chiefmonkey</button>
-          <button class="char-btn" data-char="nostrich" style="padding:0.35rem 0.8rem;border:1.5px solid #4a5568;border-radius:6px;background:#0f0f1a;color:#a0aec0;font-size:0.75rem;cursor:pointer;">&#x1F9A4; Nostrich</button>
+          <button class="char-btn active" data-char="chiefmonkey" style="padding:0.35rem 0.8rem;border:1.5px solid #e8842c;border-radius:6px;background:#2a1810;color:#f5e6d8;font-size:0.75rem;cursor:pointer;">&#x1F412; Chiefmonkey</button>
+          <button class="char-btn" data-char="nostrich" style="padding:0.35rem 0.8rem;border:1.5px solid #6b5644;border-radius:6px;background:#1a120c;color:#c9b19d;font-size:0.75rem;cursor:pointer;">&#x1F9A4; Nostrich</button>
         </div>
       </div>
       <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
-      <!-- v0.2.275: shortcut into the NAP zone far-left corner — skips the torii-gate
-           walk so the grass field is immediately visible. Same bootstrap as ENTER ARENA,
-           just sets a one-shot spawn override before enter(). -->
-      <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER NAP ZONE</button>
-      <button class="btn" id="btn-enter">ENTER ARENA</button>
+      <!-- v0.3 cleanup: ENTER ARENA + ENTER NAP ZONE merged into a single entry
+           point. Everyone now drops into the NAP zone by default (id kept as
+           btn-enter-nap so the existing main.js handler — which already sets
+           the NAP spawn override before enter() — needs no logic change,
+           only the removal of the old #btn-enter button + its handler). -->
+      <button class="btn btn-nap" id="btn-enter-nap" style="background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER TORII</button>
       <!-- Dev/debug free-fly camera toggle. Read on the three-free title screen (DOM
            only) and honoured at ENTER: a true flyMode enables ToriiDebug.fly once the
            arena boots. In-game F also toggles it. -->
@@ -1212,8 +988,8 @@
         <span class="fly-switch-track"><span class="fly-switch-knob"></span></span>
         <span class="fly-switch-state">OFF</span>
       </button>
-      <!-- Entry feedback line (v0.2.228). Both entry buttons write here so a
-           cloud/no-extension click is never a silent no-op: ENTER ARENA surfaces
+      <!-- Entry feedback line (v0.2.228). The single entry button writes here so a
+           cloud/no-extension click is never a silent no-op: ENTER surfaces
            a clear failure/gated message if physics fails to load, and LOGIN WITH
            NOSTR surfaces "NIP-07 extension not found" etc. when no signer exists.
            Hidden until a message is set. role/aria-live announce it to AT. -->
@@ -1227,129 +1003,11 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.668-alpha</div>
-      <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
-           tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
-      <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
-      <!-- Instance Settings admin corner link (v0.2.358, ACC-1). Hidden by
-           default; main.js unhides it only when the logged-in operator's
-           npub matches the deployment's host pubkey (`_hostIdentity()`). -->
-      <a id="instance-settings-link" href="#" hidden>⚙ INSTANCE SETTINGS</a>
+      <div id="version-label">v0.2.669-alpha</div>
 
-      <!-- Gateway / n2n world-presence LIVE card (v0.2.251, P0). Rendered by main.js
-           from a REAL read-only relay scan (kind 30078, topic `torii-gateway`). It
-           shows which other Torii worlds are online and NEVER navigates. Our own
-           presence is published only on explicit NIP-07 login. The badge is set
-           live by main.js (LIVE · SCANNING… / LIVE · n ONLINE / LIVE · OFFLINE). -->
-      <div id="gateway-preview" aria-label="gateway worlds online (live read)">
-        <div id="gateway-preview-head">
-          <span id="gateway-preview-title">⛩ 1 · TRAVEL — GATEWAY</span>
-          <span id="gateway-preview-badge">LIVE · SCANNING…</span>
-        </div>
-        <div id="gateway-preview-body"><!-- rows injected by main.js --></div>
-      </div>
-    </div>
-
-    <!-- ADR-0028: emagake + auction-panel moved to top-level body scope
-         (below #screen-title). They MUST NOT nest inside #screen-title — that
-         subtree is display:none during PLAYING, which removes even position:fixed
-         descendants from the render tree. -->
-
-    <!-- RIGHT: Live chat (orange) + update-check preview -->
-    <div class="side-col">
-    <div class="side-card side-card-orange">
-      <div class="side-card-header">
-        <span>⚡ LIVE CHAT <span style="opacity:.7;font-size:8px;">(preview)</span></span>
-        <span style="color:#333;font-size:8px;">12 online</span>
-      </div>
-      <div class="side-card-body">
-        <div id="chat-feed">
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#7c3aed,#f7931a);">CM</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f7931a;">Chiefmonkey</div>
-              <div class="chat-text">lets gooo 🔥 first to 10 kills wins</div>
-              <div class="chat-time">12:01</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);">AI</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#8b5cf6;">augustink</div>
-              <div class="chat-text">first blood incoming 🎯</div>
-              <div class="chat-time">12:02</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#0891b2,#4ade80);">PD</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#22d3ee;">plebdevs</div>
-              <div class="chat-text">sats or it didn't happen ⚡</div>
-              <div class="chat-time">12:02</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#166534,#4ade80);">HD</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#4ade80;">hodlr</div>
-              <div class="chat-text">walls are for bots 🤝 rushing mid</div>
-              <div class="chat-time">12:03</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#9f1239,#f43f5e);">N4</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f43f5e;">nostrich_420</div>
-              <div class="chat-text">gg wp no re 💀</div>
-              <div class="chat-time">12:03</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#92400e,#f7931a);">BS</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#fb923c;">bitcoinsatoshi</div>
-              <div class="chat-text">100 sats on chiefmonkey 👀</div>
-              <div class="chat-time">12:04</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#4c1d95,#a78bfa);">ZP</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#a78bfa;">zapmaster</div>
-              <div class="chat-text">someone teach me the jump mechanic lol</div>
-              <div class="chat-time">12:05</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#7c3aed,#f7931a);">CM</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f7931a;">Chiefmonkey</div>
-              <div class="chat-text">SPACE to jump 🕹️ you can get on top of the boxes</div>
-              <div class="chat-time">12:05</div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Mock chat: this is a static UI preview, not wired to any network.
-             No JS handler reads #chat-input / #chat-send and nothing transmits.
-             Inputs are disabled so users aren't fooled into thinking it sends.
-             (v0.2.137 — keep non-transmitting; do not add networking.) -->
-        <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="chat preview — not live" disabled aria-disabled="true"/>
-          <button class="btn btn-orange" id="chat-send" disabled aria-disabled="true" title="Chat is a preview — not yet live">SEND</button>
-        </div>
-      </div>
-    </div>
-
+      <!-- Version/upgrade check (kept — genuine operational surface, not
+           decorative). Previously lived in the removed right-hand chat
+           column; now sits standalone under the console. -->
       <div id="update-preview" aria-label="torii.quest live update-check (read-only, no auto-update)">
         <div id="update-preview-head">
           <span id="update-preview-title">Version</span>
@@ -1372,7 +1030,12 @@
           <button id="update-copy-btn" type="button">COPY</button>
         </div>
       </div>
-    </div><!-- /side-col (right) -->
+    </div>
+
+    <!-- ADR-0028: emagake + auction-panel moved to top-level body scope
+         (below #screen-title). They MUST NOT nest inside #screen-title — that
+         subtree is display:none during PLAYING, which removes even position:fixed
+         descendants from the render tree. -->
 
   </div><!-- /title-columns -->
 </div>
@@ -1494,7 +1157,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.668-alpha · torii quest</div>
+  <div id="ver">v0.2.669-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -1518,16 +1181,16 @@
   </div>
 </div>
 
-<!-- Instance Settings overlay (v0.2.358, ACC-1). Both elements are hidden by
-     default; main.js unhides them together when the instance admin clicks the
-     corner link. The panel body is rendered from the pure `instanceSettings.js`
-     view-model (no gate change, no relay call, no navigation). Placed before
-     the bootstrap block so the vite CSP plugin's `SCRIPT-CLOSE + BODY-CLOSE`
-     regex still matches for the versioned entry-import append (v0.2.360
-     regression fix). Do not write the literal script open/close in this
-     comment — the CSP self-consistency check counts <script> tokens. -->
-<div id="instance-settings-backdrop" hidden></div>
-<div id="instance-settings-panel" role="dialog" aria-label="Instance Settings" hidden></div>
+<!-- v0.3: the old standalone Instance Settings overlay divs (#instance-
+     settings-backdrop / #instance-settings-panel) are REMOVED. The new
+     settings panel (src/engine/settings/settingsPanel.js) builds its own
+     backdrop + card DOM entirely in JS, lazily on first open, mirroring
+     toriiMenu.js's pattern — no static placeholder markup needed here.
+     Kept placed before the bootstrap block regardless, so the vite CSP
+     plugin's `SCRIPT-CLOSE + BODY-CLOSE` regex still matches for the
+     versioned entry-import append (v0.2.360 regression fix). Do not write
+     the literal script open/close in this comment — the CSP self-
+     consistency check counts <script> tokens. -->
 
 <script type="module" src="/src/main.js"></script>
 <script>
@@ -1548,13 +1211,11 @@
       el.textContent = msg || '';
       el.style.display = msg ? 'block' : 'none';
     }
-    var enterBtn = document.getElementById('btn-enter');
-    if (enterBtn) enterBtn.addEventListener('click', function () {
-      // When the module is live it owns the click (real arena bootstrap + its own
-      // immediate status); only act as the fallback when the bundle never wired up.
-      if (window.__toriiEnterReady) return;
-      entryStatus('Engine still loading - reload the page if this persists.');
-    });
+    // v0.3: the old standalone #btn-enter ("ENTER ARENA") fallback listener is
+    // removed — that button no longer exists in the merged single-entry HTML
+    // (see #btn-enter-nap below, which already carries the same fallback
+    // contract). This was previously a harmless no-op (getElementById
+    // returned null), now deleted outright per the dead-code cleanup pass.
     var loginBtn = document.getElementById('btn-nostr-centre');
     if (loginBtn) loginBtn.addEventListener('click', function () {
       if (window.__toriiLoginReady) return;

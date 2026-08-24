@@ -78,11 +78,17 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
+import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, getActiveSettingsTab, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
+import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
 // no three import, browser-only, fail-safe (missing document → no-op).
-import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+// v0.3: openHomepageStub/closeHomepageStub/isHomepageStubOpen (the old
+// standalone overlay renderer) are no longer imported — Gateway Setup is now
+// a tab in the new settings panel (gatewaySetupPanel.js). Only the session-
+// once auto-open flag helpers are still needed from this module.
+import { hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
 import { classifySections } from './engine/menu/menuSections.js';
 import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
@@ -106,8 +112,10 @@ import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/de
 const elTitle = document.getElementById('screen-title');
 const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
-const elEnterBtn = document.getElementById('btn-enter');
-const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
+// v0.3 cleanup: ENTER ARENA + ENTER NAP ZONE merged into the single
+// #btn-enter-nap button (everyone drops into the NAP zone by default). The
+// old #btn-enter element no longer exists in index.html.
+const elNapBtn    = document.getElementById('btn-enter-nap');
 const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
@@ -399,10 +407,14 @@ function _getToriiMenuState() {
   };
 }
 
-// Title-screen burger button → open the persistent Torii menu.
+// Title-screen settings icon → open the new settings panel (nav-left/
+// content-right, 2 tabs: Instance Settings + Gateway Setup). Replaces the old
+// persistent Torii menu on THIS surface only — the in-game KeyM quick menu
+// (arenaRuntime.js) still opens toriiMenu.js unchanged (separate call site,
+// out of scope here).
 elToriiMenuBtn?.addEventListener('click', () => {
-  if (isToriiMenuOpen()) { closeToriiMenu(); return; }
-  openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+  if (isSettingsPanelOpen()) { closeSettingsPanel(); return; }
+  openSettingsPanel({ initialTab: 'instance', onClose: () => { /* title screen: no pause to resume */ } });
 });
 
 // ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
@@ -461,17 +473,15 @@ function _homepageStubCallbacks() {
       showEntryStatus('Homepage world set — reloading to apply…');
       try { window.location.reload(); } catch { /* best-effort */ }
     },
-    onVisitNodeDirectory: () => {
-      // Close the stub first so the two overlays never stack, then open the
-      // persistent Torii menu (the live node directory is its first section).
-      closeHomepageStub();
-      openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
-    },
+    // v0.3: onVisitNodeDirectory REMOVED — the "Visit a Node" card is dropped
+    // by design decision. In-world travel already has a home at the physical
+    // Torii Gateway inside the NAP zone (KeyM in-game menu), so a second
+    // UI-level node directory on the homepage would be redundant.
     onPublishNode: () => {
       // Reuse the existing heartbeat consent-publish path (NOT a new publish
       // path). Toggle to 'on' if currently off, else 'off' — same as the menu's
       // heartbeat button. Blocked states (no-signer / no-node-relay /
-      // wallet-requires-approval) surface via the stub's heartbeatStatus label.
+      // wallet-requires-approval) surface via the tab's heartbeatStatus label.
       const next = getHeartbeatIntent() === 'on' ? 'off' : 'on';
       setHeartbeatIntent(next);
       if (next === 'on') {
@@ -482,65 +492,31 @@ function _homepageStubCallbacks() {
         _heartbeat.republishPaused = false;
         showEntryStatus('Heartbeat OFF.');
       }
-      // Re-render the stub so the Publish label reflects the new status.
-      openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+      // Re-render happens at the call site (settings content delegation),
+      // which calls renderActiveSettingsTab() right after invoking this.
     },
     onClose: () => { /* title screen: no pause to resume */ },
   };
 }
 
-// _openHomepageStub() — the single open path the title-screen CTA, the menu
-// Node settings button, and the login-resolved auto-open all call. Re-renders
-// from the live snapshot each time (cheap; the stub is lazily built once).
+// _openHomepageStub() — v0.3: retargeted from the old standalone overlay to
+// the new settings panel's Gateway Setup tab. Still the single open path the
+// in-game menu's "Gateway setup" admin button (via onOpenHomepageStub above)
+// and the login-resolved auto-open both call — name kept for both call sites,
+// behavior now opens the shared panel pre-selected to the 'gateway' tab.
 function _openHomepageStub() {
-  openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+  openSettingsPanel({ initialTab: 'gateway', onClose: () => { /* title screen: no pause to resume */ } });
 }
 
-// Title-screen secondary CTA → open the Gateway setup stub. A small button
-// placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
-// / LOGIN. Built lazily into the title centre column so it matches the existing
-// title-screen visual style (no external CSS framework).
-(function _installHomepageStubCta() {
-  if (typeof document === 'undefined' || !document.getElementById) return;
-  const centre = document.getElementById('title-centre');
-  if (!centre) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.id = 'btn-homepage-stub';
-  btn.textContent = '⛩ GATEWAY SETUP';
-  btn.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
-  Object.assign(btn.style, {
-    width: '220px', fontSize: '10px', letterSpacing: '2px', padding: '9px',
-    marginTop: '10px', marginBottom: '4px', cursor: 'pointer',
-    background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',
-    border: '1px solid rgba(139,92,246,0.45)', borderRadius: '6px',
-  });
-  btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.25)'; btn.style.color = '#fff'; });
-  btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.12)'; btn.style.color = '#c4b5fd'; });
-  btn.addEventListener('click', () => {
-    if (isHomepageStubOpen()) { closeHomepageStub(); return; }
-    _openHomepageStub();
-  });
-  // Insert below the ENTER ARENA button (the last of the ENTER buttons) so it
-  // reads as a secondary CTA, not a replacement.
-  const enter = document.getElementById('btn-enter');
-  if (enter && enter.parentNode) enter.parentNode.insertBefore(btn, enter.nextSibling);
-  else centre.append(btn);
-})();
-
-// ESC closes the stub first (mirror the menu's ESC-closes-menu-first pattern).
-// arenaRuntime.js owns the in-game ESC handler (UNTOUCHED) and already closes
-// the Torii menu first; this capture-phase listener fires BEFORE it (main.js
-// loads first) and stops propagation when the stub is open, so ESC dismisses
-// the stub without also toggling the menu / pause / gateway screen. On the
-// title screen (no arenaRuntime) this is the only ESC path for the stub.
-document.addEventListener('keydown', (e) => {
-  if (e.code !== 'Escape' || e.repeat) return;
-  if (!isHomepageStubOpen()) return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  closeHomepageStub();
-}, true);
+// v0.3: the old standalone "⛩ GATEWAY SETUP" secondary-CTA button + its
+// dedicated ESC handler are REMOVED. That IIFE targeted #btn-enter (deleted
+// in an earlier homepage-simplification pass), so it had silently fallen
+// through to appending a stray purple button directly onto #title-centre on
+// every load — dead-looking but actually still live and unstyled to the new
+// theme. Gateway Setup is now a tab inside the settings panel (opened via the
+// single top-left settings icon), so this separate entry point and its ESC
+// handling are no longer needed; settingsPanel.js's own backdrop-click/×/ESC
+// handling covers it.
 
 // _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
 // mode). Direct-navigate to the world's hardened https `website`, tagging the
@@ -930,9 +906,11 @@ on(EV.NOSTR_LOGIN, () => {
 // Title-screen admin surface. The entry-point link stays UI-gated by
 // isInstanceAdmin(); the saved access mode itself is secured by the signed
 // kind:30078 settings event, verified on read before it can affect arrival.
-const _elInstanceSettingsLink  = typeof document !== 'undefined' ? document.getElementById('instance-settings-link')  : null;
-const _elInstanceSettingsPanel = typeof document !== 'undefined' ? document.getElementById('instance-settings-panel') : null;
-const _elInstanceSettingsBackdrop = typeof document !== 'undefined' ? document.getElementById('instance-settings-backdrop') : null;
+// v0.3: the standalone #instance-settings-link/-panel/-backdrop DOM elements
+// are gone. Instance Settings is now a tab inside the new settings panel
+// (settingsPanel.js); visibility is gated on the panel's 'instance' tab
+// (registered below) instead of a hidden/unhidden link. isInstanceAdmin's
+// gating is preserved via refreshInstanceSettingsVisibility()'s model check.
 const _instanceSettingsState = {
   loading: false,
   saving: false,
@@ -982,13 +960,13 @@ function _currentInstanceSettingsModel() {
 }
 
 function _rerenderInstanceSettingsPanel() {
-  if (!_elInstanceSettingsPanel || _elInstanceSettingsPanel.hidden) return;
+  if (!isSettingsPanelOpen()) return;
   const model = _currentInstanceSettingsModel();
   if (!model.visible) {
     _closeInstanceSettingsPanel();
     return;
   }
-  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
+  renderActiveSettingsTab();
 }
 
 async function _refreshInstanceSettingsAccessState() {
@@ -1085,48 +1063,71 @@ async function _saveInstanceSettingsAccess() {
   _rerenderInstanceSettingsPanel();
 }
 
+// v0.3: visibility is now tracked as a flag the settings panel's nav reads,
+// instead of hiding/unhiding a standalone corner link. isInstanceAdmin's gate
+// is unchanged — only non-owners lose the tab's content (still rendered but
+// the model's own `visible`/`canEditAccess` gating inside renderInstance-
+// SettingsPanel continues to apply, same as before).
+let _instanceSettingsVisible = false;
 function refreshInstanceSettingsVisibility() {
-  if (!_elInstanceSettingsLink) return;
   const model = _currentInstanceSettingsModel();
-  _elInstanceSettingsLink.hidden = !model.visible;
-  if (!model.visible) _closeInstanceSettingsPanel();
+  _instanceSettingsVisible = !!model.visible;
+  if (!model.visible && isSettingsPanelOpen() && getActiveSettingsTab() === 'instance') {
+    closeSettingsPanel();
+  }
 }
 
 function _openInstanceSettingsPanel() {
-  if (!_elInstanceSettingsPanel) return;
   const model = _currentInstanceSettingsModel();
   if (!model.visible) return;
-  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
-  _elInstanceSettingsPanel.hidden = false;
-  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = false;
+  openSettingsPanel({ initialTab: 'instance', onClose: () => { /* title screen: no pause to resume */ } });
   _refreshInstanceSettingsAccessState();
 }
 
 function _closeInstanceSettingsPanel() {
-  if (_elInstanceSettingsPanel) {
-    _elInstanceSettingsPanel.hidden = true;
-    _elInstanceSettingsPanel.innerHTML = '';
-  }
-  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = true;
+  closeSettingsPanel();
 }
 
-if (_elInstanceSettingsLink) {
-  _elInstanceSettingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    _openInstanceSettingsPanel();
-  });
-}
-if (_elInstanceSettingsPanel) {
-  _elInstanceSettingsPanel.addEventListener('click', (e) => {
+// Instance Settings tab content renderer — registered with the settings
+// panel shell. Renders nothing (falls back to the old "visible" gate) if the
+// operator isn't the instance admin, so a non-owner switching to this tab
+// sees an empty pane rather than the admin controls.
+registerSettingsTabRenderer('instance', () => {
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible) return '<div class="is-note">Instance settings are only available to the node owner.</div>';
+  return renderInstanceSettingsPanel(model);
+});
+
+// Gateway Setup tab content renderer — reuses the exact same state/callback
+// builders as the old homepage stub (_homepageStubState / _homepageStubCallbacks,
+// defined above), just rendered as HTML into the shared content pane instead
+// of a separate DOM overlay.
+registerSettingsTabRenderer('gateway', () => renderGatewaySetupPanel(_homepageStubState()));
+
+// Single delegated listener on the settings panel's content container, scoped
+// by data-action/data-form/data-group conventions (same conventions instance-
+// Settings.js already used) so both tabs' clicks/changes/submits are handled
+// without either tab needing its own listeners.
+(function _wireSettingsContentDelegation() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  // The content container is built lazily by settingsPanel.js on first open,
+  // so delegate from `document` (capture bubble naturally) rather than trying
+  // to grab a reference that may not exist yet.
+  doc.addEventListener('click', (e) => {
     const t = e && e.target;
-    if (t && t.getAttribute && t.getAttribute('data-action') === 'close') {
-      e.preventDefault();
-      _closeInstanceSettingsPanel();
-    }
+    if (!t || !t.closest) return;
+    if (!t.closest('#torii-settings-content')) return;
+    const action = t.getAttribute && t.getAttribute('data-action');
+    if (!action) return;
+    if (action === 'close') { e.preventDefault(); _closeInstanceSettingsPanel(); return; }
+    if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
+    if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
+    if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
   });
-  _elInstanceSettingsPanel.addEventListener('change', (e) => {
+  doc.addEventListener('change', (e) => {
     const t = e && e.target;
-    if (!t || !t.matches) return;
+    if (!t || !t.matches || !t.closest || !t.closest('#torii-settings-content')) return;
     if (t.matches('input[name="arrival-mode"]')) {
       _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
     } else if (t.matches('input[name="write-policy"]')) {
@@ -1138,16 +1139,14 @@ if (_elInstanceSettingsPanel) {
     _instanceSettingsState.statusTone = '';
     _rerenderInstanceSettingsPanel();
   });
-  _elInstanceSettingsPanel.addEventListener('submit', (e) => {
+  doc.addEventListener('submit', (e) => {
     const t = e && e.target;
-    if (!t || !t.getAttribute || t.getAttribute('data-form') !== 'access-settings') return;
+    if (!t || !t.getAttribute || !t.closest || !t.closest('#torii-settings-content')) return;
+    if (t.getAttribute('data-form') !== 'access-settings') return;
     e.preventDefault();
     _saveInstanceSettingsAccess();
   });
-}
-if (_elInstanceSettingsBackdrop) {
-  _elInstanceSettingsBackdrop.addEventListener('click', _closeInstanceSettingsPanel);
-}
+})();
 refreshInstanceSettingsVisibility();
 
 // ── Canonical /#/zone/<slug> hash route resolution (inert notice only) ──────────
@@ -1895,34 +1894,16 @@ function _yieldToPaint() {
 let _arena = null;            // arenaRuntime API once imported
 let _arenaBootstrapped = false;
 
-// v0.2.275: the ENTER ARENA handler. Shared bootstrap lives in ensureArenaReady
-// below (hoisted, so callable here); on success it drops into the canonical SW
-// arena spawn. The NAP button reuses the same bootstrap + sets a spawn override.
-elEnterBtn?.addEventListener('click', async () => {
-  if (!isTitle()) return;
-  // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
-  // never a silent no-op (regression guard — tests assert a non-empty message here).
-  showEntryStatus('Entering arena…');
-  resetTimings();
-  mark('enter-click');
-  showBootOverlay();
-  await _yieldToPaint();
-  try {
-    await ensureArenaReady('LOADING ARENA…');
-  } catch { hideBootOverlay(); return; }
-  showEntryStatus('');
-  hideBootOverlay();
-  _arena.enter();
-});
+// v0.3 cleanup: the single ENTER TORII handler (formerly ENTER ARENA) was
+// removed — #btn-enter-nap below is now the only entry point and everyone
+// drops into the NAP zone by default, so it owns the whole flow.
 
-// v0.2.275: shared bootstrap for ENTER ARENA + ENTER NAP ZONE. Lazy-loads the
-// three-vendor chunk + Rapier ONCE, then returns the ready arena API. Both title
-// buttons call this before enter(); the NAP button additionally sets a one-shot
-// spawn override so the player drops straight into the NAP far-left corner.
+// v0.2.275: shared bootstrap for entering the game. Lazy-loads the
+// three-vendor chunk + Rapier ONCE, then returns the ready arena API.
 async function ensureArenaReady(loadingLabel) {
   if (_arenaBootstrapped) return _arena;
-  elEnterBtn.textContent = loadingLabel;
-  elEnterBtn.disabled = true;
+  elNapBtn.textContent = loadingLabel;
+  elNapBtn.disabled = true;
   try {
     if (!_arena) {
       _setBootProgress(0); // 'Loading engine…'
@@ -1964,8 +1945,8 @@ async function ensureArenaReady(loadingLabel) {
     endPhase('bootstrap-physics');
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
-    elEnterBtn.textContent = 'ENTER ARENA';
-    elEnterBtn.disabled = false;
+    elNapBtn.textContent = 'ENTER TORII';
+    elNapBtn.disabled = false;
     // v0.2.277: show the REAL error (bootstrapPhysics now throws a step-tagged
     // message; fall back to e.message for import/boot failures). The generic
     // message hid the actual failure.
@@ -1980,9 +1961,9 @@ async function ensureArenaReady(loadingLabel) {
 }
 
 function resetEnterButton() {
-  if (elEnterBtn) {
-    elEnterBtn.textContent = 'ENTER ARENA';
-    elEnterBtn.disabled = false;
+  if (elNapBtn) {
+    elNapBtn.textContent = 'ENTER TORII';
+    elNapBtn.disabled = false;
   }
 }
 

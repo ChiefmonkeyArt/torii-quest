@@ -1986,23 +1986,10 @@ elNapBtn?.addEventListener('click', async () => {
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
-// ── Dev free-fly toggle (three-free, title-screen) ──────────────────────────────
-// Reads/writes state.flyMode purely in the DOM before the arena boots; the ENTER
-// handler enables ToriiDebug.fly when this is true. In-game F toggles also sync
-// this button's label via the arena runtime's onToggle callback.
-(function wireFlyToggle() {
-  const btn = document.getElementById('btn-fly-toggle');
-  if (!btn) return;
-  const stateEl = btn.querySelector('.fly-switch-state');
-  const paint = () => {
-    const on = state.flyMode;
-    btn.classList.toggle('is-on', on);
-    btn.setAttribute('aria-checked', on ? 'true' : 'false');
-    if (stateEl) stateEl.textContent = on ? 'ON' : 'OFF';
-  };
-  btn.addEventListener('click', () => { state.flyMode = !state.flyMode; paint(); });
-  paint();
-})();
+// v0.3: homepage FLY MODE toggle button removed per design direction; the
+// wiring IIFE that used to sync #btn-fly-toggle went with it. state.flyMode
+// stays false by default; in-game F still calls arenaRuntime's initFlyCamera
+// directly, which null-guards its own #btn-fly-toggle DOM sync.
 
 // v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is
 // bound, so it stands down. The shell wires this synchronously (no three), so the

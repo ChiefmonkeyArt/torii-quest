@@ -553,7 +553,16 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
            ` bodyGap=${g.bodyGap.toFixed(3)} rng=${g.rng.toFixed(2)}`;
     }
   }
-  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
+  // ADR-0046 v0.2.667: rounded origin/dir vectors alongside the existing
+  // clientTs, so the ema's lastSentShot.sentOrigin/sentDir can be matched
+  // numerically against exactly what the server received for this shot.
+  const ov = shotMsg.origin
+    ? ` o=(${shotMsg.origin[0].toFixed(2)},${shotMsg.origin[1].toFixed(2)},${shotMsg.origin[2].toFixed(2)})`
+    : '';
+  const dv = shotMsg.dir
+    ? ` d=(${shotMsg.dir[0].toFixed(2)},${shotMsg.dir[1].toFixed(2)},${shotMsg.dir[2].toFixed(2)})`
+    : '';
+  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}${ov}${dv}` +
     ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}${mg}`);
 }
 

@@ -19,16 +19,33 @@ describe('buildCombatReport', () => {
       lastHit:  { part: 'head' },
       lastShot: { outcome: 'hit' },
       lastMiss: null,
+      lastSentShot: null,
     });
   });
+  // ADR-0046 v0.2.667: the ema/dashboard path for the sent-ray diagnostic —
+  // proves combat.lastSentShot actually flows through buildCombatReport when a
+  // provider is wired, not just that the missing-provider case returns null.
+  it('passes through a non-null lastSentShot for the sent-ray diagnostic', () => {
+    const sentDiag = {
+      ts: 555, viewLag: 15, usedAimRay: true,
+      sentOrigin: [0, 2.59, 1], sentDir: [0, 0, 1],
+      muzzleOrigin: [0.3, 2.40, 1], muzzleDir: [0, 0, 1],
+      aimOrigin: [0, 2.59, 1], aimDir: [0, 0, 1],
+    };
+    const p = { getLastSentShot: () => sentDiag };
+    expect(buildCombatReport(p)).toEqual({
+      lastHit: null, lastShot: null, lastMiss: null, lastSentShot: sentDiag,
+    });
+  });
+
   it('returns nulls when providers are missing', () => {
-    expect(buildCombatReport({})).toEqual({ lastHit: null, lastShot: null, lastMiss: null });
-    expect(buildCombatReport()).toEqual({ lastHit: null, lastShot: null, lastMiss: null });
+    expect(buildCombatReport({})).toEqual({ lastHit: null, lastShot: null, lastMiss: null, lastSentShot: null });
+    expect(buildCombatReport()).toEqual({ lastHit: null, lastShot: null, lastMiss: null, lastSentShot: null });
   });
   it('does not throw when a provider throws — yields null for that field', () => {
     const p = { getLastHit: () => { throw new Error('boom'); }, getLastShot: () => 1, getLastMiss: () => 2 };
     expect(() => buildCombatReport(p)).not.toThrow();
-    expect(buildCombatReport(p)).toEqual({ lastHit: null, lastShot: 1, lastMiss: 2 });
+    expect(buildCombatReport(p)).toEqual({ lastHit: null, lastShot: 1, lastMiss: 2, lastSentShot: null });
   });
 });
 
@@ -90,7 +107,7 @@ describe('buildSnapshot', () => {
     expect(snap.version).toBeNull();
     expect(snap.phase).toBeNull();
     expect(snap.player).toBeNull();
-    expect(snap.combat).toEqual({ lastHit: null, lastShot: null, lastMiss: null });
+    expect(snap.combat).toEqual({ lastHit: null, lastShot: null, lastMiss: null, lastSentShot: null });
     expect(snap.physics.ready).toBe(false);
     expect(snap.config).toBeNull();
   });

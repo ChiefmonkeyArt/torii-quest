@@ -16,6 +16,9 @@ import { assetUrl } from './assetUrl.js';
 // behaviour-identical today; it gives the weapon ray path one injectable seam for
 // future tests/components.
 import { raycastService } from './engine/physics/raycastService.js';
+import { getLastShot, getLastMiss, setLastShot, setLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, mkDiag as _mkDiag, mkTarget as _mkTarget } from './engine/combat/lastShotStore.js';
+
+export { getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot };
 // v0.2.120 — the shared headshot classifier was extracted to a pure module
 // (no Three/Rapier) so it can be unit tested. Re-exported here unchanged so
 // every existing `from './weapons.js'` import site keeps working.
@@ -74,23 +77,9 @@ const DIAG_RANGE = 80; // m — diagnostic ray reach (≈ crosshair convergence 
 // Vertical bullet cull ceiling — above the 21m fly targeting ceiling (F4) so bot
 // shots can still reach a flying player below it, with margin for arc/spread.
 const FLY_CEIL = 24;
-let _lastShot = null;  // most recent fired player shot (predicted + resolved)
-let _lastMiss = null;  // most recent player shot that did NOT hit a live bot
-export function getLastShot() { return _lastShot; }
-export function getLastMiss() { return _lastMiss; }
-
-function _mkTarget() { return { kind: 'none', isHead: false, botName: null, dist: Infinity }; }
-function _mkDiag() {
-  return {
-    origin: { x: 0, y: 0, z: 0 }, dir: { x: 0, y: 0, z: 0 },
-    aim: _mkTarget(),      // camera/crosshair ray at fire time
-    pred: _mkTarget(),     // bullet line at fire time (if nothing moved)
-    outcome: _mkTarget(),  // what the bullet actually resolved to
-    predicted: null,       // {reason,label} aim-vs-pred, computed at fire
-    reason: null, label: null, // {reason,label} aim-vs-outcome, set at resolution
-    resolved: false, flightTime: 0,
-  };
-}
+// lastShot / lastMiss / mkDiag / mkTarget live in the pure lastShotStore
+// (ADR-0046 v0.2.667) so the sent-ray diagnostic is unit-testable without
+// three/Rapier. Re-exported above for arenaRuntime + ToriiDebug.
 // Translate a castRay() hit into the plain diagnostic target shape. Reads the
 // shared hit.point scratch immediately, before the next cast overwrites it.
 function _describeInto(t, hit) {
@@ -280,7 +269,7 @@ export function recordPlayerShot(b, ax, ay, az, adx, ady, adz) {
 
   d.predicted = classifyShotOutcome(d.aim, d.pred);
   b._diag = d;
-  _lastShot = d;
+  setLastShot(d);
 
   // v0.2.397 — apply the resolved SP hit: update the debug snapshot, finalise
   // the per-shot diagnostic as a bot hit (so aim == outcome, no moved-or-offset),
@@ -312,7 +301,7 @@ function _finalizeShot(b, kind, isHead, bot, dist) {
   d.flightTime = BULLET_LIFE - b.life;
   const r = classifyShotOutcome(d.aim, d.outcome);
   d.reason = r.reason; d.label = r.label;
-  if (kind !== 'bot') _lastMiss = d;
+  if (kind !== 'bot') setLastMiss(d);
 }
 
 export function tickWeapons(dt, playerPos) {

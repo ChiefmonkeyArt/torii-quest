@@ -54,7 +54,7 @@ export function installToriiDebug(refs) {
     version, bots, hitBot, playerObj, resetPlayerPos,
     camera, setPitch,
     castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-    getLastShot, getLastMiss,
+    getLastShot, getLastMiss, getLastSentShot,
     getGrassMat, getFlowerMat, getMirror,
     // v0.2.130 — snapshot/report providers.
     getState, getPhase, getCrateSummary, config,
@@ -69,7 +69,7 @@ export function installToriiDebug(refs) {
     version,
     getPhase, getState,
     getPlayerPos: () => (playerObj ? playerObj.position : null),
-    getLastHit, getLastShot, getLastMiss,
+    getLastHit, getLastShot, getLastMiss, getLastSentShot,
     isPhysicsReady: () => !!(getWorld && getWorld()),
     getBodyCount:     () => { const w = getWorld && getWorld(); return w ? w.bodies.len() : null; },
     getColliderCount: () => { const w = getWorld && getWorld(); return w ? w.colliders.len() : null; },
@@ -189,6 +189,9 @@ export function installToriiDebug(refs) {
       get lastHit()  { return getLastHit  ? getLastHit()  : null; },
       get lastShot() { return getLastShot ? getLastShot() : null; },
       get lastMiss() { return getLastMiss ? getLastMiss() : null; },
+      // ADR-0046 v0.2.667: the ACTUAL payload sent to the server on the last
+      // arena shot — proves camera-vs-muzzle ray independent of lastShot staleness.
+      get lastSentShot() { return getLastSentShot ? getLastSentShot() : null; },
       // v0.2.130 — JSON-serialisable {lastHit,lastShot,lastMiss} in one object.
       report() { return buildCombatReport(snapProviders); },
     },

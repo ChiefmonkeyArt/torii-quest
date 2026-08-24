@@ -34,6 +34,12 @@ export function buildCombatReport(p = {}) {
     lastHit:  safe(p.getLastHit),
     lastShot: safe(p.getLastShot),
     lastMiss: safe(p.getLastMiss),
+    // ADR-0046 v0.2.667: the ACTUAL buildShotPayload output sent to the server
+    // {ts,viewLag,usedAimRay,sentOrigin,sentDir,muzzleOrigin,muzzleDir,aimOrigin,
+    //  aimDir}. Independent of lastShot (which is only created when
+    //  aimOrigin/aimDir are present) so it is never stale in the usedAimRay=false
+    //  failure case. Proves camera-vs-muzzle.
+    lastSentShot: safe(p.getLastSentShot),
   };
 }
 

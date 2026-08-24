@@ -1,19 +1,17 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-24T11:51:01.830Z",
+  "generatedAt": "2026-08-24T14:44:58.646Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.666-alpha",
-  "packageVersion": "0.2.666-alpha",
-  "gitCommit": "4ce184e",
+  "version": "v0.2.667-alpha",
+  "packageVersion": "0.2.667-alpha",
+  "gitCommit": "398d7c0",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
-    "ready": false,
-    "gateStatus": "NOT READY",
+    "ready": true,
+    "gateStatus": "READY",
     "gateCommand": "npm run test:release",
-    "blockers": [
-      "docs"
-    ],
+    "blockers": [],
     "regression": {
       "count": 21,
       "expected": 21
@@ -24,12 +22,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 3215,
+    "passing": 3220,
     "files": 251
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -37,7 +35,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.666-alpha"
+    "version": "v0.2.667-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -104,7 +102,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.666-alpha",
+    "version": "v0.2.667-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -128,9 +126,9 @@
   "mvpGate": {
     "verdict": "approved",
     "approved": true,
-    "confidenceGreen": false,
+    "confidenceGreen": true,
     "confidenceSignals": {
-      "releaseReady": false,
+      "releaseReady": true,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true

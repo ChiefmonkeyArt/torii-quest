@@ -29,7 +29,7 @@ import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlaye
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
+import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
@@ -1152,7 +1152,24 @@ export function createArenaRuntime(hooks = {}) {
           // the collider where the shooter SAW the target, not where it now is.
           const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
           const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
-          if (shot) _mp.sendShot(shot);
+          if (shot) {
+            // ADR-0046 v0.2.667: capture the ACTUAL payload + full muzzle/aim vectors,
+            // independent of _lastShot (which only exists when aimOrigin/aimDir are
+            // present) so this is NEVER stale in the usedAimRay=false failure case.
+            // This is the source of truth for proving camera-vs-muzzle on a miss.
+            const sentDiag = {
+              ts: shot.ts, viewLag,
+              usedAimRay: !!(aimOrigin && aimDir),
+              sentOrigin: shot.origin, sentDir: shot.dir,
+              muzzleOrigin: [origin.x, origin.y, origin.z],
+              muzzleDir: [dir.x, dir.y, dir.z],
+              aimOrigin: aimOrigin ? [aimOrigin.x, aimOrigin.y, aimOrigin.z] : null,
+              aimDir: aimDir ? [aimDir.x, aimDir.y, aimDir.z] : null,
+            };
+            setLastSentShot(sentDiag);
+            setLastShotSent(sentDiag);
+            _mp.sendShot(shot);
+          }
         }
       });
       on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
@@ -1190,7 +1207,7 @@ export function createArenaRuntime(hooks = {}) {
       version: VERSION, bots, hitBot, playerObj, resetPlayerPos,
       camera, setPitch,
       castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-      getLastShot, getLastMiss,
+      getLastShot, getLastMiss, getLastSentShot,
       getGrassMat, getFlowerMat, getMirror,
       getPhase: () => state.phase,
       getState: () => ({

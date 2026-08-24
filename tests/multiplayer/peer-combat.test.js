@@ -60,6 +60,60 @@ describe('peerCombat outbound (shouldSendShot + buildShotPayload)', () => {
   });
 });
 
+describe('setLastShotSent — ADR-0046 v0.2.667 sent-ray diagnostic', () => {
+  it('setLastShotSent stamps the actual server payload onto the last shot', () => {
+    const store = require('../../src/engine/combat/lastShotStore.js');
+    const d = store.mkDiag();
+    store.setLastShot(d);
+    const sent = { origin: [4, 5, 6], dir: [0, 1, 0], usedAimRay: true, muzzleOriginY: 2, aimOriginY: 5 };
+    store.setLastShotSent(sent);
+    expect(store.getLastShot().sent).toEqual(sent);
+  });
+
+  it('setLastShotSent records usedAimRay=false when the muzzle ray is sent', () => {
+    const store = require('../../src/engine/combat/lastShotStore.js');
+    store.setLastShot(store.mkDiag());
+    store.setLastShotSent({ origin: [1, 2, 3], dir: [0, 0, 1], usedAimRay: false, muzzleOriginY: 2, aimOriginY: null });
+    const s = store.getLastShot().sent;
+    expect(s.usedAimRay).toBe(false);
+    expect(s.aimOriginY).toBeNull();
+  });
+
+  // ADR-0046: lastSentShot is independent of lastShot so it is never stale when
+  // the muzzle-fallback path runs (recordPlayerShot is gated on aimOrigin/aimDir,
+  // so no fresh _lastShot exists in the usedAimRay=false failure case).
+  it('setLastSentShot is independent of lastShot and survives a missing lastShot', () => {
+    const store = require('../../src/engine/combat/lastShotStore.js');
+    store.setLastShot(null); // no fresh lastShot — the failure case
+    const sentDiag = {
+      ts: 123, viewLag: 20, usedAimRay: false,
+      sentOrigin: [1, 2, 3], sentDir: [0, 0, 1],
+      muzzleOrigin: [1, 2, 3], muzzleDir: [0, 0, 1],
+      aimOrigin: null, aimDir: null,
+    };
+    store.setLastSentShot(sentDiag);
+    store.setLastShotSent(sentDiag); // must NOT throw even though lastShot is null
+    expect(store.getLastShot()).toBeNull(); // still null — setLastShotSent short-circuits
+    expect(store.getLastSentShot()).toEqual(sentDiag); // source of truth is never stale
+  });
+
+  it('setLastSentShot captures the full muzzle/aim vectors for camera-vs-muzzle proof', () => {
+    const store = require('../../src/engine/combat/lastShotStore.js');
+    const sentDiag = {
+      ts: 999, viewLag: 10, usedAimRay: true,
+      sentOrigin: [0, 2.59, 0], sentDir: [0.1, 0, 0.9],
+      muzzleOrigin: [0.3, 2.40, 0], muzzleDir: [0.1, 0, 0.9],
+      aimOrigin: [0, 2.59, 0], aimDir: [0.1, 0, 0.9],
+    };
+    store.setLastSentShot(sentDiag);
+    const got = store.getLastSentShot();
+    expect(got.usedAimRay).toBe(true);
+    expect(got.muzzleOrigin).toEqual([0.3, 2.40, 0]);
+    expect(got.aimOrigin).toEqual([0, 2.59, 0]);
+    expect(got.sentOrigin).toEqual(got.aimOrigin); // camera ray sent → matches aim ray
+  });
+});
+
 // ---------- inbound ----------
 
 function makeCombat(overrides = {}) {

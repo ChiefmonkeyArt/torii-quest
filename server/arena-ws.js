@@ -46,6 +46,7 @@ import {
 } from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
 import { createArenaBotSim } from './bots/arenaBotSim.js';
+import { buildBotTickRoster, shouldBroadcastBotState } from './bots/botStateGate.js';
 import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
@@ -793,27 +794,18 @@ let _lastBotStateAt = 0;
 if (BOT_SIM_ENABLED) {
   setInterval(() => {
     const dt = BOT_TICK_MS / 1000;
-    const players = [];
-    for (const sess of sessions.values()) {
-      if (!sess.authed) continue;
-      // ADR-0032: a session in verified Kami Mode is omitted from the roster
-      // the bot brain sees this tick — bots have no target to acquire, aim
-      // at, or shoot, so they carry on with existing patrol/idle behaviour as
-      // if that player were not present. This is the primary "bots ignore
-      // the admin" mechanism; isKamiActive() re-verifies pubkey, not just the
-      // client-claimed flag.
-      if (isKamiActive(sess)) continue;
-      const [x, y, z] = sess.pos;
-      // `id` gives the bot brain a stable per-player key for target-switch
-      // hysteresis (v0.2.378 fix 3) across ticks.
-      players.push({ id: sess.id, x, y, z, outsideFence: !pointInCoastline(x, z), flyEnabled: false });
-    }
+    // ADR-0050 v0.2.672: build the bot-brain roster AND the authed-session count
+    // separately. The roster still excludes Kami Mode sessions (bots ignore the
+    // admin), but the BOT_STATE broadcast gate keys off `authedCount` so a sole
+    // player in Kami Mode no longer silences the stream and freezes every bot on
+    // the client (the ~12m desync).
+    const { players, authedCount } = buildBotTickRoster(sessions, { isKamiActive, pointInCoastline });
     arenaBotSim.tick(dt, players);
     const now = Date.now();
     // v0.2.385-alpha: record post-tick bot positions for lag-compensated
     // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
     arenaBotSim.recordSnapshot(now);
-    if (players.length > 0 && now - _lastBotStateAt >= BOT_STATE_MS) {
+    if (shouldBroadcastBotState({ authedCount, now, lastAt: _lastBotStateAt, botStateMs: BOT_STATE_MS })) {
       _lastBotStateAt = now;
       broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
     }

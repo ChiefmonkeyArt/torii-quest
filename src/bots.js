@@ -474,7 +474,10 @@ export function applyBotHit(botId, hp, zone) {
   // ADR-0042: visible reaction — tint the bot red + redraw the HP chip.
   bot.model?.flashHit();
   const maxHp = (bot.state.kind === 'boss') ? BOSS_HP : BOT_HP;
-  bot.model?.updateNameplate(bot.state?.name || bot.state?.kind || '', hp / maxHp);
+  // ADR-0044: the server only sends `name` for the boss (regular-bot frames are
+  // nameless on the wire to save bytes); the client derives the dwarf name from
+  // the bot id. Falling back to `kind` here showed 'regular' on the HP chip.
+  bot.model?.updateNameplate(bot.state?.name || nameForBotId(botId), hp / maxHp);
   // ADR-0013 diagnostics: log MP-authoritative hits.
   const pp = _playerObj?.position;
   const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
@@ -504,7 +507,7 @@ export function applyBotKill(botId, meta) {
     // animation itself is driven by the render loop passing `!st.alive`.
     bot.state.hp = 0;
     bot.model?.flashHit();
-    bot.model?.updateNameplate(bot.state?.name || bot.state?.kind || '', 0);
+    bot.model?.updateNameplate(bot.state?.name || nameForBotId(botId), 0);
   }
   // ADR-0013 diagnostics: log MP-authoritative kills.
   logBotKill({

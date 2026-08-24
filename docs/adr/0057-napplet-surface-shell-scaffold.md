@@ -76,6 +76,25 @@ the **world** surface only.
   decision, not a config flag anyone can trip by accident.
 - `proofSurfaceSpecs.js` and its inert invariants are untouched.
 
+## Hardening required before a live napplet (next ADR)
+
+These are NOT needed for this dormant scaffold (no untrusted napplet is mounted), but
+MUST land when a surface flips `enabled: true`:
+
+1. **Napplet-side source check.** The in-iframe `message` listener must ignore replies
+   not from its parent: `if (ev.source !== parent) return;`. Protects the napplet from
+   stray cross-window messages.
+2. **Per-mount nonce / channel id.** Parent injects a nonce into the `srcdoc`; the
+   bridge includes it on every request; the shell validates `event.source ===
+   iframe.contentWindow` AND the nonce. Covers iframe self-navigation / accidental
+   retained `contentWindow` edge cases.
+3. **`postMessage(..., '*')` is acceptable here** only because the iframe has an opaque
+   sandbox origin (no concrete origin to target). Keep it paired with source
+   validation + the nonce above.
+4. **`world.emit` allow-lists must be real.** `accepted: true` with `actionId: 'noop'`
+   is a test-only placeholder — a live product-panel config must only accept emit kinds
+   that have a real handler wired.
+
 ## Open questions (park for the conversion ADRs)
 
 - Does `world.pose.update` need to land before the sticker-studio napplet, or can the

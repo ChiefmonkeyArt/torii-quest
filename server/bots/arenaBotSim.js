@@ -325,8 +325,15 @@ export function createArenaBotSim(opts = {}) {
   // Apply authoritative damage to a bot. playerPos ({x,z}) drives blowback dir.
   function applyBotDamage(botId, dmg, playerPos) {
     const st = getBot(botId);
-    if (!st || !st.alive) return { hit: false, killed: false, hpAfter: st ? st.hp : 0 };
+    if (!st || !st.alive) {
+      // DIAG v0.2.662: show when a shot hits a DEAD/missing bot (corpse linger).
+      console.log(`[BOT-DMG] bot=${botId} SKIP alive=${st ? st.alive : 'no-bot'} hp=${st ? st.hp : 0} dmg=${dmg}`);
+      return { hit: false, killed: false, hpAfter: st ? st.hp : 0 };
+    }
+    const hpBefore = st.hp;
     const res = sim.hitBot(st, dmg, playerPos);
+    // DIAG v0.2.662: hp before/after + whether killBot fired. Remove after triage.
+    console.log(`[BOT-DMG] bot=${botId} hp=${hpBefore}->${st.hp} dmg=${dmg} killed=${res.killed} alive=${st.alive}`);
     return { hit: res.hit, killed: res.killed, hpAfter: st.hp };
   }
 

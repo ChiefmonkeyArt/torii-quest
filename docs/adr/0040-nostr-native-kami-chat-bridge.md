@@ -65,11 +65,14 @@ NIP-17 DM to the relay (Buzz / any NIP-17 client).
 - **`tools/kami-nostr-reply.mjs`** — VPS tool, run as the `torii-quest` user
   (same as `tools/kami-reply.mjs`). Reads reply text from `--text-file`/stdin
   (never shell-quoted), validates + caps (text ≤ 2000 chars, matching
-  ADR-0039). Derives the Kami npub from `KAMI_PRIV`. Creates a rumor
-  `{kind:1, content, tags:[]}`, gift-wraps it via `nip17.wrapEvent(rumor,
-  kamiPriv, ownerPubKey)`, and publishes the `kind:1059` to the relay set.
-  **Dual-writes**: also appends to `replies.jsonl` via the existing
-  `makeReplyStore`, so the in-game emagake rack is unchanged.
+  ADR-0039). Derives the Kami npub from `KAMI_PRIV`. Creates a NIP-17 private
+  direct-message rumor (`kind:14`, content = the reply text), gift-wraps it via
+  `nip17.wrapEvent(kamiPriv, { publicKey: ownerPubHex }, message)` → outer
+  `kind:1059` signed by an EPHEMERAL key, `#p` tag = owner pubkey, and publishes
+  the `kind:1059` to the relay set. The inner rumor's sender pubkey is Kami's
+  real npub; the outer signer is always ephemeral. **Dual-writes**: also appends
+  to `replies.jsonl` via the existing `makeReplyStore`, so the in-game emagake
+  rack is unchanged.
 - **`src/engine/kami/kamiNostrCap.js`** — pure browser feature-detection:
   `hasNip07`, `hasNip04`, `hasNip44` (checks `window.nostr` and its
   `nip04`/`nip44` sub-objects). Foundation for a future in-game decrypt path;

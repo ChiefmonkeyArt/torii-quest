@@ -12,12 +12,13 @@
 // when the text may contain quotes / special chars. --text is short-safe only.
 //
 // Run ON THE VPS as the torii-quest user (so it can write replies.jsonl):
-//   KAMI_PRIV=$(cat /home/user/workspace/.secrets/kami-priv.hex) \
-//     sudo -u torii-quest node tools/kami-nostr-reply.mjs --text-file /tmp/r.txt
+//   sudo -u torii-quest bash -c 'KAMI_PRIV=$(cat /var/lib/torii-quest/kami/kami-priv.hex) \
+//     QUEST_ADMIN_NPUB=npub1... node /opt/torii-suite/work/torii-quest/tools/kami-nostr-reply.mjs --text-file /tmp/r.txt'
+// (sudo -u scrubs env, so set KAMI_PRIV inside the torii-quest shell, not outside.)
 //
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { WebSocket as UndiciWebSocket } from 'undici'; // Node 18+ built-in
+import { WebSocket as UndiciWebSocket } from 'undici'; // declared dep (browser-API compatible WS: onopen/onmessage/onerror/onclose + send). Node 20 has no global WebSocket.
 import { ADMIN_PUBKEY_HEX } from '../src/config.js';
 import { makeReplyStore, REPLY_TEXT_CAP, REPLY_QUOTE_CAP } from '../server/kami/kamiReplyStore.js';
 import { buildGiftWrap, publishEventToRelay, DEFAULT_NOSTR_RELAYS } from '../server/kami/kamiNostr.js';

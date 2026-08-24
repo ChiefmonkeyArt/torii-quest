@@ -27,6 +27,10 @@ describe('buildGiftWrap (NIP-17 round-trip)', () => {
     // recipient unwraps with their own private key
     const rumor = nip17.unwrapEvent(built.wrap, owner.priv);
     expect(rumor.content).toBe('hello from Kami');
+    // inner rumor is a NIP-17 private direct message (kind 14), sender = Kami's pubkey
+    expect(rumor.kind).toBe(14);
+    const kamiPrivBytes = Uint8Array.from((kamiPriv.match(/.{2}/g) || []).map(h => parseInt(h, 16)));
+    expect(rumor.pubkey.toLowerCase()).toBe(getPublicKey(kamiPrivBytes).toLowerCase());
   });
 
   it('rejects the wrong recipient key', () => {

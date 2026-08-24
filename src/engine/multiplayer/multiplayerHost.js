@@ -34,6 +34,7 @@ import { createWsClient, WS_STATE } from './wsClient.js';
 import { createRemoteAvatarRoster } from './remoteAvatars.js';
 import { MSG } from './wireProtocol.js';
 import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
+import { recordConnect, recordOpen, recordClose, recordReconnect, recordState } from '../diagnostics/connectionDiagnostics.js';
 
 /**
  * @param {object} deps
@@ -134,9 +135,19 @@ export function createMultiplayerHost(deps) {
   // ---- WS event fan-in ----
   function _onWsEvent(name, payload) {
     emit('mp_' + name, payload);
+    // ADR-0049 v0.2.671: record the transport + protocol lifecycle so a miss ema
+    // can split the BOT_STATE stall into "socket dropped" vs "main thread froze".
+    switch (name) {
+      case 'socket_connect': recordConnect(); break;
+      case 'socket_open':    recordOpen(); break;
+      case 'socket_close':   recordClose(payload && payload.code, payload && payload.reason); break;
+      case 'reconnect_scheduled': recordReconnect(); break;
+      default: break;
+    }
     switch (name) {
       case 'state': {
         host.state = payload.state;
+        recordState(payload.state);
         if (payload.state === WS_STATE.CONNECTED && payload.selfId) host.selfId = payload.selfId;
         return;
       }

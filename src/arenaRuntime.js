@@ -29,6 +29,7 @@ import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlaye
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
+import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
@@ -1174,6 +1175,11 @@ export function createArenaRuntime(hooks = {}) {
               // (lastIngestAge ~66ms) or the stream stalled (>>1s) — the cause of
               // the ~12m desync.
               botNet: getBotNetDiagnostic(),
+              // ADR-0049 v0.2.671: WebSocket lifecycle + main-thread heartbeat,
+              // so a miss ema splits the BOT_STATE stall into "socket dropped"
+              // (ws.lastCloseAge small) vs "main thread froze" (heartbeat.maxGap
+              // large) — the WHY behind ADR-0048's stream stall.
+              conn: getConnectionDiagnostic(),
             };
             setLastSentShot(sentDiag);
             setLastShotSent(sentDiag);

@@ -11,6 +11,7 @@
 // the UI can show a precise, actionable message instead of a silent freeze. A
 // healthy frame resets the streak, so a one-off hiccup is still tolerated.
 import * as THREE from 'three';
+import { heartbeat } from './engine/diagnostics/connectionDiagnostics.js';
 
 const _clock = new THREE.Clock();
 let _frame = 0;
@@ -35,6 +36,10 @@ export function startLoop() {
 
   function _tick() {
     _frame++;
+    // ADR-0049 v0.2.671: stamp each rAF tick so the gap between ticks reveals a
+    // main-thread freeze (a long sync task / GC / render hitch that would also
+    // starve the WebSocket onmessage handler and thus the BOT_STATE ingest).
+    heartbeat();
     const dt = Math.min(_clock.getDelta(), 0.05);
     if (_onUpdate) {
       try {

@@ -38,3 +38,20 @@ export function nameForBotId(id) {
   const i = Number.isInteger(id) && id >= 0 ? id : 0;
   return DWARF_NAMES[i % DWARF_NAMES.length];
 }
+
+/**
+ * The nameplate label for a bot given its id + authoritative state (ADR-0044).
+ *
+ * The server snapshot only stamps `name` for the boss (regular-bot frames are
+ * nameless on the wire to save bytes), so the client must derive the dwarf
+ * name from the id when `state.name` is absent. This is the single helper both
+ * `applyBotHit` + `applyBotKill` use to redraw the HP chip — it guarantees the
+ * chip never reads the fallback `kind` string ('regular').
+ *
+ * @param {number} botId    Bot's numeric id.
+ * @param {{name?: string}} state  Bot wrapper state (may lack `name`).
+ * @returns {string}  'Augustink' for the boss (name is truthy), else a dwarf name.
+ */
+export function labelForBotState(botId, state) {
+  return state?.name || nameForBotId(botId);
+}

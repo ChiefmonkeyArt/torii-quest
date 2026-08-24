@@ -36,7 +36,7 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
-import { nameForBotId } from './engine/entities/botIdentity.js';
+import { nameForBotId, labelForBotState } from './engine/entities/botIdentity.js';
 import { logBotShot, logBotKill, logBotRespawn } from './engine/entities/botDiagnostics.js';
 import { decideBossEngagement } from './bossBarState.js';
 import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
@@ -476,8 +476,8 @@ export function applyBotHit(botId, hp, zone) {
   const maxHp = (bot.state.kind === 'boss') ? BOSS_HP : BOT_HP;
   // ADR-0044: the server only sends `name` for the boss (regular-bot frames are
   // nameless on the wire to save bytes); the client derives the dwarf name from
-  // the bot id. Falling back to `kind` here showed 'regular' on the HP chip.
-  bot.model?.updateNameplate(bot.state?.name || nameForBotId(botId), hp / maxHp);
+  // the bot id via labelForBotState. Falling back to `kind` showed 'regular'.
+  bot.model?.updateNameplate(labelForBotState(botId, bot.state), hp / maxHp);
   // ADR-0013 diagnostics: log MP-authoritative hits.
   const pp = _playerObj?.position;
   const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
@@ -507,7 +507,7 @@ export function applyBotKill(botId, meta) {
     // animation itself is driven by the render loop passing `!st.alive`.
     bot.state.hp = 0;
     bot.model?.flashHit();
-    bot.model?.updateNameplate(bot.state?.name || nameForBotId(botId), 0);
+    bot.model?.updateNameplate(labelForBotState(botId, bot.state), 0);
   }
   // ADR-0013 diagnostics: log MP-authoritative kills.
   logBotKill({

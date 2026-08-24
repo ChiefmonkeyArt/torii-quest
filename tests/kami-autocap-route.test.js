@@ -2,23 +2,18 @@
 //
 // The autocap route reuses validateKamiBatch (same {v:1, batch:[{id,ema,shot?}]}
 // shape as /mp/kami/ema). These tests pin: (1) the shape validates identically,
-// (2) storeAutoCapBatch stores to the autocap ring (not the ema ring), (3) the
-// admin gate is the same one the ema route uses (fail-closed for non-admin).
+// (2) storeAutoCapBatch stores one {ema,shot} file per frame to the autocap ring,
+// (3) the ring is a TRUE ring (bounded, no unbounded index).
 
 import { describe, it, expect } from 'vitest';
 import { validateKamiBatch } from '../server/kami/kamiRoute.js';
 import { storeAutoCapBatch } from '../server/kami/kamiAutoRoute.js';
-import { createAutoCapStore, autoCapLine } from '../server/kami/kamiAutoStore.js';
+import { createAutoCapStore } from '../server/kami/kamiAutoStore.js';
 
 function memFs() {
   const files = new Map();
   return {
     async mkdir() {},
-    async appendFile(p, s) {
-      const ex = files.get(p);
-      if (ex) ex.content += s;
-      else files.set(p, { content: s, mtime: 1 });
-    },
     async writeFile(p, content) { files.set(p, { content, mtime: Date.now() + files.size }); },
     async readdir(p) {
       const prefix = p + '/';
@@ -76,7 +71,7 @@ describe('autocap route — shape reuse (validateKamiBatch)', () => {
 });
 
 describe('autocap route — storeAutoCapBatch', () => {
-  it('stores to the autocap ring, NOT the ema ring', async () => {
+  it('stores to the autocap ring as ONE file per frame, NOT the ema ring', async () => {
     const fs = memFs();
     const store = createAutoCapStore({ dir: '/k', fs, keep: 120 });
     const batch = validateKamiBatch({ v: 1, batch: [
@@ -85,13 +80,14 @@ describe('autocap route — storeAutoCapBatch', () => {
     const result = await storeAutoCapBatch(batch, 'admin-pk', store);
     expect(result.stored).toBe(1);
     expect(result.frames).toBe(1);
-    // Frame written to the autocap ring dir, never shots/.
-    expect(fs._files.has('/k/autocap/ac-1.bin')).toBe(true);
+    // One JSON file written to the autocap ring dir, never shots/.
+    expect(fs._files.has('/k/autocap/ac-1.json')).toBe(true);
     expect([...fs._files.keys()].some(p => p.includes('/shots/'))).toBe(false);
-    // Index line carries the shotId.
-    const line = JSON.parse(fs._files.get('/k/autocap.jsonl').content.split('\n')[0]);
-    expect(line.shotId).toBe('ac-1.jpg');
-    expect(line.requester).toBe('admin-pk');
+    // The record carries the shot env + bytes.
+    const rec = JSON.parse(fs._files.get('/k/autocap/ac-1.json').content);
+    expect(rec.ema).toEqual({ v: 1 });
+    expect(rec.shot).toEqual({ env: { e: 1 }, bytes: 10 });
+    expect(rec.requester).toBe('admin-pk');
   });
 
   it('culls the ring when frames exceed the cap', async () => {

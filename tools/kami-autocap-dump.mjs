@@ -6,13 +6,14 @@
 // sequence of frames (or stitched into an MP4 with ffmpeg when --video is set).
 //
 // The autocap ring is SEALED in the browser to the owner + Kami pubkey, so this
-// tool needs KAMI_PRIV (the Kami private key) to open it. Run from the sandbox
-// after pulling the ring:
+// tool needs KAMI_PRIV (the Kami private key) to open it. Each ring file is ONE
+// JSON record {id, ts, requester, ema, shot} — the ring dir IS the store (no
+// separate index). Run from the sandbox after pulling the ring:
 //
 //   export KAMI_PRIV=$(cat /home/user/workspace/.secrets/kami-priv.hex)
 //   node tools/kami-autocap-dump.mjs --ring /tmp/autocap-ring --out /tmp/frames
 //
-// --ring  : the VPS autocap dir (contains autocap.jsonl + autocap/<id>.bin)
+// --ring  : the VPS autocap dir (contains autocap/<id>.json ring files)
 // --out   : destination dir for frames/ + timeline.jsonl (created)
 // --video : also stitch frames into frames.mp4 via the pre-installed ffmpeg
 //
@@ -25,7 +26,7 @@ function die(msg) { console.error(`kami-autocap-dump: ${msg}`); process.exit(1);
 
 function parseArgs(argv) {
   const a = argv.slice(2);
-  const out = { ring: null, kamiPriv: null, outDir: null, video: false };
+  const out = { ring: null, outDir: null, video: false };
   for (let i = 0; i < a.length; i++) {
     const t = a[i];
     if (t === '--ring') { out.ring = a[++i]; continue; }
@@ -38,39 +39,35 @@ function parseArgs(argv) {
 const args = parseArgs(process.argv);
 if (!args.ring) die('--ring <dir> is required (the VPS autocap directory)');
 if (!args.outDir) die('--out <dir> is required (destination for frames)');
-const kamiPriv = process.env.KAMI_PRIV || args.kamiPriv;
+const kamiPriv = process.env.KAMI_PRIV;
 if (!kamiPriv) die('KAMI_PRIV env var is required (the Kami private key, hex)');
 
 const ringDir = resolve(args.ring);
+const autocapDir = join(ringDir, 'autocap');
+if (!existsSync(autocapDir)) die(`no autocap ring at ${autocapDir}`);
 const outDir = resolve(args.outDir);
 const framesDir = join(outDir, 'frames');
 mkdirSync(framesDir, { recursive: true });
 
-const indexPath = join(ringDir, 'autocap.jsonl');
-if (!existsSync(indexPath)) die(`no autocap.jsonl at ${indexPath}`);
-const lines = readFileSync(indexPath, 'utf8').split('\n').filter(Boolean);
-
+// Ring files are autocap/<id>.json, each {id, ts, requester, ema, shot}.
+const files = readdirSync(autocapDir).filter(f => f.endsWith('.json')).sort();
 const timeline = [];
 let frameNo = 0;
-for (const line of lines) {
+for (const fname of files) {
   let rec;
-  try { rec = JSON.parse(line); } catch { continue; }
-  const { id, ts, sealedEma, shotId } = rec;
-  if (!sealedEma) continue;
+  try { rec = JSON.parse(readFileSync(join(autocapDir, fname), 'utf8')); } catch { continue; }
+  const { id, ts, ema, shot } = rec;
+  if (!ema) continue;
   let snapshot = null;
-  try { snapshot = await openJson(sealedEma, kamiPriv); } catch (e) { /* skip unreadable */ }
+  try { snapshot = await openJson(ema, kamiPriv); } catch { /* skip unreadable */ }
   let jpegPath = null;
-  if (shotId) {
-    const binPath = join(ringDir, 'autocap', `${id}.bin`);
-    if (existsSync(binPath)) {
-      try {
-        const env = JSON.parse(readFileSync(binPath, 'utf8'));
-        const bytes = await openSealed(env, kamiPriv);
-        frameNo += 1;
-        jpegPath = join(framesDir, `frame-${String(frameNo).padStart(5, '0')}.jpg`);
-        writeFileSync(jpegPath, Buffer.from(bytes));
-      } catch { /* shot unreadable, keep the snapshot */ }
-    }
+  if (shot && shot.env) {
+    try {
+      const bytes = await openSealed(shot.env, kamiPriv);
+      frameNo += 1;
+      jpegPath = join(framesDir, `frame-${String(frameNo).padStart(5, '0')}.jpg`);
+      writeFileSync(jpegPath, Buffer.from(bytes));
+    } catch { /* shot unreadable, keep the snapshot */ }
   }
   timeline.push({
     n: frameNo,

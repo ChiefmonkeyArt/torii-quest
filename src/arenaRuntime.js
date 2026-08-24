@@ -76,6 +76,7 @@ import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiAct
 import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
 import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
 import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
+import { fetchCapability, isAdminOperator } from './engine/update/adminUpdateClient.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -722,7 +723,29 @@ export function createArenaRuntime(hooks = {}) {
   // ADR-0055: 1Hz auto-capture diagnostic ring. Pure state machine; the async
   // seal+POST is driven from update() via _driveAutoCapture. Owner-only +
   // playing-only + inflight backpressure are all enforced inside the machine.
+  // The owner check is async (fetchCapability) so it's resolved once + cached;
+  // until it resolves, isOwner is false (no capture) — never 403s a non-admin.
   const _autoCap = createAutoCapture();
+  let _autoCapOwnerChecked = false;
+  let _autoCapOwnerPromise = null;
+  let _autoCapIsOwner = false;
+
+  // Resolve the admin capability ONCE per arena boot (not per tick — it's a
+  // network fetch). Memoised by the pubkey present at first call.
+  function _ensureAutoCapOwner() {
+    if (_autoCapOwnerChecked || _autoCapOwnerPromise) return;
+    const owner = (state.nostrPubkey || '').toLowerCase();
+    if (!owner) return; // login not resolved yet — re-check next tick
+    _autoCapOwnerPromise = (async () => {
+      try {
+        const base = resolveMpHttpBase();
+        if (!base) { _autoCapOwnerChecked = true; return; }
+        const cap = await fetchCapability({ httpBase: base });
+        _autoCapIsOwner = !!isAdminOperator(owner, cap && cap.adminPubkey);
+      } catch { _autoCapIsOwner = false; }
+      _autoCapOwnerChecked = true;
+    })();
+  }
   // Sticky shoot-anim window: EV.SHOOT pushes this timestamp forward; the
   // shooting flag stays up for SHOOT_ANIM_WINDOW_MS after the last shot so
   // RUN_SHOOT actually reads (a single-frame flag was preempted by run/walk
@@ -908,18 +931,21 @@ export function createArenaRuntime(hooks = {}) {
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
 
-    // ADR-0055: 1Hz auto-capture. Fire-and-forget — the seal+POST never blocks
-    // the loop. The state machine's inflight guard skips a tick if the previous
-    // upload is still resolving (no queue buildup under slow networks).
-    _driveAutoCapture(performance.now());
+    // ADR-0055: 1Hz auto-capture. Driven BEFORE renderFrame so the queued frame
+    // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).
+    // Fire-and-forget — the seal+POST never blocks the loop. The state machine's
+    // inflight guard skips a tick if the previous upload is still resolving.
+    _driveAutoCapture(Date.now());
   }
 
   // ADR-0055: grab a frame + snapshot at 1Hz, seal to the owner+Kami pubkey,
-  // and POST to the autocap ring. Owner-only + playing-only; the frame grab is
-  // zero-cost when the render queue is empty (no preserveDrawingBuffer tax).
+  // and POST to the autocap ring. Owner-only (real admin capability check, not
+  // just "has a pubkey") + playing-only; the frame grab is zero-cost when the
+  // render queue is empty (no preserveDrawingBuffer tax).
   function _driveAutoCapture(nowMs) {
+    _ensureAutoCapOwner();
     const ctx = {
-      isOwner: !!(state.nostrPubkey && /^[0-9a-f]{64}$/.test(state.nostrPubkey)),
+      isOwner: _autoCapIsOwner, // false until the async capability check resolves
       isPlaying: isPlaying(),
       takeSnapshot: () => {
         try { return (typeof window !== 'undefined' && window.ToriiDebug && typeof window.ToriiDebug.snapshot === 'function') ? window.ToriiDebug.snapshot() : null; }
@@ -946,7 +972,9 @@ export function createArenaRuntime(hooks = {}) {
         }
         const base = resolveMpHttpBase();
         const token = getStoredToken();
-        const res = await fetch(`${base}/mp/kami/autocap`, {
+        // Same base as the manual ema route: "/kami/..." not "/mp/kami/..." —
+        // resolveMpHttpBase() already returns the /mp base.
+        const res = await fetch(`${base}/kami/autocap`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
           body: JSON.stringify({ v: 1, batch: [{ id: req.frameId, ema, shot }] }),

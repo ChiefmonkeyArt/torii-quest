@@ -6,6 +6,11 @@
 // ema.jsonl (append-only forever). The server holds ciphertext only — it never
 // reads a frame or snapshot and holds no private key.
 //
+// TRUE RING: each frame is ONE file autocap/<id>.json containing {ema, shot},
+// ring-culled to `keep` by oldest-mtime. There is NO append-only index — the
+// ring dir IS the store, so disk usage is strictly bounded (~120 files). A
+// separate forever-appending jsonl would grow unbounded at 1Hz; this does not.
+//
 // Storage-shaped only (no HTTP, no auth) — the route handler in arena-ws.js calls
 // into here after adminFromRequest succeeds, exactly like storeKamiBatch.
 
@@ -17,7 +22,7 @@ export const AUTOCAP_KEEP_DEFAULT = 120;
  * Build an auto-capture ring store bound to a directory.
  *
  * @param {object} opts
- *   dir   {string}  absolute directory for autocap.jsonl + autocap/<id>.bin
+ *   dir   {string}  absolute directory for the autocap/<id>.json ring
  *   fs    {object}  a node:fs/promises-compatible API (injectable)
  *   keep  {number}  ring cap (default 120)
  */
@@ -27,26 +32,17 @@ export function createAutoCapStore({ dir, fs, keep = AUTOCAP_KEEP_DEFAULT }) {
     throw new Error('kamiAutoStore: fs (node:fs/promises API) is required');
   }
   const ringDir = path.join(dir, 'autocap');
-  const indexPath = path.join(dir, 'autocap.jsonl');
 
   async function ensure() {
     await f.mkdir(dir, { recursive: true });
     await f.mkdir(ringDir, { recursive: true });
   }
 
-  /** Append one sealed index line to autocap.jsonl (append-only, the cull target
-   *  is the ring files, not the index — the index is bounded by the ring cap via
-   *  cullIndex below). */
-  async function appendIndex(jsonLine) {
+  /** Write one frame record ({ema, shot}) as a single JSON file. Returns the path. */
+  async function writeFrame(id, recordJson) {
     await ensure();
-    await f.appendFile(indexPath, jsonLine + '\n');
-  }
-
-  /** Write one sealed frame envelope to the ring. Returns the path written. */
-  async function writeFrame(id, envJson) {
-    await ensure();
-    const p = path.join(ringDir, `${id}.bin`);
-    await f.writeFile(p, envJson);
+    const p = path.join(ringDir, `${id}.json`);
+    await f.writeFile(p, recordJson);
     return p;
   }
 
@@ -82,17 +78,5 @@ export function createAutoCapStore({ dir, fs, keep = AUTOCAP_KEEP_DEFAULT }) {
     } catch { return 0; }
   }
 
-  return { ensure, appendIndex, writeFrame, cullFrames, frameCount, dir, ringDir, indexPath, keep };
+  return { ensure, writeFrame, cullFrames, frameCount, dir, ringDir, keep };
 }
-
-/** Shape one JSONL line for autocap.jsonl. Stable field order for greppability. */
-export function autoCapLine({ id, ts, requester, sealedEma, shotId }) {
-  return JSON.stringify({
-    id,
-    ts,
-    requester,
-    sealedEma,
-    shotId: shotId || null,
-  });
-}
-

@@ -789,6 +789,10 @@ export function kamiNoteOpen() { return _noteOpen; }
  *  The arena's capture-phase Escape listener yields to this so Esc exits Kami
  *  instead of opening the pause menu. */
 export function kamiActive() { return _kamiActive; }
+/** ADR-0052: is a first-enter (async owner-check) currently pending? Distinct
+ *  from kamiActive so an ema snapshot can tell a pending enter from a stuck
+ *  active state. */
+export function kamiEntering() { return _entering; }
 /** ADR-0029: is Kami Mode active OR a first-enter (owner check) pending? The
  *  arena's capture-phase Escape listener yields to this so Esc pressed while the
  *  async owner-check is still in flight CANCELS the pending enter instead of

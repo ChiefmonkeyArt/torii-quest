@@ -59,6 +59,8 @@ export function installToriiDebug(refs) {
     // v0.2.130 — snapshot/report providers.
     getState, getPhase, getCrateSummary, config,
     getMpState,
+    // ADR-0052 — Kami Mode client-state providers for the ema snapshot.
+    isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
   } = refs;
 
   // v0.2.130 — providers for the JSON-serialisable debug snapshot. Each is a
@@ -114,6 +116,9 @@ export function installToriiDebug(refs) {
     },
     getCrateSummary,
     config,
+    // ADR-0052: Kami Mode state so an ema hung while "stuck" reveals the exact
+    // flag (active / noteOpen / entering / pointerLocked) that is wrong.
+    isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
   };
 
   const api = {

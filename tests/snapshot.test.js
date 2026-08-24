@@ -5,7 +5,7 @@
 // Rapier/DOM), matching how the module is designed to be exercised in node.
 import { describe, it, expect } from 'vitest';
 import {
-  buildSnapshot, buildCombatReport, buildPhysicsReport,
+  buildSnapshot, buildCombatReport, buildPhysicsReport, buildKamiReport,
 } from '../src/engine/debug/snapshot.js';
 
 describe('buildCombatReport', () => {
@@ -78,6 +78,38 @@ describe('buildPhysicsReport', () => {
   });
 });
 
+describe('buildKamiReport', () => {
+  it('passes through the four Kami client-state flags', () => {
+    const p = {
+      isKamiActive:   () => true,
+      isKamiNoteOpen: () => false,
+      isKamiEntering: () => false,
+      isPointerLocked: () => true,
+    };
+    expect(buildKamiReport(p)).toEqual({
+      active: true, noteOpen: false, entering: false, pointerLocked: true,
+    });
+  });
+  it('defaults every flag to false when providers are missing', () => {
+    expect(buildKamiReport({})).toEqual({
+      active: false, noteOpen: false, entering: false, pointerLocked: false,
+    });
+    expect(buildKamiReport()).toEqual({
+      active: false, noteOpen: false, entering: false, pointerLocked: false,
+    });
+  });
+  it('does not throw when a provider throws — yields false for that flag', () => {
+    const p = {
+      isKamiActive: () => { throw new Error('boom'); },
+      isKamiNoteOpen: () => true,
+    };
+    expect(() => buildKamiReport(p)).not.toThrow();
+    expect(buildKamiReport(p)).toEqual({
+      active: false, noteOpen: true, entering: false, pointerLocked: false,
+    });
+  });
+});
+
 describe('buildSnapshot', () => {
   it('assembles a full JSON-serialisable object from providers', () => {
     const p = {
@@ -88,6 +120,8 @@ describe('buildSnapshot', () => {
       getLastHit: () => null, getLastShot: () => null, getLastMiss: () => null,
       isPhysicsReady: () => true, getBodyCount: () => 1, getColliderCount: () => 2,
       getBotSummary: () => ({ total: 5, alive: 5 }), getCrateSummary: () => ({ count: 9 }),
+      isKamiActive: () => true, isKamiNoteOpen: () => false,
+      isKamiEntering: () => false, isPointerLocked: () => true,
       config: { godMode: false },
     };
     const snap = buildSnapshot(p);
@@ -96,6 +130,7 @@ describe('buildSnapshot', () => {
     expect(snap.state).toEqual({ hp: 100, ammo: 30 });
     // player position is rounded to 3 decimals for compact, stable output.
     expect(snap.player).toEqual({ x: 1.235, y: 1.7, z: -4.988 });
+    expect(snap.kami).toEqual({ active: true, noteOpen: false, entering: false, pointerLocked: true });
     expect(snap.config).toEqual({ godMode: false });
     // round-trips through JSON without loss (the whole point of the surface).
     expect(() => JSON.stringify(snap)).not.toThrow();
@@ -109,6 +144,7 @@ describe('buildSnapshot', () => {
     expect(snap.player).toBeNull();
     expect(snap.combat).toEqual({ lastHit: null, lastShot: null, lastMiss: null, lastSentShot: null });
     expect(snap.physics.ready).toBe(false);
+    expect(snap.kami).toEqual({ active: false, noteOpen: false, entering: false, pointerLocked: false });
     expect(snap.config).toBeNull();
   });
   it('player is null when the position provider returns nothing', () => {

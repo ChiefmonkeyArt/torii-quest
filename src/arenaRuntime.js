@@ -72,7 +72,7 @@ import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.j
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
-import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive } from './engine/kami/kamiMode.js';
+import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering } from './engine/kami/kamiMode.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -1231,6 +1231,11 @@ export function createArenaRuntime(hooks = {}) {
         reloading: state.reloading, pointerLocked: state.pointerLocked,
       }),
       getCrateSummary, config: TUNING,
+      // ADR-0052: Kami Mode client-state providers for the ema snapshot.
+      isKamiActive: () => kamiActive(),
+      isKamiNoteOpen: () => kamiNoteOpen(),
+      isKamiEntering: () => kamiEntering(),
+      isPointerLocked: () => state.pointerLocked,
       bootTiming: () => getBootTimings(),
       // v0.2.599: MP diagnostic — ToriiDebug.mp() returns live multiplayer state
       getMpState: () => _mp ? {

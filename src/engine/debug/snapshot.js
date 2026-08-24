@@ -55,6 +55,19 @@ export function buildPhysicsReport(p = {}) {
   };
 }
 
+// Kami Mode sub-report — the exact client-side Kami state at snapshot time, so
+// an ema hung while "stuck in Kami Mode" tells us WHICH flag is wrong: active
+// (spirit state), noteOpen (editor open), entering (pending owner-check), and
+// pointerLocked (browser pointer lock). ADR-0052.
+export function buildKamiReport(p = {}) {
+  return {
+    active:        safe(p.isKamiActive, false) ?? false,
+    noteOpen:      safe(p.isKamiNoteOpen, false) ?? false,
+    entering:      safe(p.isKamiEntering, false) ?? false,
+    pointerLocked: safe(p.isPointerLocked, false) ?? false,
+  };
+}
+
 // Full snapshot. Order is intentional: identity → phase → player → combat →
 // physics → tuning, so a pasted object reads top-to-bottom like a status line.
 export function buildSnapshot(p = {}) {
@@ -65,6 +78,8 @@ export function buildSnapshot(p = {}) {
     player:  vec3(safe(p.getPlayerPos)),
     combat:  buildCombatReport(p),
     physics: buildPhysicsReport(p),
+    // ADR-0052: Kami Mode client state — active/noteOpen/entering/pointerLocked.
+    kami:    buildKamiReport(p),
     // ADR-0045 v0.2.666: per-bot render state so an ema tells us WHICH branch is
     // broken when bots appear as cubes / floating nameplates with no body.
     bots:     safe(p.getBotRenderStates),

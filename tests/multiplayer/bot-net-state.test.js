@@ -191,6 +191,60 @@ describe('applyHit / applyKill — out-of-band event authority (v0.2.383)', () =
   });
 });
 
+describe('hp<=0 ⇒ dead invariant (v0.2.663: bots-wont-die fix)', () => {
+  // Regression: a kill-shot BOT_HIT carries hp=0. Before v0.2.663 applyHit only
+  // set b.hp, so the HP bar emptied but b.alive stayed true — the death branch
+  // never fired + the bot stood upright with an empty HP bar.
+  it('a kill-shot hit (hp=0) marks the bot dead immediately, no BOT_KILL needed', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000);
+    // Server BOT_HIT for the killing shot carries hp=0 (no BOT_KILL yet).
+    net.applyHit(1, 0);
+    const [b] = net.sample(1016);
+    expect(b.hp).toBe(0);
+    expect(b.alive).toBe(false);
+    expect(b.snap).toBe(true); // corpse hard-jumps, no slide
+  });
+
+  it('an overkill hit (hp<0) clamps hp to 0 + still marks dead', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 2 })], 1000);
+    net.sample(1000);
+    net.applyHit(1, -4); // headshot overkill: 2 - 9 = -7
+    const [b] = net.sample(1016);
+    expect(b.hp).toBe(0);
+    expect(b.alive).toBe(false);
+  });
+
+  it('a stale pre-kill snapshot (alive=true, hp=0) cannot un-kill a dead bot', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000);
+    net.applyHit(1, 0); // kill
+    expect(net.sample(1016)[0].alive).toBe(false);
+    // A BOT_STATE serialized BEFORE the kill is still in flight: it carries the
+    // impossible wire state alive=true + hp=0. It must NOT bring the bot back.
+    net.ingest([row(1, 0, 0, 0, { hp: 0, alive: true })], 1033);
+    expect(net.sample(1050)[0].alive).toBe(false);
+    expect(net.sample(1050)[0].hp).toBe(0);
+  });
+
+  it('a genuine respawn snapshot (hp>0 + alive=true) reanimates after the kill', () => {
+    const net = createBotNetState({ snapDist: 1000 });
+    net.ingest([row(1, 0, 0, 0, { hp: 5 })], 1000);
+    net.sample(1000);
+    net.applyHit(1, 0); // kill
+    expect(net.sample(1016)[0].alive).toBe(false);
+    // 8s later the server respawns the bot with full HP.
+    net.ingest([row(1, 12, 3, 0, { hp: 5, alive: true })], 9000);
+    const [b] = net.sample(9000);
+    expect(b.alive).toBe(true);
+    expect(b.hp).toBe(5);
+    expect(b.snap).toBe(true); // alive false→true is a discontinuity → snap
+  });
+});
+
 describe('animHintToFlags', () => {
   it('maps each hint to the right BotModel flags', () => {
     expect(animHintToFlags('shoot')).toEqual({ isShooting: true, isDeath: false, isHit: false });

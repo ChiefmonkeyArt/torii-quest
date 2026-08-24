@@ -465,6 +465,10 @@ export function applyBotHit(botId, hp, zone) {
   const bot = _botById(botId);
   if (!bot) return;
   bot.state.hp = hp;
+  // INVARIANT (v0.2.663): mirror the botNetState coercion so the wrapper state
+  // can't hold hp<=0 + alive=true either (the render path reads bot.state.alive
+  // for nameplate visibility + collider parking in some branches).
+  if (hp <= 0) bot.state.alive = false;
   bot.state._isHit = true;
   bot.state._hitTimer = 0.3;
   // ADR-0042: visible reaction — tint the bot red + redraw the HP chip.

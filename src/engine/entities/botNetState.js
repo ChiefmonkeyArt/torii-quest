@@ -55,13 +55,19 @@ export function createBotNetState(opts = {}) {
       if (Number.isFinite(s.scale)) b.scale = s.scale;
       // Discontinuity checks vs the previous sample.
       const prev = b.samples[b.samples.length - 1];
-      if (b.alive !== s.alive) b.snap = true;
+      // INVARIANT (v0.2.663): coerce the impossible wire state. A stale pre-kill
+      // snapshot can arrive carrying alive=true with hp<=0 (the kill happened
+      // after that snapshot was serialized). Treat hp<=0 as dead so a stale
+      // snapshot can never un-kill a bot the server has already drained.
+      const hp = Math.max(0, s.hp);
+      const alive = s.alive === true && hp > 0;
+      if (b.alive !== alive) b.snap = true;
       if (prev) {
         const dx = s.x - prev.x, dz = s.z - prev.z;
         if (dx * dx + dz * dz > snapDist2) b.snap = true;
       }
-      b.hp = s.hp;
-      b.alive = s.alive;
+      b.hp = hp;
+      b.alive = alive;
       b.animHint = s.animHint;
       b.samples.push({ t: nowMs, x: s.x, z: s.z, rotY: s.rotY });
       if (b.samples.length > MAX_SAMPLES) b.samples.shift();
@@ -80,9 +86,23 @@ export function createBotNetState(opts = {}) {
   // just-applied hit/kill for up to one snapshot interval (~67ms) — the bot's HP
   // snaps back to full and a killed bot flickers alive. Position stays
   // interpolated; only hp/alive become event-authoritative here.
+  //
+  // INVARIANT (v0.2.663): hp <= 0 means the bot is dead, full stop. A kill-shot
+  // BOT_HIT carries hp=0; BOT_KILL may be delayed, dropped, or followed by a
+  // stale pre-kill BOT_STATE snapshot that tries to un-kill (alive=true). So a
+  // hit that drains HP to <=0 MUST mark the bot dead right here — otherwise the
+  // HP bar empties but `b.alive` stays true and the render path's death branch
+  // never fires (the bot stands with an empty HP bar: the v0.2.662 bug).
   function applyHit(id, hp) {
     const b = bots.get(id);
-    if (b && Number.isFinite(hp)) b.hp = hp;
+    if (!b || !Number.isFinite(hp)) return;
+    if (hp <= 0) {
+      b.hp = 0;
+      b.alive = false;
+      b.snap = true;
+      return;
+    }
+    b.hp = hp;
   }
   // A kill also snaps so the corpse hard-jumps to its last position (no slide).
   function applyKill(id) {

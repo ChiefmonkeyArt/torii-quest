@@ -35,7 +35,7 @@ import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, flashHit, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -1168,6 +1168,10 @@ export function createArenaRuntime(hooks = {}) {
       hitBot(bot, dmg);
       if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
       flashCross();
+      // ADR-0041: visible hit feedback. flashHit scales dmg/50, so feed a
+      // clearly-visible value — body shots at ~0.55 opacity, headshots at 0.8 —
+      // so the owner sees every confirmed hit instead of a 0.12s crosshair blip.
+      flashHit(dmg >= 9 ? 50 : 25);
     });
     window._onBotHit = (bot, dmg) => emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg });
 

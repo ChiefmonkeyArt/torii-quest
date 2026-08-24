@@ -339,6 +339,24 @@ function ensureOverlay() {
     'box-shadow:inset 0 1px 0 rgba(255,255,255,0.08)',
     'padding:12px 16px', 'color:#f3efe3',
   ].join(';');
+  box.style.position = 'relative';
+  // ADR-0041: reliable pointer-lock-independent exit. ESC is reserved by the
+  // browser while pointer-locked, so a visible ✕ button is the guaranteed escape
+  // from Kami Mode back to normal play (fixes the stuck-in-kami bug where the
+  // 2nd ESC never reached the pause menu).
+  const exitBtn = doc.createElement('button');
+  exitBtn.type = 'button';
+  exitBtn.textContent = '✕';
+  exitBtn.title = 'Exit Kami Mode';
+  exitBtn.setAttribute('aria-label', 'Exit Kami Mode');
+  exitBtn.style.cssText = [
+    'position:absolute','top:5px','right:6px','width:22px','height:22px',
+    'line-height:20px','padding:0','border:1px solid rgba(255,194,71,0.5)',
+    'border-radius:5px','background:rgba(255,194,71,0.14)','color:#ffd36a',
+    'font-size:13px','cursor:pointer','pointer-events:auto',
+  ].join(';');
+  exitBtn.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); exitKamiMode(); });
+  box.appendChild(exitBtn);
 
   const title = doc.createElement('div');
   title.id = 'kami-note-title';

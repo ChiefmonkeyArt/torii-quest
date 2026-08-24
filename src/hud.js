@@ -60,7 +60,7 @@ export function flashHit(dmg=25) {
   _hitTimer = 0.2+i*0.3;
 }
 
-export function flashCross() { elCross.classList.add('hit'); _crossTimer = 0.12; }
+export function flashCross() { elCross.classList.add('hit'); _crossTimer = 0.25; }
 
 function _bossBarDom() {
   if (_bossBarEl) return _bossBarEl;

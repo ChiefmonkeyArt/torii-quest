@@ -84,7 +84,21 @@ document.addEventListener('mousemove', e => {
   _mouseCbs.forEach(fn => fn(_yaw, _pitch));
 });
 
-export function getYaw()   { return _yaw;   }
+/** Wrap an angle to [-π, π]. The pointer-lock yaw accumulates without bound
+ *  (each mousemove subtracts movementX * SENS), so after a full 360° turn the
+ *  raw value exceeds 2π and the server's isRot2 check (ROT_ABS = 2π) rejects
+ *  every MOVE message with BAD_FIELD. Normalising on read keeps the internal
+ *  accumulator continuous while every consumer (MOVE rot, ema yaw, fly camera)
+ *  sees a wrapped value. */
+export function wrapAngle(a) {
+  const TAU = Math.PI * 2;
+  a = a % TAU;
+  if (a > Math.PI) a -= TAU;
+  if (a < -Math.PI) a += TAU;
+  return a;
+}
+
+export function getYaw()   { return wrapAngle(_yaw);   }
 export function getPitch() { return _pitch; }
 export function setYaw(y)  { _yaw = y;      }
 export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down for grass inspection

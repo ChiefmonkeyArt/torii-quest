@@ -106,12 +106,15 @@
       border-radius: 12px;
     }
 
-    /* Header */
+    /* Header — v0.3: no glass-panel background/border, no border-bottom.
+       Text + torii icon sit directly on the sunset photo (per design
+       direction); .glass-panel class is intentionally NOT applied to this
+       element anymore (removed from the markup below, not just overridden
+       here) so header styling can't regress back to the boxed look. */
     #title-header {
       position: relative;
       width: 100%; text-align: center;
       padding: 32px 20px 18px;
-      border-bottom: 1px solid rgba(232,178,120,0.18);
     }
     .title-logo-text {
       font-size: 2.4rem; letter-spacing: 10px; color: #f5e6d8;
@@ -122,7 +125,7 @@
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
-    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #a88b6f; margin-top: 5px; }
+    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #d8c3ac; margin-top: 5px; }
     /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
        v0.3: moved top-right → top-left per design direction; now opens the
        new settings panel (nav-left/content-right) instead of the old
@@ -151,13 +154,26 @@
       flex: 0 1 460px; width: 100%;
       display: flex; flex-direction: column; align-items: center;
       padding: 32px 24px 28px;
+      position: relative;
     }
     #title-centre.glass-panel {
       /* Highly translucent centre panel per design direction — much lower alpha
-         than the shared --panel-glass default (used elsewhere, e.g. header),
-         so this override is scoped to #title-centre only. Blur is kept from
-         .glass-panel so text stays legible over the sunset background photo. */
-      background: rgba(30,18,12,0.18);
+         than the shared --panel-glass default (used elsewhere), scoped to
+         #title-centre only. v0.3: bumped ~20% more translucent again
+         (0.18 -> 0.14 alpha) and the solid gold border removed in favour of
+         a mask-image (below) that fades the panel itself to FULL
+         transparency at its edges — revealing the sunset photo behind it —
+         instead of a hard bronze/gold edge. Blur is kept from .glass-panel
+         so text stays legible over the photo near the panel's centre. */
+      background: rgba(30,18,12,0.14);
+      border: none;
+      border-radius: 12px;
+      /* Radial mask: fully opaque (panel fully present) out to 55% of the
+         box, fading to fully transparent (panel gone, background alpha 0)
+         at 100%. Applied to both background+blur AND box-shadow via the
+         standard/-webkit mask properties so Safari/iOS also fades correctly. */
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%);
+      mask-image: radial-gradient(ellipse at center, #000 55%, transparent 100%);
       box-shadow: 0 0 60px rgba(232,132,44,0.14), inset 0 0 40px rgba(232,132,44,0.04);
     }
 
@@ -930,7 +946,7 @@
 <div id="screen-title">
 
   <!-- Header -->
-  <div id="title-header" class="glass-panel">
+  <div id="title-header">
     <!-- Settings entry point (moved top-right → top-left). Opens the new
          settings panel (nav-left/content-right), replacing the old Torii
          menu overlay. Same button element/id kept for main.js wiring
@@ -954,15 +970,18 @@
 
     <!-- CENTRE: boxed console, now a frosted-glass panel over the sunset photo -->
     <div id="title-centre" class="glass-panel">
-      <!-- v0.3: numbered step rows (1 Select your character / 2 Login / 3 Enter)
-           per design direction — a large step numeral sits to the left of each
-           of the top 3 controls, wrapped in .step-row so the numeral aligns
-           with the row's vertical centre regardless of its content height. -->
+      <!-- v0.3: "Select your character" heading now sits ABOVE the numbered
+           list (was previously an inline label inside step 1's content,
+           which pulled the "1" numeral's vertical centre up away from the
+           actual character buttons). #char-select now wraps ONLY the button
+           row, so .step-row's align-items:center centres "1" against the
+           buttons themselves, matching how "2" and "3" centre against their
+           single-button rows. -->
+      <div style="font-size:0.65rem;letter-spacing:0.12em;color:#e8a662;text-align:center;margin-bottom:0.5rem;">SELECT YOUR CHARACTER</div>
       <div class="step-row">
         <span class="step-num">1</span>
         <!-- Character selector -->
-        <div id="char-select" style="margin:0.7rem 0 0.5rem; text-align:center;">
-          <div style="font-size:0.65rem;letter-spacing:0.12em;color:#e8a662;margin-bottom:0.4rem;">CHARACTER</div>
+        <div id="char-select" style="margin:0 0 0.5rem;">
           <div style="display:flex;gap:0.5rem;justify-content:center;">
             <button class="char-btn active" data-char="chiefmonkey" style="padding:0.35rem 0.8rem;border:1.5px solid #e8842c;border-radius:6px;background:#2a1810;color:#f5e6d8;font-size:0.75rem;cursor:pointer;">&#x1F412; Chiefmonkey</button>
             <button class="char-btn" data-char="nostrich" style="padding:0.35rem 0.8rem;border:1.5px solid #6b5644;border-radius:6px;background:#1a120c;color:#c9b19d;font-size:0.75rem;cursor:pointer;">&#x1F9A4; Nostrich</button>
@@ -1016,7 +1035,7 @@
              occurrences of EXPECTED_VERSION in this file). main.js's
              renderUpdatePreview() replaces these children with the live
              view-model on load. -->
-        <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.675-alpha</div></div>
+        <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.676-alpha</div></div>
         <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
         <div id="update-progress" hidden>
           <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1161,7 +1180,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.675-alpha · torii quest</div>
+  <div id="ver">v0.2.676-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

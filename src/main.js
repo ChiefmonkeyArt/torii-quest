@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -78,8 +78,9 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
-import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, getActiveSettingsTab, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
+import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
 import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
+import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
@@ -99,10 +100,11 @@ import {
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
-// v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
-// Settings shell (INERT: shown only to the logged-in instance admin; the Access
-// section is a read-only "public + coming soon" placeholder).
-import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
+// v0.3: the Instance Settings tab (arrival-mode / write-policy admin
+// controls) is REMOVED from the settings menu per design direction — not
+// useful to admins or guests. instanceSettings.js's underlying access-control
+// enforcement (handoffArrival.js / writeAuthority.js) is untouched; only
+// this title-screen EDITING surface and its import are gone.
 import {
   NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED,
 } from './config.js';
@@ -408,13 +410,13 @@ function _getToriiMenuState() {
 }
 
 // Title-screen settings icon → open the new settings panel (nav-left/
-// content-right, 2 tabs: Instance Settings + Gateway Setup). Replaces the old
+// content-right, 2 tabs: Gateway Setup + Heartbeat). Replaces the old
 // persistent Torii menu on THIS surface only — the in-game KeyM quick menu
 // (arenaRuntime.js) still opens toriiMenu.js unchanged (separate call site,
 // out of scope here).
 elToriiMenuBtn?.addEventListener('click', () => {
   if (isSettingsPanelOpen()) { closeSettingsPanel(); return; }
-  openSettingsPanel({ initialTab: 'instance', onClose: () => { /* title screen: no pause to resume */ } });
+  openSettingsPanel({ initialTab: 'gateway', onClose: () => { /* title screen: no pause to resume */ } });
 });
 
 // ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
@@ -884,7 +886,6 @@ on(EV.NOSTR_LOGIN, () => {
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
   // card is read-only. (publishOurWorldPresence remains available for a future
   // explicit, user-initiated publish, but is no longer auto-triggered.)
-  refreshInstanceSettingsVisibility();
   // Phase 0g: optional auto-open of the Gateway setup stub ONCE per session,
   // ONLY for the confirmed node owner/admin AND only when there is no active
   // world override (adminPrefs.getActiveWorld is empty). Do NOT trigger on "no
@@ -902,201 +903,22 @@ on(EV.NOSTR_LOGIN, () => {
   } catch { /* auto-open is best-effort; never throw into the login path */ }
 });
 
-// ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────
-// Title-screen admin surface. The entry-point link stays UI-gated by
-// isInstanceAdmin(); the saved access mode itself is secured by the signed
-// kind:30078 settings event, verified on read before it can affect arrival.
-// v0.3: the standalone #instance-settings-link/-panel/-backdrop DOM elements
-// are gone. Instance Settings is now a tab inside the new settings panel
-// (settingsPanel.js); visibility is gated on the panel's 'instance' tab
-// (registered below) instead of a hidden/unhidden link. isInstanceAdmin's
-// gating is preserved via refreshInstanceSettingsVisibility()'s model check.
-const _instanceSettingsState = {
-  loading: false,
-  saving: false,
-  persisted: null,
-  draftArrivalMode: null,
-  draftWritePolicy: null,
-  statusMessage: '',
-  statusTone: '',
-};
+// v0.3: the entire Instance Settings admin surface (ACC-2b, v0.2.400 —
+// arrival-mode / write-policy state, its read/save relay round-trips, and
+// its settings-panel tab) is REMOVED from the menu per design direction
+// ("nothing useful there for admins or guests"). The underlying signed
+// kind:30078 access-control enforcement in handoffArrival.js / writeAuthority.js
+// and the read/publish helpers (readLatestAccessSettings / publishAccessSettings,
+// still exported from nostr.js) are untouched — only this title-screen EDITING
+// UI and its wiring (and its now-unused imports here) are gone.
+// instanceSettings.js is left in place, unimported here, in case the surface
+// returns in a future revision.
 
-function _syncInstanceSettingsDraft() {
-  const arrivalFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.arrivalMode === 'string'
-    ? _instanceSettingsState.persisted.arrivalMode
-    : _arrivalMode();
-  const writeFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.writePolicy === 'string'
-    ? _instanceSettingsState.persisted.writePolicy
-    : 'owner-only';
-  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
-    _instanceSettingsState.draftArrivalMode,
-    coerceEditableArrivalMode(arrivalFallback, _arrivalMode()),
-  );
-  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
-    _instanceSettingsState.draftWritePolicy,
-    coerceEditableWritePolicy(writeFallback, 'owner-only'),
-  );
-}
-
-function _currentInstanceSettingsModel() {
-  _syncInstanceSettingsDraft();
-  return buildInstanceSettingsModel({
-    operatorPubkey: state.nostrPubkey || '',
-    hostPubkey: _hostIdentity(),
-    arrivalMode: _arrivalMode(),
-    followPolicy: _followPolicy(),
-    persistedArrivalMode: _instanceSettingsState.persisted && _instanceSettingsState.persisted.arrivalMode,
-    persistedFollowPolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.followPolicy,
-    persistedWritePolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.writePolicy,
-    persistedDelegateSet: _instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet,
-    selectedArrivalMode: _instanceSettingsState.draftArrivalMode,
-    selectedWritePolicy: _instanceSettingsState.draftWritePolicy,
-    hasSigner: typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function',
-    loading: _instanceSettingsState.loading,
-    saving: _instanceSettingsState.saving,
-    statusMessage: _instanceSettingsState.statusMessage,
-    statusTone: _instanceSettingsState.statusTone,
-  });
-}
-
-function _rerenderInstanceSettingsPanel() {
-  if (!isSettingsPanelOpen()) return;
-  const model = _currentInstanceSettingsModel();
-  if (!model.visible) {
-    _closeInstanceSettingsPanel();
-    return;
-  }
-  renderActiveSettingsTab();
-}
-
-async function _refreshInstanceSettingsAccessState() {
-  const instanceId = _instanceId();
-  const hostPubkey = _hostIdentity();
-  _instanceSettingsState.loading = true;
-  _instanceSettingsState.statusTone = 'muted';
-  _instanceSettingsState.statusMessage = 'Reading saved access setting…';
-  _rerenderInstanceSettingsPanel();
-  if (!instanceId || !HEX64.test(hostPubkey)) {
-    _instanceSettingsState.loading = false;
-    _instanceSettingsState.persisted = null;
-    _instanceSettingsState.statusTone = 'warn';
-    _instanceSettingsState.statusMessage = 'No valid instance identity found — using this deploy default.';
-    _syncInstanceSettingsDraft();
-    _rerenderInstanceSettingsPanel();
-    return;
-  }
-  const res = await readLatestAccessSettings({
-    request: fanoutReq,
-    relays: RELAYS,
-    instanceId,
-    ownerPubkey: hostPubkey,
-    timeoutMs: 5000,
-    graceMs: 250,
-    retries: 1,
-  });
-  _instanceSettingsState.loading = false;
-  if (res.ok && res.settings) {
-    _instanceSettingsState.persisted = res.settings;
-    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings.arrivalMode, _arrivalMode());
-    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings.writePolicy, 'owner-only');
-    _instanceSettingsState.statusTone = res.stale ? 'warn' : 'ok';
-    _instanceSettingsState.statusMessage = res.stale
-      ? 'Relay read failed — using the cached signed access setting.'
-      : 'Loaded the latest valid signed access setting.';
-  } else if (res.ok) {
-    _instanceSettingsState.persisted = null;
-    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(_arrivalMode(), _arrivalMode());
-    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy('owner-only', 'owner-only');
-    _instanceSettingsState.statusTone = 'muted';
-    _instanceSettingsState.statusMessage = 'No saved access setting yet — using this deploy default.';
-  } else {
-    _instanceSettingsState.persisted = res.settings || null;
-    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
-      (res.settings && res.settings.arrivalMode) || _arrivalMode(),
-      _arrivalMode(),
-    );
-    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
-      (res.settings && res.settings.writePolicy) || 'owner-only',
-      'owner-only',
-    );
-    _instanceSettingsState.statusTone = 'warn';
-    _instanceSettingsState.statusMessage = res.stale
-      ? 'Relay read failed — using the cached signed access setting.'
-      : 'Could not read a signed access setting — using this deploy default.';
-  }
-  _rerenderInstanceSettingsPanel();
-}
-
-async function _saveInstanceSettingsAccess() {
-  const model = _currentInstanceSettingsModel();
-  if (!model.visible || !model.canEditAccess) return;
-  _instanceSettingsState.saving = true;
-  _instanceSettingsState.statusTone = 'muted';
-  _instanceSettingsState.statusMessage = 'Signing and publishing the access setting…';
-  _rerenderInstanceSettingsPanel();
-  const res = await publishAccessSettings({
-    instanceId: _instanceId(),
-    ownerPubkey: _hostIdentity(),
-    arrivalMode: _instanceSettingsState.draftArrivalMode,
-    followPolicy: _followPolicy(),
-    writePolicy: _instanceSettingsState.draftWritePolicy,
-    delegateSet: (_instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet) || [],
-    relays: RELAYS,
-    sign: signEvent,
-    publish: fanoutPublish,
-    timeoutMs: 5000,
-  });
-  _instanceSettingsState.saving = false;
-  if (!res.ok) {
-    _instanceSettingsState.statusTone = 'warn';
-    _instanceSettingsState.statusMessage = res.error === 'nip-07-unavailable'
-      ? 'Connect a Nostr signer to save access changes.'
-      : `Could not save access setting: ${(res && res.error) || 'unknown error'}`;
-    _rerenderInstanceSettingsPanel();
-    return;
-  }
-  _instanceSettingsState.persisted = res.settings;
-  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings && res.settings.arrivalMode, _arrivalMode());
-  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings && res.settings.writePolicy, 'owner-only');
-  _instanceSettingsState.statusTone = 'ok';
-  _instanceSettingsState.statusMessage = `Saved the signed access setting to ${res.accepted} relay${res.accepted === 1 ? '' : 's'}.`;
-  _rerenderInstanceSettingsPanel();
-}
-
-// v0.3: visibility is now tracked as a flag the settings panel's nav reads,
-// instead of hiding/unhiding a standalone corner link. isInstanceAdmin's gate
-// is unchanged — only non-owners lose the tab's content (still rendered but
-// the model's own `visible`/`canEditAccess` gating inside renderInstance-
-// SettingsPanel continues to apply, same as before).
-let _instanceSettingsVisible = false;
-function refreshInstanceSettingsVisibility() {
-  const model = _currentInstanceSettingsModel();
-  _instanceSettingsVisible = !!model.visible;
-  if (!model.visible && isSettingsPanelOpen() && getActiveSettingsTab() === 'instance') {
-    closeSettingsPanel();
-  }
-}
-
-function _openInstanceSettingsPanel() {
-  const model = _currentInstanceSettingsModel();
-  if (!model.visible) return;
-  openSettingsPanel({ initialTab: 'instance', onClose: () => { /* title screen: no pause to resume */ } });
-  _refreshInstanceSettingsAccessState();
-}
-
-function _closeInstanceSettingsPanel() {
+// Generic settings-panel close — kept (was previously named for the instance
+// tab, but the 'close' data-action applies to the whole panel, both tabs).
+function _closeSettingsContentPanel() {
   closeSettingsPanel();
 }
-
-// Instance Settings tab content renderer — registered with the settings
-// panel shell. Renders nothing (falls back to the old "visible" gate) if the
-// operator isn't the instance admin, so a non-owner switching to this tab
-// sees an empty pane rather than the admin controls.
-registerSettingsTabRenderer('instance', () => {
-  const model = _currentInstanceSettingsModel();
-  if (!model.visible) return '<div class="is-note">Instance settings are only available to the node owner.</div>';
-  return renderInstanceSettingsPanel(model);
-});
 
 // Gateway Setup tab content renderer — reuses the exact same state/callback
 // builders as the old homepage stub (_homepageStubState / _homepageStubCallbacks,
@@ -1104,10 +926,14 @@ registerSettingsTabRenderer('instance', () => {
 // of a separate DOM overlay.
 registerSettingsTabRenderer('gateway', () => renderGatewaySetupPanel(_homepageStubState()));
 
+// Heartbeat tab content renderer — v0.3: split out of Gateway Setup's former
+// 3rd card. Same underlying state (_homepageStubState's heartbeatStatus) and
+// callback (onPublishNode), just its own tab.
+registerSettingsTabRenderer('heartbeat', () => renderHeartbeatPanel(_homepageStubState()));
+
 // Single delegated listener on the settings panel's content container, scoped
-// by data-action/data-form/data-group conventions (same conventions instance-
-// Settings.js already used) so both tabs' clicks/changes/submits are handled
-// without either tab needing its own listeners.
+// by data-action conventions so every tab's clicks are handled without
+// needing its own listeners.
 (function _wireSettingsContentDelegation() {
   const doc = typeof document !== 'undefined' ? document : null;
   if (!doc) return;
@@ -1120,34 +946,12 @@ registerSettingsTabRenderer('gateway', () => renderGatewaySetupPanel(_homepageSt
     if (!t.closest('#torii-settings-content')) return;
     const action = t.getAttribute && t.getAttribute('data-action');
     if (!action) return;
-    if (action === 'close') { e.preventDefault(); _closeInstanceSettingsPanel(); return; }
+    if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
   });
-  doc.addEventListener('change', (e) => {
-    const t = e && e.target;
-    if (!t || !t.matches || !t.closest || !t.closest('#torii-settings-content')) return;
-    if (t.matches('input[name="arrival-mode"]')) {
-      _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
-    } else if (t.matches('input[name="write-policy"]')) {
-      _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(t.value, 'owner-only');
-    } else {
-      return;
-    }
-    _instanceSettingsState.statusMessage = '';
-    _instanceSettingsState.statusTone = '';
-    _rerenderInstanceSettingsPanel();
-  });
-  doc.addEventListener('submit', (e) => {
-    const t = e && e.target;
-    if (!t || !t.getAttribute || !t.closest || !t.closest('#torii-settings-content')) return;
-    if (t.getAttribute('data-form') !== 'access-settings') return;
-    e.preventDefault();
-    _saveInstanceSettingsAccess();
-  });
 })();
-refreshInstanceSettingsVisibility();
 
 // ── Canonical /#/zone/<slug> hash route resolution (inert notice only) ──────────
 function _applyZoneRoute() {

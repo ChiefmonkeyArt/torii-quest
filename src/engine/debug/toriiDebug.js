@@ -61,6 +61,8 @@ export function installToriiDebug(refs) {
     getMpState,
     // ADR-0052 — Kami Mode client-state providers for the ema snapshot.
     isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
+    // ADR-0055 — auto-capture ring status for the ema snapshot.
+    getAutoCaptureReport,
   } = refs;
 
   // v0.2.130 — providers for the JSON-serialisable debug snapshot. Each is a
@@ -119,6 +121,8 @@ export function installToriiDebug(refs) {
     // ADR-0052: Kami Mode state so an ema hung while "stuck" reveals the exact
     // flag (active / noteOpen / entering / pointerLocked) that is wrong.
     isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
+    // ADR-0055: auto-capture ring status so a hung ema points at nearby frames.
+    getAutoCaptureReport,
   };
 
   const api = {

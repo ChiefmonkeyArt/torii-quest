@@ -14,7 +14,7 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera, composer, bloomPass, sun } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
@@ -46,7 +46,7 @@ import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { computeMoveVelocity } from './engine/multiplayer/moveVelocity.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
-import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { getStoredToken, clearStoredToken, resolveMpHttpBase } from './engine/multiplayer/sessionAuth.js';
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
 import { RELAYS, fanoutReq } from './nostr.js';
@@ -73,6 +73,9 @@ import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering } from './engine/kami/kamiMode.js';
+import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
+import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
+import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
@@ -716,6 +719,10 @@ export function createArenaRuntime(hooks = {}) {
   let _minimapTick = 0;
   let _firstFrameMarked = false;
   let _firstFrameEnded = false;
+  // ADR-0055: 1Hz auto-capture diagnostic ring. Pure state machine; the async
+  // seal+POST is driven from update() via _driveAutoCapture. Owner-only +
+  // playing-only + inflight backpressure are all enforced inside the machine.
+  const _autoCap = createAutoCapture();
   // Sticky shoot-anim window: EV.SHOOT pushes this timestamp forward; the
   // shooting flag stays up for SHOOT_ANIM_WINDOW_MS after the last shot so
   // RUN_SHOOT actually reads (a single-frame flag was preempted by run/walk
@@ -900,6 +907,73 @@ export function createArenaRuntime(hooks = {}) {
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
+
+    // ADR-0055: 1Hz auto-capture. Fire-and-forget — the seal+POST never blocks
+    // the loop. The state machine's inflight guard skips a tick if the previous
+    // upload is still resolving (no queue buildup under slow networks).
+    _driveAutoCapture(performance.now());
+  }
+
+  // ADR-0055: grab a frame + snapshot at 1Hz, seal to the owner+Kami pubkey,
+  // and POST to the autocap ring. Owner-only + playing-only; the frame grab is
+  // zero-cost when the render queue is empty (no preserveDrawingBuffer tax).
+  function _driveAutoCapture(nowMs) {
+    const ctx = {
+      isOwner: !!(state.nostrPubkey && /^[0-9a-f]{64}$/.test(state.nostrPubkey)),
+      isPlaying: isPlaying(),
+      takeSnapshot: () => {
+        try { return (typeof window !== 'undefined' && window.ToriiDebug && typeof window.ToriiDebug.snapshot === 'function') ? window.ToriiDebug.snapshot() : null; }
+        catch { return null; }
+      },
+    };
+    const req = _autoCap.tick(nowMs, ctx);
+    if (!req) return;
+    // Grab the canvas frame inside the render tick (same-tick buffer valid).
+    requestFrameGrab(async (url) => {
+      try {
+        const ownerPub = state.nostrPubkey || '';
+        if (!/^[0-9a-f]{64}$/.test(ownerPub)) { _autoCap.markFailed(req.frameId, 'no-pubkey', nowMs); return; }
+        const recipients = [ownerPub, KAMI_PUBKEY];
+        // Split seal: small snapshot JSON + large JPEG bytes (same as manual ema).
+        const ema = await sealJson(req.snapshot, recipients);
+        let shot = null;
+        if (url) {
+          const raw = _dataUrlToBytes(url);
+          if (raw) {
+            const env = await sealTo(raw, recipients);
+            shot = { env, bytes: raw.length };
+          }
+        }
+        const base = resolveMpHttpBase();
+        const token = getStoredToken();
+        const res = await fetch(`${base}/mp/kami/autocap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+          body: JSON.stringify({ v: 1, batch: [{ id: req.frameId, ema, shot }] }),
+        });
+        if (res.ok) _autoCap.markUploaded(req.frameId, nowMs);
+        else _autoCap.markFailed(req.frameId, `HTTP ${res.status}`, nowMs);
+      } catch (err) {
+        _autoCap.markFailed(req.frameId, String((err && err.message) || err), nowMs);
+      }
+    }, { type: 'image/jpeg', quality: 0.6 });
+  }
+
+  // ADR-0055: decode a data: URL's base64 payload into raw bytes for sealing.
+  // Mirrors kamiMode.js's private dataUrlToBytes — kept local so the auto-capture
+  // path never touches the manual ema module's private state.
+  function _dataUrlToBytes(dataUrl) {
+    if (typeof dataUrl !== 'string' || !dataUrl) return null;
+    const m = /^data:[^;]*;base64,(.*)$/s.exec(dataUrl);
+    const b64 = m ? m[1] : dataUrl;
+    try {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    } catch {
+      return new TextEncoder().encode(dataUrl);
+    }
   }
 
   // boot() — one-time synchronous three scene/loop bootstrap + handler wiring.
@@ -1238,6 +1312,8 @@ export function createArenaRuntime(hooks = {}) {
       isKamiNoteOpen: () => kamiNoteOpen(),
       isKamiEntering: () => kamiEntering(),
       isPointerLocked: () => state.pointerLocked,
+      // ADR-0055: 1Hz auto-capture ring status — points a hung ema at nearby frames.
+      getAutoCaptureReport: () => _autoCap.report(),
       bootTiming: () => getBootTimings(),
       // v0.2.599: MP diagnostic — ToriiDebug.mp() returns live multiplayer state
       getMpState: () => _mp ? {

@@ -56,6 +56,8 @@ import { createKamiStore, SCREENSHOT_KEEP_DEFAULT } from './kami/kamiStore.js';
 import { validateKamiBatch, storeKamiBatch } from './kami/kamiRoute.js';
 import { makeReplyStore } from './kami/kamiReplyStore.js';
 import { parseSince, shapeReplyResponse } from './kami/kamiReplyRoute.js';
+import { createAutoCapStore, AUTOCAP_KEEP_DEFAULT } from './kami/kamiAutoStore.js';
+import { storeAutoCapBatch } from './kami/kamiAutoRoute.js';
 
 // ---------- config ----------
 
@@ -77,6 +79,12 @@ const kamiStore = createKamiStore({ dir: KAMI_DIR, fs: fsPromises, keep: SCREENS
 // in the emagake rack — the browser cannot decrypt kamiSeal envelopes (NIP-07
 // has no ECDH), so replies are a separate readable feed, not sealed.
 const replyStore = makeReplyStore({ dir: KAMI_DIR, fs: fsPromises });
+
+// ADR-0055: auto-capture ring (1Hz diagnostic frames). SEPARATE from the manual
+// ema store — its own directory + cap (120) so it can never evict a real manual
+// ema screenshot (shots/ cap 420) and never appends to ema.jsonl (forever).
+// Sealed at rest in the browser; the server holds ciphertext only.
+const autoStore = createAutoCapStore({ dir: KAMI_DIR, fs: fsPromises, keep: AUTOCAP_KEEP_DEFAULT });
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -1008,6 +1016,27 @@ const httpServer = createServer((req, res) => {
         return sendJson(res, 200, { ok: true, ...result });
       } catch (err) {
         log.error('kami/ema store failed', err && err.message);
+        return sendJson(res, 500, { error: 'store failed' });
+      }
+    });
+    return;
+  }
+
+  // ADR-0055: 1Hz auto-capture ring. Admin-gated via the same session bearer
+  // token (no per-second NIP-07 signing — the session token is the consent the
+  // owner already granted at login). Same batch shape as /mp/kami/ema so
+  // validateKamiBatch is reused; only the store + cap differ (autocap ring 120).
+  if (req.method === 'POST' && path.endsWith('/mp/kami/autocap')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBodyCapped(req, res, KAMI_BODY_CAP, async (parsed) => {
+      const batch = validateKamiBatch(parsed);
+      if (!batch) return sendJson(res, 400, { error: 'bad batch' });
+      try {
+        const result = await storeAutoCapBatch(batch, admin, autoStore);
+        return sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        log.error('kami/autocap store failed', err && err.message);
         return sendJson(res, 500, { error: 'store failed' });
       }
     });

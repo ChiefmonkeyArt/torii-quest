@@ -68,6 +68,25 @@ export function buildKamiReport(p = {}) {
   };
 }
 
+// ADR-0055: auto-capture state — the 1Hz diagnostic ring status so a manual
+// ema hung at an incident points at the nearby auto-capture frames (by ts).
+export function buildAutoCaptureReport(p = {}) {
+  const r = safe(p.getAutoCaptureReport);
+  if (!r || typeof r !== 'object') return null;
+  return {
+    enabled:         safe(() => r.enabled, false) ?? false,
+    intervalMs:      safe(() => r.intervalMs),
+    inflight:        safe(() => r.inflight, false) ?? false,
+    lastFrameId:     safe(() => r.lastFrameId),
+    lastCapturedAt:  safe(() => r.lastCapturedAt),
+    lastUploadOkAt: safe(() => r.lastUploadOkAt),
+    lastError:       safe(() => r.lastError),
+    captured:        safe(() => r.captured),
+    uploaded:        safe(() => r.uploaded),
+    failed:          safe(() => r.failed),
+  };
+}
+
 // Full snapshot. Order is intentional: identity → phase → player → combat →
 // physics → tuning, so a pasted object reads top-to-bottom like a status line.
 export function buildSnapshot(p = {}) {
@@ -80,6 +99,8 @@ export function buildSnapshot(p = {}) {
     physics: buildPhysicsReport(p),
     // ADR-0052: Kami Mode client state — active/noteOpen/entering/pointerLocked.
     kami:    buildKamiReport(p),
+    // ADR-0055: 1Hz auto-capture ring status — points a hung ema at nearby frames.
+    autoCapture: buildAutoCaptureReport(p),
     // ADR-0045 v0.2.666: per-bot render state so an ema tells us WHICH branch is
     // broken when bots appear as cubes / floating nameplates with no body.
     bots:     safe(p.getBotRenderStates),

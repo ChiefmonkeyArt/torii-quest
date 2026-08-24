@@ -56,7 +56,7 @@ describe('recIndicator — active shows RECORDING', () => {
     const { win, doc } = fakeDoc();
     const ri = createRecIndicator({
       window: win, throttleMs: 0,
-      getReport: () => ({ captured: 12, ringCap: 120, inflight: false, lastUploadOkAt: 4000, lastError: null }),
+      getReport: () => ({ captured: 12, uploaded: 12, ringCap: 120, inflight: false, lastUploadOkAt: 4000, lastError: null }),
       isActive: () => true,
     });
     ri.update(5000);
@@ -70,7 +70,7 @@ describe('recIndicator — active shows RECORDING', () => {
     const { win, doc } = fakeDoc();
     const ri = createRecIndicator({
       window: win, throttleMs: 0,
-      getReport: () => ({ captured: 5, ringCap: 120, inflight: true, lastUploadOkAt: 4000, lastError: null }),
+      getReport: () => ({ captured: 5, uploaded: 5, ringCap: 120, inflight: true, lastUploadOkAt: 4000, lastError: null }),
       isActive: () => true,
     });
     ri.update(5000);
@@ -83,7 +83,7 @@ describe('recIndicator — error state', () => {
     const { win, doc } = fakeDoc();
     const ri = createRecIndicator({
       window: win, throttleMs: 0,
-      getReport: () => ({ captured: 4, ringCap: 120, inflight: false, lastUploadOkAt: null, lastError: 'HTTP 403' }),
+      getReport: () => ({ captured: 4, uploaded: 4, ringCap: 120, inflight: false, lastUploadOkAt: null, lastError: 'HTTP 403' }),
       isActive: () => true,
     });
     ri.update(5000);
@@ -93,15 +93,28 @@ describe('recIndicator — error state', () => {
     expect(el.textContent).toContain('HTTP 403');
   });
 
-  it('stays RECORDING (not error) if a recent upload succeeded despite an old lastError', () => {
+  it('shows REC ERROR whenever lastError is set (markUploaded clears it, so any lastError is a current failure)', () => {
     const { win, doc } = fakeDoc();
     const ri = createRecIndicator({
       window: win, throttleMs: 0,
-      getReport: () => ({ captured: 10, ringCap: 120, inflight: false, lastUploadOkAt: 4900, lastError: 'old failure' }),
+      getReport: () => ({ captured: 10, uploaded: 9, ringCap: 120, inflight: false, lastUploadOkAt: 4900, lastError: 'HTTP 500' }),
+      isActive: () => true,
+    });
+    ri.update(5000);
+    // lastError is set → honest REC ERROR, no 60s grace window.
+    expect(doc.getElementById('torii-rec-hud').textContent).toContain('REC ERROR');
+  });
+
+  it('shows RECORDING (no error) once lastError is cleared by a successful upload', () => {
+    const { win, doc } = fakeDoc();
+    const ri = createRecIndicator({
+      window: win, throttleMs: 0,
+      getReport: () => ({ captured: 10, uploaded: 10, ringCap: 120, inflight: false, lastUploadOkAt: 4900, lastError: null }),
       isActive: () => true,
     });
     ri.update(5000);
     expect(doc.getElementById('torii-rec-hud').textContent).toContain('RECORDING');
+    expect(doc.getElementById('torii-rec-hud').textContent).not.toContain('REC ERROR');
   });
 });
 
@@ -111,7 +124,7 @@ describe('recIndicator — throttling', () => {
     let captured = 1;
     const ri = createRecIndicator({
       window: win, throttleMs: 250,
-      getReport: () => ({ captured, ringCap: 120, inflight: false, lastUploadOkAt: 1000, lastError: null }),
+      getReport: () => ({ captured, uploaded: captured, ringCap: 120, inflight: false, lastUploadOkAt: 1000, lastError: null }),
       isActive: () => true,
     });
     ri.update(5000);
@@ -130,7 +143,7 @@ describe('recIndicator — destroy', () => {
     const { win, doc } = fakeDoc();
     const ri = createRecIndicator({
       window: win, throttleMs: 0,
-      getReport: () => ({ captured: 1, ringCap: 120, lastUploadOkAt: 1000 }),
+      getReport: () => ({ captured: 1, uploaded: 1, ringCap: 120, lastUploadOkAt: 1000 }),
       isActive: () => true,
     });
     ri.update(5000);

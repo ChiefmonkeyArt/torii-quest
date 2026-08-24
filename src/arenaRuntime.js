@@ -930,6 +930,11 @@ export function createArenaRuntime(hooks = {}) {
       mark('first-frame');
       startPhase('first-render');
     }
+    // ADR-0055: 1Hz auto-capture. Driven BEFORE renderFrame so the queued frame
+    // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).
+    // Fire-and-forget — the seal+POST never blocks the loop. The state machine's
+    // inflight guard skips a tick if the previous upload is still resolving.
+    _driveAutoCapture(Date.now());
     try {
       renderFrame(isLive());
     } catch (e) {
@@ -941,13 +946,9 @@ export function createArenaRuntime(hooks = {}) {
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
-    _recIndicator.update(performance.now());
-
-    // ADR-0055: 1Hz auto-capture. Driven BEFORE renderFrame so the queued frame
-    // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).
-    // Fire-and-forget — the seal+POST never blocks the loop. The state machine's
-    // inflight guard skips a tick if the previous upload is still resolving.
-    _driveAutoCapture(Date.now());
+    // Wall-clock (Date.now) — the autocap report stores wall-clock timestamps, so
+    // the age math + recentOk window stays correct (not performance.now()).
+    _recIndicator.update(Date.now());
   }
 
   // ADR-0055: grab a frame + snapshot at 1Hz, seal to the owner+Kami pubkey,
@@ -970,7 +971,7 @@ export function createArenaRuntime(hooks = {}) {
     requestFrameGrab(async (url) => {
       try {
         const ownerPub = state.nostrPubkey || '';
-        if (!/^[0-9a-f]{64}$/.test(ownerPub)) { _autoCap.markFailed(req.frameId, 'no-pubkey', nowMs); return; }
+        if (!/^[0-9a-f]{64}$/.test(ownerPub)) { _autoCap.markFailed(req.frameId, 'no-pubkey', Date.now()); return; }
         const recipients = [ownerPub, KAMI_PUBKEY];
         // Split seal: small snapshot JSON + large JPEG bytes (same as manual ema).
         const ema = await sealJson(req.snapshot, recipients);
@@ -991,10 +992,10 @@ export function createArenaRuntime(hooks = {}) {
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
           body: JSON.stringify({ v: 1, batch: [{ id: req.frameId, ema, shot }] }),
         });
-        if (res.ok) _autoCap.markUploaded(req.frameId, nowMs);
-        else _autoCap.markFailed(req.frameId, `HTTP ${res.status}`, nowMs);
+        if (res.ok) _autoCap.markUploaded(req.frameId, Date.now());
+        else _autoCap.markFailed(req.frameId, `HTTP ${res.status}`, Date.now());
       } catch (err) {
-        _autoCap.markFailed(req.frameId, String((err && err.message) || err), nowMs);
+        _autoCap.markFailed(req.frameId, String((err && err.message) || err), Date.now());
       }
     }, { type: 'image/jpeg', quality: 0.6 });
   }

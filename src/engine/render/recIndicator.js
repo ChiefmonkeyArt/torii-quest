@@ -107,16 +107,15 @@ export function createRecIndicator({
 
     const r = (getReport && getReport()) || {};
     const ringCap = r.ringCap || 0;
-    const onRing = Math.min(r.captured || 0, ringCap); // captured count, ring-capped for display
+    // The on-disk ring is SUCCESSFUL uploads, not capture attempts — use `uploaded`
+    // so the count reflects what's actually stored on the VPS ring.
+    const onRing = Math.min(r.uploaded || 0, ringCap);
     const hasError = !!(r.lastError);
-    const recentOk = (typeof r.lastUploadOkAt === 'number')
-      && ((now - r.lastUploadOkAt) < 60000); // an upload succeeded in the last 60s
     const inflight = !!r.inflight;
 
-    // Error state only if the last failure has no success since it.
-    const errorSinceOk = hasError
-      && !(typeof r.lastUploadOkAt === 'number' && r.lastUploadOkAt >= 0 && r.lastError === null);
-    const isError = hasError && !recentOk;
+    // markUploaded() clears lastError, so any lastError present is a CURRENT,
+    // unresolved failure — show REC ERROR honestly (no 60s grace window).
+    const isError = hasError;
 
     const node = _ensureEl();
     if (!node) return;

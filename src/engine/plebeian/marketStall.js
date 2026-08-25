@@ -94,8 +94,15 @@ function stop() {
 function _tryMountNapplet() {
   if (_host) { _host.destroy(); _host = null; }
   // createProductNappletHost uses the global window/document (browser-only path).
-  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
-  _host = createProductNappletHost({ window, document });
+  if (typeof window === 'undefined' || typeof document === 'undefined') { console.error('[napplet-mount-debug] _tryMountNapplet: no window/document'); return false; }
+  try {
+    _host = createProductNappletHost({ window, document });
+  } catch (e) {
+    // TEMP DIAGNOSTIC (remove after napplet-mount investigation)
+    console.error('[napplet-mount-debug] createProductNappletHost threw:', e);
+    _host = null;
+    return false;
+  }
   return _host.mount(); // false → surface disabled / no body / mount threw → fallback
 }
 
@@ -104,10 +111,12 @@ function _tryMountNapplet() {
  * arenaRuntime. No-op when the active state is unchanged.
  */
 export function setMarketActive(active) {
-  if (active === _active) return;
+  // TEMP DIAGNOSTIC (remove after napplet-mount investigation)
+  console.error('[napplet-mount-debug] setMarketActive called:', active, 'was:', _active);
+  if (active === _active) { console.error('[napplet-mount-debug] setMarketActive: no-op, already', _active); return; }
   _active = active;
   const root = document.getElementById('auction-panel');
-  if (!root) return;
+  if (!root) { console.error('[napplet-mount-debug] setMarketActive: no #auction-panel root found'); return; }
   if (active) {
     root.classList.add('floating');
     root.removeAttribute('hidden');

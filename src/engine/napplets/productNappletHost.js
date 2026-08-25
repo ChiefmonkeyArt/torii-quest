@@ -54,6 +54,12 @@ export function createProductNappletHost({
     if (!cfg || !cfg.enabled) return false; // disabled → caller falls back to legacy
     const host = container || (document && document.getElementById(bodyId));
     if (!host) return false; // no body container → fallback
+    // ADR-0061: the body starts with static placeholder markup (e.g. the
+    // "Waiting for relay…" empty state baked into index.html). NappletSurface
+    // appends the iframe rather than replacing content, so without this the
+    // placeholder and the iframe would coexist. Clear it once, right before
+    // the iframe is created, so the napplet fully owns the body from here on.
+    if (typeof host.textContent !== 'undefined') host.textContent = '';
     try {
       surface = createNappletSurface({
         window, document, container: host, surfaceId: SURFACE_ID,

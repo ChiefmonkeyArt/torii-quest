@@ -34,8 +34,11 @@ function makeStubs(withLoad = false) {
   };
   const container = {
     children: [],
+    _text: '',
     appendChild(child) { child.parentNode = container; container.children.push(child); return child; },
     removeChild(child) { container.children = container.children.filter((c) => c !== child); child.parentNode = null; },
+    get textContent() { return container._text; },
+    set textContent(v) { container._text = String(v); container.children = []; },
   };
   let nextIframe = makeFakeIframe(withLoad);
   const document = {
@@ -99,6 +102,21 @@ describe('productNappletHost — mount', () => {
     const first = s.container.children.length;
     expect(host.mount(s.container)).toBe(true);
     expect(s.container.children.length).toBe(first);
+  });
+
+  it('clears pre-existing static content (e.g. the "Waiting for relay…" placeholder baked into index.html) before inserting the iframe (ADR-0061)', () => {
+    const s = makeStubs();
+    s.container.textContent = ''; // reset via setter to seed _text
+    s.container.appendChild({ tagName: 'div', className: 'auction-empty' }); // simulate static placeholder
+    expect(s.container.children.length).toBe(1);
+    const host = createProductNappletHost({
+      window: s.window, document: s.document,
+      getSurfaceConfig: fakeSurfaceConfig(true), listSurfaces,
+    });
+    expect(host.mount(s.container)).toBe(true);
+    // Only the iframe should remain — the static placeholder must be gone, not coexisting.
+    expect(s.container.children.length).toBe(1);
+    expect(s.container.children[0].className).toBeUndefined(); // it's the iframe stub, not the placeholder div
   });
 });
 

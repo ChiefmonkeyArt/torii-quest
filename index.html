@@ -162,29 +162,61 @@
       position: relative;
     }
     #title-centre.glass-panel {
-      /* v0.4: the panel now hugs its text content (auto width via inline-flex
-         wrapping in the DOM below) with a very rounded, near-pill shape, and
-         no longer uses backdrop-filter blur at all — blur boxes are NOT
-         clipped by mask-image in most engines (Chromium/WebKit rasterize the
-         blurred backdrop as an opaque rect BEFORE the mask is composited),
-         which is exactly why a straight/soft rectangular edge was still
-         visible even though the fill color faded. Replacing the blur with a
-         plain (no-blur) tinted background removes that hard-edged blur
-         silhouette entirely — the mask below now fades the ONLY visual
-         layer (flat color + shadow), so it can genuinely reach 0% opacity
-         at the box edge with nothing left to show a line. */
-      background: rgba(30,18,12,0.14);
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
+      /* v0.5: real smoked-glass (backdrop blur) is back. A single
+         backdrop-filter blur on one masked box always shows a hard
+         blur-sampling edge — Chromium/WebKit compute the blurred backdrop
+         over the element's own box BEFORE the mask is applied, so no
+         amount of mask feathering hides the blurred/unblurred pixel
+         boundary. The fix is to stack several concentric rings, each with
+         a smaller blur radius and a mask band further out, so the
+         transition from "fully blurred" to "no blur" happens gradually
+         across multiple soft bands instead of one cliff — by the outermost
+         ring the blur is near 0px so its edge is imperceptible, and the
+         flat tint layer on top carries the fade the rest of the way to
+         true 0% opacity. See .gp-ring1..4 and .gp-tint below (added as
+         actual child elements in the DOM, since ::before/::after can't
+         each carry independent backdrop-filter blur amounts here). */
+      position: relative;
+      background: transparent;
       border: none;
       border-radius: 48px;
-      /* Radial mask starts fading immediately (0%) and is fully transparent
-         well inside the box (85%) so the last 15% of the box — including
-         every corner — is already at alpha 0 before the geometric edge,
-         guaranteeing no visible boundary of any kind. */
-      -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, transparent 85%);
-      mask-image: radial-gradient(ellipse at center, #000 0%, transparent 85%);
       box-shadow: none;
+      isolation: isolate;
+    }
+    .gp-ring {
+      position: absolute; inset: 0; border-radius: 48px; pointer-events: none; z-index: 0;
+    }
+    .gp-ring1 {
+      backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 58%);
+      mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 58%);
+    }
+    .gp-ring2 {
+      backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 32%, #000 48%, #000 60%, transparent 72%);
+      mask-image: radial-gradient(ellipse at center, transparent 32%, #000 48%, #000 60%, transparent 72%);
+    }
+    .gp-ring3 {
+      backdrop-filter: blur(5px) saturate(120%); -webkit-backdrop-filter: blur(5px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 50%, #000 64%, #000 75%, transparent 85%);
+      mask-image: radial-gradient(ellipse at center, transparent 50%, #000 64%, #000 75%, transparent 85%);
+    }
+    .gp-ring4 {
+      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 64%, #000 78%, transparent 96%);
+      mask-image: radial-gradient(ellipse at center, transparent 64%, #000 78%, transparent 96%);
+    }
+    .gp-tint {
+      /* Flat (no-blur) tint carries the visible fill from centre all the
+         way to true 0% opacity at 92% — this is the layer players actually
+         read as "smoked glass tint", sitting on top of the blur rings. */
+      background: rgba(30,18,12,0.42);
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, transparent 92%);
+      mask-image: radial-gradient(ellipse at center, #000 0%, transparent 92%);
+    }
+    #title-centre.glass-panel > .gp-content {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; width: 100%;
     }
 
     /* v0.3: numbered step rows — large numeral to the left of each of the top
@@ -1040,6 +1072,12 @@
 
     <!-- CENTRE: boxed console, now a frosted-glass panel over the sunset photo -->
     <div id="title-centre" class="glass-panel">
+      <div class="gp-ring gp-ring1" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring2" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring3" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring4" aria-hidden="true"></div>
+      <div class="gp-ring gp-tint" aria-hidden="true"></div>
+      <div class="gp-content">
       <!-- v0.3: "Select your character" heading now sits ABOVE the numbered
            list (was previously an inline label inside step 1's content,
            which pulled the "1" numeral's vertical centre up away from the
@@ -1105,7 +1143,7 @@
              occurrences of EXPECTED_VERSION in this file). main.js's
              renderUpdatePreview() replaces these children with the live
              view-model on load. -->
-        <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.685-alpha</div></div>
+        <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.686-alpha</div></div>
         <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
         <div id="update-progress" hidden>
           <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1122,6 +1160,7 @@
           <code id="update-copy-cmd"></code>
           <button id="update-copy-btn" type="button">COPY</button>
         </div>
+      </div>
       </div>
     </div>
 
@@ -1250,7 +1289,7 @@
   <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
   <div id="minimap-wrap"></div>
 
-  <div id="ver">v0.2.685-alpha · torii quest</div>
+  <div id="ver">v0.2.686-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

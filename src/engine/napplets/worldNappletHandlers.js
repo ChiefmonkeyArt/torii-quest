@@ -63,9 +63,11 @@ export function createWorldHandlers({
       if (!cfg.allowedEmitKinds.includes(kind)) {
         return resultEnvelope(type, id, { accepted: false, reason: 'wrong-surface' });
       }
-      // v0: accepted but no side effect. Real handlers (purchase/sticker/etc.) land
-      // when the surfaces convert in a later ADR. actionId is opaque + non-tracking.
-      return resultEnvelope(type, id, { accepted: true, actionId: 'noop' });
+      // ADR-0058: no real emit handlers are wired yet (purchase / sticker-place /
+      // leaderboard-submit / npc-say land in later ADRs). Be honest — refuse rather
+      // than pretending a no-op succeeded. When a real handler exists, it returns
+      // { accepted: true, actionId } here.
+      return resultEnvelope(type, id, { accepted: false, reason: 'no-handler' });
     }
 
     if (action === 'pose.subscribe' || action === 'pose.unsubscribe' || action === 'visit') {

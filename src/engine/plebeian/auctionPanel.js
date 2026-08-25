@@ -94,7 +94,11 @@ export function renderAuctionPanel(snapshot, opts = {}) {
     : `starting ${vm.auction.startingBid} · 0 bids`);
   const link = doc.getElementById('auction-panel-link');
   if (link) link.href = `https://auctions.plebeian.market/auctions/${vm.auction.id}`;
-  if (body) body.innerHTML = [...vm.bids].sort((a, b) => b.amount - a.amount).map(renderBidRow).join('');
+  // ADR-0058: when a napplet owns the bid-list body, skip writing it here so the
+  // iframe is not destroyed. The header/stats above are still updated by this path.
+  if (body && !opts.skipBody) {
+    body.innerHTML = [...vm.bids].sort((a, b) => b.amount - a.amount).map(renderBidRow).join('');
+  }
   if (statusEl) statusEl.textContent = `watch-only · ${vm.bidCount} bids`;
   return vm.bids.length;
 }

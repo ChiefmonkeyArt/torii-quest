@@ -99,14 +99,25 @@ describe('NappletSurface — source validation', () => {
       surfaceId: 'product-stall-panel', handlers: makeHandlers(),
       identity: { dTag: 'dtag-a', aggregateHash: 'hash-a' },
     });
-    dispatch(s, surf.source, { type: 'world.attach.get', id: 'r1', data: {} });
+    dispatch(s, surf.source, { type: 'world.attach.get', id: 'r1', channelId: surf.channelId, data: {} });
     expect(surf.source.posted).toHaveLength(1);
     const { msg, target } = surf.source.posted[0];
     expect(msg).toEqual({
-      type: 'world.attach.get.result', id: 'r1',
+      type: 'world.attach.get.result', id: 'r1', channelId: surf.channelId,
       result: expect.objectContaining({ surfaceId: 'product-stall-panel', zoneId: 'nap' }),
     });
     expect(target).toBe('*');
+  });
+
+  it('ignores a valid-source message with the wrong nonce (ADR-0058 channelId)', () => {
+    const s = makeStubs();
+    const surf = createNappletSurface({
+      window: s.window, document: s.document, container: s.container,
+      surfaceId: 'product-stall-panel', handlers: makeHandlers(),
+      identity: { dTag: 'dtag-a', aggregateHash: 'hash-a' },
+    });
+    dispatch(s, surf.source, { type: 'world.attach.get', id: 'r1', channelId: 'wrong-nonce', data: {} });
+    expect(surf.source.posted).toHaveLength(0);
   });
 
   it('silently drops malformed envelopes from a valid source', () => {
@@ -116,9 +127,27 @@ describe('NappletSurface — source validation', () => {
       surfaceId: 'product-stall-panel', handlers: makeHandlers(),
       identity: { dTag: 'dtag-a', aggregateHash: 'hash-a' },
     });
-    dispatch(s, surf.source, { type: 'not-dotted', id: 'r1' });
-    dispatch(s, surf.source, { type: 'world.emit' }); // missing id
+    dispatch(s, surf.source, { type: 'not-dotted', id: 'r1', channelId: surf.channelId });
+    dispatch(s, surf.source, { type: 'world.emit', channelId: surf.channelId }); // missing id
     expect(surf.source.posted).toHaveLength(0);
+  });
+});
+
+describe('NappletSurface — shell→napplet push (post)', () => {
+  it('post() stamps the channelId nonce on outbound push envelopes', () => {
+    const s = makeStubs();
+    const surf = createNappletSurface({
+      window: s.window, document: s.document, container: s.container,
+      surfaceId: 'product-stall-panel', handlers: makeHandlers(),
+      identity: { dTag: 'dtag-a', aggregateHash: 'hash-a' },
+    });
+    surf.post('world.surface.update', { channel: 'plebeian.auction', snapshot: { bids: [] } });
+    expect(surf.source.posted).toHaveLength(1);
+    const { msg, target } = surf.source.posted[0];
+    expect(msg.type).toBe('world.surface.update');
+    expect(msg.channelId).toBe(surf.channelId);
+    expect(msg.data).toEqual({ channel: 'plebeian.auction', snapshot: { bids: [] } });
+    expect(target).toBe('*');
   });
 });
 

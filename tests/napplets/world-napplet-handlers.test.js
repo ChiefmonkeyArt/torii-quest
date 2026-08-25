@@ -66,16 +66,27 @@ describe('world.emit', () => {
 
   it('rejects a kind not in the panel allow-list (wrong-surface)', () => {
     const { dispatch } = makeHandlers();
+    // ADR-0058: the product panel is read-only — allowedEmitKinds is empty, so every
+    // kind is wrong-surface.
     const out = dispatch('world.emit', { kind: 'purchase' }, 'product-stall-panel', 'r5');
     expect(out.result.accepted).toBe(false);
     expect(out.result.reason).toBe('wrong-surface');
   });
 
-  it('accepts an allowed kind as a no-op (no side effect, no signing)', () => {
+  it('refuses an allowed kind when no real handler is wired (no-handler)', () => {
     const { dispatch } = makeHandlers();
-    const out = dispatch('world.emit', { kind: 'custom' }, 'product-stall-panel', 'r6');
-    expect(out.result.accepted).toBe(true);
-    expect(out.result.actionId).toBe('noop');
+    // The leaderboard still allows 'custom' but is disabled; even when allowed, no
+    // real emit handler exists yet — be honest, do not pretend a noop succeeded.
+    const out = dispatch('world.emit', { kind: 'custom' }, 'leaderboard-board', 'r6');
+    expect(out.result.accepted).toBe(false);
+    expect(out.result.reason).toBe('no-handler');
+  });
+
+  it('the product panel allows no emit kinds (read-only display)', () => {
+    const { dispatch } = makeHandlers();
+    const out = dispatch('world.emit', { kind: 'custom' }, 'product-stall-panel', 'r6b');
+    expect(out.result.accepted).toBe(false);
+    expect(out.result.reason).toBe('wrong-surface');
   });
 });
 
@@ -103,8 +114,12 @@ describe('forward-compat + namespace isolation', () => {
 });
 
 describe('worldNappletSurfaceConfig', () => {
-  it('keeps every surface disabled in v0 (test-only scaffold)', () => {
-    expect(WORLD_NAPPLET_SURFACE_CONFIG.every((c) => c.enabled === false)).toBe(true);
+  it('enables the product panel (ADR-0058 live napplet) and keeps others dormant', () => {
+    expect(getWorldSurfaceConfig('product-stall-panel').enabled).toBe(true);
+    expect(getWorldSurfaceConfig('leaderboard-board').enabled).toBe(false);
+  });
+  it('makes the live product panel read-only (no emit kinds)', () => {
+    expect(getWorldSurfaceConfig('product-stall-panel').allowedEmitKinds).toEqual([]);
   });
   it('derives surfaceKind from the proof surface id', () => {
     expect(getWorldSurfaceConfig('product-stall-panel').surfaceKind).toBe('panel');

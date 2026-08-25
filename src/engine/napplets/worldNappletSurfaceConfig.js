@@ -19,11 +19,17 @@ const KIND_BY_PROOF = {
   'leaderboard-board': 'panel',
 };
 
-// v0 world.emit allow-list per surface. Panels may emit only "custom" (a no-op
-// placeholder) — purchase / sticker-place / leaderboard-submit / npc-say are NOT
-// wired in this increment (they land when the real surfaces convert).
+// v0 world.emit allow-list per surface. ADR-0058: the product panel is a read-only
+// display surface — it has NO emit kinds (allowedEmitKinds: []). purchase /
+// sticker-place / leaderboard-submit / npc-say are NOT wired in this increment (they
+// land when the real surfaces convert). The leaderboard stays ['custom'] but disabled.
 const EMIT_ALLOW = {
   panel: Object.freeze(['custom']),
+};
+
+// ADR-0058: per-surface overrides. The live product panel is read-only — no emits.
+const EMIT_OVERRIDE = {
+  'product-stall-panel': Object.freeze([]),
 };
 
 function _buildEntry(spec) {
@@ -37,8 +43,8 @@ function _buildEntry(spec) {
       position: Object.freeze([spec.position.x, spec.position.y, spec.position.z]),
       yaw: spec.yawRad,
     }),
-    allowedEmitKinds: Object.freeze([...(EMIT_ALLOW[surfaceKind] || [])]),
-    enabled: false, // v0: scaffold is test-only; nothing is live-mounted.
+    allowedEmitKinds: Object.freeze(EMIT_OVERRIDE[spec.id] || [...(EMIT_ALLOW[surfaceKind] || [])]),
+    enabled: spec.id === 'product-stall-panel', // ADR-0058: product panel is live; others dormant.
   });
 }
 

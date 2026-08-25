@@ -48,3 +48,41 @@ describe('buildWorldSrcdoc', () => {
     expect(html).toContain('api.zone.list =');
   });
 });
+
+describe('buildWorldSrcdoc — ADR-0058 hardening', () => {
+  const html = buildWorldSrcdoc({ channelId: 'test-nonce-123' });
+
+  it('ignores messages not from the parent (parent source check)', () => {
+    expect(html).toContain('if (ev.source !== parent) return;');
+  });
+
+  it('validates the per-mount nonce on every inbound message', () => {
+    expect(html).toContain('msg.channelId !== CHANNEL_ID');
+    expect(html).toContain('test-nonce-123');
+  });
+
+  it('stamps the nonce on every outbound request', () => {
+    expect(html).toContain('channelId: CHANNEL_ID');
+  });
+
+  it('exposes world.on / world.off for shell→napplet event subscriptions', () => {
+    expect(html).toContain('api.on = function');
+    expect(html).toContain('api.off = function');
+    expect(html).toContain("handlers[type]");
+  });
+
+  it('ships a CSP that blocks network + images (connect-src none, img-src none)', () => {
+    expect(html).toContain('Content-Security-Policy');
+    expect(html).toContain('connect-src \'none\'');
+    expect(html).toContain('img-src \'none\'');
+  });
+
+  it('does not use innerHTML of untrusted data in the bootstrap', () => {
+    expect(html).not.toContain('innerHTML');
+  });
+
+  it('accepts an extraScript hook spliced into the bootstrap', () => {
+    const withExtra = buildWorldSrcdoc({ channelId: 'c1', extraScript: '/*MARKER_X*/' });
+    expect(withExtra).toContain('/*MARKER_X*/');
+  });
+});

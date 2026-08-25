@@ -120,7 +120,8 @@ export function setMarketActive(active) {
   if (active) {
     root.classList.add('floating');
     root.removeAttribute('hidden');
-    _tryMountNapplet(); // ADR-0058: best-effort; falls back to legacy on failure
+    const _mounted = _tryMountNapplet(); // ADR-0058: best-effort; falls back to legacy on failure
+    console.error('[napplet-mount-debug] _tryMountNapplet returned:', _mounted); // TEMP DIAGNOSTIC
     start();
     render();
   } else {

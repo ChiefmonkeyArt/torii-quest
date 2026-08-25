@@ -49,6 +49,7 @@ export function createProductNappletHost({
   }
 
   function mount(container) {
+    console.error('[napplet-mount-debug] mount() called, surface already set?', !!surface); // TEMP DIAGNOSTIC
     if (surface) return true; // already mounted
     const cfg = getSurfaceConfig(SURFACE_ID);
     if (!cfg || !cfg.enabled) { console.error('[napplet-mount-debug] surface disabled or missing config:', cfg); return false; } // disabled → caller falls back to legacy

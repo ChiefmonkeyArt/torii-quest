@@ -175,6 +175,22 @@ describe('renderAuctionPanel', () => {
     expect(renderAuctionPanel({ auction: auctionEvent, bids: bidEvents }, { doc: null })).toBe(0);
   });
 
+  it('honors skipBody even with no auction yet (ADR-0061) — a napplet-owned body must survive the "waiting for relay" state', () => {
+    const { doc, els } = fakeDoc();
+    // Simulate a napplet already mounted into the body (an iframe placeholder node).
+    const iframeStandIn = mkEl();
+    iframeStandIn.className = 'napplet-iframe-standin';
+    els['auction-panel-body'] = mkEl();
+    els['auction-panel-body'].appendChild(iframeStandIn);
+    const n = renderAuctionPanel({ auction: null, bids: [] }, { doc, skipBody: true });
+    expect(n).toBe(0);
+    // Body must be untouched: still just the one napplet stand-in child, no empty-state node.
+    expect(els['auction-panel-body'].children).toEqual([iframeStandIn]);
+    expect(els['auction-panel-body'].children.some((c) => c.className === 'auction-empty')).toBe(false);
+    // Header/status still updates as normal.
+    expect(els['auction-panel-status'].textContent).toContain('connecting');
+  });
+
   it('renders a malicious auction_type / currency / profile name as inert text (ADR-0059)', () => {
     const evil = {
       ...auctionEvent,

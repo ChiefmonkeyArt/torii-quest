@@ -129,7 +129,13 @@ export function renderAuctionPanel(snapshot, opts = {}) {
   const statusEl = doc.getElementById('auction-panel-status');
   const vm = buildAuctionViewModel(snapshot.auction, snapshot.bids, undefined, snapshot.profiles);
   if (!vm) {
-    if (body) {
+    // ADR-0061: honor skipBody here too - a napplet-owned body must not be
+    // wiped just because no auction snapshot has arrived yet (e.g. relay
+    // still connecting). Without this guard the freshly-mounted napplet
+    // iframe was destroyed and replaced by this placeholder on the very
+    // first render() after mount(), making the napplet appear to have never
+    // mounted at all.
+    if (body && !opts.skipBody) {
       body.textContent = '';
       body.appendChild(el(doc, 'div', 'auction-empty', 'Waiting for relay…'));
     }

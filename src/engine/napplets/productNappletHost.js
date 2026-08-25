@@ -49,12 +49,11 @@ export function createProductNappletHost({
   }
 
   function mount(container) {
-    console.error('[napplet-mount-debug] mount() called, surface already set?', !!surface); // TEMP DIAGNOSTIC
     if (surface) return true; // already mounted
     const cfg = getSurfaceConfig(SURFACE_ID);
-    if (!cfg || !cfg.enabled) { console.error('[napplet-mount-debug] surface disabled or missing config:', cfg); return false; } // disabled → caller falls back to legacy
+    if (!cfg || !cfg.enabled) return false; // disabled → caller falls back to legacy
     const host = container || (document && document.getElementById(bodyId));
-    if (!host) { console.error('[napplet-mount-debug] no #' + bodyId + ' container found'); return false; } // no body container → fallback
+    if (!host) return false; // no body container → fallback
     try {
       surface = createNappletSurface({
         window, document, container: host, surfaceId: SURFACE_ID,
@@ -75,11 +74,6 @@ export function createProductNappletHost({
       }
       return true;
     } catch (e) {
-      // TEMP DIAGNOSTIC (remove after napplet-mount investigation): the catch
-      // below normally swallows this silently by design (mount is best-effort,
-      // fallback to legacy on any failure). Logging once to find why the live
-      // napplet mount is falling back on the deployed build.
-      console.error('[napplet-mount-debug] product-stall-panel mount threw:', e);
       surface = null;
       return false; // any mount failure → legacy fallback
     }

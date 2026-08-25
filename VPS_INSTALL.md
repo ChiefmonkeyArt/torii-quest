@@ -633,6 +633,49 @@ sudo systemctl status torii-arena-ws.service --no-pager
 Expected steady state: `active (running)`, listening on `127.0.0.1:8787`,
 logs to `journalctl -u torii-arena-ws -f`.
 
+### 16.2a Set your admin identity (`QUEST_ADMIN_NPUB`) — do this before first boot
+
+**Every fresh install needs this — the server has no admin at all until you set
+it.** Whoever's npub is in this variable becomes the admin of *this instance
+only*: they get the in-game "Update Now" gate, invincibility + bot-visibility in
+Kami Mode, and every other admin-only surface. It is entirely per-install — your
+Quest server and anyone else's are independent processes on independent
+machines, so setting your own npub here has no effect on (and is not affected
+by) any other instance, including the reference install at torii.quest.
+
+1. Get your **npub** (never your `nsec`/private key — an npub is your *public*
+   identity and is safe to paste anywhere, including here). If you don't have a
+   Nostr signer extension yet, install one first:
+   - Plebeian Signer (Chrome/Firefox — search the extension store)
+   - or nos2x, Alby, Amber (Android)
+   Open the extension, copy the npub it shows you (starts with `npub1`).
+2. Add ONE line under `arena-ws.service`'s existing `[Service]` `Environment=`
+   lines, alongside `HOST`/`PORT`/`MAX_PEERS` above:
+
+   ```ini
+   Environment=QUEST_ADMIN_NPUB=npub1yourrealnpubgoeshere...
+   ```
+
+3. Reload and restart so the new server process picks it up:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart torii-arena-ws.service
+   ```
+
+4. Confirm it took — the server normalises the npub to hex once at startup and
+   will refuse to treat anyone else as admin if this is missing or malformed:
+
+   ```bash
+   journalctl -u torii-arena-ws -n 20 --no-pager | grep -i admin
+   ```
+
+   If you skip this step, `QUEST_ADMIN_NPUB` is simply unset, the admin gate is
+   inert, and nobody — including you — gets admin capabilities on that
+   instance. There's no separate in-game "make me admin" flow; this env var is
+   the only place admin identity is decided, and it is checked server-side on
+   every session so a client can never grant itself the role.
+
 ### 16.3 Verify end-to-end
 
 From the VPS itself (loopback, bypasses Caddy):

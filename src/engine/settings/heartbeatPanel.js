@@ -38,10 +38,22 @@ function _publishLabel(heartbeatStatus) {
   return `Publish my node presence (${s})`;
 }
 
+// _isOnState(heartbeatStatus) — true for every status that represents the
+// switch being ON (idle/live/stale/publishing/paused all mean intent==='on';
+// only 'off' and the not-owner/no-signer/no-node-relay blocked states mean
+// the switch itself is OFF). Used to drive the red/green switch visual
+// independent of the more detailed text label. Pure.
+function _isOnState(heartbeatStatus) {
+  const s = typeof heartbeatStatus === 'string' ? heartbeatStatus : 'off';
+  if (s === 'off' || s === 'blocked:not-owner' || s === 'blocked:no-signer' || s === 'blocked:no-node-relay') return false;
+  return true;
+}
+
 export function renderHeartbeatPanel(state = {}) {
   const st = (state && typeof state === 'object') ? state : {};
   const isOwner = st.isOwner === true;
   const label = _publishLabel(st.heartbeatStatus);
+  const on = _isOnState(st.heartbeatStatus);
   const gate = !isOwner
     ? '<div class="gs-gate">Log in as the node owner to configure this node.</div>'
     : '';
@@ -59,7 +71,10 @@ export function renderHeartbeatPanel(state = {}) {
           <div class="gs-hint">Heartbeat presence (needs signer consent).</div>
           ${gate}
         </div>
-        <button type="button" class="gs-btn" data-action="publish-node"${isOwner ? '' : ' disabled'} aria-label="${_escape(label)}">Toggle</button>
+        <button type="button" class="hb-switch ${on ? 'is-on' : 'is-off'}" data-action="publish-node"${isOwner ? '' : ' disabled'} role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${_escape(label)}">
+          <span class="hb-switch-track"><span class="hb-switch-knob"></span></span>
+          <span class="hb-switch-state">${on ? 'ON' : 'OFF'}</span>
+        </button>
       </div>
     </div>
     ${!isOwner ? '<div class="gs-note">Owner actions need the node owner signed in.</div>' : ''}`;

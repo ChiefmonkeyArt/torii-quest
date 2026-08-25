@@ -59,9 +59,12 @@ export function renderGatewaySetupPanel(state = {}) {
     : (isOwner ? '● NO ACTIVE WORLD (default)' : '● DEFAULT WORLD');
 
   const cardsHtml = CARDS.map((c) => _cardHtml(c, st)).join('');
+  // v0.4: dropped the trailing "To visit another world, use the Torii
+  // Gateway inside the NAP zone." sentence per design direction — the
+  // owner-gate reminder alone is the only note needed here now.
   const note = !isOwner
-    ? '<div class="gs-note">Owner actions need the node owner signed in. To visit another world, use the Torii Gateway inside the NAP zone.</div>'
-    : '<div class="gs-note">To visit another world, use the Torii Gateway inside the NAP zone.</div>';
+    ? '<div class="gs-note">Owner actions need the node owner signed in.</div>'
+    : '';
 
   return `
     <div class="gs-header">

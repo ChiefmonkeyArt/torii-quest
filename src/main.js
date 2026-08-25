@@ -81,6 +81,10 @@ import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/to
 import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
 import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
+import { renderRelayPanel } from './engine/settings/relayPanel.js';
+import { renderProfilePanel } from './engine/settings/profilePanel.js';
+import { buildProfileMetadataEvent } from './engine/identity/profileMetadata.js';
+import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
@@ -452,20 +456,42 @@ function _homepageStubState() {
     lastError: _heartbeat.lastError,
     republishPaused: _heartbeat.republishPaused,
   });
+  // v0.4: Relay tab reads the same validated node-relay set the heartbeat
+  // publishes to (nodeRelays already computed above), plus the raw stored
+  // string so the textarea shows exactly what's saved.
+  const nodeRelaysInput = getNodeRelays();
+  // v0.4: Profile tab reads its local draft (profileDraft.js) — separate
+  // from the published kind:0, so the form shows the owner's last edit even
+  // before a publish succeeds.
+  const profileDraft = getProfileDraft();
   return {
     isOwner,
     isLoggedIn,
     activeWorld: getActiveWorld(),
     heartbeatStatus: hb,
+    nodeRelays,
+    nodeRelaysInput,
+    profileDraft,
+    profilePublishStatus: _profilePublishStatus,
   };
 }
 
-// _homepageStubCallbacks() — the 4 action callbacks. Each delegates to an
+// v0.4: tracks the Profile tab's last publish attempt outcome for display
+// only (module-level, not persisted — a reload/reopen just shows 'idle'
+// again, which is fine since the draft itself IS persisted separately).
+let _profilePublishStatus = 'idle';
+
+// _homepageStubCallbacks() — the action callbacks. Each delegates to an
 // EXISTING function (no new publish/reload path). onChooseWorld reuses the
 // menu's onSetActiveWorld body (setActiveWorld + reload). onVisitNodeDirectory
 // opens the persistent Torii menu (optionally the directory is already at the
 // top). onPublishNode reuses the menu's onToggleHeartbeat consent-publish path
-// so blocked states stay consistent. onClose is a no-op on the title screen.
+// so blocked states stay consistent. onSetNodeRelays mirrors the existing
+// in-game menu's onSetNodeRelays body (setNodeRelays + status message).
+// onSaveProfile builds+signs+publishes a kind:0 via the EXISTING
+// signEvent/fanoutPublish (nostr.js) — no new sign/publish path — and always
+// saves the local draft first so a signer rejection never loses the edit.
+// onClose is a no-op on the title screen.
 function _homepageStubCallbacks() {
   return {
     onChooseWorld: (worldId) => {
@@ -496,6 +522,41 @@ function _homepageStubCallbacks() {
       }
       // Re-render happens at the call site (settings content delegation),
       // which calls renderActiveSettingsTab() right after invoking this.
+    },
+    onSetNodeRelays: (str) => {
+      // Mirrors the old in-game menu's onSetNodeRelays callback body exactly
+      // (setNodeRelays does all validation/dedup/capping — reused, not
+      // duplicated). Re-render happens at the call site.
+      setNodeRelays(str);
+      showEntryStatus('Node relays saved.');
+    },
+    onSaveProfile: async (fields) => {
+      // Always persist the local draft first — a signer rejection or missing
+      // extension must never lose what the owner typed.
+      setProfileDraft(fields);
+      const pubkey = state.nostrPubkey || '';
+      const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+      if (!HEX64.test(pubkey) || !hasSigner) {
+        _profilePublishStatus = 'saved-local';
+        showEntryStatus('Profile saved locally — log in with a Nostr signer to publish.');
+        return;
+      }
+      const built = buildProfileMetadataEvent({ pubkey, ...fields });
+      if (!built.ok) {
+        _profilePublishStatus = 'failed';
+        showEntryStatus('Profile not published — please check the entered fields.');
+        return;
+      }
+      _profilePublishStatus = 'publishing';
+      try {
+        const signed = await signEvent(built.event);
+        await fanoutPublish(RELAYS, signed);
+        _profilePublishStatus = 'published';
+        showEntryStatus('Profile published.');
+      } catch {
+        _profilePublishStatus = 'failed';
+        showEntryStatus('Profile saved locally — publish failed (relay or signer error).');
+      }
     },
     onClose: () => { /* title screen: no pause to resume */ },
   };
@@ -931,6 +992,17 @@ registerSettingsTabRenderer('gateway', () => renderGatewaySetupPanel(_homepageSt
 // callback (onPublishNode), just its own tab.
 registerSettingsTabRenderer('heartbeat', () => renderHeartbeatPanel(_homepageStubState()));
 
+// Relay tab content renderer (v0.4) — view/add/remove the wss:// relays this
+// node publishes presence to. Same state builder as the other tabs.
+registerSettingsTabRenderer('relay', () => renderRelayPanel(_homepageStubState()));
+
+// Profile tab content renderer (v0.4) — standard Nostr kind:0 fields for
+// this Quest installation's identity. Same state builder as the other tabs.
+registerSettingsTabRenderer('profile', () => {
+  const st = _homepageStubState();
+  return renderProfilePanel({ ...st, draft: st.profileDraft, publishStatus: st.profilePublishStatus });
+});
+
 // Single delegated listener on the settings panel's content container, scoped
 // by data-action conventions so every tab's clicks are handled without
 // needing its own listeners.
@@ -950,6 +1022,31 @@ registerSettingsTabRenderer('heartbeat', () => renderHeartbeatPanel(_homepageStu
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
+    if (action === 'save-relays') {
+      e.preventDefault();
+      const ta = doc.getElementById('rl-add-input');
+      _homepageStubCallbacks().onSetNodeRelays(ta ? ta.value : '');
+      renderActiveSettingsTab();
+      return;
+    }
+    if (action === 'remove-relay') {
+      e.preventDefault();
+      const url = t.getAttribute('data-relay') || '';
+      const remaining = getNodeRelays().split(/[\n,]+/).map((s) => s.trim()).filter((s) => s && s !== url);
+      _homepageStubCallbacks().onSetNodeRelays(remaining.join('\n'));
+      renderActiveSettingsTab();
+      return;
+    }
+    if (action === 'save-profile') {
+      e.preventDefault();
+      const fields = {};
+      for (const id of ['displayName', 'about', 'picture', 'website', 'nip05', 'lud16']) {
+        const el = doc.getElementById(`pf-${id}`);
+        if (el) fields[id] = el.value;
+      }
+      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields)).finally(renderActiveSettingsTab);
+      return;
+    }
   });
 })();
 

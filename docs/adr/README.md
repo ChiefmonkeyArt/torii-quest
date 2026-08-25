@@ -45,6 +45,8 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0015](./0015-mp-hit-reg-alive-window.md) | MP hit-reg alive-window fix (wasAlive ‖ isAlive gate) | Accepted |
 | [0016](./0016-client-bot-state-sync.md) | Client bot state sync (nameplate lifecycle + dead-bot LOD) | Accepted |
 | [0017](./0017-server-zone-in-bot-hit.md) | Plumb zone from server BOT_HIT into client applyBotHit | Accepted |
+| [0059](./0059-auction-panel-header-hardening.md) | Harden the auction panel renderer (no `innerHTML` of untrusted data) | Accepted |
+| [0060](./0060-homepage-panel-smoked-glass-restoration.md) | Restore real smoked-glass blur on the homepage panel with a true edge fade | Accepted |
 
 ## Workflow for a new decision
 

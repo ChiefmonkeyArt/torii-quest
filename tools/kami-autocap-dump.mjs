@@ -89,7 +89,9 @@ if (args.video && frameNo > 0) {
   const list = timeline.filter(r => r.jpeg).map(r => `file '${join(outDir, r.jpeg)}'`).join('\n');
   writeFileSync(listPath, list + '\n');
   const mp4Path = join(outDir, 'frames.mp4');
-  const r = spawnSync('ffmpeg', ['-y', '-r', '1', '-f', 'concat', '-safe', '0', '-i', listPath, '-vf', 'fps=1', '-pix_fmt', 'yuv420p', mp4Path], { stdio: 'inherit' });
+  // scale=trunc(iw/2)*2:trunc(ih/2)*2 rounds odd frame dimensions down to the
+  // nearest even number; yuv420p (and libx264) require even width/height.
+  const r = spawnSync('ffmpeg', ['-y', '-r', '1', '-f', 'concat', '-safe', '0', '-i', listPath, '-vf', 'fps=1,scale=trunc(iw/2)*2:trunc(ih/2)*2', '-pix_fmt', 'yuv420p', mp4Path], { stdio: 'inherit' });
   if (r.status === 0) console.log(`kami-autocap-dump: video → ${mp4Path}`);
   else console.error('kami-autocap-dump: ffmpeg failed (is it installed?)');
 }

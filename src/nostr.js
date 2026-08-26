@@ -221,7 +221,7 @@ async function _fetchProfile(pubkey) {
   await fetchProfileProgressive(pubkey);
 }
 
-// v0.2.703-alpha — read-only lookup of ANY pubkey's published displayName,
+// v0.2.704-alpha — read-only lookup of ANY pubkey's published displayName,
 // for the homepage owner caption ("This torii belongs to: <name>"). Deliberately
 // separate from fetchProfileProgressive()/_fetchProfile() above: those apply the
 // result onto the LOGGED-IN VIEWER's own state.nostrName/nostrAvatar (via

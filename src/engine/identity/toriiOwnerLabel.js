@@ -9,7 +9,7 @@
 //      with a human name set, that name is shown (an owner naming their own
 //      world reads better than their raw npub, and reflects unpublished
 //      edits immediately).
-//   2. The owner's PUBLISHED Nostr profile displayName/name (v0.2.703-alpha)
+//   2. The owner's PUBLISHED Nostr profile displayName/name (v0.2.704-alpha)
 //      — fetched read-only from relays by the caller (main.js) via kind:0 and
 //      passed in as `ownerProfileName`, so EVERY visitor sees the real name,
 //      not just the owner viewing their own browser.

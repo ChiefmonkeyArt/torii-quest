@@ -1,14 +1,26 @@
 # Torii Quest — self-hosting stack
-# Brings up the static game (Caddy, auto-HTTPS) + a strfry nostr relay sidecar.
+# Brings up the static game (Caddy, auto-HTTPS), the multiplayer arena server,
+# and a strfry nostr relay sidecar.
 #
-#   web     Caddy: serves https://$DOMAIN/  +  proxies wss://$DOMAIN/relay -> strfry:7777
-#   strfry  nostr relay (internal only, not published)
+#   web       Caddy: serves https://$DOMAIN/  +  proxies wss://$DOMAIN/relay -> strfry:7777
+#                                              +  proxies wss://$DOMAIN/mp    -> arena-ws:8787
+#   arena-ws  multiplayer arena WebSocket server (internal only, not published)
+#   strfry    nostr relay (internal only, not published)
+#
+# Multiplayer is on by default — it's core to the Quest experience, not an
+# add-on. To run without it: `docker compose stop arena-ws` (Caddy's /mp
+# route just won't have anything answering; the game already degrades to
+# solo play if the socket can't connect). To disable permanently, remove
+# the service block below and the /mp handler in Caddyfile.
 #
 # Quick start:  cp .env.example .env  &&  edit .env  &&  docker compose up -d
+# Or:           ./install.sh   (does all of this for you, plus preflight)
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      target: web
     image: torii-quest-web
     container_name: torii-quest-web
     restart: unless-stopped
@@ -23,6 +35,27 @@ services:
       - caddy_config:/config
     depends_on:
       - strfry
+      - arena-ws
+
+  arena-ws:
+    build:
+      context: .
+      target: arena-ws
+    image: torii-quest-arena-ws
+    container_name: torii-quest-arena-ws
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      MAX_PEERS: ${MAX_PEERS:-32}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      QUEST_ADMIN_NPUB: ${QUEST_ADMIN_NPUB:-}
+      MP_MODE: ${MP_MODE:-authoritative}
+      LAG_COMP_MS: ${LAG_COMP_MS:-}
+      HP_MAX: ${HP_MAX:-}
+      RESPAWN_MS: ${RESPAWN_MS:-}
+      SCORE_ENABLED: ${SCORE_ENABLED:-true}
+    # Not published — reached only via Caddy's reverse_proxy at /mp
 
   strfry:
     image: ghcr.io/hoytech/strfry:latest

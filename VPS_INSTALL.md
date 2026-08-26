@@ -15,6 +15,39 @@ from that.
 
 ---
 
+## 0. Quick start — one-command install (recommended for new self-hosters)
+
+If you just want a fresh Ubuntu/Debian VPS running Torii Quest — game +
+Nostr relay + multiplayer server — with HTTPS and sane defaults, use the
+installer that ships in this repo instead of following §§1–16 by hand:
+
+```bash
+git clone https://github.com/ChiefmonkeyArt/torii-quest.git
+cd torii-quest
+sudo ./install.sh
+```
+
+It runs Docker Compose under the hood (installing Docker itself if it's
+missing), prompts for your domain, Let's Encrypt email, and an optional admin
+npub, then builds, launches, and verifies the stack — game, Nostr relay
+(`strfry`), and the multiplayer server (`arena-ws`) are all included and
+running by default. Multiplayer is part of the standard Quest experience, so
+it isn't a separate opt-in step; once it's up you're free to reconfigure,
+duplicate, or remove any of the compose services to fit how you want to run
+your world.
+
+Non-interactive / scripted use: pre-populate `.env` (see `.env.example`) and
+pass `-y`/`--yes` to skip prompts. Re-running is safe — an existing `.env` is
+reused as defaults rather than being overwritten blind.
+
+**This is the path to use unless you specifically need the bare-metal /
+systemd setup** (no Docker at all, or hosting several apps under one Caddy
+instance via the shared VPS host layer) — §§1–16 below document that manual
+path in full, kept here for transparency and as a fallback when Docker isn't
+an option.
+
+---
+
 ## 1. MVP recommendation
 
 **Build the static bundle, serve `dist/` with Caddy (or Nginx) on Ubuntu
@@ -132,12 +165,14 @@ torii.quest, www.torii.quest {
     @wasm path *.wasm
     header @wasm Content-Type application/wasm
 
-    # Content-Security-Policy via HTTP header (S3, v0.2.266). MUST match
-    # tools/csp.mjs / the built dist/_headers. nonce-free strict-dynamic + the
-    # sha256 of the inline bootstrap script; Draco is vendored at /draco/ so no
-    # third-party origin (no gstatic). Update the sha256 only if the inline
-    # bootstrap script in index.html changes (regression-check enforces this).
-    header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"
+    # Content-Security-Policy via HTTP header (S3, v0.2.266). The exact value
+    # is computed per build by tools/csp.mjs and written to dist/_headers —
+    # never hand-copy it into this file, it drifts the moment the inline
+    # bootstrap script's sha256 changes. Get the current, correct line with:
+    #   grep Content-Security-Policy dist/_headers
+    # and paste that value below (no 'strict-dynamic' — tools/csp.mjs
+    # deliberately omits it; see the comment at the top of that file).
+    header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here>"
 
     # static asset caching (hashed Vite filenames are safe to cache hard)
     @assets path /assets/*
@@ -198,12 +233,15 @@ server {
         add_header Cache-Control "no-cache";
     }
 
-    # Content-Security-Policy via HTTP header (S3, v0.2.266). MUST match
-    # tools/csp.mjs / the built dist/_headers (nonce-free strict-dynamic + the
-    # sha256 of the inline bootstrap; Draco vendored at /draco/, no gstatic).
-    # `always` so it's sent on error responses too. Update the sha256 only if the
-    # inline bootstrap in index.html changes (regression-check enforces this).
-    add_header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net" always;
+    # Content-Security-Policy via HTTP header (S3, v0.2.266). The exact value
+    # is computed per build by tools/csp.mjs and written to dist/_headers —
+    # never hand-copy it into this file, it drifts the moment the inline
+    # bootstrap script's sha256 changes. Get the current, correct line with:
+    #   grep Content-Security-Policy dist/_headers
+    # and paste that value below (no 'strict-dynamic' — tools/csp.mjs
+    # deliberately omits it; see the comment at the top of that file).
+    # `always` so it's sent on error responses too.
+    add_header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here>" always;
 }
 ```
 
@@ -567,11 +605,14 @@ torii.quest, www.torii.quest {
     @wasm path *.wasm
     header @wasm Content-Type application/wasm
 
+    # Same rule as §6a: get the current, correct value from the build itself
+    # (never hand-copy a CSP string into docs — it drifts):
+    #   grep Content-Security-Policy dist/_headers
     # NOTE: connect-src must include wss://<your-domain> so the browser is
-    # allowed to open the multiplayer WebSocket back to the same origin. The
-    # relay list from §6a already covers the Nostr relays; add your own domain
-    # (or a wss://self placeholder if your CSP builder rewrites it).
-    header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net wss://torii.quest"
+    # allowed to open the multiplayer WebSocket back to the same origin — add
+    # your own domain to the connect-src list from the grep output above if
+    # tools/csp.mjs hasn't already templated it in for you.
+    header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here, adding wss://<your-domain> to connect-src if not already present>"
 
     @assets path /assets/*
     header @assets Cache-Control "public, max-age=31536000, immutable"

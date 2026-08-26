@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-26T15:59:23.213Z",
+  "generatedAt": "2026-08-26T16:19:10.230Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.700-alpha",
-  "packageVersion": "0.2.700-alpha",
-  "gitCommit": "71e8b16c",
+  "version": "v0.2.701-alpha",
+  "packageVersion": "0.2.701-alpha",
+  "gitCommit": "3cb74643",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": false,
@@ -24,8 +24,8 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 3419,
-    "files": 271
+    "passing": 3439,
+    "files": 273
   },
   "manualBlocker": {
     "pending": true,
@@ -37,7 +37,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.700-alpha"
+    "version": "v0.2.701-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -104,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.700-alpha",
+    "version": "v0.2.701-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {

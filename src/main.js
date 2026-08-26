@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, RELAYS, fetchOwnerProfileName } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -1388,6 +1388,14 @@ let _latestUpdateView = null;
 let _updateCapability = null; // { autoUpdate, adminPubkey }
 let _updatePolling = false;
 
+// v0.2.701-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
+// once per adminPubkey (see fetchOwnerProfileName in nostr.js) so the homepage
+// caption shows the real name to EVERY visitor, not just the owner viewing
+// their own browser. Keyed by pubkey so a stale name from a previous instance
+// (e.g. during tests, or if adminPubkey ever changes at runtime) is never shown.
+let _ownerProfileNamePubkey = null;
+let _ownerProfileName = '';
+
 function _drawUpdateBlock(block) {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
@@ -1459,13 +1467,41 @@ function _refreshOwnerLabel() {
   const el = document.getElementById('torii-owner-label');
   if (!el) return;
   const cap = _updateCapability;
+  const adminPubkey = cap ? cap.adminPubkey : null;
   const label = resolveToriiOwnerLabel({
-    adminPubkey: cap ? cap.adminPubkey : null,
+    adminPubkey,
     viewerPubkey: state.nostrPubkey || '',
     profileDraft: getProfileDraft(),
+    ownerProfileName: (adminPubkey && adminPubkey === _ownerProfileNamePubkey) ? _ownerProfileName : '',
   });
   el.textContent = label;
   el.title = label; // full text on hover/long-press when CSS truncates it with an ellipsis
+  _fetchOwnerProfileNameOnce(adminPubkey);
+}
+
+// Kick off a read-only relay lookup of the owner's published displayName, once
+// per adminPubkey per session (fetchOwnerProfileName itself also caches, so this
+// is just an in-memory short-circuit to avoid redundant calls on every login
+// event/capability re-probe). Never throws; a failed/empty lookup just leaves
+// the shortened-npub fallback in place. Repaints the caption on success so a
+// visitor who loaded before the profile resolved still sees the name land.
+let _ownerProfileNameFetchInFlightFor = null;
+function _fetchOwnerProfileNameOnce(adminPubkey) {
+  const pk = typeof adminPubkey === 'string' ? adminPubkey.trim() : '';
+  if (!pk) return;
+  if (pk === _ownerProfileNamePubkey) return; // already resolved (name or confirmed-empty) for this owner
+  if (pk === _ownerProfileNameFetchInFlightFor) return; // already in flight
+  _ownerProfileNameFetchInFlightFor = pk;
+  fetchOwnerProfileName(pk)
+    .then((name) => {
+      _ownerProfileNamePubkey = pk;
+      _ownerProfileName = name || '';
+      if (_ownerProfileNameFetchInFlightFor === pk) _ownerProfileNameFetchInFlightFor = null;
+      _refreshOwnerLabel();
+    })
+    .catch(() => {
+      if (_ownerProfileNameFetchInFlightFor === pk) _ownerProfileNameFetchInFlightFor = null;
+    });
 }
 
 // v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.

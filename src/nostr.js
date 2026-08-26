@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
+import { readProfiles } from './engine/nostr/profileRead.js';
 import {
   WRITE_POLICY_OWNER_ONLY,
   WRITE_POLICY_DELEGATES,
@@ -218,6 +219,56 @@ export function fetchProfileProgressive(pubkey, opts = {}) {
 
 async function _fetchProfile(pubkey) {
   await fetchProfileProgressive(pubkey);
+}
+
+// v0.2.701-alpha — read-only lookup of ANY pubkey's published displayName,
+// for the homepage owner caption ("This torii belongs to: <name>"). Deliberately
+// separate from fetchProfileProgressive()/_fetchProfile() above: those apply the
+// result onto the LOGGED-IN VIEWER's own state.nostrName/nostrAvatar (via
+// _applyProfileMeta → EV.NOSTR_LOGIN), which would be wrong here — a visitor
+// looking up the INSTANCE OWNER's name must never overwrite their own displayed
+// identity. This reuses the same read-only kind:0 transport (fanoutReq) and the
+// pure, well-tested extraction in engine/nostr/profileRead.js, and touches no
+// global state at all — it just resolves a name string.
+//
+// Small in-memory TTL cache: the homepage calls this on every capability probe
+// and NOSTR_LOGIN, but the owner's profile rarely changes, so repeat lookups in
+// the same session reuse the cached name instead of re-querying relays.
+const OWNER_PROFILE_NAME_CACHE = new Map(); // pubkey -> { name, expiresAt }
+const OWNER_PROFILE_NAME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+export async function fetchOwnerProfileName(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return '';
+
+  const nowMs = Number.isFinite(o.nowMs) ? o.nowMs : Date.now();
+  const cached = OWNER_PROFILE_NAME_CACHE.get(pk);
+  if (cached && cached.expiresAt > nowMs) return cached.name;
+
+  const relays = Array.isArray(o.relays) ? o.relays : RELAYS;
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs });
+  } catch {
+    return cached ? cached.name : '';
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { profiles } = readProfiles(events);
+  const profile = profiles.find((p) => p.pubkey === pk);
+  const name = (profile && profile.displayName && profile.displayName !== profile.shortPubkey)
+    ? profile.displayName
+    : '';
+
+  OWNER_PROFILE_NAME_CACHE.set(pk, { name, expiresAt: nowMs + OWNER_PROFILE_NAME_CACHE_TTL_MS });
+  return name;
+}
+
+export function __resetOwnerProfileNameCache() {
+  OWNER_PROFILE_NAME_CACHE.clear();
 }
 
 function _updateTitleUI() {

@@ -1,27 +1,33 @@
 # Torii Quest — VPS Install & Manual Update (torii.quest)
 
-> **Status:** host-side documentation only (v0.2.144-alpha). **No code in this
-> repo touches a server, performs an install, or auto-updates.** This page
-> describes how a maintainer would self-host the static build at `torii.quest`
-> on a shared Ubuntu VPS and update it BY HAND from GitHub. Deploying remains a
-> deliberate manual step — see `torii-quest-handoff.md` §7 and the safety boundary in
+> **Status:** host-side documentation (v0.2.697-alpha). The repo now ships a
+> one-command installer (`install.sh`) that automates the bare-metal/systemd
+> path below for fresh Ubuntu/Debian VPSes — it is the recommended way for a new
+> self-hoster to bring up a node. The manual step-by-step in §§1–16 remains
+> the full reference and the fallback when the installer can't be used. The
+> installer does **not** auto-update a running server — updates are still a
+> deliberate, human-run sequence (§7); see the safety boundary in
 > `UPDATE_CHECK.md` §4.
 
-Torii Quest builds to a **static `dist/` bundle** (Vite 8). There is no backend,
-no database, and no server-side runtime — the game runs entirely in the browser
-(Three.js + Rapier WASM + Nostr relays the client talks to directly). That means
-hosting is "serve a folder of static files over HTTPS." Everything below follows
+Torii Quest builds to a **static `dist/` bundle** (Vite 8). The browser runs
+the whole game (Three.js + Rapier WASM + Nostr relays the client talks to
+directly). The only server-side runtime is the optional multiplayer arena
+WebSocket relay (`arena-ws.js`), supervised by systemd and exposed behind
+Caddy on the same origin as the game (`wss://<your-domain>/mp`). Hosting is
+otherwise "serve a folder of static files over HTTPS." Everything below follows
 from that.
 
 ---
 
-## 0. Quick start — one-command Docker install (optional alternative)
+## 0. Quick start — one-command bare-metal install (recommended)
 
-This is an optional Docker Compose path for a fresh Ubuntu/Debian VPS running
-Torii Quest — game + Nostr relay + multiplayer server — with HTTPS and sane
-defaults. It's an alternative to, not a replacement for, the manual
-bare-metal/systemd install in §§1–16 below, which remains the primary
-documented path:
+The recommended path for a new self-hoster is the one-command bare-metal
+installer. It automates §§1–16 below end-to-end on a fresh Ubuntu/Debian VPS —
+Node 20 + Caddy + git, build the game, publish it into a versioned release
+folder with an atomic symlink flip, run the multiplayer server under systemd
+as a dedicated `torii-quest` user, and configure Caddy with automatic HTTPS
+and a `/mp` reverse proxy. It does **not** depend on torii-suite and makes no
+changes outside this repo's own conventions.
 
 ```bash
 git clone https://github.com/ChiefmonkeyArt/torii-quest.git
@@ -29,24 +35,40 @@ cd torii-quest
 sudo ./install.sh
 ```
 
-It runs Docker Compose under the hood (installing Docker itself if it's
-missing), prompts for your domain, Let's Encrypt email, and an optional admin
-npub, then builds, launches, and verifies the stack — game, Nostr relay
-(`strfry`), and the multiplayer server (`arena-ws`) are all included and
-running by default. Multiplayer is part of the standard Quest experience, so
-it isn't a separate opt-in step; once it's up you're free to reconfigure,
-duplicate, or remove any of the compose services to fit how you want to run
-your world.
+The **only prompts** are:
 
-Non-interactive / scripted use: pre-populate `.env` (see `.env.example`) and
-pass `-y`/`--yes` to skip prompts. Re-running is safe — an existing `.env` is
-reused as defaults rather than being overwritten blind.
+1. **Domain** — must already point at this server via a DNS `A` record
+   (Caddy needs it to request the HTTPS certificate).
+2. **Email** — used by Let's Encrypt for renewal/expiry notices.
+3. **Admin npub** — the one Nostr identity that gets admin powers on this
+   instance (`npub1…` only — never an `nsec`/private key; leave blank for no
+   admin).
 
-**This is the path to use unless you specifically need the bare-metal /
-systemd setup** (no Docker at all, or hosting several apps under one Caddy
-instance via the shared VPS host layer) — §§1–16 below document that manual
-path in full, kept here for transparency and as a fallback when Docker isn't
-an option.
+That's it — everything else is automated and safe to re-run. The installer
+writes a managed Caddy site block (never clobbering an existing `Caddyfile`),
+validates the Caddy config before reloading, and verifies the live HTTPS site
+and multiplayer service at the end.
+
+Non-interactive / scripted use: pass `--domain`, `--email`, and
+`--admin-npub` (or pre-populate `.env` per `.env.example`) plus `-y`/`--yes`
+to skip every prompt. Re-running is safe — an existing `.env` is reused as
+defaults rather than being overwritten blind. `--dry-run` resolves config and
+prints the plan without touching the system.
+
+### Docker — an advanced/optional alternative
+
+If you prefer container isolation or already run a Docker host, the same
+installer has a Docker Compose mode that brings up the game + multiplayer + a
+`strfry` Nostr relay sidecar as containers on a single origin:
+
+```bash
+sudo ./install.sh --docker
+```
+
+This is **not** the recommended path for most self-hosters — bare-metal above
+is the default. Docker is offered for operators who specifically want it; the
+manual bare-metal steps in §§1–16 remain the authoritative reference and the
+fallback when neither installer mode suits.
 
 ---
 
@@ -57,9 +79,11 @@ an option.
 HTTPS certificates automatically. Nginx is the option if you already run it or
 need its ecosystem.
 
-You do **not** need Node running in production — Node is only used to *build*.
-You can even build elsewhere (CI or your laptop) and copy `dist/` to the VPS, so
-the server never needs a toolchain at all.
+You do **not** need Node running in production — Node is only used to *build*
+(the installer installs it, builds, then the runtime only needs it for the
+optional `arena-ws` multiplayer service). You can even build elsewhere (CI or
+your laptop) and copy `dist/` to the VPS, so the server never needs a
+full toolchain.
 
 ---
 

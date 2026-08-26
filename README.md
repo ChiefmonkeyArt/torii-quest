@@ -50,6 +50,36 @@ The game is a gateway to a decentralised open world powered by the Nostr protoco
 | R | Reload |
 | ESC | Pause / resume |
 
+## Self-hosting
+
+Run the full game (static site + multiplayer arena + auto-HTTPS) on your own
+Ubuntu/Debian VPS in one command. Clone the repo and run the installer:
+
+```bash
+git clone https://github.com/ChiefmonkeyArt/torii-quest.git
+cd torii-quest
+sudo ./install.sh
+```
+
+That's it. The installer is the **recommended bare-metal path**: it installs
+Node 20 + Caddy, builds the game, publishes it into a versioned release
+folder with an atomic symlink flip, runs the multiplayer server under
+systemd as a dedicated `torii-quest` user, and configures Caddy with
+automatic HTTPS and a `/mp` reverse proxy — all decoupled from torii-suite.
+
+The **only prompts** are your domain, a Let's Encrypt email, and your admin
+npub. Point a DNS A record at your server first, then run the command above.
+
+Docker is available as an **advanced/optional** alternative for operators who
+prefer container isolation:
+
+```bash
+sudo ./install.sh --docker
+```
+
+See [VPS_INSTALL.md](VPS_INSTALL.md) for the full manual reference, rollback,
+and security hardening details.
+
 ## Development
 
 ```bash

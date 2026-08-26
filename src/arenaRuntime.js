@@ -68,7 +68,7 @@ import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
-import { setMarketActive } from './engine/plebeian/marketStall.js';
+import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
 import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
@@ -1514,10 +1514,13 @@ export function createArenaRuntime(hooks = {}) {
       flyToggleFromInput();
     });
 
-    // KeyQ (ADR-0036) — in range of the in-world PRODUCT sign: open the
-    // auction-panel + the three ADR-0035 boards. A no-op outside range.
+    // KeyQ (ADR-0036 / ADR-0063) — in range of the in-world PRODUCT sign: TOGGLE
+    // the auction-panel + the three ADR-0035 boards. First press opens them,
+    // second press closes them all (regardless of range, as long as a panel is
+    // still open). A no-op when nothing is open and the player is out of range.
     onKeyDown(code => {
       if (code !== 'KeyQ' || !isPlaying()) return;
+      if (isMarketActive()) { setMarketActive(false); setBoardsActive(false); return; }
       _productPanelTrigger.interact();
     });
 

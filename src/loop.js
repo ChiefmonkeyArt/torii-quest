@@ -13,7 +13,12 @@
 import * as THREE from 'three';
 import { heartbeat } from './engine/diagnostics/connectionDiagnostics.js';
 
-const _clock = new THREE.Clock();
+// ADR-0063: THREE.Clock is deprecated since three r183. THREE.Timer is the
+// replacement — same per-frame delta semantics via update(ts) + getDelta(),
+// plus built-in page-visibility handling (delta clamped to 0 while the tab is
+// hidden) when connected. The Math.min(dt, 0.05) cap below already bounds the
+// first-frame / post-freeze delta, so behaviour is unchanged from Clock here.
+const _timer = new THREE.Timer();
 let _frame = 0;
 let _onUpdate = null;
 let _onFatal = null;
@@ -34,13 +39,14 @@ export function startLoop() {
   _stopped = false;
   _errStreak = 0;
 
-  function _tick() {
+  function _tick(timestamp) {
     _frame++;
     // ADR-0049 v0.2.671: stamp each rAF tick so the gap between ticks reveals a
     // main-thread freeze (a long sync task / GC / render hitch that would also
     // starve the WebSocket onmessage handler and thus the BOT_STATE ingest).
     heartbeat();
-    const dt = Math.min(_clock.getDelta(), 0.05);
+    _timer.update(timestamp);
+    const dt = Math.min(_timer.getDelta(), 0.05);
     if (_onUpdate) {
       try {
         _onUpdate(dt, _frame);

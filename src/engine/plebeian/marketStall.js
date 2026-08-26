@@ -138,3 +138,12 @@ export function _resetMarketStall() {
   if (_profTimer) { clearTimeout(_profTimer); _profTimer = null; }
   _profFetching = false;
 }
+
+/**
+ * ADR-0063: read whether the market panel is currently shown. Used by the Q
+ * interact handler to toggle (open if closed, close all if open) rather than
+ * only ever opening. Reflects the same `_active` flag setMarketActive writes.
+ */
+export function isMarketActive() {
+  return _active;
+}

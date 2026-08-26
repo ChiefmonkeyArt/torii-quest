@@ -121,9 +121,18 @@ let _lockReleasedAt = 0;
 const _LOCK_COOLDOWN = 1100; // ms — browser enforces ~1s, we add 100ms margin
 
 export function requestLock(el) {
+  if (!el || typeof el.requestPointerLock !== 'function') return; // null/missing guard
   const now = performance.now();
   if (now - _lockReleasedAt < _LOCK_COOLDOWN) return; // still in cooldown, skip silently
-  el.requestPointerLock();
+  // ADR-0063: requestPointerLock() returns a Promise in modern browsers. It
+  // rejects with NotAllowedError when called outside a user gesture (e.g. after
+  // the async ENTER-TORII bootstrap, by which time the click gesture expired).
+  // The rejection was uncaught, logging on every entry. Catch it — pointer lock
+  // still engages on the next real canvas click (a fresh gesture).
+  try {
+    const p = el.requestPointerLock();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch { /* older browsers throw synchronously; ignore */ }
 }
 
 document.addEventListener('pointerlockchange', () => {

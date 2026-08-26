@@ -91,9 +91,9 @@ import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft
 // no three import, browser-only, fail-safe (missing document → no-op).
 // v0.3: openHomepageStub/closeHomepageStub/isHomepageStubOpen (the old
 // standalone overlay renderer) are no longer imported — Gateway Setup is now
-// a tab in the new settings panel (gatewaySetupPanel.js). Only the session-
-// once auto-open flag helpers are still needed from this module.
-import { hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+// a tab in the new settings panel (gatewaySetupPanel.js). The session-once
+// auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
+// with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
 import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
@@ -947,21 +947,11 @@ on(EV.NOSTR_LOGIN, () => {
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
   // card is read-only. (publishOurWorldPresence remains available for a future
   // explicit, user-initiated publish, but is no longer auto-triggered.)
-  // Phase 0g: optional auto-open of the Gateway setup stub ONCE per session,
-  // ONLY for the confirmed node owner/admin AND only when there is no active
-  // world override (adminPrefs.getActiveWorld is empty). Do NOT trigger on "no
-  // active world" alone — the legacy default / no-<meta> path is intentional and
-  // would show the panel to the wrong people. The shown-this-session flag
-  // (sessionStorage `torii.homepage.stub.shown`) keeps it to once per browser
-  // session. No timer — rides the existing login-resolved callback.
-  try {
-    const cap = _updateCapability;
-    const owner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
-    if (owner && !getActiveWorld() && !hasShownThisSession()) {
-      setShownThisSession();
-      _openHomepageStub();
-    }
-  } catch { /* auto-open is best-effort; never throw into the login path */ }
+  // ADR-0063: the login-resolved auto-open of the Gateway Setup panel was
+  // removed — it popped a settings modal unprompted the moment Nostr login
+  // resolved, which read as a surprise interrupt right when the player clicked
+  // ENTER. The Gateway Setup tab is still reachable any time via the title-screen
+  // settings icon and the in-game KeyM menu. Both are explicit user actions.
 });
 
 // v0.3: the entire Instance Settings admin surface (ACC-2b, v0.2.400 —

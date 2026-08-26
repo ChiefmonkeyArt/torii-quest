@@ -54,7 +54,7 @@ describe('resolveToriiOwnerLabel (v0.2.699-alpha)', () => {
     expect(() => resolveToriiOwnerLabel({ adminPubkey: 123, viewerPubkey: {}, profileDraft: 'nope' })).not.toThrow();
   });
 
-  // v0.2.704-alpha — ownerProfileName: the owner's PUBLISHED Nostr name, fetched
+  // v0.2.705-alpha — ownerProfileName: the owner's PUBLISHED Nostr name, fetched
   // read-only by the caller and shown to EVERY visitor (not just the owner
   // viewing their own browser with a local draft).
   it("shows the owner's published Nostr name to a visitor who is NOT logged in", () => {

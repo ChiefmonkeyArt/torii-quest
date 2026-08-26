@@ -1388,7 +1388,7 @@ let _latestUpdateView = null;
 let _updateCapability = null; // { autoUpdate, adminPubkey }
 let _updatePolling = false;
 
-// v0.2.704-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
+// v0.2.705-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
 // once per adminPubkey (see fetchOwnerProfileName in nostr.js) so the homepage
 // caption shows the real name to EVERY visitor, not just the owner viewing
 // their own browser. Keyed by pubkey so a stale name from a previous instance
@@ -1474,21 +1474,29 @@ function _refreshOwnerLabel() {
     profileDraft: getProfileDraft(),
     ownerProfileName: (adminPubkey && adminPubkey === _ownerProfileNamePubkey) ? _ownerProfileName : '',
   });
-  // v0.2.704 (ADR-0070): the name lives in its own truncating span now (was the
+  // v0.2.705 (ADR-0071): the name lives in its own truncating span now (was the
   // whole element's textContent) so the admin-only "logged in" badge can sit to
   // its right without being clipped by the ellipsis.
   const nameEl = document.getElementById('torii-owner-name');
-  if (nameEl) { nameEl.textContent = label; nameEl.title = label; }
-  else { el.textContent = label; el.title = label; } // fallback if the span is absent
-  // Admin-only "logged in" badge: shown only when the logged-in viewer IS the
-  // configured owner. Reuses the same isAdminOperator() check the rest of the
-  // shell uses — never reveals the pubkey, never shows for non-owners/anonymous,
-  // starts display:none so it never flashes before login confirms.
-  const badge = document.getElementById('torii-loggedin-badge');
-  if (badge) {
-    const isOwner = !!(adminPubkey && isAdminOperator(state.nostrPubkey || '', adminPubkey));
-    badge.classList.toggle('show', isOwner);
+  const line1 = document.getElementById('torii-owner-line1');
+  // Admin-only greeting: when the logged-in viewer IS the configured owner, the
+  // caption becomes "Welcome <name>," / green-dot "you are logged in". Otherwise
+  // every visitor sees the standard "This torii belongs to / <name>" caption.
+  // Reuses the same isAdminOperator() check the rest of the shell uses — never
+  // reveals the pubkey, never shows for non-owners/anonymous, starts display:none
+  // so it never flashes before login confirms.
+  const isOwner = !!(adminPubkey && isAdminOperator(state.nostrPubkey || '', adminPubkey));
+  if (line1) {
+    if (isOwner) { line1.textContent = 'Welcome ' + label + ','; line1.title = label; line1.classList.add('toc-greet'); }
+    else { line1.textContent = 'This torii belongs to'; line1.title = ''; line1.classList.remove('toc-greet'); }
   }
+  if (nameEl) {
+    if (isOwner) { nameEl.hidden = true; }                       // name moved into the greeting line
+    else { nameEl.hidden = false; nameEl.textContent = label; nameEl.title = label; } // full text on hover when ellipsis-clipped
+  }
+  else if (!isOwner) { el.textContent = label; el.title = label; } // fallback if the span is absent
+  const badge = document.getElementById('torii-loggedin-badge');
+  if (badge) badge.classList.toggle('show', isOwner);
   _fetchOwnerProfileNameOnce(adminPubkey);
 }
 

@@ -1,5 +1,5 @@
 // tests/main-owner-profile-name-wiring.test.js — regression lock for the
-// v0.2.704-alpha fix: the homepage "This torii belongs to: <label>" caption
+// v0.2.705-alpha fix: the homepage "This torii belongs to: <label>" caption
 // must show the admin's PUBLISHED Nostr displayName to every visitor, not
 // just a shortened npub.
 //

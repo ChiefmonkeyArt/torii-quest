@@ -101,10 +101,9 @@ describe('Kami ema instant-post on Enter (ADR-0042)', () => {
   });
 
   async function openNoteAndType(text) {
-    bareK();          // 1st K → enter Kami Mode (arms owner async)
+    bareK();          // ADR-0064: one K enters Kami Mode AND opens the note input
     await waitForPosts(() => (kamiActive() ? 1 : 0), 1);
     expect(kamiActive()).toBe(true);
-    bareK();          // 2nd K → open the note
     await flush();
     expect(kamiNoteOpen()).toBe(true);
     const ta = document.getElementById('kami-note-input');

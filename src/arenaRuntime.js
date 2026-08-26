@@ -37,7 +37,7 @@ import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, flashHit, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -728,7 +728,6 @@ export function createArenaRuntime(hooks = {}) {
   }
 
   // ── Game loop state ──────────────────────────────────────────────────────────
-  let _minimapTick = 0;
   let _firstFrameMarked = false;
   let _firstFrameEnded = false;
   // ADR-0055: 1Hz auto-capture diagnostic ring. Pure state machine; the async
@@ -869,9 +868,6 @@ export function createArenaRuntime(hooks = {}) {
     tickHUD(dt);
     tickAtmosphere(dt);
     if (_muzzleFlashes) _muzzleFlashes.tick(dt);
-    if (!_minimal) {
-      if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
-    }
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
     // thus this loop) is ever booted. The game loop no longer polls them.

@@ -7,9 +7,10 @@ import { describe, test, expect, beforeAll, afterAll, beforeEach, vi } from 'vit
 // import chain doesn't pull in WebGL.
 vi.mock('../src/scene.js', () => ({ requestFrameGrab: () => {} }));
 // Drives the real install path with a fake owner capability (so checkOwner
-// resolves true) + a minimal DOM. Covers: 1st Ctrl+E enters KAMI (rack shown,
-// shooting suppressed, invincible flag on); kamiExit() restores NORMAL (rack
-// hidden, shooting restored); leaving the arena (PHASE_CHANGE → TITLE) auto-exits.
+// resolves true) + a minimal DOM. Covers: 1st K enters KAMI (note no-ops with
+// no target here, so rack shown, shooting suppressed, invincible on);
+// kamiExit() restores NORMAL (rack hidden, shooting restored); leaving the
+// arena (PHASE_CHANGE → TITLE) auto-exits.
 import { installKamiMode, kamiActive, kamiInvincible, kamiExit, kamiNoteOpen } from '../src/engine/kami/kamiMode.js';
 import { emit, EV } from '../src/events.js';
 import { state, PHASE } from '../src/state.js';
@@ -65,7 +66,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     kamiStateCalls = []; // drop the exit-side effect of the reset above
   });
 
-  test('1st Ctrl+E enters KAMI (not a note): rack shown, shooting suppressed, invincible on', async () => {
+  test('1st K enters KAMI (no target → note no-ops): rack shown, shooting suppressed, invincible on', async () => {
     expect(kamiActive()).toBe(false);
     ctrlE();
     await flush();
@@ -108,7 +109,7 @@ describe('Kami Mode state machine (ADR-0029)', () => {
     expect(document.getElementById('emagake').hasAttribute('hidden')).toBe(true);
   });
 
-  test('2nd Ctrl+E while in KAMI attempts a note but stays in KAMI (no re-enter)', async () => {
+  test('a 2nd K while in KAMI with no target no-ops but stays in KAMI (no re-enter)', async () => {
     ctrlE();
     await flush();
     expect(kamiActive()).toBe(true);
@@ -181,14 +182,12 @@ describe('Kami note bar (ADR-0034)', () => {
     kamiExit();
   });
 
-  test('1st K enters KAMI, 2nd K opens the note as a bottom-anchored bar (not a full-screen backdrop)', async () => {
+  test('1st K enters KAMI and immediately opens the note as a bottom-anchored bar (ADR-0064)', async () => {
     ctrlE();
     await flush();
     expect(kamiActive()).toBe(true);
-    expect(kamiNoteOpen()).toBe(false);
-
-    ctrlE();
-    await flush();
+    // ADR-0064: the note opens on the SAME K press that enters Kami Mode, so
+    // the player can start typing right away — no second K required.
     expect(kamiNoteOpen()).toBe(true);
 
     const overlay = document.getElementById('kami-overlay');
@@ -207,9 +206,7 @@ describe('Kami note bar (ADR-0034)', () => {
     expect(box.style.border).toContain('rgba(255, 194, 71, 0.45)');
   });
 
-  test('a 3rd K while the note is already open highlights it instead of no-op', async () => {
-    ctrlE();
-    await flush();
+  test('a 2nd K while the note is already open highlights it instead of no-op (ADR-0034)', async () => {
     ctrlE();
     await flush();
     expect(kamiNoteOpen()).toBe(true);
@@ -217,7 +214,7 @@ describe('Kami note bar (ADR-0034)', () => {
     const input = document.getElementById('kami-note-input');
     const focusSpy = vi.spyOn(input, 'focus');
 
-    ctrlE(); // 3rd press: note already open → highlight, not reopen/no-op
+    ctrlE(); // 2nd press: note already open → highlight, not reopen/no-op
     await flush();
 
     expect(kamiNoteOpen()).toBe(true); // still open, unaffected

@@ -444,23 +444,3 @@ export function hideZoneNotice() {
   _zoneOn = false;
   _zoneDom().style.opacity = '0';
 }
-
-// Minimap
-const _mm = $('minimap')?.getContext('2d');
-const MM  = 110;
-export function drawMinimap(playerPos, bots) {
-  if (!_mm) return;
-  const wx = x => ((x+20)/40)*MM, wz = z => ((20-z)/40)*MM;
-  _mm.fillStyle='rgba(10,10,20,0.85)'; _mm.fillRect(0,0,MM,MM);
-  _mm.strokeStyle='rgba(139,92,246,0.5)'; _mm.lineWidth=1; _mm.strokeRect(3,3,MM-6,MM-6);
-  _mm.fillStyle='#ff9933';
-  bots.forEach(b => {
-    if (!b.alive) return;
-    _mm.beginPath(); _mm.arc(wx(b.mesh.position.x), wz(b.mesh.position.z), 2.5, 0, Math.PI*2); _mm.fill();
-  });
-  const px=wx(playerPos.x), pz=wz(playerPos.z);
-  const g=_mm.createRadialGradient(px,pz,0,px,pz,8);
-  g.addColorStop(0,'rgba(139,92,246,0.8)'); g.addColorStop(1,'rgba(139,92,246,0)');
-  _mm.fillStyle=g; _mm.beginPath(); _mm.arc(px,pz,8,0,Math.PI*2); _mm.fill();
-  _mm.fillStyle='#8b5cf6'; _mm.beginPath(); _mm.arc(px,pz,4,0,Math.PI*2); _mm.fill();
-}

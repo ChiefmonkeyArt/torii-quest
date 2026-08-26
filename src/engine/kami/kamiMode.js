@@ -213,12 +213,14 @@ async function armIfOwner() {
   return true;
 }
 
-// ── ADR-0029 Kami state machine ───────────────────────────────────────────
-// NORMAL --Ctrl+E--> KAMI --Ctrl+E--> EMA_OPEN ; EMA_OPEN --Enter/Esc--> KAMI ;
-// KAMI --Esc--> NORMAL. enterKamiMode shows the rack + flips on the invincible-
-// spirit suppressions (shooting off, movement/look live). It does NOT open a
-// note — that is the 2nd Ctrl+E. exitKamiMode hides the rack + restores normal
-// play. The tray is NOT cleared on exit: prior ema reappear on the next arm.
+// ── ADR-0029 Kami state machine (ADR-0064: single K opens the note) ────────
+// NORMAL --K--> EMA_OPEN (openNote enters KAMI first, then opens the note in
+// the same press) ; EMA_OPEN --Enter/Esc--> KAMI ; KAMI --Esc--> NORMAL.
+// enterKamiMode shows the rack + flips on the invincible-spirit suppressions
+// (shooting off, movement/look live) but does not itself open a note — that is
+// openNote's job, called by the K handler right after. exitKamiMode hides the
+// rack + restores normal play. The tray is NOT cleared on exit: prior ema
+// reappear on the next arm.
 
 async function enterKamiMode() {
   if (_kamiActive || _entering) return true;
@@ -554,6 +556,7 @@ async function openNote() {
     // so the overlay can never get stuck visible with _noteOpen already false
     // (which is what let Escape fall through to the pause menu before).
     root.style.display = 'none';
+    ta.blur(); // ADR-0064: free keyboard focus from the note input on close.
     // ADR-0029: commit/discard returns to KAMI (not NORMAL): clear the full
     // input-suppress used for typing (movement + look back on) but re-apply the
     // shooting-only suppress so the invincible-spirit state holds. The rack
@@ -615,8 +618,11 @@ async function openNote() {
       renderRack();
       renderTray();
     }
-    // Hand control back exactly as it was found.
-    if (wasLocked) _deps.requestPointerLock();
+    // ADR-0064: do NOT re-request pointer lock after committing or cancelling a
+    // note — leave the pointer free so the player can mouse-click the emagake
+    // rack (hang a new ema, retry a failed one). Shooting remains suppressed
+    // while Kami Mode is active (setShootingSuppressed above); the player can
+    // press K again at any time to open a fresh note.
   };
 
   function onKey(ev) {
@@ -762,11 +768,15 @@ export function installKamiMode(deps = {}) {
     // K on the home screen no longer re-enters + re-shows the rack.
     if (!isPlaying()) return;
     if (ev.shiftKey) hangTray();
-    // ADR-0029: 1st K enters Kami Mode (rack visible, invincible spirit,
-    // shooting off, movement/look live). 2nd K (already in Kami) opens a
-    // new ema note. ADR-0042: Enter on an open note seals + POSTs it instantly
-    // (PENDING → SENT/FAILED). Shift+K only retries the unsent (failed/pending).
-    else if (!_kamiActive) enterKamiMode();
+    // ADR-0029: Kami Mode is an in-arena authoring surface — K engages only
+    // while PLAYING. ADR-0064: a bare K now opens the ema note directly on the
+    // first press (openNote enters Kami Mode itself if not already active), so
+    // the player can start typing at once — replacing the old 2-step "K to
+    // enter, K again to note" flow. Enter on an open note seals + POSTs it
+    // instantly (ADR-0042); Esc cancels. After either, the pointer is left free
+    // (see openNote.finish) so the player can click the emagake rack. A repeat K
+    // while a note is already open highlights it (ADR-0034) rather than no-op'ing.
+    // Shift+K only retries the unsent (failed/pending).
     else openNote();
   });
 

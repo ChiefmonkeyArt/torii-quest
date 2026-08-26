@@ -1,11 +1,11 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-26T15:03:26.100Z",
+  "generatedAt": "2026-08-26T15:40:03.341Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.698-alpha",
-  "packageVersion": "0.2.698-alpha",
-  "gitCommit": "10933c6a",
+  "version": "v0.2.699-alpha",
+  "packageVersion": "0.2.699-alpha",
+  "gitCommit": "a43934af",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
     "ready": true,
@@ -35,7 +35,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.698-alpha"
+    "version": "v0.2.699-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -102,7 +102,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.698-alpha",
+    "version": "v0.2.699-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
@@ -171,10 +171,10 @@
     "HANDOFF.generated.md"
   ],
   "reports": [
-    "torii-v0.2.173-test-profiles-report.md",
-    "torii-v0.2.174-dashboard-data-automation-report.md",
-    "torii-v0.2.175-engineering-health-report.md",
-    "torii-v0.2.176-milestone-layout-report.md"
+    "torii-v0.2.230-entry-flow-runtime-fix-report.md",
+    "torii-v0.2.231-live-smoke-status-report.md",
+    "torii-v0.2.232-dashboard-smoke-status-report.md",
+    "torii-v0.2.233-handoff-release-control-report.md"
   ],
   "safety": {
     "deploy": false,

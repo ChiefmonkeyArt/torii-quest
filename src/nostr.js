@@ -10,7 +10,14 @@ import {
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
 
-const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
+// v0.2.699-alpha (ADR-0067): trimmed from 4 to 2 profile relays. Tested the
+// exact kind:0 + author query against all four from both the sandbox and the
+// VPS: damus.io (OK, ~280ms) and nos.lol (OK, ~470ms) returned profile events;
+// relay.nostr.band timed out (~8s, down) and relay.primal.net resolved but
+// carried no event and rejects the gamestr #game tag filter elsewhere, so it
+// adds no value here. Trimming removes the repeated connection-failed console
+// noise from those two dead endpoints.
+const RELAYS = ['wss://relay.damus.io','wss://nos.lol'];
 const PROFILE_TIMEOUT_MS = 5000;
 const PROFILE_SETTLE_MS = 1800;
 export { RELAYS, PROFILE_SETTLE_MS };

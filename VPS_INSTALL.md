@@ -1,6 +1,6 @@
 # Torii Quest — VPS Install & Manual Update (torii.quest)
 
-> **Status:** host-side documentation (v0.2.697-alpha). The repo now ships a
+> **Status:** host-side documentation (v0.2.699-alpha). The repo now ships a
 > one-command installer (`install.sh`) that automates the bare-metal/systemd
 > path below for fresh Ubuntu/Debian VPSes — it is the recommended way for a new
 > self-hoster to bring up a node. The manual step-by-step in §§1–16 remains

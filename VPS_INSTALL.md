@@ -15,11 +15,13 @@ from that.
 
 ---
 
-## 0. Quick start — one-command install (recommended for new self-hosters)
+## 0. Quick start — one-command Docker install (optional alternative)
 
-If you just want a fresh Ubuntu/Debian VPS running Torii Quest — game +
-Nostr relay + multiplayer server — with HTTPS and sane defaults, use the
-installer that ships in this repo instead of following §§1–16 by hand:
+This is an optional Docker Compose path for a fresh Ubuntu/Debian VPS running
+Torii Quest — game + Nostr relay + multiplayer server — with HTTPS and sane
+defaults. It's an alternative to, not a replacement for, the manual
+bare-metal/systemd install in §§1–16 below, which remains the primary
+documented path:
 
 ```bash
 git clone https://github.com/ChiefmonkeyArt/torii-quest.git

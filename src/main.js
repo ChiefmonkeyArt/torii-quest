@@ -85,6 +85,7 @@ import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { buildProfileMetadataEvent } from './engine/identity/profileMetadata.js';
 import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft.js';
+import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
@@ -1040,7 +1041,10 @@ registerSettingsTabRenderer('profile', () => {
         const el = doc.getElementById(`pf-${id}`);
         if (el) fields[id] = el.value;
       }
-      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields)).finally(renderActiveSettingsTab);
+      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields)).finally(() => {
+        renderActiveSettingsTab();
+        _refreshOwnerLabel(); // owner's displayName edit should reflect on the homepage caption immediately
+      });
       return;
     }
   });
@@ -1446,6 +1450,24 @@ function _clearUpdateProgress() {
   _setUpdateStatusLine('');
 }
 
+// Paint the top-left "This torii belongs to: <label>" caption. Reads the same
+// capability.adminPubkey _refreshUpdateButton() already has (no extra fetch),
+// so it is called right alongside it — on the capability probe resolving and
+// on every NOSTR_LOGIN. Pure DOM write; missing element/data degrades to the
+// helper's own safe defaults, never throws.
+function _refreshOwnerLabel() {
+  const el = document.getElementById('torii-owner-label');
+  if (!el) return;
+  const cap = _updateCapability;
+  const label = resolveToriiOwnerLabel({
+    adminPubkey: cap ? cap.adminPubkey : null,
+    viewerPubkey: state.nostrPubkey || '',
+    profileDraft: getProfileDraft(),
+  });
+  el.textContent = label;
+  el.title = label; // full text on hover/long-press when CSS truncates it with an ellipsis
+}
+
 // v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.
 // Fail-closed — nothing is shown unless the logged-in operator IS the configured
 // admin AND the latest probe says an update is available. When auto-update is
@@ -1454,6 +1476,7 @@ function _clearUpdateProgress() {
 function _refreshUpdateButton() {
   const btn = document.getElementById('update-upgrade-btn');
   const fallback = document.getElementById('update-copy-fallback');
+  _refreshOwnerLabel();
   if (!btn) return;
   if (_updatePolling) return; // a run is in flight; leave the live UI untouched
 
@@ -1661,6 +1684,7 @@ on(EV.NOSTR_LOGIN, _refreshUpdateButton);
 function renderUpdatePreview() {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
+  _refreshOwnerLabel(); // paint an immediate best-effort label before the capability probe resolves
   _drawUpdateBlock({ lines: [{ label: 'Status', value: 'CHECKING…' }] });
   const fetcher = (typeof window !== 'undefined' && typeof window.fetch === 'function')
     ? window.fetch.bind(window) : null;

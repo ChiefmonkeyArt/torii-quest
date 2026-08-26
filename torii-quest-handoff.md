@@ -57,13 +57,15 @@ Prior: v0.2.684-alpha - SETTINGS PANEL: PROFILE + RELAY TABS, HOMEPAGE FADE, TOP
 
 ---
 
-## 0. Current snapshot (2026-08-17)
+## 0. Current snapshot
 
-- **Version:** v0.2.603-alpha (tag `v0.2.603-alpha`).
-- **Live:** https://chiefmonkey.art/quest/ (SHC VPS, Torii Suite install). The maintainer deploys manually with `sudo torii-deploy <tag>`; the update-runner resolves the git tag and builds with `--base=/quest/`.
-- **Multiplayer:** LIVE and working (`MP_ENABLED=true` in `src/config.js`). Two-npub in-world play confirmed 2026-08-15: idle players stay connected (v0.2.460), peers appear promptly on join (v0.2.462 warm pool), and mirror self-shoot reads correctly (v0.2.461).
-- **Tests:** 2668/2668 across 197 files; `node tools/regression-check.mjs` ALL GREEN at ship time.
-- **Nostr score publishing:** DISABLED (`SCORE_PUBLISH_ENABLED=false` in `src/config.js`). Do NOT re-enable until the maintainer explicitly says so - it is for the very end of alpha.
+> This section was last fully updated 2026-08-17 and drifted out of sync with the top-of-file "Current version" line as later releases shipped. Version/live/test-count below are corrected as of 2026-08-26; everything else in this section (combat values, MP timing model, known issues) has not been re-verified since 2026-08-17 and may itself be stale — re-check against source before relying on it.
+
+- **Source version:** v0.2.696-alpha (tag `v0.2.696-alpha`) — see the "Current version" line at the top of this file for what shipped last.
+- **Live:** https://chiefmonkey.art/quest/ (SHC VPS, Torii Suite install) is running frontend **v0.2.624-alpha** / arena-ws backend **v0.2.602-alpha** (read via the page + `/healthz`, checked 2026-08-26) — NOT the current source version. The maintainer deploys manually with `sudo torii-deploy <tag>`; the update-runner resolves the git tag and builds with `--base=/quest/`. Source version routinely runs ahead of what's actually deployed — always verify live version rather than assuming it matches source.
+- **Multiplayer:** LIVE and working (`MP_ENABLED=true` in `src/config.js`) as of the 2026-08-17 snapshot below; two-npub in-world play confirmed 2026-08-15: idle players stay connected (v0.2.460), peers appear promptly on join (v0.2.462 warm pool), and mirror self-shoot reads correctly (v0.2.461).
+- **Tests (source, current):** 3380/3380 across 267 files; `node tools/regression-check.mjs` 21/21 GREEN, verified 2026-08-26 at v0.2.696-alpha. (The 2668/197 figure below was the ship-time count as of the 2026-08-17 snapshot and is superseded.)
+- **Nostr score publishing:** DISABLED (`SCORE_PUBLISH_ENABLED=false` in `src/config.js`) as of the 2026-08-17 snapshot. Do NOT re-enable until the maintainer explicitly says so - it is for the very end of alpha.
 - **Combat values (DO NOT CHANGE):** BOT_HP=5, BODY_DAMAGE=3, HEADSHOT_DAMAGE=9, BOSS_HP=60, BOSS_TARGET_HEIGHT=3.0, BOSS_RADIUS=0.8, BOT_BODY_RADIUS=0.30, BOT_HEAD_RADIUS=0.30, LAG_COMP_MS=300.
 - **MP timing model (verified 2026-08-15):** client PING `KEEPALIVE_MS=15_000`, server idle reap `IDLE_DISCONNECT_MS=90_000` (sweep interval still 60s), reconnect backoff `BACKOFF_MS_INITIAL=500` doubling to cap `BACKOFF_MS_CAP=2_000`. On reconnect the WELCOME carries the full roster; `finishAuth` re-broadcasts JOIN to others.
 
@@ -276,7 +278,9 @@ Keep CSP unchanged. Same-origin in-app navigation (`history.pushState`) is unaff
 
 ## 9.5. Active task / next steps (2026-08-17)
 
-**PENDING DEPLOY:** v0.2.603-alpha is pushed to GitHub (tag `v0.2.603-alpha`) but NOT yet deployed to the VPS. The user needs to run:
+> Historical entry, dated 2026-08-17. Resolved: live is now confirmed running frontend v0.2.624-alpha (checked 2026-08-26, well past v0.2.603-alpha), so this deploy has since happened. Left as-is for the historical record; do not action this instruction.
+
+**PENDING DEPLOY (historical, resolved — see note above):** v0.2.603-alpha is pushed to GitHub (tag `v0.2.603-alpha`) but NOT yet deployed to the VPS. The user needs to run:
 ```
 sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.603-alpha
 ```

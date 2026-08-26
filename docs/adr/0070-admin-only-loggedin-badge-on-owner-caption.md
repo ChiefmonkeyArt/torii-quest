@@ -43,4 +43,4 @@ Add an admin-only "logged in" badge to the owner caption, toggled from the exist
 
 ## Version
 
-v0.2.705-alpha. Companion to ADR-0068 (boot overlay recolor) and ADR-0069 (pause modal recolor) — the three recolored player-facing surfaces; this is the first to add a new element rather than restyle an existing one.
+v0.2.704-alpha. Companion to ADR-0068 (boot overlay recolor) and ADR-0069 (pause modal recolor) — the three recolored player-facing surfaces; this is the first to add a new element rather than restyle an existing one.

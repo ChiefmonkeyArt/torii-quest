@@ -1388,7 +1388,7 @@ let _latestUpdateView = null;
 let _updateCapability = null; // { autoUpdate, adminPubkey }
 let _updatePolling = false;
 
-// v0.2.705-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
+// v0.2.706-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
 // once per adminPubkey (see fetchOwnerProfileName in nostr.js) so the homepage
 // caption shows the real name to EVERY visitor, not just the owner viewing
 // their own browser. Keyed by pubkey so a stale name from a previous instance
@@ -1487,8 +1487,22 @@ function _refreshOwnerLabel() {
   // so it never flashes before login confirms.
   const isOwner = !!(adminPubkey && isAdminOperator(state.nostrPubkey || '', adminPubkey));
   if (line1) {
-    if (isOwner) { line1.textContent = 'Welcome ' + label + ','; line1.title = label; line1.classList.add('toc-greet'); }
-    else { line1.textContent = 'This torii belongs to'; line1.title = ''; line1.classList.remove('toc-greet'); }
+    if (isOwner) {
+      // v0.2.706 (ADR-0072): "Welcome <name>," with ONLY the name in orange.
+      // Built via DOM API (textContent per span) so a Nostr display name can
+      // never inject markup — no innerHTML, never surfaces the pubkey.
+      line1.classList.add('toc-greet');
+      line1.replaceChildren();
+      const pre = document.createElement('span'); pre.className = 'toc-dim'; pre.textContent = 'Welcome ';
+      const nm = document.createElement('span'); nm.className = 'toc-name'; nm.textContent = label;
+      const comma = document.createElement('span'); comma.className = 'toc-dim'; comma.textContent = ',';
+      line1.append(pre, nm, comma);
+      line1.title = label;
+    } else {
+      line1.classList.remove('toc-greet');
+      line1.replaceChildren(document.createTextNode('This torii belongs to'));
+      line1.title = '';
+    }
   }
   if (nameEl) {
     if (isOwner) { nameEl.hidden = true; }                       // name moved into the greeting line

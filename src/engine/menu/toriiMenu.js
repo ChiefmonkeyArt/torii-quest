@@ -41,6 +41,10 @@ import {
   toriiMenuSections,
   shouldShowLoginToTravelNote,
 } from './toriiMenuModel.js';
+// Pure heartbeat-status decision helper (no DOM/three — see heartbeat.js).
+// Shared with main.js so the "is this switch actually broadcasting" call
+// can never drift between the in-game menu and the settings-panel tab.
+import { isHeartbeatBroadcasting } from '../presence/heartbeat.js';
 
 export const TORII_MENU_VERSION = 1;
 
@@ -283,7 +287,18 @@ function _renderAdmin(list, admin) {
   Object.assign(hbLabel.style, { fontSize: '12px', color: '#e9d5ff', flex: '1 1 auto' });
   const hbBtn = document.createElement('button');
   hbBtn.type = 'button';
-  const hbOn = admin.heartbeatIntent === 'on';
+  // Derive the switch's ON/OFF *display + click-direction* from the actual
+  // broadcasting status, NOT the raw stored intent string. Intent defaults to
+  // 'on' on a fresh install even though nothing has ever published — using it
+  // directly would show a lit "ON" switch that, on first click, flips straight
+  // to 'off' instead of giving NIP-07 consent and actually publishing.
+  // admin.heartbeatStatus (idle/live/stale/publishing/paused/off/blocked:*) is
+  // the ground truth for whether a publish has ever gone out —
+  // isHeartbeatBroadcasting() is the single shared source of that decision
+  // (also used by main.js's onPublishNode), so this can't drift out of sync.
+  const hbOn = typeof admin.heartbeatStatus === 'string'
+    ? isHeartbeatBroadcasting(admin.heartbeatStatus)
+    : admin.heartbeatIntent === 'on';
   hbBtn.textContent = hbOn ? 'ON' : 'OFF';
   Object.assign(hbBtn.style, {
     fontSize: '11px', letterSpacing: '1px', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer',

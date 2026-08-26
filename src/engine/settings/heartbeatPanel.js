@@ -15,6 +15,8 @@
 // 'click' listener on the settings content container (data-action=
 // "publish-node", already registered for the old Gateway Setup card).
 
+import { isHeartbeatBroadcasting } from '../presence/heartbeat.js';
+
 function _escape(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
@@ -32,21 +34,23 @@ function _publishLabel(heartbeatStatus) {
   const s = typeof heartbeatStatus === 'string' ? heartbeatStatus : 'off';
   if (s === 'off') return 'Publish my node presence (OFF)';
   if (s === 'live') return 'Publish my node presence (LIVE)';
-  if (s === 'idle') return 'Publish my node presence (idle — awaiting first publish)';
+  if (s === 'idle') return 'Publish my node presence (click to give signer consent + go live)';
   if (s === 'publishing') return 'Publishing…';
   if (s === 'stale') return 'Republish overdue (stale)';
   return `Publish my node presence (${s})`;
 }
 
-// _isOnState(heartbeatStatus) — true for every status that represents the
-// switch being ON (idle/live/stale/publishing/paused all mean intent==='on';
-// only 'off' and the not-owner/no-signer/no-node-relay blocked states mean
-// the switch itself is OFF). Used to drive the red/green switch visual
-// independent of the more detailed text label. Pure.
+// _isOnState(heartbeatStatus) — true only for statuses where a presence
+// publish has ACTUALLY happened or been attempted (live/stale/publishing/
+// paused). 'idle' (stored intent is 'on' but nothing has EVER published —
+// the default state on a fresh install, before the owner has given NIP-07
+// consent) intentionally renders as OFF, same as 'off' and the blocked
+// states — a lit green "ON" switch that has never actually broadcast
+// anything is misleading. Delegates to the shared isHeartbeatBroadcasting()
+// so this can never drift out of sync with the toggle-direction decision in
+// main.js / toriiMenu.js. Pure.
 function _isOnState(heartbeatStatus) {
-  const s = typeof heartbeatStatus === 'string' ? heartbeatStatus : 'off';
-  if (s === 'off' || s === 'blocked:not-owner' || s === 'blocked:no-signer' || s === 'blocked:no-node-relay') return false;
-  return true;
+  return isHeartbeatBroadcasting(heartbeatStatus);
 }
 
 export function renderHeartbeatPanel(state = {}) {

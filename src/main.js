@@ -53,7 +53,7 @@ import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './eng
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
 // and the rAF shell tick drives the republish (NO setTimeout in new code).
-import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
+import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, isHeartbeatBroadcasting, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
 // v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
@@ -507,10 +507,16 @@ function _homepageStubCallbacks() {
     // UI-level node directory on the homepage would be redundant.
     onPublishNode: () => {
       // Reuse the existing heartbeat consent-publish path (NOT a new publish
-      // path). Toggle to 'on' if currently off, else 'off' — same as the menu's
-      // heartbeat button. Blocked states (no-signer / no-node-relay /
+      // path). Toggle direction is decided from whether we're ACTUALLY
+      // broadcasting (isHeartbeatBroadcasting on the current heartbeatStatus),
+      // never from the raw stored intent string. Intent defaults to 'on' on a
+      // fresh install even though nothing has ever published, so branching on
+      // getHeartbeatIntent() here would flip a first-time owner's very first
+      // click straight to 'off' instead of publishing + asking for NIP-07
+      // consent. Blocked states (no-signer / no-node-relay /
       // wallet-requires-approval) surface via the tab's heartbeatStatus label.
-      const next = getHeartbeatIntent() === 'on' ? 'off' : 'on';
+      const currentlyBroadcasting = isHeartbeatBroadcasting(_homepageStubState().heartbeatStatus);
+      const next = currentlyBroadcasting ? 'off' : 'on';
       setHeartbeatIntent(next);
       if (next === 'on') {
         _heartbeat.republishPaused = false;

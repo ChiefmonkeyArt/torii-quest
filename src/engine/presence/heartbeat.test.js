@@ -4,7 +4,7 @@
 // — `now` is injected so the leaf is fully deterministic.
 import { describe, it, expect } from 'vitest';
 import {
-  isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, HEARTBEAT_INTERVAL_MS,
+  isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, isHeartbeatBroadcasting, HEARTBEAT_INTERVAL_MS,
 } from './heartbeat.js';
 
 const NODE_RELAYS = ['wss://relay.example'];
@@ -101,5 +101,57 @@ describe('heartbeatStatus — truth table (every branch)', () => {
     expect(heartbeatStatus({ ...BASE, lastPublishedAt: 0, now: 1199000 })).toBe('live');
     // last published 1201s ago → stale
     expect(heartbeatStatus({ ...BASE, lastPublishedAt: 0, now: 1201000 })).toBe('stale');
+  });
+});
+
+describe('isHeartbeatBroadcasting — the shared toggle-direction + switch-visual decision', () => {
+  // Regression lock for the first-load consent bug: intent defaults to 'on'
+  // (adminPrefs.getHeartbeatIntent) even on a totally fresh install where
+  // nothing has EVER published. A toggle/switch that branches on the raw
+  // intent string instead of this helper would show a lit "ON" switch whose
+  // first-ever click flips straight to 'off' instead of publishing +
+  // requesting NIP-07 consent. Every status heartbeatStatus() can return must
+  // be covered here so the truth table can't silently drift.
+  it('false for idle (intent on, never published — the exact first-load bug case)', () => {
+    expect(isHeartbeatBroadcasting('idle')).toBe(false);
+  });
+
+  it('false for off', () => {
+    expect(isHeartbeatBroadcasting('off')).toBe(false);
+  });
+
+  it('false for every blocked:* status', () => {
+    expect(isHeartbeatBroadcasting('blocked:not-owner')).toBe(false);
+    expect(isHeartbeatBroadcasting('blocked:no-signer')).toBe(false);
+    expect(isHeartbeatBroadcasting('blocked:no-node-relay')).toBe(false);
+  });
+
+  it('false for a failed:<reason> status (a publish attempt failed, not currently broadcasting)', () => {
+    expect(isHeartbeatBroadcasting('failed:no-relay-accepted')).toBe(false);
+  });
+
+  it('true for live, stale, publishing, and paused:wallet-requires-approval', () => {
+    expect(isHeartbeatBroadcasting('live')).toBe(true);
+    expect(isHeartbeatBroadcasting('stale')).toBe(true);
+    expect(isHeartbeatBroadcasting('publishing')).toBe(true);
+    expect(isHeartbeatBroadcasting('paused:wallet-requires-approval')).toBe(true);
+  });
+
+  it('false for non-string / undefined input (fails closed)', () => {
+    expect(isHeartbeatBroadcasting(undefined)).toBe(false);
+    expect(isHeartbeatBroadcasting(null)).toBe(false);
+    expect(isHeartbeatBroadcasting(42)).toBe(false);
+  });
+
+  it('agrees with heartbeatStatus() end to end: fresh install (default intent “on”, never published) is NOT broadcasting', () => {
+    const freshInstallStatus = heartbeatStatus({ ...BASE, lastPublishedAt: null, now: 0 });
+    expect(freshInstallStatus).toBe('idle');
+    expect(isHeartbeatBroadcasting(freshInstallStatus)).toBe(false);
+  });
+
+  it('agrees with heartbeatStatus() end to end: after a real publish, status IS broadcasting', () => {
+    const publishedStatus = heartbeatStatus({ ...BASE, lastPublishedAt: 0, now: 300000, expirationTtlSec: 1200 });
+    expect(publishedStatus).toBe('live');
+    expect(isHeartbeatBroadcasting(publishedStatus)).toBe(true);
   });
 });

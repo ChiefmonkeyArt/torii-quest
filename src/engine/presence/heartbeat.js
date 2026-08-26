@@ -99,3 +99,21 @@ export function heartbeatStatus(opts = {}) {
   if (ageMs >= expirationMs) return 'stale';
   return 'live';
 }
+
+// isHeartbeatBroadcasting(status) → bool. True only for statuses where a
+// presence event has actually gone out and/or the operator has already given
+// consent (live/stale/publishing/paused all mean AT LEAST one publish attempt
+// happened). False for 'off', 'idle' (stored intent says on, but nothing has
+// EVER published — no consent given yet), and every 'blocked:*' status.
+//
+// This exists because the stored intent string ('on'/'off', defaulting to
+// 'on' per getHeartbeatIntent) is NOT the same thing as "actually
+// broadcasting" — a fresh install defaults intent to 'on' but has never
+// published, so it must NOT be treated as already-on. Toggle buttons must
+// branch on THIS (or the heartbeatStatus() result), never on the raw intent
+// string, or a first-time owner's very first click flips a never-published
+// 'on' straight to 'off' instead of publishing. Pure.
+export function isHeartbeatBroadcasting(status) {
+  const s = typeof status === 'string' ? status : 'off';
+  return s === 'live' || s === 'stale' || s === 'publishing' || s === 'paused:wallet-requires-approval';
+}

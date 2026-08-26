@@ -1388,7 +1388,7 @@ let _latestUpdateView = null;
 let _updateCapability = null; // { autoUpdate, adminPubkey }
 let _updatePolling = false;
 
-// v0.2.702-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
+// v0.2.703-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
 // once per adminPubkey (see fetchOwnerProfileName in nostr.js) so the homepage
 // caption shows the real name to EVERY visitor, not just the owner viewing
 // their own browser. Keyed by pubkey so a stale name from a previous instance

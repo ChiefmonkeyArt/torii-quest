@@ -121,13 +121,13 @@
       text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
-    /* v0.2.702-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+    /* v0.2.703-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
     .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #d8c3ac; margin-top: 5px; }
     /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
-       v0.3: moved top-right → top-left. v0.2.702-alpha: moved again, top-left
+       v0.3: moved top-right → top-left. v0.2.703-alpha: moved again, top-left
        → bottom-left (screen corner, fixed not absolute, so it stays anchored
        to the viewport rather than scrolling with #title-header) to make room
        for the new top-left "This torii belongs to" owner caption. Opens the
@@ -144,14 +144,14 @@
     .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* v0.2.702-alpha: top-left "This torii belongs to: <owner>" caption —
+    /* v0.2.703-alpha: top-left "This torii belongs to: <owner>" caption —
        fixed corner label, sits directly on the sunset photo like the header
        text (no glass box; a plain text treatment reads lighter here and
        avoids a 4th competing panel on the screen). Populated by
        main.js's _refreshOwnerLabel() against capability.adminPubkey. */
     #torii-owner-caption {
       position: fixed; top: 18px; left: 18px; z-index: 20;
-      /* v0.2.702-alpha fix: a long displayName wrapping to a 2nd line pushed
+      /* v0.2.703-alpha fix: a long displayName wrapping to a 2nd line pushed
          into the header's TORII wordmark on narrow viewports. Kept single-
          line + ellipsis-truncated instead — a clipped-but-readable name is
          better than colliding text, and the full name is still visible in
@@ -281,7 +281,7 @@
     }
     #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(232,132,44,0.5); opacity: 1; }
 
-    /* Login button in centre — v0.2.702-alpha: promoted to the primary CTA with a
+    /* Login button in centre — v0.2.703-alpha: promoted to the primary CTA with a
        solid mint/green fill (matches the on-brand green accent used elsewhere) so
        it reads as clearly as ENTER ARENA. Overrides the .btn-secondary outline. */
     #btn-nostr-centre {
@@ -466,7 +466,7 @@
     .pf-input:disabled { cursor: not-allowed; opacity: 0.6; }
     .pf-input:focus { outline: none; border-color: var(--accent); }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.702-alpha) ── */
+    /* ── Live in-arena leaderboard overlay (v0.2.703-alpha) ── */
     /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
        (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
        #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
@@ -506,7 +506,7 @@
     .tq-arena-lb-hint { font-size: 7px; letter-spacing: 0.5px; color: #6b7280; }
 
     /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ──
-       v0.2.702-alpha: lifted out of the centre console's document flow into a
+       v0.2.703-alpha: lifted out of the centre console's document flow into a
        fixed bottom-right corner card, re-themed from the original blue/navy
        palette to the bronze/orange smoked-glass look used across the rest of
        the UI (settings panels, .up-row-value--new was already on-brand and is
@@ -535,7 +535,7 @@
     .up-row-value { font-size: 11px; color: #f5e6d8; word-break: break-all; }
     /* Highlight the Latest value cell when a newer release exists so the status
        is legible without a separate STATUS row (UPD-1, v0.2.361). Already
-       on-brand orange — unchanged by the v0.2.702-alpha re-theme. */
+       on-brand orange — unchanged by the v0.2.703-alpha re-theme. */
     .up-row-value.up-row-value--new {
       color: #f7931a; font-weight: 600; letter-spacing: 0.5px;
       text-shadow: 0 0 6px rgba(247,147,26,0.35);
@@ -546,7 +546,7 @@
        `runUpgradeInPlace` helper — SW purge + cache clear + reload; no deploy,
        no signer touch, no relay call. Same mauve palette as the ACC-1 admin
        Instance Settings link for surface consistency. */
-    /* v0.2.702-alpha (MP-1): the explicit `display: block` below would override
+    /* v0.2.703-alpha (MP-1): the explicit `display: block` below would override
        the HTML `hidden` attribute (whose UA default is `display: none`), so an
        admin-less / up-to-date state could leak the button. Guard first. */
     #update-upgrade-btn[hidden] { display: none !important; }
@@ -562,7 +562,7 @@
     #update-upgrade-btn:active { filter: brightness(0.9); }
     #update-upgrade-btn[disabled] { opacity: 0.6; cursor: progress; }
 
-    /* v0.2.702-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
+    /* v0.2.703-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
        orange accent fill (matches the version box + Update Now button). The
        'deploying' stage rides a shimmer keyframe while arena-ws restarts and the
        status endpoint is briefly unreachable; 'done' snaps green, 'failed' red. */
@@ -604,7 +604,7 @@
     }
     #update-status-line[hidden] { display: none !important; }
     /* Manual-install fallback (shown when auto-update capability is absent).
-       v0.2.702-alpha: previously unstyled (inherited plain body text on the
+       v0.2.703-alpha: previously unstyled (inherited plain body text on the
        old in-flow layout); now needs its own bronze treatment since it sits
        inside the smoked-glass corner card. */
     #update-copy-fallback[hidden] { display: none !important; }
@@ -1037,10 +1037,15 @@
     #death-msg { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); font-size: 3rem; letter-spacing: 6px; color: var(--danger); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
     #death-msg.show { opacity: 1; }
     #death-msg p { font-size: 14px; color: var(--muted); margin-top: 12px; letter-spacing: 3px; }
-    #pause-overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+    /* v0.2.703 (ADR-0069): pause modal recolored from the legacy purple panel
+       (rgba(20,20,35,0.97) bg + rgba(139,92,246,0.4) border) to the torii-gate
+       sunset theme. Layout/sizing/buttons unchanged — the .btn / .btn-secondary
+       buttons were already themed. Color-only migration; the warm twin of the
+       old purple at the same opacity so the paused game stays blocked out. */
+    #pause-overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(20,13,9,0.7); }
     #pause-overlay.show { display: flex; }
-    #pause-box { background: rgba(20,20,35,0.97); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 32px 40px; text-align: center; min-width: 280px; }
-    #pause-title { font-size: 1.8rem; letter-spacing: 6px; margin-bottom: 20px; }
+    #pause-box { background: rgba(30,18,12,0.97); border: 1px solid var(--panel-glass-border); border-radius: 8px; padding: 32px 40px; text-align: center; min-width: 280px; box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+    #pause-title { font-size: 1.8rem; letter-spacing: 6px; margin-bottom: 20px; color: var(--accent); text-shadow: 0 0 16px rgba(232,132,44,0.35); }
     #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; z-index: 50; display: none; }
     #crosshair.active { display: block; }
     #crosshair .ch-h, #crosshair .ch-v { position: absolute; background: rgba(255,255,255,0.9); border-radius: 1px; }
@@ -1122,7 +1127,7 @@
 
   <!-- Header -->
   <div id="title-header">
-    <!-- v0.2.702-alpha: owner caption now occupies the top-left corner the
+    <!-- v0.2.703-alpha: owner caption now occupies the top-left corner the
          settings button used to sit in. Text-only, non-interactive
          (pointer-events:none in CSS) so it never intercepts clicks meant for
          whatever sits beneath it. Populated by main.js's _refreshOwnerLabel(). -->
@@ -1131,7 +1136,7 @@
       <div class="toc-line2" id="torii-owner-label" title="">—</div>
     </div>
 
-    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.702-alpha:
+    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.703-alpha:
          moved again, top-left → bottom-left, to make room for the owner
          caption above. Opens the settings panel (nav-left/content-right),
          replacing the old Torii menu overlay. Same button element/id kept for
@@ -1213,7 +1218,7 @@
       <!-- v0.3: large standalone #version-label removed — the version is
            still shown, at a slightly larger size, inside #update-preview-body
            below (see .up-row-value).
-           v0.2.702-alpha: the #update-preview block itself was MOVED out of
+           v0.2.703-alpha: the #update-preview block itself was MOVED out of
            here — it now sits as a direct child of #screen-title (below), not
            nested inside #title-centre. #title-centre.glass-panel carries a
            backdrop-filter, and per spec backdrop-filter (like transform/
@@ -1235,7 +1240,7 @@
   </div><!-- /title-columns -->
 
   <!-- Version/upgrade check (kept — genuine operational surface, not
-       decorative). v0.2.702-alpha: lives here, as a direct child of
+       decorative). v0.2.703-alpha: lives here, as a direct child of
        #screen-title, specifically OUTSIDE #title-centre's backdrop-filter
        subtree (see the comment left at its old nesting point above) so its
        `position: fixed; bottom/right` resolves against the real viewport.
@@ -1250,7 +1255,7 @@
          occurrences of EXPECTED_VERSION in this file). main.js's
          renderUpdatePreview() replaces these children with the live
          view-model on load. -->
-    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.702-alpha</div></div>
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.703-alpha</div></div>
     <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
     <div id="update-progress" hidden>
       <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1384,7 +1389,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <div id="ver">v0.2.702-alpha · torii quest</div>
+  <div id="ver">v0.2.703-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

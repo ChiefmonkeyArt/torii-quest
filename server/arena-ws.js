@@ -1116,4 +1116,12 @@ setInterval(() => {
 
 httpServer.listen(PORT, HOST, () => {
   log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
+  // Admin identity is decided ENTIRELY by QUEST_ADMIN_NPUB (see VPS_INSTALL.md
+  // §16.2a) - log whether it's configured (never the full npub/hex; a short
+  // prefix is enough to eyeball "did my .env value actually take effect").
+  if (ADMIN_PUBKEY_HEX) {
+    log.info(`admin configured (pubkey ${ADMIN_PUBKEY_HEX.slice(0, 8)}…)`);
+  } else {
+    log.warn('QUEST_ADMIN_NPUB is not set - no admin on this instance. See VPS_INSTALL.md §16.2a.');
+  }
 });

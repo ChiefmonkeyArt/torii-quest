@@ -111,8 +111,25 @@ describe('service worker — app-shell precache guard (entry-flow regression)', 
     expect(body).not.toMatch(/\.js'/);
     expect(body).not.toMatch(/\.css/);
   });
-});
 
+  it('only intercepts GET requests — non-GET passes straight to network (ADR-0062)', () => {
+    // The Cache API's put() rejects POST/PUT/DELETE with TypeError: Request
+    // method 'POST' is unsupported. The fetch handler must guard on method
+    // BEFORE calling respondWith(networkFirst(...)) so same-origin POSTs
+    // (kami auto-capture /mp/kami/autocap, session auth /mp/session, admin
+    // update checks) never reach cache.put().
+    const m = SW.match(/addEventListener\('fetch',\s*event\s*=>\s*\{([\s\S]*?)\n\}\);/);
+    expect(m).not.toBeNull();
+    const handler = m[1];
+    expect(handler).toMatch(/event\.request\.method\s*!==\s*['"]GET['"]/);
+    // The guard must appear BEFORE any respondWith call inside the handler.
+    const guardIdx = handler.search(/event\.request\.method\s*!==\s*['"]GET['"]/);
+    const respondWithIdx = handler.search(/respondWith/);
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(respondWithIdx).toBeGreaterThan(-1);
+    expect(guardIdx).toBeLessThan(respondWithIdx);
+  });
+});
 describe('index.html — service-worker registration self-heal', () => {
   it('registers the service worker', () => {
     const s = inlineRegistrationScript();

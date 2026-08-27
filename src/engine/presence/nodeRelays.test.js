@@ -5,7 +5,7 @@
 // reads the raw stored string. Fake Storage + fake metaGetter injected.
 import { describe, it, expect } from 'vitest';
 import {
-  readNodeRelays, setNodeRelays, getNodeRelays, NODE_RELAYS_KEY, NODE_RELAYS_CAP,
+  readNodeRelays, readEffectiveNodeRelays, setNodeRelays, getNodeRelays, NODE_RELAYS_KEY, NODE_RELAYS_CAP, DEFAULT_NODE_RELAYS,
 } from './nodeRelays.js';
 
 function fakeStorage(initial = {}) {
@@ -89,6 +89,37 @@ describe('readNodeRelays — validation', () => {
     expect(() => readNodeRelays({
       storage: fakeStorage(), metaGetter: () => { throw new Error('boom'); },
     })).not.toThrow();
+  });
+});
+
+describe('readEffectiveNodeRelays — curated starter defaults (ADR-0076)', () => {
+  it('returns DEFAULT_NODE_RELAYS when nothing configured', () => {
+    expect(readEffectiveNodeRelays({ storage: fakeStorage(), metaGetter: () => '' })).toEqual([...DEFAULT_NODE_RELAYS]);
+  });
+
+  it('returns the operator config when set (overrides defaults)', () => {
+    const s = fakeStorage({ [NODE_RELAYS_KEY]: 'wss://my.relay' });
+    expect(readEffectiveNodeRelays({ storage: s, metaGetter: () => '' })).toEqual(['wss://my.relay/']);
+  });
+
+  it('defaults are wss-only Torii-ecosystem relays, not the big public RELAYS', () => {
+    expect(DEFAULT_NODE_RELAYS.length).toBeGreaterThan(0);
+    for (const u of DEFAULT_NODE_RELAYS) expect(u.startsWith('wss://')).toBe(true);
+    const PUBLIC = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band', 'wss://relay.primal.net'];
+    for (const p of PUBLIC) expect(DEFAULT_NODE_RELAYS).not.toContain(p);
+  });
+
+  it('returns a fresh copy (not the frozen constant) so callers cannot mutate', () => {
+    const out = readEffectiveNodeRelays({ storage: fakeStorage(), metaGetter: () => '' });
+    expect(out).not.toBe(DEFAULT_NODE_RELAYS);
+    out.push('wss://mutated.relay');
+    expect(DEFAULT_NODE_RELAYS).not.toContain('wss://mutated.relay');
+  });
+
+  it('never throws when storage.getItem throws (falls back to defaults)', () => {
+    const broken = { getItem: () => { throw new Error('denied'); }, setItem: () => {}, removeItem: () => {} };
+    expect(() => readEffectiveNodeRelays({ storage: broken, metaGetter: () => '' })).not.toThrow();
+    expect(readEffectiveNodeRelays({ storage: broken, metaGetter: () => '' })).toEqual([...DEFAULT_NODE_RELAYS]);
   });
 });
 

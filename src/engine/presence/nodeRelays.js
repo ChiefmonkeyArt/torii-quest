@@ -13,6 +13,9 @@
 //     none configured → the caller (main.js) treats the heartbeat as
 //     blocked:no-node-relay and publishes NOTHING. This is the explicit
 //     public-relay regression guard this slice forbids.
+//   - The curated trusted Torii STARTER defaults (DEFAULT_NODE_RELAYS below)
+//     are an EXPLICIT, separate seam (readEffectiveNodeRelays), NOT a silent
+//     fallback inside readNodeRelays — so the guard + its tests stay intact.
 //   - wss ONLY (no plaintext ws://) on the node-publish surface — a node
 //     presence event is operator-identity-bearing, never plaintext.
 
@@ -91,6 +94,32 @@ export function readNodeRelays(opts = {}) {
   }
 
   return _mergeDedup([_parseList(localRaw), _parseList(metaRaw)]);
+}
+
+// DEFAULT_NODE_RELAYS — curated trusted Torii starter relays used when the
+// operator has NOT configured their own node-relay set (ADR-0076). These are
+// Torii-ecosystem relays (gaming + marketplace presence), NOT the big public
+// RELAYS (damus/nos.lol/nostr.band/primal) the public-relay regression guard
+// forbids. Presence publishes to these trusted relays so a fresh install can
+// beacon + be discoverable with zero config; the operator can override via the
+// Relay settings tab. wss ONLY (operator-identity-bearing, never plaintext).
+// Verified live at the WebSocket level (REQ + EOSE) on 2026-08-27.
+export const DEFAULT_NODE_RELAYS = Object.freeze([
+  'wss://main.relay.gamestr.io',   // gaming notes + presence (Torii ecosystem)
+  'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem)
+]);
+
+// readEffectiveNodeRelays(opts) → the validated wss:// relay set the heartbeat
+// actually publishes to: the operator's configured node relays if any, else the
+// curated DEFAULT_NODE_RELAYS (ADR-0076). This is the publish + relay-tab
+// source of truth. readNodeRelays() stays configured-only (it still returns []
+// when none configured — the public-relay guard + its tests are untouched);
+// the effective-defaults fallback is an EXPLICIT, separate seam so the behaviour
+// change is auditable + reversible. Returns a fresh array (never the frozen
+// constant) so callers cannot mutate the defaults. Pure; never throws.
+export function readEffectiveNodeRelays(opts = {}) {
+  const configured = readNodeRelays(opts);
+  return configured.length ? configured : [...DEFAULT_NODE_RELAYS];
 }
 
 // setNodeRelays(str, storage) → void. Validates + writes localStorage

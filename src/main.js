@@ -96,7 +96,7 @@ import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
 // with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, readEffectiveNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -447,6 +447,12 @@ function _homepageStubState() {
   const heartbeatIntent = getHeartbeatIntent();
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
   const nodeRelays = _nodeRelaysForPublish();
+  // ADR-0076: usingDefaults is true when the operator has NOT configured their
+  // own node relays (so the curated starter relays are active). Drives the Relay
+  // tab's "Starter relays active" banner + read-only default rows. Computed from
+  // readNodeRelays (configured-only), NOT readEffectiveNodeRelays, so the banner
+  // flips off the moment an operator saves their own set.
+  const usingDefaults = !readNodeRelays(_nodeRelaysOpts()).length;
   const hb = heartbeatStatus({
     intent: heartbeatIntent,
     isOwner,
@@ -471,6 +477,7 @@ function _homepageStubState() {
     activeWorld: getActiveWorld(),
     heartbeatStatus: hb,
     nodeRelays,
+    usingDefaults,
     nodeRelaysInput,
     profileDraft,
     profilePublishStatus: _profilePublishStatus,
@@ -833,13 +840,12 @@ const _heartbeat = {
   inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
 };
 
-// _nodeRelaysForPublish() → the validated wss:// node-relay set sourced from
-// config (localStorage `torii.node.relays` + <meta name="torii-relays">).
-// NEVER falls back to the public RELAYS (damus/nos.lol/nostr.band/primal) —
-// publishing presence to public relays is the regression this slice forbids.
-// Returns [] when none configured → caller blocks (publishes nothing).
-function _nodeRelaysForPublish() {
-  return readNodeRelays({
+// _nodeRelaysOpts() → the { storage, metaGetter } injection shared by the
+// configured-only reader (readNodeRelays) and the effective reader
+// (readEffectiveNodeRelays). Built once so the Relay tab's usingDefaults flag
+// and the heartbeat's publish set stay in lockstep with a single source.
+function _nodeRelaysOpts() {
+  return {
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
     metaGetter: typeof document !== 'undefined'
       ? (name) => {
@@ -847,7 +853,19 @@ function _nodeRelaysForPublish() {
           return el && el.content ? el.content : '';
         }
       : null,
-  });
+  };
+}
+
+// _nodeRelaysForPublish() → the validated wss:// node-relay set the heartbeat
+// publishes to: the operator's configured node relays (localStorage
+// `torii.node.relays` + <meta name="torii-relays">), else the curated trusted
+// Torii starter relays (DEFAULT_NODE_RELAYS, ADR-0076) so a fresh install
+// beacons + is discoverable with zero config. NEVER falls back to the big public
+// RELAYS (damus/nos.lol/nostr.band/primal) — the curated starters are
+// Torii-ecosystem relays, not those. Returns [] only if both configured AND
+// defaults are empty (defaults are non-empty, so this practically never blocks).
+function _nodeRelaysForPublish() {
+  return readEffectiveNodeRelays(_nodeRelaysOpts());
 }
 
 // _publishPresenceOnce() → signs + fanout-publishes ONE presence event to the

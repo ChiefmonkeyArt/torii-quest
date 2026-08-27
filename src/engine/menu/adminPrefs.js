@@ -42,7 +42,7 @@ const GAMESTR_ENABLED_KEY = 'torii.gamestr.enabled';
 // source of truth — pure, node-safe, wss-only validation). Re-exported here so
 // the menu/main.js composition root imports all owner-admin prefs from the
 // single adminPrefs seam. The localStorage key is `torii.node.relays`.
-export { getNodeRelays, setNodeRelays, readNodeRelays } from '../presence/nodeRelays.js';
+export { getNodeRelays, setNodeRelays, readNodeRelays, readEffectiveNodeRelays } from '../presence/nodeRelays.js';
 
 // _storage(s) → the injected storage or null. Tolerates a missing
 // globalThis.localStorage (SSR / disabled storage) without throwing.

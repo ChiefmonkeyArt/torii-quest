@@ -195,6 +195,11 @@ UNIT
   write_caddy_site_block() {
     local tmp
     tmp="$(mktemp)"
+    # Back up the existing Caddyfile before mutating it — safety net for
+    # multi-site VPS where other (unrelated) sites share this file. (ADR-0073)
+    if [[ -f "$CADDYFILE" ]]; then
+      cp -p "$CADDYFILE" "${CADDYFILE}.bak.$(date +%s)" 2>/dev/null || true
+    fi
     # Strip any prior managed block, then append the fresh one.
     if [[ -f "$CADDYFILE" ]]; then
       awk '
@@ -207,9 +212,8 @@ UNIT
       echo ""
       echo "# TORII QUEST MANAGED START — managed by torii-quest install.sh. Do not edit by hand;"
       echo "# re-run the installer to update. Remove the block (and the service) to uninstall."
-      echo "email $EMAIL_IN"
-      echo ""
       echo "$DOMAIN_IN {"
+      echo "    tls $EMAIL_IN"
       echo "    root * $CURRENT_LINK"
       echo "    encode zstd gzip"
       echo ""

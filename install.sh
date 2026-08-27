@@ -115,13 +115,30 @@ fi
 
 if [[ "$DRY_RUN" -ne 1 ]]; then
   # Ports 80/443 must be free for Caddy (bare-metal) or the web container
-  # (Docker) to bind them.
+  # (Docker) to bind them. In bare-metal mode the installer reuses the host's
+  # systemd-managed Caddy, so an existing caddy.service holding 80/443 is
+  # expected and allowed — only foreign listeners (nginx, apache, a stray
+  # non-systemd caddy, etc.) abort. Docker mode always requires free ports
+  # because the web container binds them itself. (ADR-0073)
   for p in 80 443; do
-    if command -v ss >/dev/null 2>&1 && ss -ltn "( sport = :$p )" 2>/dev/null | grep -q ":$p"; then
+    if ! command -v ss >/dev/null 2>&1; then
+      break
+    fi
+    if ! ss -ltn "( sport = :$p )" 2>/dev/null | grep -q ":$p"; then
+      continue
+    fi
+    # Something is listening on $p.
+    if [[ "$USE_DOCKER" -eq 1 ]]; then
       ui_die "Port $p is already in use. Stop whatever's listening on it (another web server?) and re-run."
     fi
+    # Bare-metal: allow only the host's own systemd-managed Caddy.
+    if ss -ltnp "( sport = :$p )" 2>/dev/null | grep -q 'users:(("caddy' && systemctl is-active --quiet caddy; then
+      ui_ok "Port $p held by the system Caddy (caddy.service) — installer will reuse it"
+      continue
+    fi
+    ui_die "Port $p is already in use by a process other than the system Caddy. Stop it (another web server?) and re-run."
   done
-  ui_ok "Ports 80 and 443 are free"
+  ui_ok "Ports 80 and 443 are free (or held by the reusable system Caddy)"
 fi
 
 if [[ "$USE_DOCKER" -eq 1 ]]; then

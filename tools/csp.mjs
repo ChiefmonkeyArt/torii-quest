@@ -69,7 +69,7 @@ export const CSP_DIRECTIVES = [
   // reads/writes — was MISSING before, a latent CSP bug) and the plebeian
   // marketplace relays (marketStall.js uses both staging and prod). Drops
   // relay.nostr.band (down) and relay.primal.net (rejects #game tag, not used).
-  ["connect-src", "'self' blob: https://api.github.com wss://main.relay.gamestr.io wss://relay.damus.io wss://nos.lol wss://relay.staging.plebeian.market wss://relay.plebeian.market"],
+  ["connect-src", "'self' blob: https://api.github.com wss://main.relay.gamestr.io wss://relay.routstr.com wss://nos.lol wss://relay.vertexlab.io wss://relay.staging.plebeian.market wss://relay.plebeian.market"],
 ];
 
 export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");

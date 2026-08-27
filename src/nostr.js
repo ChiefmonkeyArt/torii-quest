@@ -11,14 +11,16 @@ import {
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
 
-// v0.2.699-alpha (ADR-0067): trimmed from 4 to 2 profile relays. Tested the
-// exact kind:0 + author query against all four from both the sandbox and the
-// VPS: damus.io (OK, ~280ms) and nos.lol (OK, ~470ms) returned profile events;
-// relay.nostr.band timed out (~8s, down) and relay.primal.net resolved but
-// carried no event and rejects the gamestr #game tag filter elsewhere, so it
-// adds no value here. Trimming removes the repeated connection-failed console
-// noise from those two dead endpoints.
-const RELAYS = ['wss://relay.damus.io','wss://nos.lol'];
+// v0.2.711-alpha (ADR-0076): trimmed + swapped profile relays. damus.io now
+// returns 503 on this exact REQ (verified 2026-08-27) — dropped to stop the
+// connection-failed console noise. nos.lol stays (reliable, fast). Added
+// relay.vertexlab.io (NIP-45 profile aggregator, WS-verified live) for broader
+// profile resolution. The heartbeat/presence PUBLISH path does NOT use these —
+// it uses the curated Torii starter relays (see nodeRelays.DEFAULT_NODE_RELAYS);
+// these RELAYS are only for profile reads + the gate's presence-discovery
+// read (which merges [...nodeRelays, ...RELAYS], so discovery still hits the
+// gamestr/plebeian/routstr starter relays nodes publish to).
+const RELAYS = ['wss://nos.lol','wss://relay.vertexlab.io'];
 const PROFILE_TIMEOUT_MS = 5000;
 const PROFILE_SETTLE_MS = 1800;
 export { RELAYS, PROFILE_SETTLE_MS };

@@ -34,7 +34,7 @@ function _publishLabel(heartbeatStatus) {
   const s = typeof heartbeatStatus === 'string' ? heartbeatStatus : 'off';
   if (s === 'off') return 'Publish my node presence (OFF)';
   if (s === 'live') return 'Publish my node presence (LIVE)';
-  if (s === 'idle') return 'Publish my node presence (click to give signer consent + go live)';
+  if (s === 'idle') return 'Publish my node presence (on by default — starts on owner login)';
   if (s === 'publishing') return 'Publishing…';
   if (s === 'stale') return 'Republish overdue (stale)';
   return `Publish my node presence (${s})`;
@@ -42,13 +42,13 @@ function _publishLabel(heartbeatStatus) {
 
 // _isOnState(heartbeatStatus) — true only for statuses where a presence
 // publish has ACTUALLY happened or been attempted (live/stale/publishing/
-// paused). 'idle' (stored intent is 'on' but nothing has EVER published —
-// the default state on a fresh install, before the owner has given NIP-07
-// consent) intentionally renders as OFF, same as 'off' and the blocked
-// states — a lit green "ON" switch that has never actually broadcast
-// anything is misleading. Delegates to the shared isHeartbeatBroadcasting()
-// so this can never drift out of sync with the toggle-direction decision in
-// main.js / toriiMenu.js. Pure.
+// paused). 'idle' (stored intent is 'on' but nothing has EVER published — the
+// default state on a fresh install before the owner logs in; ADR-0077 auto-fires
+// the first publish on owner login, so this is transient) intentionally renders
+// as OFF, same as 'off' and the blocked states — a lit green "ON" switch that
+// has never actually broadcast anything is misleading. Delegates to the shared
+// isHeartbeatBroadcasting() so this can never drift out of sync with the
+// toggle-direction decision in main.js / toriiMenu.js. Pure.
 function _isOnState(heartbeatStatus) {
   return isHeartbeatBroadcasting(heartbeatStatus);
 }
@@ -72,7 +72,7 @@ export function renderHeartbeatPanel(state = {}) {
         <div class="gs-icon">📡</div>
         <div class="gs-body">
           <div class="gs-label">${_escape(label)}</div>
-          <div class="gs-hint">Heartbeat presence (needs signer consent).</div>
+          <div class="gs-hint">Heartbeat is on by default — it auto-starts when the owner logs in (one signer approval may be asked).</div>
           ${gate}
         </div>
         <button type="button" class="hb-switch ${on ? 'is-on' : 'is-off'}" data-action="publish-node"${isOwner ? '' : ' disabled'} role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${_escape(label)}">

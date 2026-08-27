@@ -98,15 +98,18 @@ export function readNodeRelays(opts = {}) {
 
 // DEFAULT_NODE_RELAYS — curated trusted Torii starter relays used when the
 // operator has NOT configured their own node-relay set (ADR-0076). These are
-// Torii-ecosystem relays (gaming + marketplace presence), NOT the big public
-// RELAYS (damus/nos.lol/nostr.band/primal) the public-relay regression guard
-// forbids. Presence publishes to these trusted relays so a fresh install can
-// beacon + be discoverable with zero config; the operator can override via the
-// Relay settings tab. wss ONLY (operator-identity-bearing, never plaintext).
-// Verified live at the WebSocket level (REQ + EOSE) on 2026-08-27.
+// Torii-ecosystem relays (gaming + marketplace + routstr presence), NOT the
+// big public RELAYS (damus/nos.lol/nostr.band/primal) the public-relay
+// regression guard forbids. Presence publishes to these trusted relays so a
+// fresh install can beacon + be discoverable with zero config; the operator
+// can override via the Relay settings tab. wss ONLY (operator-identity-
+// bearing, never plaintext). Verified live at the WebSocket level
+// (REQ + EOSE) on 2026-08-27 — relay.routstr.com is the Routstr network relay
+// (docs.routstr.com), used for Torii-agent + presence discovery.
 export const DEFAULT_NODE_RELAYS = Object.freeze([
   'wss://main.relay.gamestr.io',   // gaming notes + presence (Torii ecosystem)
   'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem)
+  'wss://relay.routstr.com',       // routstr network relay (Torii ecosystem)
 ]);
 
 // readEffectiveNodeRelays(opts) → the validated wss:// relay set the heartbeat

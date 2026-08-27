@@ -52,7 +52,13 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.709-alpha';
+// EXPECTED_VERSION is the single source of truth for the current release. Read
+// dynamically from package.json so bump-ver.sh can never leave the check pinned
+// to a stale version (this is exactly what happened for v0.2.710/711 — the
+// hardcoded constant drifted + the check failed on every bump). package.json is
+// the first file bump-ver.sh touches, so it always reflects the current release.
+const _pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+const EXPECTED_VERSION = 'v' + _pkg.version;
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',

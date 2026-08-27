@@ -53,7 +53,7 @@ import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './eng
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
 // and the rAF shell tick drives the republish (NO setTimeout in new code).
-import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, isHeartbeatBroadcasting, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
+import { isHeartbeatDue, isFirstPublishDue, nextHeartbeatInMs, heartbeatStatus, isHeartbeatBroadcasting, HEARTBEAT_INTERVAL_MS, FIRST_PUBLISH_RETRY_MS } from './engine/presence/heartbeat.js';
 // v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
@@ -368,10 +368,12 @@ function _getToriiMenuState() {
       onToggleHeartbeat: (next) => {
         setHeartbeatIntent(next);
         if (next === 'on') {
-          // Explicit consent-gated first publish: enabling the heartbeat
-          // triggers the NIP-07 signer prompt. The operator approving it IS the
-          // consent. On rejection → paused (status surfaces in the menu); on
-          // no-node-relay → blocked (publishes nothing, never public RELAYS).
+          // ADR-0077: the first publish now auto-fires from _heartbeatTick
+          // when the owner logs in — this toggle is the OFF / re-enable-after-
+          // pause path. Re-enabling clears a pause (e.g. after a signer
+          // rejection) and re-publishes immediately so the operator doesn't have
+          // to wait for the next tick. On rejection → paused (status surfaces);
+          // on no-node-relay → blocked (publishes nothing, never public RELAYS).
           _heartbeat.republishPaused = false;  // re-toggle clears a pause
           _heartbeat.lastError = null;
           publishOurWorldPresence().catch(() => { /* status surfaced */ });
@@ -833,8 +835,12 @@ let _presencePublishedPubkey = '';
 // HEARTBEAT_INTERVAL_MS. If a republish sign is rejected/thrown, we PAUSE
 // (status paused:wallet-requires-approval) and stop auto-republishing until
 // the operator re-toggles — so a per-call-prompting wallet never spams prompts.
+// FIRST_PUBLISH_RETRY_MS + the pure isFirstPublishDue() live in heartbeat.js
+// (centralised with HEARTBEAT_INTERVAL_MS) so the auto-on due-check is unit-
+// tested. See ADR-0077.
 const _heartbeat = {
   lastPublishedAt: null,   // epoch ms of the last successful publish (null = never)
+  lastAttemptedAt: null,   // epoch ms of the last publish ATTEMPT (null = never tried) — gates first-publish retry backoff (ADR-0077)
   lastError: null,          // last non-sign error string (null = none)
   republishPaused: false,   // true when a republish sign was rejected → stop auto-republish
   inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
@@ -881,6 +887,12 @@ async function _publishPresenceOnce() {
   if (!/^[0-9a-f]{64}$/.test(pubkey)) return { ok: false, error: 'no-pubkey' };
   const relays = _nodeRelaysForPublish();
   if (!relays.length) return { ok: false, error: 'blocked:no-node-relay' };
+  // Record the attempt time so a FAILED first publish backs off (ADR-0077) —
+  // set BEFORE buildPresenceEvent + the async publish, so a BUILD failure OR a
+  // slow wallet/relay can't leave lastAttemptedAt null + firstPublishDue true
+  // every rAF frame (a ~60fps spin). The cheap preconditions above (pubkey/
+  // signer/relays) are NOT publish attempts — the tick already gates on them.
+  _heartbeat.lastAttemptedAt = Date.now();
   const built = buildPresenceEvent({
     pubkey,
     zoneId: 'quest-torii',
@@ -890,7 +902,7 @@ async function _publishPresenceOnce() {
     relays,
     // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
-  if (!built.ok) return { ok: false, error: 'build-failed' };
+  if (!built.ok) { _heartbeat.lastError = 'build-failed'; return { ok: false, error: 'build-failed' }; }
   const res = await publishOurPresence({
     unsigned: built.event,
     sign: signEvent,
@@ -926,22 +938,38 @@ function _heartbeatTick(now) {
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
   if (!hasSigner) return;
   if (_heartbeat.republishPaused) return;
-  if (!isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS })) return;
-  // Never published → the first publish is explicit-via-toggle only; the tick
-  // only handles REpublishes (isHeartbeatDue is false when lastPublishedAt is
-  // null, so this guard is belt-and-braces).
-  if (_heartbeat.lastPublishedAt === null) return;
+  // ADR-0077: the heartbeat is ON by default and auto-fires the FIRST publish
+  // when the owner logs in (the login click is the user gesture that authorises
+  // the NIP-07 signer prompt — approving it IS the consent). isHeartbeatDue
+  // returns false when lastPublishedAt is null (its contract is unchanged), so
+  // the first publish is driven by `firstPublishDue` below; subsequent
+  // republishes use the 10-min interval. A signer rejection/throw sets
+  // republishPaused so it never nags — the operator can re-toggle to retry.
+  // A FAILED first publish (non-signer error) backs off by FIRST_PUBLISH_RETRY_MS
+  // so it doesn't spin every rAF frame while lastPublishedAt is still null.
+  const firstPublishDue = isFirstPublishDue({
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    lastAttemptedAt: _heartbeat.lastAttemptedAt,
+    now,
+    retryMs: FIRST_PUBLISH_RETRY_MS,
+  });
+  const intervalDue = isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS });
+  if (!firstPublishDue && !intervalDue) return;
   _heartbeat.inflight = true;
   _publishPresenceOnce()
     .catch(() => { /* publish threw — leave paused/error state as set */ })
     .finally(() => { _heartbeat.inflight = false; });
 }
 
-// publishOurWorldPresence() — the consent-gated first publish (called by the
-// menu's heartbeat toggle when the operator enables it). v0.2.263 idempotency
-// guard kept so a re-toggle of the same intent doesn't double-publish. Now
-// publishes to the node-relay set ONLY (never public RELAYS); if none
-// configured, blocks with status blocked:no-node-relay and publishes nothing.
+// publishOurWorldPresence() — the re-enable / manual re-publish entry point.
+// ADR-0077: the FIRST publish is no longer manual — _heartbeatTick auto-fires
+// it when the owner logs in (intent defaults to 'on'). This function is now
+// called by the menu toggle when the operator re-enables a paused heartbeat
+// (re-publishes immediately, no waiting for the next tick) or explicitly asks
+// to re-publish. v0.2.263 idempotency guard kept so a re-toggle of the same
+// intent doesn't double-publish. Now publishes to the node-relay set ONLY
+// (never public RELAYS); if none configured, blocks with status
+// blocked:no-node-relay and publishes nothing.
 async function publishOurWorldPresence() {
   const pubkey = state.nostrPubkey || '';
   if (!/^[0-9a-f]{64}$/.test(pubkey)) return;

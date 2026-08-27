@@ -90,5 +90,5 @@ export function renderRelayPanel(state = {}) {
       <textarea id="rl-add-input" class="rl-add-input" rows="3" placeholder="wss://relay.example.com"${isOwner ? '' : ' disabled'}>${_escape(rawInput)}</textarea>
       <button type="button" class="gs-btn" data-action="save-relays"${isOwner ? '' : ' disabled'}>Save Relays</button>
     </div>
-    <div class="gs-note">Trusted starter relays are active by default. Add your own above to override — presence never falls back to public relays (damus/nos.lol).</div>`;
+    <div class="gs-note">Trusted starter relays are active by default. Add your own above to override — presence never falls back to public relays.</div>`;
 }

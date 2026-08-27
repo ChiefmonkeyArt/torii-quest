@@ -30,9 +30,11 @@ Verified relay availability at the WebSocket level (REQ + EOSE) on 2026-08-27:
 | --- | --- | --- |
 | `wss://main.relay.gamestr.io` | OK | gaming notes + presence (Torii ecosystem) |
 | `wss://relay.plebeian.market` | OK | marketplace presence (Torii ecosystem) |
+| `wss://relay.routstr.com` | OK | routstr network relay (Torii ecosystem) — added v0.2.711 |
 | `wss://nos.lol` | OK | general, fast — but named as a "public relay" by the guard |
+| `wss://relay.vertexlab.io` | OK | NIP-45 profile aggregator — added v0.2.711 to the READ path only |
 | `wss://relay.staging.plebeian.market` | OK | staging — not for prod defaults |
-| `wss://relay.damus.io` | 503 ERR | currently down — unsuitable as a default |
+| `wss://relay.damus.io` | 503 ERR | down — DROPPED from the read path in v0.2.711 (was the source of Bekka's console connection-failed noise) |
 
 The gate **read** path (`fetchOnlineWorlds`) already merges
 `[..._nodeRelaysForPublish(), ...RELAYS]`, so once the publish set includes the
@@ -43,13 +45,24 @@ in the Caddy `connect-src` CSP, so no CSP change is required.
 ## Decision
 
 Provide a curated, frozen **`DEFAULT_NODE_RELAYS`** set of trusted Torii-ecosystem
-starter relays (`wss://main.relay.gamestr.io`, `wss://relay.plebeian.market`),
-and a new **`readEffectiveNodeRelays(opts)`** helper that returns the operator's
-configured relays if any, **else** the curated defaults. Wire
-`_nodeRelaysForPublish()` to use `readEffectiveNodeRelays` (so both the heartbeat
-publish and the gate read path pick up the starters). Leave `readNodeRelays()`
-configured-only and untouched — the effective-defaults fallback is an explicit,
-separate, auditable seam, not a silent change to the guarded reader.
+starter relays (`wss://main.relay.gamestr.io`, `wss://relay.plebeian.market`,
+`wss://relay.routstr.com`), and a new **`readEffectiveNodeRelays(opts)`** helper
+that returns the operator's configured relays if any, **else** the curated defaults.
+Wire `_nodeRelaysForPublish()` to use `readEffectiveNodeRelays` (so both the
+heartbeat publish and the gate read path pick up the starters). Leave
+`readNodeRelays()` configured-only and untouched — the effective-defaults fallback
+is an explicit, separate, auditable seam, not a silent change to the guarded
+reader.
+
+**Read-path change (v0.2.711):** the profile/discovery READ relays
+(`src/nostr.js` `RELAYS`) were swapped from `[damus.io, nos.lol]` to
+`[nos.lol, relay.vertexlab.io]` — `damus.io` is 503ing and was the source of the
+connection-failed console noise; `relay.vertexlab.io` is a live NIP-45 profile
+aggregator. The READ path is distinct from the heartbeat PUBLISH path (which uses
+the curated starters above); the gate read still merges
+`[...nodeRelays, ...RELAYS]`, so discovery still hits the gamestr/plebeian/
+routstr starters nodes publish to. CSP `connect-src` updated to match (dropped
+`damus.io`, added `relay.routstr.com` + `relay.vertexlab.io`).
 
 This is a **product decision change**: the node-presence model moves from
 "private/explicit — publishes nothing until the operator configures relays" to
@@ -95,8 +108,8 @@ returns (badge `N CONFIGURED`).
 
 ## Notes
 
-This ADR only removes the `blocked:no-node-relay` block. The heartbeat will
-**not** "always beat" until the separate Phase 2 change (auto first-publish on
-owner login — the first publish is still explicit via the toggle today), and it
-will not be truly permanent/server-side until a later delegated/server signer
-design. See the Phase 1 plan for the gateway-jump test path.
+This ADR removes the `blocked:no-node-relay` block. Phase 2 (auto first-publish
+on owner login) is now done — see **ADR-0077**. The heartbeat is still not truly
+permanent/server-side: that needs a future delegated/server signer design (the
+MP `arena-ws` server signing presence with an instance-bound key, so the beacon
+stays live without a browser tab open).

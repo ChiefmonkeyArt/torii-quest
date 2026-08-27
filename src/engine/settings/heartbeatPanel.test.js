@@ -48,10 +48,10 @@ describe('renderHeartbeatPanel — switch visual state', () => {
     }
   });
 
-  it('idle label invites the click that gives consent, and never claims LIVE', () => {
+  it('idle label says heartbeat is on by default and starts on owner login, never claims LIVE', () => {
     const html = renderHeartbeatPanel({ isOwner: true, heartbeatStatus: 'idle' });
     expect(html).not.toContain('(LIVE)');
-    expect(html).toMatch(/click to give signer consent/i);
+    expect(html).toMatch(/on by default.*starts on owner login/i);
   });
 
   it('gates the switch behind isOwner (disabled + login note) regardless of heartbeatStatus', () => {

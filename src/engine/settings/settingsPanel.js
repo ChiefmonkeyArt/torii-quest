@@ -4,8 +4,8 @@
 // no `three` import, browser-only, fail-safe), but with a nav-left/
 // content-right shell (Continuum-styled) instead of a single scroll list.
 //
-// FOUR tabs (v0.4 revision — was Gateway Setup + Heartbeat; Profile added at
-// the top and Relay added after Heartbeat per design direction):
+// FIVE tabs (v0.2.712: Access re-added after Relay; was four in v0.4):
+//   Profile at the top, Relay added after Heartbeat, Access at the foot:
 //   1. Profile — standard Nostr kind:0 fields for this Quest installation's
 //      identity (display name, bio, avatar, website, NIP-05, lightning
 //      address). Placed first/top since identity is the first thing an
@@ -21,21 +21,28 @@
 //      tab so it isn't buried inside the world-choice list.
 //   4. Relay — view/add/remove the wss:// relays this node publishes
 //      presence to (engine/presence/nodeRelays.js, reused as-is).
+//   5. Access — admin access-control surface (arrival authority + write
+//      authority) backed by the signed kind:30078 settings event. The full
+//      view-model + renderer live in engine/ui/instanceSettings.js (built
+//      v0.2.358, hidden since v0.2.676, re-surfaced here in v0.2.712 per
+//      "make the settings panel feel complete + useful"). main.js owns the
+//      read/save relay round-trips; this module only hosts the tab.
 //
 // No node-directory tab (dropped by design decision). The old toriiMenu.js's
 // live node-directory list (friends/following/games/all + admin scan) is not
 // migrated here — main.js may still reference it for the in-game KeyM quick
 // menu separately; this module does not touch that call site.
 //
-// v0.3: Instance Settings (arrival-mode / write-policy admin controls) is
-// REMOVED from this menu — the underlying access-control logic in
-// engine/gateway/handoffArrival.js + writeAuthority.js is untouched and
-// still enforced; only the title-screen editing UI surface is gone.
-// instanceSettings.js itself is left in place (unused by this panel) in
-// case the admin-editing surface returns in a future revision.
+// v0.2.712: the Instance Settings admin surface (arrival-mode / write-policy
+// controls) is RESTORED here as the "Access" tab — the underlying access-control
+// logic in engine/gateway/handoffArrival.js + writeAuthority.js was untouched
+// while the editing UI was hidden (v0.2.676–v0.2.711), so enforcement stayed live.
+// instanceSettings.js (view-model + renderer) is now imported + rendered by
+// main.js as the 'access' tab; its read/save relay round-trips reuse the
+// existing readLatestAccessSettings / publishAccessSettings (nostr.js).
 //
 // The panel is a PRESENTATION + TAB-SWITCH layer only: main.js owns every
-// callback and piece of state for both tabs. This module never fetches,
+// callback and piece of state for every tab. This module never fetches,
 // signs, publishes, or navigates on its own.
 //
 // Constraints by construction (mirrors toriiMenu.js):
@@ -51,11 +58,11 @@
 //
 // Shape:
 //   openSettingsPanel({ initialTab?, onClose })
-//     initialTab → 'profile' | 'gateway' | 'heartbeat' | 'relay' (defaults to 'profile')
+//     initialTab → 'profile' | 'gateway' | 'heartbeat' | 'relay' | 'access' (defaults to 'profile')
 //     onClose()  — host callback when the panel is dismissed
 //   closeSettingsPanel()        — programmatic close (calls onClose once)
 //   isSettingsPanelOpen()       — boolean
-//   getActiveSettingsTab()      — 'profile' | 'gateway' | 'heartbeat' | 'relay'
+//   getActiveSettingsTab()      — 'profile' | 'gateway' | 'heartbeat' | 'relay' | 'access'
 //   setActiveSettingsTab(tab)   — switch tabs programmatically (re-renders)
 //   renderActiveSettingsTab()   — re-render whichever tab is open from fresh
 //                                  host content (main.js calls this after any
@@ -64,15 +71,26 @@
 //     function for each tab's content (returns an HTML string). Keeps this
 //     module decoupled from instanceSettings.js / the gateway-setup state.
 
-export const SETTINGS_PANEL_VERSION = 1;
+export const SETTINGS_PANEL_VERSION = 2;
+
+// getSettingsTabIds() — the ordered list of settings-tab ids (pure; no DOM).
+// Exposed so the tab inventory is unit-testable without a DOM environment —
+// main.js registers a renderer for each id, so a missing id here is a wiring
+// bug the suite can catch.
+export function getSettingsTabIds() {
+  return TABS.map((t) => t.id);
+}
 
 // v0.4: Profile added at the TOP of the nav column per design direction, and
-// Relay added after Heartbeat. Order here IS the on-screen nav order.
+// Relay added after Heartbeat. v0.2.712: Access re-added at the foot of the
+// nav (admin/advanced — surfaces the existing signed kind:30078 access-control
+// surface that was hidden since v0.2.676). Order here IS the on-screen nav order.
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'gateway', label: 'Gateway Setup' },
   { id: 'heartbeat', label: 'Heartbeat' },
   { id: 'relay', label: 'Relay' },
+  { id: 'access', label: 'Access' },
 ];
 
 let _el = null;

@@ -121,10 +121,10 @@ describe('liveStatusView', () => {
 describe('checkForUpdateLive', () => {
   it('latest > installed → behind, fetched once, then cached (no 2nd fetch)', async () => {
     const s = memStorage();
-    const fetcher = vi.fn(async () => release('v0.2.711-alpha'));
+    const fetcher = vi.fn(async () => release('v0.2.712-alpha'));
     const a = await checkForUpdateLive({ fetcher, storage: s, now: () => 1000, currentVersion: 'v0.2.280-alpha' });
     expect(a.status).toBe(LIVE_STATUS.BEHIND);
-    expect(a.behindBy).toBe(431);  // 711-280=431 (tracks app version)
+    expect(a.behindBy).toBe(432);  // 712-280=432 (tracks app version)
     expect(a.fromCache).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(1);
     // second call within TTL → served from cache, fetcher not called again
@@ -162,11 +162,11 @@ describe('checkForUpdateLive', () => {
 
   it('a fresh cache short-circuits even without a fetcher', async () => {
     const s = memStorage();
-    writeCache(s, { latestVersion: '0.2.711-alpha' }, 1000);
+    writeCache(s, { latestVersion: '0.2.712-alpha' }, 1000);
     const v = await checkForUpdateLive({ storage: s, now: () => 1500, currentVersion: 'v0.2.280-alpha' });
     expect(v.fromCache).toBe(true);
     expect(v.status).toBe(LIVE_STATUS.BEHIND);
-    expect(v.behindBy).toBe(431);
+    expect(v.behindBy).toBe(432);
   });
 });
 

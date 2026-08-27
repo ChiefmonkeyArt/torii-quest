@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS, fetchOwnerProfileName } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, RELAYS, fetchOwnerProfileName, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -83,6 +83,11 @@ import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js'
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
+// v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
+// access-control surface (arrival authority + write authority) that was hidden
+// since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
+// from v0.2.358; main.js owns the read/save relay round-trips below.
+import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
 import { buildProfileMetadataEvent } from './engine/identity/profileMetadata.js';
 import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft.js';
 import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
@@ -1007,16 +1012,185 @@ on(EV.NOSTR_LOGIN, () => {
   // settings icon and the in-game KeyM menu. Both are explicit user actions.
 });
 
-// v0.3: the entire Instance Settings admin surface (ACC-2b, v0.2.400 —
-// arrival-mode / write-policy state, its read/save relay round-trips, and
-// its settings-panel tab) is REMOVED from the menu per design direction
-// ("nothing useful there for admins or guests"). The underlying signed
-// kind:30078 access-control enforcement in handoffArrival.js / writeAuthority.js
-// and the read/publish helpers (readLatestAccessSettings / publishAccessSettings,
-// still exported from nostr.js) are untouched — only this title-screen EDITING
-// UI and its wiring (and its now-unused imports here) are gone.
-// instanceSettings.js is left in place, unimported here, in case the surface
-// returns in a future revision.
+// ── Access tab (ADR-0078, v0.2.712) ─────────────────────────────────────────
+// The Instance Settings admin surface (ACC-2b, v0.2.400) was hidden in v0.2.676
+// ("nothing useful there for admins or guests"). v0.2.712 RESTORES it as the
+// "Access" tab per "make the settings panel feel complete + useful" — the
+// signed kind:30078 access-control enforcement in handoffArrival.js /
+// writeAuthority.js stayed live the whole time it was hidden, so this only
+// re-surfaces the editing UI. The view-model + renderer are the unchanged
+// instanceSettings.js (v0.2.358); main.js owns the read/save relay round-trips
+// (readLatestAccessSettings / publishAccessSettings in nostr.js) below.
+//
+// Arrival authority + write authority are owner-only + gated by a signed
+// kind:30078 event verified on read before it can affect arrival — the edit
+// surface can never weaken enforcement, only persist the operator's choice.
+const _instanceSettingsState = {
+  loading: false,
+  saving: false,
+  persisted: null,
+  draftArrivalMode: null,
+  draftWritePolicy: null,
+  statusMessage: '',
+  statusTone: '',
+  _readStarted: false,
+};
+
+function _syncInstanceSettingsDraft() {
+  const arrivalFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.arrivalMode === 'string'
+    ? _instanceSettingsState.persisted.arrivalMode
+    : _arrivalMode();
+  const writeFallback = _instanceSettingsState.persisted && typeof _instanceSettingsState.persisted.writePolicy === 'string'
+    ? _instanceSettingsState.persisted.writePolicy
+    : 'owner-only';
+  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
+    _instanceSettingsState.draftArrivalMode,
+    coerceEditableArrivalMode(arrivalFallback, _arrivalMode()),
+  );
+  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
+    _instanceSettingsState.draftWritePolicy,
+    coerceEditableWritePolicy(writeFallback, 'owner-only'),
+  );
+}
+
+function _currentInstanceSettingsModel() {
+  _syncInstanceSettingsDraft();
+  return buildInstanceSettingsModel({
+    operatorPubkey: state.nostrPubkey || '',
+    hostPubkey: _hostIdentity(),
+    arrivalMode: _arrivalMode(),
+    followPolicy: _followPolicy(),
+    persistedArrivalMode: _instanceSettingsState.persisted && _instanceSettingsState.persisted.arrivalMode,
+    persistedFollowPolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.followPolicy,
+    persistedWritePolicy: _instanceSettingsState.persisted && _instanceSettingsState.persisted.writePolicy,
+    persistedDelegateSet: _instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet,
+    selectedArrivalMode: _instanceSettingsState.draftArrivalMode,
+    selectedWritePolicy: _instanceSettingsState.draftWritePolicy,
+    hasSigner: typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function',
+    loading: _instanceSettingsState.loading,
+    saving: _instanceSettingsState.saving,
+    statusMessage: _instanceSettingsState.statusMessage,
+    statusTone: _instanceSettingsState.statusTone,
+  });
+}
+
+function _rerenderInstanceSettingsPanel() {
+  if (!isSettingsPanelOpen()) return;
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible) { _closeSettingsContentPanel(); return; }
+  renderActiveSettingsTab();
+}
+
+async function _refreshInstanceSettingsAccessState() {
+  const instanceId = _instanceId();
+  const hostPubkey = _hostIdentity();
+  _instanceSettingsState.loading = true;
+  _instanceSettingsState.statusTone = 'muted';
+  _instanceSettingsState.statusMessage = 'Reading saved access setting…';
+  _rerenderInstanceSettingsPanel();
+  if (!instanceId || !HEX64.test(hostPubkey)) {
+    _instanceSettingsState.loading = false;
+    _instanceSettingsState.persisted = null;
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = 'No valid instance identity found — using this deploy default.';
+    _syncInstanceSettingsDraft();
+    _rerenderInstanceSettingsPanel();
+    return;
+  }
+  const res = await readLatestAccessSettings({
+    request: fanoutReq,
+    relays: RELAYS,
+    instanceId,
+    ownerPubkey: hostPubkey,
+    timeoutMs: 5000,
+    graceMs: 250,
+    retries: 1,
+  });
+  _instanceSettingsState.loading = false;
+  if (res.ok && res.settings) {
+    _instanceSettingsState.persisted = res.settings;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings.arrivalMode, _arrivalMode());
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings.writePolicy, 'owner-only');
+    _instanceSettingsState.statusTone = res.stale ? 'warn' : 'ok';
+    _instanceSettingsState.statusMessage = res.stale
+      ? 'Relay read failed — using the cached signed access setting.'
+      : 'Loaded the latest valid signed access setting.';
+  } else if (res.ok) {
+    _instanceSettingsState.persisted = null;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(_arrivalMode(), _arrivalMode());
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy('owner-only', 'owner-only');
+    _instanceSettingsState.statusTone = 'muted';
+    _instanceSettingsState.statusMessage = 'No saved access setting yet — using this deploy default.';
+  } else {
+    _instanceSettingsState.persisted = res.settings || null;
+    _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(
+      (res.settings && res.settings.arrivalMode) || _arrivalMode(),
+      _arrivalMode(),
+    );
+    _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(
+      (res.settings && res.settings.writePolicy) || 'owner-only',
+      'owner-only',
+    );
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = res.stale
+      ? 'Relay read failed — using the cached signed access setting.'
+      : 'Could not read a signed access setting — using this deploy default.';
+  }
+  _rerenderInstanceSettingsPanel();
+}
+
+async function _saveInstanceSettingsAccess() {
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible || !model.canEditAccess) return;
+  _instanceSettingsState.saving = true;
+  _instanceSettingsState.statusTone = 'muted';
+  _instanceSettingsState.statusMessage = 'Signing and publishing the access setting…';
+  _rerenderInstanceSettingsPanel();
+  const res = await publishAccessSettings({
+    instanceId: _instanceId(),
+    ownerPubkey: _hostIdentity(),
+    arrivalMode: _instanceSettingsState.draftArrivalMode,
+    followPolicy: _followPolicy(),
+    writePolicy: _instanceSettingsState.draftWritePolicy,
+    delegateSet: (_instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet) || [],
+    relays: RELAYS,
+    sign: signEvent,
+    publish: fanoutPublish,
+    timeoutMs: 5000,
+  });
+  _instanceSettingsState.saving = false;
+  if (!res.ok) {
+    _instanceSettingsState.statusTone = 'warn';
+    _instanceSettingsState.statusMessage = res.error === 'nip-07-unavailable'
+      ? 'Connect a Nostr signer to save access changes.'
+      : `Could not save access setting: ${(res && res.error) || 'unknown error'}`;
+    _rerenderInstanceSettingsPanel();
+    return;
+  }
+  _instanceSettingsState.persisted = res.settings;
+  _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(res.settings && res.settings.arrivalMode, _arrivalMode());
+  _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(res.settings && res.settings.writePolicy, 'owner-only');
+  _instanceSettingsState.statusTone = 'ok';
+  _instanceSettingsState.statusMessage = `Saved the signed access setting to ${res.accepted} relay${res.accepted === 1 ? '' : 's'}.`;
+  _rerenderInstanceSettingsPanel();
+}
+
+// Access tab content renderer. Renders a gate note for non-owners (the model's
+// own visible/canEditAccess gating still applies inside renderInstanceSettings-
+// Panel). Only the 'access' section is surfaced — the module's placeholder
+// 'multiplayer' + 'more' ("coming soon") sections are filtered out so the tab
+// shows only useful, live controls. The relay read is kicked off lazily on the
+// first render so opening the tab populates the persisted setting.
+registerSettingsTabRenderer('access', () => {
+  const model = _currentInstanceSettingsModel();
+  if (!model.visible) return '<div class="is-note">Instance settings are only available to the node owner.</div>';
+  model.sections = (Array.isArray(model.sections) ? model.sections : []).filter((s) => s && s.key === 'access');
+  if (!_instanceSettingsState._readStarted) {
+    _instanceSettingsState._readStarted = true;
+    _refreshInstanceSettingsAccessState().catch(() => { /* status surfaced */ });
+  }
+  return renderInstanceSettingsPanel(model);
+});
 
 // Generic settings-panel close — kept (was previously named for the instance
 // tab, but the 'close' data-action applies to the whole panel, both tabs).
@@ -1093,6 +1267,34 @@ registerSettingsTabRenderer('profile', () => {
       });
       return;
     }
+  });
+
+  // v0.2.712 (ADR-0078): Access tab — delegated `change` for the arrival-mode /
+  // write-policy radio groups (writes the selection into the draft, same as the
+  // old v0.2.400 wiring), + delegated `submit` for the signed-access form
+  // (data-form="access-settings" → _saveInstanceSettingsAccess signs +
+  // publishes the kind:30078). Scoped to #torii-settings-content like the click
+  // handler so it never catches events outside the settings panel.
+  doc.addEventListener('change', (e) => {
+    const t = e && e.target;
+    if (!t || !t.matches || !t.closest || !t.closest('#torii-settings-content')) return;
+    if (t.matches('input[name="arrival-mode"]')) {
+      _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
+    } else if (t.matches('input[name="write-policy"]')) {
+      _instanceSettingsState.draftWritePolicy = coerceEditableWritePolicy(t.value, 'owner-only');
+    } else {
+      return;
+    }
+    _instanceSettingsState.statusMessage = '';
+    _instanceSettingsState.statusTone = '';
+    _rerenderInstanceSettingsPanel();
+  });
+  doc.addEventListener('submit', (e) => {
+    const t = e && e.target;
+    if (!t || !t.getAttribute || !t.closest || !t.closest('#torii-settings-content')) return;
+    if (t.getAttribute('data-form') !== 'access-settings') return;
+    e.preventDefault();
+    _saveInstanceSettingsAccess();
   });
 })();
 

@@ -246,4 +246,30 @@ describe('renderInstanceSettingsPanel', () => {
     expect(html).toContain('data-action="close"');
     expect(html).toContain('aria-label="Close settings"');
   });
+
+  it('ADR-0078 (v0.2.712): when sections are filtered to only access (as the settings panel does), no placeholder "More coming soon" / multiplayer section is emitted, but the live access controls remain', () => {
+    // main.js's Access-tab renderer filters the model's sections to only
+    // 'access' before rendering — this pins that contract so a future change
+    // can't accidentally re-surface the inert placeholder sections.
+    const model = buildInstanceSettingsModel({
+      operatorPubkey: HEX_A,
+      hostPubkey: HEX_A,
+      hasSigner: true,
+      arrivalMode: 'public',
+      selectedArrivalMode: 'public',
+      selectedWritePolicy: 'owner-only',
+    });
+    model.sections = model.sections.filter((s) => s && s.key === 'access');
+    const html = renderInstanceSettingsPanel(model);
+    // live, useful controls survive the filter
+    expect(html).toContain('Arrival authority');
+    expect(html).toContain('Write authority');
+    expect(html).toContain('data-form="access-settings"');
+    expect(html).toContain('data-action="save-access"');
+    // placeholder / "coming soon" sections are NOT surfaced
+    expect(html).not.toContain('More coming soon');
+    expect(html).not.toContain('MP-1 ships behind a build-time flag');
+    expect(html).not.toContain('data-section="multiplayer"');
+    expect(html).not.toContain('data-section="more"');
+  });
 });

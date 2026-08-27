@@ -200,11 +200,24 @@ UNIT
     if [[ -f "$CADDYFILE" ]]; then
       cp -p "$CADDYFILE" "${CADDYFILE}.bak.$(date +%s)" 2>/dev/null || true
     fi
-    # Strip any prior managed block, then append the fresh one.
+    # Strip any prior managed block, then append the fresh one. The markers
+    # are a prefix match (^# TORII QUEST MANAGED START/END) so the long-form
+    # START line we actually emit is caught. A mangled Caddyfile (START with
+    # no matching END) is NOT safely auto-recoverable — we cannot tell
+    # whether the content after a dangling START belongs to the broken block
+    # or is an unrelated site that landed there after a bad edit, so guessing
+    # risks silently corrupting the file. We hard-abort before writing
+    # anything and ask for a manual fix instead. (ADR-0073)
     if [[ -f "$CADDYFILE" ]]; then
+      local starts ends
+      starts=$(grep -c '^# TORII QUEST MANAGED START' "$CADDYFILE" || true)
+      ends=$(grep -c '^# TORII QUEST MANAGED END' "$CADDYFILE" || true)
+      if [[ "$starts" -ne "$ends" ]]; then
+        ui_die "$CADDYFILE has an unbalanced TORII QUEST MANAGED block ($starts START / $ends END) — fix or remove it by hand before re-running (backup saved alongside the Caddyfile)."
+      fi
       awk '
-        /^# TORII QUEST MANAGED START$/ {skip=1; next}
-        /^# TORII QUEST MANAGED END$/ {skip=0; next}
+        /^# TORII QUEST MANAGED START/ {skip=1; next}
+        /^# TORII QUEST MANAGED END/ {skip=0; next}
         !skip {print}
       ' "$CADDYFILE" > "$tmp"
     fi

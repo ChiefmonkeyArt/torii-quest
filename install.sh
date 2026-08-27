@@ -131,12 +131,17 @@ if [[ "$DRY_RUN" -ne 1 ]]; then
     if [[ "$USE_DOCKER" -eq 1 ]]; then
       ui_die "Port $p is already in use. Stop whatever's listening on it (another web server?) and re-run."
     fi
-    # Bare-metal: allow only the host's own systemd-managed Caddy.
-    if ss -ltnp "( sport = :$p )" 2>/dev/null | grep -q 'users:(("caddy' && systemctl is-active --quiet caddy; then
-      ui_ok "Port $p held by the system Caddy (caddy.service) — installer will reuse it"
+    # Bare-metal: allow only when EVERY listener on this port is the host's
+    # own active systemd-managed Caddy — a mixed listener set (e.g. Caddy
+    # plus a stray nginx/apache also bound during a bad handoff) must still
+    # hard-fail, not be waved through just because one line matched caddy.
+    listener_lines="$(ss -ltnp "( sport = :$p )" 2>/dev/null | grep ":$p")"
+    non_caddy_listeners="$(echo "$listener_lines" | grep -v 'users:(("caddy' || true)"
+    if [[ -z "$non_caddy_listeners" ]] && echo "$listener_lines" | grep -q 'users:(("caddy' && systemctl is-active --quiet caddy; then
+      ui_ok "Port $p held only by the system Caddy (caddy.service) — installer will reuse it"
       continue
     fi
-    ui_die "Port $p is already in use by a process other than the system Caddy. Stop it (another web server?) and re-run."
+    ui_die "Port $p is already in use by a process other than the system Caddy (or a mixed listener set). Stop it (another web server?) and re-run."
   done
   ui_ok "Ports 80 and 443 are free (or held by the reusable system Caddy)"
 fi

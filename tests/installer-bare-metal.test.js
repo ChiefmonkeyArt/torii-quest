@@ -153,7 +153,7 @@ describe('docs — bare-metal framed as recommended, Docker as advanced/optional
       vpsInstallMd.indexOf('## 0. Quick start'),
       vpsInstallMd.indexOf('## 1. MVP recommendation')
     );
-    expect(section0).toMatch(/one-command bare-metal install \(recommended\)/i);
+    expect(section0).toMatch(/one-command bare-metal (install|bootstrap) \(recommended\)/i);
     // Docker is explicitly framed as NOT recommended (negation is the desired
     // wording — the contract forbids calling Docker recommended, not the
     // word "recommended" appearing anywhere near "docker").

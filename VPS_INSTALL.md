@@ -19,23 +19,36 @@ from that.
 
 ---
 
-## 0. Quick start — one-command bare-metal install (recommended)
+## 0. Quick start — one-command bare-metal bootstrap (recommended)
 
-The recommended path for a new self-hoster is the one-command bare-metal
-installer. It automates §§1–16 below end-to-end on a fresh Ubuntu/Debian VPS —
-Node 20 + Caddy + git, build the game, publish it into a versioned release
-folder with an atomic symlink flip, run the multiplayer server under systemd
-as a dedicated `torii-quest` user, and configure Caddy with automatic HTTPS
-and a `/mp` reverse proxy. It does **not** depend on torii-suite and makes no
-changes outside this repo's own conventions.
+The fastest path to a live node is the one-command bootstrap. It is a single
+`curl | sudo bash` line that installs git, discovers an existing clone (or
+clones fresh), checks out the target release, and hands off to `install.sh` —
+which then builds the game, publishes the release, brings up the systemd
+multiplayer server, and configures Caddy with automatic HTTPS.
+
+Pin the tag you trust (the script you review is the script that runs — the same
+`curl | sudo bash` model as rustup / get.docker):
 
 ```bash
-git clone https://github.com/ChiefmonkeyArt/torii-quest.git
-cd torii-quest
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.713-alpha/install-remote.sh \
+  | sudo bash -s -- -y
 ```
 
-The **only prompts** are:
+By default it checks out the **latest** release tag. To pin a specific version,
+pass `--version` (plus any `install.sh` flags you want to pre-fill):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.713-alpha/install-remote.sh \
+  | sudo bash -s -- --version v0.2.713-alpha --domain torii.example.com --email you@example.com -y
+```
+
+Returning operators: the bootstrap **discovers your existing clone** (searches
+`/home /opt /srv /root` for a `torii-quest` checkout) and reuses it, so your
+existing `.env` (domain / email / admin npub) is preserved — you don't re-enter
+anything. If no clone exists, it clones fresh to `/opt/torii-quest-src`.
+
+The **only prompts** (when not pre-filled with flags) are:
 
 1. **Domain** — must already point at this server via a DNS `A` record
    (Caddy needs it to request the HTTPS certificate).
@@ -44,16 +57,24 @@ The **only prompts** are:
    instance (`npub1…` only — never an `nsec`/private key; leave blank for no
    admin).
 
-That's it — everything else is automated and safe to re-run. The installer
-writes a managed Caddy site block (never clobbering an existing `Caddyfile`),
-validates the Caddy config before reloading, and verifies the live HTTPS site
-and multiplayer service at the end.
+Everything else is automated and safe to re-run. The installer writes a managed
+Caddy site block (never clobbering an existing `Caddyfile`), validates the Caddy
+config before reloading, and verifies the live HTTPS site and multiplayer
+service at the end.
 
-Non-interactive / scripted use: pass `--domain`, `--email`, and
-`--admin-npub` (or pre-populate `.env` per `.env.example`) plus `-y`/`--yes`
-to skip every prompt. Re-running is safe — an existing `.env` is reused as
-defaults rather than being overwritten blind. `--dry-run` resolves config and
-prints the plan without touching the system.
+Bootstrap options (consumed by `install-remote.sh`, NOT passed to `install.sh`):
+`--version <ver>` (pin a release tag), `--repo-dir <path>` (use this existing
+clone), `-h`/`--help`. Everything else (`--domain` / `--email` / `--admin-npub`
+/ `-y` / `--docker` / `--dry-run`) is forwarded to `install.sh` — see
+`install.sh --help`.
+
+> **Fallback:** if you would rather clone by hand, the original three commands
+> still work — `install-remote.sh` only wraps them (see ADR-0079):
+> ```bash
+> git clone https://github.com/ChiefmonkeyArt/torii-quest.git
+> cd torii-quest
+> sudo ./install.sh
+> ```
 
 ### Docker — an advanced/optional alternative
 

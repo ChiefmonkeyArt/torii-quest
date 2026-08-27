@@ -18,6 +18,7 @@ echo "Bumping to $V (pkg $PV)"
 sed -i "s/v0\.2\.[0-9][0-9][0-9]\(-[a-z]*\)\?-alpha/$V/g; s/0\.2\.[0-9][0-9][0-9]\(-[a-z]*\)\?-alpha/$PV/g" \
   package.json package-lock.json \
   src/config.js src/engine/dashboard/continuumData.js \
+  server/arena-ws.js \
   public/sw.js public/continuum-data.json public/dashboard.html \
   NEXT_ACTION_STATE.json MVP_APPROVAL_STATE.json \
   index.html \

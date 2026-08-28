@@ -6,7 +6,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/<tag>/install-remote.sh \
 #     | sudo bash -s -- -y
 #
-# Pin the tag you trust — e.g. v0.2.713-alpha — so the script you review is the
+# Pin the tag you trust — e.g. v0.2.714-alpha — so the script you review is the
 # script that runs. (Same `curl | sudo bash` model as rustup / get.docker: only
 # run installers from a source you trust. This one runs as root.)
 #

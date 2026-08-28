@@ -73,7 +73,11 @@ export async function nostrLogin() {
     state.nostrName   = pk.slice(0,8).toUpperCase();
     emit(EV.NOSTR_LOGIN, { pubkey: pk });
     _fetchProfile(pk);
-    return `⚡ ${state.nostrName}`;
+    // v0.2.714: on success return an empty string so the title-screen status
+    // line hides — we no longer surface the raw pubkey fragment ("⚡ EC79B568")
+    // under the Enter button. The pubkey is still stored in state for the
+    // in-game display-name fallback; it just isn't shown on the homescreen.
+    return '';
   } catch(e) {
     // Provider exists but the getPublicKey() request was rejected/failed — give an actionable
     // message (the usual cause is the extension prompt being dismissed), not a dead-end "failed".

@@ -30,7 +30,7 @@ function showStatus(el, msg) {
 
 // doNostrLogin(statusEl) — run the real NIP-07 login and surface a SPECIFIC visible result:
 //   • no provider  → "NIP-07 extension not found" (from nostrLogin)
-//   • success      → "⚡ <NAME>"
+//   • success      → "" (status line hides; no pubkey fragment shown)
 //   • provider errors / unexpected throw → an actionable message, never a stuck "Connecting…".
 // No network/write beyond the existing NIP-07 read. Exported for tests; safe to call repeatedly.
 export async function doNostrLogin(statusEl) {

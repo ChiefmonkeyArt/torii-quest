@@ -101,7 +101,7 @@ import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
 // with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, readEffectiveNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readEffectiveNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -454,12 +454,6 @@ function _homepageStubState() {
   const heartbeatIntent = getHeartbeatIntent();
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
   const nodeRelays = _effectiveRelays();
-  // ADR-0076: usingDefaults is true when the operator has NOT configured their
-  // own node relays (so the curated starter relays are active). Drives the Relay
-  // tab's "Starter relays active" banner + read-only default rows. Computed from
-  // readNodeRelays (configured-only), NOT readEffectiveNodeRelays, so the banner
-  // flips off the moment an operator saves their own set.
-  const usingDefaults = !readNodeRelays(_nodeRelaysOpts()).length;
   const hb = heartbeatStatus({
     intent: heartbeatIntent,
     isOwner,
@@ -484,7 +478,6 @@ function _homepageStubState() {
     activeWorld: getActiveWorld(),
     heartbeatStatus: hb,
     nodeRelays,
-    usingDefaults,
     nodeRelaysInput,
     profileDraft,
     profilePublishStatus: _profilePublishStatus,
@@ -849,10 +842,9 @@ const _heartbeat = {
   inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
 };
 
-// _nodeRelaysOpts() → the { storage, metaGetter } injection shared by the
-// configured-only reader (readNodeRelays) and the effective reader
-// (readEffectiveNodeRelays). Built once so the Relay tab's usingDefaults flag
-// and the heartbeat's publish set stay in lockstep with a single source.
+// _nodeRelaysOpts() → the { storage, metaGetter } injection for the effective
+// reader (readEffectiveNodeRelays). Built once so the Relay tab's list and the
+// heartbeat's publish set stay in lockstep with a single source.
 function _nodeRelaysOpts() {
   return {
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
@@ -1246,7 +1238,12 @@ registerSettingsTabRenderer('profile', () => {
     if (action === 'remove-relay') {
       e.preventDefault();
       const url = t.getAttribute('data-relay') || '';
-      const remaining = getNodeRelays().split(/[\n,]+/).map((s) => s.trim()).filter((s) => s && s !== url);
+      // Remove from the EFFECTIVE list (curated defaults included) and persist
+      // the remaining set as the operator's configured list — so deleting a
+      // starter relay materialises the rest as an explicit config rather than
+      // silently leaving the default fallback in place.
+      const effective = readEffectiveNodeRelays(_nodeRelaysOpts());
+      const remaining = effective.filter((r) => r !== url);
       _homepageStubCallbacks().onSetNodeRelays(remaining.join('\n'));
       renderActiveSettingsTab();
       return;

@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -1489,12 +1489,42 @@ async function _publishLatestScore() {
   }
 }
 
+// _prefillProfileDraftFromNostr(pubkey) → fetch the logged-in user's published
+// kind:0 profile and pre-fill the Profile settings tab's draft from it — but
+// ONLY when the draft is still empty, so we never clobber an owner's unsaved
+// edits. Maps the sanitised profile view-model to the draft field shape and
+// re-renders the Profile tab if it is open. Never throws.
+let _profilePrefillPubkey = null; // short-circuit repeat login events
+async function _prefillProfileDraftFromNostr(pubkey) {
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return;
+  if (pk === _profilePrefillPubkey) return;
+  _profilePrefillPubkey = pk;
+  const existing = getProfileDraft();
+  if (existing && Object.keys(existing).length) return; // already has a draft — leave it
+  const profile = await fetchOwnProfile(pk);
+  if (!profile) return;
+  const displayName = (profile.displayName && profile.displayName !== profile.shortPubkey)
+    ? profile.displayName
+    : '';
+  setProfileDraft({
+    displayName,
+    about: profile.about || '',
+    picture: profile.picture || '',
+    website: profile.website || '',
+    nip05: profile.nip05 || '',
+    lud16: profile.lud16 || '',
+  });
+  renderActiveSettingsTab(); // no-op unless the panel is open; refreshes the Profile tab if so
+}
+
 on(EV.NOSTR_LOGIN, ({ pubkey }) => {
   _latestScoreFrame = loadLatestScoreFrame(globalThis.localStorage, pubkey) || _latestScoreFrame;
   renderLeaderboardPreview();
   _renderGamestrLeaderboard();
   void _refreshPersistentScores();
   void _refreshGamestrScores();
+  void _prefillProfileDraftFromNostr(pubkey);
 });
 on(EV.PHASE_CHANGE, ({ to }) => {
   if (to !== 'title') return;

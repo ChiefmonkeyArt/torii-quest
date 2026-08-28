@@ -120,8 +120,7 @@ function _build() {
     position: 'fixed', inset: '0', zIndex: '200',
     display: 'none',
     alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(10,6,4,0.72)',
-    backdropFilter: 'blur(3px)',
+    background: 'transparent',
   });
 
   const card = doc.createElement('div');

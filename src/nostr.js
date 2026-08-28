@@ -288,6 +288,31 @@ export function __resetOwnerProfileNameCache() {
   OWNER_PROFILE_NAME_CACHE.clear();
 }
 
+// fetchOwnProfile(pubkey, opts) → the sanitised kind:0 profile view-model for
+// the given pubkey, or null. Read-only: reuses fanoutReq + readProfiles (the
+// same pure extraction fetchOwnerProfileName uses), but returns the FULL
+// profile (name/displayName/about/picture/website/nip05/lud16) instead of just
+// the display name — used to pre-fill the Profile settings tab from the user's
+// published Nostr profile. Never throws; a failed/empty lookup returns null.
+export async function fetchOwnProfile(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return null;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs });
+  } catch {
+    return null;
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { profiles } = readProfiles(events);
+  return profiles.find((p) => p.pubkey === pk) || null;
+}
+
 function _updateTitleUI() {
   const nameEl   = document.getElementById('nostr-display-name');
   const avatarEl = document.getElementById('nostr-avatar-img');

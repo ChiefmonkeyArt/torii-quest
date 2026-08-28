@@ -10,20 +10,31 @@ import {
   WRITE_POLICY_FOLLOWS_WRITE,
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
+import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
 
-// v0.2.711-alpha (ADR-0076): trimmed + swapped profile relays. damus.io now
-// returns 503 on this exact REQ (verified 2026-08-27) — dropped to stop the
-// connection-failed console noise. nos.lol stays (reliable, fast). Added
-// relay.vertexlab.io (NIP-45 profile aggregator, WS-verified live) for broader
-// profile resolution. The heartbeat/presence PUBLISH path does NOT use these —
-// it uses the curated Torii starter relays (see nodeRelays.DEFAULT_NODE_RELAYS);
-// these RELAYS are only for profile reads + the gate's presence-discovery
-// read (which merges [...nodeRelays, ...RELAYS], so discovery still hits the
-// gamestr/plebeian/routstr starter relays nodes publish to).
-const RELAYS = ['wss://nos.lol','wss://relay.vertexlab.io'];
+// v0.2.715-alpha (ADR-0081): ONE relay list for the whole game. The separate
+// hardcoded `RELAYS` (nos.lol + vertexlab.io) that profile/login/leaderboard
+// reads used is gone — every relay-consuming path now reads the SAME single
+// list the operator edits in the Relay settings tab (localStorage
+// `torii.node.relays` + <meta name="torii-relays">), falling back to the
+// curated 5-relay DEFAULT_NODE_RELAYS. Public relays are fine here; what is
+// gated is the ACTION (each publish keeps its own opt-in), not the relay.
+function _effectiveRelays() {
+  let metaGetter = null;
+  try {
+    if (typeof document !== 'undefined' && document.querySelector) {
+      metaGetter = (name) => {
+        const el = document.querySelector(`meta[name="${name}"]`);
+        return el && el.content ? el.content : '';
+      };
+    }
+  } catch { /* no document — meta source unavailable */ }
+  return readEffectiveNodeRelays({ metaGetter });
+}
+
 const PROFILE_TIMEOUT_MS = 5000;
 const PROFILE_SETTLE_MS = 1800;
-export { RELAYS, PROFILE_SETTLE_MS };
+export { PROFILE_SETTLE_MS };
 
 // A nostrich profile's `picture` is attacker-controlled (anyone can sign a
 // kind:0 with any string). Only accept a well-formed https URL before it ever
@@ -114,7 +125,7 @@ function _applyProfileMeta(pubkey, meta) {
 
 export function fetchProfileProgressive(pubkey, opts = {}) {
   const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
-  const relays = Array.isArray(o.relays) ? o.relays : RELAYS;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : PROFILE_TIMEOUT_MS;
   const settleMs = Number.isFinite(o.settleMs) && o.settleMs >= 0 ? Math.floor(o.settleMs) : PROFILE_SETTLE_MS;
   const WebSocketCtor = o.WebSocketCtor || (typeof WebSocket !== 'undefined' ? WebSocket : null);
@@ -252,7 +263,7 @@ export async function fetchOwnerProfileName(pubkey, opts = {}) {
   const cached = OWNER_PROFILE_NAME_CACHE.get(pk);
   if (cached && cached.expiresAt > nowMs) return cached.name;
 
-  const relays = Array.isArray(o.relays) ? o.relays : RELAYS;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
   const request = typeof o.request === 'function' ? o.request : fanoutReq;
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
 

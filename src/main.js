@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS, fetchOwnerProfileName, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -183,7 +183,7 @@ function _gatewayRows(...pairs) {
 // The live n2n handshake controller. Stateful but DOM-free; transports are the
 // injected nostr.js fns; ourPubkey is empty until login.
 const _handshake = createHandshakeController({
-  request: fanoutReq, sign: signEvent, publish: fanoutPublish, relays: RELAYS, ourPubkey: '',
+  request: fanoutReq, sign: signEvent, publish: fanoutPublish, relays: _effectiveRelays(), ourPubkey: '',
 });
 let _worldsCache = [];
 let _worldsScan = 'idle';
@@ -327,7 +327,7 @@ function _getToriiMenuState() {
   const cap = _updateCapability;
   const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
-  const nodeRelays = _nodeRelaysForPublish();
+  const nodeRelays = _effectiveRelays();
   const heartbeatIntent = getHeartbeatIntent();
   const heartbeat = heartbeatStatus({
     intent: heartbeatIntent,
@@ -378,7 +378,7 @@ function _getToriiMenuState() {
           // pause path. Re-enabling clears a pause (e.g. after a signer
           // rejection) and re-publishes immediately so the operator doesn't have
           // to wait for the next tick. On rejection → paused (status surfaces);
-          // on no-node-relay → blocked (publishes nothing, never public RELAYS).
+          // on no-relay → blocked (publishes nothing).
           _heartbeat.republishPaused = false;  // re-toggle clears a pause
           _heartbeat.lastError = null;
           publishOurWorldPresence().catch(() => { /* status surfaced */ });
@@ -397,8 +397,8 @@ function _getToriiMenuState() {
         showEntryStatus(next === 'on' ? 'gamestr.io ON — publishes on your next score.' : 'gamestr.io OFF.');
       },
       onSetNodeRelays: (str) => {
-        // Owner-only: persist the node-relay set so the heartbeat publishes
-        // here (never to public RELAYS). Validated wss-only inside setNodeRelays.
+        // Owner-only: persist the relay list so reads + presence publish use it.
+        // Validated wss-only inside setNodeRelays.
         setNodeRelays(str);
         showEntryStatus('Node relays saved.');
       },
@@ -453,7 +453,7 @@ function _homepageStubState() {
   const isLoggedIn = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
   const heartbeatIntent = getHeartbeatIntent();
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
-  const nodeRelays = _nodeRelaysForPublish();
+  const nodeRelays = _effectiveRelays();
   // ADR-0076: usingDefaults is true when the operator has NOT configured their
   // own node relays (so the curated starter relays are active). Drives the Relay
   // tab's "Starter relays active" banner + read-only default rows. Computed from
@@ -571,7 +571,7 @@ function _homepageStubCallbacks() {
       _profilePublishStatus = 'publishing';
       try {
         const signed = await signEvent(built.event);
-        await fanoutPublish(RELAYS, signed);
+        await fanoutPublish(_effectiveRelays(), signed);
         _profilePublishStatus = 'published';
         showEntryStatus('Profile published.');
       } catch {
@@ -742,7 +742,7 @@ async function _admitInboundTraveller() {
   filter.authors = [_inboundTraveller];
   let request = null;
   try {
-    const raw = await fanoutReq(RELAYS, [filter], { timeoutMs: 5000, graceMs: 250, retries: 1 });
+    const raw = await fanoutReq(_effectiveRelays(), [filter], { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const events = raw && Array.isArray(raw.events) ? raw.events : [];
     for (const rq of readTravelRequests(events).requests) {
       if (rq.travellerPubkey === _inboundTraveller) { request = rq; break; }
@@ -770,15 +770,13 @@ _admitInboundTraveller();
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
   if (!_worldsCache.length) renderGatewayCard();
-  // Read-side discovery (Phase 0d follow-up): query the node-relay set (the
-  // community relay nodes publish their presence to) MERGED with the public
-  // RELAYS. This is read-only — a failed node relay just lands in `failed` and
-  // never fails the scan (fanoutReq returns the union). Without this, nodes that
-  // publish presence to their own/community relay (never the public RELAYS, per
-  // the own-relay-only rule) would be invisible to the directory.
+  // Read-side discovery (Phase 0d follow-up): query the single relay list (the
+  // same list presence publishes to, ADR-0081). This is read-only — a failed
+  // relay just lands in `failed` and never fails the scan (fanoutReq returns the
+  // union).
   const r = await fetchOnlineWorlds({
     request: fanoutReq,
-    relays: [..._nodeRelaysForPublish(), ...RELAYS],
+    relays: _effectiveRelays(),
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
     graceMs: 250,
@@ -812,7 +810,7 @@ async function _refreshFriendData() {
   const me = state.nostrPubkey || '';
   if (!HEX64.test(me)) return; // logged out: no friends section
   try {
-    const mineRaw = await fanoutReq(RELAYS, [{ kinds: [3], authors: [me], limit: 4 }],
+    const mineRaw = await fanoutReq(_effectiveRelays(), [{ kinds: [3], authors: [me], limit: 4 }],
       { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const mineEvents = mineRaw && Array.isArray(mineRaw.events) ? mineRaw.events : [];
     _userContacts = contactSetFromEvent(newestContactEvent(mineEvents, me));
@@ -822,7 +820,7 @@ async function _refreshFriendData() {
   });
   if (!candidates.length) return;
   try {
-    const ownersRaw = await fanoutReq(RELAYS,
+    const ownersRaw = await fanoutReq(_effectiveRelays(),
       [{ kinds: [3], authors: candidates, limit: candidates.length * 4 }],
       { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const ownerEvents = ownersRaw && Array.isArray(ownersRaw.events) ? ownersRaw.events : [];
@@ -867,20 +865,19 @@ function _nodeRelaysOpts() {
   };
 }
 
-// _nodeRelaysForPublish() → the validated wss:// node-relay set the heartbeat
-// publishes to: the operator's configured node relays (localStorage
-// `torii.node.relays` + <meta name="torii-relays">), else the curated trusted
-// Torii starter relays (DEFAULT_NODE_RELAYS, ADR-0076) so a fresh install
-// beacons + is discoverable with zero config. NEVER falls back to the big public
-// RELAYS (damus/nos.lol/nostr.band/primal) — the curated starters are
-// Torii-ecosystem relays, not those. Returns [] only if both configured AND
-// defaults are empty (defaults are non-empty, so this practically never blocks).
-function _nodeRelaysForPublish() {
+// _effectiveRelays() → the validated wss:// relay set the WHOLE game uses —
+// reads (profile/login/leaderboard/discovery) AND presence publish (ADR-0081).
+// The operator's configured node relays (localStorage `torii.node.relays` +
+// <meta name="torii-relays">), else the curated 5-relay DEFAULT_NODE_RELAYS so
+// a fresh install works with zero config. Returns [] only if both configured
+// AND defaults are empty (defaults are non-empty, so this practically never
+// blocks).
+function _effectiveRelays() {
   return readEffectiveNodeRelays(_nodeRelaysOpts());
 }
 
 // _publishPresenceOnce() → signs + fanout-publishes ONE presence event to the
-// node-relay set (NEVER public RELAYS). The NIP-40 expiration is now baked into
+// single relay list (ADR-0081). The NIP-40 expiration is now baked into
 // buildPresenceEvent (default 20 min). Returns { ok, error }.
 //   - On sign rejection/throw (nip-07-rejected/nip-07-threw): sets
 //     _heartbeat.republishPaused = true so the rAF tick stops auto-republishing.
@@ -890,7 +887,7 @@ function _nodeRelaysForPublish() {
 async function _publishPresenceOnce() {
   const pubkey = state.nostrPubkey || '';
   if (!/^[0-9a-f]{64}$/.test(pubkey)) return { ok: false, error: 'no-pubkey' };
-  const relays = _nodeRelaysForPublish();
+  const relays = _effectiveRelays();
   if (!relays.length) return { ok: false, error: 'blocked:no-node-relay' };
   // Record the attempt time so a FAILED first publish backs off (ADR-0077) —
   // set BEFORE buildPresenceEvent + the async publish, so a BUILD failure OR a
@@ -972,8 +969,8 @@ function _heartbeatTick(now) {
 // called by the menu toggle when the operator re-enables a paused heartbeat
 // (re-publishes immediately, no waiting for the next tick) or explicitly asks
 // to re-publish. v0.2.263 idempotency guard kept so a re-toggle of the same
-// intent doesn't double-publish. Now publishes to the node-relay set ONLY
-// (never public RELAYS); if none configured, blocks with status
+// intent doesn't double-publish. Now publishes to the single relay list ONLY;
+// if none configured, blocks with status
 // blocked:no-node-relay and publishes nothing.
 async function publishOurWorldPresence() {
   const pubkey = state.nostrPubkey || '';
@@ -1099,7 +1096,7 @@ async function _refreshInstanceSettingsAccessState() {
   }
   const res = await readLatestAccessSettings({
     request: fanoutReq,
-    relays: RELAYS,
+    relays: _effectiveRelays(),
     instanceId,
     ownerPubkey: hostPubkey,
     timeoutMs: 5000,
@@ -1153,7 +1150,7 @@ async function _saveInstanceSettingsAccess() {
     followPolicy: _followPolicy(),
     writePolicy: _instanceSettingsState.draftWritePolicy,
     delegateSet: (_instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet) || [],
-    relays: RELAYS,
+    relays: _effectiveRelays(),
     sign: signEvent,
     publish: fanoutPublish,
     timeoutMs: 5000,
@@ -1387,7 +1384,7 @@ async function _refreshPersistentScores() {
       { kinds: [SCORE_KIND_ADDRESSABLE], '#d': [SCORE_D_TAG], limit: 50 },
       { kinds: [SCORE_KIND_HISTORY], '#t': [SCORE_HISTORY_T_TAG], limit: 200 },
     ];
-    const { events } = await fanoutReq(RELAYS, filters, { timeoutMs: 4000, graceMs: 300 });
+    const { events } = await fanoutReq(_effectiveRelays(), filters, { timeoutMs: 4000, graceMs: 300 });
     if (seq !== _scoreReadSeq) return;
     const valid = Array.isArray(events) ? events.filter(_isScoreEvent) : [];
     _relayScoreEvents = {
@@ -1478,9 +1475,9 @@ async function _publishLatestScore() {
       return result.event;
     },
     publisher: async (event) => {
-      const result = await fanoutPublish(RELAYS, event);
+      const result = await fanoutPublish(_effectiveRelays(), event);
       if (!result || result.accepted < 1) throw new Error('no relay accepted score');
-      return { published: result.accepted, tried: RELAYS.length };
+      return { published: result.accepted, tried: _effectiveRelays().length };
     },
     log: (message, error) => console.warn('[score]', message, error?.message || ''),
   });
@@ -1519,7 +1516,7 @@ on(EV.PHASE_CHANGE, ({ to }) => {
 // the sign+publish stakes are never hidden. Status: idle → publishing → published
 // / failed.
 const _livePublisher = createLiveLeaderboardPublisher({
-  sign: signEvent, publish: fanoutPublish, relays: RELAYS,
+  sign: signEvent, publish: fanoutPublish, relays: _effectiveRelays(),
 });
 let _publishInFlight = false;
 
@@ -2326,7 +2323,7 @@ if (typeof window !== 'undefined') {
     return {
       hostPubkey: _hostIdentity() || 'NOT CONFIGURED',
       loggedInNpub: state.nostrPubkey || 'not logged in',
-      relays: RELAYS,
+      relays: _effectiveRelays(),
       handshakeMode: view?.mode || 'idle',
       handshakeBadge: view?.badge || '',
       armed: armed ? { toZone: armed.toZone, spawn: armed.spawn, hostPubkey: armed.hostPubkey } : null,

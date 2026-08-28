@@ -82,7 +82,7 @@ export function renderRelayPanel(state = {}) {
       <h2 class="gs-title">Relay</h2>
       <div class="gs-badge">${badge}</div>
     </div>
-    <div class="gs-subtitle">Relays your node publishes presence to (wss:// only)</div>
+    <div class="gs-subtitle">Relays Torii Quest connects to (reads + presence publish)</div>
     <div class="rl-list">${listHtml}</div>
     ${gate}
     <div class="rl-add${isOwner ? '' : ' rl-add-disabled'}">
@@ -90,5 +90,5 @@ export function renderRelayPanel(state = {}) {
       <textarea id="rl-add-input" class="rl-add-input" rows="3" placeholder="wss://relay.example.com"${isOwner ? '' : ' disabled'}>${_escape(rawInput)}</textarea>
       <button type="button" class="gs-btn" data-action="save-relays"${isOwner ? '' : ' disabled'}>Save Relays</button>
     </div>
-    <div class="gs-note">Trusted starter relays are active by default. Add your own above to override — presence never falls back to public relays.</div>`;
+    <div class="gs-note">These starter relays are active by default. Add your own above to override — this single list drives both reads and presence publish.</div>`;
 }

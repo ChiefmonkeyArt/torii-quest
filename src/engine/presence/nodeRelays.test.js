@@ -102,11 +102,15 @@ describe('readEffectiveNodeRelays — curated starter defaults (ADR-0076)', () =
     expect(readEffectiveNodeRelays({ storage: s, metaGetter: () => '' })).toEqual(['wss://my.relay/']);
   });
 
-  it('defaults are wss-only Torii-ecosystem relays, not the big public RELAYS', () => {
-    expect(DEFAULT_NODE_RELAYS.length).toBeGreaterThan(0);
+  it('defaults are the single 5-relay wss-only list (ADR-0081)', () => {
+    expect(DEFAULT_NODE_RELAYS).toEqual([
+      'wss://main.relay.gamestr.io',
+      'wss://relay.plebeian.market',
+      'wss://relay.routstr.com',
+      'wss://nos.lol',
+      'wss://relay.vertexlab.io',
+    ]);
     for (const u of DEFAULT_NODE_RELAYS) expect(u.startsWith('wss://')).toBe(true);
-    const PUBLIC = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.nostr.band', 'wss://relay.primal.net'];
-    for (const p of PUBLIC) expect(DEFAULT_NODE_RELAYS).not.toContain(p);
   });
 
   it('returns a fresh copy (not the frozen constant) so callers cannot mutate', () => {

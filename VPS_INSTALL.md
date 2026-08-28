@@ -31,7 +31,7 @@ Pin the tag you trust (the script you review is the script that runs — the sam
 `curl | sudo bash` model as rustup / get.docker):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.713-alpha/install-remote.sh \
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.714-alpha/install-remote.sh \
   | sudo bash -s -- -y
 ```
 
@@ -39,8 +39,8 @@ By default it checks out the **latest** release tag. To pin a specific version,
 pass `--version` (plus any `install.sh` flags you want to pre-fill):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.713-alpha/install-remote.sh \
-  | sudo bash -s -- --version v0.2.713-alpha --domain torii.example.com --email you@example.com -y
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.714-alpha/install-remote.sh \
+  | sudo bash -s -- --version v0.2.714-alpha --domain torii.example.com --email you@example.com -y
 ```
 
 Returning operators: the bootstrap **discovers your existing clone** (searches

@@ -3,7 +3,7 @@
 // is decoupled from the 3D boot; THIS suite actually RUNS installLoginBootstrap()/doNostrLogin()
 // against a hand-rolled fake DOM + window.nostr to prove a loaded bundle can never leave login stuck
 // in the inline "Login still loading" fallback, and that each outcome shows a SPECIFIC visible
-// message: no provider → "NIP-07 extension not found", success → "⚡ <NAME>", error → actionable.
+// message: no provider → "NIP-07 extension not found", success → "" (line hidden, no pubkey fragment), error → actionable.
 // No jsdom dependency — a tiny fake document/window is enough for these pure-DOM handlers.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { installLoginBootstrap, doNostrLogin } from '../src/engine/ui/loginBootstrap.js';
@@ -74,12 +74,12 @@ describe('doNostrLogin — specific, visible outcome on every path (never a stuc
     expect(status.textContent).not.toMatch(/still loading/i);
   });
 
-  it('provider present + approves → "⚡ <NAME>" shown on the status line', async () => {
+  it('provider present + approves → status line hides (no pubkey fragment shown)', async () => {
     const status = fakeEl();
     globalThis.window.nostr = { getPublicKey: async () => 'a'.repeat(64) };
     const result = await doNostrLogin(status);
-    expect(result).toMatch(/^⚡ /);
-    expect(status.textContent).toBe(result);
+    expect(result).toBe('');
+    expect(status.textContent).toBe('');
   });
 
   it('provider present but rejects/throws → an ACTIONABLE visible error, not a dead end', async () => {

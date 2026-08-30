@@ -10,8 +10,15 @@
 // `id` is opaque to the shell but MUST be present so request/result pairing works.
 // Unknown `type` values are silently ignored (forward-compat, per NIP-5D §capability).
 
-// NAP namespace this shell currently understands. A future NappletGameHost owns "game".
+// NAP namespaces this shell understands. `world` = nap-torii-world (in-world surface
+// napplets, ADR-0057). `game` = nap-torii-game (napplets that own their scene,
+// ADR-0082). `avatar` = nap-torii-avatar (character read/write, ADR-0083).
 export const WORLD_NAMESPACE = 'world';
+export const GAME_NAMESPACE = 'game';
+export const AVATAR_NAMESPACE = 'avatar';
+export const NAPPLET_NAMESPACES = Object.freeze([
+  WORLD_NAMESPACE, GAME_NAMESPACE, AVATAR_NAMESPACE,
+]);
 
 // splitType("world.attach.get") → { ns: "world", action: "attach.get" }
 // Returns { ns, action } or null if `type` is not a dotted namespace string.

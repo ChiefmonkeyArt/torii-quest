@@ -1,8 +1,8 @@
-# ADR-0088 — Arena full sandboxing (Three + Rapier inside the napplet iframe)
+# ADR-0090 — Arena full sandboxing (Three + Rapier inside the napplet iframe)
 
 **Status:** Proposed · **Date:** 2026-08-31
 **Deciders:** chiefmonkey
-**Related:** ADR-0057 (NappletSurface), ADR-0082 (game host shell), ADR-0084 (arena wiring-only), ADR-0086 (release-time napplet identity, deferred), ADR-0089 (sticker studio full sandboxing, deferred)
+**Related:** ADR-0057 (NappletSurface), ADR-0082 (game host shell), ADR-0084 (arena wiring-only), ADR-0092 (release-time napplet identity, planned), ADR-0091 (sticker studio full sandboxing, deferred)
 
 ## Context
 
@@ -46,7 +46,7 @@ Full sandboxing is *not* a rewrite of the arena. The arena runtime keeps its sha
 
    Nothing WebGL-shaped crosses the boundary. The MP wire on the main window reads snapshots and sends `SHOT`/`HIT`/`STATE` on `arena-ws`; incoming MP state is injected as `game.frame.inject { peers, authoritativeHits }`. **Injection is applied at the arena's next tick boundary, never mid-tick** — the arena's rewind/reconcile path (unchanged from current behaviour) handles peer teleports and out-of-order state. Inject is treated as a hint the arena reconciles against; the arena tick remains authoritative for local player physics.
 
-4. **Bundle model.** The arena napplet ships as a static bundle addressed by the `NAPPLET_IDENTITY` hash ADR-0086 will assign. The bundle carries its own Three + Rapier vendor chunks; the shell keeps its own copies for the world/product/avatar surfaces. Duplicate cost is real — the "Rapier WASM ≈ 500 KB" figure is **the same inlined-base64 payload described in §1** (≈ 180 KB gzipped), and three-vendor ≈ 700 KB — but bounded: the shell caches by hash, so the second load is free. This is the trade the sandbox buys: the shell's Three/Rapier and the arena's Three/Rapier are never the same objects, which is exactly the point.
+4. **Bundle model.** The arena napplet ships as a static bundle addressed by the `NAPPLET_IDENTITY` hash ADR-0092 will assign. The bundle carries its own Three + Rapier vendor chunks; the shell keeps its own copies for the world/product/avatar surfaces. Duplicate cost is real — the "Rapier WASM ≈ 500 KB" figure is **the same inlined-base64 payload described in §1** (≈ 180 KB gzipped), and three-vendor ≈ 700 KB — but bounded: the shell caches by hash, so the second load is free. This is the trade the sandbox buys: the shell's Three/Rapier and the arena's Three/Rapier are never the same objects, which is exactly the point.
 
 5. **Migration path.** Ship in three PRs, each independently mergeable:
    1. **Snapshot-only shim.** `arenaRuntime.js` gains a `readFrameSnapshot()` method that the current in-window bootstrap ignores, plus tests that lock the snapshot shape. No behaviour change on live.
@@ -59,15 +59,15 @@ Full sandboxing is *not* a rewrite of the arena. The arena runtime keeps its sha
    - Not a change to the combat values, LAG_COMP_MS, or the hit classifier. Frozen.
    - Not a change to signing or publishing. `game.event.publish` still goes through `signEvent` + `fanoutPublish` in `main.js`.
 
-7. **ADR-0086 dependency (cross-cutting).** Migration step 3 (flag flip + old-path delete) **must not land before ADR-0086** — otherwise the arena ships in production with `NAPPLET_IDENTITY = 'torii-arena@v0-wiring'` and the character event's `contrib` tag records a placeholder rather than a real bundle hash. Steps 1 and 2 are safe under the placeholder because the sandboxed arena runs alongside the in-window arena behind the feature flag; only step 3 makes the placeholder authoritative. The bundle-loading protocol (`/napplets/{hash}/index.html` vs. data-URL vs. separate origin) is also pending ADR-0086.
+7. **ADR-0092 dependency (cross-cutting).** Migration step 3 (flag flip + old-path delete) **must not land before ADR-0092** — otherwise the arena ships in production with `NAPPLET_IDENTITY = 'torii-arena@v0-wiring'` and the character event's `contrib` tag records a placeholder rather than a real bundle hash. Steps 1 and 2 are safe under the placeholder because the sandboxed arena runs alongside the in-window arena behind the feature flag; only step 3 makes the placeholder authoritative. The bundle-loading protocol (`/napplets/{hash}/index.html` vs. data-URL vs. separate origin) is also pending ADR-0092.
 
 ## Consequences
 
 - **Enables:** third-party games mounted through the `game.*` contract with the same trust boundary as the product panel, a real napplet-vs-shell surface for the Torii DE Doctor + Studios flows, honest `contrib` provenance on the character event because the arena is genuinely a sandboxed contributor.
 - **Forecloses:** any arena code touching the main window directly. Every DOM read, every scene-graph read, every relay hit is shell-brokered.
-- **Trade-offs:** duplicated Three + Rapier bundle in the arena bundle (cached, bounded), a small per-frame snapshot cost (~1.4 KB per tick at 60 Hz ≈ 84 KB/s — the design point ADR-0088 exists to prove is fine against the 250 KB/s budget), and a new bridge to keep in sync with `arena-ws` state. The alternative is worse: two contracts, one for "trusted napplets we ship" and one for "third-party napplets," which is exactly the trap the napplet model was built to avoid.
+- **Trade-offs:** duplicated Three + Rapier bundle in the arena bundle (cached, bounded), a small per-frame snapshot cost (~1.4 KB per tick at 60 Hz ≈ 84 KB/s — the design point ADR-0090 exists to prove is fine against the 250 KB/s budget), and a new bridge to keep in sync with `arena-ws` state. The alternative is worse: two contracts, one for "trusted napplets we ship" and one for "third-party napplets," which is exactly the trap the napplet model was built to avoid.
 - **Enforcement:** unit tests lock the `game.input.*` envelope shape, the `game.frame.snapshot` shape, and the per-mount channelId enforcement carries over unchanged. Integration tests mount the arena bundle in a real iframe under jsdom + a fake `postMessage` transport and drive a headless MP smoke. **jsdom does not enforce `sandbox` origin isolation** — the jsdom suite validates envelope shapes and channelId enforcement; a real-browser smoke (Playwright against the deployed URL) validates the sandbox itself.
-- **Crash recovery** (behaviour inherited from `NappletGameHost`, no new mechanism here): a sandboxed arena whose script context dies (uncaught exception, WASM trap) stops answering `game.tick`. The shell detects N consecutive missed ticks and surfaces `napplet-unresponsive` in the host chrome rather than silently freezing the viewport. A full auto-reload / restart spec is deferred to a host-lifecycle ADR; ADR-0088 only commits to the detection-and-surface behaviour.
+- **Crash recovery** (behaviour inherited from `NappletGameHost`, no new mechanism here): a sandboxed arena whose script context dies (uncaught exception, WASM trap) stops answering `game.tick`. The shell detects N consecutive missed ticks and surfaces `napplet-unresponsive` in the host chrome rather than silently freezing the viewport. A full auto-reload / restart spec is deferred to a host-lifecycle ADR; ADR-0090 only commits to the detection-and-surface behaviour.
 
 ## Alternatives considered
 
@@ -93,5 +93,5 @@ Design doc only. No files added, no tests added. First implementation PR is the 
 
 - Multiplayer authoritative hits: does the shell re-run the hit classifier on `SHOT` messages before injecting, or does it trust the sandbox's snapshot? Trusting the sandbox is fine for v0 (the server is still authoritative), but a shell-side classifier would let the shell reject a snapshot that lies about a hit. Decision defers to step 2 wiring PR — either choice preserves the trust boundary.
 - Debugging story: shape of an owner-gated `game.debug.dump` (last N snapshots + last N inputs). Design lands with step 2.
-- Bundle load failure mode: shell UX for a 404 or hash-mismatch on bundle fetch. Depends on ADR-0086 bundle-loading protocol.
+- Bundle load failure mode: shell UX for a 404 or hash-mismatch on bundle fetch. Depends on ADR-0092 bundle-loading protocol.
 - Multi-mount: two arenas side-by-side (spectator + play). Per-mount channelId design already supports it; whether the UI exposes it is a product decision, not a design one.

@@ -1,8 +1,10 @@
-# ADR-0089 — Sticker studio full sandboxing (SkinnedMesh raycast inside the napplet iframe)
+# ADR-0091 — Sticker studio full sandboxing (SkinnedMesh raycast inside the napplet iframe)
 
-**Status:** Proposed · **Date:** 2026-08-31
+**Status:** Deferred · **Date:** 2026-08-31
 **Deciders:** chiefmonkey
-**Related:** ADR-0057 (NappletSurface), ADR-0083 (avatar shell), ADR-0085 (sticker studio wiring-only), ADR-0086 (release-time napplet identity, deferred), ADR-0088 (arena full sandboxing, deferred)
+**Related:** ADR-0057 (NappletSurface), ADR-0083 (avatar shell), ADR-0085 (sticker studio wiring-only), ADR-0088 (in-world raycast sticker placement), ADR-0092 (release-time napplet identity, planned), ADR-0090 (arena full sandboxing, proposed)
+
+> **Deferred — do not build now.** ADR-0088 (in-world raycast sticker placement, PR #89) shipped self-placement directly in the main window. That in-window path is the shipping feature; this sandboxed design is a documented future path, not a live implementation. When third-party character napplets become a real goal, this design *replaces* the in-window placement — the two are not meant to run side by side. Building both now would be two implementations of the same capability with no third-party napplet to justify the trust boundary.
 
 ## Context
 
@@ -10,7 +12,7 @@ ADR-0085 registered the sticker studio as a `sticker-studio` avatar napplet thro
 
 Two things need proving before the studio is a real sandboxed napplet: (1) a `SkinnedMesh` raycast can be driven from *outside* the target's scene graph — the studio needs to know where its sticker landed on the target's skin, but the target's skin lives in the shell's Three world — and (2) the resulting attachment (parent bone, local transform, texture) can be described by a small snapshot the shell can apply to *its* copy of the target, without the studio ever holding a handle to the shell's `Object3D` graph.
 
-The design pressure here is different from ADR-0088. The arena is a *world of its own* running next to the shell's world; the sticker studio is a *tool acting on the shell's world*. The arena renders inside its sandbox and sends snapshots out; the studio has to raycast the shell's world and send an attachment description back. Full sandboxing therefore hangs on a raycast bridge, not a WebGL bridge.
+The design pressure here is different from ADR-0090. The arena is a *world of its own* running next to the shell's world; the sticker studio is a *tool acting on the shell's world*. The arena renders inside its sandbox and sends snapshots out; the studio has to raycast the shell's world and send an attachment description back. Full sandboxing therefore hangs on a raycast bridge, not a WebGL bridge.
 
 ## Decision
 
@@ -22,7 +24,7 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
    - `{ t, characterKey, targetSurfaceId, bones: [{ name, worldMatrix4x3 }], skin: { boundingSphere: [x,y,z,r], skinnedMeshName, skeletonBindMatrices: [...] }, capabilities: [ 'nap-torii-character/v1' ] }`.
    Matrix4x3 (12 floats) is enough for the shell-side raycast; the studio never needs `SkinnedMesh` GPU buffers.
 
-   **Animation staleness handling (decided, not open).** When the studio enters *aim-active* state (user is currently aiming), the shell **pushes** a fresh `avatar.view.snapshot` every `rAF` on a heartbeat until aim-active ends. When the studio is *idle* (palette browsing, tweaking non-spatial parameters), snapshots are **pulled** on demand. The studio signals aim-active via `avatar.aim.begin` / `avatar.aim.end` envelopes; the shell's snapshot pump keys off that flag. This keeps the bridge cost proportional to user intent (rAF-cadence snapshots only while aiming) while eliminating preview-slide-off during animation. Cost estimate: one snapshot is ~2-4 KB for a humanoid rig (~30 bones × 48 B matrix + skin ~1 KB), so ~120-240 KB/s during aim-active — comparable to ADR-0088's bridge budget and only paid during aiming.
+   **Animation staleness handling (decided, not open).** When the studio enters *aim-active* state (user is currently aiming), the shell **pushes** a fresh `avatar.view.snapshot` every `rAF` on a heartbeat until aim-active ends. When the studio is *idle* (palette browsing, tweaking non-spatial parameters), snapshots are **pulled** on demand. The studio signals aim-active via `avatar.aim.begin` / `avatar.aim.end` envelopes; the shell's snapshot pump keys off that flag. This keeps the bridge cost proportional to user intent (rAF-cadence snapshots only while aiming) while eliminating preview-slide-off during animation. Cost estimate: one snapshot is ~2-4 KB for a humanoid rig (~30 bones × 48 B matrix + skin ~1 KB), so ~120-240 KB/s during aim-active — comparable to ADR-0090's bridge budget and only paid during aiming.
 
    **Target selector included from day one.** `avatar.raycast.probe` and `avatar.view.snapshot` both accept an optional `targetSurfaceId` argument (defaulting to `'local-player'` in v0). Multi-target (NPCs, peer avatars) is deferred but the envelope shape does not need to change when it lands — the handler grows a target registry, not a new field.
 
@@ -48,7 +50,7 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
 
    `avatar.propose` on the attachment shape passes through the requires gate (unchanged from ADR-0085), the shell asks the owner, signs the character event (kind 35100 addressable, `d="torii-character"`), stamps the contrib tag with `(dTag, aggregateHash) = ('sticker-studio', <release hash>)`, and publishes. The shell rebuilds *its* scene graph from the signed event; the studio never mutates the shell's `Object3D` graph directly.
 
-5. **Bundle model.** The studio napplet ships as a static bundle addressed by the `NAPPLET_IDENTITY` hash ADR-0086 will assign. The bundle carries its own Three vendor chunk for the preview (Rapier is not needed — the studio does not simulate physics). Cost budget: ~700 KB three-vendor, cached by hash on the shell's fetch, second load free.
+5. **Bundle model.** The studio napplet ships as a static bundle addressed by the `NAPPLET_IDENTITY` hash ADR-0092 will assign. The bundle carries its own Three vendor chunk for the preview (Rapier is not needed — the studio does not simulate physics). Cost budget: ~700 KB three-vendor, cached by hash on the shell's fetch, second load free.
 
 6. **Migration path.** Three PRs, each independently mergeable:
    1. **View-snapshot shim.** Extend `avatar.get` handlers (from ADR-0083) with an optional `include: ['view']` argument that returns the `avatar.view.snapshot` shape. Old callers ignore it. Lock the shape in tests.
@@ -61,7 +63,7 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
    - Not a change to the requires gate or the `torii-avatar-write` capability. Gate stays in the handlers, per ADR-0083.
    - Not a change to the character event kind, `d` tag, or contrib-tag shape. Frozen.
 
-8. **ADR-0086 dependency (cross-cutting).** Migration step 3 (flag flip + old-path delete) **must not land before ADR-0086** — otherwise the studio ships in production with `NAPPLET_IDENTITY = 'sticker-studio@v0-wiring'` and the character event's `contrib` tag records a placeholder rather than a real bundle hash. Steps 1 and 2 are safe under the placeholder because the sandboxed studio runs alongside the in-window studio behind the feature flag; only step 3 makes the placeholder authoritative. The bundle-loading protocol is pending ADR-0086, same as ADR-0088.
+8. **ADR-0092 dependency (cross-cutting).** Migration step 3 (flag flip + old-path delete) **must not land before ADR-0092** — otherwise the studio ships in production with `NAPPLET_IDENTITY = 'sticker-studio@v0-wiring'` and the character event's `contrib` tag records a placeholder rather than a real bundle hash. Steps 1 and 2 are safe under the placeholder because the sandboxed studio runs alongside the in-window studio behind the feature flag; only step 3 makes the placeholder authoritative. The bundle-loading protocol is pending ADR-0092, same as ADR-0090.
 
 ## Consequences
 

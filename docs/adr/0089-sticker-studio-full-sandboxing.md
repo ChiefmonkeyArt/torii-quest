@@ -19,16 +19,31 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
 1. **Sandbox model.** Studio UI + preview render inside a `sandbox="allow-scripts"` iframe (same trust boundary as ADR-0083: opaque origin, no `allow-same-origin`, `MessageEvent.source` validated, per-mount channelId nonce, CSP `default-src 'none'; connect-src 'none'; img-src 'none'`). The iframe hosts a *local* Three scene — the sticker palette, the aim reticle, the preview of the sticker before commit. The shell hosts the *authoritative* Three scene — the target avatar's `SkinnedMesh`, the bone hierarchy, the rest pose. The studio never sees the shell's scene graph; it only sees snapshots of it.
 
 2. **Avatar view snapshot.** Extend the `avatar.*` contract with `avatar.view.snapshot` — a request/response that returns a compact, versioned description of the target avatar the studio needs to aim at:
-   - `{ t, characterKey, bones: [{ name, worldMatrix4x3 }], skin: { boundingSphere: [x,y,z,r], skinnedMeshName, skeletonBindMatrices: [...] }, capabilities: [ 'nap-torii-character/v1' ] }`.
-   Matrix4x3 (12 floats) is enough for the shell-side raycast; the studio never needs `SkinnedMesh` GPU buffers. Snapshots are refreshed on request (studio pulls when the user aims) rather than pushed every frame — a `SkinnedMesh` raycast for aim is a rare event, not a per-frame event.
+   - `{ t, characterKey, targetSurfaceId, bones: [{ name, worldMatrix4x3 }], skin: { boundingSphere: [x,y,z,r], skinnedMeshName, skeletonBindMatrices: [...] }, capabilities: [ 'nap-torii-character/v1' ] }`.
+   Matrix4x3 (12 floats) is enough for the shell-side raycast; the studio never needs `SkinnedMesh` GPU buffers.
 
-3. **Raycast-in-shell protocol.** The studio does not raycast the target. Instead it sends `avatar.raycast.probe { origin: [x,y,z], direction: [x,y,z], surfaceId }` and the shell runs the raycast against *its* `SkinnedMesh` (the mesh already lives there, the skeleton is already skinned this frame, the bind matrices are already current). The shell returns `{ hit: true, boneName, localPoint: [x,y,z], localNormal: [x,y,z], uv?: [u,v] }` or `{ hit: false }`. The studio uses the local-space result to render its preview and to build the propose patch — but the actual raycast math never runs inside the sandbox.
+   **Animation staleness handling (decided, not open).** When the studio enters *aim-active* state (user is currently aiming), the shell **pushes** a fresh `avatar.view.snapshot` every `rAF` on a heartbeat until aim-active ends. When the studio is *idle* (palette browsing, tweaking non-spatial parameters), snapshots are **pulled** on demand. The studio signals aim-active via `avatar.aim.begin` / `avatar.aim.end` envelopes; the shell's snapshot pump keys off that flag. This keeps the bridge cost proportional to user intent (rAF-cadence snapshots only while aiming) while eliminating preview-slide-off during animation. Cost estimate: one snapshot is ~2-4 KB for a humanoid rig (~30 bones × 48 B matrix + skin ~1 KB), so ~120-240 KB/s during aim-active — comparable to ADR-0088's bridge budget and only paid during aiming.
 
-   This is the design point that ADR-0089 exists to prove: the shell can run a `SkinnedMesh` raycast against a live skeleton and return a bone-local hit fast enough for interactive aiming (target: <10 ms round-trip on the main thread at 60 Hz shell rAF).
+   **Target selector included from day one.** `avatar.raycast.probe` and `avatar.view.snapshot` both accept an optional `targetSurfaceId` argument (defaulting to `'local-player'` in v0). Multi-target (NPCs, peer avatars) is deferred but the envelope shape does not need to change when it lands — the handler grows a target registry, not a new field.
+
+3. **Raycast-in-shell protocol.** The studio does not raycast the target. Instead it sends `avatar.raycast.probe { origin: [x,y,z], direction: [x,y,z], targetSurfaceId?, surfaceId }` and the shell runs the raycast against *its* `SkinnedMesh` (the mesh already lives there, the skeleton is already skinned this frame, the bind matrices are already current). The shell returns `{ hit: true, boneName, localPoint: [x,y,z], localNormal: [x,y,z], uv?: [u,v] }` or `{ hit: false }`. The studio uses the local-space result to render its preview and to build the propose patch — but the actual raycast math never runs inside the sandbox.
+
+   **Latency budget: ≤30 ms round-trip on the p95 machine** (revised from the initial <10 ms target, which was aspirational). `SkinnedMesh.raycast` on a ~15-30k-triangle humanoid takes 2-5 ms on a fast desktop and 10-20 ms on a low-end laptop; add postMessage round-trip (~1-3 ms) and the practical p95 lands in the 15-30 ms range. Migration step 1's benchmark harness measures the actual number against a stock Meshy humanoid; step 2 does not proceed if p95 exceeds 30 ms. If the measurement is worse, the fallback is to raycast against a decimated proxy mesh (bounding boxes per bone, or a 3-4k-tri LOD) that lives alongside the authoritative `SkinnedMesh`.
+
+   **Raycast reentrancy: serve from the current frame's completed skeleton.** The shell caches the current `rAF` frame's skinned pose after Three's render step; `avatar.raycast.probe` requests within the same frame serve from that cache. Requests arriving during Three's render defer to the next `rAF`. This gives the raycast handler one deterministic pose to work against per frame.
 
 4. **Attachment snapshot.** The studio's propose patch is not a Three `Object3D`. It is a small, versioned description:
-   - `{ kind: 'attach', napplet: 'sticker-studio', targetBone: string, localPos: [x,y,z], localRot: [x,y,z,w], localScale: [x,y,z], textureRef: { kind: 'blossom-blob', sha256: string, mime: string } | { kind: 'inline-base64', b64: string, mime: string }, size: [w,h] }`.
-   `avatar.propose` on this shape passes through the requires gate (unchanged from ADR-0085), the shell asks the owner, signs the character event (kind 35100 addressable, `d="torii-character"`), stamps the contrib tag with `(dTag, aggregateHash) = ('sticker-studio', <release hash>)`, and publishes. The shell rebuilds *its* scene graph from the signed event; the studio never mutates the shell's `Object3D` graph directly.
+   - `{ kind: 'attach', napplet: 'sticker-studio', targetSurfaceId, targetBone: string, localPos: [x,y,z], localRot: [x,y,z,w], localScale: [x,y,z], textureRef: { kind: 'blossom-blob', sha256: string, mime: string } | { kind: 'inline-base64', b64: string, mime: string }, size: [w,h] }`.
+
+   **`inline-base64` size cap: 64 KB** (post-decode). The handler rejects `avatar.propose` with `{ error: 'inline-base64-too-large', maxBytes: 65536 }` above that. 64 KB is the practical ceiling before postMessage structured clone starts costing measurable frame time.
+
+   **Blob upload path: shell-brokered.** The studio cannot upload to blossom directly — `connect-src 'none'` in the sandbox CSP forbids it. Flow: studio commits with `inline-base64`; the shell, before signing, uploads the bytes to the owner's blossom server, verifies the returned `sha256`, and rewrites the patch's `textureRef` to `{ kind: 'blossom-blob', sha256, mime }` before signing. If blossom upload fails, the shell falls back to signing with `inline-base64` (the event carries the bytes) or rejects the propose — configurable per owner policy in a later ADR. **The studio never sees blossom credentials, never sees blossom URLs.**
+
+   **Stale-rig rejection.** If the target's rig has changed between snapshot-and-propose (character swap, model reload), the shell rejects with `{ error: 'stale-target-rig', currentCharacterKey, requestedTargetBone }` and the studio must refresh via `avatar.view.snapshot` and retry. The shell detects this by comparing the patch's `targetBone` against the current rig's bone list; a missing bone is a stale rig.
+
+   **Preview transport: shell-side rendering, patch-shaped.** The studio's aim preview (sticker at the aimed hit point, before commit) is rendered by the **shell**, not the studio's iframe overlay. The studio sends `avatar.preview.set { patch: <same attachment shape>, previewId }` — the shell renders the sticker on its own avatar with a `previewId` marker (dimmer, marked "preview") and clears it on `avatar.preview.clear { previewId }` or on commit. This means the preview code path is the same as commit, only marked non-authoritative; the studio's iframe stays a UI panel and never composites over the shell.
+
+   `avatar.propose` on the attachment shape passes through the requires gate (unchanged from ADR-0085), the shell asks the owner, signs the character event (kind 35100 addressable, `d="torii-character"`), stamps the contrib tag with `(dTag, aggregateHash) = ('sticker-studio', <release hash>)`, and publishes. The shell rebuilds *its* scene graph from the signed event; the studio never mutates the shell's `Object3D` graph directly.
 
 5. **Bundle model.** The studio napplet ships as a static bundle addressed by the `NAPPLET_IDENTITY` hash ADR-0086 will assign. The bundle carries its own Three vendor chunk for the preview (Rapier is not needed — the studio does not simulate physics). Cost budget: ~700 KB three-vendor, cached by hash on the shell's fetch, second load free.
 
@@ -42,6 +57,8 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
    - Not a change to `playerModel.js` or `setCharacter`. `avatar.propose` still routes through the shell's existing character-write path.
    - Not a change to the requires gate or the `torii-avatar-write` capability. Gate stays in the handlers, per ADR-0083.
    - Not a change to the character event kind, `d` tag, or contrib-tag shape. Frozen.
+
+8. **ADR-0086 dependency (cross-cutting).** Migration step 3 (flag flip + old-path delete) **must not land before ADR-0086** — otherwise the studio ships in production with `NAPPLET_IDENTITY = 'sticker-studio@v0-wiring'` and the character event's `contrib` tag records a placeholder rather than a real bundle hash. Steps 1 and 2 are safe under the placeholder because the sandboxed studio runs alongside the in-window studio behind the feature flag; only step 3 makes the placeholder authoritative. The bundle-loading protocol is pending ADR-0086, same as ADR-0088.
 
 ## Consequences
 
@@ -62,9 +79,19 @@ The design pressure here is different from ADR-0088. The arena is a *world of it
 
 Design doc only. No files added, no tests added. First implementation PR is the view-snapshot shim (migration step 1) and lands under its own PR after this ADR is accepted.
 
-Open questions for review:
+**Decisions locked in this revision (previously open):**
 
-- Snapshot cache: does the shell memoise `avatar.view.snapshot` for a frame, or recompute per request? Memoising per-frame is safe (skeleton has only one bind pose per frame) and cheap.
-- Raycast reentrancy: what happens if the studio requests a raycast while the shell is mid-render? The shell should either serve from the last completed frame or defer to the next `rAF` — locking to the current frame is simplest.
-- Texture transport: `blossom-blob` (content-addressed, deduplicated) is the target, but the studio needs a fallback for a fresh sticker not yet uploaded. `inline-base64` covers that at up to ~100 KB; anything larger should require a blossom upload before propose.
-- Multi-target: v0 targets exactly one avatar (the local player). Aiming at NPCs or peer avatars is a later ADR — the raycast handler needs a target selector, which is currently implicit.
+- Animation staleness: **rAF-cadence push during aim-active, pull-on-demand when idle**. `avatar.aim.begin` / `avatar.aim.end` gate the pump.
+- Raycast reentrancy: **serve from current-frame cached pose**, defer during Three's render to next `rAF`.
+- Raycast latency: **budget ≤30 ms p95**, measured by migration step 1 benchmark. Fallback is bone-BBox or 3-4k-tri LOD proxy mesh if the authoritative `SkinnedMesh` misses.
+- `inline-base64` cap: **64 KB post-decode**, handler-enforced with `inline-base64-too-large` error.
+- Blob upload: **shell-brokered**. Studio commits with `inline-base64`; shell uploads to blossom, rewrites `textureRef`, then signs.
+- Preview transport: **shell-side rendering, patch-shaped**. Studio sends `avatar.preview.set/clear`; iframe never composites over the shell.
+- Target selector: **`targetSurfaceId` in the envelope from day one**, defaulting to `'local-player'`.
+- Stale-rig: **shell rejects `avatar.propose` with `stale-target-rig` if `targetBone` is missing on the current rig**; studio refreshes and retries.
+
+**Still open (deferred to migration-step review, not blocking this ADR):**
+
+- Revert protocol: does undo flow through a separate `avatar.revert { proposalId }` (recommended — revert is not a raycast) or is it a special-cased attachment patch? Design lands with step 2.
+- Blossom-upload failure policy: fall back to `inline-base64` in the signed event, or reject the propose? Owner-configurable, spec lands with the shell's blossom-broker code in step 2.
+- Multi-target v0 scope: NPCs and peer avatars are excluded from v0. Whether v1 adds a target-selector UI or defers to a later face-forge napplet is a product decision, not a design one.

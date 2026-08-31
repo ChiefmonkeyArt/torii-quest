@@ -71,3 +71,42 @@ export function hasCharacter(event) {
   const parsed = parseCharacterEvent(event);
   return !!(parsed && parsed.manifest && parsed.manifest.mesh && parsed.manifest.mesh.hash);
 }
+
+// buildCharacterEvent(manifest, opts) → the UNSIGNED kind-35100 event for a
+// manifest (the reverse of parseCharacterEvent). Tags are emitted in the same
+// shape the parser reads back, so build→parse round-trips losslessly for every
+// field the manifest carries. `opts.pubkey` (hex64) and `opts.createdAt` (unix
+// seconds) are optional — the NIP-07 signer fills pubkey/sig/id, and created_at
+// defaults to now. Pure; never throws on malformed input.
+export function buildCharacterEvent(manifest, opts = {}) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const m = (manifest && typeof manifest === 'object') ? manifest : {};
+  const tags = [['d', CHARACTER_D_TAG]];
+
+  if (m.mesh && typeof m.mesh === 'object' && m.mesh.hash) {
+    tags.push(['mesh', m.mesh.hash, m.mesh.name || '']);
+  }
+  for (const c of (Array.isArray(m.clips) ? m.clips : [])) {
+    if (c && c.hash) tags.push(['clip', c.hash, c.name || '']);
+  }
+  for (const s of (Array.isArray(m.stickers) ? m.stickers : [])) {
+    if (!s || !s.hash) continue;
+    tags.push(['sticker', s.hash, s.zoneId || '', String(s.u ?? 0), String(s.v ?? 0), String(s.rot ?? 0)]);
+  }
+  if (typeof m.name === 'string' && m.name) tags.push(['name', m.name]);
+  for (const c of (Array.isArray(m.colors) ? m.colors : [])) {
+    if (c && c.slot) tags.push(['color', c.slot, c.hex || '']);
+  }
+  for (const c of (Array.isArray(m.contrib) ? m.contrib : [])) {
+    if (!c || !c.nappletDTag) continue;
+    tags.push(['contrib', c.nappletDTag, c.aggregateHash || '', ...(Array.isArray(c.tags) ? c.tags : [])]);
+  }
+
+  return {
+    kind: CHARACTER_EVENT_KIND,
+    created_at: Number.isFinite(o.createdAt) ? Math.floor(o.createdAt) : Math.floor(Date.now() / 1000),
+    tags,
+    content: '',
+    pubkey: typeof o.pubkey === 'string' ? o.pubkey : '',
+  };
+}

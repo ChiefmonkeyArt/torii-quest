@@ -8,13 +8,24 @@ describe('renderCharacterForgePanel', () => {
   it('gates the tab behind login', () => {
     const html = renderCharacterForgePanel({ isLoggedIn: false });
     expect(html).toContain('Log in with Nostr');
-    expect(html).not.toContain('Create character');
+    expect(html).not.toContain('select-preset');
   });
 
-  it('shows the create flow when logged in with no character', () => {
-    const html = renderCharacterForgePanel({ isLoggedIn: true, status: 'none' });
-    expect(html).toContain('Create character');
-    expect(html).toContain('No character yet');
+  it('shows the preset picker when logged in with no character', () => {
+    const html = renderCharacterForgePanel({
+      isLoggedIn: true,
+      status: 'none',
+      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }, { id: 'nostrich', label: 'Nostrich' }],
+    });
+    expect(html).toContain('data-action="select-preset"');
+    expect(html).toContain('data-preset="chiefmonkey"');
+    expect(html).toContain('Chiefmonkey');
+    expect(html).toContain('Nostrich');
+  });
+
+  it('shows an empty state when no presets are available', () => {
+    const html = renderCharacterForgePanel({ isLoggedIn: true, status: 'none', presets: [] });
+    expect(html).toContain('No presets available');
   });
 
   it('shows the found summary when a character exists', () => {

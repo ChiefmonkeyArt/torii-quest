@@ -13,9 +13,10 @@
 //   isLoggedIn  — boolean; gates the whole tab.
 //   status      — 'idle' | 'checking' | 'found' | 'none' | 'creating' | 'failed'.
 //   character   — { name, meshName, stickerCount } | null (when status==='found').
+//   presets     — [{ id, label }] — curated bases shown when status==='none'.
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
-// pattern (data-action="check-character" / "create-character").
+// pattern (data-action="check-character" / "select-preset").
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -46,11 +47,16 @@ function _foundView(character) {
     <button type="button" class="gs-btn" data-action="edit-character">Edit character</button>`;
 }
 
-function _createView() {
+function _createView(presets) {
+  const list = Array.isArray(presets) ? presets : [];
+  const buttons = list.map((p) => {
+    const id = (p && p.id) ? p.id : '';
+    const label = (p && p.label) ? p.label : id;
+    return `<button type="button" class="gs-btn cf-preset" data-action="select-preset" data-preset="${_escape(id)}">${_escape(label)}</button>`;
+  }).join('');
   return `
-    <div class="gs-subtitle">Create your character. v1 starts from a curated base — pick a preset and place stickers. External mesh generation lands in a later slice.</div>
-    <div class="cf-empty">No character yet.</div>
-    <button type="button" class="gs-btn" data-action="create-character">Create character</button>`;
+    <div class="gs-subtitle">Create your character from a curated base. External mesh generation lands in a later slice.</div>
+    <div class="cf-presets">${buttons || '<div class="cf-empty">No presets available.</div>'}</div>`;
 }
 
 export function renderCharacterForgePanel(state = {}) {
@@ -72,7 +78,7 @@ export function renderCharacterForgePanel(state = {}) {
     } else if (status === 'checking' || status === 'creating') {
       body = '<div class="cf-empty">Working…</div>';
     } else {
-      body = _createView();
+      body = _createView(st.presets);
     }
   }
 

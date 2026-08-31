@@ -5,6 +5,7 @@ import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/se
 import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 import { readProfiles } from './engine/nostr/profileRead.js';
 import { readCharacters, buildCharacterFilter } from './engine/character/characterRelayRead.js';
+import { buildCharacterEvent, parseCharacterEvent } from './engine/character/characterEvent.js';
 import {
   WRITE_POLICY_OWNER_ONLY,
   WRITE_POLICY_DELEGATES,
@@ -549,6 +550,109 @@ export async function fanoutPublish(relays, event, opts = {}) {
     else failed.push(r.relay);
   }
   return { accepted, used, failed };
+}
+
+// ── Character create round-trip (write half) ────────────────────────────────
+// publishCharacter builds the unsigned kind-35100 event from a manifest, signs
+// it via NIP-07, verifies it parses back to a valid character, then fans out to
+// the unified relay list. Mirrors publishAccessSettings' shape. The read half is
+// fetchOwnCharacter (above).
+
+// publishCharacter(manifest, opts) → Promise<{ ok, event, accepted, used, failed, error }>.
+// ok:true only when at least one relay accepted the signed event. Never throws.
+export async function publishCharacter(manifest, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const publish = typeof o.publish === 'function' ? o.publish : fanoutPublish;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
+  const out = { ok: false, event: null, accepted: 0, used: [], failed: [], error: null };
+
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof publish !== 'function') { out.error = 'publish-transport-required'; return out; }
+  if (!relays.length) { out.error = 'at-least-one-relay-required'; return out; }
+
+  const unsigned = buildCharacterEvent(manifest, { pubkey: o.pubkey, createdAt: o.createdAt });
+  let signed;
+  try { signed = await sign(unsigned); } catch { out.error = 'nip-07-threw'; return out; }
+  if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
+
+  const parsed = parseCharacterEvent(signed.event);
+  if (!parsed || !parsed.valid) { out.error = 'signed-character-invalid'; return out; }
+
+  let res;
+  try { res = await publish(relays, signed.event, { timeoutMs }); } catch { out.error = 'publish-threw'; return out; }
+  out.accepted = (res && res.accepted) || 0;
+  out.used = Array.isArray(res && res.used) ? res.used : [];
+  out.failed = Array.isArray(res && res.failed) ? res.failed : [];
+  out.event = signed.event;
+  out.ok = out.accepted > 0;
+  if (!out.ok) out.error = 'no-relay-accepted';
+  return out;
+}
+
+// ── Blossom upload (NIP-96/NIP-98) ───────────────────────────────────────────
+// The "make it so" path for a custom mesh: upload a GLB to a Blossom server and
+// get back its content-addressed sha256, which then slots into the manifest's
+// mesh.hash. NIP-98 HTTP auth signs a kind-27235 event over the upload URL; the
+// file bytes go up in a PUT. Signing is delegated to NIP-07 (no key here).
+
+export const BLOSSOM_AUTH_KIND = 27235;
+export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
+
+// buildBlossomAuthEvent(server, method, opts) → the UNSIGNED NIP-98 auth event
+// for a Blossom upload. Pure; the signer fills pubkey/sig/id.
+export function buildBlossomAuthEvent(server, method = 'PUT', opts = {}) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const base = typeof server === 'string' ? server.replace(/\/+$/, '') : '';
+  return {
+    kind: BLOSSOM_AUTH_KIND,
+    created_at: Number.isFinite(o.createdAt) ? Math.floor(o.createdAt) : Math.floor(Date.now() / 1000),
+    tags: [['u', `${base}/upload`], ['method', String(method || 'PUT').toUpperCase()]],
+    content: '',
+  };
+}
+
+function _b64(str) {
+  if (typeof btoa === 'function') return btoa(str);
+  if (typeof Buffer !== 'undefined') return Buffer.from(str, 'utf8').toString('base64');
+  return '';
+}
+
+// uploadBlossom(file, opts) → Promise<{ ok, sha256, url, error }>. `file` is a
+// Blob/File (browser). `opts.server` overrides the default Blossom server; the
+// operator may point this at a self-hosted Blossom instance. Never throws.
+export async function uploadBlossom(file, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const server = (typeof o.server === 'string' && o.server.trim() ? o.server.trim() : DEFAULT_BLOSSOM_SERVER).replace(/\/+$/, '');
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const out = { ok: false, sha256: null, url: null, error: null };
+
+  if (!file || (typeof file.arrayBuffer !== 'function' && !(typeof Blob !== 'undefined' && file instanceof Blob))) {
+    out.error = 'file-required'; return out;
+  }
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof fetch !== 'function') { out.error = 'fetch-unavailable'; return out; }
+
+  let signed;
+  try { signed = await sign(buildBlossomAuthEvent(server, 'PUT')); } catch { out.error = 'nip-07-threw'; return out; }
+  if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
+
+  const authHeader = 'Nostr ' + _b64(JSON.stringify(signed.event));
+  let res;
+  try {
+    res = await fetch(`${server}/upload`, { method: 'PUT', headers: { Authorization: authHeader }, body: file });
+  } catch { out.error = 'upload-failed'; return out; }
+  if (!res || !res.ok) { out.error = 'upload-http-' + (res ? res.status : 'err'); return out; }
+
+  let data;
+  try { data = await res.json(); } catch { out.error = 'upload-bad-response'; return out; }
+  const sha = data && (data.sha256 || (data.url && String(data.url).split('/').pop()));
+  if (!sha || !/^[0-9a-f]{64}$/.test(sha)) { out.error = 'upload-no-sha256'; return out; }
+  out.sha256 = sha;
+  out.url = data.url || `${server}/${sha}`;
+  out.ok = true;
+  return out;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;

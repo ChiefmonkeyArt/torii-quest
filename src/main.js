@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -84,6 +84,7 @@ import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
+import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -1252,6 +1253,44 @@ async function _checkOwnCharacter() {
   renderActiveSettingsTab();
 }
 
+// _createOwnCharacter(presetId) — the create round-trip write half: build the
+// manifest from a curated preset, sign the kind-35100 event via NIP-07, and
+// publish to the unified relay list. On success the tab flips to 'found' (the
+// same view the read half produces), so create→read round-trips seamlessly.
+async function _createOwnCharacter(presetId) {
+  const preset = getCharacterPreset(presetId);
+  if (!preset) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Unknown preset.';
+    renderActiveSettingsTab();
+    return;
+  }
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const manifest = presetToManifest(preset);
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.character = {
+        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
+        meshName: (manifest.mesh && typeof manifest.mesh.name === 'string') ? manifest.mesh.name : '',
+        stickerCount: Array.isArray(manifest.stickers) ? manifest.stickers.length : 0,
+      };
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not publish your character.';
+  }
+  renderActiveSettingsTab();
+}
+
 registerSettingsTabRenderer('character', () => {
   const st = _homepageStubState();
   if (st.isLoggedIn && !_characterForgeState._readStarted) {
@@ -1262,6 +1301,7 @@ registerSettingsTabRenderer('character', () => {
     isLoggedIn: st.isLoggedIn,
     status: _characterForgeState.status,
     character: _characterForgeState.character,
+    presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
     error: _characterForgeState.error,
   });
 });
@@ -1283,6 +1323,7 @@ registerSettingsTabRenderer('character', () => {
     if (!action) return;
     if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
+    if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }

@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -1211,14 +1211,59 @@ registerSettingsTabRenderer('profile', () => {
 });
 
 // Character tab content renderer (v0.2.718, Character Forge) — the player's
-// playable character (a signed kind-35100 event). GROUNDWORK ONLY: the panel
-// renders the create/load flow, but the actual relay read (check whether the
-// npub already has a .glb attached) + create round-trip are a follow-up slice
-// (see the Character Forge entry in torii-quest-strategy.md). For now the tab
-// reports 'none' so the create flow is visible without a live relay read.
+// playable character (a signed kind-35100 event). v0.2.719 wires the LIVE relay
+// read: on first render (and on retry) it checks the logged-in npub's kind-35100
+// event via fetchOwnCharacter and seats an existing character automatically (the
+// "smooth experience" seam) — no prompt, no re-upload. The create round-trip
+// (writing a new character event) is a follow-up slice.
+const _characterForgeState = {
+  status: 'idle', // 'idle' | 'checking' | 'found' | 'none' | 'failed'
+  character: null, // { name, meshName, stickerCount } | null
+  error: null,
+  _readStarted: false,
+};
+
+async function _checkOwnCharacter() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) {
+    _characterForgeState.status = 'none';
+    _characterForgeState.character = null;
+    return;
+  }
+  _characterForgeState.status = 'checking';
+  renderActiveSettingsTab();
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    if (manifest && manifest.mesh && manifest.mesh.hash) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.character = {
+        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
+        meshName: (manifest.mesh && typeof manifest.mesh.name === 'string') ? manifest.mesh.name : '',
+        stickerCount: Array.isArray(manifest.stickers) ? manifest.stickers.length : 0,
+      };
+    } else {
+      _characterForgeState.status = 'none';
+      _characterForgeState.character = null;
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not reach relays to check for your character.';
+  }
+  renderActiveSettingsTab();
+}
+
 registerSettingsTabRenderer('character', () => {
   const st = _homepageStubState();
-  return renderCharacterForgePanel({ isLoggedIn: st.isLoggedIn, status: 'none', character: null });
+  if (st.isLoggedIn && !_characterForgeState._readStarted) {
+    _characterForgeState._readStarted = true;
+    _checkOwnCharacter();
+  }
+  return renderCharacterForgePanel({
+    isLoggedIn: st.isLoggedIn,
+    status: _characterForgeState.status,
+    character: _characterForgeState.character,
+    error: _characterForgeState.error,
+  });
 });
 
 // Single delegated listener on the settings panel's content container, scoped
@@ -1237,6 +1282,7 @@ registerSettingsTabRenderer('character', () => {
     const action = t.getAttribute && t.getAttribute('data-action');
     if (!action) return;
     if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
+    if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }

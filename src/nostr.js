@@ -4,6 +4,7 @@ import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
 import { readProfiles } from './engine/nostr/profileRead.js';
+import { readCharacters, buildCharacterFilter } from './engine/character/characterRelayRead.js';
 import {
   WRITE_POLICY_OWNER_ONLY,
   WRITE_POLICY_DELEGATES,
@@ -311,6 +312,33 @@ export async function fetchOwnProfile(pubkey, opts = {}) {
   const events = raw && Array.isArray(raw.events) ? raw.events : [];
   const { profiles } = readProfiles(events);
   return profiles.find((p) => p.pubkey === pk) || null;
+}
+
+// fetchOwnCharacter(pubkey, opts) → the parsed `torii.character` manifest for the
+// given pubkey, or null. Read-only: reuses fanoutReq + readCharacters (the pure
+// kind-35100 extraction). Returns the manifest only when the event parses AND
+// carries a mesh hash — a broken/empty character degrades to null so the caller
+// falls through to the create flow. Never throws; a failed/empty lookup returns null.
+export async function fetchOwnCharacter(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return null;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [buildCharacterFilter({ authors: [pk], limit: 1 })], { timeoutMs });
+  } catch {
+    return null;
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { characters } = readCharacters(events);
+  const entry = characters.find((c) => c.pubkey === pk);
+  if (!entry || !entry.valid) return null;
+  const manifest = entry.manifest;
+  return (manifest && manifest.mesh && manifest.mesh.hash) ? manifest : null;
 }
 
 function _updateTitleUI() {

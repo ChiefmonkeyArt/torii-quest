@@ -52,7 +52,7 @@ export const TORII_QUEST_BADGE = 'PROJECT OVERSIGHT · STATIC · READ-ONLY';
 // now lives in exactly ONE place.
 export const CURRENT_TEST_STATUS = Object.freeze({
   passing: 3454,
-  files: 279,
+  files: 281,
   fastProfile: 5,
   foundationProfile: 25,
 });

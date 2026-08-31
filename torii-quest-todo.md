@@ -27,7 +27,20 @@ Prior: v0.2.685-alpha - ADR-0059 AUCTION PANEL HEADER HARDENING: eliminate every
 
 ### SHIPPED v0.2.652-alpha — PRODUCT/AUCTION BOARDS (ADR-0035, scoped + shipped 2026-08-23). Reimagined the single hardcoded auction panel into THREE separate guest-visible NAP-zone DOM boards sourced from the owner's real Plebeian Market listings (dev: auctionsdev.plebeian.market, confirmed seller pubkey `ec79b568...906f25`): Live Products (kind:30402), Live Auctions (kind:30408, future end-time), Past Auctions (kind:30408, past end-time). DOM overlays only in this slice — an in-world 3D board render is deferred to the future napplet architecture. Single-seller (owner npub) only for now; architected so multi-seller/other-shop boards and the future napplet contract aren't blocked. See ADR-0035 for full decision + consequences.
 
-### QUEUED (NEXT JOB) — ARENA GAMEPLAY BUG PASS. Owner noted (2026-08-23) multiple gameplay bugs observed in the arena; ADR-0034 + ADR-0035 above are now shipped, so this is next. Not yet itemized — get a bug list from the owner before starting.
+### NEXT (PRIORITY) — N2N TRAVEL TEST WITH BEKKA (2026-08-31). Both instances are live again (HashIT outage resolved 2026-08-31 — both sites now ~0.17s TTFB). Priority is a real node-to-node test: chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + ?torii-traveller=) and presence discovery across the unified relay list (ADR-0081). Bekka must be on v0.2.713+ (one-command bootstrap) for the heartbeat/relay changes.
+
+### RECENTLY SHIPPED (v0.2.713 → v0.2.717, 2026-08-28/29):
+- v0.2.717-alpha — settings panel smoked glass + profile prefill from Nostr kind:0
+- v0.2.716-alpha — relay tab polish (STARTER badge removed, per-row Remove button)
+- v0.2.715-alpha — single unified relay list (ADR-0081)
+- v0.2.714-alpha — login status pubkey fragment removed (ADR-0080)
+- v0.2.713-alpha — one-command VPS bootstrap (ADR-0079)
+
+### DEFERRED (need core refactors, not fake tabs):
+- Audio tab (no master gain API)
+- Graphics tab (no manual override)
+- Controls tab (no keybind layer)
+- Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3)
 
 ### FUTURE — CLEAN-ROOM PASS ON COMBAT/COLLISION MODULE. Once the sent-ray diagnostic (ADR-0046) closes the camera-vs-muzzle question and the resulting fix (bot-only collider assist or aimOrigin passing fix) is deployed and confirmed stable live, do a narrow clean-room refactor isolating `rayVsBot`/capsule math (currently in `server/bots/botColliders.js` + `rayVsCapsule.js`) into a more testable, self-contained module — NOT a full engine rebuild (discussed with owner 2026-08-24: full rebuild rejected as costlier with no guarantee of avoiding this class of bug; scope stays limited to combat/collision only, keep `rayVsPeer`/shared capsule code untouched unless a test proves it needs to change).
 

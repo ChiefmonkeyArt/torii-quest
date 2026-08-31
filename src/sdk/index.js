@@ -46,7 +46,11 @@ export * as characterRelayRead from '../engine/character/characterRelayRead.js';
 export * as characterPresets from '../engine/character/characterPresets.js';
 export * as characterMesh from '../engine/character/characterMesh.js';
 export * as stickerPlacement from '../engine/character/stickerPlacement.js';
+export * as stickerRaycast from '../engine/character/stickerRaycast.js';
+export * as stickerPlacementMode from '../engine/character/stickerPlacementMode.js';
 export * as meshGeneration from '../engine/character/meshGeneration.js';
+export * as meshGenerationClient from '../engine/character/meshGenerationClient.js';
+export * as meshGenerationExecutor from '../engine/character/meshGenerationExecutor.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -153,9 +157,15 @@ export const SDK_SURFACE = Object.freeze({
   // Character Forge sticker-placement model (v0.2.723, ADR-0086) — body-zone
   // registry, bone→zone resolution, and immutable manifest add/remove/update.
   stickerPlacement:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacement.js' },
+  // Character Forge in-world raycast placement (v0.2.725, ADR-0088) — the
+  // hit→placement conversion + the inert placement-mode state machine.
+  stickerRaycast:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerRaycast.js' },
+  stickerPlacementMode: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacementMode.js' },
   // Character Forge validator-gated external mesh generation (v0.2.724, ADR-0087)
   // — backend registry, inert plan, and the validateGeneratedMesh() gate.
   meshGeneration:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGeneration.js' },
+  meshGenerationClient: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGenerationClient.js' },
+  meshGenerationExecutor: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGenerationExecutor.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

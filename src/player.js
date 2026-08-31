@@ -178,6 +178,11 @@ export function resetPlayerPos() {
 
 export function tickPlayer(dt) {
   if (!isPlaying()) return;
+  // Self-view sticker placement (ADR-0088): the orbit camera owns the shared
+  // camera while active, so skip ALL player movement + camera writes and let the
+  // self-view controls win. Re-entering flips the gate back and the next tick
+  // snaps the camera to the eye (same contract as the fly camera below).
+  if (state.stickerPlacementActive) return;
   // Dev free-fly (ToriiDebug.fly): the debug camera owns the shared camera while
   // enabled, so skip ALL player movement + camera writes and let fly controls win.
   // v2 (F4): the kinematic hit-capsule + playerObj still TRACK the fly eye so the

@@ -975,11 +975,34 @@ Use these rules to avoid repeated AI-created bugs:
 - If a system has been used in three places, extract it.
 - If a system is only imagined, document it but do not abstract it yet.
 
+## Napplet Architecture (post-v0.2.717, main, untagged)
+
+The napplet contract now covers three shells with a shared trust boundary:
+
+- **Product shell (ADR-0058, `productNappletHost`).** Existing NAP-zone product/auction surface. In-place.
+- **Game shell (ADR-0082, PR #84).** New `gameNappletSrcdoc.js` / `gameNappletHandlers.js` / `NappletGameHost.js` under `src/engine/napplets/`, plus `GAME_NAMESPACE` on `nappletEnvelope.js`.
+- **Avatar shell (ADR-0083, PR #84).** New `avatarNappletSrcdoc.js` / `avatarNappletHandlers.js`, plus `AVATAR_NAMESPACE`. Handlers gate is enforced in code, not just UI.
+
+Async handler protocol lets handlers return `{ __async, promise }` so relay-mediated actions (signing, fanout) stay shell-owned. Trust boundary is unchanged across all three shells: `sandbox="allow-scripts"` only (opaque origin, no `allow-same-origin`), `MessageEvent.source` validated (never `event.origin`), per-mount channelId nonce stamped on every envelope, CSP `default-src 'none'; connect-src 'none'; img-src 'none'`.
+
+**Wiring-only registrations (ADR-0084, ADR-0085, PR #87).** The existing direct-Three arena and sticker studio now register as napplets via pure factories: `src/engine/napplets/arenaNappletRegistration.js` (dTag `torii-arena`, over `createGameHandlers`) and `src/engine/napplets/stickerStudioNappletRegistration.js` (dTag `sticker-studio`, over `createAvatarHandlers`, declares `requires: ['torii-avatar-write']`). Both use the `NAPPLET_IDENTITY` `@v0-wiring` placeholder that ADR-0092 will replace with real bundle hashes at release. Napplets never sign, never touch relays - the shell brokers publish through `signEvent` + `fanoutPublish` in `main.js`.
+
+**Character event (proposed, not yet published).** kind 35100 addressable, `d="torii-character"`, one per npub for v0. Mandatory `contrib` tags carry `(dTag, aggregateHash)` per contributing napplet.
+
+**Queued design work** (see `torii-quest-todo.md`):
+
+- **ADR-0090** arena full sandboxing (Three + Rapier inside the iframe, DOM<->WebGL bridge, per-frame snapshot protocol). Design done, proposed.
+- **ADR-0091** sticker studio full sandboxing (SkinnedMesh raycast inside the iframe, snapshot-based avatar API). Design done, DEFERRED - in-window placement (Character Forge ADR-0088) is the shipping path.
+- **ADR-0092** release-time napplet identity (replace `@v0-wiring` placeholders with real bundle hashes).
+
+> **ADR renumbering note (2026-08-31):** the napplet sandboxing + identity ADRs were renumbered 0088/0089/0086 → 0090/0091/0092 to avoid colliding with the Character Forge track, which merged ADR-0086 (sticker-placement-model), ADR-0088 (in-world raycast placement), and ADR-0089 (live-generator clients) on `main`. Character Forge's ADR-0082 (validator-first) also collides with the napplet ADR-0082 (game-host scaffold) — a separate already-merged numbering issue flagged for cleanup.
+
 ## Immediate Next Steps
 
-1. **N2N TRAVEL TEST WITH BEKKA (priority)** — chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + `?torii-traveller=`) and presence discovery across the unified relay list (ADR-0081). Both instances are live again after the HashIT outage (resolved 2026-08-31; both ~0.17s TTFB).
-2. Confirm Bekka is on v0.2.713+ (one-command bootstrap) so her heartbeat/relay/access-tab changes are live.
-3. Deferred (need core refactors, not fake tabs): Audio tab (no master gain API), Graphics tab (no manual override), Controls tab (no keybind layer), Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3).
+1. **ADR-0090/0091 sandboxing design - DONE (2026-08-31).** Full sandboxing plans authored, reviewed, and renumbered (0088/0089 → 0090/0091): arena full sandboxing (ADR-0090, proposed) and sticker studio full sandboxing (ADR-0091, deferred). No implementation until signed off; the deferred sandboxed studio waits on third-party character napplets becoming a real goal.
+2. **N2N travel test with Bekka (priority)** — chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + `?torii-traveller=`) and presence discovery across the unified relay list (ADR-0081). Both instances are live again after the HashIT outage (resolved 2026-08-31; both ~0.17s TTFB).
+3. Confirm Bekka is on v0.2.713+ (one-command bootstrap) so her heartbeat/relay/access-tab changes are live.
+4. Deferred (need core refactors, not fake tabs): Audio tab (no master gain API), Graphics tab (no manual override), Controls tab (no keybind layer), Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3).
 
 ## Open Questions
 

@@ -1,4 +1,4 @@
-# ADR-0085: Character Forge — validator-gated external mesh generation
+# ADR-0087: Character Forge — validator-gated external mesh generation
 
 - **Status:** Accepted
 - **Date:** 2026-08-31

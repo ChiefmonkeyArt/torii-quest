@@ -13,7 +13,7 @@
 //
 // Deliberately NOT here: the 3D raycast itself, texture upload, and event
 // signing/publishing — those are runtime/host concerns (see main.js + nostr.js).
-// See nap-torii-avatar-v0.md + ADR-0084.
+// See nap-torii-avatar-v0.md + ADR-0086.
 
 import { isSha256 } from './characterManifest.js';
 import { mapBonesToRoles } from './skeleton.js';

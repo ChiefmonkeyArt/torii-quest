@@ -150,10 +150,10 @@ export const SDK_SURFACE = Object.freeze({
   characterRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterRelayRead.js' },
   characterPresets:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterPresets.js' },
   characterMesh:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterMesh.js' },
-  // Character Forge sticker-placement model (v0.2.723, ADR-0084) — body-zone
+  // Character Forge sticker-placement model (v0.2.723, ADR-0086) — body-zone
   // registry, bone→zone resolution, and immutable manifest add/remove/update.
   stickerPlacement:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacement.js' },
-  // Character Forge validator-gated external mesh generation (v0.2.724, ADR-0085)
+  // Character Forge validator-gated external mesh generation (v0.2.724, ADR-0087)
   // — backend registry, inert plan, and the validateGeneratedMesh() gate.
   meshGeneration:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGeneration.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).

@@ -13,7 +13,7 @@
 // Deliberately NOT here: network calls, payment (routstr/Cashu), signing, and
 // the live generator clients — those are host concerns. This is the seam the
 // host calls after a generator returns: validateGeneratedMesh() is the gate.
-// See ADR-0085.
+// See ADR-0087.
 
 import { validateCharacterManifest } from './characterManifest.js';
 import { assessRig } from './rigAssessment.js';

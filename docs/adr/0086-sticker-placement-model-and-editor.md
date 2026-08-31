@@ -1,4 +1,4 @@
-# ADR-0084: Character Forge — sticker placement model + editor
+# ADR-0086: Character Forge — sticker placement model + editor
 
 - **Status:** Accepted
 - **Date:** 2026-08-31

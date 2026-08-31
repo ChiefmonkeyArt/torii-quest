@@ -23,7 +23,7 @@
   },
   "tests": {
     "passing": 3454,
-    "files": 276
+    "files": 279
   },
   "manualBlocker": {
     "pending": true,

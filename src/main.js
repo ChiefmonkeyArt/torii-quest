@@ -86,6 +86,7 @@ import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
 import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
+import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -1245,10 +1246,77 @@ registerSettingsTabRenderer('profile', () => {
 // (writing a new character event) is a follow-up slice.
 const _characterForgeState = {
   status: 'idle', // 'idle' | 'checking' | 'found' | 'none' | 'failed'
-  character: null, // { name, meshName, stickerCount } | null
+  character: null, // { name, meshName, stickerCount, stickers } | null
+  manifest: null, // the full `torii.character` manifest (used for sticker edits)
+  mode: 'view',   // 'view' | 'edit' — 'edit' is the sticker editor
   error: null,
   _readStarted: false,
 };
+
+// _summarizeCharacterManifest(manifest) → the panel's character summary, used
+// by every read/create/update path so the summary shape stays in one place.
+function _summarizeCharacterManifest(manifest) {
+  const m = (manifest && typeof manifest === 'object') ? manifest : {};
+  return {
+    name: (typeof m.name === 'string' && m.name) ? m.name : 'Unnamed',
+    meshName: (m.mesh && typeof m.mesh.name === 'string') ? m.mesh.name : '',
+    stickerCount: Array.isArray(m.stickers) ? m.stickers.length : 0,
+    stickers: Array.isArray(m.stickers) ? m.stickers : [],
+  };
+}
+
+// _republishCharacter(manifest) — sign + publish a character manifest update
+// (the shared write half for the sticker editor), then refresh the panel state.
+async function _republishCharacter(manifest) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not update your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not update your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _addOwnSticker(stickerId) — place a sticker from the curated library on its
+// recommended zone (default centre u/v), then republish. The precise 3D
+// placement (raycast → zone/u/v/rot) is a later in-world step; this is the
+// settings-tab authoring path that closes the create→edit loop.
+async function _addOwnSticker(stickerId) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const entry = STICKER_LIBRARY.find((s) => s.id === stickerId);
+  if (!entry) return;
+  const next = addSticker(manifest, {
+    hash: entry.hash,
+    zoneId: entry.recommendedZone,
+    u: 0.5,
+    v: 0.5,
+    rot: 0,
+  });
+  if (next !== manifest) await _republishCharacter(next);
+}
+
+// _removeOwnSticker(index) — remove the sticker at `index` from the manifest and
+// republish. Out-of-range index is a no-op (removeSticker returns the input).
+async function _removeOwnSticker(index) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const next = removeSticker(manifest, index);
+  if (next !== manifest) await _republishCharacter(next);
+}
 
 async function _checkOwnCharacter() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
@@ -1263,11 +1331,8 @@ async function _checkOwnCharacter() {
     const manifest = await fetchOwnCharacter(pk);
     if (manifest && manifest.mesh && manifest.mesh.hash) {
       _characterForgeState.status = 'found';
-      _characterForgeState.character = {
-        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
-        meshName: (manifest.mesh && typeof manifest.mesh.name === 'string') ? manifest.mesh.name : '',
-        stickerCount: Array.isArray(manifest.stickers) ? manifest.stickers.length : 0,
-      };
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
     } else {
       _characterForgeState.status = 'none';
       _characterForgeState.character = null;
@@ -1298,11 +1363,8 @@ async function _createOwnCharacter(presetId) {
     const res = await publishCharacter(manifest);
     if (res.ok) {
       _characterForgeState.status = 'found';
-      _characterForgeState.character = {
-        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
-        meshName: (manifest.mesh && typeof manifest.mesh.name === 'string') ? manifest.mesh.name : '',
-        stickerCount: Array.isArray(manifest.stickers) ? manifest.stickers.length : 0,
-      };
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
       _characterForgeState.error = null;
     } else {
       _characterForgeState.status = 'failed';
@@ -1362,11 +1424,8 @@ async function _uploadCustomMesh(file) {
     const res = await publishCharacter(manifest);
     if (res.ok) {
       _characterForgeState.status = 'found';
-      _characterForgeState.character = {
-        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
-        meshName: manifest.mesh.name,
-        stickerCount: 0,
-      };
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
       _characterForgeState.error = null;
       // Seat the newly-published mesh for the player's own avatar + broadcast
       // its hash so peers can load it too.
@@ -1397,6 +1456,8 @@ registerSettingsTabRenderer('character', () => {
     isLoggedIn: st.isLoggedIn,
     status: _characterForgeState.status,
     character: _characterForgeState.character,
+    mode: _characterForgeState.mode,
+    stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
     presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
     error: _characterForgeState.error,
   });
@@ -1421,6 +1482,10 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
+    if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
+    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(t.getAttribute('data-sticker') || ''); return; }
+    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(t.getAttribute('data-index')); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }

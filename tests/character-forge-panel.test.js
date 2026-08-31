@@ -37,7 +37,41 @@ describe('renderCharacterForgePanel', () => {
     expect(html).toContain('already has a character');
     expect(html).toContain('Chiefmonkey');
     expect(html).toContain('chiefmonkey6');
-    expect(html).toContain('Edit character');
+    expect(html).toContain('Edit stickers');
+  });
+
+  it('renders the sticker editor in edit mode', () => {
+    const html = renderCharacterForgePanel({
+      isLoggedIn: true,
+      status: 'found',
+      mode: 'edit',
+      character: {
+        name: 'Chiefmonkey',
+        meshName: 'chiefmonkey6',
+        stickerCount: 1,
+        stickers: [{ hash: 'c'.repeat(64), zoneId: 'torso', u: 0.5, v: 0.5, rot: 0 }],
+      },
+      stickerLibrary: [{ id: 'ftff', label: 'Torii sticker' }],
+    });
+    expect(html).toContain('data-action="remove-sticker"');
+    expect(html).toContain('data-index="0"');
+    expect(html).toContain('torso');
+    expect(html).toContain('data-action="add-sticker"');
+    expect(html).toContain('data-sticker="ftff"');
+    expect(html).toContain('Torii sticker');
+    expect(html).toContain('data-action="done-edit"');
+  });
+
+  it('shows an empty sticker state in edit mode with none placed', () => {
+    const html = renderCharacterForgePanel({
+      isLoggedIn: true,
+      status: 'found',
+      mode: 'edit',
+      character: { name: 'N', meshName: 'm', stickerCount: 0, stickers: [] },
+      stickerLibrary: [],
+    });
+    expect(html).toContain('No stickers yet');
+    expect(html).toContain('No stickers available');
   });
 
   it('shows a retry affordance on failure', () => {

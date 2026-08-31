@@ -12,11 +12,14 @@
 // renderCharacterForgePanel(state) — state:
 //   isLoggedIn  — boolean; gates the whole tab.
 //   status      — 'idle' | 'checking' | 'found' | 'none' | 'creating' | 'failed'.
-//   character   — { name, meshName, stickerCount } | null (when status==='found').
+//   character   — { name, meshName, stickerCount, stickers[] } | null (when 'found').
+//   mode        — 'view' (default) | 'edit' — the 'edit' mode is the sticker editor.
+//   stickerLibrary — [{ id, label }] — curated decals shown in the sticker editor.
 //   presets     — [{ id, label }] — curated bases shown when status==='none'.
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
-// pattern (data-action="check-character" / "select-preset" / "upload-mesh").
+// pattern (data-action="check-character" / "select-preset" / "upload-mesh" /
+// "edit-character" / "add-sticker" / "remove-sticker" / "done-edit").
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -35,6 +38,11 @@ function _statusBadge(status) {
   return '';
 }
 
+function _shortHash(hash) {
+  const h = typeof hash === 'string' ? hash : '';
+  return h.length <= 12 ? h : `${h.slice(0, 8)}…`;
+}
+
 function _foundView(character) {
   const c = character || {};
   return `
@@ -44,7 +52,42 @@ function _foundView(character) {
       <div class="cf-row"><span class="cf-label">Mesh</span><span class="cf-value">${_escape(c.meshName || '—')}</span></div>
       <div class="cf-row"><span class="cf-label">Stickers</span><span class="cf-value">${Number(c.stickerCount) || 0}</span></div>
     </div>
-    <button type="button" class="gs-btn" data-action="edit-character">Edit character</button>`;
+    <button type="button" class="gs-btn" data-action="edit-character">Edit stickers</button>`;
+}
+
+// _stickerEditor(stickers, library) — the sticker-placement editor (mode 'edit').
+// Lists the character's stickers (zone + short hash + u/v/rot) each with a
+// Remove button, and offers the curated sticker library to add one. The actual
+// 3D placement (raycast → zone/u/v/rot) is a runtime step in main.js; here a
+// new sticker lands on its recommended zone by default.
+function _stickerEditor(stickers, library) {
+  const rows = (Array.isArray(stickers) ? stickers : []).map((s, i) => {
+    const st = s || {};
+    const zone = (typeof st.zoneId === 'string' && st.zoneId) ? st.zoneId : 'unknown';
+    const u = (Number(st.u) || 0).toFixed(2);
+    const v = (Number(st.v) || 0).toFixed(2);
+    const rot = (Number(st.rot) || 0).toFixed(1);
+    return `<div class="cf-sticker-row">
+      <span class="cf-value">${_escape(zone)} · ${_escape(_shortHash(st.hash))} · u ${u} / v ${v} / rot ${rot}</span>
+      <button type="button" class="gs-btn" data-action="remove-sticker" data-index="${i}">Remove</button>
+    </div>`;
+  }).join('');
+
+  const lib = Array.isArray(library) ? library : [];
+  const addButtons = lib.map((e) => {
+    const id = (e && e.id) ? e.id : '';
+    const label = (e && e.label) ? e.label : id;
+    return `<button type="button" class="gs-btn cf-preset" data-action="add-sticker" data-sticker="${_escape(id)}">${_escape(label)}</button>`;
+  }).join('');
+
+  return `
+    <div class="gs-subtitle">Attach stickers to your character — saved to your signed character event.</div>
+    <div class="cf-stickers">${rows || '<div class="cf-empty">No stickers yet.</div>'}</div>
+    <div class="cf-add">
+      <div class="cf-label">Add sticker</div>
+      ${addButtons || '<div class="cf-empty">No stickers available.</div>'}
+    </div>
+    <button type="button" class="gs-btn" data-action="done-edit">Done</button>`;
 }
 
 function _createView(presets) {
@@ -70,11 +113,14 @@ export function renderCharacterForgePanel(state = {}) {
   const gate = !isLoggedIn
     ? '<div class="gs-gate">Log in with Nostr to create or load your character.</div>'
     : '';
+  const mode = (st.mode === 'edit') ? 'edit' : 'view';
 
   let body = '';
   if (isLoggedIn) {
     if (status === 'found' && st.character) {
-      body = _foundView(st.character);
+      body = (mode === 'edit')
+        ? _stickerEditor(st.character.stickers, st.stickerLibrary)
+        : _foundView(st.character);
     } else if (status === 'failed') {
       body = `<div class="cf-empty">${_escape(st.error || 'Could not load your character.')}</div>
         <button type="button" class="gs-btn" data-action="check-character">Retry</button>`;

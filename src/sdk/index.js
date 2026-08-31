@@ -45,6 +45,8 @@ export * as characterEvent from '../engine/character/characterEvent.js';
 export * as characterRelayRead from '../engine/character/characterRelayRead.js';
 export * as characterPresets from '../engine/character/characterPresets.js';
 export * as characterMesh from '../engine/character/characterMesh.js';
+export * as stickerPlacement from '../engine/character/stickerPlacement.js';
+export * as meshGeneration from '../engine/character/meshGeneration.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -148,6 +150,12 @@ export const SDK_SURFACE = Object.freeze({
   characterRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterRelayRead.js' },
   characterPresets:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterPresets.js' },
   characterMesh:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterMesh.js' },
+  // Character Forge sticker-placement model (v0.2.723, ADR-0084) — body-zone
+  // registry, bone→zone resolution, and immutable manifest add/remove/update.
+  stickerPlacement:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacement.js' },
+  // Character Forge validator-gated external mesh generation (v0.2.724, ADR-0085)
+  // — backend registry, inert plan, and the validateGeneratedMesh() gate.
+  meshGeneration:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGeneration.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

@@ -804,6 +804,25 @@ All three kit pillars carry explicit budgets so a dropped-in environment can't
 silently wreck frame rate — the budgets are part of the manifest/validator
 contract, consistent with the Asset Forge.
 
+### UGC Sticker System (sticker anything)
+
+Stickers are the playful, shareable decal layer: players author an image, publish
+it as a content-addressed asset, pick it from a shared library, fire it from the
+gun, and watch it stick to **any** surface — walls, floors, crates, trees, and
+other characters. See ADR-0090 for the decision record.
+
+- **Author → publish → fire.** A sticker is an image uploaded via the Blossom path
+  (ADR-0082) and published as a `torii.asset`-shaped Nostr event; the sha256 is its
+  identity. The current single `ftff-sticker.png` becomes just the seed entry.
+- **Any surface.** Placement targets all world geometry (static meshes + skinned
+  characters), not a curated subset — decal-baked on statics, bone-parented on
+  skins (the `stickerNpc.js` path).
+- **Shared, not local.** Fired + attached stickers are cosmetic client-broadcasts
+  relayed over the arena WebSocket, so everyone in the room sees a sticker land —
+  NAP-zone-gated and rate-limited (no server authority for cosmetics; ADR-0006).
+- **Parked, not deleted.** The avatar self-decoration UI from ADR-0088
+  (`stickerSelfView.js`) is parked; its pure placement model is reused here.
+
 ## Community, Chat, and Commerce
 
 Torii Quest should support community building, not just combat.

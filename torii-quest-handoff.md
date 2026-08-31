@@ -101,6 +101,7 @@ Prior: v0.2.684-alpha - SETTINGS PANEL: PROFILE + RELAY TABS, HOMEPAGE FADE, TOP
 
 ### For the next agent
 - The active MVP focus is the 15-hour proof-of-concept route (`torii-quest-strategy.md`); the shooter is maintenance-only unless demo-breaking.
+- **UGC sticker system (ADR-0090) is the next slice** — content-addressed sticker library (Blossom + torii.asset event), any-surface raycast/attach, multiplayer cosmetic broadcast. The ADR-0088 self-view avatar-decoration UI (`stickerSelfView.js`/`stickerStudio.js`) is **PARKED**: keep in-tree, feature-gated, don't delete; its pure `stickerRaycast.js`/`stickerPlacementMode.js` model is reused.
 - Read `torii-quest-strategy.md` + `torii-quest-todo.md` + `torii-quest-progress.md` first; use the §10 next-job format.
 - Always read code before editing. Root causes in this codebase are found by reading (e.g. parsing GLB binary, tracing the MP wire), not guessing.
 

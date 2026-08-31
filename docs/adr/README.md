@@ -47,6 +47,9 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0017](./0017-server-zone-in-bot-hit.md) | Plumb zone from server BOT_HIT into client applyBotHit | Accepted |
 | [0059](./0059-auction-panel-header-hardening.md) | Harden the auction panel renderer (no `innerHTML` of untrusted data) | Accepted |
 | [0060](./0060-homepage-panel-smoked-glass-restoration.md) | Restore real smoked-glass blur on the homepage panel with a true edge fade | Accepted |
+| [0088](./0088-in-world-raycast-sticker-placement.md) | Character Forge — in-world raycast sticker placement (self-view slice parked) | Accepted |
+| [0089](./0089-live-generator-clients-broker-seam.md) | Live generator clients / executor broker seam (inert by default) | Accepted |
+| [0090](./0090-ugc-sticker-system.md) | UGC sticker system — any-surface decals, Nostr-published library, multiplayer sync | Accepted |
 
 ## Workflow for a new decision
 

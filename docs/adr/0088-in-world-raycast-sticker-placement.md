@@ -70,3 +70,12 @@ state machine around it — is pure and testable without THREE.
 - The visual decal baking (a sticker actually attached to the skin, per the
   `sticker-skin-system` concept) remains a later rendering step — this slice
   resolves + persists the placement data.
+
+## Notes
+
+**Parked (2026-08-31).** The self-view orbit-camera UI slice (`stickerSelfView.js`,
+`stickerStudio.js` runtime wiring) is parked: on playtest the operator found avatar
+self-decoration misaligned with the real goal — "sticker anything" + user-generated
+stickers fired from guns. The code is kept in the tree and feature-gated; the pure
+placement model (`stickerRaycast.js`, `stickerPlacementMode.js`) is **reused** by
+ADR-0090 (UGC sticker system). Do not delete the parked modules.

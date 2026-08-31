@@ -43,15 +43,30 @@ state machine around it — is pure and testable without THREE.
    layer 1) with the proven stickerNpc.js approach and returns a normalised hit
    the pure modules consume. It is deliberately **not** re-exported by the SDK.
 
-4. **Self-placement targets the mirror view.** The own-character mesh is hidden
-   from the FPS camera, so placement aim originates from the NAP-zone mirror (or
-   a future third-person self-view). The hit is injected, so the input binding is
-   decoupled from the raycast/conversion/no-op. The input binding (enter/confirm)
-   is the thin, browser-tested follow-up.
+4. **Self-placement targets a self-view camera.** The own-character mesh is
+   hidden from the FPS camera, so placement aim originates from a dedicated
+   **self-view orbit camera** — the direct, usable form of the NAP-zone mirror
+   (the mirror renders the same layer-1 mesh from one fixed angle; the orbit
+   camera lets the player place on any side). The hit is injected, so the input
+   binding is decoupled from the raycast/conversion/no-op.
+
+5. **Wire the input binding in a runtime module.** Add `src/stickerSelfView.js`:
+   `KeyP` enters self-view (detach the shared camera, orbit it around the
+   character centre, swap the layer mask to show layer 1 and hide the headless
+   layer-2 FP body), pointer-lock mouse orbits + aims, left-click confirms a
+   raycast placement through the pure state machine, `Esc` cancels. Confirmation
+   hands `{hash, zoneId, u, v, rot}` to the shell (`createArenaRuntime`
+   `confirmStickerPlacement` hook → `main.js`), which folds it through
+   `addSticker` + the kind-35100 republish. While active, `player.js` hands the
+   camera to the self-view (`state.stickerPlacementActive`), the gun viewmodel is
+   hidden, and `Esc` cancels instead of pausing.
 
 ## Consequences
 
-- Pure conversion + state machine are unit-tested in node; the raycast adapter
-  is browser-wired and mirrors a proven existing path.
+- Pure conversion + state machine are unit-tested in node; the runtime orbit
+  camera + layer swap are browser-playtested (enter/aim/confirm/cancel).
 - Placement is still validator-first: a confirmed placement flows through
   `addSticker` (MAX_STICKERS cap) then the existing kind-35100 republish.
+- The visual decal baking (a sticker actually attached to the skin, per the
+  `sticker-skin-system` concept) remains a later rendering step — this slice
+  resolves + persists the placement data.

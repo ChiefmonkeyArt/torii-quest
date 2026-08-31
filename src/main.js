@@ -14,7 +14,7 @@ import { emit, on, EV } from './events.js';
 // has no THREE/scene deps and self-installs on import, so a loaded bundle wires
 // login regardless of the (now deferred) 3D boot.
 import './engine/ui/loginBootstrap.js';
-import { showZoneNotice, hideZoneNotice } from './hud.js';
+import { showZoneNotice, hideZoneNotice, showFlyNotice } from './hud.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
@@ -1318,6 +1318,32 @@ async function _removeOwnSticker(index) {
   if (next !== manifest) await _republishCharacter(next);
 }
 
+// _confirmSelfViewPlacement(placement) — the self-view sticker placement confirm
+// half (ADR-0088). The in-world orbit self-view confirms a real 3D raycast
+// placement ({hash, zoneId, u, v, rot}); fold it into the manifest + republish.
+// Ensures a manifest exists first (the self-view is entered in-game, possibly
+// without ever opening the Character tab).
+async function _confirmSelfViewPlacement(placement) {
+  if (!placement || !placement.zoneId) return;
+  let manifest = _characterForgeState.manifest;
+  if (!manifest) {
+    const pk = (state.nostrPubkey || '').trim().toLowerCase();
+    if (/^[0-9a-f]{64}$/.test(pk)) manifest = await fetchOwnCharacter(pk);
+  }
+  if (!manifest || !manifest.mesh || !manifest.mesh.hash) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Create a character first (Character tab) to add stickers.';
+    renderActiveSettingsTab();
+    showFlyNotice('Sticker placement — create a character first');
+    return;
+  }
+  const next = addSticker(manifest, placement);
+  if (next !== manifest) {
+    await _republishCharacter(next);
+    showFlyNotice(`Sticker placed — ${placement.zoneId} (${_characterForgeState.character ? _characterForgeState.character.stickerCount : 0} total)`);
+  }
+}
+
 async function _checkOwnCharacter() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pk)) {
@@ -2469,6 +2495,9 @@ async function ensureArenaReady(loadingLabel) {
         openToriiMenu: ({ onClose }) => openToriiMenu({ getState: _getToriiMenuState, onClose }),
         closeToriiMenu,
         isToriiMenuOpen,
+        // ADR-0088: the in-world self-view placement confirm — main.js folds the
+        // confirmed raycast placement into the character manifest + republish.
+        confirmStickerPlacement: _confirmSelfViewPlacement,
       });
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.

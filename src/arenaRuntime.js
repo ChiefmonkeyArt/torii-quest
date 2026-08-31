@@ -82,6 +82,7 @@ import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
 import { fetchCapability, isAdminOperator } from './engine/update/adminUpdateClient.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
+import { initStickerSelfView, tickStickerSelfView, exitStickerSelfView, isStickerPlacementActive } from './stickerSelfView.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
@@ -514,6 +515,13 @@ export function createArenaRuntime(hooks = {}) {
   const openToriiMenuHook = typeof hooks.openToriiMenu === 'function' ? hooks.openToriiMenu : null;
   const closeToriiMenuHook = typeof hooks.closeToriiMenu === 'function' ? hooks.closeToriiMenu : () => {};
   const isToriiMenuOpenHook = typeof hooks.isToriiMenuOpen === 'function' ? hooks.isToriiMenuOpen : () => false;
+  // ADR-0088: the self-view sticker placement confirm hook. The runtime passes a
+  // confirmed placement ({hash,zoneId,u,v,rot}) to the shell, which folds it into
+  // the character manifest + republish. No-op default keeps a shell-without-hooks
+  // working (the placement is simply discarded).
+  const confirmStickerPlacementHook = typeof hooks.confirmStickerPlacement === 'function'
+    ? hooks.confirmStickerPlacement
+    : () => {};
 
   let _booted = false;
 
@@ -787,6 +795,7 @@ export function createArenaRuntime(hooks = {}) {
     // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
+    tickStickerSelfView(); // self-view sticker placement: no-op unless active
     tickDeath(dt, renderer);
 
     // ── Arena-only ticks (skipped in minimal world mode) ─────────────────────
@@ -944,7 +953,7 @@ export function createArenaRuntime(hooks = {}) {
     // inflight guard skips a tick if the previous upload is still resolving.
     _driveAutoCapture(Date.now());
     try {
-      renderFrame(isLive());
+      renderFrame(isLive() && !isStickerPlacementActive()); // hide the gun viewmodel while placing a sticker
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
     }
@@ -1413,6 +1422,14 @@ export function createArenaRuntime(hooks = {}) {
       },
     });
 
+    // Self-view sticker placement (ADR-0088) — the in-world input binding that
+    // orbits the shared camera around the player's own character and confirms a
+    // raycast placement into the shell's republish seam.
+    initStickerSelfView({
+      camera, scene, playerObj,
+      onConfirm: confirmStickerPlacementHook,
+    });
+
     // Crosshair — show when pointer locked, hide when not.
     const _elCrosshair = document.getElementById('crosshair');
     document.addEventListener('pointerlockchange', () => {
@@ -1459,6 +1476,15 @@ export function createArenaRuntime(hooks = {}) {
         e.preventDefault();
         e.stopImmediatePropagation();
         kamiExit();
+        return;
+      }
+      // ADR-0088: Esc while in self-view sticker placement CANCELS the placement
+      // (restore the camera + player) instead of opening pause.
+      if (isStickerPlacementActive()) {
+        _escapeHandledOnKeyDown = true;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        exitStickerSelfView();
         return;
       }
       _escapeHandledOnKeyDown = true;

@@ -29,6 +29,10 @@ export const state = {
   // read at ENTER to enable ToriiDebug.fly once the arena boots; also mirrors the
   // live in-game fly state so the title toggle reflects reality after returning Home.
   flyMode: false,
+  // In-world self-view sticker placement (ADR-0088). Mirrors flyMode: set/cleared
+  // by stickerSelfView.js on enter/exit, read by player.js to hand the shared
+  // camera to the self-view orbit while active.
+  stickerPlacementActive: false,
   // Player-ownership boundary (v0.2.291): Torii Quest seats exactly ONE local
   // player. nostrPubkey/Name/Profile/Avatar identify whoever currently controls
   // this client — anon by default, or a verified npub once a NIP-07 login OR a

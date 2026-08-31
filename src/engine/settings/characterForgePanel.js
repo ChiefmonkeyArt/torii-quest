@@ -16,7 +16,7 @@
 //   presets     — [{ id, label }] — curated bases shown when status==='none'.
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
-// pattern (data-action="check-character" / "select-preset").
+// pattern (data-action="check-character" / "select-preset" / "upload-mesh").
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -55,8 +55,11 @@ function _createView(presets) {
     return `<button type="button" class="gs-btn cf-preset" data-action="select-preset" data-preset="${_escape(id)}">${_escape(label)}</button>`;
   }).join('');
   return `
-    <div class="gs-subtitle">Create your character from a curated base. External mesh generation lands in a later slice.</div>
-    <div class="cf-presets">${buttons || '<div class="cf-empty">No presets available.</div>'}</div>`;
+    <div class="gs-subtitle">Create your character from a curated base, or upload your own mesh. External mesh generation lands in a later slice.</div>
+    <div class="cf-presets">${buttons || '<div class="cf-empty">No presets available.</div>'}</div>
+    <div class="cf-upload">
+      <button type="button" class="gs-btn" data-action="upload-mesh">Upload custom mesh (.glb)</button>
+    </div>`;
 }
 
 export function renderCharacterForgePanel(state = {}) {

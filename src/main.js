@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -85,6 +85,7 @@ import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
+import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -988,9 +989,15 @@ function renderGatewayPreview() {
 }
 renderGatewayPreview();
 
+// The player's own character mesh URL (Blossom), resolved at login from their
+// signed kind-35100 character event. Set before arena boot so loadPlayerModel()
+// fetches the custom mesh instead of the built-in default.
+let _ownCharacterMeshUrl = null;
+
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
+  _applyOwnCharacterMesh();
   // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
   // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
@@ -1002,6 +1009,22 @@ on(EV.NOSTR_LOGIN, () => {
   // ENTER. The Gateway Setup tab is still reachable any time via the title-screen
   // settings icon and the in-game KeyM menu. Both are explicit user actions.
 });
+
+// _applyOwnCharacterMesh() — the player path of the automatic mesh-loading slice.
+// After login, fetch the player's own kind-35100 character event, resolve its mesh
+// hash to a Blossom URL, and stash it so ensureArenaReady() seats it before boot.
+// Read-only + no prompt (reuses fetchOwnCharacter); a missing/invalid character
+// leaves the built-in default avatar in place.
+async function _applyOwnCharacterMesh() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; return; }
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+  } catch {
+    _ownCharacterMeshUrl = null;
+  }
+}
 
 // ── Access tab (ADR-0078, v0.2.712) ─────────────────────────────────────────
 // The Instance Settings admin surface (ACC-2b, v0.2.400) was hidden in v0.2.676
@@ -1291,6 +1314,73 @@ async function _createOwnCharacter(presetId) {
   renderActiveSettingsTab();
 }
 
+// _pickCustomMesh() — open a file picker for a .glb and hand the file to
+// _uploadCustomMesh. The picker is created dynamically (not baked into the pure
+// panel HTML) so the panel stays a node-testable string renderer.
+function _pickCustomMesh() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  const input = doc.createElement('input');
+  input.type = 'file';
+  input.accept = '.glb,.gltf';
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (file) _uploadCustomMesh(file);
+  };
+  input.click();
+}
+
+// _uploadCustomMesh(file) — the "make it so" path: upload a GLB to Blossom
+// (NIP-98 auth via NIP-07), build a manifest from the returned content hash,
+// sign + publish the kind-35100 character event, then seat the mesh for the
+// player's own avatar. Two NIP-07 prompts (upload auth + event sign).
+async function _uploadCustomMesh(file) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const up = await uploadBlossom(file);
+    if (!up.ok) {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = up.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (up.error || 'Could not upload your mesh.');
+      renderActiveSettingsTab();
+      return;
+    }
+    const manifest = {
+      version: 1,
+      mesh: { hash: up.sha256, name: (file && file.name) || 'custom.glb' },
+      clips: [],
+      stickers: [],
+      name: '',
+      colors: [],
+      contrib: [],
+    };
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.character = {
+        name: (typeof manifest.name === 'string' && manifest.name) ? manifest.name : 'Unnamed',
+        meshName: manifest.mesh.name,
+        stickerCount: 0,
+      };
+      _characterForgeState.error = null;
+      // Seat the newly-published mesh for the player's own avatar.
+      _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+      if (_arena && typeof _arena.setCustomMeshUrl === 'function') _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not upload your mesh.';
+  }
+  renderActiveSettingsTab();
+}
+
 registerSettingsTabRenderer('character', () => {
   const st = _homepageStubState();
   if (st.isLoggedIn && !_characterForgeState._readStarted) {
@@ -1324,6 +1414,7 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
+    if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
@@ -2311,6 +2402,9 @@ async function ensureArenaReady(loadingLabel) {
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      // Seat the player's own character mesh (Blossom URL) before boot so
+      // loadPlayerModel() fetches it instead of the built-in default.
+      _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');

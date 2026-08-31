@@ -16,8 +16,8 @@ export const CHARACTER_PRESETS = Object.freeze([
     id: 'chiefmonkey',
     label: 'Chiefmonkey',
     mesh: Object.freeze({
-      hash: '7aecefff9ded689a1fce5afeb8b85fd954885ad422708e2d62f51c41a14d8cc3',
-      name: 'chiefmonkey7.glb',
+      hash: '0de4f645a45b5ff5a0ca334d3a905e81e1185b3554bebe5f40fdb32ea194c7c5',
+      name: 'animation-library.glb',
     }),
     name: 'Chiefmonkey',
     colors: Object.freeze([]),
@@ -27,8 +27,8 @@ export const CHARACTER_PRESETS = Object.freeze([
     id: 'nostrich',
     label: 'Nostrich',
     mesh: Object.freeze({
-      hash: '0403049b706ba13b8e68d40ad406208177e74a9824c691e0355f58b721b54aa2',
-      name: 'nostrich3.glb',
+      hash: '07566cdfaf2431e1abb534803b9cf2d151f97595afe14f7793a1b130f1d09c11',
+      name: 'nostrich-master.glb',
     }),
     name: 'Nostrich',
     colors: Object.freeze([]),

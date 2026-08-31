@@ -44,6 +44,7 @@ export * as characterManifest from '../engine/character/characterManifest.js';
 export * as characterEvent from '../engine/character/characterEvent.js';
 export * as characterRelayRead from '../engine/character/characterRelayRead.js';
 export * as characterPresets from '../engine/character/characterPresets.js';
+export * as characterMesh from '../engine/character/characterMesh.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -146,6 +147,7 @@ export const SDK_SURFACE = Object.freeze({
   characterEvent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterEvent.js' },
   characterRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterRelayRead.js' },
   characterPresets:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterPresets.js' },
+  characterMesh:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterMesh.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

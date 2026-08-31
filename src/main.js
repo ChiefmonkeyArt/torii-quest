@@ -83,6 +83,7 @@ import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js'
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
+import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -1207,6 +1208,17 @@ registerSettingsTabRenderer('relay', () => renderRelayPanel(_homepageStubState()
 registerSettingsTabRenderer('profile', () => {
   const st = _homepageStubState();
   return renderProfilePanel({ ...st, draft: st.profileDraft, publishStatus: st.profilePublishStatus });
+});
+
+// Character tab content renderer (v0.2.718, Character Forge) — the player's
+// playable character (a signed kind-35100 event). GROUNDWORK ONLY: the panel
+// renders the create/load flow, but the actual relay read (check whether the
+// npub already has a .glb attached) + create round-trip are a follow-up slice
+// (see the Character Forge entry in torii-quest-strategy.md). For now the tab
+// reports 'none' so the create flow is visible without a live relay read.
+registerSettingsTabRenderer('character', () => {
+  const st = _homepageStubState();
+  return renderCharacterForgePanel({ isLoggedIn: st.isLoggedIn, status: 'none', character: null });
 });
 
 // Single delegated listener on the settings panel's content container, scoped

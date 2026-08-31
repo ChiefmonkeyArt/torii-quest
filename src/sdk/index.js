@@ -38,6 +38,10 @@ export * as productPanelShell from '../engine/components/productPanelShell.js';
 export * as productPreview from '../engine/components/productPreview.js';
 export * as productDetail from '../engine/components/productDetail.js';
 export * as savedProducts from '../engine/components/savedProducts.js';
+export * as characterSkeleton from '../engine/character/skeleton.js';
+export * as rigAssessment from '../engine/character/rigAssessment.js';
+export * as characterManifest from '../engine/character/characterManifest.js';
+export * as characterEvent from '../engine/character/characterEvent.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -131,6 +135,13 @@ export const SDK_SURFACE = Object.freeze({
   productDetail:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productDetail.js' },
   // Client-side npub-keyed "saved products" store — local-only, no relay write (M2, v0.2.283).
   savedProducts:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/savedProducts.js' },
+  // Character Forge (v0.2.718) — the auto-rig + validator groundwork: the
+  // canonical skeleton contract, rig assessment, the `torii.character` manifest
+  // validator, and the kind-35100 character-event parser. Pure, node-safe.
+  characterSkeleton: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/skeleton.js' },
+  rigAssessment:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/rigAssessment.js' },
+  characterManifest: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterManifest.js' },
+  characterEvent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterEvent.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

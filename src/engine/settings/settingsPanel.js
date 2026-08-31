@@ -4,24 +4,29 @@
 // no `three` import, browser-only, fail-safe), but with a nav-left/
 // content-right shell (Continuum-styled) instead of a single scroll list.
 //
-// FIVE tabs (v0.2.712: Access re-added after Relay; was four in v0.4):
+// SIX tabs (v0.2.712: Access re-added after Relay; was four in v0.4;
+//   v0.2.718: Character added after Profile):
 //   Profile at the top, Relay added after Heartbeat, Access at the foot:
 //   1. Profile — standard Nostr kind:0 fields for this Quest installation's
 //      identity (display name, bio, avatar, website, NIP-05, lightning
 //      address). Placed first/top since identity is the first thing an
 //      owner customises.
-//   2. Gateway Setup — hosts the 2 world-choice cards (Choose Blank / Use My
+//   2. Character — the Character Forge: create/load the player's playable
+//      character (a signed kind-35100 event). Rendered by
+//      engine/settings/characterForgePanel.js; main.js owns the read/create
+//      round-trips.
+//   3. Gateway Setup — hosts the 2 world-choice cards (Choose Blank / Use My
 //      World as Template) from the former 4-card homepageStub.js. "Visit a
 //      Node" was already dropped per design direction: in-world travel
 //      already has a home at the physical Torii Gateway inside the NAP
 //      zone, so a second UI-level node directory is redundant.
-//   3. Heartbeat — hosts the "Publish my node's presence" toggle/status,
+//   4. Heartbeat — hosts the "Publish my node's presence" toggle/status,
 //      previously the 3rd Gateway Setup card. Same underlying state/
 //      callback (main.js's onPublishNode / heartbeatStatus), just its own
 //      tab so it isn't buried inside the world-choice list.
-//   4. Relay — view/add/remove the wss:// relays this node publishes
+//   5. Relay — view/add/remove the wss:// relays this node publishes
 //      presence to (engine/presence/nodeRelays.js, reused as-is).
-//   5. Access — admin access-control surface (arrival authority + write
+//   6. Access — admin access-control surface (arrival authority + write
 //      authority) backed by the signed kind:30078 settings event. The full
 //      view-model + renderer live in engine/ui/instanceSettings.js (built
 //      v0.2.358, hidden since v0.2.676, re-surfaced here in v0.2.712 per
@@ -71,7 +76,7 @@
 //     function for each tab's content (returns an HTML string). Keeps this
 //     module decoupled from instanceSettings.js / the gateway-setup state.
 
-export const SETTINGS_PANEL_VERSION = 2;
+export const SETTINGS_PANEL_VERSION = 3;
 
 // getSettingsTabIds() — the ordered list of settings-tab ids (pure; no DOM).
 // Exposed so the tab inventory is unit-testable without a DOM environment —
@@ -87,6 +92,7 @@ export function getSettingsTabIds() {
 // surface that was hidden since v0.2.676). Order here IS the on-screen nav order.
 const TABS = [
   { id: 'profile', label: 'Profile' },
+  { id: 'character', label: 'Character' },
   { id: 'gateway', label: 'Gateway Setup' },
   { id: 'heartbeat', label: 'Heartbeat' },
   { id: 'relay', label: 'Relay' },

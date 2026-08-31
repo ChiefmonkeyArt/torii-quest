@@ -168,6 +168,19 @@ describe('decode — malformed input is safe', () => {
     const clean = sanitize(parsed.msg);
     expect(clean).toEqual({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) });
   });
+
+  // v0.2.722-alpha: the character field may carry a 64-hex Character Forge mesh
+  // hash in addition to a short skin key.
+  it('accepts a 64-hex mesh hash as the character field', () => {
+    const hash = 'a'.repeat(64);
+    expect(decode({ ...goodAuth, character: hash }).ok).toBe(true);
+    expect(decode({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64), character: hash }).ok).toBe(true);
+    expect(decode({ t: MSG.JOIN, id: 'p1', npub: 'npub1' + 'x'.repeat(58), pos: [0, 0, 0], rot: [0, 0], character: hash }).ok).toBe(true);
+  });
+
+  it('rejects a character field exceeding 64 chars', () => {
+    expect(decode({ ...goodAuth, character: 'a'.repeat(65) }).code).toBe('BAD_FIELD');
+  });
 });
 
 // ---------- sanitize ----------

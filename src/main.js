@@ -993,6 +993,7 @@ renderGatewayPreview();
 // signed kind-35100 character event. Set before arena boot so loadPlayerModel()
 // fetches the custom mesh instead of the built-in default.
 let _ownCharacterMeshUrl = null;
+let _ownCharacterMeshHash = null;
 
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
@@ -1017,12 +1018,14 @@ on(EV.NOSTR_LOGIN, () => {
 // leaves the built-in default avatar in place.
 async function _applyOwnCharacterMesh() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; return; }
+  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; return; }
   try {
     const manifest = await fetchOwnCharacter(pk);
     _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+    _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
   } catch {
     _ownCharacterMeshUrl = null;
+    _ownCharacterMeshHash = null;
   }
 }
 
@@ -1365,9 +1368,12 @@ async function _uploadCustomMesh(file) {
         stickerCount: 0,
       };
       _characterForgeState.error = null;
-      // Seat the newly-published mesh for the player's own avatar.
+      // Seat the newly-published mesh for the player's own avatar + broadcast
+      // its hash so peers can load it too.
       _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+      _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
       if (_arena && typeof _arena.setCustomMeshUrl === 'function') _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      if (_arena && typeof _arena.setCustomMeshHash === 'function') _arena.setCustomMeshHash(_ownCharacterMeshHash);
     } else {
       _characterForgeState.status = 'failed';
       _characterForgeState.error = res.error === 'nip-07-unavailable'
@@ -2403,8 +2409,10 @@ async function ensureArenaReady(loadingLabel) {
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
       // Seat the player's own character mesh (Blossom URL) before boot so
-      // loadPlayerModel() fetches it instead of the built-in default.
+      // loadPlayerModel() fetches it instead of the built-in default, and
+      // broadcast its hash so peers resolve + load the same mesh.
       _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      _arena.setCustomMeshHash(_ownCharacterMeshHash);
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');

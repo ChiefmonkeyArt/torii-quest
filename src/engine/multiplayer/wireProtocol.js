@@ -113,15 +113,16 @@ const validators = {
     if (!isStr(m.npub, LIMITS.NPUB_LEN))           return fail('BAD_FIELD', 'npub');
     if (!isStr(m.sig, LIMITS.SIG_HEX_LEN))         return fail('BAD_FIELD', 'sig');
     if (typeof m.event !== 'object' || m.event === null) return fail('BAD_FIELD', 'event');
-    // Optional character key (v0.2.446-alpha): client tells server which skin to use.
-    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
+    // Optional character field (v0.2.446-alpha): a known skin key ('chiefmonkey' /
+    // 'nostrich') OR a 64-hex Character Forge mesh hash. 64-char cap so a sha256 fits.
+    if (m.character !== undefined && !isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     // Full nostr-event verification happens on the server via nostr-tools;
     // wire-level only asserts shape.
     return ok(m);
   },
   [MSG.AUTH_TOKEN](m) {
     if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
-    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
+    if (m.character !== undefined && !isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {

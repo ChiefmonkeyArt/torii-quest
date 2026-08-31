@@ -81,6 +81,15 @@ export function setCustomMeshUrl(url) {
 }
 export function getCustomMeshUrl() { return _customMeshUrl; }
 
+// The player's own mesh HASH (64-hex, from the kind-35100 manifest). Broadcast
+// through the MP `character` field so peers can resolve + load the same mesh.
+let _customMeshHash = null;
+
+export function setCustomMeshHash(hash) {
+  _customMeshHash = (typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)) ? hash : null;
+}
+export function getCustomMeshHash() { return _customMeshHash; }
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let _root    = null;
 let _mixer   = null;

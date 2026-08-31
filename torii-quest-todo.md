@@ -37,6 +37,10 @@ Prior: v0.2.685-alpha - ADR-0059 AUCTION PANEL HEADER HARDENING: eliminate every
 
 ### NEXT (PRIORITY) — N2N TRAVEL TEST WITH BEKKA (2026-08-31). Both instances are live again (HashIT outage resolved 2026-08-31 — both sites now ~0.17s TTFB). Priority is a real node-to-node test: chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + ?torii-traveller=) and presence discovery across the unified relay list (ADR-0081). Bekka must be on v0.2.713+ (one-command bootstrap) for the heartbeat/relay changes.
 
+### NEXT (PRIORITY) — UGC STICKER SYSTEM (ADR-0090, specified 2026-08-31, NOT yet implemented). Playtest of the ADR-0088 self-view slice confirmed it was misaimed: the real goal is **sticker anything** + **players create their own stickers and fire them from their own guns**. Next slice, in order: (1) UGC sticker library — content-addressed (Blossom upload + torii.asset-shaped Nostr event) replacing the single hardcoded `ftff-sticker.png`; (2) any-surface placement — extend the `stickerNpc.js` raycast/attach to ALL world geometry (statics + skinned), not a curated subset; (3) multiplayer sync — cosmetic client-broadcast + server-relay so peers see stickers land (NAP-gated + rate-limited). Reuse the pure `stickerRaycast.js`/`stickerPlacementMode.js` model.
+
+### PARKED — self-view avatar decoration (ADR-0088, shipped v0.2.726-alpha). The orbit-camera "place a sticker on your own character" UI is PARKED (keep `stickerSelfView.js`/`stickerStudio.js` in-tree, feature-gated). Not deleted — the pure placement model is reused by ADR-0090.
+
 ### RECENTLY SHIPPED (v0.2.713 → v0.2.717, 2026-08-28/29):
 - v0.2.717-alpha — settings panel smoked glass + profile prefill from Nostr kind:0
 - v0.2.716-alpha — relay tab polish (STARTER badge removed, per-row Remove button)

@@ -69,6 +69,27 @@ export function setCharacter(key) {
 export function getCharacter() { return _charKey; }
 export function getCharacterList() { return Object.keys(CHARACTERS); }
 
+// ── Custom mesh (Character Forge, v0.2.721) ────────────────────────────────────
+// When the player has a signed kind-35100 character event, its mesh hash resolves
+// to a Blossom URL (see engine/character/characterMesh.js) and is set here so
+// loadPlayerModel() fetches THAT mesh instead of the built-in default. A null/
+// empty value falls back to the built-in CHARACTERS[_charKey].file.
+let _customMeshUrl = null;
+
+export function setCustomMeshUrl(url) {
+  _customMeshUrl = (typeof url === 'string' && url.trim()) ? url.trim() : null;
+}
+export function getCustomMeshUrl() { return _customMeshUrl; }
+
+// The player's own mesh HASH (64-hex, from the kind-35100 manifest). Broadcast
+// through the MP `character` field so peers can resolve + load the same mesh.
+let _customMeshHash = null;
+
+export function setCustomMeshHash(hash) {
+  _customMeshHash = (typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)) ? hash : null;
+}
+export function getCustomMeshHash() { return _customMeshHash; }
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let _root    = null;
 let _mixer   = null;
@@ -97,7 +118,8 @@ export async function loadPlayerModel(parentObj) {
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
   try {
-    const gltf = await _loader.loadAsync(assetUrl(char.file));
+    const meshSrc = _customMeshUrl || assetUrl(char.file);
+    const gltf = await _loader.loadAsync(meshSrc);
     _root = gltf.scene;
 
     // Compute geometry bounding box across both Y and Z axes.

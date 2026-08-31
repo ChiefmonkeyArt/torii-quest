@@ -48,7 +48,7 @@ import {
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -83,6 +83,10 @@ import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js'
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
+import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
+import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
+import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
+import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -986,9 +990,16 @@ function renderGatewayPreview() {
 }
 renderGatewayPreview();
 
+// The player's own character mesh URL (Blossom), resolved at login from their
+// signed kind-35100 character event. Set before arena boot so loadPlayerModel()
+// fetches the custom mesh instead of the built-in default.
+let _ownCharacterMeshUrl = null;
+let _ownCharacterMeshHash = null;
+
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
+  _applyOwnCharacterMesh();
   // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
   // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
@@ -1000,6 +1011,24 @@ on(EV.NOSTR_LOGIN, () => {
   // ENTER. The Gateway Setup tab is still reachable any time via the title-screen
   // settings icon and the in-game KeyM menu. Both are explicit user actions.
 });
+
+// _applyOwnCharacterMesh() — the player path of the automatic mesh-loading slice.
+// After login, fetch the player's own kind-35100 character event, resolve its mesh
+// hash to a Blossom URL, and stash it so ensureArenaReady() seats it before boot.
+// Read-only + no prompt (reuses fetchOwnCharacter); a missing/invalid character
+// leaves the built-in default avatar in place.
+async function _applyOwnCharacterMesh() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; return; }
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+    _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
+  } catch {
+    _ownCharacterMeshUrl = null;
+    _ownCharacterMeshHash = null;
+  }
+}
 
 // ── Access tab (ADR-0078, v0.2.712) ─────────────────────────────────────────
 // The Instance Settings admin surface (ACC-2b, v0.2.400) was hidden in v0.2.676
@@ -1209,6 +1238,231 @@ registerSettingsTabRenderer('profile', () => {
   return renderProfilePanel({ ...st, draft: st.profileDraft, publishStatus: st.profilePublishStatus });
 });
 
+// Character tab content renderer (v0.2.718, Character Forge) — the player's
+// playable character (a signed kind-35100 event). v0.2.719 wires the LIVE relay
+// read: on first render (and on retry) it checks the logged-in npub's kind-35100
+// event via fetchOwnCharacter and seats an existing character automatically (the
+// "smooth experience" seam) — no prompt, no re-upload. The create round-trip
+// (writing a new character event) is a follow-up slice.
+const _characterForgeState = {
+  status: 'idle', // 'idle' | 'checking' | 'found' | 'none' | 'failed'
+  character: null, // { name, meshName, stickerCount, stickers } | null
+  manifest: null, // the full `torii.character` manifest (used for sticker edits)
+  mode: 'view',   // 'view' | 'edit' — 'edit' is the sticker editor
+  error: null,
+  _readStarted: false,
+};
+
+// _summarizeCharacterManifest(manifest) → the panel's character summary, used
+// by every read/create/update path so the summary shape stays in one place.
+function _summarizeCharacterManifest(manifest) {
+  const m = (manifest && typeof manifest === 'object') ? manifest : {};
+  return {
+    name: (typeof m.name === 'string' && m.name) ? m.name : 'Unnamed',
+    meshName: (m.mesh && typeof m.mesh.name === 'string') ? m.mesh.name : '',
+    stickerCount: Array.isArray(m.stickers) ? m.stickers.length : 0,
+    stickers: Array.isArray(m.stickers) ? m.stickers : [],
+  };
+}
+
+// _republishCharacter(manifest) — sign + publish a character manifest update
+// (the shared write half for the sticker editor), then refresh the panel state.
+async function _republishCharacter(manifest) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not update your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not update your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _addOwnSticker(stickerId) — place a sticker from the curated library on its
+// recommended zone (default centre u/v), then republish. The precise 3D
+// placement (raycast → zone/u/v/rot) is a later in-world step; this is the
+// settings-tab authoring path that closes the create→edit loop.
+async function _addOwnSticker(stickerId) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const entry = STICKER_LIBRARY.find((s) => s.id === stickerId);
+  if (!entry) return;
+  const next = addSticker(manifest, {
+    hash: entry.hash,
+    zoneId: entry.recommendedZone,
+    u: 0.5,
+    v: 0.5,
+    rot: 0,
+  });
+  if (next !== manifest) await _republishCharacter(next);
+}
+
+// _removeOwnSticker(index) — remove the sticker at `index` from the manifest and
+// republish. Out-of-range index is a no-op (removeSticker returns the input).
+async function _removeOwnSticker(index) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const next = removeSticker(manifest, index);
+  if (next !== manifest) await _republishCharacter(next);
+}
+
+async function _checkOwnCharacter() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) {
+    _characterForgeState.status = 'none';
+    _characterForgeState.character = null;
+    return;
+  }
+  _characterForgeState.status = 'checking';
+  renderActiveSettingsTab();
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    if (manifest && manifest.mesh && manifest.mesh.hash) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+    } else {
+      _characterForgeState.status = 'none';
+      _characterForgeState.character = null;
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not reach relays to check for your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _createOwnCharacter(presetId) — the create round-trip write half: build the
+// manifest from a curated preset, sign the kind-35100 event via NIP-07, and
+// publish to the unified relay list. On success the tab flips to 'found' (the
+// same view the read half produces), so create→read round-trips seamlessly.
+async function _createOwnCharacter(presetId) {
+  const preset = getCharacterPreset(presetId);
+  if (!preset) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Unknown preset.';
+    renderActiveSettingsTab();
+    return;
+  }
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const manifest = presetToManifest(preset);
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not publish your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _pickCustomMesh() — open a file picker for a .glb and hand the file to
+// _uploadCustomMesh. The picker is created dynamically (not baked into the pure
+// panel HTML) so the panel stays a node-testable string renderer.
+function _pickCustomMesh() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  const input = doc.createElement('input');
+  input.type = 'file';
+  input.accept = '.glb,.gltf';
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (file) _uploadCustomMesh(file);
+  };
+  input.click();
+}
+
+// _uploadCustomMesh(file) — the "make it so" path: upload a GLB to Blossom
+// (NIP-98 auth via NIP-07), build a manifest from the returned content hash,
+// sign + publish the kind-35100 character event, then seat the mesh for the
+// player's own avatar. Two NIP-07 prompts (upload auth + event sign).
+async function _uploadCustomMesh(file) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const up = await uploadBlossom(file);
+    if (!up.ok) {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = up.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (up.error || 'Could not upload your mesh.');
+      renderActiveSettingsTab();
+      return;
+    }
+    const manifest = {
+      version: 1,
+      mesh: { hash: up.sha256, name: (file && file.name) || 'custom.glb' },
+      clips: [],
+      stickers: [],
+      name: '',
+      colors: [],
+      contrib: [],
+    };
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+      // Seat the newly-published mesh for the player's own avatar + broadcast
+      // its hash so peers can load it too.
+      _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+      _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
+      if (_arena && typeof _arena.setCustomMeshUrl === 'function') _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      if (_arena && typeof _arena.setCustomMeshHash === 'function') _arena.setCustomMeshHash(_ownCharacterMeshHash);
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not upload your mesh.';
+  }
+  renderActiveSettingsTab();
+}
+
+registerSettingsTabRenderer('character', () => {
+  const st = _homepageStubState();
+  if (st.isLoggedIn && !_characterForgeState._readStarted) {
+    _characterForgeState._readStarted = true;
+    _checkOwnCharacter();
+  }
+  return renderCharacterForgePanel({
+    isLoggedIn: st.isLoggedIn,
+    status: _characterForgeState.status,
+    character: _characterForgeState.character,
+    mode: _characterForgeState.mode,
+    stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
+    presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
+    error: _characterForgeState.error,
+  });
+});
+
 // Single delegated listener on the settings panel's content container, scoped
 // by data-action conventions so every tab's clicks are handled without
 // needing its own listeners.
@@ -1225,6 +1479,13 @@ registerSettingsTabRenderer('profile', () => {
     const action = t.getAttribute && t.getAttribute('data-action');
     if (!action) return;
     if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
+    if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
+    if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
+    if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
+    if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
+    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(t.getAttribute('data-sticker') || ''); return; }
+    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(t.getAttribute('data-index')); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
@@ -2212,6 +2473,11 @@ async function ensureArenaReady(loadingLabel) {
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      // Seat the player's own character mesh (Blossom URL) before boot so
+      // loadPlayerModel() fetches it instead of the built-in default, and
+      // broadcast its hash so peers resolve + load the same mesh.
+      _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      _arena.setCustomMeshHash(_ownCharacterMeshHash);
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');

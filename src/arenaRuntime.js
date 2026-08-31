@@ -27,7 +27,8 @@ import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
 import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
@@ -160,10 +161,20 @@ function _loadGunTemplate() {
   return _gunPromise;
 }
 
+// _peerMeshUrl(character) → the mesh URL for a peer's `character` field: a known
+// key ('chiefmonkey'/'nostrich') → the built-in GLB; a 64-hex Character Forge mesh
+// hash → its Blossom URL. Returns null when neither matches (caller falls back).
+function _peerMeshUrl(character) {
+  if (!character) return null;
+  if (MP_PEER_CHARACTERS[character]) return assetUrl(MP_PEER_CHARACTERS[character].file);
+  return blossomMeshUrl(character); // 64-hex sha256 → Blossom URL; else null
+}
+
 function _loadPeerTemplate(character) {
   character = character || 'chiefmonkey';
   if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
   const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const meshUrl = _peerMeshUrl(character) || assetUrl(cfg.file);
   const entry = { scene: null, clips: [], gMinY: 0, axisFix: null, promise: null };
   _mpTemplateCache.set(character, entry);
   entry.promise = (async () => {
@@ -172,7 +183,7 @@ function _loadPeerTemplate(character) {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
     try {
-      const gltf = await loader.loadAsync(assetUrl(cfg.file));
+      const gltf = await loader.loadAsync(meshUrl);
       entry.scene = gltf.scene;
       // Strip scale tracks from character clips.
       const availableClips = new Map((gltf.animations || []).map(clip => {
@@ -1696,7 +1707,9 @@ export function createArenaRuntime(hooks = {}) {
         // The client signer is browser-only (window.nostr); only the signed event
         // is carried on the wire. Reached only when no session token is present.
         // getCharacter provides the active character key for AUTH/AUTH_TOKEN.
-        getCharacter: () => getCharacter(),
+        // Broadcast the player's own mesh hash (Character Forge) when set, else
+        // the selected character key. Peers resolve the hash to a Blossom URL.
+        getCharacter: () => getCustomMeshHash() || getCharacter(),
         signAuth: async ({ challenge }) => {
           if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
             throw new Error('multiplayer: NIP-07 signer unavailable');
@@ -1972,5 +1985,5 @@ export function createArenaRuntime(hooks = {}) {
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }
 
-  return { boot, bootstrapPhysics, enter, setCharacter, setSpawnOverride, stopMultiplayer };
+  return { boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl, setCustomMeshHash, setSpawnOverride, stopMultiplayer };
 }

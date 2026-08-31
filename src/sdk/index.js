@@ -38,6 +38,15 @@ export * as productPanelShell from '../engine/components/productPanelShell.js';
 export * as productPreview from '../engine/components/productPreview.js';
 export * as productDetail from '../engine/components/productDetail.js';
 export * as savedProducts from '../engine/components/savedProducts.js';
+export * as characterSkeleton from '../engine/character/skeleton.js';
+export * as rigAssessment from '../engine/character/rigAssessment.js';
+export * as characterManifest from '../engine/character/characterManifest.js';
+export * as characterEvent from '../engine/character/characterEvent.js';
+export * as characterRelayRead from '../engine/character/characterRelayRead.js';
+export * as characterPresets from '../engine/character/characterPresets.js';
+export * as characterMesh from '../engine/character/characterMesh.js';
+export * as stickerPlacement from '../engine/character/stickerPlacement.js';
+export * as meshGeneration from '../engine/character/meshGeneration.js';
 export * as travelIntent from '../engine/gateway/travelIntent.js';
 export * as gatewayHandoff from '../engine/gateway/gatewayHandoff.js';
 export * as gatewayPortal from '../engine/gateway/gatewayPortal.js';
@@ -131,6 +140,22 @@ export const SDK_SURFACE = Object.freeze({
   productDetail:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/productDetail.js' },
   // Client-side npub-keyed "saved products" store — local-only, no relay write (M2, v0.2.283).
   savedProducts:   { tier: STABILITY.EXPERIMENTAL, module: '../engine/components/savedProducts.js' },
+  // Character Forge (v0.2.718) — the auto-rig + validator groundwork: the
+  // canonical skeleton contract, rig assessment, the `torii.character` manifest
+  // validator, and the kind-35100 character-event parser. Pure, node-safe.
+  characterSkeleton: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/skeleton.js' },
+  rigAssessment:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/rigAssessment.js' },
+  characterManifest: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterManifest.js' },
+  characterEvent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterEvent.js' },
+  characterRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterRelayRead.js' },
+  characterPresets:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterPresets.js' },
+  characterMesh:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterMesh.js' },
+  // Character Forge sticker-placement model (v0.2.723, ADR-0086) — body-zone
+  // registry, bone→zone resolution, and immutable manifest add/remove/update.
+  stickerPlacement:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacement.js' },
+  // Character Forge validator-gated external mesh generation (v0.2.724, ADR-0087)
+  // — backend registry, inert plan, and the validateGeneratedMesh() gate.
+  meshGeneration:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/meshGeneration.js' },
   // Gateway protocol URL-handoff / travel-intent helpers (GWPROTO-1, v0.2.134).
   travelIntent:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/gateway/travelIntent.js' },
   // Gateway portal/handoff shell — component → travel intent (CMP-8, v0.2.135).

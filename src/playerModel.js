@@ -300,6 +300,12 @@ export function triggerDance()  { if (_loaded) _play(_anims.DANCE, true); }
 export function triggerIdle()   { if (_loaded) _play(_anims.IDLE, true); }
 export function isModelLoaded() { return _loaded; }
 
+// getPlayerModelRoot() → the loaded character scene root (THREE.Object3D | null).
+// The sticker studio (stickerStudio.js) raycasts the player's OWN character here
+// to resolve in-world sticker placements (ADR-0088). Layer 1 — hidden from the
+// FPS camera, visible in the NAP-zone mirror.
+export function getPlayerModelRoot() { return _root; }
+
 // Hide the full-body avatar while the debug free-fly camera is active. Stores the
 // prior visibility on enable and restores exactly that on disable — so a body
 // already hidden (death/spawn) is not force-shown when fly turns off.

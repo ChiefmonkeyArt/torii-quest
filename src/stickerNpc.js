@@ -245,8 +245,8 @@ function _getSurfaceHitBone(surfaceHit) {
 // fallback to place a sticker on the bone's surface when the generous bone
 // ball sensor is hit but the precise SkinnedMesh raycast misses (thin limbs).
 const _SKIN_RADIUS = {
-  Head: 0.13, headfront: 0.12, head_end: 0.10, neck: 0.08,
-  Hips: 0.15, Spine: 0.14, Spine01: 0.15, Spine02: 0.15,
+  Head: 0.13, headfront: 0.12, HeadTop_End: 0.10, Neck: 0.08,
+  Hips: 0.15, Spine: 0.14, Spine1: 0.15, Spine2: 0.15,
   LeftShoulder: 0.07, RightShoulder: 0.07,
   LeftArm: 0.06, RightArm: 0.06,
   LeftForeArm: 0.055, RightForeArm: 0.055,

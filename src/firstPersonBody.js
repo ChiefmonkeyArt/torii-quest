@@ -9,6 +9,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
 import { assetUrl } from './assetUrl.js';
+import { renameBonesToMixamo } from './engine/assets/boneRename.js';
 
 let _root  = null;
 let _mixer = null;
@@ -37,6 +38,7 @@ export function loadFirstPersonBody(parentObj) {
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
   loader.load(assetUrl('/chiefmonkey-headless.glb'), gltf => {
+    renameBonesToMixamo(gltf);
     _root = gltf.scene;
 
     let minY = Infinity;

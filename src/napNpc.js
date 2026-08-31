@@ -9,6 +9,7 @@ import { scene } from './scene.js';
 import { sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand, NAP_BBOX } from './terrain/tomoeShape.js';
 import { assetUrl } from './assetUrl.js';
+import { renameBonesToMixamo } from './engine/assets/boneRename.js';
 import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
          createNpcBoneColliders, syncNpcBoneColliders } from './physics.js';
 
@@ -104,6 +105,7 @@ export function buildNapNpc() {
   loader.setDRACOLoader(draco);
 
   loader.load(assetUrl('/chiefmonkey6.glb'), gltf => {
+    renameBonesToMixamo(gltf);
     _root = gltf.scene;
 
     // Compute minY for feet placement
@@ -164,6 +166,7 @@ export function buildNapNpc() {
     const loader2 = new GLTFLoader();
     loader2.setDRACOLoader(draco2);
     loader2.load(assetUrl('/chiefmonkey-npc-animations.glb'), animGltf => {
+      renameBonesToMixamo(animGltf);
       _gestureClips = animGltf.animations || [];
       console.log('[napNpc] loaded', _gestureClips.length, 'gesture clips:', _gestureClips.map(c => c.name));
     }, undefined, err => {

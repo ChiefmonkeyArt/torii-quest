@@ -63,6 +63,7 @@ import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActiv
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
+import { renameBonesToMixamo } from './engine/assets/boneRename.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
@@ -173,6 +174,7 @@ function _loadPeerTemplate(character) {
     loader.setDRACOLoader(draco);
     try {
       const gltf = await loader.loadAsync(assetUrl(cfg.file));
+      renameBonesToMixamo(gltf);
       entry.scene = gltf.scene;
       // Strip scale tracks from character clips.
       const availableClips = new Map((gltf.animations || []).map(clip => {

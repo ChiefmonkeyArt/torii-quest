@@ -8,6 +8,7 @@ import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
+import { renameBonesToMixamo } from './engine/assets/boneRename.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -98,6 +99,7 @@ export async function loadPlayerModel(parentObj) {
   _loader.setDRACOLoader(_draco);
   try {
     const gltf = await _loader.loadAsync(assetUrl(char.file));
+    renameBonesToMixamo(gltf);
     _root = gltf.scene;
 
     // Compute geometry bounding box across both Y and Z axes.

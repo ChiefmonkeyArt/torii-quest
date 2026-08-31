@@ -7,6 +7,7 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
 import { BOSS_TARGET_HEIGHT, BOSS_NAME } from './config.js';
+import { renameBonesToMixamo } from './engine/assets/boneRename.js';
 
 // ── Clip name map — regular (banker) bot ─────────────────────────────────────
 const ANIM = {
@@ -51,6 +52,7 @@ function _loadTemplate(kind = 'regular') {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
     loader.load(assetUrl(tpl.url), gltf => {
+      renameBonesToMixamo(gltf);
       tpl.scene = gltf.scene;
       tpl.clips = gltf.animations;
       // GLB exported with alphaMode=BLEND — makes mesh translucent and causes

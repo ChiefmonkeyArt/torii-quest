@@ -141,6 +141,51 @@ describe('createBeacon lifecycle', () => {
   });
 });
 
+describe('createBeacon autoEnable (ADR-0094 — no login/wallet activation)', () => {
+  it('auto-activates a never-activated beacon when an admin is configured', () => {
+    const b = make();
+    b.load(); // fresh, no file, enabled=false, activatedAt=null
+    const r = b.autoEnable();
+    expect(r.ok).toBe(true);
+    expect(r.activated).toBe(true);
+    expect(b.capability().enabled).toBe(true);
+    expect(b.capability().activatedAt).not.toBeNull();
+    expect(b.capability().pubkey).toMatch(/^[0-9a-f]{64}$/);
+    // Persisted → a restart resumes it with no admin action.
+    const again = make();
+    expect(again.load()).toBe(true);
+    expect(again.capability().enabled).toBe(true);
+  });
+
+  it('fails closed (no activation) when no admin npub is configured', () => {
+    const b = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t });
+    b.load();
+    const r = b.autoEnable();
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('admin-not-configured');
+    expect(b.capability().enabled).toBe(false);
+  });
+
+  it('does NOT re-enable a beacon the admin explicitly turned off', () => {
+    const b = make();
+    b.enable();
+    b.disable(); // admin stopped it → enabled=false, activatedAt stays set
+    const r = b.autoEnable();
+    expect(r.ok).toBe(true);
+    expect(r.activated).toBe(false);
+    expect(b.capability().enabled).toBe(false);
+  });
+
+  it('is a no-op (activated:false) when already enabled', () => {
+    const b = make();
+    b.enable();
+    const r = b.autoEnable();
+    expect(r.ok).toBe(true);
+    expect(r.activated).toBe(false);
+    expect(b.capability().enabled).toBe(true);
+  });
+});
+
 describe('createBeacon publishOnce', () => {
   it('builds a signed presence event attributed to the admin via the p tag', async () => {
     const b = make();

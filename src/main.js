@@ -888,30 +888,17 @@ const _beacon = {
   syncing: false,            // in-flight sync guard (prevents duplicate activates)
 };
 
-// _syncServerBeacon() → read the server beacon state and, on the FIRST admin
-// login (never-before-activated instance), turn it ON once — the permanent
-// pulse. An admin who had explicitly turned it OFF is NOT re-enabled on a later
-// login (enabled=false but activatedAt set). Never throws; an unreachable server
-// just leaves the client-side fallback active.
+// _syncServerBeacon() → read the server beacon state so the UI can show it and
+// the client heartbeat stays gated OFF while the SERVER is publishing. Pure
+// read — activation is the server's job (ADR-0094): it auto-enables from the
+// configured admin npub at boot, no login, no wallet, no browser involved.
 async function _syncServerBeacon() {
   if (_beacon.syncing) return;
   const httpBase = resolveMpHttpBase();
   if (!httpBase) return;
   _beacon.syncing = true;
   try {
-    const token = getStoredToken();
-    let st = await fetchBeaconState({ httpBase });
-    // The beacon state carries the configured admin pubkey — resolve ownership
-    // directly from it (no dependency on the separate update-capability fetch).
-    const who = (state.nostrPubkey || '').toLowerCase();
-    const adm = (st.adminPubkey || '').toLowerCase();
-    const isOwner = !!(who && adm && who === adm);
-    if (isOwner && token && !st.enabled && st.activatedAt === null) {
-      // First admin login: activate the permanent beacon (idempotent).
-      await setBeacon({ httpBase, token, action: 'on' }).catch(() => ({ ok: false }));
-      st = await fetchBeaconState({ httpBase }).catch(() => ({ enabled: false }));
-    }
-    _beacon.state = st;
+    _beacon.state = await fetchBeaconState({ httpBase }).catch(() => ({ enabled: false }));
   } finally {
     _beacon.syncing = false;
   }

@@ -14,16 +14,16 @@ tab is open, logged in as admin, with a NIP-07 wallet connected**. Close the tab
 and the world vanishes from every gateway within 20 minutes.
 
 The product requirement is explicitly different (Bekka / chiefmonkey): the beacon
-must **"just work"** — it should activate the **first time the expected admin
-logs in**, then stay **permanently on** (a steady pulse) until the admin turns it
-off or the server goes down. No browser tab, no re-login, no wallet prompt per
-republish. A purely client-side signer can never satisfy this, because a browser
+must **"just work"** — it activates **automatically from the configured admin
+npub** (set at install), then stays **permanently on** (a steady pulse) until the
+admin turns it off or the server goes down. No browser tab, no login, no wallet
+at all. A purely client-side signer can never satisfy this, because a browser
 process cannot run 24/7 and the admin's NIP-07 key lives in a wallet that is only
 reachable while the page is open.
 
 Forces:
 
-- **Product:** install → first admin login → beacon, forever, until stopped.
+- **Product:** install → beacon (auto-on from the configured admin npub), forever, until stopped.
 - **Security / consent:** the admin's master `nsec` must never live on the
   server. Publishing presence to public relays is already the established,
   admin-consented behaviour (ADR-0077 §forces; the presence event carries only
@@ -42,10 +42,11 @@ The multiplayer `arena-ws` server holds a **dedicated beacon keypair** and runs 
 and fan-out-publishes the instance's presence event to the unified relay list
 (ADR-0081) for as long as the beacon is enabled. The beacon state (key, `enabled`
 flag, admin pubkey, last-publish timestamps) is **persisted to disk** (root-owned,
-`0600`) so a server restart resumes the pulse automatically, no admin re-login
-required. Activation is **admin-authenticated** through the existing session-token
-path — the admin's nsec never leaves their wallet, and no new signing scheme is
-invented.
+`0600`) so a server restart resumes the pulse automatically. Activation is
+**automatic and config-driven** — it turns on the first time the server boots with
+an admin npub configured (`QUEST_ADMIN_NPUB`), requiring no login, no session
+token, and no wallet. The admin's nsec never lives on the server at all, and no
+new signing scheme is invented.
 
 Concretely:
 
@@ -75,15 +76,14 @@ Concretely:
    stops the loop. This is the one place `setInterval` is acceptable server-side
    (the client-side "no new timers" invariant does not apply to Node).
 
-4. **Activation — first admin login.** The client already detects the owner
-   (`isOwner` via `/mp/admin/update-capability`) and holds a session bearer token
-   (issued at NIP-98 login). On owner login, if the server reports the beacon is
-   **not** enabled, the client POSTs `{ action: 'on' }` to the new
-   `POST /mp/admin/beacon` endpoint with the bearer token. The server verifies the
-   session (existing `adminFromRequest`), generates+persists the key, sets
-   `enabled: true`, and publishes immediately (then on the 10-min cadence). No
-   extra NIP-07 sign is needed at activation — the session token already proves
-   the admin controls the key.
+4. **Activation — automatic from the configured admin npub.** On boot the server
+   calls `beacon.autoEnable()`: if an admin npub is configured (`QUEST_ADMIN_NPUB`)
+   and the beacon has **never** been activated (`activatedAt` unset), it generates
+   + persists the key, sets `enabled: true`, and publishes immediately (then on
+   the 10-min cadence). **No login, no session token, no wallet** — the configured
+   admin identity alone is enough, so a fresh install is discoverable the moment
+   the server starts. An admin who explicitly turned it off (`enabled: false`
+   with `activatedAt` already set) is **not** re-enabled on a later boot.
 
 5. **Stop / resume.** `POST /mp/admin/beacon { action: 'off' | 'on' }` (same
    admin gate) flips `enabled` and persists. `off` stops the loop permanently
@@ -93,15 +93,14 @@ Concretely:
 6. **State read.** `GET /mp/admin/beacon` returns `{ enabled, activatedAt,
    pubkey, adminPubkey, lastPublishedAt, lastError }` — public read of non-secret
    state (mirrors `/mp/admin/update-capability`), so the client can render the
-   beacon state and auto-activate.
+   beacon state (and the heartbeat toggle remains the admin's on/off switch).
 
 7. **Client heartbeat becomes a fallback, server is the source of truth.** When
-   the server beacon is `enabled` and recently published, the client's
-   `_heartbeatTick` does **not** also publish (no duplicate presence from a second
-   key). The existing client-side publish remains only as the pre-activation /
-   degraded path (e.g. before first activation, or if the server loop is down) so
-   a not-yet-activated instance still shows up while its owner is actively
-   playing.
+   the server beacon is `enabled`, the client's `_heartbeatTick` does **not** also
+   publish (no duplicate presence from a second key). The existing client-side
+   publish remains only as a degraded fallback (e.g. the admin npub is not yet
+   configured, or the server loop is down) so an otherwise-ownerless instance can
+   still show up while its operator is actively playing.
 
 8. **Reader ownership resolution.** `extractGatewayFromEvent` resolves the world's
    **owner pubkey** from the `["p", <hex64>]` tag when present, falling back to the
@@ -109,17 +108,17 @@ Concretely:
    / `candidateFriendOwners` classify on that owner, so a beacon-signed event is
    attributed to the admin and lands in the correct Friends/Follows bucket.
 
-Consent note: activation (first admin login) is the explicit opt-in gesture — the
-admin is turning on a self-describing "world is online" presence, not publishing
-scores or identity beyond what the client already published. The admin can revoke
-at any time via the same toggle. This satisfies the standing principle: nothing is
-published that the operator is not aware of, and every publish surface retains an
-explicit off switch.
+Consent note: activation is the install-time act of configuring one's admin npub
+(`QUEST_ADMIN_NPUB`) — a deliberately opted-in, self-describing "world is online"
+presence, not scores, achievements, or identity beyond what the client already
+published. The admin can revoke at any time via the heartbeat toggle. This
+satisfies the standing principle: nothing is published that the operator is not
+aware of, and every publish surface retains an explicit off switch.
 
 ## Consequences
 
-- **Enables:** a truly permanent, no-browser heartbeat — install → first admin
-  login → beacon until stopped or the box dies. Restarts resume automatically.
+- **Enables:** a truly permanent, no-browser, no-login, no-wallet heartbeat —
+  install → beacon until stopped or the box dies. Restarts resume automatically.
   Friends/Follows/Games attribution for server-signed worlds.
 - **Forecloses:** the client-only heartbeat as the *primary* path; "the admin must
   keep a tab open" as an assumption. Raw NIP-26 delegation is not used (see
@@ -132,8 +131,8 @@ explicit off switch.
   behaviour and is accepted. The server now holds a secret (the beacon key) — it
   is not the admin's key, is scoped to presence only, lives in a `0600`
   root-owned file, and is revocable by deleting the state file + re-deploying.
-- **Enforcement:** new unit tests for the beacon state machine (activate/stop/
-  persist/resume, key persistence, presence-event shape + `p` tag), the
+- **Enforcement:** new unit tests for the beacon state machine (auto-activate /
+  stop / persist / resume, key persistence, presence-event shape + `p` tag), the
   `GET/POST /mp/admin/beacon` admin gate (session-token only, fail-closed), the
   reader's owner-resolution, and the relay publisher re-use. Regression-check
   gate remains 21/21.

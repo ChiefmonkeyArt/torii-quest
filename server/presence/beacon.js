@@ -206,6 +206,22 @@ export function createBeacon(opts = {}) {
     return { ok: true };
   }
 
+  /**
+   * Auto-activate at startup, backed ONLY by the configured admin npub — zero
+   * login, zero wallet, zero browser (ADR-0094). A fresh install turns the pulse
+   * on the moment the server boots; the admin never has to log in to start it.
+   * An admin who explicitly disabled it (enabled=false but activatedAt set) is
+   * NOT re-enabled on a later boot — "on until the admin stops it."
+   * Returns { ok, activated, error }; activated=true only when this call turned
+   * it on (so callers know to publish immediately).
+   */
+  function autoEnable() {
+    if (state.enabled) return { ok: true, activated: false };
+    if (state.activatedAt !== null) return { ok: true, activated: false, error: 'was-explicitly-disabled' };
+    const res = enable(); // enable() fails closed when no admin is configured
+    return { ok: res.ok, activated: res.ok, error: res.error };
+  }
+
   /** Build the signed presence event (in-memory), or { ok:false, error }. */
   function _buildSignedEvent() {
     if (!state.enabled) return { ok: false, error: 'disabled' };
@@ -283,6 +299,7 @@ export function createBeacon(opts = {}) {
     capability,
     enable,
     disable,
+    autoEnable,
     publishOnce,
     getState: () => ({ ...state }),
     configured,

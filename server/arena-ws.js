@@ -66,7 +66,7 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.726-alpha';
+const SERVER_VERSION = 'v0.2.727-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
@@ -100,7 +100,7 @@ const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
 const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
 const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 
-// Bot milestone chunk 2 (v0.2.726-alpha): server-authoritative bots.
+// Bot milestone chunk 2 (v0.2.727-alpha): server-authoritative bots.
 //   BOT_SIM_ENABLED — master switch (default on).
 //   BOT_TICK_MS     — fixed AI tick period (~20Hz).
 //   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
@@ -108,7 +108,7 @@ const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCas
 const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
 const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
 
-// v0.2.726-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// v0.2.727-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
 // `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
 // unparseable) the admin gate denies everything and capability.autoUpdate is false.
 // arena-ws only ever WRITES an atomic request file — the root systemd runner (built
@@ -117,7 +117,7 @@ const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || ''
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
-// ADR-0032 (v0.2.726-alpha): server-side truth for "is this session the owner,
+// ADR-0032 (v0.2.727-alpha): server-side truth for "is this session the owner,
 // currently in Kami Mode". The client's KAMI_STATE message only ever SETS
 // sess.kamiActive; whether it's honoured is decided here by re-checking the
 // session's own authenticated pubkey (set once at AUTH, not client-suppliable
@@ -148,7 +148,7 @@ const IDLE_DISCONNECT_MS = 90_000;
 const AUTH_TIMEOUT_MS    = 10_000;
 const CHALLENGE_TTL_MS   = 60_000; // an AUTH event's created_at must be within this window
 
-// v0.2.726-alpha: valid character keys the client may send in AUTH/AUTH_TOKEN.
+// v0.2.727-alpha: valid character keys the client may send in AUTH/AUTH_TOKEN.
 const VALID_CHARACTERS = new Set(['chiefmonkey', 'nostrich']);
 
 // ---------- server state ----------
@@ -185,17 +185,17 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
-// v0.2.726-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// v0.2.727-alpha: live in-arena leaderboard. In addition to the on-close SCORE
 // emit, broadcast the running tally on every kill and on this periodic tick so
 // clients see real-time standings. Additive on PROTOCOL_VERSION=1.
 const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
-// Session-token authority (v0.2.726-alpha). Login signs a NIP-98 event ONCE
+// Session-token authority (v0.2.727-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
 
-// v0.2.726-alpha (UPD-2): admin-update request authority. Writes atomic request
+// v0.2.727-alpha (UPD-2): admin-update request authority. Writes atomic request
 // files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
 const adminUpdate = createAdminUpdate({
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
@@ -215,7 +215,7 @@ const respawnTimers = new Map();
 const arenaBotSim = createArenaBotSim({
   onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
 });
-// ADR-0018 (v0.2.726-alpha): let arenaBotSim.spawn() use its env-driven default
+// ADR-0018 (v0.2.727-alpha): let arenaBotSim.spawn() use its env-driven default
 // (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE). Passing BOT_COUNT here would defeat
 // the override.
 if (BOT_SIM_ENABLED) arenaBotSim.spawn();
@@ -296,7 +296,7 @@ function closeSession(sess, reason) {
     sessions.delete(sess.id);
     snapshotRings.delete(sess.id);
     hpUnregister(hpLedger, sess.id);
-    // v0.2.726-alpha: RETIRE (not drop) so a disconnected player stays on the
+    // v0.2.727-alpha: RETIRE (not drop) so a disconnected player stays on the
     // LOCAL leaderboard for this arena instance until the server restarts.
     if (SCORE_ENABLED) scoreLedger.retire(sess.id);
     const timer = respawnTimers.get(sess.id);
@@ -339,7 +339,7 @@ function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  // v0.2.726-alpha: accept a client-sent character key (validated against the
+  // v0.2.727-alpha: accept a client-sent character key (validated against the
   // known set) OR a 64-hex Character Forge mesh hash. Falls back to the existing
   // default if absent/invalid.
   if (character && (VALID_CHARACTERS.has(character) || /^[0-9a-f]{64}$/.test(character))) {
@@ -394,7 +394,7 @@ async function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
-    // v0.2.726-alpha: bearer-token auth (login signed once via NIP-98). No
+    // v0.2.727-alpha: bearer-token auth (login signed once via NIP-98). No
     // NIP-07 signature needed on arena entry / reconnect.
     if (msg.t === MSG.AUTH_TOKEN) {
       const pubkey = sessionTokens.verifyToken(msg.token);
@@ -526,7 +526,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const dy = oy - diag.footY;
     yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
   }
-  // v0.2.726-alpha: surface the SERVER-time rewind inputs — the client-reported
+  // v0.2.727-alpha: surface the SERVER-time rewind inputs — the client-reported
   // viewLag, the server-computed rewindTs, the shot age (server_now-rewindTs),
   // and whether rewindTs fell outside the [now-LAG_COMP_MS, now] window (clamp).
   // These are what the fix actually depends on; a live capture confirms the
@@ -537,7 +537,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const clamped = rewindTs < srvNow - LAG_COMP_MS || rewindTs > srvNow;
     rw = ` viewLag=${vl} rewindAge=${srvNow - rewindTs} rwClamp=${clamped} clientTs=${shotMsg.ts}`;
   }
-  // v0.2.726-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
+  // v0.2.727-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
   // the crux of the fix. If dxz is large the bot moved between render and now, and
   // the rewind is what makes the ray land on where the player actually aimed.
   let bd = '';
@@ -610,7 +610,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
   // Bot milestone chunk 2: also resolve against server-authoritative bots and
   // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
   // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
-  // v0.2.726-alpha: bots rewind to the SAME server-time rewindTs the peer
+  // v0.2.727-alpha: bots rewind to the SAME server-time rewindTs the peer
   // resolver uses, so moving bots stop eating shots.
   const botResult = BOT_SIM_ENABLED
     ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, rewindTs, now, LAG_COMP_MS)
@@ -661,7 +661,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
     });
     // MP-3: attribute kill → shooter, death → victim.
     if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
-    // v0.2.726-alpha: push the updated standings immediately on a kill so the
+    // v0.2.727-alpha: push the updated standings immediately on a kill so the
     // live in-arena leaderboard reflects frags without waiting for the tick.
     broadcastScoreFrame();
     scheduleRespawn(result.targetId, shooter.pos);
@@ -813,7 +813,7 @@ if (BOT_SIM_ENABLED) {
     const { players, authedCount } = buildBotTickRoster(sessions, { isKamiActive, pointInCoastline });
     arenaBotSim.tick(dt, players);
     const now = Date.now();
-    // v0.2.726-alpha: record post-tick bot positions for lag-compensated
+    // v0.2.727-alpha: record post-tick bot positions for lag-compensated
     // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
     arenaBotSim.recordSnapshot(now);
     if (shouldBroadcastBotState({ authedCount, now, lastAt: _lastBotStateAt, botStateMs: BOT_STATE_MS })) {
@@ -823,7 +823,7 @@ if (BOT_SIM_ENABLED) {
   }, BOT_TICK_MS);
 }
 
-// v0.2.726-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// v0.2.727-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
 // no-op when SCORE is disabled or no tallies exist, so this only emits once
 // combat has produced standings. The on-kill + on-close emits stay in place;
 // this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
@@ -920,7 +920,7 @@ const httpServer = createServer((req, res) => {
     });
   }
 
-  // v0.2.726-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  // v0.2.727-alpha session-token endpoints (plain HTTP, same origin as /mp).
   //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
   //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
   if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
@@ -952,7 +952,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.726-alpha (UPD-2) admin-update endpoints.
+  // v0.2.727-alpha (UPD-2) admin-update endpoints.
   //   GET  /mp/admin/update-capability → { autoUpdate, adminPubkey }   (PUBLIC)
   //   GET  /mp/admin/update-status     → status JSON                    (PUBLIC read)
   //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
@@ -960,7 +960,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.726-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.727-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.
@@ -979,11 +979,11 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.726-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.727-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
-  // v0.2.726-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // v0.2.727-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
   // owner (bearer session token) sees the AI's replies in their emagake rack.
   // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
   // are a separate plaintext feed the rack polls and renders (text, not HTML).
@@ -1004,7 +1004,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.726-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.727-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.

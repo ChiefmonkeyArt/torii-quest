@@ -175,7 +175,7 @@ UNIT
 
   # Extract the real, per-build CSP from the bundle we just published — never
   # hand-copy a CSP string (it drifts the moment the inline bootstrap sha changes).
-  CSP_RAW="$(grep -m1 'Content-Security-Policy' "$REL_DIR/_headers" 2>/dev/null | sed 's/^Content-Security-Policy:[[:space:]]*//' || true)"
+  CSP_RAW="$(grep -m1 'Content-Security-Policy' "$REL_DIR/_headers" 2>/dev/null | sed 's/^[[:space:]]*Content-Security-Policy:[[:space:]]*//' || true)"
   if [[ -z "$CSP_RAW" ]]; then
     ui_warn "Couldn't read CSP from dist/_headers — Caddy will serve without a CSP header."
     CSP_RAW=""
@@ -183,9 +183,9 @@ UNIT
     # Add wss://<domain> to connect-src so the browser may open the MP socket
     # back to this origin (VPS_INSTALL.md §16.1 note). Idempotent.
     if ! echo "$CSP_RAW" | grep -q "wss://$DOMAIN_IN"; then
-      CSP_RAW="${CSP_RAW/ connect-src / connect-src wss://$DOMAIN_IN }"
-      # connect-src may be the first connect-src token (no leading space) — handle that too.
-      CSP_RAW="$(echo "$CSP_RAW" | sed -E "s/(connect-src 'self')/\\1 wss:\/\/$DOMAIN_IN/g")"
+      # Pure-bash substring insertion — no sed, so no /-delimiter escaping
+      # edge cases (which broke on some hosts as "unknown option to s").
+      CSP_RAW="${CSP_RAW/connect-src /connect-src wss://$DOMAIN_IN }"
     fi
     ui_ok "CSP extracted from build (connect-src includes wss://$DOMAIN_IN)"
   fi

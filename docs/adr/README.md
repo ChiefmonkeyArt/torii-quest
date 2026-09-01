@@ -19,6 +19,14 @@ are immutable once **Accepted** — to change a decision, write a new ADR that
 5. **Status transitions:** Proposed → Accepted → (later) Superseded by ADR-NNNN.
 6. **Cross-link supersession** in BOTH files (old ADR's Status field points
    forward; new ADR's Context section points back).
+7. **Numbers are claimed by merge, not booked in advance.** A number is held
+   only by its file existing on `main`. With several tracks drafting ADRs in
+   parallel, two branches can pick the same next number; the first to merge
+   keeps it, and any later collider renumbers to the next unused number before
+   it merges — updating its own title, filename, and every cross-reference
+   (including the index above). Always take the next number from the highest
+   merged file on `main`, not from a local branch, and re-check just before
+   opening a PR.
 
 ## Template
 
@@ -53,7 +61,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 
 ## Workflow for a new decision
 
-1. Copy `TEMPLATE.md` to `docs/adr/NNNN-short-slug.md` (next unused number).
+1. Copy `TEMPLATE.md` to `docs/adr/NNNN-short-slug.md` (next unused number — taken from the highest merged file on `main`, per rule 7).
 2. Fill in Context, Decision, Consequences.
 3. Set Status: **Proposed**.
 4. Show the operator. On approval, set Status: **Accepted** and commit.

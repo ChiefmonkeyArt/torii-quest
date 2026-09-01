@@ -45,6 +45,7 @@ export * as characterEvent from '../engine/character/characterEvent.js';
 export * as characterRelayRead from '../engine/character/characterRelayRead.js';
 export * as characterPresets from '../engine/character/characterPresets.js';
 export * as characterMesh from '../engine/character/characterMesh.js';
+export * as stickerLibrary from '../engine/character/stickerLibrary.js';
 export * as stickerPlacement from '../engine/character/stickerPlacement.js';
 export * as stickerRaycast from '../engine/character/stickerRaycast.js';
 export * as stickerPlacementMode from '../engine/character/stickerPlacementMode.js';
@@ -154,6 +155,9 @@ export const SDK_SURFACE = Object.freeze({
   characterRelayRead: { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterRelayRead.js' },
   characterPresets:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterPresets.js' },
   characterMesh:     { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/characterMesh.js' },
+  // Character Forge content-addressed sticker library (ADR-0090) — hash→Blossom
+  // URL resolution, `torii.asset` sticker manifest parsing, and UGC merge.
+  stickerLibrary:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerLibrary.js' },
   // Character Forge sticker-placement model (v0.2.723, ADR-0086) — body-zone
   // registry, bone→zone resolution, and immutable manifest add/remove/update.
   stickerPlacement:  { tier: STABILITY.EXPERIMENTAL, module: '../engine/character/stickerPlacement.js' },

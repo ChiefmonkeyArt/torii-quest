@@ -1,6 +1,6 @@
 # ADR-0085 — Sticker studio as avatar napplet (wiring-only)
 
-**Status:** Proposed · **Date:** 2026-08-31
+**Status:** Accepted · **Date:** 2026-08-31
 **Deciders:** chiefmonkey
 **Related:** ADR-0083 (avatar shell), ADR-0084 (arena wiring), ADR-0086 (release-time napplet identity, deferred)
 

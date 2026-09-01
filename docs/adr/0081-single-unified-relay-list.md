@@ -1,6 +1,6 @@
 # ADR-0081: Single Unified Relay List (Connection, Not Consent)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-28
 - **Deciders:** chiefmonkey (+ Perplexity Computer agent)
 - **Supersedes (partially):** ADR-0076's rationale for splitting relay lists by

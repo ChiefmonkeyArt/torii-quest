@@ -111,6 +111,7 @@ Prior: v0.2.684-alpha - SETTINGS PANEL: PROFILE + RELAY TABS, HOMEPAGE FADE, TOP
 - The active MVP focus is the 15-hour proof-of-concept route (`torii-quest-strategy.md`); the shooter is maintenance-only unless demo-breaking.
 - **UGC sticker system (ADR-0090) is the next slice** — content-addressed sticker library (Blossom + torii.asset event), any-surface raycast/attach, multiplayer cosmetic broadcast. The ADR-0088 self-view avatar-decoration UI (`stickerSelfView.js`/`stickerStudio.js`) is **PARKED**: keep in-tree, feature-gated, don't delete; its pure `stickerRaycast.js`/`stickerPlacementMode.js` model is reused.
 - Read `torii-quest-strategy.md` + `torii-quest-todo.md` + `torii-quest-progress.md` first; use the §10 next-job format.
+- **ADR baseline is clean (2026-09-01):** numbering deduplicated (the 0082 and 0090 collisions resolved), `docs/adr/README.md` index rebuilt across all 93 ADRs, and eight shipped ADRs flipped from Proposed to Accepted. Adding a new ADR means taking the next number from `main` per rule 7, not from a local branch.
 - Always read code before editing. Root causes in this codebase are found by reading (e.g. parsing GLB binary, tracing the MP wire), not guessing.
 
 ### NAP zone object layout (CRITICAL — read before touching NAP objects)
@@ -217,6 +218,7 @@ Enforced by `npm run check` (`tools/regression-check.mjs`).
 - `torii-quest-todo.md` — active task queue.
 - `torii-quest-progress.md` — execution dashboard.
 - `torii-quest-handoff.md` — this file.
+- `docs/adr/` — architecture decision records; `docs/adr/README.md` is the index + numbering convention (rule 7: numbers are claimed by merge on `main`, not booked in advance).
 - `VPS_INSTALL.md` — self-hosting the static build at torii.quest.
 - `UPDATE_CHECK.md` — manual update-check safety boundary.
 - `NOSTR_ARENA_MASTER_TODO.md` — archival history only; not an active queue.

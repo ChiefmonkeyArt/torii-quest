@@ -3,11 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-08-31
 - **Deciders:** chiefmonkey
-- **Related:** ADR-0082 (Character Forge), [`freedom-tech-stack`](concepts/freedom-tech-stack), `routstr-local-inference`
+- **Related:** ADR-0091 (Character Forge), [`freedom-tech-stack`](concepts/freedom-tech-stack), `routstr-local-inference`
 
 ## Context
 
-ADR-0082's pipeline orchestrates third-party generators (Meshy, Tripo,
+ADR-0091's pipeline orchestrates third-party generators (Meshy, Tripo,
 Hunyuan3D) rather than building one in-house, and routes every generation
 through routstr/Cashu. The groundwork (canonical skeleton + auto-rig assessment
 + manifest validator) is already in place as `skeleton.js`, `rigAssessment.js`,
@@ -44,7 +44,7 @@ path, which are host concerns.
   before it costs sats or pollutes the pipeline; the validator-first contract is
   now executable, not just documented.
 - **Forecloses:** a generator-free shortcut — every external mesh path is gated;
-  an unriggable (bone-less) mesh can never be seated, per ADR-0082 v1 scope.
+  an unriggable (bone-less) mesh can never be seated, per ADR-0091 v1 scope.
 - **Trade-offs:** shippable seam without live generation; the actual
   text/image→mesh call is deferred to the host/routstr executor.
 - **Enforcement:** `tests/character-mesh-generation.test.js` (backend registry,
@@ -58,7 +58,7 @@ path, which are host concerns.
   infra and vendor auth before it can be exercised safely; the gate is the
   durable, risk-free value.
 - **Accept any well-formed manifest without the rig check** — rejected: that is
-  exactly the "it generated, therefore it works" trap ADR-0082 exists to avoid.
+  exactly the "it generated, therefore it works" trap ADR-0091 exists to avoid.
 
 ## Notes
 

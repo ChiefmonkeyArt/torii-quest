@@ -77,6 +77,22 @@ run_bare_metal_install() {
   SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo nogit)"
   REL_DIR="$RELEASES_ROOT/$TS-$SHA"
 
+  # Guard: refuse to publish an empty bundle. If the build silently produced
+  # nothing (permissions/ownership in the clone can make Vite write 0 files
+  # without failing), publishing an empty dir serves 0-byte assets with no MIME
+  # type — which reads in the browser as "Login still loading" + a module/MIME
+  # error, a red herring vs the real cause (empty build output). Fail loudly.
+  if [[ ! -s "$ROOT/dist/index.html" ]]; then
+    ui_warn "Build output is missing/empty at $ROOT/dist/index.html:"
+    {
+      echo "dist bytes: $(du -sb "$ROOT/dist" 2>/dev/null | awk '{print $1}')"
+      ls -la "$ROOT/dist" 2>/dev/null
+      echo "--- dist/assets/ ---"
+      ls -la "$ROOT/dist/assets" 2>/dev/null
+    } | sed 's/^/    /' | head -30 || true
+    ui_die "npm run build produced no dist/ — investigate the build stage above (likely clone ownership)."
+  fi
+
   run_stage "Publishing bundle to $REL_DIR" bash -c "
     install -d -m 0755 '$RELEASES_ROOT'
     install -d -m 0755 '$REL_DIR'

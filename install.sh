@@ -191,6 +191,15 @@ else
   fi
 fi
 
+# Normalize the domain to a BARE hostname before any downstream use. A .env
+# or --domain value pasted as "https://host/" would otherwise propagate the
+# scheme+slash into the Caddy site address and the wss:// CSP injection,
+# producing a doubly-prefixed "wss://https://host/" (invalid "connect-src"
+# source) and a site block that no longer matches. Strip scheme, then path.
+DOMAIN_IN="${DOMAIN_IN#https://}"
+DOMAIN_IN="${DOMAIN_IN#http://}"
+DOMAIN_IN="${DOMAIN_IN%%/*}"
+
 # DNS sanity check — best-effort, never blocks the install (may be running
 # behind NAT, or DNS may still be propagating).
 ui_section "DNS check"

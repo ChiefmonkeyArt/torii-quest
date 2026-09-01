@@ -233,6 +233,14 @@ if [[ "$DRY_RUN" -ne 1 ]]; then
     echo "LOG_LEVEL=${LOG_LEVEL:-info}"
   } > .env
   chmod 600 .env 2>/dev/null || true
+  # The build runs as the unprivileged sudo caller (SUDO_USER), but .env was
+  # just written by this root process, so it is root:root 0600 and Vite's
+  # loadEnv cannot open it during the build (EACCES, exit 1). Hand ownership to
+  # the build user so it stays private yet readable (root still reads it here).
+  # A straight-root run (no SUDO_USER) builds as root and needs nothing.
+  if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+    chown "$SUDO_USER" .env 2>/dev/null || true
+  fi
   ui_ok "Wrote .env"
 fi
 

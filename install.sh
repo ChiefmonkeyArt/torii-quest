@@ -244,6 +244,8 @@ if [[ "$DRY_RUN" -ne 1 ]]; then
     echo "DOMAIN=$DOMAIN_IN"
     echo "ACME_EMAIL=$EMAIL_IN"
     echo "QUEST_ADMIN_NPUB=$NPUB_IN"
+    echo "QUEST_PUBLIC_URL=https://$DOMAIN_IN"
+    echo "QUEST_NODE_RELAYS=wss://main.relay.gamestr.io,wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.vertexlab.io"
     echo "MAX_PEERS=${MAX_PEERS:-32}"
     echo "MP_MODE=${MP_MODE:-authoritative}"
     echo "LAG_COMP_MS=${LAG_COMP_MS:-}"

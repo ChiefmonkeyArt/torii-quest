@@ -58,6 +58,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0088](./0088-in-world-raycast-sticker-placement.md) | Character Forge — in-world raycast sticker placement (self-view slice parked) | Accepted |
 | [0089](./0089-live-generator-clients-broker-seam.md) | Live generator clients / executor broker seam (inert by default) | Accepted |
 | [0090](./0090-ugc-sticker-system.md) | UGC sticker system — any-surface decals, Nostr-published library, multiplayer sync | Accepted |
+| [0095](./0095-settings-click-propagation-fix.md) | Settings panel action buttons were dead — removed the card's `stopPropagation` | Accepted |
 
 ## Workflow for a new decision
 

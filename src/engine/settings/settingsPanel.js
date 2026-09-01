@@ -175,8 +175,13 @@ function _build() {
   card.append(closeBtn, nav, content);
   backdrop.append(card);
 
+  // Close-on-backdrop: guarded by `e.target === backdrop` so clicks INSIDE the
+  // card never close the panel. Do NOT stopPropagation() here — main.js routes
+  // every settings action button (save-profile / remove-relay / publish-node /
+  // choose-world / character actions / access form) through a document-level
+  // delegated click listener scoped to #torii-settings-content; stopping
+  // propagation on the card was swallowing those clicks so no button ever fired.
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSettingsPanel(); });
-  card.addEventListener('click', (e) => e.stopPropagation());
 
   if (doc.body && typeof doc.body.appendChild === 'function') {
     doc.body.appendChild(backdrop);

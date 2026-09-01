@@ -28,7 +28,7 @@ function _escape(s) {
 }
 
 const CARDS = [
-  { id: 'blank', icon: '⬜', label: 'Choose Blank', hint: 'Start from an empty gateway world.', action: 'choose-blank' },
+  { id: 'blank', icon: '⬜', label: 'Choose Blank', hint: 'Start from an empty world.', action: 'choose-blank' },
   { id: 'template', icon: '🗺️', label: 'Use My World as Template', hint: 'Seed the gateway from your world.', action: 'choose-template' },
 ];
 
@@ -36,17 +36,17 @@ function _cardHtml(card, state) {
   const isOwner = state.isOwner === true;
   const enabled = isOwner; // both remaining cards are owner-only
   const gate = !enabled
-    ? '<div class="gs-gate">Log in as the node owner to configure this node.</div>'
+    ? '<div class="settings-gate">Log in as the node owner to change this.</div>'
     : '';
   return `
-    <div class="gs-card" data-card="${_escape(card.id)}">
-      <div class="gs-icon">${card.icon}</div>
-      <div class="gs-body">
-        <div class="gs-label">${_escape(card.label)}</div>
-        <div class="gs-hint">${_escape(card.hint)}</div>
+    <div class="settings-card" data-card="${_escape(card.id)}">
+      <div class="settings-card-icon">${card.icon}</div>
+      <div class="settings-card-body">
+        <div class="settings-card-label">${_escape(card.label)}</div>
+        <div class="settings-card-hint">${_escape(card.hint)}</div>
         ${gate}
       </div>
-      <button type="button" class="gs-btn" data-action="${_escape(card.action)}"${enabled ? '' : ' disabled'} aria-label="${_escape(card.label)}">Choose</button>
+      <button type="button" class="settings-btn" data-action="${_escape(card.action)}"${enabled ? '' : ' disabled'} aria-label="${_escape(card.label)}">Choose</button>
     </div>`;
 }
 
@@ -55,24 +55,24 @@ export function renderGatewaySetupPanel(state = {}) {
   const isOwner = st.isOwner === true;
   const activeWorld = typeof st.activeWorld === 'string' && st.activeWorld !== '' ? st.activeWorld : null;
   const badge = activeWorld
-    ? `● ACTIVE WORLD · ${_escape(activeWorld)}`
-    : (isOwner ? '● NO ACTIVE WORLD (default)' : '● DEFAULT WORLD');
+    ? `● ACTIVE · ${_escape(activeWorld)}`
+    : (isOwner ? '● NO ACTIVE WORLD' : '● DEFAULT WORLD');
 
   const cardsHtml = CARDS.map((c) => _cardHtml(c, st)).join('');
   // v0.4: dropped the trailing "To visit another world, use the Torii
   // Gateway inside the NAP zone." sentence per design direction — the
   // owner-gate reminder alone is the only note needed here now.
   const note = !isOwner
-    ? '<div class="gs-note">Owner actions need the node owner signed in.</div>'
+    ? '<div class="settings-note">Owner actions need the node owner signed in.</div>'
     : '';
 
   return `
-    <div class="gs-header">
-      <h2 class="gs-title">Gateway Setup</h2>
-      <div class="gs-badge">${badge}</div>
+    <div class="settings-header">
+      <h2 class="settings-title">Gateway Setup</h2>
+      <div class="settings-badge">${badge}</div>
     </div>
-    <div class="gs-subtitle">Choose your homepage world</div>
-    <div class="gs-list">${cardsHtml}</div>
+    <div class="settings-subtitle">Choose your homepage world.</div>
+    <div class="settings-list">${cardsHtml}</div>
     ${note}`;
 }
 

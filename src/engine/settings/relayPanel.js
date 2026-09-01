@@ -35,10 +35,10 @@ function _escape(s) {
 // default starter or operator-configured alike).
 function _relayRow(url) {
   return `
-    <div class="rl-row" data-relay="${_escape(url)}">
-      <span class="rl-dot" aria-hidden="true"></span>
-      <span class="rl-url">${_escape(url)}</span>
-      <button type="button" class="rl-remove" data-action="remove-relay" data-relay="${_escape(url)}" aria-label="Remove ${_escape(url)}">Remove</button>
+    <div class="settings-row-inline" data-relay="${_escape(url)}">
+      <span class="settings-dot" aria-hidden="true"></span>
+      <span class="settings-row-value">${_escape(url)}</span>
+      <button type="button" class="settings-btn settings-btn-ghost settings-btn-sm" data-action="remove-relay" data-relay="${_escape(url)}" aria-label="Remove ${_escape(url)}">Remove</button>
     </div>`;
 }
 
@@ -48,24 +48,24 @@ export function renderRelayPanel(state = {}) {
   const nodeRelays = Array.isArray(st.nodeRelays) ? st.nodeRelays : [];
   const rawInput = typeof st.nodeRelaysInput === 'string' ? st.nodeRelaysInput : '';
   const gate = !isOwner
-    ? '<div class="gs-gate">Log in as the node owner to configure this node.</div>'
+    ? '<div class="settings-gate">Log in as the node owner to change this.</div>'
     : '';
 
   const listHtml = nodeRelays.length
     ? nodeRelays.map(_relayRow).join('')
-    : '<div class="rl-empty">No relays configured yet — your node will not publish presence until at least one wss:// relay is added.</div>';
+    : '<div class="settings-empty">No relays yet — add one below to publish presence.</div>';
 
   return `
-    <div class="gs-header">
-      <h2 class="gs-title">Relay</h2>
+    <div class="settings-header">
+      <h2 class="settings-title">Relay</h2>
     </div>
-    <div class="gs-subtitle">Relays Torii Quest connects to (reads + presence publish)</div>
-    <div class="rl-list">${listHtml}</div>
+    <div class="settings-subtitle">Relays this node reads from and publishes to.</div>
+    <div class="settings-list">${listHtml}</div>
     ${gate}
-    <div class="rl-add${isOwner ? '' : ' rl-add-disabled'}">
-      <label class="rl-add-label" for="rl-add-input">Add / edit relays (comma or newline separated)</label>
-      <textarea id="rl-add-input" class="rl-add-input" rows="3" placeholder="wss://relay.example.com"${isOwner ? '' : ' disabled'}>${_escape(rawInput)}</textarea>
-      <button type="button" class="gs-btn" data-action="save-relays"${isOwner ? '' : ' disabled'}>Save Relays</button>
+    <div class="settings-row">
+      <label class="settings-label" for="rl-add-input">Add or edit relays (comma or newline separated)</label>
+      <textarea id="rl-add-input" class="settings-textarea" rows="3" placeholder="wss://relay.example.com"${isOwner ? '' : ' disabled'}>${_escape(rawInput)}</textarea>
+      <button type="button" class="settings-btn settings-btn-primary" data-action="save-relays"${isOwner ? '' : ' disabled'}>Save relays</button>
     </div>
-    <div class="gs-note">This single list drives both reads and presence publish. Add relays above, or remove any row with its Remove button.</div>`;
+    <div class="settings-note">This list drives both reads and presence publish.</div>`;
 }

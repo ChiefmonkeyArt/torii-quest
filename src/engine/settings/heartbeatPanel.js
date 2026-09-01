@@ -28,16 +28,19 @@ function _escape(s) {
 
 // _publishLabel(heartbeatStatus) — a short, honest label reusing the existing
 // heartbeat status string so blocked/paused states stay consistent with the
-// heartbeat toggle elsewhere. Never invents a state. (Unchanged from the
-// former gatewaySetupPanel.js implementation.)
+// heartbeat toggle elsewhere. Never invents a state. Per ADR-0094 the beacon
+// is now server-side and auto-on from the configured admin npub at install
+// (no browser tab, login, or wallet needed) — 'idle' means the server beacon
+// has not activated yet (e.g. no admin npub configured), not "waiting for
+// login" as in the pre-ADR-0094 client-only copy.
 function _publishLabel(heartbeatStatus) {
   const s = typeof heartbeatStatus === 'string' ? heartbeatStatus : 'off';
-  if (s === 'off') return 'Publish my node presence (OFF)';
-  if (s === 'live') return 'Publish my node presence (LIVE)';
-  if (s === 'idle') return 'Publish my node presence (on by default — starts on owner login)';
+  if (s === 'off') return 'Publish node presence (Off)';
+  if (s === 'live') return 'Publish node presence (Live)';
+  if (s === 'idle') return 'Publish node presence (on by default)';
   if (s === 'publishing') return 'Publishing…';
   if (s === 'stale') return 'Republish overdue (stale)';
-  return `Publish my node presence (${s})`;
+  return `Publish node presence (${s})`;
 }
 
 // _isOnState(heartbeatStatus) — true only for statuses where a presence
@@ -59,27 +62,27 @@ export function renderHeartbeatPanel(state = {}) {
   const label = _publishLabel(st.heartbeatStatus);
   const on = _isOnState(st.heartbeatStatus);
   const gate = !isOwner
-    ? '<div class="gs-gate">Log in as the node owner to configure this node.</div>'
+    ? '<div class="settings-gate">Log in as the node owner to change this.</div>'
     : '';
 
   return `
-    <div class="gs-header">
-      <h2 class="gs-title">Heartbeat</h2>
+    <div class="settings-header">
+      <h2 class="settings-title">Heartbeat</h2>
     </div>
-    <div class="gs-subtitle">Publish this node's presence so other nodes can discover it</div>
-    <div class="gs-list">
-      <div class="gs-card" data-card="publish">
-        <div class="gs-icon">📡</div>
-        <div class="gs-body">
-          <div class="gs-label">${_escape(label)}</div>
-          <div class="gs-hint">Heartbeat is on by default — it auto-starts when the owner logs in (one signer approval may be asked).</div>
+    <div class="settings-subtitle">Let other nodes discover this one.</div>
+    <div class="settings-list">
+      <div class="settings-card" data-card="publish">
+        <div class="settings-card-icon">📡</div>
+        <div class="settings-card-body">
+          <div class="settings-card-label">${_escape(label)}</div>
+          <div class="settings-card-hint">On by default — the server beacon activates automatically from the configured admin npub. No login or wallet needed.</div>
           ${gate}
         </div>
-        <button type="button" class="hb-switch ${on ? 'is-on' : 'is-off'}" data-action="publish-node"${isOwner ? '' : ' disabled'} role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${_escape(label)}">
-          <span class="hb-switch-track"><span class="hb-switch-knob"></span></span>
-          <span class="hb-switch-state">${on ? 'ON' : 'OFF'}</span>
+        <button type="button" class="settings-switch ${on ? 'is-on' : 'is-off'}" data-action="publish-node"${isOwner ? '' : ' disabled'} role="switch" aria-checked="${on ? 'true' : 'false'}" aria-label="${_escape(label)}">
+          <span class="settings-switch-track"><span class="settings-switch-knob"></span></span>
+          <span class="settings-switch-state">${on ? 'ON' : 'OFF'}</span>
         </button>
       </div>
     </div>
-    ${!isOwner ? '<div class="gs-note">Owner actions need the node owner signed in.</div>' : ''}`;
+    ${!isOwner ? '<div class="settings-note">Owner actions need the node owner signed in.</div>' : ''}`;
 }

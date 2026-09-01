@@ -59,6 +59,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0089](./0089-live-generator-clients-broker-seam.md) | Live generator clients / executor broker seam (inert by default) | Accepted |
 | [0090](./0090-ugc-sticker-system.md) | UGC sticker system — any-surface decals, Nostr-published library, multiplayer sync | Accepted |
 | [0095](./0095-settings-click-propagation-fix.md) | Settings panel action buttons were dead — removed the card's `stopPropagation` | Accepted |
+| [0096](./0096-settings-visual-redesign.md) | Settings panel neutral visual system + Character select/create redesign | Accepted |
 
 ## Workflow for a new decision
 

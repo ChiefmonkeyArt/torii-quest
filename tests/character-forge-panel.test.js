@@ -34,7 +34,7 @@ describe('renderCharacterForgePanel', () => {
       status: 'found',
       character: { name: 'Chiefmonkey', meshName: 'chiefmonkey6', stickerCount: 3 },
     });
-    expect(html).toContain('already has a character');
+    expect(html).toContain('already have a character');
     expect(html).toContain('Chiefmonkey');
     expect(html).toContain('chiefmonkey6');
     expect(html).toContain('Edit stickers');
@@ -92,5 +92,25 @@ describe('renderCharacterForgePanel', () => {
     });
     expect(html).not.toContain('<img src=x');
     expect(html).toContain('&lt;img');
+  });
+
+  // Upload + Create-with-AI are two clearly separated, fully-framed creation
+  // paths on the SELECT + CREATE screen. Create-with-AI is a future
+  // integration point (Meshy-style, via routstr/Cashu — ADR-0091): it must
+  // render as a complete, labeled, disabled/coming-soon card with NO handler
+  // wired in main.js, while Upload stays a real, clickable action.
+  it('renders separated Upload and Create-with-AI cards on the create screen', () => {
+    const html = renderCharacterForgePanel({
+      isLoggedIn: true,
+      status: 'none',
+      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }],
+    });
+    expect(html).toContain('Upload a character');
+    expect(html).toContain('data-action="upload-mesh"');
+    expect(html).not.toMatch(/data-action="upload-mesh"[^>]*disabled/);
+    expect(html).toContain('Create with AI');
+    expect(html).toContain('data-action="create-with-ai"');
+    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
+    expect(html.toLowerCase()).toContain('coming soon');
   });
 });

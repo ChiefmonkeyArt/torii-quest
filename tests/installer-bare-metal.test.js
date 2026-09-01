@@ -33,12 +33,15 @@ describe('install.sh — bare-metal default, Docker as an optional flag', () => 
     expect(installSh).toMatch(/source "\$ROOT\/install\/lib\/docker\.sh"/);
   });
 
-  it('only prompts for domain, email, and admin npub on the interactive path', () => {
+  it('interactive path prompts for domain, email, and admin npub (plus a -y npub-gap prompt)', () => {
     const asks = [...installSh.matchAll(/ui_ask\s+"([^"]+)"/g)].map((m) => m[1]);
-    expect(asks).toHaveLength(3);
+    expect(asks).toHaveLength(4);
     expect(asks[0]).toMatch(/Domain/i);
     expect(asks[1]).toMatch(/email/i);
-    expect(asks[2]).toMatch(/npub/i);
+    expect(asks[2]).toMatch(/Admin npub \(optional\)/i);
+    // The 4th is the `-y` gap prompt: no admin npub configured → re-ask rather
+    // than silently leaving the instance ownerless (no Welcome/Node/Heartbeat).
+    expect(asks[3]).toMatch(/claim this instance/i);
   });
 
   it('supports --domain, --email, --admin-npub, --docker, --dry-run, -y/--yes, -h/--help', () => {

@@ -200,6 +200,17 @@ DOMAIN_IN="${DOMAIN_IN#https://}"
 DOMAIN_IN="${DOMAIN_IN#http://}"
 DOMAIN_IN="${DOMAIN_IN%%/*}"
 
+# Admin npub gap: `-y` reuses existing config without prompting, but a missing
+# admin npub (fresh deploy, or an instance migrated from a pre-admin version)
+# would otherwise silently stay ownerless — no "Welcome" caption, no owner-only
+# Node settings, no Heartbeat. `-y` cannot infer an npub from anything, so ask
+# for it ONCE even under `-y`. ui_ask reopens /dev/tty, so this works in the
+# curl|bash pipe; a blank answer still keeps the instance deliberately ownerless.
+if [[ "$ASSUME_YES" -eq 1 && -z "$NPUB_IN" ]]; then
+  ui_warn "No admin npub is configured on this instance (and none was passed via --admin-npub)."
+  ui_ask "Admin npub (paste to claim this instance, or leave blank to stay ownerless)" NPUB_IN ""
+fi
+
 # DNS sanity check — best-effort, never blocks the install (may be running
 # behind NAT, or DNS may still be propagating).
 ui_section "DNS check"

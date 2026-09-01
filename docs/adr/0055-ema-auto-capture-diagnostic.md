@@ -4,7 +4,7 @@
 2026-08-24
 
 ## Status
-Proposed
+Accepted
 
 ## Context
 The owner reports transient gameplay glitches — "phantom" bots (floating nameplates

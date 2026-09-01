@@ -69,8 +69,8 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0031](./0031-kami-hotkey-bare-k.md) | Kami Mode Hotkey Moved to Bare K (from Ctrl/Cmd+E) | Accepted |
 | [0032](./0032-kami-server-authoritative-invincibility.md) | Kami Mode Invincibility Made Server-Authoritative | Accepted |
 | [0033](./0033-emagake-spelling-correction.md) | Ema Rack Renamed "emagake" (Corrected Romanization) | Accepted |
-| [0034](./0034-kami-mode-visual-unification.md) | Kami Mode visual unification — no darkened modal, world stays fully visible | Proposed |
-| [0035](./0035-product-auction-boards.md) | Product/Auction boards — three separate NAP-zone boards, owner-scoped, Nostr NIP-99/NIP-15-family sourced | Proposed |
+| [0034](./0034-kami-mode-visual-unification.md) | Kami Mode visual unification — no darkened modal, world stays fully visible | Accepted |
+| [0035](./0035-product-auction-boards.md) | Product/Auction boards — three separate NAP-zone boards, owner-scoped, Nostr NIP-99/NIP-15-family sourced | Accepted |
 | [0036](./0036-product-panel-click-trigger.md) | Product Panel Click Trigger, Decoupled From Kami Mode | Accepted |
 | [0037](./0037-reopen-boards-on-every-trigger.md) | Reopen All Boards on Every Trigger Press | Accepted |
 | [0038](./0038-rotate-kami-key-ai-read-path.md) | Rotate the Kami Key + Wire the AI Read Path | Accepted |
@@ -90,7 +90,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0052](./0052-kami-state-snapshot-diagnostic.md) | Capture Kami Mode client state in the ema snapshot (v0.2.675-alpha) | Accepted |
 | [0053](./0053-gateway-liveness-filter.md) | Filter stale and handshake records from the gateway directory (v0.2.676-alpha) | Accepted |
 | [0054](./0054-gateway-screen-redesign.md) | Redesign the gateway screen — in-place smoked glass, three columns (v0.2.676-alpha) | Accepted |
-| [0055](./0055-ema-auto-capture-diagnostic.md) | Ema Auto-Capture Diagnostic (1Hz Rolling Ring) | ?? |
+| [0055](./0055-ema-auto-capture-diagnostic.md) | Ema Auto-Capture Diagnostic (1Hz Rolling Ring) | Accepted |
 | [0056](./0056-recording-indicator.md) | Recording indicator + dashboard surfacing | Accepted |
 | [0057](./0057-napplet-surface-shell-scaffold.md) | Napplet world-surface shell scaffold | Accepted |
 | [0058](./0058-product-panel-napplet-conversion.md) | Convert the product panel into the first live `nap-torii-world` napplet | Accepted |
@@ -116,11 +116,11 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0078](./0078-restore-access-settings-tab.md) | Restore the Access settings tab (re-surface signed kind:30078 access controls) | Accepted |
 | [0079](./0079-one-command-vps-bootstrap.md) | One-command `curl | sudo bash` VPS bootstrap | Accepted |
 | [0080](./0080-remove-pubkey-fragment-from-login-status.md) | Remove the Nostr pubkey fragment from the login status line | Accepted |
-| [0081](./0081-single-unified-relay-list.md) | Single Unified Relay List (Connection, Not Consent) | Proposed |
-| [0082](./0082-napplet-game-host-scaffold.md) | Napplet game-host shell scaffold | Proposed |
-| [0083](./0083-napplet-avatar-shell-scaffold.md) | Napplet avatar shell scaffold | Proposed |
-| [0084](./0084-arena-as-game-napplet-wiring.md) | Arena as game napplet (wiring-only) | Proposed |
-| [0085](./0085-sticker-studio-as-avatar-napplet-wiring.md) | Sticker studio as avatar napplet (wiring-only) | Proposed |
+| [0081](./0081-single-unified-relay-list.md) | Single Unified Relay List (Connection, Not Consent) | Accepted |
+| [0082](./0082-napplet-game-host-scaffold.md) | Napplet game-host shell scaffold | Accepted |
+| [0083](./0083-napplet-avatar-shell-scaffold.md) | Napplet avatar shell scaffold | Accepted |
+| [0084](./0084-arena-as-game-napplet-wiring.md) | Arena as game napplet (wiring-only) | Accepted |
+| [0085](./0085-sticker-studio-as-avatar-napplet-wiring.md) | Sticker studio as avatar napplet (wiring-only) | Accepted |
 | [0086](./0086-sticker-placement-model-and-editor.md) | Character Forge — sticker placement model + editor | Accepted |
 | [0087](./0087-validator-gated-external-mesh-generation.md) | Character Forge — validator-gated external mesh generation | Accepted |
 | [0088](./0088-in-world-raycast-sticker-placement.md) | Character Forge — in-world raycast sticker placement | Accepted |

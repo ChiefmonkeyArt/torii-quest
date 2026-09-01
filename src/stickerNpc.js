@@ -8,6 +8,8 @@
 import * as THREE from 'three';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
+import { STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
+import { stickerImageUrl } from './engine/character/stickerLibrary.js';
 import { castRay, colliderToBone } from './physics.js';
 
 let _texture = null;
@@ -61,12 +63,25 @@ function _collectPeerRoots() {
   return _peerRoots;
 }
 
-// Preload the texture.
+// Resolve the image URL for a sticker hash. The seed entry still ships its PNG
+// bundled (its blob is not yet on Blossom — verified 404), so it loads locally;
+// every other hash is content-addressed to Blossom via stickerImageUrl.
+function _stickerUrl(hash) {
+  const seed = STICKER_LIBRARY[0];
+  if (seed && seed.hash === hash) return assetUrl('/ftff-sticker.png');
+  return stickerImageUrl(hash); // null for a malformed / non-sha256 hash
+}
+
+// Preload the sticker texture, resolved content-addressed from the seed hash.
 function _preloadTexture() {
   if (_texture || _textureLoading) return;
+  const seed = STICKER_LIBRARY[0];
+  if (!seed) return;
+  const url = _stickerUrl(seed.hash);
+  if (!url) return;
   _textureLoading = true;
   const loader = new THREE.TextureLoader();
-  loader.load(assetUrl('/ftff-sticker.png'), tex => {
+  loader.load(url, tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     _texture = tex;

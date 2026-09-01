@@ -108,8 +108,14 @@ describe('bare-metal install path — matches VPS_INSTALL.md conventions', () =>
     expect(bareMetalSh).toMatch(/if caddy validate[\s\S]*?then[\s\S]*?systemctl reload caddy/);
   });
 
-  it('adds a /mp handle block that proxies to the loopback arena-ws port', () => {
-    expect(bareMetalSh).toMatch(/handle \/mp \{/);
+  it('prefix-matches the /mp handler so /mp AND /mp/* proxy to arena-ws', () => {
+    // Caddy path matchers are EXACT unless a wildcard is given, so `handle /mp`
+    // proxies the WebSocket handshake at `/mp` but NOT `/mp/admin/update-capability`
+    // — the sub-path falls through to the SPA fallback and returns index.html,
+    // so an instance can never recognise its owner. The matcher must be the
+    // prefix form `/mp /mp/*` (via a named `@mp` matcher so both spellings are explicit).
+    expect(bareMetalSh).toMatch(/@mp path \/mp \/mp\/\*/);
+    expect(bareMetalSh).toMatch(/handle @mp \{/);
     expect(bareMetalSh).toMatch(/reverse_proxy 127\.0\.0\.1:8787/);
   });
 

@@ -1,6 +1,6 @@
 # ADR-0034: Kami Mode visual unification — no darkened modal, world stays fully visible
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-23
 - Deciders: chiefmonkey
 

@@ -1,6 +1,6 @@
 # ADR-0035: Product/Auction boards — three separate NAP-zone boards, owner-scoped, Nostr NIP-99/NIP-15-family sourced
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-23
 - Deciders: chiefmonkey
 

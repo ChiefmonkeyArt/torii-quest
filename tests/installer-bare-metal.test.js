@@ -93,6 +93,10 @@ describe('bare-metal install path — matches VPS_INSTALL.md conventions', () =>
     expect(bareMetalSh).toMatch(/User=torii-quest/);
     expect(bareMetalSh).toMatch(/ExecStart=\/usr\/bin\/node \$MP_DIR\/arena-ws\.cjs/);
     expect(bareMetalSh).toMatch(/Environment=QUEST_ADMIN_NPUB=\$NPUB_IN/);
+    // ADR-0094: the server beacon needs the public origin + relay set injected so
+    // presence events point at the right world URL and publish to the node relays.
+    expect(bareMetalSh).toMatch(/Environment=QUEST_PUBLIC_URL=https:\/\/\$DOMAIN_IN/);
+    expect(bareMetalSh).toMatch(/Environment=QUEST_NODE_RELAYS=wss:\/\/main\.relay\.gamestr\.io/);
     expect(bareMetalSh).toMatch(/ProtectSystem=strict/);
   });
 

@@ -46,6 +46,7 @@ import {
   DEPLOY_STALL_MS,
 } from './engine/update/adminUpdateClient.js';
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
@@ -348,6 +349,11 @@ function _getToriiMenuState() {
     now: Date.now(),
     intervalMs: HEARTBEAT_INTERVAL_MS,
   });
+  // ADR-0094: when the server beacon is enabled the SERVER publishes presence
+  // 24/7 — surface that truth instead of the now-client-gated heartbeat status
+  // (which would otherwise read 'idle' even though the world is live).
+  const serverBeaconEnabled = _beacon.state.enabled === true;
+  const effectiveHeartbeat = serverBeaconEnabled ? 'live' : heartbeat;
   return {
     scanStatus: _worldsScan,
     canTravel,
@@ -358,7 +364,8 @@ function _getToriiMenuState() {
     isOwner,
     admin: {
       heartbeatIntent,
-      heartbeatStatus: heartbeat,
+      heartbeatStatus: effectiveHeartbeat,
+      serverBeaconEnabled,
       heartbeatLastPublishedAt: _heartbeat.lastPublishedAt,
       heartbeatNextDueMs: nextDueMs,
       nodeRelays,
@@ -375,14 +382,38 @@ function _getToriiMenuState() {
         ? (_lastGamestrResult.published ? 'ok' : 'failed')
         : 'idle',
       onToggleHeartbeat: (next) => {
+        const wantOn = next === 'on';
         setHeartbeatIntent(next);
-        if (next === 'on') {
-          // ADR-0077: the first publish now auto-fires from _heartbeatTick
-          // when the owner logs in — this toggle is the OFF / re-enable-after-
-          // pause path. Re-enabling clears a pause (e.g. after a signer
-          // rejection) and re-publishes immediately so the operator doesn't have
-          // to wait for the next tick. On rejection → paused (status surfaces);
-          // on no-relay → blocked (publishes nothing).
+        // ADR-0094: mirror the toggle to the server beacon (the source of truth).
+        // When the server is reachable and holds the key, presence is published
+        // server-side 24/7; the client-side publish below is only the fallback
+        // (server unreachable / unconfigured). An explicit OFF always stops both.
+        const httpBase = resolveMpHttpBase();
+        const token = getStoredToken();
+        if (httpBase && token) {
+          setBeacon({ httpBase, token, action: next })
+            .then((r) => {
+              if (r && r.ok) {
+                _beacon.state.enabled = wantOn;
+                showEntryStatus(wantOn ? 'Heartbeat ON (server beacon).' : 'Heartbeat OFF.');
+                if (wantOn) refreshOnlineWorlds();
+              } else if (wantOn) {
+                // Server rejected/unreachable — fall back to the client publish.
+                _heartbeat.republishPaused = false;
+                _heartbeat.lastError = null;
+                publishOurWorldPresence().catch(() => {});
+                showEntryStatus('Server beacon unavailable — browser heartbeat active.');
+              } else {
+                showEntryStatus('Heartbeat OFF.');
+              }
+            })
+            .catch(() => {
+              if (wantOn) publishOurWorldPresence().catch(() => {});
+            });
+          return;
+        }
+        // No server session/URL: pure client-side fallback (pre-existing path).
+        if (wantOn) {
           _heartbeat.republishPaused = false;  // re-toggle clears a pause
           _heartbeat.lastError = null;
           publishOurWorldPresence().catch(() => { /* status surfaced */ });
@@ -846,6 +877,46 @@ const _heartbeat = {
   inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
 };
 
+// ADR-0094 (v0.2.734-alpha): server-side always-on beacon. While the server
+// beacon is enabled the SERVER publishes presence 24/7 (signed by its own
+// instance-bound key), so the client must NOT also publish — that would list the
+// world twice (two keys, same zone). `state.enabled` therefore gates the client
+// heartbeat OFF; the client heartbeat remains only the fallback path used before
+// first activation or when the server beacon is unreachable/off.
+const _beacon = {
+  state: { enabled: false }, // latest server beacon state (default: off)
+  syncing: false,            // in-flight sync guard (prevents duplicate activates)
+};
+
+// _syncServerBeacon() → read the server beacon state and, on the FIRST admin
+// login (never-before-activated instance), turn it ON once — the permanent
+// pulse. An admin who had explicitly turned it OFF is NOT re-enabled on a later
+// login (enabled=false but activatedAt set). Never throws; an unreachable server
+// just leaves the client-side fallback active.
+async function _syncServerBeacon() {
+  if (_beacon.syncing) return;
+  const httpBase = resolveMpHttpBase();
+  if (!httpBase) return;
+  _beacon.syncing = true;
+  try {
+    const token = getStoredToken();
+    let st = await fetchBeaconState({ httpBase });
+    // The beacon state carries the configured admin pubkey — resolve ownership
+    // directly from it (no dependency on the separate update-capability fetch).
+    const who = (state.nostrPubkey || '').toLowerCase();
+    const adm = (st.adminPubkey || '').toLowerCase();
+    const isOwner = !!(who && adm && who === adm);
+    if (isOwner && token && !st.enabled && st.activatedAt === null) {
+      // First admin login: activate the permanent beacon (idempotent).
+      await setBeacon({ httpBase, token, action: 'on' }).catch(() => ({ ok: false }));
+      st = await fetchBeaconState({ httpBase }).catch(() => ({ enabled: false }));
+    }
+    _beacon.state = st;
+  } finally {
+    _beacon.syncing = false;
+  }
+}
+
 // _nodeRelaysOpts() → the { storage, metaGetter } injection for the effective
 // reader (readEffectiveNodeRelays). Built once so the Relay tab's list and the
 // heartbeat's publish set stay in lockstep with a single source.
@@ -928,6 +999,10 @@ async function _publishPresenceOnce() {
 // gateway-scan polling that already rides this tick.
 function _heartbeatTick(now) {
   if (_heartbeat.inflight) return;
+  // ADR-0094: when the server beacon is enabled the SERVER publishes presence
+  // 24/7 — the client must not also publish (duplicate world). Client heartbeat
+  // is only the fallback for not-yet-activated / server-off states.
+  if (_beacon.state.enabled) return;
   const intent = getHeartbeatIntent();
   if (intent !== 'on') return;
   const cap = _updateCapability;
@@ -2306,6 +2381,9 @@ function _armRetryButton() {
 // Refresh button state whenever the login identity changes. The upstream
 // NOSTR_LOGIN handler already fires on both admit + delayed-login.
 on(EV.NOSTR_LOGIN, _refreshUpdateButton);
+// ADR-0094: on admin login, read the server beacon state and activate it once if
+// never before activated. Runs after login so state.nostrPubkey is set.
+on(EV.NOSTR_LOGIN, _syncServerBeacon);
 
 // LIVE update-check: paint an immediate "checking…" row, then resolve against the
 // real GitHub TAGS endpoint (cached client-side) and repaint. In parallel, probe

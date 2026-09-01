@@ -165,6 +165,8 @@ Environment=MP_MODE=${MP_MODE:-authoritative}
 Environment=SCORE_ENABLED=${SCORE_ENABLED:-true}
 Environment=LOG_LEVEL=${LOG_LEVEL:-info}
 Environment=QUEST_ADMIN_NPUB=$NPUB_IN
+Environment=QUEST_PUBLIC_URL=https://$DOMAIN_IN
+Environment=QUEST_NODE_RELAYS=wss://main.relay.gamestr.io,wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.vertexlab.io
 
 NoNewPrivileges=true
 PrivateTmp=true

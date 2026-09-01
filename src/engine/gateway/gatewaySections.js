@@ -55,7 +55,7 @@ export function candidateFriendOwners({ worlds, userContacts, userPubkey } = {})
   const out = [];
   const seen = new Set();
   for (const w of Array.isArray(worlds) ? worlds : []) {
-    const owner = w && typeof w.pubkey === 'string' ? w.pubkey : '';
+    const owner = w && (typeof w.owner === 'string' ? w.owner : typeof w.pubkey === 'string' ? w.pubkey : '');
     if (!isHex64(owner) || owner === self || seen.has(owner)) continue;
     if (!contacts.has(owner)) continue;
     seen.add(owner);
@@ -86,7 +86,7 @@ export function partitionGatewaySections({ worlds, userPubkey, userContacts, own
   const friends = [];
   const arenas = [];
   for (const w of Array.isArray(worlds) ? worlds : []) {
-    const owner = w && typeof w.pubkey === 'string' ? w.pubkey : '';
+    const owner = w && (typeof w.owner === 'string' ? w.owner : typeof w.pubkey === 'string' ? w.pubkey : '');
     if (self && isHex64(owner) && owner === self) continue; // own world: not travelable
     let isFriend = false;
     if (self && isHex64(owner) && contacts.has(owner)) {

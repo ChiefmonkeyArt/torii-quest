@@ -32,7 +32,7 @@ export const GATEWAY_TOPIC = 'torii-gateway';
 
 // The destination-record fields this module surfaces into the travel-preview model.
 export const GATEWAY_FIELDS = Object.freeze([
-  'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'website',
+  'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'owner', 'website',
   'banner', 'relays', 'topics', 'wsEndpoint', 'created_at', 'trust',
 ]);
 
@@ -185,6 +185,12 @@ export function extractGatewayFromEvent(event) {
   const npubRaw = typeof content.npub === 'string' ? content.npub : _tagValue(tags, 'npub');
   const npub = looksLikeNpub(npubRaw) ? npubRaw : null;
   const pubkey = _isHex64(event.pubkey) ? event.pubkey : null;
+  // ADR-0094: the server beacon signs presence with an instance-bound key and
+  // stamps the admin's hex pubkey in a canonical ["p", <hex64>] tag. Resolve the
+  // OWNER from that tag when present so Friends/Follows attribution is the admin,
+  // not the beacon key; fall back to the signer pubkey (legacy client-signed
+  // events carry pubkey = admin, no p-tag).
+  const owner = _tagValues(tags, 'p').find((v) => _isHex64(v))?.toLowerCase() || pubkey;
 
   const relays = _safeRelays(
     Array.isArray(content.relays) ? content.relays : _tagValues(tags, 'relay'),
@@ -200,6 +206,7 @@ export function extractGatewayFromEvent(event) {
     zoneType: _safeZoneType(content.zoneType != null ? content.zoneType : _tagValue(tags, 'zoneType')),
     npub,
     pubkey,
+    owner,
     shortPubkey: pubkey ? shortPubkey(pubkey) : '',
     website: safeProfileUrl(content.website),
     banner: safeProfileUrl(content.banner != null ? content.banner : content.picture),

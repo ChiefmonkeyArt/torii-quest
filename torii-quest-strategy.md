@@ -283,7 +283,7 @@ and *feels right*, circle back for shooter feel, mesh/material polish, and UX.
 - **Torii Asset Forge**: validator-first prompt-to-game-ready asset pipeline (external AI presets + routstr/NIP-60 credits + `torii.asset` validator/converter; not a rigging engine).
 - **Torii Environment Kit**: budgeted lightweight GLB scenery + WebP/JPG skies + illusion-grass building blocks.
 - **Community marketplace**: open Nostr-native listing layer where builders publish components for free or for sats.
-- **Character Forge**: validator-first character-creation pipeline (ADR-0082). Do NOT build an in-house generation model — orchestrate external generators (Meshy/Tripo/Hunyuan3D) via routstr/Cashu and own the interoperability contract: the canonical skeleton + auto-rig assessment, the `torii.character` manifest validator, and the kind-35100 character-event parser. Four slices: (1) presets + stickers only (zero AI, ships the loop); (2) texture/sticker generation; (3) `torii.character` manifest + validator published as a spec; (4) external mesh generation gated by the validator + auto-rig. The "smooth experience" seam — check whether the npub already has a `.glb` attached and seat it without prompting — is the kind-35100 read. UI lives in its own "Character" settings tab. GROUNDWORK LANDED v0.2.718 (`src/engine/character/{skeleton,rigAssessment,characterManifest,characterEvent}.js` + the Character settings tab), LIVE RELAY READ LANDED v0.2.719 (`characterRelayRead.js` + `fetchOwnCharacter()`), CREATE ROUND-TRIP LANDED v0.2.720 (`characterPresets.js` + `publishCharacter()` + `uploadBlossom()`), AUTOMATIC MESH LOADING (player path) LANDED v0.2.721 (`characterMesh.js` + `setCustomMeshUrl()` — the player's own mesh now loads from Blossom at login), PEER-AVATAR MESH LOADING LANDED v0.2.722 (the mesh hash is broadcast through the MP `character` field → resolved to a Blossom URL → loaded as the peer's avatar), STICKER PLACEMENT LANDED v0.2.724 (`stickerPlacement.js` — body-zone registry + bone→zone resolution + immutable manifest ops — plus the Character-tab sticker editor, ADR-0086), and EXTERNAL MESH GENERATION GATE LANDED v0.2.724 (`meshGeneration.js` — swappable backend registry + the `validateGeneratedMesh()` validator gate, ADR-0087), IN-WORLD RAYCAST STICKER PLACEMENT LANDED v0.2.725 (`stickerRaycast.js` + `stickerPlacementMode.js` pure modules + `stickerStudio.js` raycast of the player's own character, ADR-0088), and LIVE GENERATOR CLIENTS + EXECUTOR LANDED v0.2.725 (`meshGenerationClient.js` + `meshGenerationExecutor.js` — injectable fetcher + routstr/Cashu `charge` seam, inert by default, ADR-0089). Remaining: texture/sticker generation via routstr; the host wiring of the vendored API signing + the live routstr/Cashu `charge` behind the mesh-generation gate.
+- **Character Forge**: validator-first character-creation pipeline (ADR-0091). Do NOT build an in-house generation model — orchestrate external generators (Meshy/Tripo/Hunyuan3D) via routstr/Cashu and own the interoperability contract: the canonical skeleton + auto-rig assessment, the `torii.character` manifest validator, and the kind-35100 character-event parser. Four slices: (1) presets + stickers only (zero AI, ships the loop); (2) texture/sticker generation; (3) `torii.character` manifest + validator published as a spec; (4) external mesh generation gated by the validator + auto-rig. The "smooth experience" seam — check whether the npub already has a `.glb` attached and seat it without prompting — is the kind-35100 read. UI lives in its own "Character" settings tab. GROUNDWORK LANDED v0.2.718 (`src/engine/character/{skeleton,rigAssessment,characterManifest,characterEvent}.js` + the Character settings tab), LIVE RELAY READ LANDED v0.2.719 (`characterRelayRead.js` + `fetchOwnCharacter()`), CREATE ROUND-TRIP LANDED v0.2.720 (`characterPresets.js` + `publishCharacter()` + `uploadBlossom()`), AUTOMATIC MESH LOADING (player path) LANDED v0.2.721 (`characterMesh.js` + `setCustomMeshUrl()` — the player's own mesh now loads from Blossom at login), PEER-AVATAR MESH LOADING LANDED v0.2.722 (the mesh hash is broadcast through the MP `character` field → resolved to a Blossom URL → loaded as the peer's avatar), STICKER PLACEMENT LANDED v0.2.724 (`stickerPlacement.js` — body-zone registry + bone→zone resolution + immutable manifest ops — plus the Character-tab sticker editor, ADR-0086), and EXTERNAL MESH GENERATION GATE LANDED v0.2.724 (`meshGeneration.js` — swappable backend registry + the `validateGeneratedMesh()` validator gate, ADR-0087), IN-WORLD RAYCAST STICKER PLACEMENT LANDED v0.2.725 (`stickerRaycast.js` + `stickerPlacementMode.js` pure modules + `stickerStudio.js` raycast of the player's own character, ADR-0088), and LIVE GENERATOR CLIENTS + EXECUTOR LANDED v0.2.725 (`meshGenerationClient.js` + `meshGenerationExecutor.js` — injectable fetcher + routstr/Cashu `charge` seam, inert by default, ADR-0089). Remaining: texture/sticker generation via routstr; the host wiring of the vendored API signing + the live routstr/Cashu `charge` behind the mesh-generation gate.
 
 ### Future Transports
 
@@ -812,7 +812,7 @@ gun, and watch it stick to **any** surface — walls, floors, crates, trees, and
 other characters. See ADR-0090 for the decision record.
 
 - **Author → publish → fire.** A sticker is an image uploaded via the Blossom path
-  (ADR-0082) and published as a `torii.asset`-shaped Nostr event; the sha256 is its
+  (ADR-0091) and published as a `torii.asset`-shaped Nostr event; the sha256 is its
   identity. The current single `ftff-sticker.png` becomes just the seed entry.
 - **Any surface.** Placement targets all world geometry (static meshes + skinned
   characters), not a curated subset — decal-baked on statics, bone-parented on
@@ -975,11 +975,34 @@ Use these rules to avoid repeated AI-created bugs:
 - If a system has been used in three places, extract it.
 - If a system is only imagined, document it but do not abstract it yet.
 
+## Napplet Architecture (post-v0.2.717, main, untagged)
+
+The napplet contract now covers three shells with a shared trust boundary:
+
+- **Product shell (ADR-0058, `productNappletHost`).** Existing NAP-zone product/auction surface. In-place.
+- **Game shell (ADR-0082, PR #84).** New `gameNappletSrcdoc.js` / `gameNappletHandlers.js` / `NappletGameHost.js` under `src/engine/napplets/`, plus `GAME_NAMESPACE` on `nappletEnvelope.js`.
+- **Avatar shell (ADR-0083, PR #84).** New `avatarNappletSrcdoc.js` / `avatarNappletHandlers.js`, plus `AVATAR_NAMESPACE`. Handlers gate is enforced in code, not just UI.
+
+Async handler protocol lets handlers return `{ __async, promise }` so relay-mediated actions (signing, fanout) stay shell-owned. Trust boundary is unchanged across all three shells: `sandbox="allow-scripts"` only (opaque origin, no `allow-same-origin`), `MessageEvent.source` validated (never `event.origin`), per-mount channelId nonce stamped on every envelope, CSP `default-src 'none'; connect-src 'none'; img-src 'none'`.
+
+**Wiring-only registrations (ADR-0084, ADR-0085, PR #87).** The existing direct-Three arena and sticker studio now register as napplets via pure factories: `src/engine/napplets/arenaNappletRegistration.js` (dTag `torii-arena`, over `createGameHandlers`) and `src/engine/napplets/stickerStudioNappletRegistration.js` (dTag `sticker-studio`, over `createAvatarHandlers`, declares `requires: ['torii-avatar-write']`). Both use the `NAPPLET_IDENTITY` `@v0-wiring` placeholder that ADR-0094 will replace with real bundle hashes at release. Napplets never sign, never touch relays - the shell brokers publish through `signEvent` + `fanoutPublish` in `main.js`.
+
+**Character event (proposed, not yet published).** kind 35100 addressable, `d="torii-character"`, one per npub for v0. Mandatory `contrib` tags carry `(dTag, aggregateHash)` per contributing napplet.
+
+**Queued design work** (see `torii-quest-todo.md`):
+
+- **ADR-0092** arena full sandboxing (Three + Rapier inside the iframe, DOM<->WebGL bridge, per-frame snapshot protocol). Design done, proposed.
+- **ADR-0093** sticker studio full sandboxing (SkinnedMesh raycast inside the iframe, snapshot-based avatar API). Design done, DEFERRED - in-window placement (Character Forge ADR-0088) is the shipping path.
+- **ADR-0094** release-time napplet identity (replace `@v0-wiring` placeholders with real bundle hashes).
+
+> **ADR renumbering notes:** the napplet sandboxing + identity ADRs were renumbered twice — 0088/0089/0086 → 0090/0091/0092 (to clear Character Forge's ADR-0086/0088/0089), then 0090/0091/0092 → 0092/0093/0094 (after PR #92 landed ADR-0090 UGC-sticker-system and Character Forge's validator-first moved to ADR-0091 in PR #93). The napplet ADR-0082 (game-host scaffold) keeps 0082; Character Forge's validator-first is now ADR-0091.
+
 ## Immediate Next Steps
 
-1. **N2N TRAVEL TEST WITH BEKKA (priority)** — chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + `?torii-traveller=`) and presence discovery across the unified relay list (ADR-0081). Both instances are live again after the HashIT outage (resolved 2026-08-31; both ~0.17s TTFB).
-2. Confirm Bekka is on v0.2.713+ (one-command bootstrap) so her heartbeat/relay/access-tab changes are live.
-3. Deferred (need core refactors, not fake tabs): Audio tab (no master gain API), Graphics tab (no manual override), Controls tab (no keybind layer), Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3).
+1. **ADR-0092/0093 sandboxing design - DONE (2026-08-31).** Full sandboxing plans authored, reviewed, and renumbered (0088/0089 → 0092/0093): arena full sandboxing (ADR-0092, proposed) and sticker studio full sandboxing (ADR-0093, deferred). No implementation until signed off; the deferred sandboxed studio waits on third-party character napplets becoming a real goal.
+2. **N2N travel test with Bekka (priority)** — chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + `?torii-traveller=`) and presence discovery across the unified relay list (ADR-0081). Both instances are live again after the HashIT outage (resolved 2026-08-31; both ~0.17s TTFB).
+3. Confirm Bekka is on v0.2.713+ (one-command bootstrap) so her heartbeat/relay/access-tab changes are live.
+4. Deferred (need core refactors, not fake tabs): Audio tab (no master gain API), Graphics tab (no manual override), Controls tab (no keybind layer), Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3).
 
 ## Open Questions
 

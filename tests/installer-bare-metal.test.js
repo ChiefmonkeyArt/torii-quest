@@ -110,6 +110,15 @@ describe('bare-metal install path — matches VPS_INSTALL.md conventions', () =>
     expect(bareMetalSh).toMatch(/reverse_proxy 127\.0\.0\.1:8787/);
   });
 
+  it('nests the SPA file_server/try_files fallback inside a catch-all handle { } block', () => {
+    // Caddy lists `try_files` BEFORE `handle` in directive order, so a bare
+    // `try_files {path} /index.html` rewrites /mp/* → /index.html before the
+    // `handle /mp` proxy can match — silently breaking multiplayer + the
+    // /mp/admin capability endpoint. The fallback must sit in a catch-all
+    // `handle { … }` so it and the /mp proxy stay mutually exclusive.
+    expect(bareMetalSh).toMatch(/handle \{"[\s\S]*?file_server[\s\S]*?try_files \{path\} \/index\.html/);
+  });
+
   it('extracts the CSP from the build\'s own dist/_headers rather than hand-copying a string', () => {
     expect(bareMetalSh).toMatch(/grep -m1 'Content-Security-Policy' "\$REL_DIR\/_headers"/);
   });

@@ -4,7 +4,7 @@
 - **Date:** 2026-08-31
 - **Deciders:** chiefmonkey
 - **Related:** ADR-0088 (in-world raycast sticker placement — self-view slice parked),
-  [`sticker-skin-system`](concepts/sticker-skin-system), ADR-0082 (Blossom upload /
+  [`sticker-skin-system`](concepts/sticker-skin-system), ADR-0091 (Blossom upload /
   character publish), ADR-0006 (MP hit authority), Digital Assets & GLB/Npub Ownership
   (strategy.md), `src/stickerNpc.js`
 
@@ -31,7 +31,7 @@ feature inactive), but its pure placement model is reused here.
 ## Decision
 
 1. **UGC sticker library.** Stickers become content-addressed images: upload via the existing
-   Blossom path (`uploadBlossom`, ADR-0082) → sha256 hash → a Nostr metadata event (an
+   Blossom path (`uploadBlossom`, ADR-0091) → sha256 hash → a Nostr metadata event (an
    extension of the `torii.asset` manifest from the Digital Assets section, with a sticker
    type). The shared library is resolved from that metadata; the single hardcoded
    `ftff-sticker.png` becomes just the seed entry, content-addressed so the default fire

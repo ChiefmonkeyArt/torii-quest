@@ -3,11 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-08-31
 - **Deciders:** chiefmonkey
-- **Related:** ADR-0082 (Character Forge), [`sticker-skin-system`](concepts/sticker-skin-system), `nap-torii-avatar-v0.md`
+- **Related:** ADR-0091 (Character Forge), [`sticker-skin-system`](concepts/sticker-skin-system), `nap-torii-avatar-v0.md`
 
 ## Context
 
-ADR-0082 committed to a validator-first character pipeline whose v1 ships
+ADR-0091 committed to a validator-first character pipeline whose v1 ships
 **presets + stickers, zero AI**. The kind-35100 event already models a sticker
 as `["sticker", <hash>, <zoneId>, <u>, <v>, <rot>]` and `characterManifest.js`
 already validates that shape. What was missing is the authoring half: a way for

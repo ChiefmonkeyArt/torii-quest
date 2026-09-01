@@ -1,9 +1,11 @@
-# ADR-0082: Character Forge — validator-first character pipeline with auto-rig groundwork
+# ADR-0091: Character Forge — validator-first character pipeline with auto-rig groundwork
+
+> **Renumbered 0082 → 0091 on 2026-09-01.** ADR-0082 collided with the napplet game-host scaffold (ADR-0082, PR #84), so this Character Forge ADR took the next free number. Cross-references in ADR-0086/0087/0090 updated accordingly.
 
 - **Status:** Accepted
 - **Date:** 2026-08-31
 - **Deciders:** chiefmonkey
-- **Related:** ADR-0078 (settings panel), `nap-torii-avatar-v0.md`, `torii-asset-behavior-v1.md`, the "Torii Asset Forge" entry in `torii-quest-strategy.md`
+- **Related:** ADR-0078 (settings panel), ADR-0086 (sticker placement model), ADR-0087 (validator-gated mesh generation), `nap-torii-avatar-v0.md`, `torii-asset-behavior-v1.md`, the "Torii Asset Forge" entry in `torii-quest-strategy.md`
 
 ## Context
 

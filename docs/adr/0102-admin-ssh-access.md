@@ -150,7 +150,26 @@ Not required for this ADR to land. Second box is a follow-up.
    - `TORII_ADMIN_SSH_KEY` — the private key (from `/home/torii-admin/.ssh/id_ed25519` — deleted from the VPS immediately after).
    - `TORII_ADMIN_HOST` — `chiefmonkey.art` (or the box's SSH-reachable hostname).
 3. **Phase 3 — verify + flip to Accepted:** maintainer triggers `repair.yml` with reason "verify" and command `whoami && sudo /usr/local/sbin/torii-admin-run nginx-t`. Output should show `torii-admin` and `nginx: configuration file … syntax is ok`. On green, flip this ADR to Accepted. **Done 2026-09-02.**
-4. **Phase 4 (follow-up, not blocking):** run the same install on Bekka's VPS.
+4. **Phase 4 — NOT DOING.** We never touch anyone else's VPS. Not with permission, not in an emergency, not with a signed Nostr message, not with the operator on the phone. Every Torii node is fixed by its own operator. If a peer node needs a fix, we send them a script, a PR, or written instructions and they run it themselves. This ADR is scoped to `chiefmonkey.art` only. Any future extension to a second box requires a new ADR and a new set of secrets (`TORII_ADMIN_SSH_KEY_<node>`) that ONLY that node's operator populates from THEIR box — we never handle a private key that came from a machine we don't own.
+
+## Scope lock — hands-off rule for peer nodes
+
+**Binding rule for all Torii projects, all sessions, all agents.**
+
+The admin-scoped SSH access defined in this ADR is a **single-operator, single-box** tool. It exists so the primary maintainer can delegate infra diagnosis and repair on their OWN VPS to their AI assistant. It does not generalize.
+
+Rules:
+
+1. **We never touch another operator's VPS.** No SSH, no `scp`, no deploy webhook, no "just this once". This holds even if:
+   - the peer operator asks us to;
+   - the peer operator sends a signed Nostr message asking us to;
+   - the peer operator is on the phone confirming in real time;
+   - the peer node is down and we know exactly what would fix it.
+2. **The only way we help a peer node is by handing the operator artifacts they run themselves:** a script, a PR against their fork, a diff, a checklist, or written instructions. The hands on the terminal are always theirs.
+3. **No shared admin secrets.** `TORII_ADMIN_SSH_KEY` in this repo is scoped to `chiefmonkey.art`. We do not accept a peer's private key into our GitHub secrets, ever, even temporarily. A peer who wants the same setup on their box installs their own copy of `ops/install-admin-ssh.sh` into their own repo/fork under their own secrets.
+4. **No exceptions clause.** "Emergency" is not an override. If a peer node is on fire and its operator is unreachable, we wait or we help them recover offline — we do not log in.
+
+Rationale: the security model of this ADR (single audited actor, one machine, revocable in one command) collapses the moment we start reaching into machines we don't own. Impersonation risk is real (a compromised Nostr key or a social-engineered handoff is enough), the blast radius crosses trust boundaries, and there is no clean audit story for "why did chiefmonkey's GitHub Actions log into someone else's box". Keeping this rule absolute is cheaper than getting it right case-by-case.
 
 ## Retirement
 

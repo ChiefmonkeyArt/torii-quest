@@ -6,7 +6,24 @@ import { describe, it, expect } from 'vitest';
 import {
   SKELETON_ROLES, REQUIRED_ROLES, MIXAMO_BONE_MAP, BIPED_BONE_MAP,
   detectConvention, mapBonesToRoles, detectAxisUp, CHARACTER_ROOT_SCALE,
+  normalizeBoneName,
 } from '../src/engine/character/skeleton.js';
+
+// Real Mixamo GLB exports — what a Blender / Mixamo-to-Blender / RPM avatar
+// actually contains. Same bone identities as FULL_MIXAMO but with the colon
+// separator preserved by the glTF exporter. v0.2.745 fix: these must map.
+const FULL_MIXAMO_COLON = [
+  'mixamorig:Hips', 'mixamorig:Spine', 'mixamorig:Spine1', 'mixamorig:Spine2',
+  'mixamorig:Neck', 'mixamorig:Head',
+  'mixamorig:LeftShoulder', 'mixamorig:RightShoulder',
+  'mixamorig:LeftArm', 'mixamorig:RightArm',
+  'mixamorig:LeftForeArm', 'mixamorig:RightForeArm',
+  'mixamorig:LeftHand', 'mixamorig:RightHand',
+  'mixamorig:LeftUpLeg', 'mixamorig:RightUpLeg',
+  'mixamorig:LeftLeg', 'mixamorig:RightLeg',
+  'mixamorig:LeftFoot', 'mixamorig:RightFoot',
+  'mixamorig:LeftToeBase', 'mixamorig:RightToeBase',
+];
 
 const FULL_MIXAMO = [
   'mixamorigHips', 'mixamorigSpine', 'mixamorigSpine1', 'mixamorigSpine2',
@@ -84,6 +101,55 @@ describe('mapBonesToRoles', () => {
     expect(r.convention).toBe('unknown');
     expect(Object.keys(r.mapped).length).toBe(0);
     expect(r.extra.length).toBe(2);
+  });
+});
+
+describe('normalizeBoneName (v0.2.745 fix)', () => {
+  it('strips the mixamorig: colon separator (Blender/glTF form)', () => {
+    expect(normalizeBoneName('mixamorig:Hips')).toBe('mixamorigHips');
+    expect(normalizeBoneName('mixamorig:RightForeArm')).toBe('mixamorigRightForeArm');
+  });
+  it('leaves the no-colon form untouched (Adobe FBX form)', () => {
+    expect(normalizeBoneName('mixamorigHips')).toBe('mixamorigHips');
+    expect(normalizeBoneName('mixamorigRightForeArm')).toBe('mixamorigRightForeArm');
+  });
+  it('handles nested armature prefixes', () => {
+    expect(normalizeBoneName('Armature:mixamorig:Hips')).toBe('mixamorigHips');
+  });
+  it('is a no-op for names without any colon', () => {
+    expect(normalizeBoneName('Bip01 Spine')).toBe('Bip01 Spine');
+    expect(normalizeBoneName('root')).toBe('root');
+  });
+  it('is safe for null / non-string input', () => {
+    expect(normalizeBoneName(null)).toBe('');
+    expect(normalizeBoneName(undefined)).toBe('');
+    expect(normalizeBoneName(42)).toBe('42');
+  });
+});
+
+describe('detectConvention with colon-form names (v0.2.745 fix)', () => {
+  it('detects mixamo from the Blender/glTF colon form', () => {
+    expect(detectConvention(FULL_MIXAMO_COLON)).toBe('mixamo');
+  });
+  it('detects mixamo from a nested armature prefix', () => {
+    expect(detectConvention(['Armature:mixamorig:Hips', 'Armature:mixamorig:Head'])).toBe('mixamo');
+  });
+});
+
+describe('mapBonesToRoles with colon-form names (v0.2.745 fix)', () => {
+  it('maps a full colon-form Mixamo skeleton with no missing required roles', () => {
+    const r = mapBonesToRoles(FULL_MIXAMO_COLON);
+    expect(r.convention).toBe('mixamo');
+    expect(r.requiredMissing).toEqual([]);
+    // The original bone name (with colon) is what's stored in `mapped`, so the
+    // caller can still address the actual node in the GLTF scene.
+    expect(r.mapped.Hips).toBe('mixamorig:Hips');
+    expect(r.mapped.RightHand).toBe('mixamorig:RightHand');
+    expect(r.mapped.LeftUpperLeg).toBe('mixamorig:LeftUpLeg');
+  });
+  it('reports zero extras when every colon-form bone maps', () => {
+    const r = mapBonesToRoles(FULL_MIXAMO_COLON);
+    expect(r.extra).toEqual([]);
   });
 });
 

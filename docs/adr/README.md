@@ -140,6 +140,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0102](./0102-admin-ssh-access.md) | Admin-scoped SSH key for AI-driven infra diagnosis + repair — dispatcher-gated, `workflow_dispatch`-only, audited via GitHub Actions | Accepted |
 | [0103](./0103-mixamo-colon-bone-names.md) | Character Forge: normalize `mixamorig:X` colon-form bone names so real Mixamo GLBs pass the rig validator | Accepted |
 | [0104](./0104-beacon-relay-coverage-refresh.md) | Refresh `DEFAULT_NODE_RELAYS` to only relays that accept + round-trip `kind:30078`; commit `tools/relay-probe.mjs` for repeatability | Accepted |
+| [0105](./0105-deploy-trigger-and-verify-fix.md) | Fix silent auto-deploy gap: tag-release's GITHUB_TOKEN tags never fired deploy-on-tag; also fix a false-negative live-version-poll grep | Accepted |
 
 ## Workflow for a new decision
 

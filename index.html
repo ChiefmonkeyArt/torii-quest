@@ -1021,6 +1021,70 @@
        it. Mirrors #emagake[hidden]. */
     #kami-mode-badge[hidden] { display: none; }
 
+    /* ── ADR-0099 (v0.2.743-alpha) — KAMI-MODE DEV MENU (#torii-dev-menu) ──
+       A left-edge smoked-glass panel that surfaces owner-only runtime toggles
+       (starting with the sticker RENDER-MODE A/B). Only visible while the owner
+       is in Kami Mode; hidden on the public perpetual-world view. Same visual
+       language as #emagake and .owner-board — the world reads sharp through the
+       gaps. Placed on the LEFT edge, docked below the owner-boards stack. */
+    #torii-dev-menu {
+      position: fixed; left: 14px;
+      /* owner-boards column is top:8vh + 3*(27vh + 10px) so we sit BELOW
+         it. Falls back off-screen safely on very short viewports. */
+      top: calc(8vh + 3 * (27vh + 10px));
+      width: 260px; z-index: 40; pointer-events: auto;
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 4px;
+      background: transparent; border: 0; box-shadow: none;
+      font-family: inherit;
+    }
+    #torii-dev-menu[hidden] { display: none; }
+    #torii-dev-menu .dev-menu-header {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      padding: 8px 12px; font-size: 9px; letter-spacing: 3px;
+      color: #ffd36a;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+    }
+    #torii-dev-menu .dev-menu-body {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.38);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.22);
+      padding: 8px; display: flex; flex-direction: column; gap: 6px;
+    }
+    #torii-dev-menu .dev-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 4px;
+      padding: 7px 10px; cursor: pointer;
+      border-radius: 6px;
+      background: rgba(8, 10, 20, 0.55);
+      border: 1px solid rgba(255, 194, 71, 0.25);
+      color: #ffd36a; font-size: 11px; letter-spacing: 1px;
+      text-shadow: 0 1px 1px rgba(0,0,0,1);
+      text-align: left; font-family: inherit;
+    }
+    #torii-dev-menu .dev-toggle:hover { background: rgba(255, 194, 71, 0.15); }
+    #torii-dev-menu .dev-toggle.on {
+      background: rgba(255, 194, 71, 0.22);
+      border-color: rgba(255, 194, 71, 0.60);
+    }
+    #torii-dev-menu .dev-toggle-label { flex: 1; }
+    #torii-dev-menu .dev-toggle-state {
+      font-size: 9px; letter-spacing: 2px;
+      padding: 2px 6px; border-radius: 4px;
+      background: rgba(0,0,0,0.35);
+    }
+    #torii-dev-menu .dev-toggle-hint {
+      flex-basis: 100%; font-size: 9px; letter-spacing: 0.3px;
+      color: #b9b2a3; text-shadow: 0 1px 1px rgba(0,0,0,1);
+    }
+
     /* Smoked-glass component: the header chip and every row. A darker tinted
        fill plus a LIGHT blur (6px) gives the smoked-glass look the user asked for
        — enough to read as glass, not so much it smears the world. The world stays
@@ -1581,7 +1645,7 @@
          occurrences of EXPECTED_VERSION in this file). main.js's
          renderUpdatePreview() replaces these children with the live
          view-model on load. -->
-    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.742-alpha</div></div>
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.743-alpha</div></div>
     <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
     <div id="update-progress" hidden>
       <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1625,6 +1689,11 @@
      is active, so the owner always sees they are in spirit mode (the rack alone
      was too easy to miss over the weapon). pointer-events:none; never blocks. -->
 <div id="kami-mode-badge" hidden aria-label="Kami Mode active">⛩ KAMI MODE · K FOR EMA · ESC EXIT</div>
+
+<!-- ADR-0099 (v0.2.743-alpha) — Kami-mode dev menu. Owner-only, only visible
+     while the admin is in Kami Mode. Rows are injected by devMenu.js from the
+     model registered in arenaRuntime.js. -->
+<div id="torii-dev-menu" hidden aria-label="Kami-mode dev menu"></div>
 
 <!-- ADR-0026 / ADR-0028 — Plebeian market stall panel (watch-only auction reader).
      ADR-0036: opens via the in-world PRODUCT sign's proximity+Q trigger, not
@@ -1715,7 +1784,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <div id="ver">v0.2.742-alpha · torii quest</div>
+  <div id="ver">v0.2.743-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

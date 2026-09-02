@@ -1,8 +1,25 @@
 // audio.js — WebAudio SFX. Lazy AudioContext (must resume on first user gesture).
 // Single shared context; no setTimeout; no allocations beyond per-event nodes
 // (browsers GC oscillator/gain pairs after stop()).
+//
+// v0.2.742-alpha (ADR-0098): bot-fire cues check the client-suspended flag
+// before playing so server SHOT events that race an in-flight Home teardown
+// stay silent at the title screen.
+import { isClientSuspended } from './engine/state/clientSuspended.js';
 
 let _ctx = null;
+
+// v0.2.742-alpha (ADR-0098): suspend / resume the shared AudioContext. Called
+// from arenaRuntime.leaveToTitle / resumeFromTitle so that any queued node
+// tails (a bot-shoot oscillator already scheduled) go silent immediately
+// instead of finishing their envelope at the title screen. Cheap (~1ms) to
+// resume; no context is destroyed.
+export function suspendAudioContext() {
+  try { _ctx && _ctx.suspend && _ctx.suspend(); } catch { /* noop */ }
+}
+export function resumeAudioContext() {
+  try { _ctx && _ctx.resume && _ctx.resume(); } catch { /* noop */ }
+}
 
 function _audioCtx() {
   if (_ctx) return _ctx;
@@ -244,7 +261,14 @@ export function playReload() {
 // ── Bot shoot — raspy higher zap, clearly different from player's pow ──────
 // Player uses a deep sine sweep 440→90Hz. Bots get a thinner, brighter sawtooth
 // sweep 1100→380Hz with a crackle band, so you can tell incoming fire by ear.
+//
+// v0.2.742-alpha (ADR-0098): if the local client is suspended (player left the
+// arena via Home), short-circuit before touching AudioContext. Prevents server
+// SHOT relays that arrive between leaveToTitle() and the MP socket disconnect
+// from playing bot fire at the title screen. The world keeps running on the
+// server for other players; only OUR client is silenced.
 export function playBotShoot() {
+  if (isClientSuspended()) return;
   const ctx = _audioCtx();
   if (!ctx) return;
   const t = ctx.currentTime;

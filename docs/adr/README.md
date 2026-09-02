@@ -133,6 +133,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0095](./0095-settings-click-propagation-fix.md) | Settings Panel Action Buttons Were Dead (Click-Propagation Fix) | Accepted |
 | [0096](./0096-settings-visual-redesign.md) | Settings Panel — Neutral Visual System + Character Select/Create Redesign | Accepted |
 | [0097](./0097-settings-polish-v0.2.739.md) | Settings polish v0.2.739 (opacity + font + Character preview + toast + micro-interactions) | Accepted |
+| [0098](./0098-home-button-client-suspend.md) | Home button client-suspend on perpetual-world model (no teardown, silence + park local client, MP socket stays open) | Accepted |
 
 ## Workflow for a new decision
 

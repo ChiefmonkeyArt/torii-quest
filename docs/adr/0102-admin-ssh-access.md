@@ -1,7 +1,8 @@
 # ADR-0102: Admin-scoped SSH key for AI-driven infra diagnosis and repair
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Version target:** infra-only; no code version bump.
+- **Landed:** 2026-09-02. Repair workflow in PR #109, sudoers fix in PR #110, VPS-side install (torii-admin user + dispatcher + sudoers + host key pinning) same day. First live diagnostic run verified `whoami=torii-admin` + `nginx -t` passed; second run correctly diagnosed and cleared the stale ADR-0101 failed-service state on the primary VPS.
 - **Depends on:** [ADR-0101](0101-auto-deploy-on-tag.md) (the deploy-only key stays exactly as it is; this is a **second** key with a wider scope).
 - **Related:** none.
 
@@ -44,49 +45,11 @@ sudo chmod 600 ~torii-admin/.ssh/authorized_keys
 
 Then `/etc/sudoers.d/torii-admin` (root:root 0440, validated with `visudo -c -f`):
 
+**Note (post-implementation, PR #110):** Sudoers does not accept wildcards in command arguments (`visudo -c` rejects them). The final shape landed as a small privileged **dispatcher script** at `/usr/local/sbin/torii-admin-run` that enforces the same allowlists in shell (path predicates, unit-name checks, deny-list), with sudoers granting NOPASSWD only to the dispatcher. Same security envelope, actually parses. See `ops/install-admin-ssh.sh` for the shipped version.
+
 ```
-# torii-admin: AI-driven infra diagnosis + repair. See ADR-0102.
-# Read-only diagnostics: unlimited (any file, any log, any status).
-torii-admin ALL=(root) NOPASSWD: /usr/bin/cat, /usr/bin/less, /usr/bin/head, /usr/bin/tail, \
-                                 /usr/bin/grep, /usr/bin/find, /usr/bin/ls, /usr/bin/stat, \
-                                 /usr/bin/readlink, /usr/bin/file, /usr/bin/du, /usr/bin/df
-torii-admin ALL=(root) NOPASSWD: /bin/systemctl status *, /bin/systemctl show *
-torii-admin ALL=(root) NOPASSWD: /bin/journalctl *
-torii-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -T, /usr/sbin/nginx -t
-
-# Targeted writes: only the paths this project owns.
-torii-admin ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/*, \
-                                 /usr/bin/tee /etc/nginx/conf.d/*, \
-                                 /usr/bin/tee /etc/systemd/system/torii-*.service, \
-                                 /usr/bin/tee /etc/systemd/system/torii-*.timer, \
-                                 /usr/bin/tee /var/www/torii.quest/*, \
-                                 /usr/bin/tee /opt/torii-quest/*
-torii-admin ALL=(root) NOPASSWD: /bin/ln -sf /var/www/torii.quest/releases/*, \
-                                 /bin/mv /var/www/torii.quest/*, \
-                                 /bin/mkdir -p /var/www/torii.quest/*, \
-                                 /bin/mkdir -p /opt/torii-quest/*, \
-                                 /bin/rm /etc/nginx/sites-enabled/*, \
-                                 /bin/ln -s /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*
-
-# Service control: allowlisted units only.
-torii-admin ALL=(root) NOPASSWD: /bin/systemctl start torii-*, \
-                                 /bin/systemctl stop torii-*, \
-                                 /bin/systemctl restart torii-*, \
-                                 /bin/systemctl reload nginx, \
-                                 /bin/systemctl restart nginx, \
-                                 /bin/systemctl daemon-reload
-torii-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload
-
-# Explicit deny list (defense in depth; the allowlist above already excludes these).
-torii-admin ALL=(root) NOPASSWD: !/bin/rm -rf /*, !/bin/dd, !/sbin/mkfs*, \
-                                 !/sbin/shutdown, !/sbin/reboot, !/sbin/halt, \
-                                 !/usr/sbin/useradd, !/usr/sbin/userdel, !/usr/sbin/usermod, \
-                                 !/usr/bin/passwd, !/usr/bin/chage, \
-                                 !/usr/bin/apt*, !/usr/bin/dpkg*, \
-                                 !/usr/bin/tee /root/*, !/usr/bin/tee /etc/passwd, \
-                                 !/usr/bin/tee /etc/shadow, !/usr/bin/tee /etc/sudoers*, \
-                                 !/usr/bin/tee /home/*/.ssh/*, \
-                                 !/usr/bin/tee ~torii-admin/.ssh/*
+# Final sudoers file (one line; the dispatcher enforces per-verb allowlists):
+torii-admin ALL=(root) NOPASSWD: /usr/local/sbin/torii-admin-run
 ```
 
 Rules of thumb:
@@ -186,7 +149,7 @@ Not required for this ADR to land. Second box is a follow-up.
 2. **Phase 2 — VPS side (maintainer, once):** run `ops/install-admin-ssh.sh` on the primary VPS. Script prints the public key. Maintainer pastes it into two GitHub repository secrets:
    - `TORII_ADMIN_SSH_KEY` — the private key (from `/home/torii-admin/.ssh/id_ed25519` — deleted from the VPS immediately after).
    - `TORII_ADMIN_HOST` — `chiefmonkey.art` (or the box's SSH-reachable hostname).
-3. **Phase 3 — verify + flip to Accepted:** maintainer triggers `repair.yml` with reason "verify" and command `whoami && sudo nginx -t`. Output should show `torii-admin` and `nginx: configuration file … syntax is ok`. On green, flip this ADR to Accepted.
+3. **Phase 3 — verify + flip to Accepted:** maintainer triggers `repair.yml` with reason "verify" and command `whoami && sudo /usr/local/sbin/torii-admin-run nginx-t`. Output should show `torii-admin` and `nginx: configuration file … syntax is ok`. On green, flip this ADR to Accepted. **Done 2026-09-02.**
 4. **Phase 4 (follow-up, not blocking):** run the same install on Bekka's VPS.
 
 ## Retirement

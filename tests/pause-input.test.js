@@ -71,7 +71,7 @@ describe('pause modal input boundary', () => {
     expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
     // ADR-0032: kamiActive appended to the named-import list (reconnect resync).
     // ADR-0052: kamiEntering appended for the ema snapshot diagnostic.
-    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering \}/);
+    expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
   });
 

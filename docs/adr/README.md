@@ -134,6 +134,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0096](./0096-settings-visual-redesign.md) | Settings Panel — Neutral Visual System + Character Select/Create Redesign | Accepted |
 | [0097](./0097-settings-polish-v0.2.739.md) | Settings polish v0.2.739 (opacity + font + Character preview + toast + micro-interactions) | Accepted |
 | [0098](./0098-home-button-client-suspend.md) | Home button client-suspend on perpetual-world model (no teardown, silence + park local client, MP socket stays open) | Accepted |
+| [0099](./0099-kami-mode-dev-menu.md) | Kami-mode dev menu — owner-only runtime toggles surface (starting with sticker RENDER-MODE A/B), gate enforced in code | Accepted |
 
 ## Workflow for a new decision
 

@@ -1,5 +1,9 @@
 # Torii Quest — Contributor / Agent Handoff
 
+Current version: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface on the left edge; first toggle is the sticker RENDER-MODE A/B (was ToriiDebug console-only). Gate enforced in CODE, not just UI. 18 new tests. 3752 tests / 305 files.
+
+Prior: v0.2.742-alpha — Home button client-suspend (ADR-0098).
+
 Single-page onboarding for the next contributor — human or AI agent. Keep it current as the codebase moves. Pre-1.0 alpha; no API/behaviour compatibility promise across versions.
 
 **Runtime direction (2026-09-01):** keep the custom in-quest napplet runtime (`src/engine/napplets/`). The napplet protocol creator confirms there is intentionally no single 'the runtime' — Hyprgate is unreleased, `@kehto/*` are kernel packages, and kehto/paja is only a development runtime — so the guidance is build your own runtime, or use the open runtimes (Myco, Amethyst, Stlstr, Grimoire) as reference. Torii keeps its own engine, aligned to the NAP spec registry (`napplet/naps`). Adopting `@kehto/*` kernel packages is **not recommended now**: kehto/web is TypeScript (Torii is vanilla JS) and ships **no license** (all-rights-reserved by default) — a hard blocker unless they add one.

@@ -76,7 +76,9 @@ import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.j
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
-import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering } from './engine/kami/kamiMode.js';
+import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner } from './engine/kami/kamiMode.js';
+import { installDevMenu, registerDevToggle, pumpDevMenu } from './engine/dev/devMenu.js';
+import { setStickerForcePlaneMode, getStickerRenderState } from './stickerNpc.js';
 import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
 import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
 import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
@@ -796,6 +798,10 @@ export function createArenaRuntime(hooks = {}) {
     // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
+    // ADR-0099: 1Hz-throttled refresh of the Kami-mode dev menu. Cheap:
+    // renderModel() only reads a handful of booleans and pumpDevMenu
+    // skips the DOM entirely when the snapshot hasn't changed.
+    try { pumpDevMenu(typeof performance !== 'undefined' ? performance.now() : 0); } catch { /* noop */ }
     tickStickerSelfView(); // self-view sticker placement: no-op unless active
     tickDeath(dt, renderer);
 
@@ -1400,6 +1406,21 @@ export function createArenaRuntime(hooks = {}) {
       // (undefined _mp) is fine: single-player has nothing that damages the
       // local player anyway, so there is nothing to tell a server about.
       sendKamiState: (active) => { try { _mp?.sendKamiState?.(active); } catch { /* noop */ } },
+    });
+
+    // ADR-0099 (v0.2.743-alpha) — Kami-mode dev menu. Owner-only,
+    // only visible while the admin is in Kami Mode. Register the
+    // sticker RENDER-MODE A/B here so the model backing the toggle
+    // (stickerRenderMode.js) stays the single source of truth; the
+    // menu row and the existing ToriiDebug.stickers.forcePlaneMode
+    // console incantation both flip the same underlying flag.
+    installDevMenu({ isVisible: () => kamiActive() && kamiIsOwner() });
+    registerDevToggle({
+      id: 'sticker-plane-mode',
+      label: 'Sticker: force plane',
+      hint: 'ADR-0090 A/B — force plane path even where baked is eligible',
+      get: () => !!getStickerRenderState().forcePlaneMode,
+      set: (on) => { setStickerForcePlaneMode(on); },
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync

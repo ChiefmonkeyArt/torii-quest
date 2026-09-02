@@ -60,6 +60,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0090](./0090-ugc-sticker-system.md) | UGC sticker system — any-surface decals, Nostr-published library, multiplayer sync | Accepted |
 | [0095](./0095-settings-click-propagation-fix.md) | Settings panel action buttons were dead — removed the card's `stopPropagation` | Accepted |
 | [0096](./0096-settings-visual-redesign.md) | Settings panel neutral visual system + Character select/create redesign | Accepted |
+| [0097](./0097-settings-polish-v0.2.739.md) | Settings polish v0.2.739 (opacity + font + Character preview + toast + micro-interactions) | Accepted |
 
 ## Workflow for a new decision
 

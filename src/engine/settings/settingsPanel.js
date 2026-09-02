@@ -122,11 +122,17 @@ function _build() {
   const backdrop = doc.createElement('div');
   backdrop.id = 'torii-settings-backdrop';
   backdrop.setAttribute('role', 'presentation');
+  // v0.2.739: dim + blur the backdrop so the amber home-screen doesn't
+  // bleed through around the neutral settings panel. Modal-standard
+  // behaviour (opaque scrim), keeps the panel reading as a proper
+  // "settings page" rather than an overlay pane.
   Object.assign(backdrop.style, {
     position: 'fixed', inset: '0', zIndex: '200',
     display: 'none',
     alignItems: 'center', justifyContent: 'center',
-    background: 'transparent',
+    background: 'rgba(6, 8, 10, 0.72)',
+    backdropFilter: 'blur(8px)',
+    webkitBackdropFilter: 'blur(8px)',
   });
 
   const card = doc.createElement('div');

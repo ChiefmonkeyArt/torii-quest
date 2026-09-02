@@ -15,6 +15,7 @@ import { emit, on, EV } from './events.js';
 // login regardless of the (now deferred) 3D boot.
 import './engine/ui/loginBootstrap.js';
 import { showZoneNotice, hideZoneNotice, showFlyNotice } from './hud.js';
+import { toastSuccess, toastError, toastInfo } from './engine/ui/toast.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
@@ -1576,12 +1577,13 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(t.getAttribute('data-index')); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
-    if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); return; }
+    if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); toastSuccess('Heartbeat updated.'); return; }
     if (action === 'save-relays') {
       e.preventDefault();
       const ta = doc.getElementById('rl-add-input');
       _homepageStubCallbacks().onSetNodeRelays(ta ? ta.value : '');
       renderActiveSettingsTab();
+      toastSuccess('Relays saved.');
       return;
     }
     if (action === 'remove-relay') {
@@ -1595,6 +1597,7 @@ registerSettingsTabRenderer('character', () => {
       const remaining = effective.filter((r) => r !== url);
       _homepageStubCallbacks().onSetNodeRelays(remaining.join('\n'));
       renderActiveSettingsTab();
+      toastInfo('Relay removed.');
       return;
     }
     if (action === 'save-profile') {
@@ -1604,10 +1607,13 @@ registerSettingsTabRenderer('character', () => {
         const el = doc.getElementById(`pf-${id}`);
         if (el) fields[id] = el.value;
       }
-      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields)).finally(() => {
-        renderActiveSettingsTab();
-        _refreshOwnerLabel(); // owner's displayName edit should reflect on the homepage caption immediately
-      });
+      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields))
+        .then(() => { toastSuccess('Profile saved.'); })
+        .catch(() => { toastError('Profile save failed.'); })
+        .finally(() => {
+          renderActiveSettingsTab();
+          _refreshOwnerLabel(); // owner's displayName edit should reflect on the homepage caption immediately
+        });
       return;
     }
   });

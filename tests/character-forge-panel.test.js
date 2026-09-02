@@ -5,10 +5,22 @@ import { describe, it, expect } from 'vitest';
 import { renderCharacterForgePanel } from '../src/engine/settings/characterForgePanel.js';
 
 describe('renderCharacterForgePanel', () => {
-  it('gates the tab behind login', () => {
-    const html = renderCharacterForgePanel({ isLoggedIn: false });
-    expect(html).toContain('Log in with Nostr');
-    expect(html).not.toContain('select-preset');
+  it('shows a preview (presets + create cards) and a sign-in banner when logged out', () => {
+    // v0.2.739: the tab renders the SAME preview shell logged-out as logged-out
+    // — preset grid + Upload + Create-with-AI cards are visible so the player
+    // can see what's on offer — but every action button is disabled behind a
+    // "Sign in with Nostr to save your character" banner. Nothing is written
+    // until they log in.
+    const html = renderCharacterForgePanel({
+      isLoggedIn: false,
+      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }, { id: 'nostrich', label: 'Nostrich' }],
+    });
+    expect(html).toContain('Sign in with Nostr');
+    expect(html).toContain('cf-preset-card');
+    // gated: every action button is disabled while logged out
+    expect(html).toMatch(/data-action="select-preset"[^>]*disabled/);
+    expect(html).toMatch(/data-action="upload-mesh"[^>]*disabled/);
+    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
   });
 
   it('shows the preset picker when logged in with no character', () => {

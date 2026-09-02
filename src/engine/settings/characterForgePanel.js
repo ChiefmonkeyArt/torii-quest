@@ -118,12 +118,14 @@ function _stickerEditor(stickers, library) {
 
 // _presetGrid(presets) — the preset picker as a card grid (name + Select),
 // not plain buttons in a row.
-function _presetGrid(presets) {
+function _presetGrid(presets, opts) {
   const list = Array.isArray(presets) ? presets : [];
+  const disabled = !!(opts && opts.disabled);
+  const dAttr = disabled ? ' disabled' : '';
   const cards = list.map((p) => {
     const id = (p && p.id) ? p.id : '';
     const label = (p && p.label) ? p.label : id;
-    return `<button type="button" class="cf-preset-card" data-action="select-preset" data-preset="${_escape(id)}">
+    return `<button type="button" class="cf-preset-card" data-action="select-preset" data-preset="${_escape(id)}"${dAttr}>
       <span class="cf-preset-thumb" aria-hidden="true">${_escape(_initial(label))}</span>
       <span class="cf-preset-name">${_escape(label)}</span>
       <span class="cf-preset-select">Select</span>
@@ -138,15 +140,25 @@ function _presetGrid(presets) {
 // future Meshy-style routstr/Cashu integration, ADR-0091). The AI card's
 // button is deliberately disabled and NOT wired in main.js — wiring it is
 // out of scope for this pass; only the slot is real.
-function _createView(presets) {
+function _createView(presets, opts) {
+  // v0.2.739: the create view renders the SAME shell whether the user is
+  // logged in or not. When logged out, every action button is disabled
+  // (via `opts.disabled`) so people can still see what's on offer without
+  // being blocked by an empty gate. `create-with-ai` is disabled in both
+  // states (Meshy/routstr wiring is a later slice per ADR-0091).
+  const disabled = !!(opts && opts.disabled);
+  const uploadDisabled = disabled ? ' disabled' : '';
+  const subtitle = disabled
+    ? 'Preview the roster — sign in with Nostr to select or create.'
+    : 'Pick a character, or create your own.';
   return `
-    <div class="settings-subtitle">Pick a character, or create your own.</div>
-    ${_presetGrid(presets)}
+    <div class="settings-subtitle">${subtitle}</div>
+    ${_presetGrid(presets, { disabled })}
     <div class="cf-create-grid">
       <div class="cf-create-card cf-upload-card">
         <div class="cf-create-card-title">Upload a character</div>
         <div class="cf-create-card-hint">Upload a rigged .glb file — it must include a compatible humanoid skeleton.</div>
-        <button type="button" class="settings-btn" data-action="upload-mesh">Upload .glb</button>
+        <button type="button" class="settings-btn" data-action="upload-mesh"${uploadDisabled}>Upload .glb</button>
       </div>
       <div class="cf-create-card cf-ai-card">
         <div class="cf-create-card-title">Create with AI</div>
@@ -162,25 +174,29 @@ export function renderCharacterForgePanel(state = {}) {
   const isLoggedIn = st.isLoggedIn === true;
   const status = typeof st.status === 'string' ? st.status : 'idle';
 
+  // v0.2.739: pre-login now shows a friendly "Sign in with Nostr…" banner
+  // ABOVE a fully-rendered but disabled preview (preset grid + Upload + AI
+  // cards) so the tab reads as a real character-select screen even before
+  // login, instead of a blank gate wall.
   const gate = !isLoggedIn
-    ? '<div class="settings-gate">Log in with Nostr to create or load your character.</div>'
+    ? '<div class="settings-gate">Sign in with Nostr to save your character. You can browse the roster below.</div>'
     : '';
   const mode = (st.mode === 'edit') ? 'edit' : 'view';
 
   let body = '';
-  if (isLoggedIn) {
-    if (status === 'found' && st.character) {
-      body = (mode === 'edit')
-        ? _stickerEditor(st.character.stickers, st.stickerLibrary)
-        : _foundView(st.character);
-    } else if (status === 'failed') {
-      body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
-        <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;
-    } else if (status === 'checking' || status === 'creating') {
-      body = '<div class="settings-empty">Working…</div>';
-    } else {
-      body = _createView(st.presets);
-    }
+  if (!isLoggedIn) {
+    body = _createView(st.presets, { disabled: true });
+  } else if (status === 'found' && st.character) {
+    body = (mode === 'edit')
+      ? _stickerEditor(st.character.stickers, st.stickerLibrary)
+      : _foundView(st.character);
+  } else if (status === 'failed') {
+    body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
+      <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;
+  } else if (status === 'checking' || status === 'creating') {
+    body = '<div class="settings-empty">Working…</div>';
+  } else {
+    body = _createView(st.presets);
   }
 
   return `

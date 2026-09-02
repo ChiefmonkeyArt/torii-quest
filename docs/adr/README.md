@@ -135,6 +135,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0097](./0097-settings-polish-v0.2.739.md) | Settings polish v0.2.739 (opacity + font + Character preview + toast + micro-interactions) | Accepted |
 | [0098](./0098-home-button-client-suspend.md) | Home button client-suspend on perpetual-world model (no teardown, silence + park local client, MP socket stays open) | Accepted |
 | [0099](./0099-kami-mode-dev-menu.md) | Kami-mode dev menu — owner-only runtime toggles surface (starting with sticker RENDER-MODE A/B), gate enforced in code | Accepted |
+| [0100](./0100-recording-ring-toggle.md) | Recording-ring toggle — owner-controlled pause for the ADR-0055 1Hz auto-capture, registered on the ADR-0099 dev-menu shell | Accepted |
 
 ## Workflow for a new decision
 

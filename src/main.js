@@ -2741,4 +2741,16 @@ if (typeof window !== 'undefined') {
       forcePlaneMode: (on) => setStickerForcePlaneMode(on),
     };
   }).catch(() => { /* stickerNpc not loaded in this build */ });
+
+  // ADR-0100 (v0.2.744-alpha) — recording-ring toggle console mirror. Same flag
+  // as the Kami dev-menu row (single source of truth: recordingRingGate.js).
+  //   ToriiDebug.recording.state()          → { enabled }
+  //   ToriiDebug.recording.enabled(true)    → resume 1Hz auto-capture
+  //   ToriiDebug.recording.enabled(false)   → pause sealing + upload
+  import('./engine/dev/recordingRingGate.js').then(({ isRecordingRingEnabled, setRecordingRingEnabled }) => {
+    window.ToriiDebug.recording = {
+      state: () => ({ enabled: isRecordingRingEnabled() }),
+      enabled: (on) => setRecordingRingEnabled(on),
+    };
+  }).catch(() => { /* recordingRingGate not loaded in this build */ });
 }

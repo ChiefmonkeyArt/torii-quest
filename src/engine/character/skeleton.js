@@ -114,6 +114,31 @@ export const CHARACTER_ROOT_SCALE = 1 / 175;
 // arenaRuntime.js).
 export const EYE_OFFSET = 1.7;
 
+// normalizeBoneName(name) → the lookup key for the bone-map. Mixamo exports
+// through Blender/glTF use `mixamorig:Hips` (with a colon separator);
+// Adobe's FBX-to-Blender pipeline sometimes strips the colon to `mixamorigHips`.
+// The bone-map keys are the no-colon form, so we normalize the incoming name
+// to that form before lookup. Also handles the same colon-prefix pattern for
+// arbitrary armatures (`Armature:mixamorig:Hips` → `mixamorigHips`).
+// Pure, allocation-light.
+export function normalizeBoneName(name) {
+  const s = String(name || '');
+  // Fast path: no colon at all — already normalized.
+  if (!s.includes(':')) return s;
+  // Any occurrence of the Mixamo prefix (possibly nested under an armature
+  // prefix like "Armature:mixamorig:Hips") maps to the no-colon Mixamo form.
+  const mx = s.indexOf('mixamorig:');
+  if (mx >= 0) {
+    const afterPrefix = s.slice(mx + 'mixamorig:'.length);
+    return `mixamorig${afterPrefix.replace(/:/g, '')}`;
+  }
+  // Non-Mixamo colon form (e.g. a Biped rig exported through a namespace).
+  // Strip the namespace prefix (up to and including the last colon) and any
+  // stray colons in the tail. Preserves internal spaces ("Bip01 Spine").
+  const lastColon = s.lastIndexOf(':');
+  return s.slice(lastColon + 1).replace(/:/g, '');
+}
+
 // detectConvention(boneNames) → 'mixamo' | 'biped' | 'unknown'.
 // Classifies a bone list by which known convention the majority of names match.
 export function detectConvention(boneNames) {
@@ -122,8 +147,9 @@ export function detectConvention(boneNames) {
   let mixamoHits = 0;
   let bipedHits = 0;
   for (const n of names) {
-    if (n.startsWith('mixamorig')) mixamoHits += 1;
-    else if (n.startsWith('Bip01') || n.startsWith('bip01')) bipedHits += 1;
+    const norm = normalizeBoneName(n);
+    if (norm.startsWith('mixamorig')) mixamoHits += 1;
+    else if (norm.startsWith('Bip01') || norm.startsWith('bip01')) bipedHits += 1;
   }
   if (mixamoHits > bipedHits && mixamoHits > 0) return 'mixamo';
   if (bipedHits > mixamoHits && bipedHits > 0) return 'biped';
@@ -135,6 +161,9 @@ export function detectConvention(boneNames) {
 // `mapped` is { role: boneName }; `missing` is every role with no mapping;
 // `requiredMissing` is the subset the animation library cannot do without;
 // `extra` is bone names that matched no role (ignored by the auto-rigger).
+// Bone names are normalized (see normalizeBoneName) before lookup, so
+// `mixamorig:Hips` (Blender/glTF form) and `mixamorigHips` (Adobe FBX form)
+// both map to the same role.
 export function mapBonesToRoles(boneNames) {
   const names = Array.isArray(boneNames) ? boneNames.map((n) => String(n)) : [];
   const convention = detectConvention(names);
@@ -142,7 +171,7 @@ export function mapBonesToRoles(boneNames) {
   const mapped = {};
   const seen = new Set();
   for (const n of names) {
-    const role = map[n];
+    const role = map[normalizeBoneName(n)];
     if (role && !seen.has(role)) {
       mapped[role] = n;
       seen.add(role);
@@ -153,7 +182,7 @@ export function mapBonesToRoles(boneNames) {
     .filter((r) => !mappedRoles.includes(r.role))
     .map((r) => r.role);
   const requiredMissing = missing.filter((r) => REQUIRED_ROLES.includes(r));
-  const extra = names.filter((n) => !map[n]);
+  const extra = names.filter((n) => !map[normalizeBoneName(n)]);
   return { convention, mapped, missing, requiredMissing, extra };
 }
 

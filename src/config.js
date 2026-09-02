@@ -126,7 +126,7 @@ export const MP_WS_PATH     = '/mp';
 export const PLEBEIAN_RELAYS   = ['wss://relay.staging.plebeian.market'];
 export const PLEBEIAN_AUCTION_ID = '55d80b60877693e4e5e8a20c358b6a03657fc74912bab90abf1fc7221266f6cb';
 
-// v0.2.739-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
+// v0.2.745-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
 // QUEST_ADMIN_NPUB is read from the SERVER environment only (arena-ws), accepting
 // either an `npub1…` or a raw hex64 pubkey. An npub is a PUBLIC key, so surfacing
 // it (e.g. via the public capability endpoint) leaks nothing — but the value is

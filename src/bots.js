@@ -22,6 +22,7 @@ import {
   BOSS_TARGET_HEIGHT,
 } from './config.js';
 import { playBotShoot } from './audio.js';
+import { isClientSuspended } from './engine/state/clientSuspended.js';
 import { BotModel, preloadBotModel, preloadBossModel } from './botModel.js';
 import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
@@ -450,7 +451,14 @@ export function getBotNetDiagnostic() {
 
 // A bot fired — spawn the enemy tracer bullet + play the bot-shoot cue. Mirrors
 // the single-player shotCallback so the visual/audio is identical.
+//
+// v0.2.742-alpha (ADR-0098): the client is RENDER-ONLY in MP; server SHOT
+// relays fan out to every client, including ours. When the local client is
+// suspended (Home pressed — player is on title, world keeps running server-
+// side for peers), skip both the tracer spawn AND the audio cue. isClient‐
+// Suspended is the single boundary: same flag audio.js consults.
 export function applyBotShot(originArr, dirArr) {
+  if (isClientSuspended()) return;
   if (!Array.isArray(originArr) || !Array.isArray(dirArr)) return;
   const origin = { x: originArr[0], y: originArr[1], z: originArr[2] };
   const dir = { x: dirArr[0], y: dirArr[1], z: dirArr[2] };

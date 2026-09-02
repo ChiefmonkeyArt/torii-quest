@@ -35,6 +35,15 @@ export function initLoop(onUpdate, onFatal = null) {
 export function getFrame() { return _frame; }
 export function isLoopStopped() { return _stopped; }
 
+// v0.2.742-alpha (ADR-0098): cooperatively halt the render loop. Sets the same
+// _stopped flag the fail-closed path uses so the next scheduled rAF sees it and
+// declines to reschedule. Idempotent. The loop can be restarted with startLoop()
+// — no state is disposed (no scene teardown, no THREE resources freed), so the
+// world stays warm for instant re-entry via the title→arena ENTER path.
+export function stopLoop() {
+  _stopped = true;
+}
+
 export function startLoop() {
   _stopped = false;
   _errStreak = 0;

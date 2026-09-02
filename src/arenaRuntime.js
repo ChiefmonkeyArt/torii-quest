@@ -24,7 +24,8 @@ import { buildArena } from './arena.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
-import { initLoop, startLoop } from './loop.js';
+import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
+import { setClientSuspended } from './engine/state/clientSuspended.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
@@ -67,7 +68,7 @@ import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
-import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
+import { playShoot, playFootstep, playJumpLand, playSplash, suspendAudioContext, resumeAudioContext } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
@@ -1586,8 +1587,12 @@ export function createArenaRuntime(hooks = {}) {
     // The owner-gate is checked inside kamiCapture; non-owners see "OWNER ONLY".
     elKamiBtn?.addEventListener('click', () => { try { kamiCapture(); } catch { /* noop */ } });
     elHomeBtn?.addEventListener('click', () => {
+      // v0.2.742-alpha (ADR-0098): client-suspend on Home. The world is a
+      // perpetual server-authoritative simulation — peers keep playing. All we
+      // do here is stop OUR render / audio / MP so the title screen is silent
+      // and idle. Re-entry via ENTER wakes the client back up (no re-boot).
+      leaveToTitle();
       transition(GAME_EVENT.HOME);
-      document.exitPointerLock?.();
       resetEnterButton();
     });
 
@@ -1968,6 +1973,11 @@ export function createArenaRuntime(hooks = {}) {
   let _spawnOverride = null;
   function setSpawnOverride(x, z, yaw) { _spawnOverride = { x, z, yaw }; }
   function enter() {
+    // v0.2.742-alpha (ADR-0098): if the player is coming back from Home (client
+    // was suspended), wake the client BEFORE anything else — restart rAF, resume
+    // audio, clear the suspended flag — so this enter() runs on a live client.
+    // Idempotent: no-op on a fresh boot (loop already running, flag already false).
+    resumeFromTitle();
     resetRun();
     if (_spawnOverride) {
       setNextSpawn(_spawnOverride.x, _spawnOverride.z, _spawnOverride.yaw);
@@ -2011,5 +2021,56 @@ export function createArenaRuntime(hooks = {}) {
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }
 
-  return { boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl, setCustomMeshHash, setSpawnOverride, stopMultiplayer };
+  // v0.2.742-alpha (ADR-0098): Home teardown — client-suspend only.
+  //
+  // Design note on MP socket: we intentionally do NOT drop the WebSocket here.
+  // The setup that creates _mp lives inside boot() and is not re-runnable, so a
+  // drop-and-redial after Home would leave enter() dead-in-water (no bots, no
+  // peers). Instead: keep the socket open. Server keeps sending BOT_STATE /
+  // BOT_SHOT / peer MOVEs; our render loop is halted so nothing draws, our audio
+  // context is suspended so nothing sounds, and the isClientSuspended() guards
+  // on playBotShoot + applyBotShot short-circuit each incoming SHOT event as an
+  // additional belt-and-braces. On ENTER, we simply un-suspend and the same
+  // socket resumes into a live client. Bandwidth cost during Home is trivial
+  // (idle bot-state pushes) and the alternative (extract MP-boot into re-usable
+  // enterMultiplayer()) is a much larger refactor for negligible gain.
+  //
+  // The world is a perpetual server-authoritative simulation. When THIS player
+  // presses Home, peers must keep playing; the server does not care that our
+  // client stopped drawing. So all we do here is silence + park our client:
+  //   • flip the shared suspended flag (audio.playBotShoot + bots.applyBotShot
+  //     short-circuit — belt-and-braces vs. socket-vs-flag race)
+  //   • suspend AudioContext so any already-scheduled node tails go silent
+  //     immediately instead of finishing at the title screen
+  //   • stopLoop() halts the rAF (next frame declines to reschedule)
+  //   • stopMultiplayer('home') cleanly disconnects our socket so the server
+  //     removes us from the roster right away instead of after a ping-timeout
+  //   • exitPointerLock releases the mouse
+  //
+  // NO scene disposal, NO memory freed: terrain, meshes, physics world all stay
+  // warm so ENTER re-boots into the same world instantly. Idempotent — pressing
+  // Home twice is safe.
+  function leaveToTitle() {
+    setClientSuspended(true);
+    suspendAudioContext();
+    stopLoop();
+    try { document.exitPointerLock?.(); } catch { /* noop */ }
+  }
+
+  // Symmetric partner: called from enter() so the ENTER handoff after Home is a
+  // proper resume rather than a fresh boot. Restarts the render loop, resumes
+  // the AudioContext, and clears the suspended flag. The MP socket was never
+  // dropped (see design note above), so peers/bots resume drawing immediately.
+  function resumeFromTitle() {
+    setClientSuspended(false);
+    resumeAudioContext();
+    if (isLoopStopped()) startLoop();
+  }
+
+  return {
+    boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
+    setCustomMeshHash, setSpawnOverride, stopMultiplayer,
+    // v0.2.742-alpha (ADR-0098):
+    leaveToTitle, resumeFromTitle,
+  };
 }

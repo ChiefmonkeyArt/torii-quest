@@ -1,6 +1,8 @@
 # Torii Quest — Progress Dashboard
 
-Current version: v0.2.744-alpha — Recording-ring toggle (ADR-0100) + auto-deploy pipeline landed (ADR-0101 Accepted). Every future ship deploys itself on tag push — no more "VPS deploy pending" step. Ship reports get one row shorter starting v0.2.745.
+Current version: v0.2.746-alpha — Beacon relay coverage refresh (ADR-0104). `DEFAULT_NODE_RELAYS` is now the writable-verified set only: `main.relay.gamestr.io` (kind-30078 blocked) and `relay.vertexlab.io` (DVM-only, kinds 5312–5315) removed; `relay.damus.io` and `relay.primal.net` added. Every default relay now accepts + round-trips our presence writes (5/5, up from 2/5). Live probe committed at `tools/relay-probe.mjs` so the list stays maintainable. gamestr leaderboard reads (kind-30762) unaffected — they still hit `main.relay.gamestr.io` via `gamestrScore.js`, which is a separate hardcoded target.
+
+Prior: v0.2.744-alpha — Recording-ring toggle (ADR-0100) + auto-deploy pipeline landed (ADR-0101 Accepted). Every future ship deploys itself on tag push — no more "VPS deploy pending" step. Ship reports get one row shorter starting v0.2.746.
 
 ADR-0100 detail: owner-controlled pause for the ADR-0055 1Hz auto-capture ring. New pure gate module (default ON — no behavioural change for anyone who never touches the menu). Registered as the second row on the ADR-0099 Kami dev-menu shell. `ToriiDebug.recording.enabled(false)` console mirror flips the same flag. On-screen recording indicator dot goes dark exactly when captures stop. 11 new tests. 3763 tests / 306 files, 21/21 gates.
 

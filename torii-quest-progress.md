@@ -1,6 +1,10 @@
 # Torii Quest — Progress Dashboard
 
-Current version: v0.2.744-alpha — Recording-ring toggle (ADR-0100). Owner-controlled pause for the ADR-0055 1Hz auto-capture ring. New pure gate module (default ON — no behavioural change for anyone who never touches the menu). Registered as the second row on the ADR-0099 Kami dev-menu shell. `ToriiDebug.recording.enabled(false)` console mirror flips the same flag. On-screen recording indicator dot goes dark exactly when captures stop. 11 new tests. 3763 tests / 306 files, 21/21 gates.
+Current version: v0.2.744-alpha — Recording-ring toggle (ADR-0100) + auto-deploy pipeline landed (ADR-0101 Accepted). Every future ship deploys itself on tag push — no more "VPS deploy pending" step. Ship reports get one row shorter starting v0.2.745.
+
+ADR-0100 detail: owner-controlled pause for the ADR-0055 1Hz auto-capture ring. New pure gate module (default ON — no behavioural change for anyone who never touches the menu). Registered as the second row on the ADR-0099 Kami dev-menu shell. `ToriiDebug.recording.enabled(false)` console mirror flips the same flag. On-screen recording indicator dot goes dark exactly when captures stop. 11 new tests. 3763 tests / 306 files, 21/21 gates.
+
+ADR-0101 detail: deploy-only ed25519 SSH key on the VPS locked by authorized_keys forced-command to `/usr/local/bin/torii-deploy-hook`, sudoers narrows ubuntu to four verbs, private key in `TORII_DEPLOY_SSH_KEY` repo secret (only copy). New workflow `.github/workflows/deploy-on-tag.yml` fires on every `v*-alpha` tag push, SSHes, kicks the update service, polls the live page for up to 80s, and fails loud on mismatch. Verified end-to-end with a throwaway tag today — SSH + hook path works; first live deploy runs on the next real ship.
 
 Prior: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface. Left-edge smoked-glass panel only visible when the admin is in Kami Mode; hidden on the public perpetual-world view. First toggle registered: sticker RENDER-MODE A/B (was ToriiDebug-only). Pure model + 1Hz DOM driver, gate enforced in CODE. 18 new tests. 3752 tests / 305 files, 21/21 gates. PR-C queues the recording-ring toggle against this same shell.
 

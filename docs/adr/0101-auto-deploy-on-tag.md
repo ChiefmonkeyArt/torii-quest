@@ -1,7 +1,8 @@
 # ADR-0101: Auto-deploy to the VPS on tag push (deploy-only SSH key + GitHub Actions)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Version target:** v0.2.745-alpha (or the next merged ship)
+- **Landed:** 2026-09-02. Workflow in PR #107, ADR in PR #106. VPS side (deploy key + forced-command + `/usr/local/bin/torii-deploy-hook` + sudoers) installed same day. First live deploy will be the next real ship.
 - **Supersedes / relates to:** none directly. Retires the manual `systemctl start torii-quest-update.service` step from every ship report.
 
 ## Context
@@ -77,14 +78,16 @@ jobs:
 - **Verify step:** the workflow fails loud if the live page didn't update. Turns silent drift into a red badge in the Actions tab.
 - **`v*-alpha` filter:** only alpha ship tags trigger. Doc-only tags or personal experiments don't.
 
-### Rollout
+### Rollout (as landed)
 
-1. Generate the key on the VPS (5 min).
-2. Add the forced-command line + sudoers rule + `torii-deploy-hook` script (5 min).
-3. Test the hook by hand: `ssh -i ~/.ssh/torii-deploy deploy@chiefmonkey.art` from the VPS itself first, then from a laptop. Confirm the update service starts and the journal streams.
-4. Paste the private key into `TORII_DEPLOY_SSH_KEY` secret in GitHub. Do NOT commit the key anywhere.
-5. Land the workflow file via PR. Merge and let the auto-tag on that PR trigger the first live deploy.
-6. Watch the Actions log for the "Verify live version" step. Green = we're done.
+1. Generated ed25519 key on the VPS.
+2. Registered public key with forced-command entry in `~ubuntu/.ssh/authorized_keys` pointing at `/usr/local/bin/torii-deploy-hook`.
+3. Wrote `/usr/local/bin/torii-deploy-hook` (root-owned, 755) and `/etc/sudoers.d/torii-deploy` narrowing ubuntu to four verbs: `mkdir -p` (on the requests dir), `tee`, `systemctl start torii-quest-update.service`, `journalctl -u torii-quest-update.service`.
+4. Copied private key into `TORII_DEPLOY_SSH_KEY` repo secret; `TORII_DEPLOY_HOST` = `chiefmonkey.art`.
+5. Private key deleted from the VPS — GitHub Actions secrets is the only copy. Rotate by regenerating and re-uploading.
+6. Verified end-to-end with a throwaway tag: SSH connected, forced-command ran, hook invoked the update service. Update service rejected the four-part throwaway tag via its own allowlist regex — correct behaviour, unrelated to the workflow. Throwaway tag deleted.
+
+First live deploy runs on the next real `vX.Y.Z-alpha` tag.
 
 ### What we don't change
 

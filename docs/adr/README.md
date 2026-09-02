@@ -136,7 +136,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0098](./0098-home-button-client-suspend.md) | Home button client-suspend on perpetual-world model (no teardown, silence + park local client, MP socket stays open) | Accepted |
 | [0099](./0099-kami-mode-dev-menu.md) | Kami-mode dev menu — owner-only runtime toggles surface (starting with sticker RENDER-MODE A/B), gate enforced in code | Accepted |
 | [0100](./0100-recording-ring-toggle.md) | Recording-ring toggle — owner-controlled pause for the ADR-0055 1Hz auto-capture, registered on the ADR-0099 dev-menu shell | Accepted |
-| [0101](./0101-auto-deploy-on-tag.md) | Auto-deploy to VPS on tag push — deploy-only SSH key with forced-command + GitHub Actions workflow, so `main HEAD == latest tag == VPS` becomes automatic | Proposed |
+| [0101](./0101-auto-deploy-on-tag.md) | Auto-deploy to VPS on tag push — deploy-only SSH key with forced-command + GitHub Actions workflow, so `main HEAD == latest tag == VPS` becomes automatic | Accepted |
 
 ## Workflow for a new decision
 

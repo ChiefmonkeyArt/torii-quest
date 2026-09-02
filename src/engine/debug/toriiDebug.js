@@ -54,11 +54,15 @@ export function installToriiDebug(refs) {
     version, bots, hitBot, playerObj, resetPlayerPos,
     camera, setPitch,
     castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-    getLastShot, getLastMiss,
+    getLastShot, getLastMiss, getLastSentShot,
     getGrassMat, getFlowerMat, getMirror,
     // v0.2.130 — snapshot/report providers.
     getState, getPhase, getCrateSummary, config,
     getMpState,
+    // ADR-0052 — Kami Mode client-state providers for the ema snapshot.
+    isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
+    // ADR-0055 — auto-capture ring status for the ema snapshot.
+    getAutoCaptureReport,
   } = refs;
 
   // v0.2.130 — providers for the JSON-serialisable debug snapshot. Each is a
@@ -69,13 +73,56 @@ export function installToriiDebug(refs) {
     version,
     getPhase, getState,
     getPlayerPos: () => (playerObj ? playerObj.position : null),
-    getLastHit, getLastShot, getLastMiss,
+    getLastHit, getLastShot, getLastMiss, getLastSentShot,
     isPhysicsReady: () => !!(getWorld && getWorld()),
     getBodyCount:     () => { const w = getWorld && getWorld(); return w ? w.bodies.len() : null; },
     getColliderCount: () => { const w = getWorld && getWorld(); return w ? w.colliders.len() : null; },
     getBotSummary: () => ({ total: bots.length, alive: bots.filter(b => b.alive).length }),
+    // ADR-0045 v0.2.666: per-bot render state. Read behind safe() so an ema
+    // snapshot never throws even if a bot wrapper is half-attached. Tells us which
+    // branch is broken when bots show as cubes / floating nameplates with no body:
+    //   template load fail? modelLoaded=false
+    //   capsule never upgraded? hasModel=false / hasCapsule=true
+    //   LOD hiding root but not nameplate? rootVisible=false && nameplateVisible=true
+    //   model loaded but tiny? scale far from 1
+    getBotRenderStates: () => {
+      const pp = playerObj && playerObj.position ? playerObj.position : null;
+      return bots.map(b => {
+        const m = b.model;
+        const bp = b.pos;
+        const dist = pp && bp ? Math.round(Math.hypot(pp.x - bp.x, pp.z - bp.z) * 100) / 100 : null;
+        const s = m && m.root ? m.root.scale : null;
+        return {
+          id: b.state && b.state.id != null ? b.state.id : null,
+          label: m ? m._label : null,
+          kind: m ? m.kind : null,
+          hp: b.state && b.state.hp != null ? b.state.hp : null,
+          alive: !!(b.state && b.state.alive),
+          isDying: !!(b.state && b.state._isDying),
+          // ADR-0047 v0.2.668: rendered (interpolated) position, so the ema's
+          // `bots` array can be diffed against the server's authoritative bot
+          // position to expose the client/server desync on a miss.
+          x: bp ? Math.round(bp.x * 100) / 100 : null,
+          z: bp ? Math.round(bp.z * 100) / 100 : null,
+          hasModel: !!b.model,
+          modelLoaded: !!(m && m.loaded),
+          hasRoot: !!(m && m.root),
+          rootVisible: m && m.root ? m.root.visible : null,
+          nameplateVisible: m && m._nameplate ? m._nameplate.visible : null,
+          hasCapsule: !!b._capsuleMesh,
+          capsuleVisible: b._capsuleMesh ? b._capsuleMesh.visible : null,
+          dist,
+          scale: s ? { x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, z: Math.round(s.z * 100) / 100 } : null,
+        };
+      });
+    },
     getCrateSummary,
     config,
+    // ADR-0052: Kami Mode state so an ema hung while "stuck" reveals the exact
+    // flag (active / noteOpen / entering / pointerLocked) that is wrong.
+    isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
+    // ADR-0055: auto-capture ring status so a hung ema points at nearby frames.
+    getAutoCaptureReport,
   };
 
   const api = {
@@ -156,6 +203,9 @@ export function installToriiDebug(refs) {
       get lastHit()  { return getLastHit  ? getLastHit()  : null; },
       get lastShot() { return getLastShot ? getLastShot() : null; },
       get lastMiss() { return getLastMiss ? getLastMiss() : null; },
+      // ADR-0046 v0.2.667: the ACTUAL payload sent to the server on the last
+      // arena shot — proves camera-vs-muzzle ray independent of lastShot staleness.
+      get lastSentShot() { return getLastSentShot ? getLastSentShot() : null; },
       // v0.2.130 — JSON-serialisable {lastHit,lastShot,lastMiss} in one object.
       report() { return buildCombatReport(snapProviders); },
     },

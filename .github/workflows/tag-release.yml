@@ -1,0 +1,38 @@
+name: tag-release
+
+# Auto-creates a git tag for the current version on every push to main, so each
+# merged release is immediately deployable (torii-deploy is tag-gated: it does
+# `git fetch + checkout <tag>`). Idempotent — skips when the tag already exists.
+#
+# Tagging happens here (post-merge) rather than in tools/bump-ver.sh because the
+# version bump occurs on a feature branch and the squash-merge rewrites it into a
+# new main commit; the deploy tag must point at that merged commit.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: tag current version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push version tag
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          if git rev-parse -q "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Pushed tag $TAG"
+          fi

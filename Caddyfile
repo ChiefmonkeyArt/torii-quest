@@ -6,7 +6,14 @@
 # Serves:
 #   https://$DOMAIN/         -> static game (dist/) with SPA fallback for /zone/*
 #   wss://  $DOMAIN/relay    -> strfry nostr relay (sidecar container)
-
+#   wss://  $DOMAIN/mp       -> arena-ws multiplayer server (sidecar container)
+#
+# The __CSP_HEADER__ placeholder is substituted at image build time (see
+# Dockerfile) with the real per-build value from dist/_headers — the same
+# file the Vite plugin in tools/csp.mjs generates for every other deploy
+# target, so this can never drift from the game's actual inline-script sha.
+# connect-src additionally needs wss://$DOMAIN itself so the browser may open
+# the multiplayer socket back to this origin (see VPS_INSTALL.md §16).
 {
 	email {$ACME_EMAIL}
 }
@@ -23,10 +30,30 @@
 		reverse_proxy strfry:7777
 	}
 
+	# Multiplayer arena server. Must come before the catch-all `handle` block
+	# below (Caddy evaluates handlers in order; a matched handle_path stops
+	# there, so this needs no separate priority rule).
+	handle_path /mp {
+		reverse_proxy arena-ws:8787
+	}
+	handle_path /mp/* {
+		reverse_proxy arena-ws:8787
+	}
+
 	# Static game + SPA fallback (so /zone/* deep links return index.html)
 	handle {
 		root * /srv
 		try_files {path} /index.html
+
+		@wasm path *.wasm
+		header @wasm Content-Type application/wasm
+
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		header /index.html Cache-Control "no-cache"
+
+		header Content-Security-Policy "__CSP_HEADER__"
+
 		file_server
 	}
 }

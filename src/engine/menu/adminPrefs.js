@@ -11,9 +11,16 @@
 //                              `<meta name="torii-world">` so an owner can flip
 //                              the homepage world and reload to preview it.
 //   torii.heartbeat.intent   — 'on' | 'off'. The owner's node-presence intent.
-//                              Default 'off'. Enabling does NOT auto-publish; it
-//                              only sets the intent (the first publish needs
-//                              explicit signer consent, surfaced by main.js).
+//                              v0.4: default changed to 'on' (was 'off') per
+//                              design direction — a first-time owner sees the
+//                              switch already enabled. An explicit stored
+//                              'off' is still respected (the owner's own
+//                              choice always wins over the default). Enabling
+//                              does NOT auto-publish; it only sets the intent
+//                              (the first publish still needs explicit signer
+//                              consent, surfaced by main.js — an owner with no
+//                              signer / no node-relay simply sees a blocked
+//                              status, nothing publishes silently).
 //
 // PURE + node-safe: the storage is INJECTED (default globalThis.localStorage)
 // so tests pass a fake and the leaf never imports a DOM/window global. Guards
@@ -35,7 +42,7 @@ const GAMESTR_ENABLED_KEY = 'torii.gamestr.enabled';
 // source of truth — pure, node-safe, wss-only validation). Re-exported here so
 // the menu/main.js composition root imports all owner-admin prefs from the
 // single adminPrefs seam. The localStorage key is `torii.node.relays`.
-export { getNodeRelays, setNodeRelays, readNodeRelays } from '../presence/nodeRelays.js';
+export { getNodeRelays, setNodeRelays, readNodeRelays, readEffectiveNodeRelays } from '../presence/nodeRelays.js';
 
 // _storage(s) → the injected storage or null. Tolerates a missing
 // globalThis.localStorage (SSR / disabled storage) without throwing.
@@ -47,15 +54,21 @@ function _storage(s) {
   return store;
 }
 
-// getHeartbeatIntent(storage?) → 'on' | 'off'. Default 'off'. Pure; never throws.
+// getHeartbeatIntent(storage?) → 'on' | 'off'. Default 'on' (v0.4). An
+// explicit stored 'off' is honoured; only an ABSENT key falls back to the
+// new 'on' default, so an owner who has deliberately turned it off never
+// gets flipped back on behind their back. No storage available also
+// defaults to 'on' (matches the absent-key case). Pure; never throws.
 export function getHeartbeatIntent(storage) {
   try {
     const store = _storage(storage);
-    if (!store) return 'off';
+    if (!store) return 'on';
     const v = store.getItem(HEARTBEAT_INTENT_KEY);
-    return v === 'on' ? 'on' : 'off';
+    if (v === 'off') return 'off';
+    if (v === 'on') return 'on';
+    return 'on'; // absent / unrecognized → new default
   } catch {
-    return 'off';
+    return 'on';
   }
 }
 

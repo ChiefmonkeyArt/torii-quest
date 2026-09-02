@@ -178,9 +178,14 @@ describe('buildGamestrScoreEvent — score bounds (default to kills)', () => {
 });
 
 describe('GAMESTR_RELAYS — frozen const', () => {
-  it('includes the authoritative gamestr relay + a few public relays for discoverability', () => {
-    expect(GAMESTR_RELAYS.includes('wss://main.relay.gamestr.io')).toBe(true);
-    expect(GAMESTR_RELAYS.length).toBeGreaterThanOrEqual(4);
+  it('leads with the authoritative gamestr relay, trimmed to relays that actually work (ADR-0067)', () => {
+    // v0.2.699-alpha (ADR-0067): trimmed from 5 to 2 after empirical testing showed
+    // relay.nostr.band down (timeout), relay.damus.io 503s this exact leaderboard
+    // REQ, and relay.primal.net rejects the #game tag filter. Only
+    // main.relay.gamestr.io + nos.lol remain — assert the exact contract, not a
+    // loose lower bound, so a future "just add more relays" edit doesn't silently
+    // reintroduce a dead/erroring one without updating the ADR.
+    expect(GAMESTR_RELAYS).toEqual(['wss://main.relay.gamestr.io', 'wss://nos.lol']);
   });
 
   it('is frozen so the publish target cannot be mutated at runtime', () => {

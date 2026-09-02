@@ -1,17 +1,95 @@
 # Torii Quest — VPS Install & Manual Update (torii.quest)
 
-> **Status:** host-side documentation only (v0.2.144-alpha). **No code in this
-> repo touches a server, performs an install, or auto-updates.** This page
-> describes how a maintainer would self-host the static build at `torii.quest`
-> on a shared Ubuntu VPS and update it BY HAND from GitHub. Deploying remains a
-> deliberate manual step — see `torii-quest-handoff.md` §7 and the safety boundary in
+> **Status:** host-side documentation (v0.2.699-alpha). The repo now ships a
+> one-command installer (`install.sh`) that automates the bare-metal/systemd
+> path below for fresh Ubuntu/Debian VPSes — it is the recommended way for a new
+> self-hoster to bring up a node. The manual step-by-step in §§1–16 remains
+> the full reference and the fallback when the installer can't be used. The
+> installer does **not** auto-update a running server — updates are still a
+> deliberate, human-run sequence (§7); see the safety boundary in
 > `UPDATE_CHECK.md` §4.
 
-Torii Quest builds to a **static `dist/` bundle** (Vite 8). There is no backend,
-no database, and no server-side runtime — the game runs entirely in the browser
-(Three.js + Rapier WASM + Nostr relays the client talks to directly). That means
-hosting is "serve a folder of static files over HTTPS." Everything below follows
+Torii Quest builds to a **static `dist/` bundle** (Vite 8). The browser runs
+the whole game (Three.js + Rapier WASM + Nostr relays the client talks to
+directly). The only server-side runtime is the optional multiplayer arena
+WebSocket relay (`arena-ws.js`), supervised by systemd and exposed behind
+Caddy on the same origin as the game (`wss://<your-domain>/mp`). Hosting is
+otherwise "serve a folder of static files over HTTPS." Everything below follows
 from that.
+
+---
+
+## 0. Quick start — one-command bare-metal bootstrap (recommended)
+
+The fastest path to a live node is the one-command bootstrap. It is a single
+`curl | sudo bash` line that installs git, discovers an existing clone (or
+clones fresh), checks out the target release, and hands off to `install.sh` —
+which then builds the game, publishes the release, brings up the systemd
+multiplayer server, and configures Caddy with automatic HTTPS.
+
+Pin the tag you trust (the script you review is the script that runs — the same
+`curl | sudo bash` model as rustup / get.docker):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.714-alpha/install-remote.sh \
+  | sudo bash -s -- -y
+```
+
+By default it checks out the **latest** release tag. To pin a specific version,
+pass `--version` (plus any `install.sh` flags you want to pre-fill):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ChiefmonkeyArt/torii-quest/v0.2.714-alpha/install-remote.sh \
+  | sudo bash -s -- --version v0.2.714-alpha --domain torii.example.com --email you@example.com -y
+```
+
+Returning operators: the bootstrap **discovers your existing clone** (searches
+`/home /opt /srv /root` for a `torii-quest` checkout) and reuses it, so your
+existing `.env` (domain / email / admin npub) is preserved — you don't re-enter
+anything. If no clone exists, it clones fresh to `/opt/torii-quest-src`.
+
+The **only prompts** (when not pre-filled with flags) are:
+
+1. **Domain** — must already point at this server via a DNS `A` record
+   (Caddy needs it to request the HTTPS certificate).
+2. **Email** — used by Let's Encrypt for renewal/expiry notices.
+3. **Admin npub** — the one Nostr identity that gets admin powers on this
+   instance (`npub1…` only — never an `nsec`/private key; leave blank for no
+   admin).
+
+Everything else is automated and safe to re-run. The installer writes a managed
+Caddy site block (never clobbering an existing `Caddyfile`), validates the Caddy
+config before reloading, and verifies the live HTTPS site and multiplayer
+service at the end.
+
+Bootstrap options (consumed by `install-remote.sh`, NOT passed to `install.sh`):
+`--version <ver>` (pin a release tag), `--repo-dir <path>` (use this existing
+clone), `-h`/`--help`. Everything else (`--domain` / `--email` / `--admin-npub`
+/ `-y` / `--docker` / `--dry-run`) is forwarded to `install.sh` — see
+`install.sh --help`.
+
+> **Fallback:** if you would rather clone by hand, the original three commands
+> still work — `install-remote.sh` only wraps them (see ADR-0079):
+> ```bash
+> git clone https://github.com/ChiefmonkeyArt/torii-quest.git
+> cd torii-quest
+> sudo ./install.sh
+> ```
+
+### Docker — an advanced/optional alternative
+
+If you prefer container isolation or already run a Docker host, the same
+installer has a Docker Compose mode that brings up the game + multiplayer + a
+`strfry` Nostr relay sidecar as containers on a single origin:
+
+```bash
+sudo ./install.sh --docker
+```
+
+This is **not** the recommended path for most self-hosters — bare-metal above
+is the default. Docker is offered for operators who specifically want it; the
+manual bare-metal steps in §§1–16 remain the authoritative reference and the
+fallback when neither installer mode suits.
 
 ---
 
@@ -22,9 +100,11 @@ from that.
 HTTPS certificates automatically. Nginx is the option if you already run it or
 need its ecosystem.
 
-You do **not** need Node running in production — Node is only used to *build*.
-You can even build elsewhere (CI or your laptop) and copy `dist/` to the VPS, so
-the server never needs a toolchain at all.
+You do **not** need Node running in production — Node is only used to *build*
+(the installer installs it, builds, then the runtime only needs it for the
+optional `arena-ws` multiplayer service). You can even build elsewhere (CI or
+your laptop) and copy `dist/` to the VPS, so the server never needs a
+full toolchain.
 
 ---
 
@@ -132,12 +212,14 @@ torii.quest, www.torii.quest {
     @wasm path *.wasm
     header @wasm Content-Type application/wasm
 
-    # Content-Security-Policy via HTTP header (S3, v0.2.266). MUST match
-    # tools/csp.mjs / the built dist/_headers. nonce-free strict-dynamic + the
-    # sha256 of the inline bootstrap script; Draco is vendored at /draco/ so no
-    # third-party origin (no gstatic). Update the sha256 only if the inline
-    # bootstrap script in index.html changes (regression-check enforces this).
-    header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"
+    # Content-Security-Policy via HTTP header (S3, v0.2.266). The exact value
+    # is computed per build by tools/csp.mjs and written to dist/_headers —
+    # never hand-copy it into this file, it drifts the moment the inline
+    # bootstrap script's sha256 changes. Get the current, correct line with:
+    #   grep Content-Security-Policy dist/_headers
+    # and paste that value below (no 'strict-dynamic' — tools/csp.mjs
+    # deliberately omits it; see the comment at the top of that file).
+    header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here>"
 
     # static asset caching (hashed Vite filenames are safe to cache hard)
     @assets path /assets/*
@@ -198,12 +280,15 @@ server {
         add_header Cache-Control "no-cache";
     }
 
-    # Content-Security-Policy via HTTP header (S3, v0.2.266). MUST match
-    # tools/csp.mjs / the built dist/_headers (nonce-free strict-dynamic + the
-    # sha256 of the inline bootstrap; Draco vendored at /draco/, no gstatic).
-    # `always` so it's sent on error responses too. Update the sha256 only if the
-    # inline bootstrap in index.html changes (regression-check enforces this).
-    add_header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net" always;
+    # Content-Security-Policy via HTTP header (S3, v0.2.266). The exact value
+    # is computed per build by tools/csp.mjs and written to dist/_headers —
+    # never hand-copy it into this file, it drifts the moment the inline
+    # bootstrap script's sha256 changes. Get the current, correct line with:
+    #   grep Content-Security-Policy dist/_headers
+    # and paste that value below (no 'strict-dynamic' — tools/csp.mjs
+    # deliberately omits it; see the comment at the top of that file).
+    # `always` so it's sent on error responses too.
+    add_header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here>" always;
 }
 ```
 
@@ -567,11 +652,14 @@ torii.quest, www.torii.quest {
     @wasm path *.wasm
     header @wasm Content-Type application/wasm
 
+    # Same rule as §6a: get the current, correct value from the build itself
+    # (never hand-copy a CSP string into docs — it drifts):
+    #   grep Content-Security-Policy dist/_headers
     # NOTE: connect-src must include wss://<your-domain> so the browser is
-    # allowed to open the multiplayer WebSocket back to the same origin. The
-    # relay list from §6a already covers the Nostr relays; add your own domain
-    # (or a wss://self placeholder if your CSP builder rewrites it).
-    header Content-Security-Policy "object-src 'none'; base-uri 'self'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' blob: 'strict-dynamic' 'sha256-BeP+mq9EN42J9N+ZM7SI41v6rTl8B5JYeekVlSXx2qg='; worker-src 'self' blob:; connect-src 'self' blob: wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net wss://torii.quest"
+    # allowed to open the multiplayer WebSocket back to the same origin — add
+    # your own domain to the connect-src list from the grep output above if
+    # tools/csp.mjs hasn't already templated it in for you.
+    header Content-Security-Policy "<paste the value from `grep Content-Security-Policy dist/_headers` here, adding wss://<your-domain> to connect-src if not already present>"
 
     @assets path /assets/*
     header @assets Cache-Control "public, max-age=31536000, immutable"
@@ -632,6 +720,49 @@ sudo systemctl status torii-arena-ws.service --no-pager
 
 Expected steady state: `active (running)`, listening on `127.0.0.1:8787`,
 logs to `journalctl -u torii-arena-ws -f`.
+
+### 16.2a Set your admin identity (`QUEST_ADMIN_NPUB`) — do this before first boot
+
+**Every fresh install needs this — the server has no admin at all until you set
+it.** Whoever's npub is in this variable becomes the admin of *this instance
+only*: they get the in-game "Update Now" gate, invincibility + bot-visibility in
+Kami Mode, and every other admin-only surface. It is entirely per-install — your
+Quest server and anyone else's are independent processes on independent
+machines, so setting your own npub here has no effect on (and is not affected
+by) any other instance, including the reference install at torii.quest.
+
+1. Get your **npub** (never your `nsec`/private key — an npub is your *public*
+   identity and is safe to paste anywhere, including here). If you don't have a
+   Nostr signer extension yet, install one first:
+   - Plebeian Signer (Chrome/Firefox — search the extension store)
+   - or nos2x, Alby, Amber (Android)
+   Open the extension, copy the npub it shows you (starts with `npub1`).
+2. Add ONE line under `arena-ws.service`'s existing `[Service]` `Environment=`
+   lines, alongside `HOST`/`PORT`/`MAX_PEERS` above:
+
+   ```ini
+   Environment=QUEST_ADMIN_NPUB=npub1yourrealnpubgoeshere...
+   ```
+
+3. Reload and restart so the new server process picks it up:
+
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart torii-arena-ws.service
+   ```
+
+4. Confirm it took — the server normalises the npub to hex once at startup and
+   will refuse to treat anyone else as admin if this is missing or malformed:
+
+   ```bash
+   journalctl -u torii-arena-ws -n 20 --no-pager | grep -i admin
+   ```
+
+   If you skip this step, `QUEST_ADMIN_NPUB` is simply unset, the admin gate is
+   inert, and nobody — including you — gets admin capabilities on that
+   instance. There's no separate in-game "make me admin" flow; this env var is
+   the only place admin identity is decided, and it is checked server-side on
+   every session so a client can never grant itself the role.
 
 ### 16.3 Verify end-to-end
 

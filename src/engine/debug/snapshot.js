@@ -34,6 +34,12 @@ export function buildCombatReport(p = {}) {
     lastHit:  safe(p.getLastHit),
     lastShot: safe(p.getLastShot),
     lastMiss: safe(p.getLastMiss),
+    // ADR-0046 v0.2.667: the ACTUAL buildShotPayload output sent to the server
+    // {ts,viewLag,usedAimRay,sentOrigin,sentDir,muzzleOrigin,muzzleDir,aimOrigin,
+    //  aimDir}. Independent of lastShot (which is only created when
+    //  aimOrigin/aimDir are present) so it is never stale in the usedAimRay=false
+    //  failure case. Proves camera-vs-muzzle.
+    lastSentShot: safe(p.getLastSentShot),
   };
 }
 
@@ -49,6 +55,38 @@ export function buildPhysicsReport(p = {}) {
   };
 }
 
+// Kami Mode sub-report — the exact client-side Kami state at snapshot time, so
+// an ema hung while "stuck in Kami Mode" tells us WHICH flag is wrong: active
+// (spirit state), noteOpen (editor open), entering (pending owner-check), and
+// pointerLocked (browser pointer lock). ADR-0052.
+export function buildKamiReport(p = {}) {
+  return {
+    active:        safe(p.isKamiActive, false) ?? false,
+    noteOpen:      safe(p.isKamiNoteOpen, false) ?? false,
+    entering:      safe(p.isKamiEntering, false) ?? false,
+    pointerLocked: safe(p.isPointerLocked, false) ?? false,
+  };
+}
+
+// ADR-0055: auto-capture state — the 1Hz diagnostic ring status so a manual
+// ema hung at an incident points at the nearby auto-capture frames (by ts).
+export function buildAutoCaptureReport(p = {}) {
+  const r = safe(p.getAutoCaptureReport);
+  if (!r || typeof r !== 'object') return null;
+  return {
+    enabled:         safe(() => r.enabled, false) ?? false,
+    intervalMs:      safe(() => r.intervalMs),
+    inflight:        safe(() => r.inflight, false) ?? false,
+    lastFrameId:     safe(() => r.lastFrameId),
+    lastCapturedAt:  safe(() => r.lastCapturedAt),
+    lastUploadOkAt: safe(() => r.lastUploadOkAt),
+    lastError:       safe(() => r.lastError),
+    captured:        safe(() => r.captured),
+    uploaded:        safe(() => r.uploaded),
+    failed:          safe(() => r.failed),
+  };
+}
+
 // Full snapshot. Order is intentional: identity → phase → player → combat →
 // physics → tuning, so a pasted object reads top-to-bottom like a status line.
 export function buildSnapshot(p = {}) {
@@ -59,6 +97,13 @@ export function buildSnapshot(p = {}) {
     player:  vec3(safe(p.getPlayerPos)),
     combat:  buildCombatReport(p),
     physics: buildPhysicsReport(p),
+    // ADR-0052: Kami Mode client state — active/noteOpen/entering/pointerLocked.
+    kami:    buildKamiReport(p),
+    // ADR-0055: 1Hz auto-capture ring status — points a hung ema at nearby frames.
+    autoCapture: buildAutoCaptureReport(p),
+    // ADR-0045 v0.2.666: per-bot render state so an ema tells us WHICH branch is
+    // broken when bots appear as cubes / floating nameplates with no body.
+    bots:     safe(p.getBotRenderStates),
     config:  safe(() => p.config) ?? null,
   };
 }

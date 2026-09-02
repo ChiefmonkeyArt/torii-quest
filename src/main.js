@@ -14,7 +14,8 @@ import { emit, on, EV } from './events.js';
 // has no THREE/scene deps and self-installs on import, so a loaded bundle wires
 // login regardless of the (now deferred) 3D boot.
 import './engine/ui/loginBootstrap.js';
-import { showZoneNotice, hideZoneNotice } from './hud.js';
+import { showZoneNotice, hideZoneNotice, showFlyNotice } from './hud.js';
+import { toastSuccess, toastError, toastInfo } from './engine/ui/toast.js';
 import { parseZoneRoute, ZONE_ROUTE_KIND } from './engine/gateway/zoneRoute.js';
 import { applyPhaseScreens } from './engine/ui/phaseScreens.js';
 import { renderLeaderboardRows, shortenNpub } from './ui/leaderboardPanel.js';
@@ -46,14 +47,15 @@ import {
   DEPLOY_STALL_MS,
 } from './engine/update/adminUpdateClient.js';
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, RELAYS, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
 // and the rAF shell tick drives the republish (NO setTimeout in new code).
-import { isHeartbeatDue, nextHeartbeatInMs, heartbeatStatus, HEARTBEAT_INTERVAL_MS } from './engine/presence/heartbeat.js';
+import { isHeartbeatDue, isFirstPublishDue, nextHeartbeatInMs, heartbeatStatus, isHeartbeatBroadcasting, HEARTBEAT_INTERVAL_MS, FIRST_PUBLISH_RETRY_MS } from './engine/presence/heartbeat.js';
 // v0.2.403-alpha: pure partition of online worlds into "your friends" (mutual
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
@@ -78,13 +80,34 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
+import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
+import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
+import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
+import { renderRelayPanel } from './engine/settings/relayPanel.js';
+import { renderProfilePanel } from './engine/settings/profilePanel.js';
+import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
+import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
+import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
+import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
+// v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
+// access-control surface (arrival authority + write authority) that was hidden
+// since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
+// from v0.2.358; main.js owns the read/save relay round-trips below.
+import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
+import { buildProfileMetadataEvent } from './engine/identity/profileMetadata.js';
+import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft.js';
+import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
 // no three import, browser-only, fail-safe (missing document → no-op).
-import { openHomepageStub, closeHomepageStub, isHomepageStubOpen, hasShownThisSession, setShownThisSession } from './engine/homepage/homepageStub.js';
+// v0.3: openHomepageStub/closeHomepageStub/isHomepageStubOpen (the old
+// standalone overlay renderer) are no longer imported — Gateway Setup is now
+// a tab in the new settings panel (gatewaySetupPanel.js). The session-once
+// auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
+// with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readEffectiveNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -93,10 +116,11 @@ import {
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
-// v0.2.358 (ACC-1): pure view-model + renderer for the title-screen Instance
-// Settings shell (INERT: shown only to the logged-in instance admin; the Access
-// section is a read-only "public + coming soon" placeholder).
-import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditableArrivalMode, coerceEditableWritePolicy } from './engine/ui/instanceSettings.js';
+// v0.3: the Instance Settings tab (arrival-mode / write-policy admin
+// controls) is REMOVED from the settings menu per design direction — not
+// useful to admins or guests. instanceSettings.js's underlying access-control
+// enforcement (handoffArrival.js / writeAuthority.js) is untouched; only
+// this title-screen EDITING surface and its import are gone.
 import {
   NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED,
 } from './config.js';
@@ -106,8 +130,10 @@ import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/de
 const elTitle = document.getElementById('screen-title');
 const elHud   = document.getElementById('hud');
 const elPause = document.getElementById('pause-overlay');
-const elEnterBtn = document.getElementById('btn-enter');
-const elNapBtn    = document.getElementById('btn-enter-nap'); // v0.2.275: NAP-zone shortcut
+// v0.3 cleanup: ENTER ARENA + ENTER NAP ZONE merged into the single
+// #btn-enter-nap button (everyone drops into the NAP zone by default). The
+// old #btn-enter element no longer exists in index.html.
+const elNapBtn    = document.getElementById('btn-enter-nap');
 const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
@@ -163,7 +189,7 @@ function _gatewayRows(...pairs) {
 // The live n2n handshake controller. Stateful but DOM-free; transports are the
 // injected nostr.js fns; ourPubkey is empty until login.
 const _handshake = createHandshakeController({
-  request: fanoutReq, sign: signEvent, publish: fanoutPublish, relays: RELAYS, ourPubkey: '',
+  request: fanoutReq, sign: signEvent, publish: fanoutPublish, relays: _effectiveRelays(), ourPubkey: '',
 });
 let _worldsCache = [];
 let _worldsScan = 'idle';
@@ -307,7 +333,7 @@ function _getToriiMenuState() {
   const cap = _updateCapability;
   const isOwner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
-  const nodeRelays = _nodeRelaysForPublish();
+  const nodeRelays = _effectiveRelays();
   const heartbeatIntent = getHeartbeatIntent();
   const heartbeat = heartbeatStatus({
     intent: heartbeatIntent,
@@ -324,6 +350,11 @@ function _getToriiMenuState() {
     now: Date.now(),
     intervalMs: HEARTBEAT_INTERVAL_MS,
   });
+  // ADR-0094: when the server beacon is enabled the SERVER publishes presence
+  // 24/7 — surface that truth instead of the now-client-gated heartbeat status
+  // (which would otherwise read 'idle' even though the world is live).
+  const serverBeaconEnabled = _beacon.state.enabled === true;
+  const effectiveHeartbeat = serverBeaconEnabled ? 'live' : heartbeat;
   return {
     scanStatus: _worldsScan,
     canTravel,
@@ -334,7 +365,8 @@ function _getToriiMenuState() {
     isOwner,
     admin: {
       heartbeatIntent,
-      heartbeatStatus: heartbeat,
+      heartbeatStatus: effectiveHeartbeat,
+      serverBeaconEnabled,
       heartbeatLastPublishedAt: _heartbeat.lastPublishedAt,
       heartbeatNextDueMs: nextDueMs,
       nodeRelays,
@@ -351,12 +383,38 @@ function _getToriiMenuState() {
         ? (_lastGamestrResult.published ? 'ok' : 'failed')
         : 'idle',
       onToggleHeartbeat: (next) => {
+        const wantOn = next === 'on';
         setHeartbeatIntent(next);
-        if (next === 'on') {
-          // Explicit consent-gated first publish: enabling the heartbeat
-          // triggers the NIP-07 signer prompt. The operator approving it IS the
-          // consent. On rejection → paused (status surfaces in the menu); on
-          // no-node-relay → blocked (publishes nothing, never public RELAYS).
+        // ADR-0094: mirror the toggle to the server beacon (the source of truth).
+        // When the server is reachable and holds the key, presence is published
+        // server-side 24/7; the client-side publish below is only the fallback
+        // (server unreachable / unconfigured). An explicit OFF always stops both.
+        const httpBase = resolveMpHttpBase();
+        const token = getStoredToken();
+        if (httpBase && token) {
+          setBeacon({ httpBase, token, action: next })
+            .then((r) => {
+              if (r && r.ok) {
+                _beacon.state.enabled = wantOn;
+                showEntryStatus(wantOn ? 'Heartbeat ON (server beacon).' : 'Heartbeat OFF.');
+                if (wantOn) refreshOnlineWorlds();
+              } else if (wantOn) {
+                // Server rejected/unreachable — fall back to the client publish.
+                _heartbeat.republishPaused = false;
+                _heartbeat.lastError = null;
+                publishOurWorldPresence().catch(() => {});
+                showEntryStatus('Server beacon unavailable — browser heartbeat active.');
+              } else {
+                showEntryStatus('Heartbeat OFF.');
+              }
+            })
+            .catch(() => {
+              if (wantOn) publishOurWorldPresence().catch(() => {});
+            });
+          return;
+        }
+        // No server session/URL: pure client-side fallback (pre-existing path).
+        if (wantOn) {
           _heartbeat.republishPaused = false;  // re-toggle clears a pause
           _heartbeat.lastError = null;
           publishOurWorldPresence().catch(() => { /* status surfaced */ });
@@ -375,8 +433,8 @@ function _getToriiMenuState() {
         showEntryStatus(next === 'on' ? 'gamestr.io ON — publishes on your next score.' : 'gamestr.io OFF.');
       },
       onSetNodeRelays: (str) => {
-        // Owner-only: persist the node-relay set so the heartbeat publishes
-        // here (never to public RELAYS). Validated wss-only inside setNodeRelays.
+        // Owner-only: persist the relay list so reads + presence publish use it.
+        // Validated wss-only inside setNodeRelays.
         setNodeRelays(str);
         showEntryStatus('Node relays saved.');
       },
@@ -399,10 +457,14 @@ function _getToriiMenuState() {
   };
 }
 
-// Title-screen burger button → open the persistent Torii menu.
+// Title-screen settings icon → open the new settings panel (nav-left/
+// content-right, 2 tabs: Gateway Setup + Heartbeat). Replaces the old
+// persistent Torii menu on THIS surface only — the in-game KeyM quick menu
+// (arenaRuntime.js) still opens toriiMenu.js unchanged (separate call site,
+// out of scope here).
 elToriiMenuBtn?.addEventListener('click', () => {
-  if (isToriiMenuOpen()) { closeToriiMenu(); return; }
-  openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
+  if (isSettingsPanelOpen()) { closeSettingsPanel(); return; }
+  openSettingsPanel({ initialTab: 'gateway', onClose: () => { /* title screen: no pause to resume */ } });
 });
 
 // ── Phase 0g: "Gateway setup" homepage stub ───────────────────────────────────
@@ -427,7 +489,7 @@ function _homepageStubState() {
   const isLoggedIn = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
   const heartbeatIntent = getHeartbeatIntent();
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
-  const nodeRelays = _nodeRelaysForPublish();
+  const nodeRelays = _effectiveRelays();
   const hb = heartbeatStatus({
     intent: heartbeatIntent,
     isOwner,
@@ -438,20 +500,42 @@ function _homepageStubState() {
     lastError: _heartbeat.lastError,
     republishPaused: _heartbeat.republishPaused,
   });
+  // v0.4: Relay tab reads the same validated node-relay set the heartbeat
+  // publishes to (nodeRelays already computed above), plus the raw stored
+  // string so the textarea shows exactly what's saved.
+  const nodeRelaysInput = getNodeRelays();
+  // v0.4: Profile tab reads its local draft (profileDraft.js) — separate
+  // from the published kind:0, so the form shows the owner's last edit even
+  // before a publish succeeds.
+  const profileDraft = getProfileDraft();
   return {
     isOwner,
     isLoggedIn,
     activeWorld: getActiveWorld(),
     heartbeatStatus: hb,
+    nodeRelays,
+    nodeRelaysInput,
+    profileDraft,
+    profilePublishStatus: _profilePublishStatus,
   };
 }
 
-// _homepageStubCallbacks() — the 4 action callbacks. Each delegates to an
+// v0.4: tracks the Profile tab's last publish attempt outcome for display
+// only (module-level, not persisted — a reload/reopen just shows 'idle'
+// again, which is fine since the draft itself IS persisted separately).
+let _profilePublishStatus = 'idle';
+
+// _homepageStubCallbacks() — the action callbacks. Each delegates to an
 // EXISTING function (no new publish/reload path). onChooseWorld reuses the
 // menu's onSetActiveWorld body (setActiveWorld + reload). onVisitNodeDirectory
 // opens the persistent Torii menu (optionally the directory is already at the
 // top). onPublishNode reuses the menu's onToggleHeartbeat consent-publish path
-// so blocked states stay consistent. onClose is a no-op on the title screen.
+// so blocked states stay consistent. onSetNodeRelays mirrors the existing
+// in-game menu's onSetNodeRelays body (setNodeRelays + status message).
+// onSaveProfile builds+signs+publishes a kind:0 via the EXISTING
+// signEvent/fanoutPublish (nostr.js) — no new sign/publish path — and always
+// saves the local draft first so a signer rejection never loses the edit.
+// onClose is a no-op on the title screen.
 function _homepageStubCallbacks() {
   return {
     onChooseWorld: (worldId) => {
@@ -461,18 +545,22 @@ function _homepageStubCallbacks() {
       showEntryStatus('Homepage world set — reloading to apply…');
       try { window.location.reload(); } catch { /* best-effort */ }
     },
-    onVisitNodeDirectory: () => {
-      // Close the stub first so the two overlays never stack, then open the
-      // persistent Torii menu (the live node directory is its first section).
-      closeHomepageStub();
-      openToriiMenu({ getState: _getToriiMenuState, onClose: () => { /* title screen: no pause to resume */ } });
-    },
+    // v0.3: onVisitNodeDirectory REMOVED — the "Visit a Node" card is dropped
+    // by design decision. In-world travel already has a home at the physical
+    // Torii Gateway inside the NAP zone (KeyM in-game menu), so a second
+    // UI-level node directory on the homepage would be redundant.
     onPublishNode: () => {
       // Reuse the existing heartbeat consent-publish path (NOT a new publish
-      // path). Toggle to 'on' if currently off, else 'off' — same as the menu's
-      // heartbeat button. Blocked states (no-signer / no-node-relay /
-      // wallet-requires-approval) surface via the stub's heartbeatStatus label.
-      const next = getHeartbeatIntent() === 'on' ? 'off' : 'on';
+      // path). Toggle direction is decided from whether we're ACTUALLY
+      // broadcasting (isHeartbeatBroadcasting on the current heartbeatStatus),
+      // never from the raw stored intent string. Intent defaults to 'on' on a
+      // fresh install even though nothing has ever published, so branching on
+      // getHeartbeatIntent() here would flip a first-time owner's very first
+      // click straight to 'off' instead of publishing + asking for NIP-07
+      // consent. Blocked states (no-signer / no-node-relay /
+      // wallet-requires-approval) surface via the tab's heartbeatStatus label.
+      const currentlyBroadcasting = isHeartbeatBroadcasting(_homepageStubState().heartbeatStatus);
+      const next = currentlyBroadcasting ? 'off' : 'on';
       setHeartbeatIntent(next);
       if (next === 'on') {
         _heartbeat.republishPaused = false;
@@ -482,65 +570,66 @@ function _homepageStubCallbacks() {
         _heartbeat.republishPaused = false;
         showEntryStatus('Heartbeat OFF.');
       }
-      // Re-render the stub so the Publish label reflects the new status.
-      openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+      // Re-render happens at the call site (settings content delegation),
+      // which calls renderActiveSettingsTab() right after invoking this.
+    },
+    onSetNodeRelays: (str) => {
+      // Mirrors the old in-game menu's onSetNodeRelays callback body exactly
+      // (setNodeRelays does all validation/dedup/capping — reused, not
+      // duplicated). Re-render happens at the call site.
+      setNodeRelays(str);
+      showEntryStatus('Node relays saved.');
+    },
+    onSaveProfile: async (fields) => {
+      // Always persist the local draft first — a signer rejection or missing
+      // extension must never lose what the owner typed.
+      setProfileDraft(fields);
+      const pubkey = state.nostrPubkey || '';
+      const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
+      if (!HEX64.test(pubkey) || !hasSigner) {
+        _profilePublishStatus = 'saved-local';
+        showEntryStatus('Profile saved locally — log in with a Nostr signer to publish.');
+        return;
+      }
+      const built = buildProfileMetadataEvent({ pubkey, ...fields });
+      if (!built.ok) {
+        _profilePublishStatus = 'failed';
+        showEntryStatus('Profile not published — please check the entered fields.');
+        return;
+      }
+      _profilePublishStatus = 'publishing';
+      try {
+        const signed = await signEvent(built.event);
+        await fanoutPublish(_effectiveRelays(), signed);
+        _profilePublishStatus = 'published';
+        showEntryStatus('Profile published.');
+      } catch {
+        _profilePublishStatus = 'failed';
+        showEntryStatus('Profile saved locally — publish failed (relay or signer error).');
+      }
     },
     onClose: () => { /* title screen: no pause to resume */ },
   };
 }
 
-// _openHomepageStub() — the single open path the title-screen CTA, the menu
-// Node settings button, and the login-resolved auto-open all call. Re-renders
-// from the live snapshot each time (cheap; the stub is lazily built once).
+// _openHomepageStub() — v0.3: retargeted from the old standalone overlay to
+// the new settings panel's Gateway Setup tab. Still the single open path the
+// in-game menu's "Gateway setup" admin button (via onOpenHomepageStub above)
+// and the login-resolved auto-open both call — name kept for both call sites,
+// behavior now opens the shared panel pre-selected to the 'gateway' tab.
 function _openHomepageStub() {
-  openHomepageStub(_homepageStubState(), _homepageStubCallbacks());
+  openSettingsPanel({ initialTab: 'gateway', onClose: () => { /* title screen: no pause to resume */ } });
 }
 
-// Title-screen secondary CTA → open the Gateway setup stub. A small button
-// placed below the ENTER buttons; does NOT replace ENTER NAP ZONE / ENTER ARENA
-// / LOGIN. Built lazily into the title centre column so it matches the existing
-// title-screen visual style (no external CSS framework).
-(function _installHomepageStubCta() {
-  if (typeof document === 'undefined' || !document.getElementById) return;
-  const centre = document.getElementById('title-centre');
-  if (!centre) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.id = 'btn-homepage-stub';
-  btn.textContent = '⛩ GATEWAY SETUP';
-  btn.setAttribute('aria-label', 'Gateway setup — choose your homepage world');
-  Object.assign(btn.style, {
-    width: '220px', fontSize: '10px', letterSpacing: '2px', padding: '9px',
-    marginTop: '10px', marginBottom: '4px', cursor: 'pointer',
-    background: 'rgba(139,92,246,0.12)', color: '#c4b5fd',
-    border: '1px solid rgba(139,92,246,0.45)', borderRadius: '6px',
-  });
-  btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(139,92,246,0.25)'; btn.style.color = '#fff'; });
-  btn.addEventListener('mouseleave', () => { btn.style.background = 'rgba(139,92,246,0.12)'; btn.style.color = '#c4b5fd'; });
-  btn.addEventListener('click', () => {
-    if (isHomepageStubOpen()) { closeHomepageStub(); return; }
-    _openHomepageStub();
-  });
-  // Insert below the ENTER ARENA button (the last of the ENTER buttons) so it
-  // reads as a secondary CTA, not a replacement.
-  const enter = document.getElementById('btn-enter');
-  if (enter && enter.parentNode) enter.parentNode.insertBefore(btn, enter.nextSibling);
-  else centre.append(btn);
-})();
-
-// ESC closes the stub first (mirror the menu's ESC-closes-menu-first pattern).
-// arenaRuntime.js owns the in-game ESC handler (UNTOUCHED) and already closes
-// the Torii menu first; this capture-phase listener fires BEFORE it (main.js
-// loads first) and stops propagation when the stub is open, so ESC dismisses
-// the stub without also toggling the menu / pause / gateway screen. On the
-// title screen (no arenaRuntime) this is the only ESC path for the stub.
-document.addEventListener('keydown', (e) => {
-  if (e.code !== 'Escape' || e.repeat) return;
-  if (!isHomepageStubOpen()) return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  closeHomepageStub();
-}, true);
+// v0.3: the old standalone "⛩ GATEWAY SETUP" secondary-CTA button + its
+// dedicated ESC handler are REMOVED. That IIFE targeted #btn-enter (deleted
+// in an earlier homepage-simplification pass), so it had silently fallen
+// through to appending a stray purple button directly onto #title-centre on
+// every load — dead-looking but actually still live and unstyled to the new
+// theme. Gateway Setup is now a tab inside the settings panel (opened via the
+// single top-left settings icon), so this separate entry point and its ESC
+// handling are no longer needed; settingsPanel.js's own backdrop-click/×/ESC
+// handling covers it.
 
 // _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
 // mode). Direct-navigate to the world's hardened https `website`, tagging the
@@ -682,7 +771,7 @@ async function _admitInboundTraveller() {
   filter.authors = [_inboundTraveller];
   let request = null;
   try {
-    const raw = await fanoutReq(RELAYS, [filter], { timeoutMs: 5000, graceMs: 250, retries: 1 });
+    const raw = await fanoutReq(_effectiveRelays(), [filter], { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const events = raw && Array.isArray(raw.events) ? raw.events : [];
     for (const rq of readTravelRequests(events).requests) {
       if (rq.travellerPubkey === _inboundTraveller) { request = rq; break; }
@@ -710,15 +799,13 @@ _admitInboundTraveller();
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
   if (!_worldsCache.length) renderGatewayCard();
-  // Read-side discovery (Phase 0d follow-up): query the node-relay set (the
-  // community relay nodes publish their presence to) MERGED with the public
-  // RELAYS. This is read-only — a failed node relay just lands in `failed` and
-  // never fails the scan (fanoutReq returns the union). Without this, nodes that
-  // publish presence to their own/community relay (never the public RELAYS, per
-  // the own-relay-only rule) would be invisible to the directory.
+  // Read-side discovery (Phase 0d follow-up): query the single relay list (the
+  // same list presence publishes to, ADR-0081). This is read-only — a failed
+  // relay just lands in `failed` and never fails the scan (fanoutReq returns the
+  // union).
   const r = await fetchOnlineWorlds({
     request: fanoutReq,
-    relays: [..._nodeRelaysForPublish(), ...RELAYS],
+    relays: _effectiveRelays(),
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
     graceMs: 250,
@@ -752,7 +839,7 @@ async function _refreshFriendData() {
   const me = state.nostrPubkey || '';
   if (!HEX64.test(me)) return; // logged out: no friends section
   try {
-    const mineRaw = await fanoutReq(RELAYS, [{ kinds: [3], authors: [me], limit: 4 }],
+    const mineRaw = await fanoutReq(_effectiveRelays(), [{ kinds: [3], authors: [me], limit: 4 }],
       { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const mineEvents = mineRaw && Array.isArray(mineRaw.events) ? mineRaw.events : [];
     _userContacts = contactSetFromEvent(newestContactEvent(mineEvents, me));
@@ -762,7 +849,7 @@ async function _refreshFriendData() {
   });
   if (!candidates.length) return;
   try {
-    const ownersRaw = await fanoutReq(RELAYS,
+    const ownersRaw = await fanoutReq(_effectiveRelays(),
       [{ kinds: [3], authors: candidates, limit: candidates.length * 4 }],
       { timeoutMs: 5000, graceMs: 250, retries: 1 });
     const ownerEvents = ownersRaw && Array.isArray(ownersRaw.events) ? ownersRaw.events : [];
@@ -780,20 +867,49 @@ let _presencePublishedPubkey = '';
 // HEARTBEAT_INTERVAL_MS. If a republish sign is rejected/thrown, we PAUSE
 // (status paused:wallet-requires-approval) and stop auto-republishing until
 // the operator re-toggles — so a per-call-prompting wallet never spams prompts.
+// FIRST_PUBLISH_RETRY_MS + the pure isFirstPublishDue() live in heartbeat.js
+// (centralised with HEARTBEAT_INTERVAL_MS) so the auto-on due-check is unit-
+// tested. See ADR-0077.
 const _heartbeat = {
   lastPublishedAt: null,   // epoch ms of the last successful publish (null = never)
+  lastAttemptedAt: null,   // epoch ms of the last publish ATTEMPT (null = never tried) — gates first-publish retry backoff (ADR-0077)
   lastError: null,          // last non-sign error string (null = none)
   republishPaused: false,   // true when a republish sign was rejected → stop auto-republish
   inflight: false,          // true while a publish is mid-flight (guards re-entrancy)
 };
 
-// _nodeRelaysForPublish() → the validated wss:// node-relay set sourced from
-// config (localStorage `torii.node.relays` + <meta name="torii-relays">).
-// NEVER falls back to the public RELAYS (damus/nos.lol/nostr.band/primal) —
-// publishing presence to public relays is the regression this slice forbids.
-// Returns [] when none configured → caller blocks (publishes nothing).
-function _nodeRelaysForPublish() {
-  return readNodeRelays({
+// ADR-0094 (v0.2.734-alpha): server-side always-on beacon. While the server
+// beacon is enabled the SERVER publishes presence 24/7 (signed by its own
+// instance-bound key), so the client must NOT also publish — that would list the
+// world twice (two keys, same zone). `state.enabled` therefore gates the client
+// heartbeat OFF; the client heartbeat remains only the fallback path used before
+// first activation or when the server beacon is unreachable/off.
+const _beacon = {
+  state: { enabled: false }, // latest server beacon state (default: off)
+  syncing: false,            // in-flight sync guard (prevents duplicate activates)
+};
+
+// _syncServerBeacon() → read the server beacon state so the UI can show it and
+// the client heartbeat stays gated OFF while the SERVER is publishing. Pure
+// read — activation is the server's job (ADR-0094): it auto-enables from the
+// configured admin npub at boot, no login, no wallet, no browser involved.
+async function _syncServerBeacon() {
+  if (_beacon.syncing) return;
+  const httpBase = resolveMpHttpBase();
+  if (!httpBase) return;
+  _beacon.syncing = true;
+  try {
+    _beacon.state = await fetchBeaconState({ httpBase }).catch(() => ({ enabled: false }));
+  } finally {
+    _beacon.syncing = false;
+  }
+}
+
+// _nodeRelaysOpts() → the { storage, metaGetter } injection for the effective
+// reader (readEffectiveNodeRelays). Built once so the Relay tab's list and the
+// heartbeat's publish set stay in lockstep with a single source.
+function _nodeRelaysOpts() {
+  return {
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
     metaGetter: typeof document !== 'undefined'
       ? (name) => {
@@ -801,11 +917,22 @@ function _nodeRelaysForPublish() {
           return el && el.content ? el.content : '';
         }
       : null,
-  });
+  };
+}
+
+// _effectiveRelays() → the validated wss:// relay set the WHOLE game uses —
+// reads (profile/login/leaderboard/discovery) AND presence publish (ADR-0081).
+// The operator's configured node relays (localStorage `torii.node.relays` +
+// <meta name="torii-relays">), else the curated 5-relay DEFAULT_NODE_RELAYS so
+// a fresh install works with zero config. Returns [] only if both configured
+// AND defaults are empty (defaults are non-empty, so this practically never
+// blocks).
+function _effectiveRelays() {
+  return readEffectiveNodeRelays(_nodeRelaysOpts());
 }
 
 // _publishPresenceOnce() → signs + fanout-publishes ONE presence event to the
-// node-relay set (NEVER public RELAYS). The NIP-40 expiration is now baked into
+// single relay list (ADR-0081). The NIP-40 expiration is now baked into
 // buildPresenceEvent (default 20 min). Returns { ok, error }.
 //   - On sign rejection/throw (nip-07-rejected/nip-07-threw): sets
 //     _heartbeat.republishPaused = true so the rAF tick stops auto-republishing.
@@ -815,8 +942,14 @@ function _nodeRelaysForPublish() {
 async function _publishPresenceOnce() {
   const pubkey = state.nostrPubkey || '';
   if (!/^[0-9a-f]{64}$/.test(pubkey)) return { ok: false, error: 'no-pubkey' };
-  const relays = _nodeRelaysForPublish();
+  const relays = _effectiveRelays();
   if (!relays.length) return { ok: false, error: 'blocked:no-node-relay' };
+  // Record the attempt time so a FAILED first publish backs off (ADR-0077) —
+  // set BEFORE buildPresenceEvent + the async publish, so a BUILD failure OR a
+  // slow wallet/relay can't leave lastAttemptedAt null + firstPublishDue true
+  // every rAF frame (a ~60fps spin). The cheap preconditions above (pubkey/
+  // signer/relays) are NOT publish attempts — the tick already gates on them.
+  _heartbeat.lastAttemptedAt = Date.now();
   const built = buildPresenceEvent({
     pubkey,
     zoneId: 'quest-torii',
@@ -826,7 +959,7 @@ async function _publishPresenceOnce() {
     relays,
     // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
-  if (!built.ok) return { ok: false, error: 'build-failed' };
+  if (!built.ok) { _heartbeat.lastError = 'build-failed'; return { ok: false, error: 'build-failed' }; }
   const res = await publishOurPresence({
     unsigned: built.event,
     sign: signEvent,
@@ -854,6 +987,10 @@ async function _publishPresenceOnce() {
 // gateway-scan polling that already rides this tick.
 function _heartbeatTick(now) {
   if (_heartbeat.inflight) return;
+  // ADR-0094: when the server beacon is enabled the SERVER publishes presence
+  // 24/7 — the client must not also publish (duplicate world). Client heartbeat
+  // is only the fallback for not-yet-activated / server-off states.
+  if (_beacon.state.enabled) return;
   const intent = getHeartbeatIntent();
   if (intent !== 'on') return;
   const cap = _updateCapability;
@@ -862,22 +999,38 @@ function _heartbeatTick(now) {
   const hasSigner = typeof window !== 'undefined' && !!window.nostr && typeof window.nostr.signEvent === 'function';
   if (!hasSigner) return;
   if (_heartbeat.republishPaused) return;
-  if (!isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS })) return;
-  // Never published → the first publish is explicit-via-toggle only; the tick
-  // only handles REpublishes (isHeartbeatDue is false when lastPublishedAt is
-  // null, so this guard is belt-and-braces).
-  if (_heartbeat.lastPublishedAt === null) return;
+  // ADR-0077: the heartbeat is ON by default and auto-fires the FIRST publish
+  // when the owner logs in (the login click is the user gesture that authorises
+  // the NIP-07 signer prompt — approving it IS the consent). isHeartbeatDue
+  // returns false when lastPublishedAt is null (its contract is unchanged), so
+  // the first publish is driven by `firstPublishDue` below; subsequent
+  // republishes use the 10-min interval. A signer rejection/throw sets
+  // republishPaused so it never nags — the operator can re-toggle to retry.
+  // A FAILED first publish (non-signer error) backs off by FIRST_PUBLISH_RETRY_MS
+  // so it doesn't spin every rAF frame while lastPublishedAt is still null.
+  const firstPublishDue = isFirstPublishDue({
+    lastPublishedAt: _heartbeat.lastPublishedAt,
+    lastAttemptedAt: _heartbeat.lastAttemptedAt,
+    now,
+    retryMs: FIRST_PUBLISH_RETRY_MS,
+  });
+  const intervalDue = isHeartbeatDue({ lastPublishedAt: _heartbeat.lastPublishedAt, now, intervalMs: HEARTBEAT_INTERVAL_MS });
+  if (!firstPublishDue && !intervalDue) return;
   _heartbeat.inflight = true;
   _publishPresenceOnce()
     .catch(() => { /* publish threw — leave paused/error state as set */ })
     .finally(() => { _heartbeat.inflight = false; });
 }
 
-// publishOurWorldPresence() — the consent-gated first publish (called by the
-// menu's heartbeat toggle when the operator enables it). v0.2.263 idempotency
-// guard kept so a re-toggle of the same intent doesn't double-publish. Now
-// publishes to the node-relay set ONLY (never public RELAYS); if none
-// configured, blocks with status blocked:no-node-relay and publishes nothing.
+// publishOurWorldPresence() — the re-enable / manual re-publish entry point.
+// ADR-0077: the FIRST publish is no longer manual — _heartbeatTick auto-fires
+// it when the owner logs in (intent defaults to 'on'). This function is now
+// called by the menu toggle when the operator re-enables a paused heartbeat
+// (re-publishes immediately, no waiting for the next tick) or explicitly asks
+// to re-publish. v0.2.263 idempotency guard kept so a re-toggle of the same
+// intent doesn't double-publish. Now publishes to the single relay list ONLY;
+// if none configured, blocks with status
+// blocked:no-node-relay and publishes nothing.
 async function publishOurWorldPresence() {
   const pubkey = state.nostrPubkey || '';
   if (!/^[0-9a-f]{64}$/.test(pubkey)) return;
@@ -900,39 +1053,59 @@ function renderGatewayPreview() {
 }
 renderGatewayPreview();
 
+// The player's own character mesh URL (Blossom), resolved at login from their
+// signed kind-35100 character event. Set before arena boot so loadPlayerModel()
+// fetches the custom mesh instead of the built-in default.
+let _ownCharacterMeshUrl = null;
+let _ownCharacterMeshHash = null;
+
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
+  _applyOwnCharacterMesh();
   // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
   // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
   // card is read-only. (publishOurWorldPresence remains available for a future
   // explicit, user-initiated publish, but is no longer auto-triggered.)
-  refreshInstanceSettingsVisibility();
-  // Phase 0g: optional auto-open of the Gateway setup stub ONCE per session,
-  // ONLY for the confirmed node owner/admin AND only when there is no active
-  // world override (adminPrefs.getActiveWorld is empty). Do NOT trigger on "no
-  // active world" alone — the legacy default / no-<meta> path is intentional and
-  // would show the panel to the wrong people. The shown-this-session flag
-  // (sessionStorage `torii.homepage.stub.shown`) keeps it to once per browser
-  // session. No timer — rides the existing login-resolved callback.
-  try {
-    const cap = _updateCapability;
-    const owner = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
-    if (owner && !getActiveWorld() && !hasShownThisSession()) {
-      setShownThisSession();
-      _openHomepageStub();
-    }
-  } catch { /* auto-open is best-effort; never throw into the login path */ }
+  // ADR-0063: the login-resolved auto-open of the Gateway Setup panel was
+  // removed — it popped a settings modal unprompted the moment Nostr login
+  // resolved, which read as a surprise interrupt right when the player clicked
+  // ENTER. The Gateway Setup tab is still reachable any time via the title-screen
+  // settings icon and the in-game KeyM menu. Both are explicit user actions.
 });
 
-// ── Instance Settings (ACC-2b, v0.2.400) ───────────────────────────────────────
-// Title-screen admin surface. The entry-point link stays UI-gated by
-// isInstanceAdmin(); the saved access mode itself is secured by the signed
-// kind:30078 settings event, verified on read before it can affect arrival.
-const _elInstanceSettingsLink  = typeof document !== 'undefined' ? document.getElementById('instance-settings-link')  : null;
-const _elInstanceSettingsPanel = typeof document !== 'undefined' ? document.getElementById('instance-settings-panel') : null;
-const _elInstanceSettingsBackdrop = typeof document !== 'undefined' ? document.getElementById('instance-settings-backdrop') : null;
+// _applyOwnCharacterMesh() — the player path of the automatic mesh-loading slice.
+// After login, fetch the player's own kind-35100 character event, resolve its mesh
+// hash to a Blossom URL, and stash it so ensureArenaReady() seats it before boot.
+// Read-only + no prompt (reuses fetchOwnCharacter); a missing/invalid character
+// leaves the built-in default avatar in place.
+async function _applyOwnCharacterMesh() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; return; }
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+    _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
+  } catch {
+    _ownCharacterMeshUrl = null;
+    _ownCharacterMeshHash = null;
+  }
+}
+
+// ── Access tab (ADR-0078, v0.2.712) ─────────────────────────────────────────
+// The Instance Settings admin surface (ACC-2b, v0.2.400) was hidden in v0.2.676
+// ("nothing useful there for admins or guests"). v0.2.712 RESTORES it as the
+// "Access" tab per "make the settings panel feel complete + useful" — the
+// signed kind:30078 access-control enforcement in handoffArrival.js /
+// writeAuthority.js stayed live the whole time it was hidden, so this only
+// re-surfaces the editing UI. The view-model + renderer are the unchanged
+// instanceSettings.js (v0.2.358); main.js owns the read/save relay round-trips
+// (readLatestAccessSettings / publishAccessSettings in nostr.js) below.
+//
+// Arrival authority + write authority are owner-only + gated by a signed
+// kind:30078 event verified on read before it can affect arrival — the edit
+// surface can never weaken enforcement, only persist the operator's choice.
 const _instanceSettingsState = {
   loading: false,
   saving: false,
@@ -941,6 +1114,7 @@ const _instanceSettingsState = {
   draftWritePolicy: null,
   statusMessage: '',
   statusTone: '',
+  _readStarted: false,
 };
 
 function _syncInstanceSettingsDraft() {
@@ -982,13 +1156,10 @@ function _currentInstanceSettingsModel() {
 }
 
 function _rerenderInstanceSettingsPanel() {
-  if (!_elInstanceSettingsPanel || _elInstanceSettingsPanel.hidden) return;
+  if (!isSettingsPanelOpen()) return;
   const model = _currentInstanceSettingsModel();
-  if (!model.visible) {
-    _closeInstanceSettingsPanel();
-    return;
-  }
-  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
+  if (!model.visible) { _closeSettingsContentPanel(); return; }
+  renderActiveSettingsTab();
 }
 
 async function _refreshInstanceSettingsAccessState() {
@@ -1009,7 +1180,7 @@ async function _refreshInstanceSettingsAccessState() {
   }
   const res = await readLatestAccessSettings({
     request: fanoutReq,
-    relays: RELAYS,
+    relays: _effectiveRelays(),
     instanceId,
     ownerPubkey: hostPubkey,
     timeoutMs: 5000,
@@ -1063,7 +1234,7 @@ async function _saveInstanceSettingsAccess() {
     followPolicy: _followPolicy(),
     writePolicy: _instanceSettingsState.draftWritePolicy,
     delegateSet: (_instanceSettingsState.persisted && _instanceSettingsState.persisted.delegateSet) || [],
-    relays: RELAYS,
+    relays: _effectiveRelays(),
     sign: signEvent,
     publish: fanoutPublish,
     timeoutMs: 5000,
@@ -1085,48 +1256,377 @@ async function _saveInstanceSettingsAccess() {
   _rerenderInstanceSettingsPanel();
 }
 
-function refreshInstanceSettingsVisibility() {
-  if (!_elInstanceSettingsLink) return;
+// Access tab content renderer. Renders a gate note for non-owners (the model's
+// own visible/canEditAccess gating still applies inside renderInstanceSettings-
+// Panel). Only the 'access' section is surfaced — the module's placeholder
+// 'multiplayer' + 'more' ("coming soon") sections are filtered out so the tab
+// shows only useful, live controls. The relay read is kicked off lazily on the
+// first render so opening the tab populates the persisted setting.
+registerSettingsTabRenderer('access', () => {
   const model = _currentInstanceSettingsModel();
-  _elInstanceSettingsLink.hidden = !model.visible;
-  if (!model.visible) _closeInstanceSettingsPanel();
-}
-
-function _openInstanceSettingsPanel() {
-  if (!_elInstanceSettingsPanel) return;
-  const model = _currentInstanceSettingsModel();
-  if (!model.visible) return;
-  _elInstanceSettingsPanel.innerHTML = renderInstanceSettingsPanel(model);
-  _elInstanceSettingsPanel.hidden = false;
-  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = false;
-  _refreshInstanceSettingsAccessState();
-}
-
-function _closeInstanceSettingsPanel() {
-  if (_elInstanceSettingsPanel) {
-    _elInstanceSettingsPanel.hidden = true;
-    _elInstanceSettingsPanel.innerHTML = '';
+  if (!model.visible) return '<div class="is-note">Instance settings are only available to the node owner.</div>';
+  model.sections = (Array.isArray(model.sections) ? model.sections : []).filter((s) => s && s.key === 'access');
+  if (!_instanceSettingsState._readStarted) {
+    _instanceSettingsState._readStarted = true;
+    _refreshInstanceSettingsAccessState().catch(() => { /* status surfaced */ });
   }
-  if (_elInstanceSettingsBackdrop) _elInstanceSettingsBackdrop.hidden = true;
+  return renderInstanceSettingsPanel(model);
+});
+
+// Generic settings-panel close — kept (was previously named for the instance
+// tab, but the 'close' data-action applies to the whole panel, both tabs).
+function _closeSettingsContentPanel() {
+  closeSettingsPanel();
 }
 
-if (_elInstanceSettingsLink) {
-  _elInstanceSettingsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    _openInstanceSettingsPanel();
-  });
+// Gateway Setup tab content renderer — reuses the exact same state/callback
+// builders as the old homepage stub (_homepageStubState / _homepageStubCallbacks,
+// defined above), just rendered as HTML into the shared content pane instead
+// of a separate DOM overlay.
+registerSettingsTabRenderer('gateway', () => renderGatewaySetupPanel(_homepageStubState()));
+
+// Heartbeat tab content renderer — v0.3: split out of Gateway Setup's former
+// 3rd card. Same underlying state (_homepageStubState's heartbeatStatus) and
+// callback (onPublishNode), just its own tab.
+registerSettingsTabRenderer('heartbeat', () => renderHeartbeatPanel(_homepageStubState()));
+
+// Relay tab content renderer (v0.4) — view/add/remove the wss:// relays this
+// node publishes presence to. Same state builder as the other tabs.
+registerSettingsTabRenderer('relay', () => renderRelayPanel(_homepageStubState()));
+
+// Profile tab content renderer (v0.4) — standard Nostr kind:0 fields for
+// this Quest installation's identity. Same state builder as the other tabs.
+registerSettingsTabRenderer('profile', () => {
+  const st = _homepageStubState();
+  return renderProfilePanel({ ...st, draft: st.profileDraft, publishStatus: st.profilePublishStatus });
+});
+
+// Character tab content renderer (v0.2.718, Character Forge) — the player's
+// playable character (a signed kind-35100 event). v0.2.719 wires the LIVE relay
+// read: on first render (and on retry) it checks the logged-in npub's kind-35100
+// event via fetchOwnCharacter and seats an existing character automatically (the
+// "smooth experience" seam) — no prompt, no re-upload. The create round-trip
+// (writing a new character event) is a follow-up slice.
+const _characterForgeState = {
+  status: 'idle', // 'idle' | 'checking' | 'found' | 'none' | 'failed'
+  character: null, // { name, meshName, stickerCount, stickers } | null
+  manifest: null, // the full `torii.character` manifest (used for sticker edits)
+  mode: 'view',   // 'view' | 'edit' — 'edit' is the sticker editor
+  error: null,
+  _readStarted: false,
+};
+
+// _summarizeCharacterManifest(manifest) → the panel's character summary, used
+// by every read/create/update path so the summary shape stays in one place.
+function _summarizeCharacterManifest(manifest) {
+  const m = (manifest && typeof manifest === 'object') ? manifest : {};
+  return {
+    name: (typeof m.name === 'string' && m.name) ? m.name : 'Unnamed',
+    meshName: (m.mesh && typeof m.mesh.name === 'string') ? m.mesh.name : '',
+    stickerCount: Array.isArray(m.stickers) ? m.stickers.length : 0,
+    stickers: Array.isArray(m.stickers) ? m.stickers : [],
+  };
 }
-if (_elInstanceSettingsPanel) {
-  _elInstanceSettingsPanel.addEventListener('click', (e) => {
+
+// _republishCharacter(manifest) — sign + publish a character manifest update
+// (the shared write half for the sticker editor), then refresh the panel state.
+async function _republishCharacter(manifest) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not update your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not update your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _addOwnSticker(stickerId) — place a sticker from the curated library on its
+// recommended zone (default centre u/v), then republish. The precise 3D
+// placement (raycast → zone/u/v/rot) is a later in-world step; this is the
+// settings-tab authoring path that closes the create→edit loop.
+async function _addOwnSticker(stickerId) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const entry = STICKER_LIBRARY.find((s) => s.id === stickerId);
+  if (!entry) return;
+  const next = addSticker(manifest, {
+    hash: entry.hash,
+    zoneId: entry.recommendedZone,
+    u: 0.5,
+    v: 0.5,
+    rot: 0,
+  });
+  if (next !== manifest) await _republishCharacter(next);
+}
+
+// _removeOwnSticker(index) — remove the sticker at `index` from the manifest and
+// republish. Out-of-range index is a no-op (removeSticker returns the input).
+async function _removeOwnSticker(index) {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest) return;
+  const next = removeSticker(manifest, index);
+  if (next !== manifest) await _republishCharacter(next);
+}
+
+// _confirmSelfViewPlacement(placement) — the self-view sticker placement confirm
+// half (ADR-0088). The in-world orbit self-view confirms a real 3D raycast
+// placement ({hash, zoneId, u, v, rot}); fold it into the manifest + republish.
+// Ensures a manifest exists first (the self-view is entered in-game, possibly
+// without ever opening the Character tab).
+async function _confirmSelfViewPlacement(placement) {
+  if (!placement || !placement.zoneId) return;
+  let manifest = _characterForgeState.manifest;
+  if (!manifest) {
+    const pk = (state.nostrPubkey || '').trim().toLowerCase();
+    if (/^[0-9a-f]{64}$/.test(pk)) manifest = await fetchOwnCharacter(pk);
+  }
+  if (!manifest || !manifest.mesh || !manifest.mesh.hash) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Create a character first (Character tab) to add stickers.';
+    renderActiveSettingsTab();
+    showFlyNotice('Sticker placement — create a character first');
+    return;
+  }
+  const next = addSticker(manifest, placement);
+  if (next !== manifest) {
+    await _republishCharacter(next);
+    showFlyNotice(`Sticker placed — ${placement.zoneId} (${_characterForgeState.character ? _characterForgeState.character.stickerCount : 0} total)`);
+  }
+}
+
+async function _checkOwnCharacter() {
+  const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(pk)) {
+    _characterForgeState.status = 'none';
+    _characterForgeState.character = null;
+    return;
+  }
+  _characterForgeState.status = 'checking';
+  renderActiveSettingsTab();
+  try {
+    const manifest = await fetchOwnCharacter(pk);
+    if (manifest && manifest.mesh && manifest.mesh.hash) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+    } else {
+      _characterForgeState.status = 'none';
+      _characterForgeState.character = null;
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not reach relays to check for your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _createOwnCharacter(presetId) — the create round-trip write half: build the
+// manifest from a curated preset, sign the kind-35100 event via NIP-07, and
+// publish to the unified relay list. On success the tab flips to 'found' (the
+// same view the read half produces), so create→read round-trips seamlessly.
+async function _createOwnCharacter(presetId) {
+  const preset = getCharacterPreset(presetId);
+  if (!preset) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Unknown preset.';
+    renderActiveSettingsTab();
+    return;
+  }
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const manifest = presetToManifest(preset);
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not publish your character.';
+  }
+  renderActiveSettingsTab();
+}
+
+// _pickCustomMesh() — open a file picker for a .glb and hand the file to
+// _uploadCustomMesh. The picker is created dynamically (not baked into the pure
+// panel HTML) so the panel stays a node-testable string renderer.
+function _pickCustomMesh() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  const input = doc.createElement('input');
+  input.type = 'file';
+  input.accept = '.glb,.gltf';
+  input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (file) _uploadCustomMesh(file);
+  };
+  input.click();
+}
+
+// _uploadCustomMesh(file) — the "make it so" path: upload a GLB to Blossom
+// (NIP-98 auth via NIP-07), build a manifest from the returned content hash,
+// sign + publish the kind-35100 character event, then seat the mesh for the
+// player's own avatar. Two NIP-07 prompts (upload auth + event sign).
+async function _uploadCustomMesh(file) {
+  _characterForgeState.status = 'creating';
+  renderActiveSettingsTab();
+  try {
+    const up = await uploadBlossom(file);
+    if (!up.ok) {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = up.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (up.error || 'Could not upload your mesh.');
+      renderActiveSettingsTab();
+      return;
+    }
+    const manifest = {
+      version: 1,
+      mesh: { hash: up.sha256, name: (file && file.name) || 'custom.glb' },
+      clips: [],
+      stickers: [],
+      name: '',
+      colors: [],
+      contrib: [],
+    };
+    const res = await publishCharacter(manifest);
+    if (res.ok) {
+      _characterForgeState.status = 'found';
+      _characterForgeState.manifest = manifest;
+      _characterForgeState.character = _summarizeCharacterManifest(manifest);
+      _characterForgeState.error = null;
+      // Seat the newly-published mesh for the player's own avatar + broadcast
+      // its hash so peers can load it too.
+      _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
+      _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
+      if (_arena && typeof _arena.setCustomMeshUrl === 'function') _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      if (_arena && typeof _arena.setCustomMeshHash === 'function') _arena.setCustomMeshHash(_ownCharacterMeshHash);
+    } else {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = res.error === 'nip-07-unavailable'
+        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
+        : (res.error || 'Could not publish your character.');
+    }
+  } catch {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not upload your mesh.';
+  }
+  renderActiveSettingsTab();
+}
+
+registerSettingsTabRenderer('character', () => {
+  const st = _homepageStubState();
+  if (st.isLoggedIn && !_characterForgeState._readStarted) {
+    _characterForgeState._readStarted = true;
+    _checkOwnCharacter();
+  }
+  return renderCharacterForgePanel({
+    isLoggedIn: st.isLoggedIn,
+    status: _characterForgeState.status,
+    character: _characterForgeState.character,
+    mode: _characterForgeState.mode,
+    stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
+    presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
+    error: _characterForgeState.error,
+  });
+});
+
+// Single delegated listener on the settings panel's content container, scoped
+// by data-action conventions so every tab's clicks are handled without
+// needing its own listeners.
+(function _wireSettingsContentDelegation() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  if (!doc) return;
+  // The content container is built lazily by settingsPanel.js on first open,
+  // so delegate from `document` (capture bubble naturally) rather than trying
+  // to grab a reference that may not exist yet.
+  doc.addEventListener('click', (e) => {
     const t = e && e.target;
-    if (t && t.getAttribute && t.getAttribute('data-action') === 'close') {
+    if (!t || !t.closest) return;
+    if (!t.closest('#torii-settings-content')) return;
+    const action = t.getAttribute && t.getAttribute('data-action');
+    if (!action) return;
+    if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
+    if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
+    if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
+    if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
+    if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
+    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(t.getAttribute('data-sticker') || ''); return; }
+    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(t.getAttribute('data-index')); return; }
+    if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
+    if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
+    if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); toastSuccess('Heartbeat updated.'); return; }
+    if (action === 'save-relays') {
       e.preventDefault();
-      _closeInstanceSettingsPanel();
+      const ta = doc.getElementById('rl-add-input');
+      _homepageStubCallbacks().onSetNodeRelays(ta ? ta.value : '');
+      renderActiveSettingsTab();
+      toastSuccess('Relays saved.');
+      return;
+    }
+    if (action === 'remove-relay') {
+      e.preventDefault();
+      const url = t.getAttribute('data-relay') || '';
+      // Remove from the EFFECTIVE list (curated defaults included) and persist
+      // the remaining set as the operator's configured list — so deleting a
+      // starter relay materialises the rest as an explicit config rather than
+      // silently leaving the default fallback in place.
+      const effective = readEffectiveNodeRelays(_nodeRelaysOpts());
+      const remaining = effective.filter((r) => r !== url);
+      _homepageStubCallbacks().onSetNodeRelays(remaining.join('\n'));
+      renderActiveSettingsTab();
+      toastInfo('Relay removed.');
+      return;
+    }
+    if (action === 'save-profile') {
+      e.preventDefault();
+      const fields = {};
+      for (const id of ['displayName', 'about', 'picture', 'website', 'nip05', 'lud16']) {
+        const el = doc.getElementById(`pf-${id}`);
+        if (el) fields[id] = el.value;
+      }
+      Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields))
+        .then(() => { toastSuccess('Profile saved.'); })
+        .catch(() => { toastError('Profile save failed.'); })
+        .finally(() => {
+          renderActiveSettingsTab();
+          _refreshOwnerLabel(); // owner's displayName edit should reflect on the homepage caption immediately
+        });
+      return;
     }
   });
-  _elInstanceSettingsPanel.addEventListener('change', (e) => {
+
+  // v0.2.712 (ADR-0078): Access tab — delegated `change` for the arrival-mode /
+  // write-policy radio groups (writes the selection into the draft, same as the
+  // old v0.2.400 wiring), + delegated `submit` for the signed-access form
+  // (data-form="access-settings" → _saveInstanceSettingsAccess signs +
+  // publishes the kind:30078). Scoped to #torii-settings-content like the click
+  // handler so it never catches events outside the settings panel.
+  doc.addEventListener('change', (e) => {
     const t = e && e.target;
-    if (!t || !t.matches) return;
+    if (!t || !t.matches || !t.closest || !t.closest('#torii-settings-content')) return;
     if (t.matches('input[name="arrival-mode"]')) {
       _instanceSettingsState.draftArrivalMode = coerceEditableArrivalMode(t.value, _arrivalMode());
     } else if (t.matches('input[name="write-policy"]')) {
@@ -1138,17 +1638,14 @@ if (_elInstanceSettingsPanel) {
     _instanceSettingsState.statusTone = '';
     _rerenderInstanceSettingsPanel();
   });
-  _elInstanceSettingsPanel.addEventListener('submit', (e) => {
+  doc.addEventListener('submit', (e) => {
     const t = e && e.target;
-    if (!t || !t.getAttribute || t.getAttribute('data-form') !== 'access-settings') return;
+    if (!t || !t.getAttribute || !t.closest || !t.closest('#torii-settings-content')) return;
+    if (t.getAttribute('data-form') !== 'access-settings') return;
     e.preventDefault();
     _saveInstanceSettingsAccess();
   });
-}
-if (_elInstanceSettingsBackdrop) {
-  _elInstanceSettingsBackdrop.addEventListener('click', _closeInstanceSettingsPanel);
-}
-refreshInstanceSettingsVisibility();
+})();
 
 // ── Canonical /#/zone/<slug> hash route resolution (inert notice only) ──────────
 function _applyZoneRoute() {
@@ -1239,7 +1736,7 @@ async function _refreshPersistentScores() {
       { kinds: [SCORE_KIND_ADDRESSABLE], '#d': [SCORE_D_TAG], limit: 50 },
       { kinds: [SCORE_KIND_HISTORY], '#t': [SCORE_HISTORY_T_TAG], limit: 200 },
     ];
-    const { events } = await fanoutReq(RELAYS, filters, { timeoutMs: 4000, graceMs: 300 });
+    const { events } = await fanoutReq(_effectiveRelays(), filters, { timeoutMs: 4000, graceMs: 300 });
     if (seq !== _scoreReadSeq) return;
     const valid = Array.isArray(events) ? events.filter(_isScoreEvent) : [];
     _relayScoreEvents = {
@@ -1330,9 +1827,9 @@ async function _publishLatestScore() {
       return result.event;
     },
     publisher: async (event) => {
-      const result = await fanoutPublish(RELAYS, event);
+      const result = await fanoutPublish(_effectiveRelays(), event);
       if (!result || result.accepted < 1) throw new Error('no relay accepted score');
-      return { published: result.accepted, tried: RELAYS.length };
+      return { published: result.accepted, tried: _effectiveRelays().length };
     },
     log: (message, error) => console.warn('[score]', message, error?.message || ''),
   });
@@ -1347,12 +1844,42 @@ async function _publishLatestScore() {
   }
 }
 
+// _prefillProfileDraftFromNostr(pubkey) → fetch the logged-in user's published
+// kind:0 profile and pre-fill the Profile settings tab's draft from it — but
+// ONLY when the draft is still empty, so we never clobber an owner's unsaved
+// edits. Maps the sanitised profile view-model to the draft field shape and
+// re-renders the Profile tab if it is open. Never throws.
+let _profilePrefillPubkey = null; // short-circuit repeat login events
+async function _prefillProfileDraftFromNostr(pubkey) {
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return;
+  if (pk === _profilePrefillPubkey) return;
+  _profilePrefillPubkey = pk;
+  const existing = getProfileDraft();
+  if (existing && Object.keys(existing).length) return; // already has a draft — leave it
+  const profile = await fetchOwnProfile(pk);
+  if (!profile) return;
+  const displayName = (profile.displayName && profile.displayName !== profile.shortPubkey)
+    ? profile.displayName
+    : '';
+  setProfileDraft({
+    displayName,
+    about: profile.about || '',
+    picture: profile.picture || '',
+    website: profile.website || '',
+    nip05: profile.nip05 || '',
+    lud16: profile.lud16 || '',
+  });
+  renderActiveSettingsTab(); // no-op unless the panel is open; refreshes the Profile tab if so
+}
+
 on(EV.NOSTR_LOGIN, ({ pubkey }) => {
   _latestScoreFrame = loadLatestScoreFrame(globalThis.localStorage, pubkey) || _latestScoreFrame;
   renderLeaderboardPreview();
   _renderGamestrLeaderboard();
   void _refreshPersistentScores();
   void _refreshGamestrScores();
+  void _prefillProfileDraftFromNostr(pubkey);
 });
 on(EV.PHASE_CHANGE, ({ to }) => {
   if (to !== 'title') return;
@@ -1371,7 +1898,7 @@ on(EV.PHASE_CHANGE, ({ to }) => {
 // the sign+publish stakes are never hidden. Status: idle → publishing → published
 // / failed.
 const _livePublisher = createLiveLeaderboardPublisher({
-  sign: signEvent, publish: fanoutPublish, relays: RELAYS,
+  sign: signEvent, publish: fanoutPublish, relays: _effectiveRelays(),
 });
 let _publishInFlight = false;
 
@@ -1488,6 +2015,14 @@ let _latestUpdateView = null;
 let _updateCapability = null; // { autoUpdate, adminPubkey }
 let _updatePolling = false;
 
+// v0.2.706-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
+// once per adminPubkey (see fetchOwnerProfileName in nostr.js) so the homepage
+// caption shows the real name to EVERY visitor, not just the owner viewing
+// their own browser. Keyed by pubkey so a stale name from a previous instance
+// (e.g. during tests, or if adminPubkey ever changes at runtime) is never shown.
+let _ownerProfileNamePubkey = null;
+let _ownerProfileName = '';
+
 function _drawUpdateBlock(block) {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
@@ -1550,6 +2085,87 @@ function _clearUpdateProgress() {
   _setUpdateStatusLine('');
 }
 
+// Paint the top-left "This torii belongs to: <label>" caption. Reads the same
+// capability.adminPubkey _refreshUpdateButton() already has (no extra fetch),
+// so it is called right alongside it — on the capability probe resolving and
+// on every NOSTR_LOGIN. Pure DOM write; missing element/data degrades to the
+// helper's own safe defaults, never throws.
+function _refreshOwnerLabel() {
+  const el = document.getElementById('torii-owner-label');
+  if (!el) return;
+  const cap = _updateCapability;
+  const adminPubkey = cap ? cap.adminPubkey : null;
+  const label = resolveToriiOwnerLabel({
+    adminPubkey,
+    viewerPubkey: state.nostrPubkey || '',
+    profileDraft: getProfileDraft(),
+    ownerProfileName: (adminPubkey && adminPubkey === _ownerProfileNamePubkey) ? _ownerProfileName : '',
+  });
+  // v0.2.705 (ADR-0071): the name lives in its own truncating span now (was the
+  // whole element's textContent) so the admin-only "logged in" badge can sit to
+  // its right without being clipped by the ellipsis.
+  const nameEl = document.getElementById('torii-owner-name');
+  const line1 = document.getElementById('torii-owner-line1');
+  // Admin-only greeting: when the logged-in viewer IS the configured owner, the
+  // caption becomes "Welcome <name>," / green-dot "you are logged in". Otherwise
+  // every visitor sees the standard "This torii belongs to / <name>" caption.
+  // Reuses the same isAdminOperator() check the rest of the shell uses — never
+  // reveals the pubkey, never shows for non-owners/anonymous, starts display:none
+  // so it never flashes before login confirms.
+  const isOwner = !!(adminPubkey && isAdminOperator(state.nostrPubkey || '', adminPubkey));
+  if (line1) {
+    if (isOwner) {
+      // v0.2.706 (ADR-0072): "Welcome <name>," with ONLY the name in orange.
+      // Built via DOM API (textContent per span) so a Nostr display name can
+      // never inject markup — no innerHTML, never surfaces the pubkey.
+      line1.classList.add('toc-greet');
+      line1.replaceChildren();
+      const pre = document.createElement('span'); pre.className = 'toc-dim'; pre.textContent = 'Welcome ';
+      const nm = document.createElement('span'); nm.className = 'toc-name'; nm.textContent = label;
+      const comma = document.createElement('span'); comma.className = 'toc-dim'; comma.textContent = ',';
+      line1.append(pre, nm, comma);
+      line1.title = label;
+    } else {
+      line1.classList.remove('toc-greet');
+      line1.replaceChildren(document.createTextNode('This torii belongs to'));
+      line1.title = '';
+    }
+  }
+  if (nameEl) {
+    if (isOwner) { nameEl.hidden = true; }                       // name moved into the greeting line
+    else { nameEl.hidden = false; nameEl.textContent = label; nameEl.title = label; } // full text on hover when ellipsis-clipped
+  }
+  else if (!isOwner) { el.textContent = label; el.title = label; } // fallback if the span is absent
+  const badge = document.getElementById('torii-loggedin-badge');
+  if (badge) badge.classList.toggle('show', isOwner);
+  _fetchOwnerProfileNameOnce(adminPubkey);
+}
+
+// Kick off a read-only relay lookup of the owner's published displayName, once
+// per adminPubkey per session (fetchOwnerProfileName itself also caches, so this
+// is just an in-memory short-circuit to avoid redundant calls on every login
+// event/capability re-probe). Never throws; a failed/empty lookup just leaves
+// the shortened-npub fallback in place. Repaints the caption on success so a
+// visitor who loaded before the profile resolved still sees the name land.
+let _ownerProfileNameFetchInFlightFor = null;
+function _fetchOwnerProfileNameOnce(adminPubkey) {
+  const pk = typeof adminPubkey === 'string' ? adminPubkey.trim() : '';
+  if (!pk) return;
+  if (pk === _ownerProfileNamePubkey) return; // already resolved (name or confirmed-empty) for this owner
+  if (pk === _ownerProfileNameFetchInFlightFor) return; // already in flight
+  _ownerProfileNameFetchInFlightFor = pk;
+  fetchOwnerProfileName(pk)
+    .then((name) => {
+      _ownerProfileNamePubkey = pk;
+      _ownerProfileName = name || '';
+      if (_ownerProfileNameFetchInFlightFor === pk) _ownerProfileNameFetchInFlightFor = null;
+      _refreshOwnerLabel();
+    })
+    .catch(() => {
+      if (_ownerProfileNameFetchInFlightFor === pk) _ownerProfileNameFetchInFlightFor = null;
+    });
+}
+
 // v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.
 // Fail-closed — nothing is shown unless the logged-in operator IS the configured
 // admin AND the latest probe says an update is available. When auto-update is
@@ -1558,6 +2174,7 @@ function _clearUpdateProgress() {
 function _refreshUpdateButton() {
   const btn = document.getElementById('update-upgrade-btn');
   const fallback = document.getElementById('update-copy-fallback');
+  _refreshOwnerLabel();
   if (!btn) return;
   if (_updatePolling) return; // a run is in flight; leave the live UI untouched
 
@@ -1757,6 +2374,9 @@ function _armRetryButton() {
 // Refresh button state whenever the login identity changes. The upstream
 // NOSTR_LOGIN handler already fires on both admit + delayed-login.
 on(EV.NOSTR_LOGIN, _refreshUpdateButton);
+// ADR-0094: on admin login, read the server beacon state and activate it once if
+// never before activated. Runs after login so state.nostrPubkey is set.
+on(EV.NOSTR_LOGIN, _syncServerBeacon);
 
 // LIVE update-check: paint an immediate "checking…" row, then resolve against the
 // real GitHub TAGS endpoint (cached client-side) and repaint. In parallel, probe
@@ -1765,6 +2385,7 @@ on(EV.NOSTR_LOGIN, _refreshUpdateButton);
 function renderUpdatePreview() {
   const body = document.getElementById('update-preview-body');
   if (!body) return;
+  _refreshOwnerLabel(); // paint an immediate best-effort label before the capability probe resolves
   _drawUpdateBlock({ lines: [{ label: 'Status', value: 'CHECKING…' }] });
   const fetcher = (typeof window !== 'undefined' && typeof window.fetch === 'function')
     ? window.fetch.bind(window) : null;
@@ -1895,34 +2516,16 @@ function _yieldToPaint() {
 let _arena = null;            // arenaRuntime API once imported
 let _arenaBootstrapped = false;
 
-// v0.2.275: the ENTER ARENA handler. Shared bootstrap lives in ensureArenaReady
-// below (hoisted, so callable here); on success it drops into the canonical SW
-// arena spawn. The NAP button reuses the same bootstrap + sets a spawn override.
-elEnterBtn?.addEventListener('click', async () => {
-  if (!isTitle()) return;
-  // v0.2.229: IMMEDIATE visible status before the async bootstrap so the click is
-  // never a silent no-op (regression guard — tests assert a non-empty message here).
-  showEntryStatus('Entering arena…');
-  resetTimings();
-  mark('enter-click');
-  showBootOverlay();
-  await _yieldToPaint();
-  try {
-    await ensureArenaReady('LOADING ARENA…');
-  } catch { hideBootOverlay(); return; }
-  showEntryStatus('');
-  hideBootOverlay();
-  _arena.enter();
-});
+// v0.3 cleanup: the single ENTER TORII handler (formerly ENTER ARENA) was
+// removed — #btn-enter-nap below is now the only entry point and everyone
+// drops into the NAP zone by default, so it owns the whole flow.
 
-// v0.2.275: shared bootstrap for ENTER ARENA + ENTER NAP ZONE. Lazy-loads the
-// three-vendor chunk + Rapier ONCE, then returns the ready arena API. Both title
-// buttons call this before enter(); the NAP button additionally sets a one-shot
-// spawn override so the player drops straight into the NAP far-left corner.
+// v0.2.275: shared bootstrap for entering the game. Lazy-loads the
+// three-vendor chunk + Rapier ONCE, then returns the ready arena API.
 async function ensureArenaReady(loadingLabel) {
   if (_arenaBootstrapped) return _arena;
-  elEnterBtn.textContent = loadingLabel;
-  elEnterBtn.disabled = true;
+  elNapBtn.textContent = loadingLabel;
+  elNapBtn.disabled = true;
   try {
     if (!_arena) {
       _setBootProgress(0); // 'Loading engine…'
@@ -1936,12 +2539,26 @@ async function ensureArenaReady(loadingLabel) {
         resetEnterButton,
         onBootProgress: _setBootProgress,
         onBootPct: _setBootPct,
-        getGatewayScreenState: () => ({
-          worlds: _worldsCache,
-          scanStatus: _worldsScan,
-          canTravel: /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
-          onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
-        }),
+        getGatewayScreenState: () => {
+          const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+          // ADR-0054: the gateway screen now shows three columns (Friends /
+          // Follows / Games) — reuse the same classifySections partition the
+          // Torii menu (KeyM) already uses.
+          const { friends, following, games } = classifySections({
+            worlds: _worldsCache,
+            userPubkey: canTravel ? state.nostrPubkey : '',
+            userContacts: _userContacts,
+            ownerContacts: _ownerContacts,
+          });
+          return {
+            friends,
+            following,
+            games,
+            scanStatus: _worldsScan,
+            canTravel,
+            onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+          };
+        },
         // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the
         // SAME menu element the title-screen burger button opens — it calls this
         // hook, which supplies getState + onClose (resume-on-close). arenaRuntime
@@ -1949,10 +2566,18 @@ async function ensureArenaReady(loadingLabel) {
         openToriiMenu: ({ onClose }) => openToriiMenu({ getState: _getToriiMenuState, onClose }),
         closeToriiMenu,
         isToriiMenuOpen,
+        // ADR-0088: the in-world self-view placement confirm — main.js folds the
+        // confirmed raycast placement into the character manifest + republish.
+        confirmStickerPlacement: _confirmSelfViewPlacement,
       });
       // Apply character selection BEFORE boot so the MP host sends the
       // correct character in AUTH. boot() opens the WebSocket immediately.
       if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      // Seat the player's own character mesh (Blossom URL) before boot so
+      // loadPlayerModel() fetches it instead of the built-in default, and
+      // broadcast its hash so peers resolve + load the same mesh.
+      _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+      _arena.setCustomMeshHash(_ownCharacterMeshHash);
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');
@@ -1964,8 +2589,8 @@ async function ensureArenaReady(loadingLabel) {
     endPhase('bootstrap-physics');
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
-    elEnterBtn.textContent = 'ENTER ARENA';
-    elEnterBtn.disabled = false;
+    elNapBtn.textContent = 'ENTER TORII';
+    elNapBtn.disabled = false;
     // v0.2.277: show the REAL error (bootstrapPhysics now throws a step-tagged
     // message; fall back to e.message for import/boot failures). The generic
     // message hid the actual failure.
@@ -1980,9 +2605,9 @@ async function ensureArenaReady(loadingLabel) {
 }
 
 function resetEnterButton() {
-  if (elEnterBtn) {
-    elEnterBtn.textContent = 'ENTER ARENA';
-    elEnterBtn.disabled = false;
+  if (elNapBtn) {
+    elNapBtn.textContent = 'ENTER TORII';
+    elNapBtn.disabled = false;
   }
 }
 
@@ -2005,23 +2630,10 @@ elNapBtn?.addEventListener('click', async () => {
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
-// ── Dev free-fly toggle (three-free, title-screen) ──────────────────────────────
-// Reads/writes state.flyMode purely in the DOM before the arena boots; the ENTER
-// handler enables ToriiDebug.fly when this is true. In-game F toggles also sync
-// this button's label via the arena runtime's onToggle callback.
-(function wireFlyToggle() {
-  const btn = document.getElementById('btn-fly-toggle');
-  if (!btn) return;
-  const stateEl = btn.querySelector('.fly-switch-state');
-  const paint = () => {
-    const on = state.flyMode;
-    btn.classList.toggle('is-on', on);
-    btn.setAttribute('aria-checked', on ? 'true' : 'false');
-    if (stateEl) stateEl.textContent = on ? 'ON' : 'OFF';
-  };
-  btn.addEventListener('click', () => { state.flyMode = !state.flyMode; paint(); });
-  paint();
-})();
+// v0.3: homepage FLY MODE toggle button removed per design direction; the
+// wiring IIFE that used to sync #btn-fly-toggle went with it. state.flyMode
+// stays false by default; in-game F still calls arenaRuntime's initFlyCamera
+// directly, which null-guards its own #btn-fly-toggle DOM sync.
 
 // v0.2.230: signal the index.html inline fallback that the REAL ENTER handler is
 // bound, so it stands down. The shell wires this synchronously (no three), so the
@@ -2104,7 +2716,7 @@ if (typeof window !== 'undefined') {
     return {
       hostPubkey: _hostIdentity() || 'NOT CONFIGURED',
       loggedInNpub: state.nostrPubkey || 'not logged in',
-      relays: RELAYS,
+      relays: _effectiveRelays(),
       handshakeMode: view?.mode || 'idle',
       handshakeBadge: view?.badge || '',
       armed: armed ? { toZone: armed.toZone, spawn: armed.spawn, hostPubkey: armed.hostPubkey } : null,

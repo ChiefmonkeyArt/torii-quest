@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-Dh6z/mpA+CkubSWJoNSOwm5jd6jF6fmxFtXB52pIm+U=";
+export const INLINE_SCRIPT_SHA256 = "sha256-+3gShaQoKcNKRmOhbpycu/vwsXZsO1YfCuB58a82DsI=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -64,7 +64,12 @@ export const CSP_DIRECTIVES = [
   ["form-action", "'self'"],
   ["script-src", `'self' 'wasm-unsafe-eval' '${INLINE_SCRIPT_SHA256}'`],
   ["worker-src", "'self' blob:"],
-  ["connect-src", "'self' blob: https://api.github.com wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net"],
+  // v0.2.698-alpha (ADR-0067): the union of every runtime wss:// endpoint the
+  // game actually opens a WebSocket to. Adds main.relay.gamestr.io (leaderboard
+  // reads/writes — was MISSING before, a latent CSP bug) and the plebeian
+  // marketplace relays (marketStall.js uses both staging and prod). Drops
+  // relay.nostr.band (down) and relay.primal.net (rejects #game tag, not used).
+  ["connect-src", "'self' blob: https://api.github.com wss://main.relay.gamestr.io wss://relay.routstr.com wss://nos.lol wss://relay.vertexlab.io wss://relay.staging.plebeian.market wss://relay.plebeian.market"],
 ];
 
 export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");

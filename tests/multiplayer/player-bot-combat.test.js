@@ -40,6 +40,23 @@ function frontRegularBot(sim) {
     .sort((a, b) => b.pos.x - a.pos.x)[0] || null;
 }
 
+// Spawn positions come from unseeded Math.random (src/engine/entities/botSim.js),
+// so any OTHER bot — in practice the boss, which is the only one allowed a higher
+// X than `frontRegularBot`'s pick — can randomly land inside the short firing
+// corridor and intercept the ray, resolving the hit to the wrong bot. That made
+// these tests intermittently fail (~1 run in 3) while passing in isolation.
+// Park every bot except the target far away so the corridor is provably clear;
+// the target keeps its real random position, so the terrain-frame geometry these
+// tests exist to pin is still exercised against sampleArenaHeight.
+function isolate(sim, keep) {
+  for (const b of sim.bots) {
+    if (b.id === keep.id) continue;
+    b.pos.x += 1000;
+    b.pos.z += 1000;
+  }
+  return keep;
+}
+
 function shootHorizontal(bot, aimY, dist = 3) {
   const footY = sampleArenaHeight(bot.pos.x, bot.pos.z);
   const origin = [bot.pos.x + dist, footY + aimY, bot.pos.z];
@@ -50,7 +67,7 @@ function shootHorizontal(bot, aimY, dist = 3) {
 describe('v0.2.382 player→bot combat — server geometry in the live Y frame', () => {
   it('a torso-height shot from player eye registers a body HIT on a regular bot', () => {
     const sim = spawnSim();
-    const bot = frontRegularBot(sim);
+    const bot = isolate(sim, frontRegularBot(sim));
     // Aim at chest (body capsule centre) — the frame the player actually shoots in.
     const { origin, dir } = shootHorizontal(bot, BOT_BODY_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
@@ -61,7 +78,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a head-height shot from player eye registers a HEAD HIT on a regular bot', () => {
     const sim = spawnSim();
-    const bot = frontRegularBot(sim);
+    const bot = isolate(sim, frontRegularBot(sim));
     const { origin, dir } = shootHorizontal(bot, BOT_HEAD_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
     expect(res).not.toBeNull();
@@ -71,7 +88,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a realistic player-eye shot (foot + 1.7) still intersects the bot capsule', () => {
     const sim = spawnSim();
-    const bot = frontRegularBot(sim);
+    const bot = isolate(sim, frontRegularBot(sim));
     // Origin at true player eye height, aimed slightly DOWN at the bot torso from
     // a short distance — the exact live scenario the hotfix targets.
     const footY = sampleArenaHeight(bot.pos.x, bot.pos.z);
@@ -86,10 +103,11 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
 
   it('a regular bot takes damage and DIES from player shots', () => {
     const sim = spawnSim();
-    const bot = frontRegularBot(sim);
+    const bot = isolate(sim, frontRegularBot(sim));
     const { origin, dir } = shootHorizontal(bot, BOT_BODY_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);
     expect(res).not.toBeNull();
+    expect(res.botId).toBe(bot.id);
     const out = sim.applyBotDamage(res.botId, BOT_HP, { x: origin[0], z: origin[2] });
     expect(out.hit).toBe(true);
     expect(out.killed).toBe(true);
@@ -99,6 +117,7 @@ describe('v0.2.382 player→bot combat — server geometry in the live Y frame',
     const sim = spawnSim();
     const boss = sim.bots.find((b) => b.alive && b.kind === 'boss');
     expect(boss).toBeTruthy();
+    isolate(sim, boss);
     // Boss capsule is scaled up; a chest-height horizontal shot still hits.
     const { origin, dir } = shootHorizontal(boss, BOT_BODY_CENTRE_Y);
     const res = sim.resolvePlayerShot(origin, dir);

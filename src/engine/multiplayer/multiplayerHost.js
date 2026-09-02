@@ -34,6 +34,7 @@ import { createWsClient, WS_STATE } from './wsClient.js';
 import { createRemoteAvatarRoster } from './remoteAvatars.js';
 import { MSG } from './wireProtocol.js';
 import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
+import { recordConnect, recordOpen, recordClose, recordReconnect, recordState } from '../diagnostics/connectionDiagnostics.js';
 
 /**
  * @param {object} deps
@@ -82,7 +83,7 @@ export function createMultiplayerHost(deps) {
     roster,
     _enabled: !!mpEnabled,
     start, stop,
-    sendMove, sendShot, sendHit, sendKill, sendChat,
+    sendMove, sendShot, sendHit, sendKill, sendChat, sendKamiState,
     tick, viewLagMs,
   };
 
@@ -134,9 +135,19 @@ export function createMultiplayerHost(deps) {
   // ---- WS event fan-in ----
   function _onWsEvent(name, payload) {
     emit('mp_' + name, payload);
+    // ADR-0049 v0.2.671: record the transport + protocol lifecycle so a miss ema
+    // can split the BOT_STATE stall into "socket dropped" vs "main thread froze".
+    switch (name) {
+      case 'socket_connect': recordConnect(); break;
+      case 'socket_open':    recordOpen(); break;
+      case 'socket_close':   recordClose(payload && payload.code, payload && payload.reason); break;
+      case 'reconnect_scheduled': recordReconnect(); break;
+      default: break;
+    }
     switch (name) {
       case 'state': {
         host.state = payload.state;
+        recordState(payload.state);
         if (payload.state === WS_STATE.CONNECTED && payload.selfId) host.selfId = payload.selfId;
         return;
       }
@@ -185,21 +196,45 @@ export function createMultiplayerHost(deps) {
   function sendHit(_m) { return false; }
   function sendKill(m) { return _send({ t: MSG.KILL, shooterId: m.shooterId, victimId: m.victimId, weapon: m.weapon }); }
   function sendChat(msg) { return _send({ t: MSG.CHAT, msg }); }
+  // ADR-0032 (v0.2.650-alpha): tell the server this session just entered/
+  // exited Kami Mode, so it can exclude the admin from bot targeting and
+  // damage resolution. The server independently re-verifies the sending
+  // session's own pubkey before honouring this — see arena-ws.js
+  // isKamiActive(). A no-op (returns false) while disconnected/not yet
+  // CONNECTED; kamiMode.js does not need to care — nothing damages the local
+  // player while offline/single-player anyway.
+  function sendKamiState(active) { return _send({ t: MSG.KAMI_STATE, active: !!active }); }
 
   function tick(renderTime) { roster.tick(renderTime); }
 
   // v0.2.392 hit-reg: how far BEHIND live the local player's view of the bots
-  // is, in ms. = the client interpolation delay (bots are rendered
-  // DEFAULT_INTERP_DELAY_MS in the past) + the network one-way (the snapshot
-  // that produced the current render arrived one-way ago). Sent on the SHOT as
-  // `viewLag`; the SERVER rewinds its bot/peer rings to (server_now - viewLag)
-  // in its own clock frame, testing the collider where the player actually SAW
-  // the bot, not where it currently is. Clamped to 250ms so it stays inside the
-  // server's 300ms lag-comp window. one-way is counted exactly ONCE here — the
-  // server does NOT subtract it again.
+  // is, in ms. Sent on the SHOT as `viewLag`; the SERVER rewinds its bot/peer
+  // rings to (server_now - viewLag) in its own clock frame, testing the collider
+  // where the player actually SAW the bot, not where it currently is.
+  //
+  // v0.2.633 (ADR-0024) hit-reg: this is TWO one-way trips, not one.
+  // botNetState.ingest() stamps each sample with the CLIENT RECEIVE time, and
+  // sample() renders at (receive_now - DEFAULT_INTERP_DELAY_MS). So the pose on
+  // screen was generated on the SERVER interpDelay + one-way ago: the downlink
+  // trip is already baked into the receive stamps. The server then applies
+  // viewLag to the shot's ARRIVAL time, which is a further uplink trip after the
+  // player clicked. Deriving it in one aligned frame (fire = click instant):
+  //   seen on screen    : server content at fire - interpDelay - ow   (downlink)
+  //   server tests at   : (fire + ow) - viewLag                       (uplink)
+  // Those are only equal when viewLag = interpDelay + 2*ow. With a single ow the
+  // server rewound to a state one one-way trip TOO RECENT, so a moving bot was
+  // tested ~ow of travel ahead of where the player saw it — measured as 0.10-0.35m
+  // of lateral error at observed bot speeds (1.5-5.5 m/s, ow~64ms), which is the
+  // width of the 0.35m head collider and matched the tight head misses in the
+  // v0.2.632 capture (headHorz 0.350/0.383/0.531 just outside the radius).
+  //
+  // Still clamped to 250ms so it stays inside the server's 300ms lag-comp window
+  // (LAG_COMP_MS); the server clamps again independently. ow is itself already
+  // capped at 250 by wsClient, so the worst case here saturates the clamp rather
+  // than overflowing the window.
   function viewLagMs() {
     const ow = ws && Number.isFinite(ws.oneWayMs) ? ws.oneWayMs : 0;
-    const v = DEFAULT_INTERP_DELAY_MS + ow;
+    const v = DEFAULT_INTERP_DELAY_MS + 2 * ow;
     return v > 250 ? 250 : v;
   }
 

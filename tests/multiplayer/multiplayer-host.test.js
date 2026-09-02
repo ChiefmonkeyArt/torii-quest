@@ -223,13 +223,16 @@ describe('multiplayerHost — inbound wire', () => {
 // ---------- outbound wire ----------
 
 describe('multiplayerHost — outbound wire', () => {
-  it('sendMove/Shot/Hit/Kill/Chat are dropped when not CONNECTED', () => {
+  it('sendMove/Shot/Hit/Kill/Chat/KamiState are dropped when not CONNECTED', () => {
     const { host } = makeHost();
     host.start();
     // still CONNECTING — no handshake yet
     expect(host.sendMove({ pos: [0, 0, 0], rot: [0, 0], vel: [0, 0, 0] })).toBe(false);
     expect(host.sendShot({ origin: [0, 0, 0], dir: [1, 0, 0], ts: 1 })).toBe(false);
     expect(host.sendHit({ targetId: 'x', dmg: 25, zone: 'body', shotTs: 1 })).toBe(false);
+    // ADR-0032: same drop-when-disconnected contract as the other senders —
+    // kamiMode.js relies on this so it never needs to check MP state itself.
+    expect(host.sendKamiState(true)).toBe(false);
   });
 
   it('after CONNECTED, sendMove/Shot/Kill/Chat emit framed messages with the correct type; sendHit is a no-op (MP-2)', async () => {
@@ -247,9 +250,13 @@ describe('multiplayerHost — outbound wire', () => {
     expect(ws.sent.length).toBe(sentBeforeHit);
     expect(host.sendKill({ shooterId: 'me', victimId: 'p1', weapon: 'pistol' })).toBe(true);
     expect(host.sendChat('gg')).toBe(true);
-    // Skip the initial AUTH frame; sanity-check the last 4 sends against expected types.
-    const outbound = ws.sent.slice(-4).map((raw) => JSON.parse(raw).t);
-    expect(outbound).toEqual([MSG.MOVE, MSG.SHOT, MSG.KILL, MSG.CHAT]);
+    // ADR-0032: sendKamiState frames a boolean active flag under MSG.KAMI_STATE.
+    expect(host.sendKamiState(true)).toBe(true);
+    // Skip the initial AUTH frame; sanity-check the last 5 sends against expected types.
+    const outbound = ws.sent.slice(-5).map((raw) => JSON.parse(raw).t);
+    expect(outbound).toEqual([MSG.MOVE, MSG.SHOT, MSG.KILL, MSG.CHAT, MSG.KAMI_STATE]);
+    const kamiFrame = JSON.parse(ws.sent[ws.sent.length - 1]);
+    expect(kamiFrame.active).toBe(true);
   });
 
   it('tick() forwards to the roster (no crash when roster is empty)', () => {

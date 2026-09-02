@@ -3,17 +3,40 @@ import { state } from './state.js';
 import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
 import { verifyNostrEventSig } from './engine/crypto/nostrSig.js';
+import { readProfiles } from './engine/nostr/profileRead.js';
+import { readCharacters, buildCharacterFilter } from './engine/character/characterRelayRead.js';
+import { buildCharacterEvent, parseCharacterEvent } from './engine/character/characterEvent.js';
 import {
   WRITE_POLICY_OWNER_ONLY,
   WRITE_POLICY_DELEGATES,
   WRITE_POLICY_FOLLOWS_WRITE,
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
+import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
 
-const RELAYS = ['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band','wss://relay.primal.net'];
+// v0.2.715-alpha (ADR-0081): ONE relay list for the whole game. The separate
+// hardcoded `RELAYS` (nos.lol + vertexlab.io) that profile/login/leaderboard
+// reads used is gone — every relay-consuming path now reads the SAME single
+// list the operator edits in the Relay settings tab (localStorage
+// `torii.node.relays` + <meta name="torii-relays">), falling back to the
+// curated 5-relay DEFAULT_NODE_RELAYS. Public relays are fine here; what is
+// gated is the ACTION (each publish keeps its own opt-in), not the relay.
+function _effectiveRelays() {
+  let metaGetter = null;
+  try {
+    if (typeof document !== 'undefined' && document.querySelector) {
+      metaGetter = (name) => {
+        const el = document.querySelector(`meta[name="${name}"]`);
+        return el && el.content ? el.content : '';
+      };
+    }
+  } catch { /* no document — meta source unavailable */ }
+  return readEffectiveNodeRelays({ metaGetter });
+}
+
 const PROFILE_TIMEOUT_MS = 5000;
 const PROFILE_SETTLE_MS = 1800;
-export { RELAYS, PROFILE_SETTLE_MS };
+export { PROFILE_SETTLE_MS };
 
 // A nostrich profile's `picture` is attacker-controlled (anyone can sign a
 // kind:0 with any string). Only accept a well-formed https URL before it ever
@@ -63,7 +86,11 @@ export async function nostrLogin() {
     state.nostrName   = pk.slice(0,8).toUpperCase();
     emit(EV.NOSTR_LOGIN, { pubkey: pk });
     _fetchProfile(pk);
-    return `⚡ ${state.nostrName}`;
+    // v0.2.714: on success return an empty string so the title-screen status
+    // line hides — we no longer surface the raw pubkey fragment ("⚡ EC79B568")
+    // under the Enter button. The pubkey is still stored in state for the
+    // in-game display-name fallback; it just isn't shown on the homescreen.
+    return '';
   } catch(e) {
     // Provider exists but the getPublicKey() request was rejected/failed — give an actionable
     // message (the usual cause is the extension prompt being dismissed), not a dead-end "failed".
@@ -100,7 +127,7 @@ function _applyProfileMeta(pubkey, meta) {
 
 export function fetchProfileProgressive(pubkey, opts = {}) {
   const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
-  const relays = Array.isArray(o.relays) ? o.relays : RELAYS;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : PROFILE_TIMEOUT_MS;
   const settleMs = Number.isFinite(o.settleMs) && o.settleMs >= 0 ? Math.floor(o.settleMs) : PROFILE_SETTLE_MS;
   const WebSocketCtor = o.WebSocketCtor || (typeof WebSocket !== 'undefined' ? WebSocket : null);
@@ -211,6 +238,108 @@ export function fetchProfileProgressive(pubkey, opts = {}) {
 
 async function _fetchProfile(pubkey) {
   await fetchProfileProgressive(pubkey);
+}
+
+// v0.2.706-alpha — read-only lookup of ANY pubkey's published displayName,
+// for the homepage owner caption ("This torii belongs to: <name>"). Deliberately
+// separate from fetchProfileProgressive()/_fetchProfile() above: those apply the
+// result onto the LOGGED-IN VIEWER's own state.nostrName/nostrAvatar (via
+// _applyProfileMeta → EV.NOSTR_LOGIN), which would be wrong here — a visitor
+// looking up the INSTANCE OWNER's name must never overwrite their own displayed
+// identity. This reuses the same read-only kind:0 transport (fanoutReq) and the
+// pure, well-tested extraction in engine/nostr/profileRead.js, and touches no
+// global state at all — it just resolves a name string.
+//
+// Small in-memory TTL cache: the homepage calls this on every capability probe
+// and NOSTR_LOGIN, but the owner's profile rarely changes, so repeat lookups in
+// the same session reuse the cached name instead of re-querying relays.
+const OWNER_PROFILE_NAME_CACHE = new Map(); // pubkey -> { name, expiresAt }
+const OWNER_PROFILE_NAME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+export async function fetchOwnerProfileName(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return '';
+
+  const nowMs = Number.isFinite(o.nowMs) ? o.nowMs : Date.now();
+  const cached = OWNER_PROFILE_NAME_CACHE.get(pk);
+  if (cached && cached.expiresAt > nowMs) return cached.name;
+
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs });
+  } catch {
+    return cached ? cached.name : '';
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { profiles } = readProfiles(events);
+  const profile = profiles.find((p) => p.pubkey === pk);
+  const name = (profile && profile.displayName && profile.displayName !== profile.shortPubkey)
+    ? profile.displayName
+    : '';
+
+  OWNER_PROFILE_NAME_CACHE.set(pk, { name, expiresAt: nowMs + OWNER_PROFILE_NAME_CACHE_TTL_MS });
+  return name;
+}
+
+export function __resetOwnerProfileNameCache() {
+  OWNER_PROFILE_NAME_CACHE.clear();
+}
+
+// fetchOwnProfile(pubkey, opts) → the sanitised kind:0 profile view-model for
+// the given pubkey, or null. Read-only: reuses fanoutReq + readProfiles (the
+// same pure extraction fetchOwnerProfileName uses), but returns the FULL
+// profile (name/displayName/about/picture/website/nip05/lud16) instead of just
+// the display name — used to pre-fill the Profile settings tab from the user's
+// published Nostr profile. Never throws; a failed/empty lookup returns null.
+export async function fetchOwnProfile(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return null;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs });
+  } catch {
+    return null;
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { profiles } = readProfiles(events);
+  return profiles.find((p) => p.pubkey === pk) || null;
+}
+
+// fetchOwnCharacter(pubkey, opts) → the parsed `torii.character` manifest for the
+// given pubkey, or null. Read-only: reuses fanoutReq + readCharacters (the pure
+// kind-35100 extraction). Returns the manifest only when the event parses AND
+// carries a mesh hash — a broken/empty character degrades to null so the caller
+// falls through to the create flow. Never throws; a failed/empty lookup returns null.
+export async function fetchOwnCharacter(pubkey, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
+  if (!/^[0-9a-f]{64}$/.test(pk)) return null;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const request = typeof o.request === 'function' ? o.request : fanoutReq;
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+
+  let raw;
+  try {
+    raw = await request(relays, [buildCharacterFilter({ authors: [pk], limit: 1 })], { timeoutMs });
+  } catch {
+    return null;
+  }
+  const events = raw && Array.isArray(raw.events) ? raw.events : [];
+  const { characters } = readCharacters(events);
+  const entry = characters.find((c) => c.pubkey === pk);
+  if (!entry || !entry.valid) return null;
+  const manifest = entry.manifest;
+  return (manifest && manifest.mesh && manifest.mesh.hash) ? manifest : null;
 }
 
 function _updateTitleUI() {
@@ -421,6 +550,109 @@ export async function fanoutPublish(relays, event, opts = {}) {
     else failed.push(r.relay);
   }
   return { accepted, used, failed };
+}
+
+// ── Character create round-trip (write half) ────────────────────────────────
+// publishCharacter builds the unsigned kind-35100 event from a manifest, signs
+// it via NIP-07, verifies it parses back to a valid character, then fans out to
+// the unified relay list. Mirrors publishAccessSettings' shape. The read half is
+// fetchOwnCharacter (above).
+
+// publishCharacter(manifest, opts) → Promise<{ ok, event, accepted, used, failed, error }>.
+// ok:true only when at least one relay accepted the signed event. Never throws.
+export async function publishCharacter(manifest, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const publish = typeof o.publish === 'function' ? o.publish : fanoutPublish;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
+  const out = { ok: false, event: null, accepted: 0, used: [], failed: [], error: null };
+
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof publish !== 'function') { out.error = 'publish-transport-required'; return out; }
+  if (!relays.length) { out.error = 'at-least-one-relay-required'; return out; }
+
+  const unsigned = buildCharacterEvent(manifest, { pubkey: o.pubkey, createdAt: o.createdAt });
+  let signed;
+  try { signed = await sign(unsigned); } catch { out.error = 'nip-07-threw'; return out; }
+  if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
+
+  const parsed = parseCharacterEvent(signed.event);
+  if (!parsed || !parsed.valid) { out.error = 'signed-character-invalid'; return out; }
+
+  let res;
+  try { res = await publish(relays, signed.event, { timeoutMs }); } catch { out.error = 'publish-threw'; return out; }
+  out.accepted = (res && res.accepted) || 0;
+  out.used = Array.isArray(res && res.used) ? res.used : [];
+  out.failed = Array.isArray(res && res.failed) ? res.failed : [];
+  out.event = signed.event;
+  out.ok = out.accepted > 0;
+  if (!out.ok) out.error = 'no-relay-accepted';
+  return out;
+}
+
+// ── Blossom upload (NIP-96/NIP-98) ───────────────────────────────────────────
+// The "make it so" path for a custom mesh: upload a GLB to a Blossom server and
+// get back its content-addressed sha256, which then slots into the manifest's
+// mesh.hash. NIP-98 HTTP auth signs a kind-27235 event over the upload URL; the
+// file bytes go up in a PUT. Signing is delegated to NIP-07 (no key here).
+
+export const BLOSSOM_AUTH_KIND = 27235;
+export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
+
+// buildBlossomAuthEvent(server, method, opts) → the UNSIGNED NIP-98 auth event
+// for a Blossom upload. Pure; the signer fills pubkey/sig/id.
+export function buildBlossomAuthEvent(server, method = 'PUT', opts = {}) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const base = typeof server === 'string' ? server.replace(/\/+$/, '') : '';
+  return {
+    kind: BLOSSOM_AUTH_KIND,
+    created_at: Number.isFinite(o.createdAt) ? Math.floor(o.createdAt) : Math.floor(Date.now() / 1000),
+    tags: [['u', `${base}/upload`], ['method', String(method || 'PUT').toUpperCase()]],
+    content: '',
+  };
+}
+
+function _b64(str) {
+  if (typeof btoa === 'function') return btoa(str);
+  if (typeof Buffer !== 'undefined') return Buffer.from(str, 'utf8').toString('base64');
+  return '';
+}
+
+// uploadBlossom(file, opts) → Promise<{ ok, sha256, url, error }>. `file` is a
+// Blob/File (browser). `opts.server` overrides the default Blossom server; the
+// operator may point this at a self-hosted Blossom instance. Never throws.
+export async function uploadBlossom(file, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const server = (typeof o.server === 'string' && o.server.trim() ? o.server.trim() : DEFAULT_BLOSSOM_SERVER).replace(/\/+$/, '');
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const out = { ok: false, sha256: null, url: null, error: null };
+
+  if (!file || (typeof file.arrayBuffer !== 'function' && !(typeof Blob !== 'undefined' && file instanceof Blob))) {
+    out.error = 'file-required'; return out;
+  }
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof fetch !== 'function') { out.error = 'fetch-unavailable'; return out; }
+
+  let signed;
+  try { signed = await sign(buildBlossomAuthEvent(server, 'PUT')); } catch { out.error = 'nip-07-threw'; return out; }
+  if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
+
+  const authHeader = 'Nostr ' + _b64(JSON.stringify(signed.event));
+  let res;
+  try {
+    res = await fetch(`${server}/upload`, { method: 'PUT', headers: { Authorization: authHeader }, body: file });
+  } catch { out.error = 'upload-failed'; return out; }
+  if (!res || !res.ok) { out.error = 'upload-http-' + (res ? res.status : 'err'); return out; }
+
+  let data;
+  try { data = await res.json(); } catch { out.error = 'upload-bad-response'; return out; }
+  const sha = data && (data.sha256 || (data.url && String(data.url).split('/').pop()));
+  if (!sha || !/^[0-9a-f]{64}$/.test(sha)) { out.error = 'upload-no-sha256'; return out; }
+  out.sha256 = sha;
+  out.url = data.url || `${server}/${sha}`;
+  out.ok = true;
+  return out;
 }
 
 const HEX64 = /^[0-9a-f]{64}$/;

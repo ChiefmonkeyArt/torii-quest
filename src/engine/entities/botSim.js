@@ -19,6 +19,7 @@
 // parking) stay in the wrapper — killBot merely returns { killed:true } so the
 // wrapper can fire them.
 import { engageSpeed, steerComponent } from './bot-agent.js';
+import { nameForBotId } from './botIdentity.js';
 import {
   tierForIndex, flankSlotForIndex, flankAnchor,
   pickCover, obstacleAvoid,
@@ -112,6 +113,9 @@ export function createBotSim(deps) {
     BOT_SPEED = 2.2, BOT_DAMAGE = 6,
     BOSS_COUNT = 0, BOSS_HP = 60, BOSS_SPEED = 1.0, BOSS_DAMAGE = 14,
     BOSS_SHOOT_CD = 3.5, BOSS_RADIUS = 0.8, BOSS_NAME = 'Augustink',
+    // ADR-0019: TEST_MODE skips the death arc + 8s respawn so a test rig can
+    // kill/respawn a bot instantly. Default false keeps prod byte-identical.
+    TEST_MODE = false,
   } = config;
 
   // Per-bot stat profiles (v0.2.381). A regular bot is byte-identical to the
@@ -182,10 +186,15 @@ export function createBotSim(deps) {
   // ── Spawn ─────────────────────────────────────────────────────────────────
   function _spawnBot(i, profile = REGULAR_PROFILE) {
     const { x, z } = _safeSpawnPos();
+    // ADR-0013 (v0.2.623): regulars get a deterministic dwarf name (`Doc`,
+    // `Grumpy`, …) via nameForBotId(i). Boss keeps its explicit profile.name
+    // (BOSS_NAME). name is authoritative-in-MP-when-supplied; SP falls back
+    // to the same mapping via the client so the label matches either way.
+    const dwarfName = profile.name || nameForBotId(i);
     const state = {
       id: i,
       kind: profile.kind,
-      name: profile.name,
+      name: dwarfName,
       pos: { x, z },
       hp: profile.hp,
       maxHp: profile.hp,
@@ -529,6 +538,15 @@ export function createBotSim(deps) {
     state.alive    = false;
     state.isShooting = false;
     state._isHit   = false;
+    // ADR-0019: TEST_MODE skips the death arc (no blowback launch) and revives on
+    // the next tick instead of waiting 8s — so a test rig can kill/respawn fast.
+    if (TEST_MODE) {
+      state._isDying = false;
+      state._blowVx = state._blowVz = state._blowVy = state._blowY = 0;
+      state.animHint = 'die';
+      state.respawnTimer = 0;
+      return { killed: true };
+    }
     state._isDying = true;
     state._deathHideTimer = 2.67; // exact Shot_and_Blown_Back duration
     if (playerPos) {

@@ -56,6 +56,13 @@ export const MSG = Object.freeze({
   BOT_SHOT:  'BOT_SHOT',
   BOT_HIT:   'BOT_HIT',
   BOT_KILL:  'BOT_KILL',
+  // ADR-0032 (v0.2.650-alpha): client→server. Tells the server the sending
+  // session just entered/exited Kami Mode. Purely additive, PROTOCOL_VERSION
+  // unchanged — legacy servers/clients drop it via the UNKNOWN_TYPE guard.
+  // The server NEVER trusts this alone: it re-checks the session's own
+  // authenticated pubkey against the configured admin pubkey before acting on
+  // it (see arena-ws.js). A non-admin session sending this is a no-op.
+  KAMI_STATE: 'KAMI_STATE',
 });
 
 // Animation hint labels a bot state may carry (mirrors botSim _animHint).
@@ -106,15 +113,16 @@ const validators = {
     if (!isStr(m.npub, LIMITS.NPUB_LEN))           return fail('BAD_FIELD', 'npub');
     if (!isStr(m.sig, LIMITS.SIG_HEX_LEN))         return fail('BAD_FIELD', 'sig');
     if (typeof m.event !== 'object' || m.event === null) return fail('BAD_FIELD', 'event');
-    // Optional character key (v0.2.446-alpha): client tells server which skin to use.
-    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
+    // Optional character field (v0.2.446-alpha): a known skin key ('chiefmonkey' /
+    // 'nostrich') OR a 64-hex Character Forge mesh hash. 64-char cap so a sha256 fits.
+    if (m.character !== undefined && !isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     // Full nostr-event verification happens on the server via nostr-tools;
     // wire-level only asserts shape.
     return ok(m);
   },
   [MSG.AUTH_TOKEN](m) {
     if (!isStr(m.token, LIMITS.TOKEN_LEN)) return fail('BAD_FIELD', 'token');
-    if (m.character !== undefined && !isStr(m.character, 32)) return fail('BAD_FIELD', 'character');
+    if (m.character !== undefined && !isStr(m.character, 64)) return fail('BAD_FIELD', 'character');
     return ok(m);
   },
   [MSG.AUTH_FAIL](m) {
@@ -257,6 +265,10 @@ const validators = {
     if (m.shooterId !== undefined && !isStr(m.shooterId, LIMITS.ID_LEN)) return fail('BAD_FIELD', 'shooterId');
     return ok(m);
   },
+  [MSG.KAMI_STATE](m) {
+    if (typeof m.active !== 'boolean') return fail('BAD_FIELD', 'active');
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -324,6 +336,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.BOT_SHOT]:  ['origin', 'dir', 'botId'],
   [MSG.BOT_HIT]:   ['botId', 'dmg', 'zone', 'hp', 'shooterId'],
   [MSG.BOT_KILL]:  ['botId', 'shooterId'],
+  [MSG.KAMI_STATE]: ['active'],
 });
 
 /** Is this a known message type? */

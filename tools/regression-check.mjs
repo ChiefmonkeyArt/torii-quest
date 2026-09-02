@@ -52,11 +52,21 @@ import { createHash } from 'node:crypto';
 import { join, extname } from 'node:path';
 
 const ROOT = process.cwd();
-const EXPECTED_VERSION = 'v0.2.603-alpha';
+// EXPECTED_VERSION is the single source of truth for the current release. Read
+// dynamically from package.json so bump-ver.sh can never leave the check pinned
+// to a stale version (this is exactly what happened for v0.2.710/711 — the
+// hardcoded constant drifted + the check failed on every bump). package.json is
+// the first file bump-ver.sh touches, so it always reflects the current release.
+const _pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+const EXPECTED_VERSION = 'v' + _pkg.version;
 const SETTIMEOUT_ALLOWED = new Set([
   'src/nostr.js',
   'src/hud.js',
   'src/engine/multiplayer/wsClient.js', // MP-1 reconnect timer (setTimeoutFn is injectable)
+  'src/engine/kami/kamiMode.js', // ADR-0027/0034: status-badge auto-revert + note-highlight pulse-revert timers
+  'src/engine/plebeian/marketStall.js', // ADR-0026: lazy market-panel status-message auto-revert timer
+  'src/engine/plebeian/plebeianRelay.js', // ADR-0026/0035: relay reconnect-with-backoff + connect-error retry timers
+  'src/engine/ui/toast.js', // ADR-0097: settings toast auto-dismiss + leave-animation cleanup
 ]);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [
@@ -115,7 +125,7 @@ console.log('[3] setTimeout allowlist');
     const n = (txt.match(/setTimeout\s*\(/g) || []).length;
     if (n > 0 && !SETTIMEOUT_ALLOWED.has(f)) { fail(`${n} setTimeout in non-allowed ${f}`); bad = true; }
   }
-  if (!bad) pass('setTimeout only in nostr.js + hud.js + multiplayer/wsClient.js');
+  if (!bad) pass('setTimeout only in allowlisted files (nostr/hud/wsClient/kamiMode/marketStall/plebeianRelay)');
 }
 
 // 4. no hot-path allocations in new/foundation modules

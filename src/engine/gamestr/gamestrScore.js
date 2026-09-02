@@ -24,16 +24,26 @@
 export const GAMESTR_KIND = 30762;
 export const GAMESTR_GAME_ID = 'torii-quest';
 
-// GAMESTR_RELAYS — the gamestr relay (authoritative) + a few public relays for
-// discoverability (gamestr.io's own guidance: 3-5 public relays). Frozen so a
-// caller can't mutate the publish target at runtime. The public relays overlap
-// nostr.js RELAYS on purpose so a single fan-out covers both audiences.
+// GAMESTR_RELAYS — the gamestr relay (authoritative for kind 30762 reads/writes)
+// + nos.lol as a write-fanout companion. Frozen so a caller can't mutate the
+// publish target at runtime.
+//
+// v0.2.699-alpha (ADR-0067): trimmed from 5 relays to 2 after empirical testing
+// (REQ for kind:30762 + #game:torii-quest, tested from both the sandbox and the
+// VPS) showed the other 3 were actively harmful to the leaderboard, not just
+// redundant:
+//   - wss://relay.nostr.band  → TIMEOUT (~8s, both networks) — relay is down.
+//   - wss://relay.damus.io    → 503 Service Unavailable on this exact REQ.
+//   - wss://relay.primal.net  → NOTICE "bad req: unindexed tag filter" (rejects #game).
+// Only main.relay.gamestr.io returned real leaderboard events (5/5). nos.lol
+// accepted the REQ (0 events for this query, since it doesn't index the #game
+// tag either) but is kept as a write-fanout target and because it resolved
+// instantly rather than erroring. See ADR-0067 for the full test matrix and
+// the plan to eventually self-host a strfry relay as the sole authoritative
+// leaderboard source.
 export const GAMESTR_RELAYS = Object.freeze([
   'wss://main.relay.gamestr.io',
-  'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.nostr.band',
-  'wss://relay.primal.net',
 ]);
 
 const HEX64 = /^[0-9a-f]{64}$/;

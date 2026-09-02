@@ -79,7 +79,10 @@ const FADE = 0.12;
 
 // ── BotModel class — one instance per bot ────────────────────────────────────
 export class BotModel {
-  constructor(kind = 'regular') {
+  // `label` (ADR-0013, v0.2.623): optional display name floated over the bot's
+  // head as a world-space sprite. If omitted, regulars get no nameplate
+  // (backward-compatible with pre-v0.2.623 callers); the boss uses BOSS_NAME.
+  constructor(kind = 'regular', label = null) {
     this.kind    = TEMPLATES[kind] ? kind : 'regular';
     this.isBoss  = this.kind === 'boss';
     this._anim   = TEMPLATES[this.kind].anim;
@@ -93,7 +96,16 @@ export class BotModel {
     this._oneshotFade  = '';
     this._footY  = 0; // vertical offset to keep feet at y=0
     this._nameplate = null;
+    this._label = label;
     this.skinnedMesh = null; // SkinnedMesh ref for per-bone colliders
+    // ADR-0042: visible bot hit feedback. _materials collected at init for the
+    // red emissive flash; _hitFlash is the remaining flash seconds (decays in
+    // tick); _npCanvas/_npCtx/_npTex let updateNameplate redraw the HP chip.
+    this._materials = null;
+    this._hitFlash = 0;
+    this._npCanvas = null;
+    this._npCtx = null;
+    this._npTex = null;
   }
 
   // Call once after _loadTemplate(kind) resolves
@@ -136,20 +148,38 @@ export class BotModel {
 
     // Shadows + disable frustum culling on SkinnedMesh.
     // Bind-pose bounding box doesn't match animated pose — culling splits the mesh.
+    // ADR-0042: collect every mesh material with an `emissive` channel here so
+    // flashHit() can tint the whole bot red on a confirmed hit in one pass.
+    this._materials = [];
     this.root.traverse(o => {
-      if (o.isMesh) {
-        o.castShadow = true;
-        o.receiveShadow = true;
-        o.frustumCulled = false; // critical for SkinnedMesh
+      if (!o.isMesh) return;
+      o.castShadow = true;
+      o.receiveShadow = true;
+      o.frustumCulled = false; // critical for SkinnedMesh
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (m && m.emissive && !this._materials.includes(m)) this._materials.push(m);
       }
       if (o.isSkinnedMesh && !this.skinnedMesh) this.skinnedMesh = o;
     });
 
     scene.add(this.root);
 
-    // Boss gets a floating "Augustink" nameplate sprite tracked in world space.
-    if (this.isBoss) this._nameplate = _makeNameplate(BOSS_NAME);
-    if (this._nameplate) scene.add(this._nameplate);
+    // Nameplate sprite — boss uses BOSS_NAME; regulars use the label supplied
+    // by the caller (ADR-0013). Regulars with no label render no nameplate
+    // (backward-compat with pre-v0.2.623 callers that didn't pass one).
+    const nameText = this.isBoss ? BOSS_NAME : this._label;
+    if (nameText) this._nameplate = _makeNameplate(nameText);
+    if (this._nameplate) {
+      // Raycast off — the sprite must never intercept shots (ADR-0013).
+      this._nameplate.raycast = () => {};
+      // ADR-0042: hoist the canvas/ctx/texture refs so updateNameplate can
+      // redraw the HP chip each hit without rebuilding the sprite.
+      this._npCanvas = this._nameplate._npCanvas || null;
+      this._npCtx    = this._nameplate._npCtx    || null;
+      this._npTex    = this._nameplate._npTex    || null;
+      scene.add(this._nameplate);
+    }
 
     // Mixer + actions from shared clips
     this.mixer = new THREE.AnimationMixer(this.root);
@@ -221,6 +251,19 @@ export class BotModel {
   }
 
   tick(dt) {
+    // ADR-0042: decay the red hit-flash emissive back to each material's
+    // original colour once the flash window elapses. Runs before the mixer guard
+    // so a hit flash still decays even if the animation mixer isn't ready yet.
+    if (this._hitFlash > 0 && this._materials) {
+      this._hitFlash -= dt;
+      if (this._hitFlash <= 0) {
+        this._hitFlash = 0;
+        for (const m of this._materials) {
+          m.emissive.setHex(m.userData._origEmissive ?? 0x000000);
+          m.emissiveIntensity = m.userData._origEmissiveIntensity ?? 0;
+        }
+      }
+    }
     if (!this.mixer) return;
     this.mixer.update(dt);
     // One-shot timer — dt-accumulator
@@ -244,6 +287,31 @@ export class BotModel {
     this.play(A.WALK, true);
   }
 
+  // ADR-0042: tint every collected material's emissive red for ~0.18s on a
+  // confirmed hit, so the owner sees the struck bot flash — the missing piece
+  // that made server-confirmed hits feel like "shots aren't landing".
+  flashHit(intensity = 1.1) {
+    if (!this._materials || this._materials.length === 0) return;
+    this._hitFlash = 0.18;
+    for (const m of this._materials) {
+      if (m.userData._origEmissive === undefined) {
+        m.userData._origEmissive = m.emissive.getHex();
+        m.userData._origEmissiveIntensity = m.emissiveIntensity ?? 0;
+      }
+      m.emissive.setHex(0xff3030);
+      m.emissiveIntensity = intensity;
+    }
+  }
+
+  // ADR-0042: redraw the nameplate canvas with the bot's name + an HP bar so
+  // the owner sees damage accumulating. No-op when the bot has no nameplate
+  // (regulars without a label, or a headless/test context with no canvas).
+  updateNameplate(text, hpRatio) {
+    if (!this._npCtx || !this._npTex || !this._npCanvas) return;
+    _drawNameplate(this._npCtx, this._npCanvas, text, hpRatio);
+    this._npTex.needsUpdate = true;
+  }
+
   show() {
     if (this.root) this.root.visible = true;
     if (this._nameplate) this._nameplate.visible = true;
@@ -251,6 +319,13 @@ export class BotModel {
   hide() {
     if (this.root) this.root.visible = false;
     if (this._nameplate) this._nameplate.visible = false;
+  }
+
+  // ADR-0016: nameplate visibility is enforced by the caller each frame so it
+  // tracks body visibility 1:1 (no ghost labels when the body is LOD-culled or
+  // the bot is dead). No-op when the bot has no nameplate.
+  setNameplateVisible(v) {
+    if (this._nameplate) this._nameplate.visible = !!v;
   }
 
   dispose() {
@@ -265,28 +340,50 @@ export class BotModel {
   }
 }
 
-// ── Nameplate sprite — a small canvas-textured label floated over the boss. ───
+// ── Nameplate sprite — a small canvas-textured label floated over the bot. ───
 // Guarded so a headless/canvas-less environment (tests) degrades gracefully.
+// ADR-0042: the canvas/ctx/texture are attached to the sprite so BotModel can
+// redraw the name + HP bar each hit via updateNameplate() without rebuilding
+// the sprite or the texture object.
+function _drawNameplate(ctx, canvas, text, hpRatio) {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = 'bold 34px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+  ctx.strokeText(text, W / 2, 22);
+  ctx.fillStyle = '#ffcf33';
+  ctx.fillText(text, W / 2, 22);
+  // HP bar — green (full) → red (empty), drawn under the name.
+  const barX = 40, barY = 42, barW = 176, barH = 12;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+  const hp = Math.max(0, Math.min(1, hpRatio));
+  const r = Math.round(255 * (1 - hp));
+  const g = Math.round(200 * hp);
+  ctx.fillStyle = `rgb(${r},${g},40)`;
+  ctx.fillRect(barX, barY, barW * hp, barH);
+}
+
 function _makeNameplate(text) {
   try {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) return null;
     canvas.width = 256; canvas.height = 64;
-    ctx.font = 'bold 40px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
-    ctx.strokeText(text, 128, 32);
-    ctx.fillStyle = '#ffcf33';
-    ctx.fillText(text, 128, 32);
     const tex = new THREE.CanvasTexture(canvas);
     tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const sprite = new THREE.Sprite(mat);
     sprite.scale.set(2.4, 0.6, 1);
     sprite.renderOrder = 999;
+    sprite._npCanvas = canvas;
+    sprite._npCtx    = ctx;
+    sprite._npTex    = tex;
+    // Initial render: name + a full HP bar.
+    _drawNameplate(ctx, canvas, text, 1);
     return sprite;
   } catch {
     return null;

@@ -23,28 +23,35 @@ function fakeStorage(initial = {}) {
 }
 
 describe('getHeartbeatIntent', () => {
-  it('defaults to "off" when the key is absent', () => {
-    expect(getHeartbeatIntent(fakeStorage())).toBe('off');
+  // v0.4: default changed 'off' -> 'on'. An absent/unrecognized key now
+  // resolves to 'on'; an explicit stored 'off' is still honoured so a
+  // deliberate owner opt-out is never silently reverted.
+  it('defaults to "on" when the key is absent', () => {
+    expect(getHeartbeatIntent(fakeStorage())).toBe('on');
   });
 
   it('returns "on" when stored', () => {
     expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': 'on' }))).toBe('on');
   });
 
-  it('returns "off" when stored value is not "on"', () => {
-    expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': 'maybe' }))).toBe('off');
-    expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': '' }))).toBe('off');
+  it('returns the explicit "off" when stored', () => {
+    expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': 'off' }))).toBe('off');
   });
 
-  it('defaults to "off" with no storage (null/undefined)', () => {
-    expect(getHeartbeatIntent(null)).toBe('off');
-    expect(getHeartbeatIntent(undefined)).toBe('off');
+  it('falls back to the "on" default when stored value is unrecognized', () => {
+    expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': 'maybe' }))).toBe('on');
+    expect(getHeartbeatIntent(fakeStorage({ 'torii.heartbeat.intent': '' }))).toBe('on');
   });
 
-  it('never throws when storage.getItem throws', () => {
+  it('defaults to "on" with no storage (null/undefined)', () => {
+    expect(getHeartbeatIntent(null)).toBe('on');
+    expect(getHeartbeatIntent(undefined)).toBe('on');
+  });
+
+  it('never throws when storage.getItem throws, and falls back to "on"', () => {
     const broken = { getItem: () => { throw new Error('denied'); }, setItem: () => {} };
     expect(() => getHeartbeatIntent(broken)).not.toThrow();
-    expect(getHeartbeatIntent(broken)).toBe('off');
+    expect(getHeartbeatIntent(broken)).toBe('on');
   });
 });
 

@@ -79,6 +79,7 @@ describe('fetchOnlineWorlds', () => {
     const r = await fetchOnlineWorlds({
       request: fakeRequest(DEMO_GATEWAY_EVENTS),
       relays: ['wss://relay.damus.io'],
+      nowSec: 1_700_000_500, // ADR-0053: keep the frozen demo sample "live"
     });
     expect(r.ok).toBe(true);
     expect(r.count).toBeGreaterThan(0);
@@ -92,11 +93,13 @@ describe('fetchOnlineWorlds', () => {
     const rAll = await fetchOnlineWorlds({
       request: fakeRequest(DEMO_GATEWAY_EVENTS),
       relays: ['wss://relay.damus.io'],
+      nowSec: 1_700_000_500,
     });
     const rFiltered = await fetchOnlineWorlds({
       request: fakeRequest(DEMO_GATEWAY_EVENTS),
       relays: ['wss://relay.damus.io'],
       ourPubkey: PUB_A,
+      nowSec: 1_700_000_500,
     });
     expect(rFiltered.count).toBeLessThanOrEqual(rAll.count);
     expect(rFiltered.worlds.every((w) => w.pubkey !== PUB_A)).toBe(true);

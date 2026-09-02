@@ -25,9 +25,11 @@
 import { rayVsPeer } from '../combat/rayVsCapsule.js';
 
 // Shipped constants from src/engine/physics/bodies.js — copied, not imported.
-export const BOT_BODY_RADIUS = 0.30;
+// v0.2.608: widened 0.30 → 0.35 (parity with client bodies.js) — the GLB model's
+// shoulders/arms extend past 0.30m, so edge shots resolved as misses.
+export const BOT_BODY_RADIUS = 0.35;
 export const BOT_BODY_CENTRE_Y = 0.76; // unchanged — top cap stays at foot+1.26
-export const BOT_HEAD_RADIUS = 0.30;
+export const BOT_HEAD_RADIUS = 0.35;
 export const BOT_HEAD_CENTRE_Y = 1.55;
 
 /**

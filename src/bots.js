@@ -27,7 +27,7 @@ import { getLodLevel, applyLod } from './lod.js';
 import { PLAYER_SAFE_CORNER, getPlayerCollider, isPlayerOutsideFence } from './player.js';
 import { createBotBody, createBotHead, setBotBodyPos, physicsReady,
          BOT_BODY_CENTRE_Y_OFFSET, BOT_HEAD_CENTRE_Y_OFFSET,
-         createBotBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders } from './physics.js';
+         createBotBoneColliders, syncNpcBoneColliders, removeNpcBoneColliders, removeBotColliders } from './physics.js';
 import { raycastService } from './engine/physics/raycastService.js';
 import { buildCoverPoints } from './engine/entities/bot-tactics.js';
 import { isFlyEnabled } from './engine/debug/flyCamera.js';
@@ -36,6 +36,8 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { clampToCoastline, pointInCoastline, coastlineBounds } from './terrain/coastline.js';
 import { createBotSim, COVER_MARGIN } from './engine/entities/botSim.js';
 import { createBotNetState, animHintToFlags } from './engine/entities/botNetState.js';
+import { nameForBotId, labelForBotState } from './engine/entities/botIdentity.js';
+import { logBotShot, logBotKill, logBotRespawn } from './engine/entities/botDiagnostics.js';
 import { decideBossEngagement } from './bossBarState.js';
 import { BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH } from './config.js';
 
@@ -49,6 +51,10 @@ let _netMode = false;
 const _botNet = createBotNetState();
 const _nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 const ARENA_HALF = 20;
+// ADR-0016 D-2: after this many seconds the death arc has decayed to zero
+// (arc = max(0, 9t − 7t²) hits 0 at t ≈ 9/7 s). During the arc the corpse is
+// force-visible; after it, LOD may cull distant corpses.
+const DEATH_ARC_DURATION = 1.3;
 const BOSS_BAR_ENGAGE_RANGE = 14;
 const BOSS_BAR_RECENT_HIT_MS = 4000;
 const BOSS_BAR_VIEWPORT_MARGIN = 24;
@@ -89,11 +95,46 @@ function _projectBossBarAnchor(pose) {
 }
 
 export function setBotNetMode(on) {
+  const was = _netMode;
   _netMode = !!on;
-  if (!_netMode) {
+  if (_netMode && !was) {
+    // ADR-0021 — THE frozen-bot / floating-nameplate root cause.
+    // initBots() ALWAYS spawns a full LOCAL roster (sim.spawnAll(BOT_COUNT) =
+    // 5 regulars + the Augustink boss) from CLIENT config, because MP connects
+    // only AFTER init. The moment MP turns on, tickBots switches to _tickNet and
+    // renders only rows the server sends — so every local bot the server does
+    // not have stops ticking and stays frozen forever at its spawn point with
+    // its nameplate still drawn (Augustink's spawn is in the water).
+    // In MP the server is authoritative: drop the local roster on entry so only
+    // server rows are rendered. _tickNet recreates wrappers on demand.
+    _botNet.clear();
+    _clearAllBots();
     _resetBossBarTracking();
     hideBossBar();
   }
+  if (!_netMode && was) {
+    // ADR-0019: tear down the MP bot scene on disconnect so server rows that no
+    // longer exist cannot linger as frozen nameplates.
+    _botNet.clear();
+    _clearAllBots();
+    _resetBossBarTracking();
+    hideBossBar();
+  }
+}
+
+// Remove every bot wrapper from the scene + physics world and empty the array.
+// Disposes each model (root + nameplate sprite) and its body/head/bone colliders.
+function _clearAllBots() {
+  for (const bot of bots) {
+    if (bot.model) { bot.model.dispose(); bot.model = null; }
+    if (bot._capsuleMesh) {
+      scene.remove(bot._capsuleMesh);
+      bot._capsuleMesh.material?.dispose?.();
+      bot._capsuleMesh = null;
+    }
+    removeBotColliders(bot);
+  }
+  bots.length = 0;
 }
 export function isBotNetMode() { return _netMode; }
 
@@ -128,6 +169,22 @@ const _coverPoints = buildCoverPoints(_arenaBoxes, COVER_MARGIN);
 let _spawnBulletFn = null;
 let _playerObj     = null;
 let _modelsReady   = false;
+// ADR-0022: MP owns its own boss-GLB preload. The SP path only kicks off
+// preloadBossModel() inside the (now net-gated) initBots continuation, so in MP
+// nothing ever fetched the boss template.
+let _bossModelReady      = false;
+let _bossPreloadStarted  = false;
+let _bossFallbackRegular = false;
+function _ensureBossPreload() {
+  if (_bossPreloadStarted) return;
+  _bossPreloadStarted = true;
+  preloadBossModel()
+    .then(() => { _bossModelReady = true; })
+    .catch(err => {
+      console.warn('[bots] boss GLB load failed in MP, using regular model:', err);
+      _bossFallbackRegular = true;
+    });
+}
 
 // v0.2.533: Bridge 2 walkable zone — lets bots walk between Arena BL and BR
 // islands over the bridge. Includes a margin so the bot center stays on deck.
@@ -189,6 +246,11 @@ export function initBots(playerObj, spawnBulletFn) {
   // (falling back to the regular model if the boss GLB fails).
   preloadBotModel().then(() => {
     _modelsReady = true;
+    // ADR-0021: never spawn the LOCAL roster once MP is authoritative. This
+    // continuation is async, so MP can connect between initBots() and here —
+    // without this guard the local bots are re-created after setBotNetMode(true)
+    // already cleared them, and freeze again.
+    if (_netMode) return;
     sim.spawnAll(BOT_COUNT);
 
     const bossStates = sim.bots.filter(st => st.kind === 'boss');
@@ -207,10 +269,14 @@ export function initBots(playerObj, spawnBulletFn) {
 
     // Phase 2: attach the boss once its (parallel) GLB resolves.
     bossReady.then(bossOk => {
+      // ADR-0021: the boss GLB is ~7.6MB, so this resolves late — MP has often
+      // connected by now. Attaching here would re-add the frozen Augustink.
+      if (_netMode) return;
       bossStates.forEach(st => _attachModelBot(st, bossOk ? 'boss' : 'regular'));
     });
   }).catch(err => {
     console.warn('[bots] GLB load failed, falling back to capsules:', err);
+    if (_netMode) return;   // ADR-0021: server is authoritative in MP.
     _spawnCapsuleBots();
   });
 }
@@ -245,7 +311,11 @@ function _attachModelBot(st, renderKind = 'regular') {
   // wrapper in place instead of adding a duplicate bot with the same id.
   const existing = _botById(st.id);
   const current = existing?.state;
-  const model = new BotModel(renderKind);
+  // ADR-0013: regulars get a dwarf-name nameplate; boss keeps BOSS_NAME.
+  // `st.name` is the authoritative name when MP is on; SP falls back to
+  // the same deterministic mapping so the label matches either way.
+  const label = renderKind === 'boss' ? null : (st.name || nameForBotId(st.id));
+  const model = new BotModel(renderKind, label);
   const x = current?.pos?.x ?? st.pos.x;
   const z = current?.pos?.z ?? st.pos.z;
   model.init({ x, y: _footY(x, z), z });
@@ -371,6 +441,13 @@ export function ingestBotState(states) {
   _botNet.ingest(states, _nowMs());
 }
 
+// ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic, read at shot
+// time so a miss ema proves whether the client is RECEIVING BOT_STATE (or the
+// stream stalled) — the open question behind the ~12m bot-position desync.
+export function getBotNetDiagnostic() {
+  return _botNet.diagnose(_nowMs());
+}
+
 // A bot fired — spawn the enemy tracer bullet + play the bot-shoot cue. Mirrors
 // the single-player shotCallback so the visual/audio is identical.
 export function applyBotShot(originArr, dirArr) {
@@ -382,24 +459,70 @@ export function applyBotShot(originArr, dirArr) {
 }
 
 // Server says a player's shot hit a bot — sync authoritative HP + hit flash.
-export function applyBotHit(botId, hp) {
+// ADR-0042: drive a visible bot reaction on every server-confirmed hit — a red
+// emissive flash (flashHit) + an HP chip redraw on the nameplate
+// (updateNameplate). Bots are excluded from the sticker decal raycaster by
+// design (botModel.js `isBotMesh` flag), so this flash + chip + the death anim
+// ARE the owner's hit feedback, not a sticker on the mesh.
+export function applyBotHit(botId, hp, zone) {
   // Fold the authoritative hp into botNetState FIRST so the next _syncNetBot
   // frame samples the event hp — not the stale pre-hit snapshot (v0.2.383 fix).
+  const before = _botById(botId)?.state?.hp;
   _botNet.applyHit(botId, hp);
   const bot = _botById(botId);
   if (!bot) return;
   bot.state.hp = hp;
+  // INVARIANT (v0.2.663): mirror the botNetState coercion so the wrapper state
+  // can't hold hp<=0 + alive=true either (the render path reads bot.state.alive
+  // for nameplate visibility + collider parking in some branches).
+  if (hp <= 0) bot.state.alive = false;
   bot.state._isHit = true;
   bot.state._hitTimer = 0.3;
+  // ADR-0042: visible reaction — tint the bot red + redraw the HP chip.
+  bot.model?.flashHit();
+  const maxHp = (bot.state.kind === 'boss') ? BOSS_HP : BOT_HP;
+  // ADR-0044: the server only sends `name` for the boss (regular-bot frames are
+  // nameless on the wire to save bytes); the client derives the dwarf name from
+  // the bot id via labelForBotState. Falling back to `kind` showed 'regular'.
+  bot.model?.updateNameplate(labelForBotState(botId, bot.state), hp / maxHp);
+  // ADR-0013 diagnostics: log MP-authoritative hits.
+  const pp = _playerObj?.position;
+  const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
+  logBotShot({
+    botId,
+    name: bot.state?.name,
+    hpBefore: before ?? hp,
+    hpAfter: hp,
+    zone: zone || 'unknown',
+    alive: bot.state.alive,
+    isDying: bot.state._isDying,
+    lod: bot.model?.loaded ? 'full' : 'capsule',
+    dist,
+  });
 }
 
 // Server says a bot died — mark it dead so the render path hides it. Fold the
 // kill into botNetState (sets alive=false + snaps) so the next _syncNetBot frame
 // sees dead — not the stale pre-kill snapshot that would un-kill it (v0.2.383).
-export function applyBotKill(botId) {
+export function applyBotKill(botId, meta) {
   _botNet.applyKill(botId);
   const bot = _botById(botId);
-  if (bot) bot.state.alive = false;
+  if (bot) {
+    bot.state.alive = false;
+    // ADR-0042: drain HP to 0 so the nameplate chip empties + a final red
+    // flash so the death reads as a hit, not a silent disappear. The death
+    // animation itself is driven by the render loop passing `!st.alive`.
+    bot.state.hp = 0;
+    bot.model?.flashHit();
+    bot.model?.updateNameplate(labelForBotState(botId, bot.state), 0);
+  }
+  // ADR-0013 diagnostics: log MP-authoritative kills.
+  logBotKill({
+    botId,
+    name: bot?.state?.name,
+    causedBy: meta?.causedBy || 'unknown',
+    headshot: !!meta?.headshot,
+  });
 }
 
 function _tickNet(dt) {
@@ -426,6 +549,27 @@ function _tickNet(dt) {
       };
       bot = _makeCapsuleBot(st, p.id);
       bot._prevAlive = p.alive;
+    }
+    // ADR-0022 — MP must attach its OWN models. _tickNet materialises every
+    // authoritative row as a capsule placeholder, but nothing ever upgraded that
+    // placeholder to the GLB: `_modelsReady` was set and never read, and
+    // `_attachModelBot` was called only from the SP init path. MP therefore
+    // worked by accident — it reused the LOCAL roster's already-modelled
+    // wrappers whenever a server id happened to match. With the local roster
+    // correctly removed (ADR-0021) only the capsule remained: no GLB, no
+    // SkinnedMesh, and so no per-bone limb colliders. Upgrade in place as soon
+    // as the relevant template is ready (BotModel.init is synchronous once the
+    // template is cached, and sets skinnedMesh → bone colliders get built).
+    if (_modelsReady && !bot.model) {
+      if (p.kind !== 'boss') {
+        _attachModelBot(bot.state, 'regular');
+      } else if (_bossModelReady) {
+        _attachModelBot(bot.state, 'boss');
+      } else if (_bossFallbackRegular) {
+        _attachModelBot(bot.state, 'regular');
+      } else {
+        _ensureBossPreload();   // stays a capsule until the boss GLB lands
+      }
     }
     _syncNetBot(bot, p, dt);
     if (!bossPose && p.kind === 'boss') bossPose = p;
@@ -507,6 +651,19 @@ function _syncNetBot(bot, pose, dt) {
       const arc = Math.max(0, 9.0 * bot._deathT - 7.0 * bot._deathT * bot._deathT);
       bot.model.syncTo(pose.x, fy + arc, pose.z, pose.rotY);
       bot.model.tick(dt);
+      // ADR-0016 D-2: during the death arc keep the corpse visible so the
+      // ragdoll flight can never pop mid-animation. After the arc completes,
+      // run LOD so distant old corpses cull consistently with live bots.
+      if (bot._deathT > DEATH_ARC_DURATION) {
+        const pPosDead = _playerObj.position;
+        const lodDead = getLodLevel(pose.x, pose.z, pPosDead.x, pPosDead.z, bot.state?.id);
+        applyLod(bot.model, lodDead);
+      } else if (bot.model.root) {
+        bot.model.root.visible = true;
+      }
+      // ADR-0016 D-1/D-3: nameplate visible iff body visible AND alive.
+      // Dead → hide, unconditionally.
+      bot.model.setNameplateVisible(false);
     } else if (bot._capsuleMesh) {
       bot._capsuleMesh.visible = false;
     }
@@ -525,6 +682,8 @@ function _syncNetBot(bot, pose, dt) {
   st.alive = true;
   // Spawn/respawn transition — (re)create + show.
   if (!bot._prevAlive) {
+    // ADR-0013 diagnostics: log the alive-transition (spawn OR respawn).
+    logBotRespawn({ botId: pose.id, name: pose.name || st.name, x: pose.x, z: pose.z });
     _ensureBotColliders(bot, pose.x, pose.z);
     if (bot.model?.root) { bot.model.show(); bot.model.play('Walking', true); }
     else if (bot._capsuleMesh) bot._capsuleMesh.visible = true;
@@ -538,7 +697,7 @@ function _syncNetBot(bot, pose, dt) {
 
   const pPos = _playerObj.position;
   const dist = Math.hypot(pPos.x - pose.x, pPos.z - pose.z);
-  const lod = getLodLevel(pose.x, pose.z, pPos.x, pPos.z);
+  const lod = getLodLevel(pose.x, pose.z, pPos.x, pPos.z, bot.state?.id);
   applyLod(bot.model, lod);
   if (bot.model?.loaded) {
     bot.model.syncTo(pose.x, fy, pose.z, pose.rotY);
@@ -554,6 +713,12 @@ function _syncNetBot(bot, pose, dt) {
   if (bot.boneColliders.length > 0 && bot.model?.root) {
     bot.model.root.updateMatrixWorld(true);
     syncNpcBoneColliders(bot.boneColliders);
+  }
+  // ADR-0016 D-1/D-4: nameplate visible iff body visible AND alive. The alive
+  // branch already ran applyLod; sample root.visible after LOD has decided.
+  if (bot.model) {
+    const bodyVisible = bot.model.root?.visible === true;
+    bot.model.setNameplateVisible(bodyVisible && st.alive === true);
   }
   bot._prevAlive = true;
 }
@@ -579,6 +744,8 @@ function _syncBot(bot, dt) {
   // Revive transition — mirror the original _reviveBot render; the full AI tick
   // resumes next frame (the sim likewise skips movement on the revive frame).
   if (!bot._prevAlive) {
+    // ADR-0013 diagnostics: log the SP alive-transition (spawn OR respawn).
+    logBotRespawn({ botId: st.id, name: st.name, x: st.pos.x, z: st.pos.z });
     _ensureBotColliders(bot, st.pos.x, st.pos.z);
     if (bot.model?.root) {
       bot.model.show();
@@ -612,14 +779,29 @@ function _syncBot(bot, dt) {
   const dist = Math.hypot(pPos.x - st.pos.x, pPos.z - st.pos.z);
 
   // LOD — skip mixer on distant bots, hide very distant ones.
-  const lod = getLodLevel(st.pos.x, st.pos.z, pPos.x, pPos.z);
+  const lod = getLodLevel(st.pos.x, st.pos.z, pPos.x, pPos.z, st.id);
   applyLod(bot.model, lod);
 
   if (bot.model?.loaded) {
     bot.model.syncTo(st.pos.x, _footY(st.pos.x, st.pos.z), st.pos.z, st.rotY);
     if (lod === 'full') {
-      bot.model.updateAnim(dist, st.isShooting, false, st._isHit);
+      // ADR-0042: decay the one-shot hit flag so the flinch animation plays
+      // once per confirmed hit instead of replaying every frame while
+      // `_isHit` stays true. Also pass the authoritative death state through
+      // (previously hard-coded `false`) so the death anim actually plays.
+      if (st._isHit && st._hitTimer > 0) {
+        st._hitTimer -= dt;
+        if (st._hitTimer <= 0) st._isHit = false;
+      }
+      bot.model.updateAnim(dist, st.isShooting, !st.alive, st._isHit);
       bot.model.tick(dt);
+      // ADR-0042: keep the HP chip in sync whenever HP changes (hit OR
+      // respawn), not only on the applyBotHit frame.
+      if (st._lastHpShown !== st.hp) {
+        st._lastHpShown = st.hp;
+        const maxHp = (st.kind === 'boss') ? BOSS_HP : BOT_HP;
+        bot.model.updateNameplate(st.name || st.kind || '', st.hp / maxHp);
+      }
     }
   } else if (bot._capsuleMesh && !bot.model) {
     bot._capsuleMesh.position.set(
@@ -636,19 +818,49 @@ function _syncBot(bot, dt) {
     syncNpcBoneColliders(bot.boneColliders);
   }
 
+  // ADR-0016 D-1/D-4: nameplate visible iff body visible AND alive.
+  if (bot.model) {
+    const bodyVisible = bot.model.root?.visible === true;
+    bot.model.setNameplateVisible(bodyVisible && st.alive === true);
+  }
+
   bot._prevDying = st._isDying;
   bot._prevAlive = st.alive;
 }
 
 // ── Hit / Kill ────────────────────────────────────────────────────────────────
-export function hitBot(bot, dmg) {
+export function hitBot(bot, dmg, meta) {
   // MP: damage is server-authoritative (resolved via the SHOT path → BOT_HIT).
   // The client must NEVER apply local bot damage.
   if (_netMode) return;
   const pp = _playerObj ? _playerObj.position : null;
+  const hpBefore = bot.state.hp;
   const res = sim.hitBot(bot.state, dmg, pp);
-  if (res.killed) _applyKillRender(bot);
-  else emit(EV.BOT_HIT, { bot });
+  const hpAfter = bot.state.hp;
+  const dist = pp ? Math.hypot(pp.x - bot.pos.x, pp.z - bot.pos.z) : NaN;
+  // ADR-0013 diagnostics: log SP-path shots so SP + MP look the same in logs.
+  logBotShot({
+    botId: bot.state.id,
+    name: bot.state?.name,
+    hpBefore,
+    hpAfter,
+    zone: meta?.zone || (meta?.isHead ? 'head' : 'body'),
+    alive: bot.state.alive,
+    isDying: bot.state._isDying,
+    lod: bot.model?.loaded ? 'full' : 'capsule',
+    dist,
+  });
+  if (res.killed) {
+    logBotKill({
+      botId: bot.state.id,
+      name: bot.state?.name,
+      causedBy: 'player',
+      headshot: !!meta?.isHead,
+    });
+    _applyKillRender(bot);
+  } else {
+    emit(EV.BOT_HIT, { bot });
+  }
 }
 
 // The render + game-state side-effects of a kill (the sim only mutated the pure

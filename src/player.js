@@ -16,6 +16,7 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
+import { kamiInvincible } from './engine/kami/kamiMode.js'; // ADR-0029: Kami Mode invincibility
 // Player entity boundary (v0.2.114): geometry, spawn shape, and look-down POV
 // math live here now. PLAYER_SAFE_CORNER is re-exported below so bots.js can keep
 // importing it from player.js.
@@ -177,6 +178,11 @@ export function resetPlayerPos() {
 
 export function tickPlayer(dt) {
   if (!isPlaying()) return;
+  // Self-view sticker placement (ADR-0088): the orbit camera owns the shared
+  // camera while active, so skip ALL player movement + camera writes and let the
+  // self-view controls win. Re-entering flips the gate back and the next tick
+  // snaps the camera to the eye (same contract as the fly camera below).
+  if (state.stickerPlacementActive) return;
   // Dev free-fly (ToriiDebug.fly): the debug camera owns the shared camera while
   // enabled, so skip ALL player movement + camera writes and let fly controls win.
   // v2 (F4): the kinematic hit-capsule + playerObj still TRACK the fly eye so the
@@ -369,6 +375,10 @@ export function startReload() {
 
 export function takeDamage(dmg) {
   if (godMode) return;
+  // ADR-0029: while in Kami Mode the owner is an invincible spirit — peer fire
+  // (MP) / future bot return-fire must not damage them. No-op in single-player
+  // today (nothing calls this from bot AI), but wired so the guard is one line.
+  if (kamiInvincible()) return;
   state.hp = Math.max(0, state.hp - dmg);
   emit(EV.PLAYER_HIT, { dmg });
   emit(EV.HUD_UPDATE);

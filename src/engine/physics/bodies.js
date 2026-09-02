@@ -43,7 +43,10 @@ export const BOT_BODY_HALF_H = 0.5;
 // v0.2.386-alpha: radius widened 0.26 → 0.30 (~+15% hitbox forgiveness). Kept in
 // parity with server/bots/botColliders.js. Foot stays planted (centre − halfH −
 // radius = 0); the capsule grows outward + a touch taller ([0,1.60]).
-export const BOT_BODY_RADIUS = 0.30;
+// v0.2.608: widened 0.30 → 0.35 — the GLB model's shoulders/arms extend past
+// 0.30m, so crosshair-on-model shots at the edge resolved as misses. The wider
+// capsule matches the visual silhouette more closely.
+export const BOT_BODY_RADIUS = 0.35;
 export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.80 → body spans [0,1.60]
 // v0.2.112: head sphere enlarged 0.18 → 0.22 so clear headshots can't slip past
 // the small ball.
@@ -61,7 +64,10 @@ export const BOT_BODY_CENTRE_Y_OFFSET = BOT_BODY_HALF_H + BOT_BODY_RADIUS; // 0.
 // analytic ray (rayVsPeer) then resolved a face shot as 'body' (3 dmg, 2 shots to
 // kill a 5-HP bot) instead of 'head' (9 dmg, 1 shot). Matching the head radius to
 // the body radius makes the head sphere win those ties → face shots 1-shot again.
-export const BOT_HEAD_RADIUS = 0.30;
+// v0.2.608: widened 0.30 → 0.35 — same rationale as the body capsule. The head
+// sphere must cover the visible head + a small margin so shots that look like
+// headshots register as headshots.
+export const BOT_HEAD_RADIUS = 0.35;
 // Head centre sits this far above the foot — at the visible face/eye line,
 // overlapping the body capsule cap below it.
 export const BOT_HEAD_CENTRE_Y_OFFSET = 1.55;
@@ -282,6 +288,28 @@ export function removeNpcBoneColliders(boneColliders) {
     _world.removeCollider(bc.collider, true);
     _world.removeRigidBody(bc.body);
   }
+}
+
+// Remove a bot's body + head + bone colliders from the physics world and clear
+// their collider→bot/part lookups. Used when a bot wrapper is torn down — e.g.
+// the MP roster is cleared on disconnect (ADR-0019 stale-bot cleanup).
+export function removeBotColliders(bot) {
+  if (!_world) return;
+  if (bot.rapierCollider) {
+    colliderToBot.delete(bot.rapierCollider.handle);
+    colliderToPart.delete(bot.rapierCollider.handle);
+    _world.removeCollider(bot.rapierCollider, true);
+  }
+  if (bot.rapierBody) _world.removeRigidBody(bot.rapierBody);
+  if (bot.rapierHeadCollider) {
+    colliderToBot.delete(bot.rapierHeadCollider.handle);
+    colliderToPart.delete(bot.rapierHeadCollider.handle);
+    _world.removeCollider(bot.rapierHeadCollider, true);
+  }
+  if (bot.rapierHeadBody) _world.removeRigidBody(bot.rapierHeadBody);
+  removeNpcBoneColliders(bot.boneColliders || []);
+  bot.rapierBody = bot.rapierCollider = bot.rapierHeadBody = bot.rapierHeadCollider = null;
+  bot.boneColliders = [];
 }
 
 export function getBoneForColliderHandle(h) {

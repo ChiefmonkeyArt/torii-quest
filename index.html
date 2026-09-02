@@ -33,67 +33,45 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0a0a0f;
-      --accent: #8b5cf6;
+      /* v0.3 recolor — orange/bronze palette sampled from the torii-gate
+         sunset reference (sky #a26d4b/#9d6e52, rust #754223, plains
+         #31200e/#241510). Replaces the dark-neon-purple theme. --accent2
+         is the old purple, kept ONLY for the few remaining player-facing
+         surfaces not yet migrated (none currently reference it after this
+         pass; kept as an escape hatch, not active decor). */
+      --bg: #140d09;
+      --accent: #e8842c;
+      --accent-soft: #c9793a;
       --orange: #f7931a;
       --danger: #ff4444;
-      --muted: rgba(255,255,255,0.35);
+      --muted: rgba(255,232,214,0.35);
       --font: 'Courier New', monospace;
+      --panel-glass: rgba(30,18,12,0.62);
+      --panel-glass-border: rgba(232,178,120,0.35);
+      --panel-text: #f5e6d8;
+      --panel-text-dim: #c9b19d;
     }
-    body { background: var(--bg); color: #e8e8f0; font-family: var(--font); overflow: hidden; }
+    body { background: var(--bg); color: var(--panel-text); font-family: var(--font); overflow: hidden; }
     canvas { display: block; }
 
     /* ── Shared button ── */
     .btn {
       display: inline-block; padding: 11px 20px;
       background: var(--accent); border: 1px solid transparent; border-radius: 4px;
-      color: #fff; font-family: var(--font); font-size: 13px;
+      color: #1c0f06; font-family: var(--font); font-size: 13px;
       letter-spacing: 3px; cursor: pointer;
       transition: opacity 0.15s, background 0.15s;
     }
     .btn:hover { opacity: 0.85; }
     .btn-secondary {
       background: transparent;
-      border: 1px solid rgba(139,92,246,0.5);
-      color: rgba(180,150,255,0.9);
+      border: 1px solid rgba(232,178,120,0.5);
+      color: rgba(245,224,200,0.9);
     }
-    /* ── Free-fly toggle switch (v2) ── pill switch with a sliding knob.
-       Still a <button> (role="switch") for click/a11y; OFF = neutral grey,
-       ON = green track (#22c55e) with the knob slid right. */
-    #btn-fly-toggle.fly-switch {
-      display: flex; align-items: center; gap: 10px;
-      width: 220px; box-sizing: border-box;
-      background: transparent;
-      border: 1px solid rgba(139,92,246,0.5);
-      border-radius: 6px;
-      color: rgba(180,150,255,0.9);
-      font-family: var(--font); font-size: 10px; letter-spacing: 2px;
-      transition: border-color 0.15s, color 0.15s;
-    }
-    .fly-switch-label { flex: 1 1 auto; text-align: left; }
-    .fly-switch-track {
-      position: relative; flex: 0 0 auto;
-      width: 34px; height: 16px;
-      background: rgba(255,255,255,0.18);
-      border-radius: 999px;
-      transition: background 0.15s;
-    }
-    .fly-switch-knob {
-      position: absolute; top: 2px; left: 2px;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: #cfcfe0;
-      transition: transform 0.15s, background 0.15s;
-    }
-    .fly-switch-state { flex: 0 0 auto; width: 24px; text-align: right; opacity: 0.85; }
-    /* ON state — green track, knob slid right, green accents. */
-    #btn-fly-toggle.fly-switch.is-on {
-      border-color: #22c55e;
-      color: #7ef0a6;
-    }
-    #btn-fly-toggle.fly-switch.is-on .fly-switch-track { background: #22c55e; }
-    #btn-fly-toggle.fly-switch.is-on .fly-switch-knob {
-      transform: translateX(18px); background: #eafff0;
-    }
+    /* v0.3: homepage FLY MODE pill-switch styles removed with the button
+       itself (see index.html centre-panel comment). In-game keybind (F)
+       still works; arenaRuntime's DOM sync for #btn-fly-toggle is
+       null-guarded and simply no-ops now. */
     .btn-orange {
       background: transparent;
       border: 1px solid rgba(247,147,26,0.5);
@@ -103,128 +81,256 @@
     /* ══════════════════════════════════════════
        HOME SCREEN
     ══════════════════════════════════════════ */
+    /* v0.3 recolor: torii-gate sunset photo as the full-bleed page background
+       (fixed + cover, dimmed via the gradient overlay so foreground text
+       stays readable), with header/console content on frosted glass above
+       it (see .glass-panel). */
     #screen-title {
       position: fixed; inset: 0; z-index: 100;
       display: flex; flex-direction: column; align-items: center;
-      background: radial-gradient(ellipse at 50% 30%, rgba(60,20,100,0.25) 0%, #08080f 70%);
+      background:
+        linear-gradient(180deg, rgba(20,13,9,0.55) 0%, rgba(20,13,9,0.72) 55%, rgba(14,9,6,0.88) 100%),
+        url('/torii-gate-sunset.jpg');
+      background-size: cover;
+      background-position: center 60%;
+      background-attachment: fixed;
       overflow-y: auto;
     }
     #screen-title.hidden { display: none; }
+    /* Shared frosted-glass surface for content sitting over the background photo. */
+    .glass-panel {
+      background: var(--panel-glass);
+      backdrop-filter: blur(10px) saturate(120%);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      border: 1px solid var(--panel-glass-border);
+      border-radius: 12px;
+    }
 
-    /* Header */
+    /* Header — v0.3: no glass-panel background/border, no border-bottom.
+       Text + torii icon sit directly on the sunset photo (per design
+       direction); .glass-panel class is intentionally NOT applied to this
+       element anymore (removed from the markup below, not just overridden
+       here) so header styling can't regress back to the boxed look. */
     #title-header {
       position: relative;
       width: 100%; text-align: center;
       padding: 32px 20px 18px;
-      border-bottom: 1px solid rgba(139,92,246,0.15);
     }
     .title-logo-text {
-      font-size: 2.4rem; letter-spacing: 10px; color: #e8e8f0;
-      text-shadow: 0 0 60px rgba(139,92,246,0.5);
+      font-size: 2.4rem; letter-spacing: 10px; color: #f5e6d8;
+      text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
-    /* v0.2.603-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+    /* v0.2.739-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
-    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #444; margin-top: 5px; }
-    /* Phase 0c: persistent Torii/burger menu button (title-screen header). A
-       fixed-position torii-gate glyph so it stays reachable on the title screen;
-       KeyM opens the same menu in-game. */
+    .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #d8c3ac; margin-top: 5px; }
+    /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
+       v0.3: moved top-right → top-left. v0.2.739-alpha: moved again, top-left
+       → bottom-left (screen corner, fixed not absolute, so it stays anchored
+       to the viewport rather than scrolling with #title-header) to make room
+       for the new top-left "This torii belongs to" owner caption. Opens the
+       settings panel (nav-left/content-right). */
     .btn-torii-menu {
-      position: absolute; top: 18px; right: 18px;
+      position: fixed; bottom: 18px; left: 18px;
       width: 40px; height: 40px; border-radius: 8px;
-      background: rgba(26,22,48,0.85); color: #c4b5fd;
-      border: 1px solid rgba(139,92,246,0.4);
+      background: rgba(40,26,16,0.85); color: #e8c9a8;
+      border: 1px solid rgba(232,178,120,0.4);
       cursor: pointer; display: flex; align-items: center; justify-content: center;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
       z-index: 20;
     }
-    .btn-torii-menu:hover { background: rgba(139,92,246,0.25); color: #fff; border-color: rgba(196,181,253,0.6); }
+    .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* Three-column layout — half-height cards */
+    /* v0.2.739-alpha: top-left "This torii belongs to: <owner>" caption —
+       fixed corner label, sits directly on the sunset photo like the header
+       text (no glass box; a plain text treatment reads lighter here and
+       avoids a 4th competing panel on the screen). Populated by
+       main.js's _refreshOwnerLabel() against capability.adminPubkey. */
+    #torii-owner-caption {
+      position: fixed; top: 18px; left: 18px; z-index: 20;
+      /* v0.2.739-alpha fix: a long displayName wrapping to a 2nd line pushed
+         into the header's TORII wordmark on narrow viewports. Kept single-
+         line + ellipsis-truncated instead — a clipped-but-readable name is
+         better than colliding text, and the full name is still visible in
+         the Profile settings tab. Capped narrower (160px) than the old
+         220px so it comfortably clears the wordmark even on an iPhone-SE-
+         width screen where the title itself wraps to 2 lines. */
+      max-width: 160px; text-align: left; pointer-events: none;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    #torii-owner-caption .toc-line1 {
+      font-size: 9px; letter-spacing: 1.5px; color: #d8c3ac; text-transform: uppercase;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* v0.2.705 (ADR-0071): admin greeting line — prominent (13px) and
+       sentence-case ("Welcome <name>,") so the owner is greeted by name.
+       v0.2.706 (ADR-0072): only the NAME is orange; "Welcome "/"," are the
+       neutral caption tone, so the base color is NOT overridden here — the
+       name span (.toc-name) carries the orange. */
+    #torii-owner-caption .toc-line1.toc-greet {
+      font-size: 13px; letter-spacing: 0.5px; font-weight: 600;
+      text-transform: none;
+    }
+    /* v0.2.706 (ADR-0072): color split — name orange (warm focal point),
+       "Welcome "/","/"you are " neutral (ties the greeting to the caption's
+       label tone), "logged in" green (complimentary to the orange for balance). */
+    #torii-owner-caption .toc-name { color: #f7931a; }
+    #torii-owner-caption .toc-dim { color: #d8c3ac; }
+    #torii-owner-caption .toc-on { color: #6DAA45; }
+    #torii-owner-caption .toc-line2 {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; letter-spacing: 0.5px; color: #f7931a; font-weight: 600;
+      margin-top: 2px;
+      text-shadow: 0 0 10px rgba(247,147,26,0.35), 0 1px 3px rgba(0,0,0,0.6);
+    }
+    #torii-owner-caption .toc-owner-name {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+    }
+    /* v0.2.704 (ADR-0070): admin-only "logged in" badge — hidden by default,
+       shown only when the logged-in viewer IS the instance owner (toggled in
+       _refreshOwnerLabel via the same isAdminOperator() check the shell uses).
+       Green dot + text so it doesn't rely on color alone; never reveals the
+       pubkey; starts display:none so it never flashes before login confirms. */
+    #torii-owner-caption .toc-loggedin {
+      display: none; flex: 0 0 auto; align-items: center; gap: 5px;
+      font-size: 9px; letter-spacing: 1px; color: #6DAA45; font-weight: 600;
+      text-transform: none; white-space: nowrap;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    #torii-owner-caption .toc-loggedin.show { display: inline-flex; }
+    #torii-owner-caption .toc-loggedin-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #6DAA45;
+      box-shadow: 0 0 8px rgba(109,170,69,0.7);
+      animation: toc-loggedin-pulse 2s ease-in-out infinite;
+    }
+    @keyframes toc-loggedin-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    @media (prefers-reduced-motion: reduce) {
+      #torii-owner-caption .toc-loggedin-dot { animation: none; }
+    }
+    /* v0.2.704 (ADR-0070): when the admin badge is showing, give the name a
+       little more room so a short owner name isn't ellipsis-clipped by the
+       badge sitting to its right. Only on wider viewports — on phone-width
+       screens the 160px cap stays so the caption never collides with the
+       centered wordmark (a long name there still truncates gracefully, with
+       the full name on hover via the title attribute). :has() is supported in
+       all current browsers (Chrome 105+ / Safari 15.4+ / Firefox 121+). */
+    @media (min-width: 480px) {
+      #torii-owner-caption:has(.toc-loggedin.show) { max-width: 220px; }
+    }
+
+    /* Single-column homepage layout (v0.3 cleanup — was a 3-column flex). */
     #title-columns {
-      display: flex; gap: 20px;
+      display: flex; justify-content: center;
       padding: 28px 28px 0;
       max-width: 1160px; width: 100%;
-      align-items: flex-start; /* cards don't stretch to fill */
-    }
-    /* v0.2.340: side columns stack their side-card + a moved preview card
-       (leaderboard under PLAYER, update under CHAT) so the centre column stays
-       uncluttered. */
-    .side-col {
-      display: flex; flex-direction: column; gap: 12px;
-      width: 300px; flex-shrink: 0;
-    }
-    .side-col .side-card { width: 100%; }
-    /* Moved preview cards fill the side column (override the 240px centre width). */
-    .side-col #leaderboard-preview,
-    .side-col #update-preview {
-      width: 100%; margin-top: 0; box-sizing: border-box;
     }
 
-    /* ── Side cards ── */
-    .side-card {
-      width: 300px; flex-shrink: 0;
-      border-radius: 10px;
-      background: rgba(12,12,22,0.95);
-      display: flex; flex-direction: column;
-    }
-    .side-card-purple { border: 1px solid rgba(139,92,246,0.55); box-shadow: 0 0 30px rgba(139,92,246,0.07); }
-    .side-card-orange { border: 1px solid rgba(247,147,26,0.55);  box-shadow: 0 0 30px rgba(247,147,26,0.07); }
-    .side-card-header {
-      padding: 10px 16px; font-size: 9px; letter-spacing: 3px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .side-card-purple .side-card-header { color: #a78bfa; }
-    .side-card-orange .side-card-header { color: #fb923c; }
-    .side-card-body { padding: 16px; }
-
-    /* ── Centre column ── */
+    /* ── Centre console — now the single glass panel over the sunset photo ── */
     #title-centre {
-      flex: 1;
-      border: 1px solid rgba(220,38,38,0.6);
-      border-radius: 10px;
-      background: rgba(12,4,4,0.97);
-      box-shadow: 0 0 60px rgba(220,38,38,0.18), inset 0 0 40px rgba(220,38,38,0.05);
+      /* v0.4: hug content width ("bounding box around the text content")
+         instead of stretching to a fixed 460px — the panel now shrinks to
+         whichever child is naturally widest (the update-preview box / control
+         legend), capped so it never gets uncomfortably narrow on small
+         children-only states or wider than the old 460px ceiling. */
+      flex: 0 1 auto; width: auto; min-width: 320px; max-width: 460px;
       display: flex; flex-direction: column; align-items: center;
-      padding: 32px 24px 28px;
+      padding: 32px 34px 28px;
+      position: relative;
     }
-    #centre-logo {
-      font-size: 2.0rem; letter-spacing: 8px; color: #e8e8f0;
-      text-shadow: 0 0 50px rgba(220,38,38,0.7);
-      text-align: center; line-height: 1; white-space: nowrap;
+    #title-centre.glass-panel {
+      /* v0.5: real smoked-glass (backdrop blur) is back. A single
+         backdrop-filter blur on one masked box always shows a hard
+         blur-sampling edge — Chromium/WebKit compute the blurred backdrop
+         over the element's own box BEFORE the mask is applied, so no
+         amount of mask feathering hides the blurred/unblurred pixel
+         boundary. The fix is to stack several concentric rings, each with
+         a smaller blur radius and a mask band further out, so the
+         transition from "fully blurred" to "no blur" happens gradually
+         across multiple soft bands instead of one cliff — by the outermost
+         ring the blur is near 0px so its edge is imperceptible, and the
+         flat tint layer on top carries the fade the rest of the way to
+         true 0% opacity. See .gp-ring1..4 and .gp-tint below (added as
+         actual child elements in the DOM, since ::before/::after can't
+         each carry independent backdrop-filter blur amounts here). */
+      position: relative;
+      background: transparent;
+      border: none;
+      border-radius: 48px;
+      box-shadow: none;
+      isolation: isolate;
     }
-    #centre-logo span { color: #f7931a; }
-    #centre-sub { font-size: 10px; letter-spacing: 5px; color: #ef4444; margin-top: 8px; }
-    #centre-tag { font-size: 8px; letter-spacing: 4px; color: #4a1010; margin-top: 4px; }
+    .gp-ring {
+      position: absolute; inset: 0; border-radius: 48px; pointer-events: none; z-index: 0;
+    }
+    .gp-ring1 {
+      backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 58%);
+      mask-image: radial-gradient(ellipse at center, #000 0%, #000 42%, transparent 58%);
+    }
+    .gp-ring2 {
+      backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 32%, #000 48%, #000 60%, transparent 72%);
+      mask-image: radial-gradient(ellipse at center, transparent 32%, #000 48%, #000 60%, transparent 72%);
+    }
+    .gp-ring3 {
+      backdrop-filter: blur(5px) saturate(120%); -webkit-backdrop-filter: blur(5px) saturate(120%);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 50%, #000 64%, #000 75%, transparent 85%);
+      mask-image: radial-gradient(ellipse at center, transparent 50%, #000 64%, #000 75%, transparent 85%);
+    }
+    .gp-ring4 {
+      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+      -webkit-mask-image: radial-gradient(ellipse at center, transparent 64%, #000 78%, transparent 96%);
+      mask-image: radial-gradient(ellipse at center, transparent 64%, #000 78%, transparent 96%);
+    }
+    .gp-tint {
+      /* Flat (no-blur) tint carries the visible fill from centre all the
+         way to true 0% opacity at 92% — this is the layer players actually
+         read as "smoked glass tint", sitting on top of the blur rings. */
+      background: rgba(30,18,12,0.42);
+      -webkit-mask-image: radial-gradient(ellipse at center, #000 0%, transparent 92%);
+      mask-image: radial-gradient(ellipse at center, #000 0%, transparent 92%);
+    }
+    #title-centre.glass-panel > .gp-content {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; width: 100%;
+    }
+
+    /* v0.3: numbered step rows — large numeral to the left of each of the top
+       3 controls (character select / login / enter). Row is a flex container
+       so the numeral centres vertically against content of any height;
+       the content column keeps full width so existing centred children
+       (buttons, the character-select block) lay out unchanged. */
+    .step-row {
+      display: flex; align-items: center; gap: 14px;
+      width: 100%; justify-content: center;
+    }
+    .step-num {
+      flex: 0 0 auto;
+      font-size: 2.1rem; font-weight: 700; line-height: 1;
+      color: rgba(232,178,120,0.55);
+      text-shadow: 0 0 18px rgba(232,132,44,0.25);
+      min-width: 1.4rem; text-align: right;
+    }
+    .step-row > *:not(.step-num) { flex: 0 0 auto; }
 
     /* Divider */
     .c-divider {
       width: 80%; height: 1px;
-      background: linear-gradient(to right, transparent, rgba(220,38,38,0.5), transparent);
+      background: linear-gradient(to right, transparent, rgba(232,178,120,0.45), transparent);
       margin: 22px 0;
     }
 
-    /* Enter button — wide, prominent */
-    #btn-enter {
-      width: 220px; padding: 14px; font-size: 13px; letter-spacing: 4px;
-      background: linear-gradient(135deg, #7c3aed, #6d28d9);
-      border: 1px solid rgba(139,92,246,0.7);
-      box-shadow: 0 0 30px rgba(139,92,246,0.3);
-    }
-    #btn-enter:hover { box-shadow: 0 0 50px rgba(139,92,246,0.5); opacity: 1; }
-
-    /* v0.2.275: NAP-zone shortcut */
+    /* v0.3: single merged entry button (was #btn-enter + #btn-enter-nap). */
     #btn-enter-nap {
-      width: 220px; padding: 11px; font-size: 11px; letter-spacing: 3px;
-      color: #dfe9d2;
+      width: 220px; padding: 14px; font-size: 13px; letter-spacing: 4px;
+      color: #1c0f06;
     }
-    #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(107,142,90,0.5); opacity: 1; }
+    #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(232,132,44,0.5); opacity: 1; }
 
-    /* Login button in centre — v0.2.603-alpha: promoted to the primary CTA with a
+    /* Login button in centre — v0.2.739-alpha: promoted to the primary CTA with a
        solid mint/green fill (matches the on-brand green accent used elsewhere) so
        it reads as clearly as ENTER ARENA. Overrides the .btn-secondary outline. */
     #btn-nostr-centre {
@@ -248,150 +354,452 @@
       background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
       border-radius: 3px; padding: 0 5px; font-size: 9px; color: #888; margin: 0 2px;
     }
-    #version-label { margin-top: 18px; font-size: 18px; color: #a0a8b8; letter-spacing: 2px; font-weight: 600; }
     /* Continuum oversight dashboard link (v0.2.171) — same-origin static page. */
     #torii-quest-dashboard-link { display: inline-block; margin-top: 7px; font-size: 9px; letter-spacing: 2px;
       color: #36e0c8; text-decoration: none; border: 1px solid rgba(54,224,200,0.35);
       border-radius: 3px; padding: 2px 8px; }
     #torii-quest-dashboard-link:hover { border-color: #36e0c8; }
-    /* Instance Settings link (v0.2.358, ACC-1) — title-screen admin corner link.
-       Hidden by default; main.js unhides it only when the logged-in operator's
-       npub matches the deployment's host pubkey. Sibling styling to the project
-       dashboard link so the two sit together as a quiet corner cluster. */
-    #instance-settings-link { display: inline-block; margin-top: 7px; margin-left: 6px;
-      font-size: 9px; letter-spacing: 2px; color: #a88bfa; text-decoration: none;
-      border: 1px solid rgba(168,139,250,0.35); border-radius: 3px; padding: 2px 8px;
-      cursor: pointer; background: transparent; }
-    #instance-settings-link:hover { border-color: #a88bfa; }
-    #instance-settings-link[hidden] { display: none; }
-    /* Instance Settings panel (v0.2.358) — inert overlay on the title screen.
-       Rendered by main.js from the pure `instanceSettings.js` view-model. No
-       gate change, no relay call, no navigation. */
-    #instance-settings-backdrop {
-      position: fixed; inset: 0; background: rgba(4,6,14,0.72);
-      z-index: 40; display: block;
-    }
-    #instance-settings-backdrop[hidden] { display: none; }
-    #instance-settings-panel {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 64px);
-      overflow: auto; z-index: 41;
-      background: rgba(14,10,26,0.96); color: #d8d4ee;
-      border: 1px solid rgba(168,139,250,0.45); border-radius: 8px;
-      padding: 14px 16px; font-family: inherit; text-align: left;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
-    }
-    #instance-settings-panel[hidden] { display: none; }
-    #instance-settings-panel .is-header { display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid rgba(168,139,250,0.25); padding-bottom: 8px; margin-bottom: 10px; }
-    #instance-settings-panel .is-title { margin: 0; font-size: 14px; letter-spacing: 2px;
-      color: #d8d4ee; text-transform: uppercase; flex: 1; }
-    #instance-settings-panel .is-admin { font-size: 10px; color: #a0a8b8; }
-    #instance-settings-panel .is-admin code { color: #a88bfa; background: rgba(168,139,250,0.08);
-      padding: 1px 5px; border-radius: 3px; font-size: 10px; }
-    #instance-settings-panel .is-close { background: transparent; border: 1px solid rgba(255,255,255,0.15);
-      color: #d8d4ee; border-radius: 3px; width: 24px; height: 24px; font-size: 16px;
+    /* v0.3: #instance-settings-link / #instance-settings-backdrop / floating
+       #instance-settings-panel dialog chrome REMOVED — the button and the
+       standalone floating-dialog positioning are gone (the settings icon now
+       opens the new nav-left/content-right shell below). The .is-* content
+       styles are KEPT: renderInstanceSettingsPanel() still emits the same
+       .is-* markup (Access tab), now mounted straight into the shell's
+       content pane (#torii-settings-content) instead of a floating card, so
+       only the outer positioning rules were dropped. v0.5: re-themed onto the
+       neutral --settings-* tokens below (was bronze/amber) for visual
+       consistency with the other five tabs — copy/data-action/class NAMES
+       are unchanged (tests in tests/instance-settings.test.js lock the
+       literal copy), only colors/spacing/radius moved to the shared system. */
+    #torii-settings-content .is-header { display: flex; align-items: center; gap: var(--settings-space-3);
+      border-bottom: 1px solid var(--settings-border); padding-bottom: var(--settings-space-3); margin-bottom: var(--settings-space-3); }
+    #torii-settings-content .is-title { margin: 0; font-size: var(--settings-text-title); font-weight: 600;
+      color: var(--settings-text); flex: 1; }
+    #torii-settings-content .is-admin { font-size: var(--settings-text-caption); color: var(--settings-text-dim); }
+    #torii-settings-content .is-admin code { color: var(--settings-accent-strong); background: var(--settings-accent-wash);
+      padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    #torii-settings-content .is-close { background: transparent; border: 1px solid var(--settings-border);
+      color: var(--settings-text-dim); border-radius: 50%; width: 26px; height: 26px; font-size: 15px;
       line-height: 1; cursor: pointer; padding: 0; }
-    #instance-settings-panel .is-close:hover { border-color: #a88bfa; }
-    #instance-settings-panel .is-section { margin-bottom: 12px; padding: 10px 12px;
-      background: rgba(18,12,34,0.6); border: 1px solid rgba(168,139,250,0.18); border-radius: 6px; }
-    #instance-settings-panel .is-section-title { margin: 0 0 6px 0; font-size: 11px;
-      letter-spacing: 2px; color: #a88bfa; text-transform: uppercase; }
-    #instance-settings-panel .is-row { display: flex; justify-content: space-between; align-items: center;
-      padding: 4px 0; font-size: 12px; }
-    #instance-settings-panel .is-row-label { color: #a0a8b8; }
-    #instance-settings-panel .is-row-value { color: #d8d4ee; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 1px; font-size: 11px; }
-    #instance-settings-panel .is-coming-soon { margin-top: 8px; padding-top: 8px;
-      border-top: 1px dashed rgba(168,139,250,0.22); }
-    #instance-settings-panel .is-coming-soon-head { font-size: 9px; letter-spacing: 2px;
-      color: #a88bfa; text-transform: uppercase; margin-bottom: 4px; }
-    #instance-settings-panel .is-mode-list { margin: 0; padding: 0; list-style: none; }
-    #instance-settings-panel .is-mode-list li { display: flex; flex-direction: column;
-      padding: 4px 0; border-bottom: 1px dotted rgba(168,139,250,0.12); }
-    #instance-settings-panel .is-mode-list li:last-child { border-bottom: 0; }
-    #instance-settings-panel .is-mode-label { color: #d8d4ee; font-size: 11px; font-weight: 600; }
-    #instance-settings-panel .is-mode-hint { color: #a0a8b8; font-size: 10px; margin-top: 2px; }
-    #instance-settings-panel .is-note { margin: 8px 0 0 0; font-size: 10px; color: #a0a8b8;
-      font-style: normal; }
-    #instance-settings-panel .is-footer { border-top: 1px solid rgba(168,139,250,0.18);
-      padding-top: 8px; margin-top: 4px; font-size: 10px; color: #7d8494; text-align: center; }
+    #torii-settings-content .is-close:hover { border-color: var(--settings-border-strong); color: var(--settings-text); }
+    #torii-settings-content .is-section { margin-bottom: var(--settings-space-3); padding: var(--settings-space-3) var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border); border-radius: var(--settings-radius); }
+    #torii-settings-content .is-section-title { margin: 0 0 var(--settings-space-2) 0; font-size: var(--settings-text-caption);
+      letter-spacing: 0.04em; font-weight: 600; color: var(--settings-text-faint); text-transform: uppercase; }
+    #torii-settings-content .is-subhead { font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.02em;
+      color: var(--settings-text-dim); text-transform: uppercase; margin: var(--settings-space-2) 0 6px; }
+    #torii-settings-content .is-row { display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0; font-size: var(--settings-text-body); }
+    #torii-settings-content .is-row-label { color: var(--settings-text-dim); }
+    #torii-settings-content .is-row-value { color: var(--settings-text); font-weight: 600;
+      font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-mode-group { display: flex; flex-direction: column; gap: 6px; margin: var(--settings-space-2) 0; }
+    #torii-settings-content .is-mode-option { display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; border-radius: var(--settings-radius-sm); cursor: pointer; }
+    #torii-settings-content .is-mode-option:hover { background: var(--settings-surface-raised); }
+    #torii-settings-content .is-mode-option.is-mode-disabled { cursor: not-allowed; opacity: 0.55; }
+    #torii-settings-content .is-mode-copy { display: flex; flex-direction: column; gap: 2px; }
+    #torii-settings-content .is-mode-label { color: var(--settings-text); font-size: var(--settings-text-body); font-weight: 600; }
+    #torii-settings-content .is-mode-hint { color: var(--settings-text-dim); font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-coming-next-chip { font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase; color: var(--settings-text-faint); background: var(--settings-bg);
+      border: 1px solid var(--settings-border); border-radius: 4px; padding: 1px 6px; margin-left: 4px; }
+    #torii-settings-content .is-note { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption);
+      color: var(--settings-text-faint); font-style: normal; }
+    #torii-settings-content .is-status { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-status[data-tone="error"] { color: var(--settings-danger); }
+    #torii-settings-content .is-status[data-tone="success"] { color: var(--settings-success); }
 
-    /* ── MVP loop header — frames the four preview cards as one loop (v0.2.143) ── */
-    #mvp-loop {
-      margin-top: 16px; width: 240px; text-align: left;
-      border: 1px solid rgba(168,139,250,0.45); border-radius: 6px;
-      background: rgba(18,12,34,0.5); padding: 8px 9px;
+    /* v0.2.739: snappy button micro-interactions — lift on hover, press on
+       active, animated focus ring for keyboard nav. Applies to every
+       settings button + preset card + close-x. Respects reduced-motion. */
+    #torii-settings-panel .settings-btn,
+    #torii-settings-panel .cf-preset-card,
+    #torii-settings-panel .ts-nav-item,
+    #torii-settings-panel .ts-close-x {
+      transition: background 140ms ease, color 140ms ease, border-color 140ms ease,
+                  transform 120ms cubic-bezier(0.2, 0.7, 0.3, 1),
+                  box-shadow 140ms ease, opacity 140ms ease;
     }
-    #mvp-loop-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #mvp-loop-title { font-size: 9px; letter-spacing: 1.5px; color: #ddd6fe; }
-    #mvp-loop-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #mvp-loop-flow { font-size: 10px; letter-spacing: 1px; color: #c4b5fd; }
-    #mvp-loop-note { font-size: 8px; letter-spacing: 0.5px; color: #6b7280; margin-top: 3px; }
+    @media (prefers-reduced-motion: no-preference) {
+      #torii-settings-panel .settings-btn:not([disabled]):hover,
+      #torii-settings-panel .cf-preset-card:not([disabled]):hover { transform: translateY(-1px); }
+      #torii-settings-panel .settings-btn:not([disabled]):active,
+      #torii-settings-panel .cf-preset-card:not([disabled]):active { transform: translateY(0) scale(0.98); }
+    }
+    #torii-settings-panel .settings-btn:focus-visible,
+    #torii-settings-panel .cf-preset-card:focus-visible,
+    #torii-settings-panel .ts-nav-item:focus-visible,
+    #torii-settings-panel .ts-close-x:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--settings-accent-wash-strong);
+      border-color: var(--settings-accent) !important;
+    }
+    #torii-settings-panel .settings-btn[disabled],
+    #torii-settings-panel .cf-preset-card[disabled] {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    #torii-settings-panel .settings-btn-primary:not([disabled]):hover {
+      background: var(--settings-accent-wash-strong) !important;
+      border-color: var(--settings-accent) !important;
+      color: var(--settings-accent-strong) !important;
+    }
+    #torii-settings-panel .settings-btn-danger:not([disabled]):hover {
+      background: var(--settings-danger-wash) !important;
+      border-color: var(--settings-danger) !important;
+      color: var(--settings-danger) !important;
+    }
 
-    /* ── Gateway/NAP-to-NAP preview (inert, v0.2.139) ── */
-    #gateway-preview {
-      margin-top: 12px; width: 240px; text-align: left;
-      border: 1px solid rgba(139,92,246,0.35); border-radius: 6px;
-      background: rgba(26,10,46,0.35); padding: 7px 9px;
+    /* v0.2.739: toast layer — slides in from the bottom, colored by tone,
+       auto-dismisses. Sits above the settings panel (z-index 300 > 200). */
+    #torii-toast-layer {
+      position: fixed; left: 0; right: 0; bottom: 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      z-index: 300; pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
     }
-    #gateway-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #gateway-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #c4b5fd; }
-    #gateway-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #gateway-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    .gw-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
-    .gw-row-value { font-size: 9px; color: #d1c4ec; word-break: break-all; }
-    /* v0.2.252 (P1): clickable world rows + handshake action buttons. */
-    .gw-section-title { grid-column: 1 / auto; font-size: 8px; letter-spacing: 1.2px; color: #c4b5fd; text-transform: uppercase; margin-top: 5px; }
-    .gw-more { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #6b7280; padding: 1px 0 0 4px; }
-    .gw-world-row { grid-column: 1 / -1; font-size: 9px; color: #d1c4ec; padding: 1px 0; }
-    .gw-world-clickable { cursor: pointer; color: #e9d5ff; border-left: 2px solid transparent; padding-left: 4px; transition: background 0.12s, border-color 0.12s; }
-    .gw-world-clickable:hover, .gw-world-clickable:focus-visible { background: rgba(196,181,253,0.10); border-left-color: #c4b5fd; outline: none; }
-    .gw-actions { grid-column: 1 / -1; display: flex; gap: 4px; margin-top: 3px; }
-    .gw-btn { font-size: 8px; letter-spacing: 0.8px; color: #ede9fe; background: rgba(139,92,246,0.18); border: 1px solid rgba(139,92,246,0.45); border-radius: 3px; padding: 2px 7px; cursor: pointer; transition: background 0.12s; }
-    .gw-btn:hover, .gw-btn:focus-visible { background: rgba(139,92,246,0.32); outline: none; }
-    .gw-btn-accept { color: #d1fae5; border-color: rgba(16,185,129,0.5); background: rgba(16,185,129,0.16); }
-    .gw-btn-accept:hover, .gw-btn-accept:focus-visible { background: rgba(16,185,129,0.3); }
-    .gw-btn-deny { color: #fecaca; border-color: rgba(239,68,68,0.5); background: rgba(239,68,68,0.14); }
-    .gw-btn-deny:hover, .gw-btn-deny:focus-visible { background: rgba(239,68,68,0.28); }
-    .gw-btn-jump { color: #fde68a; border-color: rgba(247,147,26,0.55); background: rgba(247,147,26,0.16); }
-    .gw-btn-jump:hover, .gw-btn-jump:focus-visible { background: rgba(247,147,26,0.3); }
+    .ts-toast {
+      pointer-events: auto;
+      min-width: 260px; max-width: 480px;
+      padding: 12px 16px; border-radius: 10px;
+      display: flex; align-items: center; gap: 10px;
+      background: #1b1e22; border: 1px solid rgba(255,255,255,0.16);
+      color: #e8eaed; font-size: 13.5px; font-weight: 500;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .ts-toast::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: #5fb8c9; flex: 0 0 auto;
+      box-shadow: 0 0 12px currentColor;
+    }
+    .ts-toast[data-tone="success"] { border-color: rgba(95,191,128,0.35); }
+    .ts-toast[data-tone="success"]::before { background: #5fbf80; color: #5fbf80; }
+    .ts-toast[data-tone="error"] { border-color: rgba(224,104,95,0.4); }
+    .ts-toast[data-tone="error"]::before { background: #e0685f; color: #e0685f; }
+    .ts-toast[data-tone="info"] { border-color: rgba(95,184,201,0.35); }
+    .ts-toast[data-tone="info"]::before { background: #5fb8c9; color: #5fb8c9; }
+    @keyframes ts-toast-in { from { opacity: 0; transform: translateY(20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes ts-toast-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(8px); } }
+    @media (prefers-reduced-motion: no-preference) {
+      .ts-toast { animation: ts-toast-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+      .ts-toast.is-leaving { animation: ts-toast-out 180ms ease-in forwards; }
+    }
+    #torii-settings-content .is-readonly { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
+    #torii-settings-content .is-save { margin-top: var(--settings-space-2); }
+    #torii-settings-content .is-footer { border-top: 1px solid var(--settings-border);
+      padding-top: var(--settings-space-3); margin-top: var(--settings-space-2); font-size: var(--settings-text-caption);
+      color: var(--settings-text-faint); text-align: center; }
+    #torii-settings-content .is-body { display: flex; flex-direction: column; gap: var(--settings-space-1); }
+    #torii-settings-content .is-access-form { display: flex; flex-direction: column; }
+    /* ── Settings panel design system (v0.5) ──────────────────────────────
+       Redesign away from the game's amber/sepia glass-morphism toward a
+       calm, conventional dark "settings page" look. Scoped ENTIRELY to
+       #torii-settings-panel (+ its backdrop/content) via --settings-* custom
+       properties so the rest of the game UI (title screen, HUD, --accent,
+       etc.) is untouched. One accent (cool teal) used only for interactive/
+       active states; everything else is neutral charcoal + a 4-step text
+       hierarchy (tab title / section heading / body-label / caption-hint)
+       shared by all six tabs (Profile, Character, Gateway Setup, Heartbeat,
+       Relay, Access). Semantic red/green are reserved for genuine
+       error/success (heartbeat on/off, remove actions) — never decoration.
 
-    /* ── Local/mock leaderboard preview (inert, read-only, no publish, v0.2.141) ── */
-    #leaderboard-preview {
-      margin-top: 10px; width: 240px; text-align: left;
-      border: 1px solid rgba(52,211,153,0.30); border-radius: 6px;
-      background: rgba(10,40,30,0.3); padding: 7px 9px;
+       Shared base classes every tab renderer uses (consolidates the former
+       near-duplicate .pf-input/.rl-add-input/.gs-card/etc into one system):
+         .settings-card    — neutral bordered surface (list rows, sections)
+         .settings-list     — vertical stack of .settings-card rows
+         .settings-btn       (+ -primary / -danger / -ghost modifiers)
+         .settings-input / .settings-textarea / .settings-label
+         .settings-switch    — on/off toggle (Heartbeat)
+         .settings-badge / .settings-hint / .settings-gate / .settings-empty
+       Per-tab modifiers stay minimal: .cf-preset-grid, .cf-create-card
+       (.cf-upload-card / .cf-ai-card variants), .cf-sticker-grid,
+       .settings-dot, etc. — layout-only, no new color/spacing decisions
+       of their own. */
+    /* v0.2.739: settings panel uses a proper UI sans stack, NOT the game's
+       Courier monospace — makes it read as a conventional settings page.
+       Scoped to the backdrop so it doesn't leak into the rest of the game. */
+    #torii-settings-backdrop { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif; }
+    /* v0.2.739: entrance animation — dim + panel-rise for a snappy modal feel. */
+    @keyframes ts-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ts-card-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @media (prefers-reduced-motion: no-preference) {
+      #torii-settings-backdrop[style*="flex"] { animation: ts-backdrop-in 160ms ease-out; }
+      #torii-settings-backdrop[style*="flex"] .ts-card { animation: ts-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
     }
-    #leaderboard-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #leaderboard-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #a7f3d0; }
-    #leaderboard-preview-badge { font-size: 7px; letter-spacing: 1px; color: #f7931a; border: 1px solid rgba(247,147,26,0.4); border-radius: 3px; padding: 1px 4px; }
-    #leaderboard-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    #leaderboard-preview-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
-    .lb-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
-    .lb-row-value { font-size: 9px; color: #c4ecd9; word-break: break-all; }
-    /* ── gamestr.io global leaderboard sub-section (Phase 0h, v0.2.603-alpha) ── */
-    /* Reuses lb-row-label/lb-row-value above for visual consistency with the
-       NIP-78 leaderboard preview. Off by default; the body is filled only when
-       the operator opted in (GAMESTR_ENABLED || getGamestrEnabled()). */
-    #gamestr-leaderboard { margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(52,211,153,0.20); }
-    #gamestr-leaderboard-label { font-size: 8px; letter-spacing: 1.5px; color: #a7f3d0; margin-bottom: 3px; }
-    #gamestr-leaderboard-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    #gamestr-leaderboard-body .lb-empty { grid-column: 1 / -1; font-size: 8px; letter-spacing: 0.5px; color: #9ca3af; padding: 4px 0; }
-    /* ── LIVE leaderboard publish control (M2, v0.2.294) ── */
-    #leaderboard-publish { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
-    #leaderboard-publish-btn {
-      font-size: 8px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer;
-      color: #052e1c; background: #34d399; border: none; border-radius: 4px; padding: 4px 8px;
+    #torii-settings-panel {
+      --settings-bg: #15171a;
+      --settings-surface: #1b1e22;
+      --settings-surface-raised: #21252a;
+      --settings-border: rgba(255,255,255,0.09);
+      --settings-border-strong: rgba(255,255,255,0.16);
+      --settings-text: #e8eaed;
+      --settings-text-dim: #9aa1a9;
+      --settings-text-faint: #6b7178;
+      --settings-accent: #5fb8c9;
+      --settings-accent-strong: #7fcbda;
+      --settings-accent-wash: rgba(95,184,201,0.14);
+      --settings-accent-wash-strong: rgba(95,184,201,0.24);
+      --settings-danger: #e0685f;
+      --settings-danger-wash: rgba(224,104,95,0.14);
+      --settings-success: #5fbf80;
+      --settings-success-wash: rgba(95,191,128,0.16);
+      --settings-radius: 10px;
+      --settings-radius-sm: 7px;
+      --settings-space-1: 6px;
+      --settings-space-2: 10px;
+      --settings-space-3: 16px;
+      --settings-space-4: 24px;
+      --settings-space-5: 32px;
+      /* type scale — 4 steps max, shared by every tab */
+      --settings-text-title: 20px;
+      --settings-text-heading: 14px;
+      --settings-text-body: 13px;
+      --settings-text-caption: 11.5px;
     }
-    #leaderboard-publish-btn:disabled { cursor: not-allowed; opacity: 0.45; }
-    #leaderboard-publish-tag { font-size: 7px; letter-spacing: 1px; color: #f7931a; }
-    #leaderboard-publish-status { font-size: 8px; letter-spacing: 0.5px; margin-top: 5px; color: #9ca3af; }
-    #leaderboard-publish-status[data-tone="pending"] { color: #fbbf24; }
-    #leaderboard-publish-status[data-tone="ok"] { color: #34d399; }
-    #leaderboard-publish-status[data-tone="fail"] { color: #f87171; }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.603-alpha) ── */
+    /* ── Panel shell: nav-left / content-right ── */
+    .ts-card {
+      position: relative; display: flex;
+      width: min(920px, calc(100vw - 32px)); height: min(620px, calc(100vh - 64px));
+      background: var(--settings-bg); border: 1px solid var(--settings-border-strong);
+      border-radius: 1rem; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    }
+    .ts-close-x {
+      position: absolute; top: 14px; right: 14px; z-index: 5;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      background: transparent; border: 1px solid var(--settings-border); border-radius: 50%;
+      color: var(--settings-text-dim); font-family: inherit; font-size: 15px; line-height: 1;
+      cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .ts-close-x:hover { background: var(--settings-surface-raised); color: var(--settings-text); border-color: var(--settings-border-strong); }
+    .ts-nav {
+      display: flex; flex-direction: column; width: 220px; flex: 0 0 220px;
+      background: var(--settings-surface); border-right: 1px solid var(--settings-border);
+      padding: var(--settings-space-4) var(--settings-space-2);
+    }
+    .ts-brand {
+      font-size: var(--settings-text-caption); letter-spacing: 1.5px; color: var(--settings-text-faint);
+      text-transform: uppercase; margin: 0 6px var(--settings-space-4) 6px; font-weight: 600;
+    }
+    .ts-nav-list { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    .ts-nav-item {
+      text-align: left; background: transparent; border: none; border-radius: var(--settings-radius-sm);
+      color: var(--settings-text-dim); font-family: inherit; font-size: var(--settings-text-body);
+      padding: 10px 12px; cursor: pointer; transition: background 0.12s, color 0.12s;
+    }
+    .ts-nav-item:hover { background: var(--settings-surface-raised); color: var(--settings-text); }
+    .ts-nav-item.is-active { background: var(--settings-accent-wash); color: var(--settings-accent-strong); font-weight: 600; }
+
+    .ts-content { flex: 1; overflow-y: auto; padding: var(--settings-space-5) var(--settings-space-5); color: var(--settings-text); text-align: left; }
+
+    /* ── Shared type hierarchy (4 sizes: title / heading / body / caption) ── */
+    .settings-header {
+      display: flex; align-items: baseline; justify-content: space-between; gap: var(--settings-space-3);
+      margin-bottom: 4px;
+    }
+    .settings-title {
+      margin: 0; font-size: var(--settings-text-title); font-weight: 600; color: var(--settings-text);
+      letter-spacing: -0.01em;
+    }
+    .settings-subtitle {
+      font-size: var(--settings-text-body); color: var(--settings-text-dim);
+      margin: 4px 0 var(--settings-space-4); line-height: 1.5;
+    }
+    .settings-section-heading {
+      font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.04em;
+      color: var(--settings-text-faint); text-transform: uppercase; margin: 0 0 var(--settings-space-2);
+    }
+    .settings-hint { font-size: var(--settings-text-caption); color: var(--settings-text-faint); margin-top: 4px; line-height: 1.45; }
+    .settings-badge {
+      font-size: var(--settings-text-caption); letter-spacing: 0.02em; color: var(--settings-accent-strong);
+      white-space: nowrap; font-weight: 600;
+    }
+    .settings-gate {
+      font-size: var(--settings-text-caption); color: var(--settings-text-faint);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm); padding: var(--settings-space-2) var(--settings-space-3);
+      margin: var(--settings-space-2) 0;
+    }
+    .settings-note { margin-top: var(--settings-space-3); font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
+    .settings-empty {
+      font-size: var(--settings-text-body); color: var(--settings-text-faint);
+      padding: var(--settings-space-3) 2px;
+    }
+
+    /* ── Shared card / list ── */
+    .settings-list { display: flex; flex-direction: column; gap: var(--settings-space-2); margin-bottom: var(--settings-space-2); }
+    .settings-card {
+      display: flex; align-items: center; gap: var(--settings-space-3);
+      padding: var(--settings-space-3) var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius);
+    }
+    .settings-card-icon { font-size: 20px; flex: 0 0 auto; line-height: 1; opacity: 0.9; }
+    .settings-card-body { flex: 1; min-width: 0; }
+    .settings-card-label { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .settings-card-hint { font-size: var(--settings-text-caption); color: var(--settings-text-dim); margin-top: 3px; line-height: 1.4; }
+
+    /* ── Shared buttons ── */
+    .settings-btn {
+      flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+      background: var(--settings-surface-raised); color: var(--settings-text);
+      border: 1px solid var(--settings-border-strong); border-radius: var(--settings-radius-sm);
+      font-family: inherit; font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.01em;
+      padding: 9px 16px; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
+    }
+    .settings-btn:hover { background: #282c31; border-color: var(--settings-border-strong); }
+    .settings-btn:disabled { background: var(--settings-surface); color: var(--settings-text-faint); border-color: var(--settings-border); cursor: not-allowed; opacity: 0.7; }
+    .settings-btn-primary {
+      background: var(--settings-accent); color: #0d2226; border-color: var(--settings-accent);
+    }
+    .settings-btn-primary:hover { background: var(--settings-accent-strong); border-color: var(--settings-accent-strong); }
+    .settings-btn-primary:disabled { background: var(--settings-surface); color: var(--settings-text-faint); border-color: var(--settings-border); }
+    .settings-btn-ghost {
+      background: transparent; border-color: var(--settings-border); color: var(--settings-text-dim);
+    }
+    .settings-btn-ghost:hover { border-color: var(--settings-danger); color: var(--settings-danger); background: var(--settings-danger-wash); }
+    .settings-btn-sm { padding: 6px 12px; font-size: 11px; }
+
+    /* ── Shared inputs ── */
+    .settings-form { display: flex; flex-direction: column; gap: var(--settings-space-3); margin-bottom: var(--settings-space-4); }
+    .settings-row { display: flex; flex-direction: column; gap: 6px; }
+    .settings-label {
+      font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.02em;
+      color: var(--settings-text-dim);
+    }
+    .settings-input, .settings-textarea {
+      width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit;
+      background: var(--settings-surface); border: 1px solid var(--settings-border-strong);
+      border-radius: var(--settings-radius-sm); color: var(--settings-text);
+      font-size: var(--settings-text-body); padding: 10px 12px; transition: border-color 0.12s;
+    }
+    .settings-input:disabled, .settings-textarea:disabled { cursor: not-allowed; opacity: 0.55; }
+    .settings-input:focus, .settings-textarea:focus { outline: none; border-color: var(--settings-accent); }
+    .settings-input::placeholder, .settings-textarea::placeholder { color: var(--settings-text-faint); }
+
+    /* ── Shared inline row-with-status (Relay list rows) ── */
+    .settings-row-inline {
+      display: flex; align-items: center; gap: var(--settings-space-2); padding: 10px 14px;
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm);
+    }
+    .settings-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--settings-success); flex: 0 0 auto; }
+    .settings-row-value { flex: 1; min-width: 0; font-size: var(--settings-text-body); color: var(--settings-text); overflow-wrap: anywhere; }
+    .settings-tag {
+      flex: 0 0 auto; font-size: 10px; letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--settings-accent-strong); border: 1px solid var(--settings-accent-wash-strong);
+      border-radius: 4px; padding: 2px 7px;
+    }
+
+    /* ── Switch (Heartbeat on/off) ── */
+    .settings-switch {
+      flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+      background: transparent; border: none; padding: 0; cursor: pointer; font-family: inherit;
+    }
+    .settings-switch:disabled { cursor: not-allowed; opacity: 0.5; }
+    .settings-switch-track {
+      position: relative; display: inline-block; width: 38px; height: 21px;
+      border-radius: 11px; background: var(--settings-danger); opacity: 0.55;
+      transition: background 0.15s ease, opacity 0.15s ease;
+    }
+    .settings-switch.is-on .settings-switch-track { background: var(--settings-success); opacity: 1; }
+    .settings-switch-knob {
+      position: absolute; top: 2px; left: 2px; width: 17px; height: 17px;
+      border-radius: 50%; background: #f4f6f7; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      transition: transform 0.15s ease;
+    }
+    .settings-switch.is-on .settings-switch-knob { transform: translateX(17px); }
+    .settings-switch-state {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--settings-danger); min-width: 24px; text-align: left;
+    }
+    .settings-switch.is-on .settings-switch-state { color: var(--settings-success); }
+
+    /* ── Relay tab layout ── */
+    .rl-defaults-banner {
+      font-size: var(--settings-text-caption); line-height: 1.45; color: var(--settings-text-dim);
+      padding: 0 0 var(--settings-space-3); margin-bottom: var(--settings-space-2);
+      border-bottom: 1px solid var(--settings-border);
+    }
+    .settings-row-inline.rl-row-default { background: var(--settings-bg); border-style: dashed; }
+
+    /* ── Character tab: preset grid + upload/AI cards + sticker grid ── */
+    .cf-preset-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--settings-space-3); margin-bottom: var(--settings-space-4);
+    }
+    .cf-preset-card {
+      display: flex; flex-direction: column; align-items: center; gap: var(--settings-space-2);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4) var(--settings-space-2);
+      cursor: pointer; font-family: inherit; transition: border-color 0.12s, background 0.12s;
+    }
+    .cf-preset-card:hover { border-color: var(--settings-accent-wash-strong); background: var(--settings-surface-raised); }
+    .cf-preset-thumb {
+      width: 56px; height: 56px; border-radius: 50%; background: var(--settings-surface-raised);
+      border: 1px solid var(--settings-border-strong);
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .cf-preset-name { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .cf-preset-select { font-size: 11px; font-weight: 600; color: var(--settings-accent-strong); }
+
+    .cf-create-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--settings-space-3); }
+    @media (max-width: 640px) { .cf-create-grid { grid-template-columns: 1fr; } }
+    .cf-create-card {
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4);
+      display: flex; flex-direction: column; gap: var(--settings-space-2);
+    }
+    /* Upload card reads as a drop-zone (dashed border) even though the click
+       target is a plain button — sets it apart from the disabled AI card. */
+    .cf-upload-card { border-style: dashed; border-color: var(--settings-border-strong); }
+    .cf-ai-card { opacity: 0.85; }
+    .cf-create-card-title { font-size: var(--settings-text-heading); font-weight: 600; color: var(--settings-text); }
+    .cf-create-card-hint { font-size: var(--settings-text-caption); color: var(--settings-text-dim); line-height: 1.5; flex: 1; }
+    .cf-coming-soon {
+      align-self: flex-start; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--settings-text-faint); background: var(--settings-bg); border: 1px solid var(--settings-border);
+      border-radius: 4px; padding: 3px 8px;
+    }
+
+    .cf-summary-card {
+      display: flex; align-items: center; gap: var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4);
+      margin-bottom: var(--settings-space-3);
+    }
+    .cf-summary-portrait {
+      width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--settings-surface-raised); border: 1px solid var(--settings-border-strong);
+      display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--settings-text-dim);
+    }
+    .cf-summary-body { flex: 1; min-width: 0; }
+    .cf-summary-name { font-size: var(--settings-text-heading); font-weight: 600; color: var(--settings-text); margin-bottom: 6px; }
+    .cf-summary-stats { display: flex; gap: var(--settings-space-4); }
+    .cf-summary-stat { display: flex; flex-direction: column; gap: 2px; }
+    .cf-summary-stat-value { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .cf-summary-stat-label { font-size: 10px; color: var(--settings-text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .cf-sticker-list { display: flex; flex-direction: column; gap: var(--settings-space-1); margin-bottom: var(--settings-space-4); }
+    .cf-sticker-row {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--settings-space-2);
+      padding: 8px 12px; background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm); font-size: var(--settings-text-caption); color: var(--settings-text);
+    }
+    .cf-sticker-library {
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-3);
+    }
+    .cf-sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--settings-space-2); margin-top: var(--settings-space-2); }
+
+    /* ── Live in-arena leaderboard overlay (v0.2.739-alpha) ── */
+    /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
+       (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
+       #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
+       CSS) were deleted here — those cards were removed from index.html in
+       an earlier pass. This in-arena overlay block below (.tq-arena-lb*/
+       .tq-leaderboard*) is a SEPARATE, still-live module (arenaLeaderboard.js
+       / leaderboardPanel.js) and is kept. */
     .tq-arena-lb {
       position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
       z-index: 40; width: 320px; max-height: 70vh; overflow-y: auto;
@@ -423,19 +831,37 @@
     .tq-arena-lb-publish:disabled { cursor: not-allowed; opacity: 0.45; }
     .tq-arena-lb-hint { font-size: 7px; letter-spacing: 0.5px; color: #6b7280; }
 
-    /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ── */
+    /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ──
+       v0.2.739-alpha: lifted out of the centre console's document flow into a
+       fixed bottom-right corner card, re-themed from the original blue/navy
+       palette to the bronze/orange smoked-glass look used across the rest of
+       the UI (settings panels, .up-row-value--new was already on-brand and is
+       unchanged). Small-panel smoked glass here uses a single backdrop blur +
+       solid tint rather than the 4-ring .gp-ring technique — that workaround
+       exists to hide a hard blur edge on the LARGE centre panel; at this
+       card's small size and with a visible border, a single blur's edge is
+       imperceptible, so the lighter approach is deliberately kept (less CSS,
+       one fewer masked layer to paint every frame). No id/class was renamed —
+       main.js's DOM queries and tools/regression-check.mjs's structural checks
+       are unaffected by this being purely positional + colour CSS. */
     #update-preview {
-      margin-top: 10px; width: 240px; text-align: left;
-      border: 1px solid rgba(96,165,250,0.30); border-radius: 6px;
-      background: rgba(10,24,46,0.35); padding: 7px 9px;
+      position: fixed; bottom: 18px; right: 18px; z-index: 20;
+      width: 240px; text-align: left;
+      border: 1px solid rgba(232,178,120,0.35); border-radius: 10px;
+      background: rgba(30,18,12,0.62);
+      backdrop-filter: blur(10px) saturate(120%);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      padding: 9px 11px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.35);
     }
     #update-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
-    #update-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #bfdbfe; text-transform: uppercase; }
+    #update-preview-title { font-size: 9px; letter-spacing: 1.5px; color: #e8c9a8; text-transform: uppercase; }
     #update-preview-body { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; }
-    .up-row-label { font-size: 8px; letter-spacing: 1px; color: #6b7280; text-transform: uppercase; }
-    .up-row-value { font-size: 9px; color: #c4d9ec; word-break: break-all; }
+    .up-row-label { font-size: 8px; letter-spacing: 1px; color: #a8907c; text-transform: uppercase; }
+    .up-row-value { font-size: 11px; color: #f5e6d8; word-break: break-all; }
     /* Highlight the Latest value cell when a newer release exists so the status
-       is legible without a separate STATUS row (UPD-1, v0.2.361). */
+       is legible without a separate STATUS row (UPD-1, v0.2.361). Already
+       on-brand orange — unchanged by the v0.2.739-alpha re-theme. */
     .up-row-value.up-row-value--new {
       color: #f7931a; font-weight: 600; letter-spacing: 0.5px;
       text-shadow: 0 0 6px rgba(247,147,26,0.35);
@@ -446,7 +872,7 @@
        `runUpgradeInPlace` helper — SW purge + cache clear + reload; no deploy,
        no signer touch, no relay call. Same mauve palette as the ACC-1 admin
        Instance Settings link for surface consistency. */
-    /* v0.2.603-alpha (MP-1): the explicit `display: block` below would override
+    /* v0.2.739-alpha (MP-1): the explicit `display: block` below would override
        the HTML `hidden` attribute (whose UA default is `display: none`), so an
        admin-less / up-to-date state could leak the button. Guard first. */
     #update-upgrade-btn[hidden] { display: none !important; }
@@ -462,7 +888,7 @@
     #update-upgrade-btn:active { filter: brightness(0.9); }
     #update-upgrade-btn[disabled] { opacity: 0.6; cursor: progress; }
 
-    /* v0.2.603-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
+    /* v0.2.739-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
        orange accent fill (matches the version box + Update Now button). The
        'deploying' stage rides a shimmer keyframe while arena-ws restarts and the
        status endpoint is briefly unreachable; 'done' snaps green, 'failed' red. */
@@ -470,7 +896,7 @@
     #update-progress { margin-top: 8px; }
     #update-progress-track {
       width: 100%; height: 8px; border-radius: 4px; overflow: hidden;
-      background: rgba(10,24,46,0.9); border: 1px solid rgba(96,165,250,0.30);
+      background: rgba(20,13,9,0.9); border: 1px solid rgba(232,178,120,0.30);
     }
     #update-progress-fill {
       height: 100%; width: 0%; border-radius: 4px;
@@ -494,101 +920,382 @@
     }
     #update-progress-steps {
       display: flex; justify-content: space-between; margin-top: 4px;
-      font-size: 7px; letter-spacing: 1px; text-transform: uppercase; color: #4b5563;
+      font-size: 7px; letter-spacing: 1px; text-transform: uppercase; color: #8a7364;
     }
     #update-progress-steps span.is-active { color: #f7931a; font-weight: 600; }
-    #update-progress-steps span.is-past   { color: #7f8ea3; }
+    #update-progress-steps span.is-past   { color: #c9a98a; }
     #update-progress.is-done #update-progress-steps span { color: #4ade80; }
     #update-status-line {
-      margin-top: 6px; font-size: 8px; letter-spacing: 0.5px; color: #9fb4cc;
+      margin-top: 6px; font-size: 8px; letter-spacing: 0.5px; color: #c9b19d;
     }
     #update-status-line[hidden] { display: none !important; }
+    /* Manual-install fallback (shown when auto-update capability is absent).
+       v0.2.739-alpha: previously unstyled (inherited plain body text on the
+       old in-flow layout); now needs its own bronze treatment since it sits
+       inside the smoked-glass corner card. */
+    #update-copy-fallback[hidden] { display: none !important; }
+    #update-copy-fallback { margin-top: 8px; }
+    #update-copy-label { font-size: 8px; letter-spacing: 0.5px; color: #c9b19d; margin-bottom: 4px; }
+    #update-copy-cmd {
+      display: block; width: 100%; box-sizing: border-box; overflow-wrap: break-word;
+      font-size: 9px; color: #f5e6d8; background: rgba(20,13,9,0.9);
+      border: 1px solid rgba(232,178,120,0.30); border-radius: 4px; padding: 5px 6px;
+    }
+    #update-copy-btn {
+      margin-top: 6px; font-family: inherit; font-size: 9px; letter-spacing: 1px;
+      color: #e8c9a8; background: rgba(40,26,16,0.85); border: 1px solid rgba(232,178,120,0.4);
+      border-radius: 4px; padding: 4px 8px; cursor: pointer; text-transform: uppercase;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #update-copy-btn:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
 
-    /* ── LEFT: Stats panel ── */
-    #stats-identity {
-      display: flex; flex-direction: column; align-items: center;
-      padding-bottom: 14px; margin-bottom: 14px;
-      border-bottom: 1px solid rgba(139,92,246,0.12);
-    }
-    #nostr-avatar-ph {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: rgba(139,92,246,0.15); border: 2px solid rgba(139,92,246,0.4);
-      display: flex; align-items: center; justify-content: center; font-size: 26px;
-    }
-    #nostr-avatar-img {
-      display: none; width: 56px; height: 56px; border-radius: 50%;
-      border: 2px solid #8b5cf6; object-fit: cover;
-    }
-    #nostr-display-name {
-      font-size: 13px; color: #e0aaff; margin-top: 8px; letter-spacing: 2px;
-    }
-    #stats-status { font-size: 8px; color: #444; letter-spacing: 1px; margin-top: 2px; }
+    /* v0.3 cleanup: the homepage player-stats card (#stats-identity,
+       .stat-big*, #donut*, .dl-*) and the mock chat panel (#chat-feed,
+       .chat-*, #chat-input*, #chat-send) were both removed from index.html
+       in an earlier pass — their CSS (previously here) had no matching
+       elements left and has been deleted. */
 
-    /* Big stat numbers */
-    .stat-big-row {
-      display: flex; gap: 8px; margin-bottom: 14px;
-    }
-    .stat-big {
-      flex: 1; background: rgba(139,92,246,0.07);
-      border: 1px solid rgba(139,92,246,0.2); border-radius: 6px;
-      padding: 10px 8px; text-align: center;
-    }
-    .stat-big .num { font-size: 1.8rem; color: #a78bfa; line-height: 1; }
-    .stat-big .lbl { font-size: 8px; color: #555; letter-spacing: 2px; margin-top: 4px; }
-    .stat-big.orange { border-color: rgba(247,147,26,0.25); background: rgba(247,147,26,0.06); }
-    .stat-big.orange .num { color: #fb923c; }
+    /* ── EMAGAKE (ADR-0025) — the ema rack / todo panel ──
+       An emagake (絵馬掛け) is the wooden rack at a shrine where visitors' ema
+       plaques hang together. This is the working list view of that rack.
 
-    /* Donut chart */
-    #donut-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-    #donut-svg-wrap { position: relative; width: 72px; height: 72px; flex-shrink: 0; }
-    #donut-svg-wrap svg { width: 72px; height: 72px; }
-    #donut-centre {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-    }
-    #donut-pct { font-size: 14px; color: #e0aaff; font-weight: bold; }
-    #donut-sub { font-size: 7px; color: #555; letter-spacing: 1px; }
-    .donut-legend { flex: 1; }
-    .dl-row { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #666; margin-bottom: 5px; }
-    .dl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .dl-count { margin-left: auto; color: #aaa; }
+       DELIBERATELY GLASS, NOT A CARD. The .side-card fill is rgba(12,12,22,0.95)
+       — near-opaque, correct for a menu card over a dark background, wrong here.
+       This panel also floats over the live 3D world in-game, where a solid fill
+       would read as a browser dialog bolted onto the screen. Very low alpha plus
+       a backdrop blur makes it read as a heads-up surface hanging in the air:
+       the world stays visible through it and only the glass moves with the HUD.
 
-    /* ── RIGHT: Chat panel ── */
-    #chat-feed {
-      display: flex; flex-direction: column; gap: 10px;
-      max-height: 340px; overflow-y: auto;
+       ENGROSSED UX, NOT A CARD. The world must be fully visible and SHARP — this
+       is a VR visor, not a browser dialog. So the panel itself carries NO fill
+       and NO border: only the individual components (header chip, each row) are
+       tinted glass. The space between rows is fully transparent, so the 3D world
+       reads straight through the gaps.
+
+       NO backdrop-filter. Every earlier build used backdrop-filter (blur, then
+       brightness-only) and in EVERY case it smeared the world behind the chip —
+       brightness alone still forces the browser to re-rasterize the backdrop
+       into a separate layer, and that re-raster blurs it. The user could not see
+       the world behind the components. So: NO backdrop-filter at all. Each chip
+       is a plain semi-transparent dark fill. The world shows through it sharp and
+       only slightly darkened, exactly like looking through tinted glass.
+
+       Rule being satisfied: the world is fully visible and sharp, the writing
+       never is. */
+    #emagake {
+      width: 300px; flex-shrink: 0; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      gap: 8px; padding: 4px;
+      /* NO background, NO border, NO box-shadow here. Only the children are
+         tinted glass; the panel is just a layout frame the world shows through. */
+      background: transparent; border: 0; box-shadow: none;
     }
-    #chat-feed::-webkit-scrollbar { width: 3px; }
-    #chat-feed::-webkit-scrollbar-track { background: transparent; }
-    #chat-feed::-webkit-scrollbar-thumb { background: rgba(247,147,26,0.3); border-radius: 2px; }
-    .chat-msg { display: flex; align-items: flex-start; gap: 8px; }
-    .chat-avatar {
-      width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    /* In-game the rack hangs off the right edge over the live 3D world, which
+       is where the transparency actually earns its keep. Tall by default so a
+       full backlog fits without scrolling on a normal screen — AND so an EMPTY
+       rack still reads as a visible smoked-glass panel (ADR-0030: the empty rack
+       used to collapse to ~120px of floating text over the gun, making Kami Mode
+       look like nothing had happened). */
+    #emagake.floating {
+      position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
+      z-index: 40; max-height: 80vh; min-height: 46vh; pointer-events: auto;
+    }
+    #emagake[hidden] { display: none; }
+
+    /* KAMI MODE badge (ADR-0030): a small persistent pill at top-center so the
+       owner unambiguously sees they are in Kami Mode — the rack alone was too
+       easy to miss over the weapon. pointer-events:none so it never blocks the
+       roaming spirit; below pause/death overlays, above the HUD. */
+    #kami-mode-badge {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      z-index: 45; pointer-events: none;
+      padding: 6px 16px; border-radius: 999px;
+      background: rgba(8, 10, 20, 0.55); -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px); border: 1px solid rgba(255, 194, 71, 0.45);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      font-size: 10px; letter-spacing: 3px; color: #ffd36a; white-space: nowrap;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9);
+    }
+    /* Hidden via the `hidden` attribute (set in HTML + toggled by kamiMode.js),
+       NOT a base display:none — otherwise removeAttribute('hidden') can't show
+       it. Mirrors #emagake[hidden]. */
+    #kami-mode-badge[hidden] { display: none; }
+
+    /* Smoked-glass component: the header chip and every row. A darker tinted
+       fill plus a LIGHT blur (6px) gives the smoked-glass look the user asked for
+       — enough to read as glass, not so much it smears the world. The world stays
+       visible through it, just smoked. Readability comes from the fill + text glow. */
+    #emagake-header,
+    .ema-row {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+
+    #emagake-header {
+      padding: 10px 14px; font-size: 9px; letter-spacing: 3px;
+      color: #ffd36a;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    #emagake-count { color: #ffe8be; font-size: 8px;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.9); }
+    #emagake-body {
+      padding: 10px; display: flex; flex-direction: column; gap: 6px;
+      overflow-y: auto; min-height: 0; flex: 1;
+      /* Smoked-glass backing on the body too (ADR-0030): without it the empty
+         rack's text floated bare over the gun + was invisible. Now the whole
+         rack is a readable smoked panel the world shows through. */
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.38); -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px); border: 1px solid rgba(255, 194, 71, 0.22);
+    }
+    #emagake-empty {
+      margin: auto; text-align: center; color: #ffd36a; line-height: 1.6;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9);
+    }
+    #emagake-body::-webkit-scrollbar { width: 3px; }
+    #emagake-body::-webkit-scrollbar-track { background: transparent; }
+    #emagake-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
+
+    /* ── ADR-0026 — Plebeian market stall panel (auction reader) ──
+       Same smoked-glass component language as #emagake: the rack itself carries
+       NO fill/border/backdrop-filter — only the children (header, stats, each bid
+       row) are tinted glass, so the 3D world reads sharp through the gaps. This is
+       a VR-visor surface hanging in the air over the NAP market zone, not a dialog.
+       Read-only: the footer link is display-only, no bidding/checkout/zap. */
+    #auction-panel {
+      width: 320px; flex-shrink: 0; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      gap: 6px; padding: 4px;
+      background: transparent; border: 0; box-shadow: none;
+    }
+    #auction-panel.floating {
+      position: fixed; right: 14px; top: 50%; transform: translateY(-50%);
+      z-index: 40; max-height: 82vh; pointer-events: auto;
+    }
+    /* .floating already sets position:fixed on #auction-panel itself, so the
+       absolutely-positioned close button above anchors to it directly. */
+    #auction-panel[hidden] { display: none; }
+
+    #auction-panel-poster {
+      height: 96px; border-radius: 8px; background: #111 center/cover no-repeat;
+      border: 1px solid rgba(255, 194, 71, 0.30); box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    #auction-panel-poster[hidden] { display: none; }
+
+    #auction-panel-header,
+    #auction-panel-stats,
+    .bid {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }
+    #auction-panel-header { padding: 10px 12px 8px; }
+    #auction-panel-title {
+      font-size: 15px; font-weight: 600; line-height: 1.2; color: #f3efe3;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+    }
+    #auction-panel-summary {
+      font-size: 11px; color: #b9b2a3; margin-top: 3px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+    }
+    #auction-panel-chips { display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+    #auction-panel-chips .chip {
+      font-size: 9px; padding: 3px 6px; border-radius: 5px;
+      background: rgba(255,255,255,0.06); color: #b9b2a3;
+    }
+    #auction-panel-chips .chip.live { color: #7ee29a; }
+    #auction-panel-chips .chip.ended { color: #ff7a7a; }
+    #auction-panel-chips .chip.upcoming { color: #7dc8ff; }
+    #auction-panel-stats {
+      display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px;
+    }
+    #auction-panel-high {
+      font-size: 22px; font-weight: 700; color: #ffc247;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 8px rgba(255,194,71,0.25);
+    }
+    #auction-panel-high .cur { font-size: 11px; color: #b9b2a3; font-weight: 500; margin-left: 3px; }
+    #auction-panel-next { font-size: 10px; color: #b9b2a3; text-align: right; }
+    #auction-panel-body {
+      padding: 4px; display: flex; flex-direction: column; gap: 4px;
+      overflow-y: auto; min-height: 0; max-height: 52vh;
+    }
+    #auction-panel-body::-webkit-scrollbar { width: 3px; }
+    #auction-panel-body::-webkit-scrollbar-track { background: transparent; }
+    #auction-panel-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
+    .auction-empty { font-size: 11px; color: #b9b2a3; text-align: center; padding: 16px 8px; }
+    .bid {
+      display: flex; align-items: center; gap: 9px; padding: 5px 10px; font-size: 12px;
+    }
+    .bid .t { width: 40px; font-size: 9.5px; color: #b9b2a3; font-variant-numeric: tabular-nums; }
+    .bid .who {
+      flex: 1; font-family: ui-monospace, monospace; font-size: 10.5px; color: #b9b2a3;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .bid .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bid.high .amt { color: #ffc247; }
+    .bid.note .amt { color: #8a8472; }
+    .bid .flag {
+      font-size: 8.5px; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 5px; border-radius: 4px;
+    }
+    .bid.high .flag { background: rgba(255,194,71,0.15); color: #ffc247; }
+    .bid.note .flag { background: rgba(150,150,150,0.12); color: #8a8472; }
+    .bid .avatar-wrap { position: relative; width: 22px; height: 22px; flex-shrink: 0; }
+    .bid .avatar { width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; }
+    .bid .avatar.fallback { display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+    .bid .avatar.img { position: absolute; inset: 0; object-fit: cover; }
+    #auction-panel-footer {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 9.5px; color: #b9b2a3; padding: 0 4px;
+    }
+    #auction-panel-link { color: #ffc247; text-decoration: none; }
+
+    /* ── ADR-0035 — owner boards (Live Products / Live Auctions / Past Auctions) ──
+       Same smoked-glass component language as #emagake / #auction-panel: the
+       board itself carries NO fill/border — only header + body + each card
+       are tinted glass, so the world reads sharp through the gaps. Stacked on
+       the LEFT edge (emagake + auction-panel already own the right edge), each
+       a fixed height so all three plus the rack fit on a normal screen at once
+       without visually competing. */
+    .owner-board {
+      width: 280px; flex-shrink: 0; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      gap: 6px; padding: 4px;
+      background: transparent; border: 0; box-shadow: none;
+    }
+    .owner-board.floating {
+      position: fixed; left: 14px; z-index: 40; pointer-events: auto;
+      max-height: 27vh;
+    }
+    #product-board.floating { top: 8vh; }
+    #live-auction-board.floating { top: calc(8vh + 27vh + 10px); }
+    #past-auction-board.floating { top: calc(8vh + 2 * (27vh + 10px)); }
+    .owner-board[hidden] { display: none; }
+
+    .owner-board-header {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+      padding: 8px 12px; font-size: 9px; letter-spacing: 3px;
+      color: #ffd36a;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .owner-board-body {
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.38); -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px); border: 1px solid rgba(255, 194, 71, 0.22);
+      padding: 8px; display: flex; flex-direction: column; gap: 6px;
+      overflow-y: auto; min-height: 0; flex: 1;
+    }
+    /* ADR-0036: explicit close control, one per panel (auction-panel + each
+       owner-board) — opening is a proximity+Q trigger, so closing must be an
+       equally explicit action, never an auto-hide or re-trigger toggle. */
+    .owner-board-close {
+      flex-shrink: 0; width: 18px; height: 18px; padding: 0; margin-left: 8px;
+      border-radius: 4px; border: 1px solid rgba(255, 194, 71, 0.30);
+      background: rgba(8, 10, 20, 0.55); color: #ffd36a;
+      font-size: 13px; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: bold; color: #fff;
-      background: rgba(255,255,255,0.1);
+      text-shadow: 0 1px 1px rgba(0,0,0,1);
     }
-    .chat-bubble { flex: 1; }
-    .chat-name { font-size: 9px; letter-spacing: 1px; font-weight: bold; }
-    .chat-text { font-size: 10px; color: #999; margin-top: 1px; line-height: 1.4; }
-    .chat-time { font-size: 8px; color: #333; margin-top: 1px; }
+    .owner-board-close:hover { background: rgba(255, 194, 71, 0.20); }
+    #auction-panel-close {
+      position: absolute; top: 10px; right: 10px; z-index: 1;
+    }
+    .owner-board-body::-webkit-scrollbar { width: 3px; }
+    .owner-board-body::-webkit-scrollbar-track { background: transparent; }
+    .owner-board-body::-webkit-scrollbar-thumb { background: rgba(224,160,32,0.30); border-radius: 2px; }
+    .board-empty {
+      margin: auto; text-align: center; color: #ffd36a; font-size: 11px; line-height: 1.6;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.9);
+    }
 
-    #chat-input-row {
-      display: flex; gap: 6px; margin-top: 10px;
-      padding-top: 10px; border-top: 1px solid rgba(247,147,26,0.1);
+    /* One card = one product or one auction listing. Same tinted-glass chip
+       language as .bid / .ema-row — a smoked plaque the world shows through. */
+    .board-card {
+      display: flex; gap: 8px; padding: 7px; cursor: default;
+      border-radius: 8px;
+      background: rgba(8, 10, 20, 0.45);
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 194, 71, 0.30);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
     }
-    #chat-input {
-      flex: 1; background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(247,147,26,0.25); border-radius: 4px;
-      padding: 7px 10px; color: #e8e8f0; font-size: 10px;
-      font-family: monospace; outline: none;
+    .board-thumb {
+      width: 44px; height: 44px; flex-shrink: 0; border-radius: 6px;
+      background: #111 center/cover no-repeat;
+      border: 1px solid rgba(255, 194, 71, 0.22);
     }
-    #chat-input:focus { border-color: rgba(247,147,26,0.5); }
-    #chat-send { padding: 7px 12px; font-size: 9px; letter-spacing: 2px; }
-    /* Mock chat is not wired to any network — show inputs as clearly inactive. */
-    #chat-input:disabled, #chat-send:disabled {
-      opacity: 0.45; cursor: not-allowed; filter: grayscale(0.6);
+    .board-thumb-empty { background: rgba(255,255,255,0.04); }
+    .board-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+    .board-card-title {
+      font-size: 11.5px; font-weight: 600; color: #f3efe3; line-height: 1.25;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.95);
     }
+    .board-card-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+    .board-price { font-size: 12px; font-weight: 700; color: #ffc247; font-variant-numeric: tabular-nums; }
+    .board-price .cur { font-size: 9px; color: #b9b2a3; font-weight: 500; margin-left: 2px; }
+    .board-chip {
+      font-size: 8.5px; padding: 2px 6px; border-radius: 5px; white-space: nowrap;
+      background: rgba(255,255,255,0.06); color: #b9b2a3;
+    }
+    .board-chip-live { color: #7ee29a; }
+
+    /* One hanging plaque. Slightly warmer glass than the panel so rows read as
+       objects ON the rack rather than text printed on it. */
+    /* A row is a smoked chip, not a card. No border-bottom seam, no separate
+       border-left rail — the chip border carries it. */
+    .ema-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 9px; cursor: pointer;
+      border-left: 2px solid #e0a020;
+    }
+    .ema-row:hover {
+      border-color: rgba(255,194,71,0.85);
+    }
+    /* Resolved ema stay in the list but stop competing for attention, and stop
+       being drawn in the world entirely (see emaModel.openEma). */
+    .ema-row.resolved { opacity: 0.5; border-left-color: #4ade80; }
+    .ema-stud {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 3px;
+      background: #e0a020; box-shadow: 0 0 6px rgba(224,160,32,0.8);
+    }
+    .ema-row.resolved .ema-stud { background: #4ade80; box-shadow: none; }
+    .ema-main { flex: 1; min-width: 0; }
+    .ema-note {
+      font-size: 10px; line-height: 1.4; color: #fff8e8;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.9);
+      overflow-wrap: anywhere;
+    }
+    .ema-meta {
+      font-family: monospace; font-size: 8px; margin-top: 3px;
+      color: #ffe8be;
+      text-shadow: 0 1px 1px rgba(0,0,0,1), 0 1px 2px rgba(0,0,0,0.95), 0 0 5px rgba(0,0,0,0.9);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ema-shot { width: 34px; height: 22px; border-radius: 3px; flex-shrink: 0; object-fit: cover;
+      border: 1px solid rgba(217,179,130,0.35); }
+    #emagake-empty {
+      padding: 18px 12px; text-align: center;
+      font-size: 9px; letter-spacing: 2px; color: rgba(255,232,190,0.9);
+      text-shadow: 0 1px 2px rgba(0,0,0,1), 0 0 6px rgba(0,0,0,0.95);
+    }
+
+    /* No backdrop-filter fallback needed: there is no backdrop-filter. The rgba
+       fill darkens the chip on its own. */
 
     /* ══════════════════════════════════════════
        HUD
@@ -652,15 +1359,19 @@
     .kill-entry { animation: fadeIn 0.2s ease; }
     @keyframes fadeIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; } }
     #ver { position: absolute; bottom: 8px; left: 16px; font-size: 20px; color: var(--muted); letter-spacing: 1px; font-weight: 600; }
-    #minimap-wrap { position: absolute; bottom: 70px; right: 16px; border: 1px solid rgba(139,92,246,0.4); border-radius: 4px; overflow: hidden; }
     #hit-flash { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(255,0,0,0.6) 100%); opacity: 0; transition: opacity 0.05s; }
     #death-msg { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); font-size: 3rem; letter-spacing: 6px; color: var(--danger); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
     #death-msg.show { opacity: 1; }
     #death-msg p { font-size: 14px; color: var(--muted); margin-top: 12px; letter-spacing: 3px; }
-    #pause-overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); }
+    /* v0.2.703 (ADR-0069): pause modal recolored from the legacy purple panel
+       (rgba(20,20,35,0.97) bg + rgba(139,92,246,0.4) border) to the torii-gate
+       sunset theme. Layout/sizing/buttons unchanged — the .btn / .btn-secondary
+       buttons were already themed. Color-only migration; the warm twin of the
+       old purple at the same opacity so the paused game stays blocked out. */
+    #pause-overlay { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; background: rgba(20,13,9,0.7); }
     #pause-overlay.show { display: flex; }
-    #pause-box { background: rgba(20,20,35,0.97); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 32px 40px; text-align: center; min-width: 280px; }
-    #pause-title { font-size: 1.8rem; letter-spacing: 6px; margin-bottom: 20px; }
+    #pause-box { background: rgba(30,18,12,0.97); border: 1px solid var(--panel-glass-border); border-radius: 8px; padding: 32px 40px; text-align: center; min-width: 280px; box-shadow: 0 0 40px rgba(0,0,0,0.5); }
+    #pause-title { font-size: 1.8rem; letter-spacing: 6px; margin-bottom: 20px; color: var(--accent); text-shadow: 0 0 16px rgba(232,132,44,0.35); }
     #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); pointer-events: none; z-index: 50; display: none; }
     #crosshair.active { display: block; }
     #crosshair .ch-h, #crosshair .ch-v { position: absolute; background: rgba(255,255,255,0.9); border-radius: 1px; }
@@ -682,34 +1393,41 @@
     @keyframes reloadPulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(1.15); } }
     @keyframes reloadFade { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
 
-    /* ── Boot loading overlay (v0.2.529) ── Full-screen, three-free, CSS-only. */
+    /* ── Boot loading overlay (v0.2.529) ── Full-screen, three-free, CSS-only.
+       v0.2.702 (ADR-0068): recolored from the legacy dark-neon-purple theme
+       to the canonical torii-gate sunset palette (:root tokens). Layout,
+       sizing, spacing, and the eased progress animation are unchanged —
+       this is a color-only migration. The boot overlay was the last
+       player-facing surface still on the old purple (#b794f4 / #8b5cf6 /
+       #140a28); it now matches the title screen + HUD. */
     #boot-overlay {
       position: fixed; inset: 0; z-index: 9999;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: radial-gradient(ellipse at 50% 35%, #140a28 0%, #0a0a0f 60%, #050308 100%);
-      color: #e8e8f0; font-family: var(--font);
+      background: radial-gradient(ellipse at 50% 35%, #2a1810 0%, #140d09 55%, #0a0604 100%);
+      color: var(--panel-text); font-family: var(--font);
       transition: opacity 0.4s ease; cursor: default;
     }
     #boot-overlay.hidden { opacity: 0; pointer-events: none; }
     #boot-overlay-torii {
-      font-size: 28px; letter-spacing: 6px; color: #b794f4;
-      margin-bottom: 28px; text-shadow: 0 0 20px rgba(139,92,246,0.4);
+      font-size: 28px; letter-spacing: 6px; color: var(--accent);
+      margin-bottom: 28px; text-shadow: 0 0 20px rgba(232,132,44,0.45);
     }
     #boot-overlay-status {
-      font-size: 12px; letter-spacing: 2px; color: rgba(255,255,255,0.55);
+      font-size: 12px; letter-spacing: 2px; color: var(--panel-text-dim);
       margin-bottom: 18px; min-height: 1.2em; text-align: center; max-width: 340px;
     }
     #boot-overlay-track {
       width: 260px; height: 3px; border-radius: 2px;
-      background: rgba(255,255,255,0.08); overflow: hidden;
+      background: rgba(232,178,120,0.12); overflow: hidden;
     }
     #boot-overlay-bar {
       height: 100%; width: 0%; border-radius: 2px;
-      background: linear-gradient(90deg, #8b5cf6, #f7931a);
+      background: linear-gradient(90deg, var(--accent-soft), var(--orange));
+      box-shadow: 0 0 12px rgba(247,147,26,0.5);
       transition: width 0.3s cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     #boot-overlay-sub {
-      font-size: 9px; letter-spacing: 1px; color: rgba(255,255,255,0.2);
+      font-size: 9px; letter-spacing: 1px; color: var(--muted);
       margin-top: 14px;
     }
   </style>
@@ -735,143 +1453,81 @@
 
   <!-- Header -->
   <div id="title-header">
-    <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-    <div class="title-tagline-sm">SATS · SHOTS · SOVEREIGNTY</div>
-    <!-- Phase 0c: persistent Torii/burger menu button. Opens the same menu from
-         the title screen AND from inside the game (KeyM). The menu is a DOM
-         overlay owned by main.js; this button just calls openToriiMenu(). -->
-    <button type="button" id="btn-torii-menu" class="btn-torii-menu" aria-label="Open Torii menu" title="Torii menu (M)">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/></svg>
-    </button>
-  </div>
-
-  <!-- Three columns -->
-  <div id="title-columns">
-
-    <!-- LEFT: Player stats (purple) + leaderboard preview -->
-    <div class="side-col">
-    <div class="side-card side-card-purple">
-      <div class="side-card-header">
-        <span>■ PLAYER</span>
-        <span id="stats-status" style="color:#333;">NOT LOGGED IN</span>
-      </div>
-      <div class="side-card-body">
-
-        <!-- Identity -->
-        <div id="stats-identity">
-          <div id="nostr-avatar-ph">👤</div>
-          <img id="nostr-avatar-img" alt="nostrich avatar"/>
-          <div id="nostr-display-name">ANON</div>
-          <div id="stats-status-sub" style="font-size:8px;color:#444;letter-spacing:1px;margin-top:2px;">connect wallet to load stats</div>
-        </div>
-
-        <!-- Big stat numbers -->
-        <div class="stat-big-row">
-          <div class="stat-big orange">
-            <div class="num" id="big-sats">—</div>
-            <div class="lbl">⚡ SATS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-kills">—</div>
-            <div class="lbl">KILLS</div>
-          </div>
-          <div class="stat-big">
-            <div class="num" id="big-runs">—</div>
-            <div class="lbl">RUNS</div>
-          </div>
-        </div>
-
-        <!-- Donut: accuracy -->
-        <div id="donut-wrap">
-          <div id="donut-svg-wrap">
-            <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="18" cy="18" r="14" stroke="rgba(255,255,255,0.05)" stroke-width="4"/>
-              <circle id="donut-hits-arc" cx="18" cy="18" r="14"
-                stroke="rgba(139,92,246,0.85)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="66 88" stroke-dashoffset="22"
-                transform="rotate(-90 18 18)"
-                style="filter:drop-shadow(0 0 3px rgba(139,92,246,0.5));transition:stroke-dasharray 0.6s ease;"/>
-              <circle id="donut-got-arc" cx="18" cy="18" r="14"
-                stroke="rgba(255,68,68,0.7)" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="22 88" stroke-dashoffset="-66"
-                transform="rotate(-90 18 18)"
-                style="transition:stroke-dasharray 0.6s ease;"/>
-            </svg>
-            <div id="donut-centre">
-              <div id="donut-pct">75%</div>
-              <div id="donut-sub">ACC</div>
-            </div>
-          </div>
-          <div class="donut-legend">
-            <div class="dl-row"><div class="dl-dot" style="background:#8b5cf6;"></div><span>HITS LANDED</span><span class="dl-count" id="legend-hits">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#ff4444;"></div><span>TIMES HIT</span><span class="dl-count" id="legend-gothit">—</span></div>
-            <div class="dl-row"><div class="dl-dot" style="background:#4ade80;"></div><span>KILLS</span><span class="dl-count" id="legend-kills">—</span></div>
-          </div>
-        </div>
-
-      </div>
+    <!-- v0.2.739-alpha: owner caption now occupies the top-left corner the
+         settings button used to sit in. Text-only, non-interactive
+         (pointer-events:none in CSS) so it never intercepts clicks meant for
+         whatever sits beneath it. Populated by main.js's _refreshOwnerLabel(). -->
+    <div id="torii-owner-caption">
+      <div class="toc-line1" id="torii-owner-line1">This torii belongs to</div>
+      <div class="toc-line2" id="torii-owner-label"><span class="toc-owner-name" id="torii-owner-name" title="">—</span><span class="toc-loggedin" id="torii-loggedin-badge"><span class="toc-loggedin-dot" aria-hidden="true"></span><span class="toc-dim">you are </span><span class="toc-on">logged in</span></span></div>
     </div>
 
-      <!-- Leaderboard card. Rank rows combine the latest server-authoritative
-           local SCORE frame with verified persisted Nostr scores, never mock data.
-           v0.2.294 (M2) adds the LIVE
-           publish control below: a real NIP-07 sign + relay fan-out, armed only
-           when logged in and gated by explicit consent AND the SEC-1 publishGate. -->
-      <div id="leaderboard-preview" aria-label="leaderboard — persisted standings + live NIP-07 publish">
-        <div id="leaderboard-preview-head">
-          <span id="leaderboard-preview-title">🏆 SCORE — LEADERBOARD</span>
-          <span id="leaderboard-preview-badge">PERSISTED · NOSTR</span>
+    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.739-alpha:
+         moved again, top-left → bottom-left, to make room for the owner
+         caption above. Opens the settings panel (nav-left/content-right),
+         replacing the old Torii menu overlay. Same button element/id kept for
+         main.js wiring continuity; only its position + destination changed. -->
+    <button type="button" id="btn-torii-menu" class="btn-torii-menu" aria-label="Open settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/></svg>
+    </button>
+    <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
+    <div class="title-tagline-sm">SOVEREIGNTY · OPEN WORLD · FREE MARKET · ABUNDANCE</div>
+  </div>
+
+  <!-- Simplified single-column homepage (v0.3 cleanup). Player stats,
+       leaderboard, live chat, and the gateway-worlds preview panel were all
+       removed from the homepage per design direction — settings-style
+       content (instance settings, gateway/node setup) now lives inside the
+       new settings panel opened via #btn-torii-menu, and the rest was pure
+       decorative/preview clutter with no unique data not available
+       elsewhere. #update-preview (the live version/upgrade check) is kept
+       since it is a genuine operational surface, not decorative. -->
+  <div id="title-columns">
+
+    <!-- CENTRE: boxed console, now a frosted-glass panel over the sunset photo -->
+    <div id="title-centre" class="glass-panel">
+      <div class="gp-ring gp-ring1" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring2" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring3" aria-hidden="true"></div>
+      <div class="gp-ring gp-ring4" aria-hidden="true"></div>
+      <div class="gp-ring gp-tint" aria-hidden="true"></div>
+      <div class="gp-content">
+      <!-- v0.3: "Select your character" heading now sits ABOVE the numbered
+           list (was previously an inline label inside step 1's content,
+           which pulled the "1" numeral's vertical centre up away from the
+           actual character buttons). #char-select now wraps ONLY the button
+           row, so .step-row's align-items:center centres "1" against the
+           buttons themselves, matching how "2" and "3" centre against their
+           single-button rows. -->
+      <div style="font-size:0.65rem;letter-spacing:0.12em;color:#e8a662;text-align:center;margin-bottom:0.5rem;">SELECT YOUR CHARACTER</div>
+      <div class="step-row">
+        <span class="step-num">1</span>
+        <!-- Character selector -->
+        <div id="char-select" style="margin:0 0 0.5rem;">
+          <div style="display:flex;gap:0.5rem;justify-content:center;">
+            <button class="char-btn active" data-char="chiefmonkey" style="padding:0.35rem 0.8rem;border:1.5px solid #e8842c;border-radius:6px;background:#2a1810;color:#f5e6d8;font-size:0.75rem;cursor:pointer;">&#x1F412; Chiefmonkey</button>
+            <button class="char-btn" data-char="nostrich" style="padding:0.35rem 0.8rem;border:1.5px solid #6b5644;border-radius:6px;background:#1a120c;color:#c9b19d;font-size:0.75rem;cursor:pointer;">&#x1F9A4; Nostrich</button>
+          </div>
         </div>
-        <div id="leaderboard-preview-body"><!-- rows injected by main.js --></div>
-        <!-- Phase 0h — gamestr.io global leaderboard (kind 30762, read-side). A
-             sub-section below the NIP-78 preview; rendered only when the operator
-             opted in (GAMESTR_ENABLED || getGamestrEnabled()). Off by default so
-             no gamestr relay request fires on load. Rows reuse lb-row-label /
-             lb-row-value CSS. -->
-        <div id="gamestr-leaderboard">
-          <div id="gamestr-leaderboard-label">🌐 GAMESTR.IO</div>
-          <div id="gamestr-leaderboard-body"><!-- rows injected by main.js --></div>
-        </div>
-        <div id="leaderboard-publish">
-          <button id="leaderboard-publish-btn" type="button" disabled aria-label="publish my score to the leaderboard via Nostr">PUBLISH MY SCORE</button>
-          <span id="leaderboard-publish-tag">LIVE · NIP-07 · SEC-1 crypto-gated</span>
-        </div>
-        <div id="leaderboard-publish-status" role="status" aria-live="polite" style="display:none"></div>
       </div>
-    </div><!-- /side-col (left) -->
-
-    <!-- CENTRE: boxed console -->
-    <div id="title-centre">
-      <div id="centre-logo">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-      <div id="centre-sub">OPEN WORLD · FREE MARKET</div>
-      <div id="centre-tag">SOVEREIGN · ATMOSPHERIC · ABUNDANT</div>
-
-      <div class="c-divider"></div>
-
-      <!-- Character selector -->
-      <div id="char-select" style="margin:0.7rem 0 0.5rem; text-align:center;">
-        <div style="font-size:0.65rem;letter-spacing:0.12em;color:#8b5cf6;margin-bottom:0.4rem;">CHARACTER</div>
-        <div style="display:flex;gap:0.5rem;justify-content:center;">
-          <button class="char-btn active" data-char="chiefmonkey" style="padding:0.35rem 0.8rem;border:1.5px solid #8b5cf6;border-radius:6px;background:#1a0a2e;color:#e2d8f0;font-size:0.75rem;cursor:pointer;">&#x1F412; Chiefmonkey</button>
-          <button class="char-btn" data-char="nostrich" style="padding:0.35rem 0.8rem;border:1.5px solid #4a5568;border-radius:6px;background:#0f0f1a;color:#a0aec0;font-size:0.75rem;cursor:pointer;">&#x1F9A4; Nostrich</button>
-        </div>
+      <div class="step-row">
+        <span class="step-num">2</span>
+        <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
       </div>
-      <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
-      <!-- v0.2.275: shortcut into the NAP zone far-left corner — skips the torii-gate
-           walk so the grass field is immediately visible. Same bootstrap as ENTER ARENA,
-           just sets a one-shot spawn override before enter(). -->
-      <button class="btn btn-nap" id="btn-enter-nap" style="margin-bottom:8px;background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER NAP ZONE</button>
-      <button class="btn" id="btn-enter">ENTER ARENA</button>
-      <!-- Dev/debug free-fly camera toggle. Read on the three-free title screen (DOM
-           only) and honoured at ENTER: a true flyMode enables ToriiDebug.fly once the
-           arena boots. In-game F also toggles it. -->
-      <button class="fly-switch" id="btn-fly-toggle" role="switch" aria-checked="false" style="margin-top:16px;margin-bottom:10px;padding:9px 12px;cursor:pointer;">
-        <span class="fly-switch-label">✈ FLY MODE</span>
-        <span class="fly-switch-track"><span class="fly-switch-knob"></span></span>
-        <span class="fly-switch-state">OFF</span>
-      </button>
-      <!-- Entry feedback line (v0.2.228). Both entry buttons write here so a
-           cloud/no-extension click is never a silent no-op: ENTER ARENA surfaces
+      <div class="step-row">
+        <span class="step-num">3</span>
+        <!-- v0.3 cleanup: ENTER ARENA + ENTER NAP ZONE merged into a single entry
+             point. Everyone now drops into the NAP zone by default (id kept as
+             btn-enter-nap so the existing main.js handler — which already sets
+             the NAP spawn override before enter() — needs no logic change,
+             only the removal of the old #btn-enter button + its handler). -->
+        <button class="btn btn-nap" id="btn-enter-nap" style="background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;">ENTER TORII</button>
+      </div>
+      <!-- v0.3: homepage FLY MODE toggle removed per design direction. In-game F
+           still toggles free-fly via arenaRuntime's initFlyCamera (unaffected —
+           its `document.getElementById('btn-fly-toggle')` sync is null-guarded). -->
+      <!-- Entry feedback line (v0.2.228). The single entry button writes here so a
+           cloud/no-extension click is never a silent no-op: ENTER surfaces
            a clear failure/gated message if physics fails to load, and LOGIN WITH
            NOSTR surfaces "NIP-07 extension not found" etc. when no signer exists.
            Hidden until a message is set. role/aria-live announce it to AT. -->
@@ -885,149 +1541,147 @@
         <div><span class="ctrl-key">SPACE</span> &nbsp;Jump &nbsp;&nbsp; <span class="ctrl-key">R</span> &nbsp;Reload &nbsp;&nbsp; <span class="ctrl-key">ESC</span> &nbsp;Pause</div>
       </div>
 
-      <div id="version-label">v0.2.603-alpha</div>
-      <!-- Same-origin static oversight dashboard (v0.2.171). Relative link, new
-           tab; no external redirect. Generated by tools/build-torii-quest-dashboard.mjs. -->
-      <a id="torii-quest-dashboard-link" href="./dashboard.html" target="_blank" rel="noopener noreferrer">⛩ PROJECT DASHBOARD</a>
-      <!-- Instance Settings admin corner link (v0.2.358, ACC-1). Hidden by
-           default; main.js unhides it only when the logged-in operator's
-           npub matches the deployment's host pubkey (`_hostIdentity()`). -->
-      <a id="instance-settings-link" href="#" hidden>⚙ INSTANCE SETTINGS</a>
-
-      <!-- Gateway / n2n world-presence LIVE card (v0.2.251, P0). Rendered by main.js
-           from a REAL read-only relay scan (kind 30078, topic `torii-gateway`). It
-           shows which other Torii worlds are online and NEVER navigates. Our own
-           presence is published only on explicit NIP-07 login. The badge is set
-           live by main.js (LIVE · SCANNING… / LIVE · n ONLINE / LIVE · OFFLINE). -->
-      <div id="gateway-preview" aria-label="gateway worlds online (live read)">
-        <div id="gateway-preview-head">
-          <span id="gateway-preview-title">⛩ 1 · TRAVEL — GATEWAY</span>
-          <span id="gateway-preview-badge">LIVE · SCANNING…</span>
-        </div>
-        <div id="gateway-preview-body"><!-- rows injected by main.js --></div>
+      <!-- v0.3: large standalone #version-label removed — the version is
+           still shown, at a slightly larger size, inside #update-preview-body
+           below (see .up-row-value).
+           v0.2.739-alpha: the #update-preview block itself was MOVED out of
+           here — it now sits as a direct child of #screen-title (below), not
+           nested inside #title-centre. #title-centre.glass-panel carries a
+           backdrop-filter, and per spec backdrop-filter (like transform/
+           filter/perspective) establishes a containing block for `position:
+           fixed` descendants: a fixed child resolves its inset against that
+           ancestor's box, not the viewport. That silently pinned the
+           bottom-right-anchored panel to the middle of the console instead of
+           the screen corner. Lifting it out of the filtered subtree (while
+           keeping it inside #screen-title, since it's a title-screen-only
+           surface, not needed in-game) fixes the anchor with zero JS change. -->
       </div>
     </div>
 
-    <!-- RIGHT: Live chat (orange) + update-check preview -->
-    <div class="side-col">
-    <div class="side-card side-card-orange">
-      <div class="side-card-header">
-        <span>⚡ LIVE CHAT <span style="opacity:.7;font-size:8px;">(preview)</span></span>
-        <span style="color:#333;font-size:8px;">12 online</span>
-      </div>
-      <div class="side-card-body">
-        <div id="chat-feed">
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#7c3aed,#f7931a);">CM</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f7931a;">Chiefmonkey</div>
-              <div class="chat-text">lets gooo 🔥 first to 10 kills wins</div>
-              <div class="chat-time">12:01</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#1d4ed8,#7c3aed);">AI</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#8b5cf6;">augustink</div>
-              <div class="chat-text">first blood incoming 🎯</div>
-              <div class="chat-time">12:02</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#0891b2,#4ade80);">PD</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#22d3ee;">plebdevs</div>
-              <div class="chat-text">sats or it didn't happen ⚡</div>
-              <div class="chat-time">12:02</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#166534,#4ade80);">HD</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#4ade80;">hodlr</div>
-              <div class="chat-text">walls are for bots 🤝 rushing mid</div>
-              <div class="chat-time">12:03</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#9f1239,#f43f5e);">N4</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f43f5e;">nostrich_420</div>
-              <div class="chat-text">gg wp no re 💀</div>
-              <div class="chat-time">12:03</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#92400e,#f7931a);">BS</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#fb923c;">bitcoinsatoshi</div>
-              <div class="chat-text">100 sats on chiefmonkey 👀</div>
-              <div class="chat-time">12:04</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#4c1d95,#a78bfa);">ZP</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#a78bfa;">zapmaster</div>
-              <div class="chat-text">someone teach me the jump mechanic lol</div>
-              <div class="chat-time">12:05</div>
-            </div>
-          </div>
-
-          <div class="chat-msg">
-            <div class="chat-avatar" style="background:linear-gradient(135deg,#7c3aed,#f7931a);">CM</div>
-            <div class="chat-bubble">
-              <div class="chat-name" style="color:#f7931a;">Chiefmonkey</div>
-              <div class="chat-text">SPACE to jump 🕹️ you can get on top of the boxes</div>
-              <div class="chat-time">12:05</div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Mock chat: this is a static UI preview, not wired to any network.
-             No JS handler reads #chat-input / #chat-send and nothing transmits.
-             Inputs are disabled so users aren't fooled into thinking it sends.
-             (v0.2.137 — keep non-transmitting; do not add networking.) -->
-        <div id="chat-input-row">
-          <input id="chat-input" type="text" placeholder="chat preview — not live" disabled aria-disabled="true"/>
-          <button class="btn btn-orange" id="chat-send" disabled aria-disabled="true" title="Chat is a preview — not yet live">SEND</button>
-        </div>
-      </div>
-    </div>
-
-      <div id="update-preview" aria-label="torii.quest live update-check (read-only, no auto-update)">
-        <div id="update-preview-head">
-          <span id="update-preview-title">Version</span>
-        </div>
-        <div id="update-preview-body"><!-- rows injected by main.js --></div>
-        <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
-        <div id="update-progress" hidden>
-          <div id="update-progress-track"><div id="update-progress-fill"></div></div>
-          <div id="update-progress-steps">
-            <span data-step="requested">Requested</span>
-            <span data-step="building">Building</span>
-            <span data-step="deploying">Deploying</span>
-            <span data-step="done">Done</span>
-          </div>
-        </div>
-        <div id="update-status-line" hidden aria-live="polite"></div>
-        <div id="update-copy-fallback" hidden>
-          <div id="update-copy-label">manual (auto-update not installed) — run on the host:</div>
-          <code id="update-copy-cmd"></code>
-          <button id="update-copy-btn" type="button">COPY</button>
-        </div>
-      </div>
-    </div><!-- /side-col (right) -->
+    <!-- ADR-0028: emagake + auction-panel moved to top-level body scope
+         (below #screen-title). They MUST NOT nest inside #screen-title — that
+         subtree is display:none during PLAYING, which removes even position:fixed
+         descendants from the render tree. -->
 
   </div><!-- /title-columns -->
+
+  <!-- Version/upgrade check (kept — genuine operational surface, not
+       decorative). v0.2.739-alpha: lives here, as a direct child of
+       #screen-title, specifically OUTSIDE #title-centre's backdrop-filter
+       subtree (see the comment left at its old nesting point above) so its
+       `position: fixed; bottom/right` resolves against the real viewport.
+       Still inside #screen-title — correctly hidden during PLAYING like the
+       rest of the title screen, since this is a title-screen-only surface. -->
+  <div id="update-preview" aria-label="torii.quest live update-check (read-only, no auto-update)">
+    <div id="update-preview-head">
+      <span id="update-preview-title">Version</span>
+    </div>
+    <!-- Static fallback row (pre-JS paint + literal version-marker source
+         for tools/regression-check.mjs gate [5], which requires >=2
+         occurrences of EXPECTED_VERSION in this file). main.js's
+         renderUpdatePreview() replaces these children with the live
+         view-model on load. -->
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.739-alpha</div></div>
+    <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
+    <div id="update-progress" hidden>
+      <div id="update-progress-track"><div id="update-progress-fill"></div></div>
+      <div id="update-progress-steps">
+        <span data-step="requested">Requested</span>
+        <span data-step="building">Building</span>
+        <span data-step="deploying">Deploying</span>
+        <span data-step="done">Done</span>
+      </div>
+    </div>
+    <div id="update-status-line" hidden aria-live="polite"></div>
+    <div id="update-copy-fallback" hidden>
+      <div id="update-copy-label">manual (auto-update not installed) — run on the host:</div>
+      <code id="update-copy-cmd"></code>
+      <button id="update-copy-btn" type="button">COPY</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADR-0028: TOP-LEVEL FLOATING OVERLAYS.
+     These panels MUST live at body scope, NOT inside #screen-title.
+     #screen-title is display:none during PLAYING (phaseScreens.js
+     applyPhaseScreens), which removes its entire subtree from the render
+     tree — including position:fixed descendants. Nesting them there made the
+     ema rack + Plebeian auction invisible in-game. -->
+
+<!-- Emagake (ADR-0025 / ADR-0028) — the ema rack. Owner-only floating overlay:
+     kamiMode.showEmagake() removes [hidden] + adds .floating (position:fixed;
+     right:14px) when armed. Rows injected by emagakePanel.js. -->
+<div id="emagake" hidden aria-label="emagake — ema rack">
+  <div id="emagake-header">
+    <span>⛩ EMAGAKE</span>
+    <span id="emagake-count">0 OPEN</span>
+  </div>
+  <div id="emagake-body">
+    <div id="emagake-empty">RACK IS EMPTY<br><span style="font-size:8px;">PRESS K TO HANG AN EMA</span></div>
+  </div>
+</div>
+
+<!-- ADR-0030 — KAMI MODE badge: persistent top-center pill shown while Kami Mode
+     is active, so the owner always sees they are in spirit mode (the rack alone
+     was too easy to miss over the weapon). pointer-events:none; never blocks. -->
+<div id="kami-mode-badge" hidden aria-label="Kami Mode active">⛩ KAMI MODE · K FOR EMA · ESC EXIT</div>
+
+<!-- ADR-0026 / ADR-0028 — Plebeian market stall panel (watch-only auction reader).
+     ADR-0036: opens via the in-world PRODUCT sign's proximity+Q trigger, not
+     NAP-zone auto-show; closes via #auction-panel-close. Top-level so it is
+     not hidden by #screen-title. -->
+<div id="auction-panel" hidden aria-label="plebeian market stall — live auction">
+  <button id="auction-panel-close" class="owner-board-close" aria-label="close auction panel" type="button">×</button>
+  <div id="auction-panel-poster" hidden></div>
+  <div id="auction-panel-header">
+    <div id="auction-panel-title">Loading auction…</div>
+    <div id="auction-panel-summary"></div>
+    <div id="auction-panel-chips"></div>
+  </div>
+  <div id="auction-panel-stats">
+    <div id="auction-panel-high">— <span class="cur">SAT</span></div>
+    <div id="auction-panel-next"></div>
+  </div>
+  <div id="auction-panel-body"><div class="auction-empty">Waiting for relay…</div></div>
+  <div id="auction-panel-footer">
+    <span id="auction-panel-status">watch-only · connecting</span>
+    <a id="auction-panel-link" target="_blank" rel="noopener">View on Plebeian ↗</a>
+  </div>
+</div>
+
+<!-- ADR-0035 — owner boards: Live Products, Live Auctions, Past Auctions.
+     Three separate DOM-overlay boards (not tabs), same smoked-glass component
+     family as #emagake/#auction-panel. Stack on the LEFT edge so they never
+     overlap the emagake rack or the auction-panel stall, both on the right.
+     ADR-0036: setBoardsActive() opens all three together via the in-world
+     PRODUCT sign's proximity+Q trigger, not NAP-zone auto-show; unrelated to
+     Kami Mode. Each board closes independently via its own .owner-board-close.
+     Read-only: no buy/bid/checkout, display only. -->
+<div id="product-board" class="owner-board" hidden aria-label="plebeian live products">
+  <div class="owner-board-header">
+    <span>⛩ LIVE PRODUCTS</span>
+    <span id="product-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="product-board" aria-label="close live products" type="button">×</button>
+  </div>
+  <div id="product-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
+</div>
+
+<div id="live-auction-board" class="owner-board" hidden aria-label="plebeian live auctions">
+  <div class="owner-board-header">
+    <span>⛩ LIVE AUCTIONS</span>
+    <span id="live-auction-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="live-auction-board" aria-label="close live auctions" type="button">×</button>
+  </div>
+  <div id="live-auction-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
+</div>
+
+<div id="past-auction-board" class="owner-board" hidden aria-label="plebeian past auctions">
+  <div class="owner-board-header">
+    <span>⛩ PAST AUCTIONS</span>
+    <span id="past-auction-board-count">0 ITEMS</span>
+    <button class="owner-board-close" data-board-close="past-auction-board" aria-label="close past auctions" type="button">×</button>
+  </div>
+  <div id="past-auction-board-body" class="owner-board-body"><div class="board-empty">Waiting for relay…</div></div>
 </div>
 
 <!-- ══════════════════════════════════════════
@@ -1061,10 +1715,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <canvas id="minimap" width="110" height="110" style="display:block"></canvas>
-  <div id="minimap-wrap"></div>
-
-  <div id="ver">v0.2.603-alpha · torii quest</div>
+  <div id="ver">v0.2.739-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -1083,20 +1734,21 @@
   <div id="pause-box">
     <div id="pause-title">PAUSED</div>
     <button class="btn" id="btn-resume">▶ RESUME</button>
+    <button class="btn btn-secondary" id="btn-kami" style="margin-top:8px">⛩ HANG AN EMA</button>
     <button class="btn btn-secondary" id="btn-home" style="margin-top:8px">EXIT THE GAME</button>
   </div>
 </div>
 
-<!-- Instance Settings overlay (v0.2.358, ACC-1). Both elements are hidden by
-     default; main.js unhides them together when the instance admin clicks the
-     corner link. The panel body is rendered from the pure `instanceSettings.js`
-     view-model (no gate change, no relay call, no navigation). Placed before
-     the bootstrap block so the vite CSP plugin's `SCRIPT-CLOSE + BODY-CLOSE`
-     regex still matches for the versioned entry-import append (v0.2.360
-     regression fix). Do not write the literal script open/close in this
-     comment — the CSP self-consistency check counts <script> tokens. -->
-<div id="instance-settings-backdrop" hidden></div>
-<div id="instance-settings-panel" role="dialog" aria-label="Instance Settings" hidden></div>
+<!-- v0.3: the old standalone Instance Settings overlay divs (#instance-
+     settings-backdrop / #instance-settings-panel) are REMOVED. The new
+     settings panel (src/engine/settings/settingsPanel.js) builds its own
+     backdrop + card DOM entirely in JS, lazily on first open, mirroring
+     toriiMenu.js's pattern — no static placeholder markup needed here.
+     Kept placed before the bootstrap block regardless, so the vite CSP
+     plugin's `SCRIPT-CLOSE + BODY-CLOSE` regex still matches for the
+     versioned entry-import append (v0.2.360 regression fix). Do not write
+     the literal script open/close in this comment — the CSP self-
+     consistency check counts <script> tokens. -->
 
 <script type="module" src="/src/main.js"></script>
 <script>
@@ -1117,13 +1769,11 @@
       el.textContent = msg || '';
       el.style.display = msg ? 'block' : 'none';
     }
-    var enterBtn = document.getElementById('btn-enter');
-    if (enterBtn) enterBtn.addEventListener('click', function () {
-      // When the module is live it owns the click (real arena bootstrap + its own
-      // immediate status); only act as the fallback when the bundle never wired up.
-      if (window.__toriiEnterReady) return;
-      entryStatus('Engine still loading - reload the page if this persists.');
-    });
+    // v0.3: the old standalone #btn-enter ("ENTER ARENA") fallback listener is
+    // removed — that button no longer exists in the merged single-entry HTML
+    // (see #btn-enter-nap below, which already carries the same fallback
+    // contract). This was previously a harmless no-op (getElementById
+    // returned null), now deleted outright per the dead-code cleanup pass.
     var loginBtn = document.getElementById('btn-nostr-centre');
     if (loginBtn) loginBtn.addEventListener('click', function () {
       if (window.__toriiLoginReady) return;

@@ -17,14 +17,15 @@ echo "Bumping to $V (pkg $PV)"
 # be bumped. Its checkForUpdateLive block is handled by the targeted seds below.
 sed -i "s/v0\.2\.[0-9][0-9][0-9]\(-[a-z]*\)\?-alpha/$V/g; s/0\.2\.[0-9][0-9][0-9]\(-[a-z]*\)\?-alpha/$PV/g" \
   package.json package-lock.json \
-  src/config.js src/engine/dashboard/continuumData.js \
-  public/sw.js public/continuum-data.json public/dashboard.html \
+  src/config.js src/engine/dashboard/toriiQuestDashboardData.js \
+  server/arena-ws.js \
+  public/sw.js public/dashboard.html \
   NEXT_ACTION_STATE.json MVP_APPROVAL_STATE.json \
   index.html \
-  tests/continuum-dashboard.helpers.test.js \
-  tests/continuum-dashboard.sdk.test.js \
-  tests/continuum-dashboard.render.test.js \
-  tests/continuum-dashboard.model.test.js
+  tests/torii-quest-dashboard.helpers.test.js \
+  tests/torii-quest-dashboard.sdk.test.js \
+  tests/torii-quest-dashboard.render.test.js \
+  tests/torii-quest-dashboard.model.test.js
 
 # tests/live-update-check.test.js: bump ONLY the checkForUpdateLive describe
 # block (release + writeCache latestVersion + behindBy assertions). The

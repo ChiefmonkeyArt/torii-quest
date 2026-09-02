@@ -37,6 +37,8 @@ import { verifyNostrEventSig } from '../src/engine/crypto/nostrSig.js';
 import { npubToHex } from '../src/engine/crypto/npub.js';
 import { createSessionTokens } from './auth/sessionTokens.js';
 import { createAdminUpdate } from './auth/adminUpdate.js';
+import { createBeacon, BEACON_INTERVAL_MS } from './presence/beacon.js';
+import { DEFAULT_NODE_RELAYS } from '../src/engine/presence/nodeRelays.js';
 import { createSnapshotRing, push as pushSnap } from './combat/snapshotRing.js';
 import { resolveShot, DEFAULT_LAG_COMP_MS } from './combat/hitResolver.js';
 import { damageFor } from './combat/damageTable.js';
@@ -46,10 +48,18 @@ import {
 } from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
 import { createArenaBotSim } from './bots/arenaBotSim.js';
+import { buildBotTickRoster, shouldBroadcastBotState } from './bots/botStateGate.js';
 import { buildColliders } from './combat/capsuleModel.js';
 import { rayVsPeer } from './combat/rayVsCapsule.js';
 import { pointInCoastline } from '../src/terrain/coastline.js';
 import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
+import { promises as fsPromises } from 'fs';
+import { createKamiStore, SCREENSHOT_KEEP_DEFAULT } from './kami/kamiStore.js';
+import { validateKamiBatch, storeKamiBatch } from './kami/kamiRoute.js';
+import { makeReplyStore } from './kami/kamiReplyStore.js';
+import { parseSince, shapeReplyResponse } from './kami/kamiReplyRoute.js';
+import { createAutoCapStore, AUTOCAP_KEEP_DEFAULT } from './kami/kamiAutoStore.js';
+import { storeAutoCapBatch } from './kami/kamiAutoRoute.js';
 
 // ---------- config ----------
 
@@ -58,7 +68,25 @@ const HOST       = process.env.HOST || '0.0.0.0';
 const WS_PATH    = process.env.WS_PATH || '/mp';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.602-alpha';
+const SERVER_VERSION = 'v0.2.739-alpha';
+
+// Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
+// holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
+const KAMI_DIR = process.env.KAMI_DIR || '/var/lib/torii-quest/kami';
+const KAMI_BODY_CAP = Number(process.env.KAMI_BODY_CAP || (16 * 1024 * 1024)); // 16 MiB
+const kamiStore = createKamiStore({ dir: KAMI_DIR, fs: fsPromises, keep: SCREENSHOT_KEEP_DEFAULT });
+
+// ADR-0039: AI "Kami replies" feed. Plaintext (AI-generated, derived from the
+// owner's own notes). The browser polls GET /mp/kami/replies and renders these
+// in the emagake rack — the browser cannot decrypt kamiSeal envelopes (NIP-07
+// has no ECDH), so replies are a separate readable feed, not sealed.
+const replyStore = makeReplyStore({ dir: KAMI_DIR, fs: fsPromises });
+
+// ADR-0055: auto-capture ring (1Hz diagnostic frames). SEPARATE from the manual
+// ema store — its own directory + cap (120) so it can never evict a real manual
+// ema screenshot (shots/ cap 420) and never appends to ema.jsonl (forever).
+// Sealed at rest in the browser; the server holds ciphertext only.
+const autoStore = createAutoCapStore({ dir: KAMI_DIR, fs: fsPromises, keep: AUTOCAP_KEEP_DEFAULT });
 
 globalThis.WebSocket ??= WebSocket;
 
@@ -74,7 +102,7 @@ const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
 const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
 const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 
-// Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots.
+// Bot milestone chunk 2 (v0.2.739-alpha): server-authoritative bots.
 //   BOT_SIM_ENABLED — master switch (default on).
 //   BOT_TICK_MS     — fixed AI tick period (~20Hz).
 //   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
@@ -82,7 +110,7 @@ const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCas
 const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
 const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
 
-// v0.2.387-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// v0.2.739-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
 // `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
 // unparseable) the admin gate denies everything and capability.autoUpdate is false.
 // arena-ws only ever WRITES an atomic request file — the root systemd runner (built
@@ -90,6 +118,29 @@ const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
 const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || '';
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
+
+// ADR-0094 (v0.2.739-alpha): server-side always-on presence beacon. The server
+// holds an instance-bound key (never the admin's nsec) and, while enabled,
+// republishes the world-presence event on a 10-min cadence so the world stays
+// listed on the gateway with no browser open. Relays default to the same curated
+// list the client uses (ADR-0081); the operator may override via QUEST_NODE_RELAYS.
+const BEACON_STATE_PATH = process.env.BEACON_STATE_PATH || '/opt/torii-quest/mp/beacon-state.json';
+const BEACON_WEBSITE    = (process.env.QUEST_PUBLIC_URL || '').trim();
+const BEACON_RELAYS_ENV = (process.env.QUEST_NODE_RELAYS || '')
+  .split(/[,\s\n]+/).map((s) => s.trim()).filter(Boolean);
+
+// ADR-0032 (v0.2.739-alpha): server-side truth for "is this session the owner,
+// currently in Kami Mode". The client's KAMI_STATE message only ever SETS
+// sess.kamiActive; whether it's honoured is decided here by re-checking the
+// session's own authenticated pubkey (set once at AUTH, not client-suppliable
+// per-message) against ADMIN_PUBKEY_HEX. A non-admin session can set the flag
+// on itself but isKamiActive() below will always read false for it, so combat
+// code that only calls isKamiActive() never needs to re-check the pubkey.
+function isKamiActive(sess) {
+  if (!sess || !sess.kamiActive) return false;
+  if (!ADMIN_PUBKEY_HEX) return false;
+  return typeof sess.pubkey === 'string' && sess.pubkey.toLowerCase() === ADMIN_PUBKEY_HEX;
+}
 
 // Per-session rate limits (msg / sec).
 const RATE = Object.freeze({
@@ -109,7 +160,7 @@ const IDLE_DISCONNECT_MS = 90_000;
 const AUTH_TIMEOUT_MS    = 10_000;
 const CHALLENGE_TTL_MS   = 60_000; // an AUTH event's created_at must be within this window
 
-// v0.2.446-alpha: valid character keys the client may send in AUTH/AUTH_TOKEN.
+// v0.2.739-alpha: valid character keys the client may send in AUTH/AUTH_TOKEN.
 const VALID_CHARACTERS = new Set(['chiefmonkey', 'nostrich']);
 
 // ---------- server state ----------
@@ -146,23 +197,33 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
-// v0.2.380-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// v0.2.739-alpha: live in-arena leaderboard. In addition to the on-close SCORE
 // emit, broadcast the running tally on every kill and on this periodic tick so
 // clients see real-time standings. Additive on PROTOCOL_VERSION=1.
 const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
-// Session-token authority (v0.2.375-alpha). Login signs a NIP-98 event ONCE
+// Session-token authority (v0.2.739-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
 
-// v0.2.387-alpha (UPD-2): admin-update request authority. Writes atomic request
+// v0.2.739-alpha (UPD-2): admin-update request authority. Writes atomic request
 // files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
 const adminUpdate = createAdminUpdate({
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
   requestsDir: UPDATE_REQUESTS_DIR,
   statusPath: UPDATE_STATUS_PATH,
   installedVersion: SERVER_VERSION,
+});
+
+// ADR-0094 (v0.2.739-alpha): server-side always-on presence beacon authority.
+// Holds an instance-bound key + enabled flag, persisted to disk so a restart
+// resumes the pulse with no admin re-login.
+const beacon = createBeacon({
+  statePath: BEACON_STATE_PATH,
+  adminPubkeyHex: ADMIN_PUBKEY_HEX,
+  relays: BEACON_RELAYS_ENV.length ? BEACON_RELAYS_ENV : [...DEFAULT_NODE_RELAYS],
+  website: BEACON_WEBSITE,
 });
 
 // Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
@@ -176,7 +237,10 @@ const respawnTimers = new Map();
 const arenaBotSim = createArenaBotSim({
   onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
 });
-if (BOT_SIM_ENABLED) arenaBotSim.spawn(BOT_COUNT);
+// ADR-0018 (v0.2.739-alpha): let arenaBotSim.spawn() use its env-driven default
+// (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE). Passing BOT_COUNT here would defeat
+// the override.
+if (BOT_SIM_ENABLED) arenaBotSim.spawn();
 // Synthetic shooter id carried on bot→player HIT/KILL so the existing client
 // peerCombat handler applies damage exactly as it does for a peer shot.
 const BOT_SHOOTER_ID = 'bot';
@@ -254,7 +318,7 @@ function closeSession(sess, reason) {
     sessions.delete(sess.id);
     snapshotRings.delete(sess.id);
     hpUnregister(hpLedger, sess.id);
-    // v0.2.384-alpha: RETIRE (not drop) so a disconnected player stays on the
+    // v0.2.739-alpha: RETIRE (not drop) so a disconnected player stays on the
     // LOCAL leaderboard for this arena instance until the server restarts.
     if (SCORE_ENABLED) scoreLedger.retire(sess.id);
     const timer = respawnTimers.get(sess.id);
@@ -297,9 +361,12 @@ function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  // v0.2.446-alpha: accept client-sent character key (validated against the
-  // known set). Falls back to the existing default if absent/invalid.
-  if (character && VALID_CHARACTERS.has(character)) sess.character = character;
+  // v0.2.739-alpha: accept a client-sent character key (validated against the
+  // known set) OR a 64-hex Character Forge mesh hash. Falls back to the existing
+  // default if absent/invalid.
+  if (character && (VALID_CHARACTERS.has(character) || /^[0-9a-f]{64}$/.test(character))) {
+    sess.character = character;
+  }
   // MP-2: bootstrap ledger + ring at auth time.
   hpRegister(hpLedger, sess.id);
   snapshotRings.set(sess.id, createSnapshotRing());
@@ -349,7 +416,7 @@ async function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
-    // v0.2.375-alpha: bearer-token auth (login signed once via NIP-98). No
+    // v0.2.739-alpha: bearer-token auth (login signed once via NIP-98). No
     // NIP-07 signature needed on arena entry / reconnect.
     if (msg.t === MSG.AUTH_TOKEN) {
       const pubkey = sessionTokens.verifyToken(msg.token);
@@ -436,6 +503,16 @@ async function handleMessage(sess, raw) {
       return;
     }
     case MSG.PONG: return;
+    case MSG.KAMI_STATE: {
+      // ADR-0032: record the claim unconditionally (cheap, harmless for a
+      // non-admin session) but every combat/targeting site reads through
+      // isKamiActive(sess), which re-verifies sess.pubkey === ADMIN_PUBKEY_HEX
+      // before honouring it. A non-admin flipping this flag on themselves has
+      // no effect anywhere.
+      sess.kamiActive = !!msg.active;
+      log.info('KAMI_STATE', sess.id, 'active=' + sess.kamiActive, 'honoured=' + isKamiActive(sess));
+      return;
+    }
     // Ignore anything a client shouldn't be sending.
     default: return;
   }
@@ -455,7 +532,9 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
   if (throttled && !result && !botResult) return;
   _shotLogAt.set(shooterId, now);
   const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
-  const bot  = botResult ? `${botResult.botId}@t=${botResult.t.toFixed(2)}` : 'null';
+  const bot  = botResult
+    ? `${botResult.botId}@t=${botResult.t.toFixed(2)}@${botResult.zone || '?'}`
+    : 'null';
   // v0.2.382 combat hotfix diagnostic: the reported miss (player→bot shots not
   // registering) could not be reproduced headlessly — server geometry HITS. This
   // compact Y-frame line lets us confirm the vertical alignment on a LIVE server:
@@ -469,7 +548,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const dy = oy - diag.footY;
     yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
   }
-  // v0.2.392-alpha: surface the SERVER-time rewind inputs — the client-reported
+  // v0.2.739-alpha: surface the SERVER-time rewind inputs — the client-reported
   // viewLag, the server-computed rewindTs, the shot age (server_now-rewindTs),
   // and whether rewindTs fell outside the [now-LAG_COMP_MS, now] window (clamp).
   // These are what the fix actually depends on; a live capture confirms the
@@ -480,7 +559,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const clamped = rewindTs < srvNow - LAG_COMP_MS || rewindTs > srvNow;
     rw = ` viewLag=${vl} rewindAge=${srvNow - rewindTs} rwClamp=${clamped} clientTs=${shotMsg.ts}`;
   }
-  // v0.2.392-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
+  // v0.2.739-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
   // the crux of the fix. If dxz is large the bot moved between render and now, and
   // the rewind is what makes the ray land on where the player actually aimed.
   let bd = '';
@@ -492,8 +571,33 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
            ` rew=(${rd.rew.x.toFixed(2)},${rd.rew.z.toFixed(2)}) dxz=${rd.dxz.toFixed(2)}`;
     }
   }
-  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}`);
+  // ADR-0023: on a MISS, log how far off the ray was. `decision=miss` alone
+  // cannot separate a 4cm graze (lag-comp / aim precision) from a metre-wide
+  // shot (framing or occlusion), and those need different fixes. headGap and
+  // bodyGap are distance-minus-radius, so >0 is the miss margin in metres;
+  // headVert/headHorz split the head miss so "over the hat" is distinguishable
+  // from "beside the head". rng is the range to closest approach.
+  let mg = '';
+  if (!botResult && BOT_SIM_ENABLED && shotMsg.origin && shotMsg.dir &&
+      Number.isFinite(rewindTs) && typeof arenaBotSim.missGeomDiag === 'function') {
+    const g = arenaBotSim.missGeomDiag(shotMsg.origin, shotMsg.dir, rewindTs, srvNow, LAG_COMP_MS);
+    if (g) {
+      mg = ` missBot=${g.botId} headGap=${g.headGap.toFixed(3)}` +
+           ` headVert=${g.headVert.toFixed(3)} headHorz=${g.headHorz.toFixed(3)}` +
+           ` bodyGap=${g.bodyGap.toFixed(3)} rng=${g.rng.toFixed(2)}`;
+    }
+  }
+  // ADR-0046 v0.2.667: rounded origin/dir vectors alongside the existing
+  // clientTs, so the ema's lastSentShot.sentOrigin/sentDir can be matched
+  // numerically against exactly what the server received for this shot.
+  const ov = shotMsg.origin
+    ? ` o=(${shotMsg.origin[0].toFixed(2)},${shotMsg.origin[1].toFixed(2)},${shotMsg.origin[2].toFixed(2)})`
+    : '';
+  const dv = shotMsg.dir
+    ? ` d=(${shotMsg.dir[0].toFixed(2)},${shotMsg.dir[1].toFixed(2)},${shotMsg.dir[2].toFixed(2)})`
+    : '';
+  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}${ov}${dv}` +
+    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}${mg}`);
 }
 
 function resolveAndBroadcast(shooter, shotMsg) {
@@ -528,7 +632,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
   // Bot milestone chunk 2: also resolve against server-authoritative bots and
   // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
   // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
-  // v0.2.392-alpha: bots rewind to the SAME server-time rewindTs the peer
+  // v0.2.739-alpha: bots rewind to the SAME server-time rewindTs the peer
   // resolver uses, so moving bots stop eating shots.
   const botResult = BOT_SIM_ENABLED
     ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, rewindTs, now, LAG_COMP_MS)
@@ -548,6 +652,13 @@ function resolveAndBroadcast(shooter, shotMsg) {
 
   const dmg = damageFor(result.zone);
   if (dmg <= 0) return;
+
+  // ADR-0032 backstop: a peer's shot resolved as hitting a kami-active admin.
+  // The bot roster exclusion doesn't cover peer-vs-peer fire, so this is the
+  // only guard on that path — drop the shot with no damage applied and no
+  // HIT/KILL broadcast, exactly as if it had missed.
+  const targetSess = sessions.get(result.targetId);
+  if (isKamiActive(targetSess)) return;
 
   const outcome = applyDamage(hpLedger, result.targetId, dmg);
   // Server-issued HIT — broadcast to ALL so shooter also sees definitive result.
@@ -572,7 +683,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
     });
     // MP-3: attribute kill → shooter, death → victim.
     if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
-    // v0.2.380-alpha: push the updated standings immediately on a kill so the
+    // v0.2.739-alpha: push the updated standings immediately on a kill so the
     // live in-arena leaderboard reflects frags without waiting for the tick.
     broadcastScoreFrame();
     scheduleRespawn(result.targetId, shooter.pos);
@@ -672,6 +783,11 @@ function onBotShot(origin, dir, dmg) {
   let best = null;
   for (const sess of sessions.values()) {
     if (!sess.authed) continue;
+    // ADR-0032 backstop: a kami-active admin is already excluded from the bot
+    // brain's target roster, so in steady state no bot ray should ever reach
+    // here for them. Excluded again anyway — a bullet already in flight from
+    // the tick before Kami Mode was confirmed must not land.
+    if (isKamiActive(sess)) continue;
     const colliders = buildColliders({ pos: sess.pos });
     const r = rayVsPeer(originArr, dirArr, colliders);
     if (!r.hit) continue;
@@ -711,27 +827,25 @@ let _lastBotStateAt = 0;
 if (BOT_SIM_ENABLED) {
   setInterval(() => {
     const dt = BOT_TICK_MS / 1000;
-    const players = [];
-    for (const sess of sessions.values()) {
-      if (!sess.authed) continue;
-      const [x, y, z] = sess.pos;
-      // `id` gives the bot brain a stable per-player key for target-switch
-      // hysteresis (v0.2.378 fix 3) across ticks.
-      players.push({ id: sess.id, x, y, z, outsideFence: !pointInCoastline(x, z), flyEnabled: false });
-    }
+    // ADR-0050 v0.2.672: build the bot-brain roster AND the authed-session count
+    // separately. The roster still excludes Kami Mode sessions (bots ignore the
+    // admin), but the BOT_STATE broadcast gate keys off `authedCount` so a sole
+    // player in Kami Mode no longer silences the stream and freezes every bot on
+    // the client (the ~12m desync).
+    const { players, authedCount } = buildBotTickRoster(sessions, { isKamiActive, pointInCoastline });
     arenaBotSim.tick(dt, players);
     const now = Date.now();
-    // v0.2.385-alpha: record post-tick bot positions for lag-compensated
+    // v0.2.739-alpha: record post-tick bot positions for lag-compensated
     // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
     arenaBotSim.recordSnapshot(now);
-    if (players.length > 0 && now - _lastBotStateAt >= BOT_STATE_MS) {
+    if (shouldBroadcastBotState({ authedCount, now, lastAt: _lastBotStateAt, botStateMs: BOT_STATE_MS })) {
       _lastBotStateAt = now;
       broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
     }
   }, BOT_TICK_MS);
 }
 
-// v0.2.380-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// v0.2.739-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
 // no-op when SCORE is disabled or no tallies exist, so this only emits once
 // combat has produced standings. The on-kill + on-close emits stay in place;
 // this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
@@ -788,6 +902,30 @@ function readJsonBody(req, res, cb) {
   req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
 }
 
+// Same as readJsonBody but with a caller-chosen cap (for the Kami ema route, whose
+// sealed-screenshot batches far exceed MAX_LOGIN_BODY). cb may be async.
+function readJsonBodyCapped(req, res, cap, cb) {
+  const chunks = [];
+  let size = 0;
+  let tooBig = false;
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > cap) { tooBig = true; req.destroy(); return; }
+    chunks.push(chunk);
+  });
+  req.on('end', () => {
+    if (tooBig) return sendJson(res, 413, { error: 'body too large' });
+    let parsed;
+    try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+    catch { return sendJson(res, 400, { error: 'bad json' }); }
+    return Promise.resolve(cb(parsed)).catch((err) => {
+      log.error('kami body handler failed', err && err.message);
+      try { sendJson(res, 500, { error: 'handler failed' }); } catch { /* noop */ }
+    });
+  });
+  req.on('error', () => { try { sendJson(res, 400, { error: 'request error' }); } catch { /* noop */ } });
+}
+
 const httpServer = createServer((req, res) => {
   // Path without query. The reverse proxy may prefix a mount (/quest, or the
   // sandbox /port/5000), so match by suffix — same tolerance as the WS upgrade.
@@ -804,7 +942,7 @@ const httpServer = createServer((req, res) => {
     });
   }
 
-  // v0.2.375-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  // v0.2.739-alpha session-token endpoints (plain HTTP, same origin as /mp).
   //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
   //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
   if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
@@ -836,7 +974,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.387-alpha (UPD-2) admin-update endpoints.
+  // v0.2.739-alpha (UPD-2) admin-update endpoints.
   //   GET  /mp/admin/update-capability → { autoUpdate, adminPubkey }   (PUBLIC)
   //   GET  /mp/admin/update-status     → status JSON                    (PUBLIC read)
   //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
@@ -844,7 +982,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.397-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.739-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.
@@ -859,6 +997,101 @@ const httpServer = createServer((req, res) => {
       const result = adminUpdate.requestUpdate({ event: parsed && parsed.event });
       if (result.ok) return sendJson(res, 200, { ok: true, state: result.state });
       return sendJson(res, result.code || 403, { ok: false, error: result.error || 'denied' });
+    });
+    return;
+  }
+
+  // ADR-0094 (v0.2.739-alpha): server-side always-on presence beacon.
+  //   GET  /mp/admin/beacon → { enabled, activatedAt, pubkey, adminPubkey, … } (public)
+  //   POST /mp/admin/beacon { action: 'on' | 'off' } → admin-gated toggle
+  if (req.method === 'GET' && path.endsWith('/mp/admin/beacon')) {
+    return sendJson(res, 200, beacon.capability());
+  }
+
+  if (req.method === 'POST' && path.endsWith('/mp/admin/beacon')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBody(req, res, (parsed) => {
+      const action = parsed && parsed.action;
+      if (action === 'on') {
+        const r = beacon.enable();
+        if (!r.ok) return sendJson(res, 403, { ok: false, error: r.error || 'enable-failed' });
+        // Immediate first pulse, then the cadence already running (or started here).
+        beacon.publishOnce().catch(() => {});
+        return sendJson(res, 200, { ok: true, ...beacon.capability() });
+      }
+      if (action === 'off') {
+        beacon.disable();
+        return sendJson(res, 200, { ok: true, ...beacon.capability() });
+      }
+      return sendJson(res, 400, { ok: false, error: 'bad action (use on|off)' });
+    });
+    return;
+  }
+
+  // v0.2.739-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
+  // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
+  // reject any ema with a shot. The server only ever holds ciphertext.
+  // v0.2.739-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // owner (bearer session token) sees the AI's replies in their emagake rack.
+  // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
+  // are a separate plaintext feed the rack polls and renders (text, not HTML).
+  if (req.method === 'GET' && path.endsWith('/mp/kami/replies')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    (async () => {
+      try {
+        const q = (req.url || '').split('?')[1] || '';
+        const since = parseSince(new URLSearchParams(q).get('since'));
+        const replies = await replyStore.readRepliesSince(since);
+        return sendJson(res, 200, shapeReplyResponse(replies));
+      } catch (err) {
+        log.error('kami/replies read failed', err && err.message);
+        return sendJson(res, 500, { error: 'read failed' });
+      }
+    })();
+    return;
+  }
+
+  // v0.2.739-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
+  // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
+  // reject any ema with a shot. The server only ever holds ciphertext.
+  if (req.method === 'POST' && path.endsWith('/mp/kami/ema')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBodyCapped(req, res, KAMI_BODY_CAP, async (parsed) => {
+      const batch = validateKamiBatch(parsed);
+      if (!batch) return sendJson(res, 400, { error: 'bad batch' });
+      try {
+        const result = await storeKamiBatch(batch, admin, kamiStore);
+        return sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        log.error('kami/ema store failed', err && err.message);
+        return sendJson(res, 500, { error: 'store failed' });
+      }
+    });
+    return;
+  }
+
+  // ADR-0055: 1Hz auto-capture ring. Admin-gated via the same session bearer
+  // token (no per-second NIP-07 signing — the session token is the consent the
+  // owner already granted at login). Same batch shape as /mp/kami/ema so
+  // validateKamiBatch is reused; only the store + cap differ (autocap ring 120).
+  if (req.method === 'POST' && path.endsWith('/mp/kami/autocap')) {
+    const admin = adminFromRequest(req);
+    if (!admin) return sendJson(res, 403, { error: 'forbidden' });
+    readJsonBodyCapped(req, res, KAMI_BODY_CAP, async (parsed) => {
+      const batch = validateKamiBatch(parsed);
+      if (!batch) return sendJson(res, 400, { error: 'bad batch' });
+      try {
+        const result = await storeAutoCapBatch(batch, admin, autoStore);
+        return sendJson(res, 200, { ok: true, ...result });
+      } catch (err) {
+        log.error('kami/autocap store failed', err && err.message);
+        return sendJson(res, 500, { error: 'store failed' });
+      }
     });
     return;
   }
@@ -936,4 +1169,34 @@ setInterval(() => {
 
 httpServer.listen(PORT, HOST, () => {
   log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
+  // Admin identity is decided ENTIRELY by QUEST_ADMIN_NPUB (see VPS_INSTALL.md
+  // §16.2a) - log whether it's configured (never the full npub/hex; a short
+  // prefix is enough to eyeball "did my .env value actually take effect").
+  if (ADMIN_PUBKEY_HEX) {
+    log.info(`admin configured (pubkey ${ADMIN_PUBKEY_HEX.slice(0, 8)}…)`);
+  } else {
+    log.warn('QUEST_ADMIN_NPUB is not set - no admin on this instance. See VPS_INSTALL.md §16.2a.');
+  }
+
+  // ADR-0094: the presence pulse is fuelled ENTIRELY by the configured admin
+  // npub — no login, no wallet, no browser. On boot: resume if it was already
+  // on, else AUTO-ACTIVATE (first boot with an admin configured → on, no login).
+  // An admin who turned it off stays off. The republish cadence runs
+  // unconditionally and no-ops while disabled.
+  beacon.load();
+  if (beacon.capability().enabled) {
+    log.info('beacon enabled — resuming presence pulse');
+    beacon.publishOnce().catch(() => {});
+  } else {
+    const auto = beacon.autoEnable();
+    if (auto.ok && auto.activated) {
+      log.info('beacon auto-activated from configured admin npub (no login required)');
+      beacon.publishOnce().catch(() => {});
+    } else {
+      log.info('beacon off (admin disabled it, or no admin npub configured)');
+    }
+  }
+  setInterval(() => {
+    if (beacon.capability().enabled) beacon.publishOnce().catch(() => {});
+  }, BEACON_INTERVAL_MS);
 });

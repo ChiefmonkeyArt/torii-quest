@@ -168,6 +168,19 @@ describe('decode — malformed input is safe', () => {
     const clean = sanitize(parsed.msg);
     expect(clean).toEqual({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64) });
   });
+
+  // v0.2.722-alpha: the character field may carry a 64-hex Character Forge mesh
+  // hash in addition to a short skin key.
+  it('accepts a 64-hex mesh hash as the character field', () => {
+    const hash = 'a'.repeat(64);
+    expect(decode({ ...goodAuth, character: hash }).ok).toBe(true);
+    expect(decode({ t: MSG.AUTH_TOKEN, token: 'a'.repeat(64), character: hash }).ok).toBe(true);
+    expect(decode({ t: MSG.JOIN, id: 'p1', npub: 'npub1' + 'x'.repeat(58), pos: [0, 0, 0], rot: [0, 0], character: hash }).ok).toBe(true);
+  });
+
+  it('rejects a character field exceeding 64 chars', () => {
+    expect(decode({ ...goodAuth, character: 'a'.repeat(65) }).code).toBe('BAD_FIELD');
+  });
 });
 
 // ---------- sanitize ----------
@@ -219,5 +232,33 @@ describe('isKnownType', () => {
     expect(isKnownType('GARBAGE')).toBe(false);
     expect(isKnownType('')).toBe(false);
     expect(isKnownType(undefined)).toBe(false);
+  });
+});
+
+// ---------- KAMI_STATE (ADR-0032) ----------
+
+describe('KAMI_STATE — client tells server it entered/exited Kami Mode', () => {
+  it('accepts active:true and active:false', () => {
+    expect(decode({ t: MSG.KAMI_STATE, active: true }).ok).toBe(true);
+    expect(decode({ t: MSG.KAMI_STATE, active: false }).ok).toBe(true);
+  });
+
+  it('rejects a missing or non-boolean active field', () => {
+    expect(decode({ t: MSG.KAMI_STATE }).ok).toBe(false);
+    expect(decode({ t: MSG.KAMI_STATE, active: 'true' }).ok).toBe(false);
+    expect(decode({ t: MSG.KAMI_STATE, active: 1 }).ok).toBe(false);
+  });
+
+  it('sanitize strips extra client-injected fields', () => {
+    const r = decode({ t: MSG.KAMI_STATE, active: true, isAdmin: true, id: 'forged' });
+    expect(r.ok).toBe(true);
+    expect(sanitize(r.msg)).toEqual({ t: MSG.KAMI_STATE, active: true });
+  });
+
+  it('round-trips through encode/decode', () => {
+    const wire = encode({ t: MSG.KAMI_STATE, active: true });
+    const r = decode(wire);
+    expect(r.ok).toBe(true);
+    expect(r.msg).toEqual({ t: MSG.KAMI_STATE, active: true });
   });
 });

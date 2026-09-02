@@ -18,11 +18,20 @@
 // old event would auto-drop — a missed republish never leaves a gap.
 export const HEARTBEAT_INTERVAL_MS = 600000;
 
+// FIRST_PUBLISH_RETRY_MS — backoff for a FAILED first publish (ADR-0077). When
+// the first auto-publish fails for a non-signer reason (transient relay/network
+// error), lastPublishedAt stays null but the tick must NOT retry every rAF
+// frame (a ~60fps spin). The tick retries after this interval. 30s balances
+// "start the beacon soon after login" against "no spin on persistent failure".
+// A signer rejection/throw is separate — it sets republishPaused (no retry).
+export const FIRST_PUBLISH_RETRY_MS = 30000;
+
 // isHeartbeatDue({ lastPublishedAt, now, intervalMs }) → bool. True when the
-// interval has elapsed since the last publish. When `lastPublishedAt` is
-// null/undefined (never published) this returns FALSE — the caller decides
-// whether a first publish is due (explicit consent via the menu toggle), not
-// this helper. `intervalMs` defaults to HEARTBEAT_INTERVAL_MS. Pure.
+// interval has elapsed since the last SUCCESSFUL publish. When lastPublishedAt
+// is null (never published) this returns FALSE — the first-publish decision is
+// delegated to isFirstPublishDue (ADR-0077: the first publish auto-fires on
+// owner login, with a retry backoff on non-signer failure). `intervalMs` defaults
+// to HEARTBEAT_INTERVAL_MS. Pure.
 export function isHeartbeatDue(opts = {}) {
   const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
   const last = typeof o.lastPublishedAt === 'number' && Number.isFinite(o.lastPublishedAt)
@@ -32,6 +41,29 @@ export function isHeartbeatDue(opts = {}) {
     ? o.intervalMs : HEARTBEAT_INTERVAL_MS;
   if (last === null) return false;
   return (now - last) >= intervalMs;
+}
+
+// isFirstPublishDue({ lastPublishedAt, lastAttemptedAt, now, retryMs }) → bool.
+// ADR-0077: true when a first publish is due — i.e. never successfully published
+// (lastPublishedAt is null) AND either never attempted (lastAttemptedAt is null)
+// or the retry backoff has elapsed since the last attempt. This is the pure,
+// testable half of the auto-on logic; main.js's _heartbeatTick calls it. When
+// the first publish succeeds, lastPublishedAt becomes non-null + isHeartbeatDue
+// takes over (republish cadence). When it fails (non-signer error),
+// lastAttemptedAt gates re-attempts so the tick doesn't spin every frame.
+// `retryMs` defaults to FIRST_PUBLISH_RETRY_MS. Pure.
+export function isFirstPublishDue(opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const lastPub = typeof o.lastPublishedAt === 'number' && Number.isFinite(o.lastPublishedAt)
+    ? o.lastPublishedAt : null;
+  if (lastPub !== null) return false;            // already published → not a first publish
+  const lastAtt = typeof o.lastAttemptedAt === 'number' && Number.isFinite(o.lastAttemptedAt)
+    ? o.lastAttemptedAt : null;
+  if (lastAtt === null) return true;              // never attempted → due now
+  const now = typeof o.now === 'number' && Number.isFinite(o.now) ? o.now : 0;
+  const retryMs = typeof o.retryMs === 'number' && Number.isFinite(o.retryMs) && o.retryMs > 0
+    ? o.retryMs : FIRST_PUBLISH_RETRY_MS;
+  return (now - lastAtt) >= retryMs;
 }
 
 // nextHeartbeatInMs({ lastPublishedAt, now, intervalMs }) → ms until the next
@@ -98,4 +130,22 @@ export function heartbeatStatus(opts = {}) {
   const expirationMs = expirationTtlSec * 1000;
   if (ageMs >= expirationMs) return 'stale';
   return 'live';
+}
+
+// isHeartbeatBroadcasting(status) → bool. True only for statuses where a
+// presence event has actually gone out and/or the operator has already given
+// consent (live/stale/publishing/paused all mean AT LEAST one publish attempt
+// happened). False for 'off', 'idle' (stored intent says on, but nothing has
+// EVER published — no consent given yet), and every 'blocked:*' status.
+//
+// This exists because the stored intent string ('on'/'off', defaulting to
+// 'on' per getHeartbeatIntent) is NOT the same thing as "actually
+// broadcasting" — a fresh install defaults intent to 'on' but has never
+// published, so it must NOT be treated as already-on. Toggle buttons must
+// branch on THIS (or the heartbeatStatus() result), never on the raw intent
+// string, or a first-time owner's very first click flips a never-published
+// 'on' straight to 'off' instead of publishing. Pure.
+export function isHeartbeatBroadcasting(status) {
+  const s = typeof status === 'string' ? status : 'off';
+  return s === 'live' || s === 'stale' || s === 'publishing' || s === 'paused:wallet-requires-approval';
 }

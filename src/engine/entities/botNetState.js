@@ -30,11 +30,21 @@ export function createBotNetState(opts = {}) {
 
   /** @type {Map<number, {samples:Array<{t,x,z,rotY}>, hp:number, alive:boolean, animHint:string, snap:boolean}>} */
   const bots = new Map();
+  // ADR-0048 v0.2.669: ingest-rate diagnostic. Tracks how many BOT_STATE arrays
+  // have been ingested + when the last one arrived, so a miss ema can prove whether
+  // the client is RECEIVING updates (lastIngestAge ~66ms @15Hz) or the stream has
+  // stalled (lastIngestAge >> 1s) — the open question behind the ~12m bot-position
+  // desync. `nowMs` is the SAME monotonic clock (performance.now) used to stamp
+  // samples, so ages are directly comparable.
+  let _ingestCount = 0;
+  let _lastIngestAt = 0;
 
   // Ingest one BOT_STATE array (or a full-snapshot array). `nowMs` is the client
   // receive clock. Detects discontinuities and marks the bot to SNAP on next read.
   function ingest(states, nowMs) {
     if (!Array.isArray(states)) return;
+    _ingestCount++;
+    _lastIngestAt = nowMs;
     for (const s of states) {
       let b = bots.get(s.id);
       if (!b) {
@@ -55,13 +65,19 @@ export function createBotNetState(opts = {}) {
       if (Number.isFinite(s.scale)) b.scale = s.scale;
       // Discontinuity checks vs the previous sample.
       const prev = b.samples[b.samples.length - 1];
-      if (b.alive !== s.alive) b.snap = true;
+      // INVARIANT (v0.2.663): coerce the impossible wire state. A stale pre-kill
+      // snapshot can arrive carrying alive=true with hp<=0 (the kill happened
+      // after that snapshot was serialized). Treat hp<=0 as dead so a stale
+      // snapshot can never un-kill a bot the server has already drained.
+      const hp = Math.max(0, s.hp);
+      const alive = s.alive === true && hp > 0;
+      if (b.alive !== alive) b.snap = true;
       if (prev) {
         const dx = s.x - prev.x, dz = s.z - prev.z;
         if (dx * dx + dz * dz > snapDist2) b.snap = true;
       }
-      b.hp = s.hp;
-      b.alive = s.alive;
+      b.hp = hp;
+      b.alive = alive;
       b.animHint = s.animHint;
       b.samples.push({ t: nowMs, x: s.x, z: s.z, rotY: s.rotY });
       if (b.samples.length > MAX_SAMPLES) b.samples.shift();
@@ -80,9 +96,23 @@ export function createBotNetState(opts = {}) {
   // just-applied hit/kill for up to one snapshot interval (~67ms) — the bot's HP
   // snaps back to full and a killed bot flickers alive. Position stays
   // interpolated; only hp/alive become event-authoritative here.
+  //
+  // INVARIANT (v0.2.663): hp <= 0 means the bot is dead, full stop. A kill-shot
+  // BOT_HIT carries hp=0; BOT_KILL may be delayed, dropped, or followed by a
+  // stale pre-kill BOT_STATE snapshot that tries to un-kill (alive=true). So a
+  // hit that drains HP to <=0 MUST mark the bot dead right here — otherwise the
+  // HP bar empties but `b.alive` stays true and the render path's death branch
+  // never fires (the bot stands with an empty HP bar: the v0.2.662 bug).
   function applyHit(id, hp) {
     const b = bots.get(id);
-    if (b && Number.isFinite(hp)) b.hp = hp;
+    if (!b || !Number.isFinite(hp)) return;
+    if (hp <= 0) {
+      b.hp = 0;
+      b.alive = false;
+      b.snap = true;
+      return;
+    }
+    b.hp = hp;
   }
   // A kill also snaps so the corpse hard-jumps to its last position (no slide).
   function applyKill(id) {
@@ -146,7 +176,34 @@ export function createBotNetState(opts = {}) {
   function clear() { bots.clear(); }
   function has(id) { return bots.has(id); }
 
-  return { ingest, sample, forceSnap, applyHit, applyKill, remove, clear, has, _bots: bots };
+  // ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic. Pure, so it
+  // unit-tests in node. `nowMs` must be the SAME monotonic clock that stamps
+  // samples (performance.now). Returns:
+  //   { ingestCount, lastIngestAge, bots: [{id, sampleCount, newestAge, oldestAge}] }
+  // `lastIngestAge` ~66ms ⇒ stream flowing @15Hz; >>1s ⇒ stalled. `newestAge` per
+  // bot is the age of the freshest sample — if a bot's newestAge is ~10s while
+  // others are ~100ms, that bot's samples stopped advancing (the desync suspect).
+  function diagnose(nowMs) {
+    const out = [];
+    for (const [id, b] of bots) {
+      const s = b.samples;
+      const newest = s.length ? s[s.length - 1] : null;
+      const oldest = s.length ? s[0] : null;
+      out.push({
+        id,
+        sampleCount: s.length,
+        newestAge: newest ? Math.round(nowMs - newest.t) : null,
+        oldestAge: oldest ? Math.round(nowMs - oldest.t) : null,
+      });
+    }
+    return {
+      ingestCount: _ingestCount,
+      lastIngestAge: _lastIngestAt ? Math.round(nowMs - _lastIngestAt) : null,
+      bots: out,
+    };
+  }
+
+  return { ingest, sample, forceSnap, applyHit, applyKill, remove, clear, has, diagnose, _bots: bots };
 }
 
 // Shortest-arc angle lerp.

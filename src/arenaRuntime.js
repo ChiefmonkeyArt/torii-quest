@@ -14,9 +14,10 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera, composer, bloomPass, sun } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
+import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
@@ -24,18 +25,20 @@ import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-fo
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop } from './loop.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill } from './bots.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss } from './weapons.js';
+import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
+import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
+import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, addKill, drawMinimap, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -45,10 +48,11 @@ import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { computeMoveVelocity } from './engine/multiplayer/moveVelocity.js';
 import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
-import { getStoredToken, clearStoredToken } from './engine/multiplayer/sessionAuth.js';
+import { getStoredToken, clearStoredToken, resolveMpHttpBase } from './engine/multiplayer/sessionAuth.js';
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
-import { RELAYS, fanoutReq } from './nostr.js';
+import { fanoutReq } from './nostr.js';
+import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
 import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
@@ -58,17 +62,27 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActivation.js';
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
+import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
+import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash } from './audio.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
+import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
+import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
 import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
+import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering } from './engine/kami/kamiMode.js';
+import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
+import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
+import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
+import { fetchCapability, isAdminOperator } from './engine/update/adminUpdateClient.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
 import { initFlyCamera, tickFly, enableFly, isFlyEnabled } from './engine/debug/flyCamera.js';
+import { initStickerSelfView, tickStickerSelfView, exitStickerSelfView, isStickerPlacementActive } from './stickerSelfView.js';
 import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
@@ -148,10 +162,20 @@ function _loadGunTemplate() {
   return _gunPromise;
 }
 
+// _peerMeshUrl(character) → the mesh URL for a peer's `character` field: a known
+// key ('chiefmonkey'/'nostrich') → the built-in GLB; a 64-hex Character Forge mesh
+// hash → its Blossom URL. Returns null when neither matches (caller falls back).
+function _peerMeshUrl(character) {
+  if (!character) return null;
+  if (MP_PEER_CHARACTERS[character]) return assetUrl(MP_PEER_CHARACTERS[character].file);
+  return blossomMeshUrl(character); // 64-hex sha256 → Blossom URL; else null
+}
+
 function _loadPeerTemplate(character) {
   character = character || 'chiefmonkey';
   if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
   const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const meshUrl = _peerMeshUrl(character) || assetUrl(cfg.file);
   const entry = { scene: null, clips: [], gMinY: 0, axisFix: null, promise: null };
   _mpTemplateCache.set(character, entry);
   entry.promise = (async () => {
@@ -160,7 +184,7 @@ function _loadPeerTemplate(character) {
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
     try {
-      const gltf = await loader.loadAsync(assetUrl(cfg.file));
+      const gltf = await loader.loadAsync(meshUrl);
       entry.scene = gltf.scene;
       // Strip scale tracks from character clips.
       const availableClips = new Map((gltf.animations || []).map(clip => {
@@ -482,7 +506,7 @@ export function createArenaRuntime(hooks = {}) {
   const onBootPct = typeof hooks.onBootPct === 'function' ? hooks.onBootPct : () => {};
   const getGatewayScreenState = typeof hooks.getGatewayScreenState === 'function'
     ? hooks.getGatewayScreenState
-    : () => ({ worlds: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
+    : () => ({ friends: [], following: [], games: [], scanStatus: 'idle', canTravel: false, onTravel: () => {} });
   // Phase 0c: the persistent Torii menu hooks (KeyM in-game). The shell owns the
   // menu DOM + getState; arenaRuntime just calls these (it must NOT create its own
   // menu DOM). openToriiMenu({ onClose }) opens the shared menu element; the
@@ -491,6 +515,13 @@ export function createArenaRuntime(hooks = {}) {
   const openToriiMenuHook = typeof hooks.openToriiMenu === 'function' ? hooks.openToriiMenu : null;
   const closeToriiMenuHook = typeof hooks.closeToriiMenu === 'function' ? hooks.closeToriiMenu : () => {};
   const isToriiMenuOpenHook = typeof hooks.isToriiMenuOpen === 'function' ? hooks.isToriiMenuOpen : () => false;
+  // ADR-0088: the self-view sticker placement confirm hook. The runtime passes a
+  // confirmed placement ({hash,zoneId,u,v,rot}) to the shell, which folds it into
+  // the character manifest + republish. No-op default keeps a shell-without-hooks
+  // working (the placement is simply discarded).
+  const confirmStickerPlacementHook = typeof hooks.confirmStickerPlacement === 'function'
+    ? hooks.confirmStickerPlacement
+    : () => {};
 
   let _booted = false;
 
@@ -561,8 +592,11 @@ export function createArenaRuntime(hooks = {}) {
     bloomPass,
     window,
     onTierChange: (def) => {
+      // v0.2.612: resize the sun's shadow map only — NEVER toggle
+      // renderer.shadowMap.enabled at runtime (that invalidates every material
+      // program → full shader recompile → frame stall; flapping tiers made the
+      // game feel jittery). Shadows stay enabled all session.
       const size = def.shadowMapSize;
-      renderer.shadowMap.enabled = size > 0;
       if (size <= 0) return;
       sun.shadow.mapSize.set(size, size);
       if (sun.shadow.map) {
@@ -576,6 +610,16 @@ export function createArenaRuntime(hooks = {}) {
     window,
     getMetrics: () => _quality.metrics(),
     getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
+  });
+
+  // ADR-0056: live amber "RECORDING" HUD indicator for the ADR-0055 auto-capture
+  // ring. Owner-gated (not debug-gated) so the owner sees the 1Hz ring is live while
+  // they play. Pure CSS glow animation; rAF only throttles text/state. Zero cost + no
+  // DOM when not recording (non-owner, title screen, or capability unresolved).
+  const _recIndicator = createRecIndicator({
+    window,
+    getReport: () => _autoCap.report(),
+    isActive: () => _autoCapOwnerChecked && _autoCapIsOwner && isPlaying(),
   });
 
   // v0.2.380-alpha: live in-arena leaderboard overlay (toggle: L / Tab).
@@ -597,7 +641,7 @@ export function createArenaRuntime(hooks = {}) {
     fetchGlobal: async () => {
       try {
         const filter = buildScoreFilter({ limit: 50 });
-        const { events, used } = await fanoutReq(RELAYS, filter, { timeoutMs: 4000, graceMs: 300 });
+        const { events, used } = await fanoutReq(readEffectiveNodeRelays(), filter, { timeoutMs: 4000, graceMs: 300 });
         const report = readLeaderboardEvents({ events });
         return { ok: used.length > 0 || report.rows.length > 0, rows: report.rows, count: report.count };
       } catch {
@@ -633,6 +677,21 @@ export function createArenaRuntime(hooks = {}) {
     promptText: portalPromptLabel({ slug: 'plebeian-market-bazaar' }),
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
   });
+  // ADR-0036: the in-world PRODUCT sign (product-stall-panel, standing between
+  // the mirror and the torii gate) gets its first-ever interaction. Walking
+  // into range shows a prompt; pressing Q opens the auction-panel + the three
+  // ADR-0035 boards together. Unrelated to Kami Mode and to the gateway portal
+  // above — this trigger only opens; a close control on each panel closes them.
+  const _productPanelSpec = getProofSurfaceSpec('product-stall-panel');
+  const _productPanelPos = _productPanelSpec
+    ? { x: _productPanelSpec.position.x, y: _productPanelSpec.position.y + sampleNapHeight(_productPanelSpec.position.x, _productPanelSpec.position.z), z: _productPanelSpec.position.z }
+    : null;
+  const _productPanelTrigger = createProductPanelTrigger({
+    panelPos: _productPanelPos,
+    range: 3,
+    onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
+    onOpen: () => { setMarketActive(true); setBoardsActive(true); },
+  });
   // Stable portal geometry reused each frame to drive the approach glow without
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
   const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
@@ -645,7 +704,9 @@ export function createArenaRuntime(hooks = {}) {
     document.exitPointerLock?.();
     const gw = getGatewayScreenState();
     openGatewayScreen({
-      worlds: gw.worlds,
+      friends: gw.friends,
+      following: gw.following,
+      games: gw.games,
       scanStatus: gw.scanStatus,
       canTravel: gw.canTravel,
       onTravel: (w) => gw.onTravel(w),
@@ -687,9 +748,34 @@ export function createArenaRuntime(hooks = {}) {
   }
 
   // ── Game loop state ──────────────────────────────────────────────────────────
-  let _minimapTick = 0;
   let _firstFrameMarked = false;
   let _firstFrameEnded = false;
+  // ADR-0055: 1Hz auto-capture diagnostic ring. Pure state machine; the async
+  // seal+POST is driven from update() via _driveAutoCapture. Owner-only +
+  // playing-only + inflight backpressure are all enforced inside the machine.
+  // The owner check is async (fetchCapability) so it's resolved once + cached;
+  // until it resolves, isOwner is false (no capture) — never 403s a non-admin.
+  const _autoCap = createAutoCapture();
+  let _autoCapOwnerChecked = false;
+  let _autoCapOwnerPromise = null;
+  let _autoCapIsOwner = false;
+
+  // Resolve the admin capability ONCE per arena boot (not per tick — it's a
+  // network fetch). Memoised by the pubkey present at first call.
+  function _ensureAutoCapOwner() {
+    if (_autoCapOwnerChecked || _autoCapOwnerPromise) return;
+    const owner = (state.nostrPubkey || '').toLowerCase();
+    if (!owner) return; // login not resolved yet — re-check next tick
+    _autoCapOwnerPromise = (async () => {
+      try {
+        const base = resolveMpHttpBase();
+        if (!base) { _autoCapOwnerChecked = true; return; }
+        const cap = await fetchCapability({ httpBase: base });
+        _autoCapIsOwner = !!isAdminOperator(owner, cap && cap.adminPubkey);
+      } catch { _autoCapIsOwner = false; }
+      _autoCapOwnerChecked = true;
+    })();
+  }
   // Sticky shoot-anim window: EV.SHOOT pushes this timestamp forward; the
   // shooting flag stays up for SHOOT_ANIM_WINDOW_MS after the last shot so
   // RUN_SHOOT actually reads (a single-frame flag was preempted by run/walk
@@ -709,6 +795,7 @@ export function createArenaRuntime(hooks = {}) {
     // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
+    tickStickerSelfView(); // self-view sticker placement: no-op unless active
     tickDeath(dt, renderer);
 
     // ── Arena-only ticks (skipped in minimal world mode) ─────────────────────
@@ -773,8 +860,14 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal) {
       tickNapNpc(dt);
       tickStickerNpc(dt);
-      setNapMode(isNapLand(playerObj.position.x, playerObj.position.z));
+      const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
+      setNapMode(_inNapNow);
+      // ADR-0036: the market auction-panel + ADR-0035 boards no longer
+      // auto-show on NAP-zone entry and have no relationship to Kami Mode.
+      // They open ONLY via the in-world PRODUCT sign's proximity+Q trigger,
+      // and close only via an explicit close control on each panel.
       if (isPlaying()) {
+        _productPanelTrigger.tick(playerObj.position);
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).
         const ap = portalApproachState({
@@ -783,6 +876,7 @@ export function createArenaRuntime(hooks = {}) {
         setPortalApproach(ap.intensity);
       } else {
         _portalTrigger.reset();
+        _productPanelTrigger.reset();
       }
       tickMirror(dt);
       tickFoliage(dt);
@@ -795,9 +889,6 @@ export function createArenaRuntime(hooks = {}) {
     tickHUD(dt);
     tickAtmosphere(dt);
     if (_muzzleFlashes) _muzzleFlashes.tick(dt);
-    if (!_minimal) {
-      if (++_minimapTick >= 4) { _minimapTick = 0; drawMinimap(playerObj.position, bots); }
-    }
     // v0.2.264 (R2): the title-screen n2n handshake + presence polling moved to the
     // shell's own rAF ticker (main.js) — it must keep running before the arena (and
     // thus this loop) is ever booted. The game loop no longer polls them.
@@ -856,8 +947,13 @@ export function createArenaRuntime(hooks = {}) {
       mark('first-frame');
       startPhase('first-render');
     }
+    // ADR-0055: 1Hz auto-capture. Driven BEFORE renderFrame so the queued frame
+    // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).
+    // Fire-and-forget — the seal+POST never blocks the loop. The state machine's
+    // inflight guard skips a tick if the previous upload is still resolving.
+    _driveAutoCapture(Date.now());
     try {
-      renderFrame(isLive());
+      renderFrame(isLive() && !isStickerPlacementActive()); // hide the gun viewmodel while placing a sticker
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
     }
@@ -867,6 +963,75 @@ export function createArenaRuntime(hooks = {}) {
     }
     _quality.sampleRenderInfo();
     _perfHud.update(performance.now());
+    // Wall-clock (Date.now) — the autocap report stores wall-clock timestamps, so
+    // the age math + recentOk window stays correct (not performance.now()).
+    _recIndicator.update(Date.now());
+  }
+
+  // ADR-0055: grab a frame + snapshot at 1Hz, seal to the owner+Kami pubkey,
+  // and POST to the autocap ring. Owner-only (real admin capability check, not
+  // just "has a pubkey") + playing-only; the frame grab is zero-cost when the
+  // render queue is empty (no preserveDrawingBuffer tax).
+  function _driveAutoCapture(nowMs) {
+    _ensureAutoCapOwner();
+    const ctx = {
+      isOwner: _autoCapIsOwner, // false until the async capability check resolves
+      isPlaying: isPlaying(),
+      takeSnapshot: () => {
+        try { return (typeof window !== 'undefined' && window.ToriiDebug && typeof window.ToriiDebug.snapshot === 'function') ? window.ToriiDebug.snapshot() : null; }
+        catch { return null; }
+      },
+    };
+    const req = _autoCap.tick(nowMs, ctx);
+    if (!req) return;
+    // Grab the canvas frame inside the render tick (same-tick buffer valid).
+    requestFrameGrab(async (url) => {
+      try {
+        const ownerPub = state.nostrPubkey || '';
+        if (!/^[0-9a-f]{64}$/.test(ownerPub)) { _autoCap.markFailed(req.frameId, 'no-pubkey', Date.now()); return; }
+        const recipients = [ownerPub, KAMI_PUBKEY];
+        // Split seal: small snapshot JSON + large JPEG bytes (same as manual ema).
+        const ema = await sealJson(req.snapshot, recipients);
+        let shot = null;
+        if (url) {
+          const raw = _dataUrlToBytes(url);
+          if (raw) {
+            const env = await sealTo(raw, recipients);
+            shot = { env, bytes: raw.length };
+          }
+        }
+        const base = resolveMpHttpBase();
+        const token = getStoredToken();
+        // Same base as the manual ema route: "/kami/..." not "/mp/kami/..." —
+        // resolveMpHttpBase() already returns the /mp base.
+        const res = await fetch(`${base}/kami/autocap`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+          body: JSON.stringify({ v: 1, batch: [{ id: req.frameId, ema, shot }] }),
+        });
+        if (res.ok) _autoCap.markUploaded(req.frameId, Date.now());
+        else _autoCap.markFailed(req.frameId, `HTTP ${res.status}`, Date.now());
+      } catch (err) {
+        _autoCap.markFailed(req.frameId, String((err && err.message) || err), Date.now());
+      }
+    }, { type: 'image/jpeg', quality: 0.6 });
+  }
+
+  // ADR-0055: decode a data: URL's base64 payload into raw bytes for sealing.
+  // Mirrors kamiMode.js's private dataUrlToBytes — kept local so the auto-capture
+  // path never touches the manual ema module's private state.
+  function _dataUrlToBytes(dataUrl) {
+    if (typeof dataUrl !== 'string' || !dataUrl) return null;
+    const m = /^data:[^;]*;base64,(.*)$/s.exec(dataUrl);
+    const b64 = m ? m[1] : dataUrl;
+    try {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    } catch {
+      return new TextEncoder().encode(dataUrl);
+    }
   }
 
   // boot() — one-time synchronous three scene/loop bootstrap + handler wiring.
@@ -1122,7 +1287,38 @@ export function createArenaRuntime(hooks = {}) {
           // the collider where the shooter SAW the target, not where it now is.
           const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
           const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
-          if (shot) _mp.sendShot(shot);
+          if (shot) {
+            // ADR-0046 v0.2.667: capture the ACTUAL payload + full muzzle/aim vectors,
+            // independent of _lastShot (which only exists when aimOrigin/aimDir are
+            // present) so this is NEVER stale in the usedAimRay=false failure case.
+            // This is the source of truth for proving camera-vs-muzzle on a miss.
+            const sentDiag = {
+              ts: shot.ts, viewLag,
+              usedAimRay: !!(aimOrigin && aimDir),
+              sentOrigin: shot.origin, sentDir: shot.dir,
+              muzzleOrigin: [origin.x, origin.y, origin.z],
+              muzzleDir: [dir.x, dir.y, dir.z],
+              aimOrigin: aimOrigin ? [aimOrigin.x, aimOrigin.y, aimOrigin.z] : null,
+              aimDir: aimDir ? [aimDir.x, aimDir.y, aimDir.z] : null,
+              // ADR-0047 v0.2.668: the client's RENDERED bot positions at shot
+              // time, so a miss ema can be diffed against the server SHOT-RESOLVE
+              // cur=/rew= to expose the client/server bot-position desync.
+              bots: snapshotBotPositions(bots),
+              // ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic,
+              // so a miss ema proves whether the client is RECEIVING BOT_STATE
+              // (lastIngestAge ~66ms) or the stream stalled (>>1s) — the cause of
+              // the ~12m desync.
+              botNet: getBotNetDiagnostic(),
+              // ADR-0049 v0.2.671: WebSocket lifecycle + main-thread heartbeat,
+              // so a miss ema splits the BOT_STATE stall into "socket dropped"
+              // (ws.lastCloseAge small) vs "main thread froze" (heartbeat.maxGap
+              // large) — the WHY behind ADR-0048's stream stall.
+              conn: getConnectionDiagnostic(),
+            };
+            setLastSentShot(sentDiag);
+            setLastShotSent(sentDiag);
+            _mp.sendShot(shot);
+          }
         }
       });
       on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
@@ -1138,6 +1334,10 @@ export function createArenaRuntime(hooks = {}) {
       hitBot(bot, dmg);
       if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
       flashCross();
+      // ADR-0041: visible hit feedback. flashHit scales dmg/50, so feed a
+      // clearly-visible value — body shots at ~0.55 opacity, headshots at 0.8 —
+      // so the owner sees every confirmed hit instead of a 0.12s crosshair blip.
+      flashHit(dmg >= 9 ? 50 : 25);
     });
     window._onBotHit = (bot, dmg) => emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg });
 
@@ -1156,7 +1356,7 @@ export function createArenaRuntime(hooks = {}) {
       version: VERSION, bots, hitBot, playerObj, resetPlayerPos,
       camera, setPitch,
       castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-      getLastShot, getLastMiss,
+      getLastShot, getLastMiss, getLastSentShot,
       getGrassMat, getFlowerMat, getMirror,
       getPhase: () => state.phase,
       getState: () => ({
@@ -1165,6 +1365,13 @@ export function createArenaRuntime(hooks = {}) {
         reloading: state.reloading, pointerLocked: state.pointerLocked,
       }),
       getCrateSummary, config: TUNING,
+      // ADR-0052: Kami Mode client-state providers for the ema snapshot.
+      isKamiActive: () => kamiActive(),
+      isKamiNoteOpen: () => kamiNoteOpen(),
+      isKamiEntering: () => kamiEntering(),
+      isPointerLocked: () => state.pointerLocked,
+      // ADR-0055: 1Hz auto-capture ring status — points a hung ema at nearby frames.
+      getAutoCaptureReport: () => _autoCap.report(),
       bootTiming: () => getBootTimings(),
       // v0.2.599: MP diagnostic — ToriiDebug.mp() returns live multiplayer state
       getMpState: () => _mp ? {
@@ -1176,6 +1383,22 @@ export function createArenaRuntime(hooks = {}) {
           : [],
         peerCount: _mp.roster ? _mp.roster.size : 0,
       } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
+    });
+
+    // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
+    // the hotkey + mouse tracker unconditionally (inert); the owner check is lazy
+    // (first capture fetches the instance capability). Only the VPS owner ever sees
+    // the emagake rack — non-admins get "OWNER ONLY" and nothing is sealed/sent.
+    installKamiMode({
+      getOwnerPubkey: () => state.nostrPubkey || '',
+      requestPointerLock: () => { try { requestLock(); } catch { /* noop */ } },
+      setGameInputSuppressed,
+      setShootingSuppressed,
+      // ADR-0032: lazy accessor — _mp is assigned after this install() call, so
+      // kamiMode.js must read it at call time, not capture it now. No-op
+      // (undefined _mp) is fine: single-player has nothing that damages the
+      // local player anyway, so there is nothing to tell a server about.
+      sendKamiState: (active) => { try { _mp?.sendKamiState?.(active); } catch { /* noop */ } },
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync
@@ -1197,6 +1420,14 @@ export function createArenaRuntime(hooks = {}) {
           if (st) st.textContent = on ? 'ON' : 'OFF';
         }
       },
+    });
+
+    // Self-view sticker placement (ADR-0088) — the in-world input binding that
+    // orbits the shared camera around the player's own character and confirms a
+    // raycast placement into the shell's republish seam.
+    initStickerSelfView({
+      camera, scene, playerObj,
+      onConfirm: confirmStickerPlacementHook,
     });
 
     // Crosshair — show when pointer locked, hide when not.
@@ -1227,6 +1458,35 @@ export function createArenaRuntime(hooks = {}) {
     let _escapeHandledOnKeyDown = false;
     document.addEventListener('keydown', e => {
       if (e.code !== 'Escape' || e.repeat) return;
+      // ADR-0027 Kami Mode: if the ema note input is open, let the textarea's own
+      // Escape handler discard the note — don't open the pause menu here. This
+      // capture-phase listener fires BEFORE the textarea's keydown, so without
+      // this guard Escape is stolen (stopImmediatePropagation below) and the
+      // modal can never close. Mark Escape as handled so the pointer-lock keyup
+      // fallback below doesn't open pause either.
+      if (kamiNoteOpen()) { _escapeHandledOnKeyDown = true; return; }
+      // ADR-0029: if the admin is in Kami Mode (rack visible, no note open), Esc
+      // EXITS Kami Mode (back to normal play) instead of opening the pause menu.
+      // Also covers the async first-enter: if Esc lands while the owner-check is
+      // still in flight, kamiBusy() is true → Esc cancels the pending enter rather
+      // than opening pause. The note-open case above is handled first (Esc
+      // discards the note → KAMI).
+      if (kamiBusy()) {
+        _escapeHandledOnKeyDown = true;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        kamiExit();
+        return;
+      }
+      // ADR-0088: Esc while in self-view sticker placement CANCELS the placement
+      // (restore the camera + player) instead of opening pause.
+      if (isStickerPlacementActive()) {
+        _escapeHandledOnKeyDown = true;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        exitStickerSelfView();
+        return;
+      }
       _escapeHandledOnKeyDown = true;
       // Phase 0c: ESC closes the Torii menu first (before the gateway screen +
       // pause), mirroring the gateway-screen-first ordering below.
@@ -1288,6 +1548,16 @@ export function createArenaRuntime(hooks = {}) {
       flyToggleFromInput();
     });
 
+    // KeyQ (ADR-0036 / ADR-0063) — in range of the in-world PRODUCT sign: TOGGLE
+    // the auction-panel + the three ADR-0035 boards. First press opens them,
+    // second press closes them all (regardless of range, as long as a panel is
+    // still open). A no-op when nothing is open and the player is out of range.
+    onKeyDown(code => {
+      if (code !== 'KeyQ' || !isPlaying()) return;
+      if (isMarketActive()) { setMarketActive(false); setBoardsActive(false); return; }
+      _productPanelTrigger.interact();
+    });
+
     // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR
     // paused, independent of the portal (unlike KeyF). Pressing M again while the
     // menu is open closes it (toggle). Pause on open + exitPointerLock; resume on
@@ -1301,7 +1571,20 @@ export function createArenaRuntime(hooks = {}) {
 
     const elResumeBtn = document.getElementById('btn-resume');
     const elHomeBtn   = document.getElementById('btn-home');
+    const elKamiBtn   = document.getElementById('btn-kami');
     elResumeBtn?.addEventListener('click', _resume);
+    // ADR-0036: each panel opened by the PRODUCT sign trigger closes
+    // independently. The auction-panel's own close turns off setMarketActive
+    // (single panel, no siblings); each owner-board's close hides only that
+    // board's DOM — the sibling boards' live data keeps flowing.
+    document.getElementById('auction-panel-close')?.addEventListener('click', () => { setMarketActive(false); });
+    for (const btn of document.querySelectorAll('[data-board-close]')) {
+      btn.addEventListener('click', () => { hideOwnerBoard(btn.getAttribute('data-board-close')); });
+    }
+    // ADR-0025: pause-modal ema button. Opens the note box against whatever UI
+    // control is under the cursor (the pause buttons themselves, when paused).
+    // The owner-gate is checked inside kamiCapture; non-owners see "OWNER ONLY".
+    elKamiBtn?.addEventListener('click', () => { try { kamiCapture(); } catch { /* noop */ } });
     elHomeBtn?.addEventListener('click', () => {
       transition(GAME_EVENT.HOME);
       document.exitPointerLock?.();
@@ -1362,6 +1645,11 @@ export function createArenaRuntime(hooks = {}) {
         if (name === 'mp_state') {
           if (p.state === WS_STATE.CONNECTED) {
             setBotNetMode(true);
+            // ADR-0032: a fresh/reconnected server session has no memory of a
+            // Kami Mode that was already active client-side (e.g. brief drop
+            // + reconnect mid-session) — resync so bots/peers don't suddenly
+            // start targeting the owner again after a reconnect.
+            if (kamiActive()) { try { _mp?.sendKamiState?.(true); } catch { /* noop */ } }
             // v0.2.529: Defer peer prewarm until after first visible frame — the
             // warm pool builds a full avatar (skeletonClone + traverse + mixer +
             // gun attach) per character, which is several seconds of main-thread
@@ -1388,7 +1676,9 @@ export function createArenaRuntime(hooks = {}) {
           return;
         }
         if (name === 'mp_botHit') {
-          applyBotHit(p.botId, p.hp);
+          // ADR-0017: pass zone through so [SHOT] diagnostics show head/body
+          // instead of 'unknown'. Zone is server-authoritative.
+          applyBotHit(p.botId, p.hp, p.zone);
           if (_mp && p.shooterId === _mp.selfId) {
             for (let i = 0; i < bots.length; i++) {
               if (bots[i].state?.id === p.botId) {
@@ -1443,7 +1733,9 @@ export function createArenaRuntime(hooks = {}) {
         // The client signer is browser-only (window.nostr); only the signed event
         // is carried on the wire. Reached only when no session token is present.
         // getCharacter provides the active character key for AUTH/AUTH_TOKEN.
-        getCharacter: () => getCharacter(),
+        // Broadcast the player's own mesh hash (Character Forge) when set, else
+        // the selected character key. Peers resolve the hash to a Blossom URL.
+        getCharacter: () => getCustomMeshHash() || getCharacter(),
         signAuth: async ({ challenge }) => {
           if (!globalThis.nostr || typeof globalThis.nostr.signEvent !== 'function') {
             throw new Error('multiplayer: NIP-07 signer unavailable');
@@ -1719,5 +2011,5 @@ export function createArenaRuntime(hooks = {}) {
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
   }
 
-  return { boot, bootstrapPhysics, enter, setCharacter, setSpawnOverride, stopMultiplayer };
+  return { boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl, setCustomMeshHash, setSpawnOverride, stopMultiplayer };
 }

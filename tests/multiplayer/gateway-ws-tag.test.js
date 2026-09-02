@@ -86,7 +86,7 @@ describe('readGateways — MP-1 ws endpoint surfacing', () => {
       content: JSON.stringify({ zoneId: 'z-3', title: 'x', wsEndpoint: 'wss://spoof.tld/mp' }),
       id: 'd'.repeat(64), sig: 'e'.repeat(128),
     };
-    const { gateways } = readGateways({ events: [evt] });
+    const { gateways } = readGateways({ events: [evt] }, { nowSec: 1_000_500 });
     expect(gateways).toHaveLength(1);
     expect(gateways[0].wsEndpoint).toBe('wss://real.tld/mp');
   });

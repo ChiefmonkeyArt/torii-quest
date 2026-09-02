@@ -13,10 +13,13 @@ import { BOT_HEAD_CENTRE_Y_OFFSET, BOT_HEAD_RADIUS } from '../physics/bodies.js'
 // truth in bodies.js). The sphere spans [HEAD_BOTTOM, HEAD_TOP] above the bot
 // foot; HEAD_BOTTOM is retained purely as a debug/inspection reference.
 export const HEAD_BOTTOM   = BOT_HEAD_CENTRE_Y_OFFSET - BOT_HEAD_RADIUS; // 1.35 (v0.2.128)
-// Proximity backstop: impacts within (head radius + 5cm) of the head centre
+// Proximity backstop: impacts within (head radius + 10cm) of the head centre
 // count as headshots even if the ray resolved the body collider on an
 // overlap frame. Squared to avoid a sqrt in the hot path.
-export const HEAD_PROX     = BOT_HEAD_RADIUS + 0.05;
+// v0.2.608: widened margin 0.05 → 0.10 — the overlap band between body capsule
+// and head sphere (y 1.20–1.60) was too tight; shots clipping the head edge
+// resolved as body hits. The wider margin catches those.
+export const HEAD_PROX     = BOT_HEAD_RADIUS + 0.10;
 export const HEAD_PROX_SQ  = HEAD_PROX * HEAD_PROX;
 
 // Rule (predictable, two-tier — the loose height fallback from v0.2.112 was

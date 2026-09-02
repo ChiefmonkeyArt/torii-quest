@@ -172,17 +172,20 @@ export async function fetchOnlineWorlds(opts = {}) {
   out.used = Array.isArray(raw.used) ? raw.used : [];
   out.failed = Array.isArray(raw.failed) ? raw.failed : [];
 
-  const report = readGateways(events);
+  // ADR-0053: pass the caller's clock through so liveness filtering is testable
+  // (defaults to Date.now() inside readGateways when nowSec is absent).
+  const report = readGateways(events, { nowSec: o.nowSec });
   if (!report.ok) {
     out.errors.push(...(report.errors || []));
     return out;
   }
   // Drop our own world from the list (the host should not list itself as a
-  // travel destination). Match by pubkey when the caller supplies ours.
+  // travel destination). ADR-0094: match on the resolved OWNER (admin) first — a
+  // server-beacon event is signed by the beacon key, not the admin.
   const ourPubkey = typeof o.ourPubkey === 'string' ? o.ourPubkey.trim() : '';
   let worlds = report.gateways || [];
   if (_isHex64(ourPubkey)) {
-    worlds = worlds.filter((w) => (w.pubkey || '') !== ourPubkey);
+    worlds = worlds.filter((w) => (w.owner || w.pubkey || '') !== ourPubkey);
   }
   out.worlds = worlds;
   out.count = worlds.length;

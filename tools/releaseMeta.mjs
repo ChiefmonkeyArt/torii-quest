@@ -34,9 +34,10 @@ export const UPDATE_CHANNELS = Object.freeze({
 // documentation only, nothing here fetches. (RELEASE_SOURCE in
 // src/engine/update/updateCheck.js was corrected to the same real repo in v0.2.193 —
 // it is documentation-only too, performs no I/O.)
+// v0.2.604: repo corrected torii-gate → torii-quest (the actual remote).
 export const DEFAULT_SOURCE = Object.freeze({
   owner: 'ChiefmonkeyArt',
-  repo: 'torii-gate',
+  repo: 'torii-quest',
 });
 
 // What a published build is expected to contain. A VPS checker can assert these before flipping

@@ -32,7 +32,7 @@ export const GATEWAY_TOPIC = 'torii-gateway';
 
 // The destination-record fields this module surfaces into the travel-preview model.
 export const GATEWAY_FIELDS = Object.freeze([
-  'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'website',
+  'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'owner', 'website',
   'banner', 'relays', 'topics', 'wsEndpoint', 'created_at', 'trust',
 ]);
 
@@ -185,6 +185,12 @@ export function extractGatewayFromEvent(event) {
   const npubRaw = typeof content.npub === 'string' ? content.npub : _tagValue(tags, 'npub');
   const npub = looksLikeNpub(npubRaw) ? npubRaw : null;
   const pubkey = _isHex64(event.pubkey) ? event.pubkey : null;
+  // ADR-0094: the server beacon signs presence with an instance-bound key and
+  // stamps the admin's hex pubkey in a canonical ["p", <hex64>] tag. Resolve the
+  // OWNER from that tag when present so Friends/Follows attribution is the admin,
+  // not the beacon key; fall back to the signer pubkey (legacy client-signed
+  // events carry pubkey = admin, no p-tag).
+  const owner = _tagValues(tags, 'p').find((v) => _isHex64(v))?.toLowerCase() || pubkey;
 
   const relays = _safeRelays(
     Array.isArray(content.relays) ? content.relays : _tagValues(tags, 'relay'),
@@ -200,6 +206,7 @@ export function extractGatewayFromEvent(event) {
     zoneType: _safeZoneType(content.zoneType != null ? content.zoneType : _tagValue(tags, 'zoneType')),
     npub,
     pubkey,
+    owner,
     shortPubkey: pubkey ? shortPubkey(pubkey) : '',
     website: safeProfileUrl(content.website),
     banner: safeProfileUrl(content.banner != null ? content.banner : content.picture),
@@ -250,6 +257,29 @@ function _toEventArray(input) {
   return null;
 }
 
+// _presenceLive(event, nowSec) → true when a kind-30078 event is a LIVE world
+// presence record (not a travel handshake, not expired). Presence records carry a
+// zoneType tag and NO `state` tag; travel request/response records carry a `state`
+// tag ('request'/'accepted'/'denied'). NIP-40: an `expiration` tag in the past
+// means the record is stale. Records with NO expiration tag (pre-NIP-40) fall back
+// to a grace window so ancient records don't linger forever.
+const PRESENCE_GRACE_SEC = 3600; // 1 hour fallback for records without expiration
+function _presenceLive(event, nowSec) {
+  if (!event || !Array.isArray(event.tags)) return false;
+  let expiration = null;
+  for (const t of event.tags) {
+    if (!Array.isArray(t)) continue;
+    if (t[0] === 'state') return false; // travel handshake, not presence
+    if (t[0] === 'expiration') {
+      const n = Number(t[1]);
+      if (Number.isFinite(n)) expiration = n;
+    }
+  }
+  const created = Number.isFinite(event.created_at) ? event.created_at : 0;
+  if (expiration !== null) return expiration >= nowSec;
+  return created >= nowSec - PRESENCE_GRACE_SEC;
+}
+
 // readGateways(input, options) → a read-only gateway destination report:
 //
 //   {
@@ -275,6 +305,7 @@ function _toEventArray(input) {
 // — an unusable top-level shape degrades to ok:false with an empty destination list.
 export function readGateways(input, options = {}) {
   const filter = buildGatewayFilter(options);
+  const nowSec = Number.isFinite(options.nowSec) ? options.nowSec : Math.floor(Date.now() / 1000);
   const result = {
     ok: true,
     filter,
@@ -282,6 +313,7 @@ export function readGateways(input, options = {}) {
     gateways: [],
     skipped: [],
     duplicates: 0,
+    stale: 0,
     navigated: false,
     signed: false,
     published: false,
@@ -312,6 +344,12 @@ export function readGateways(input, options = {}) {
     const ex = extractGatewayFromEvent(event);
     if (!ex.ok) {
       result.skipped.push({ event, errors: ex.errors });
+      continue;
+    }
+    // ADR-0053: drop travel handshake records + expired/stale presence so the
+    // directory only ever lists LIVE worlds.
+    if (!_presenceLive(event, nowSec)) {
+      result.stale += 1;
       continue;
     }
     extracted.push(ex.gateway);

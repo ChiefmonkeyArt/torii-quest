@@ -129,6 +129,7 @@ export function createWsClient(opts) {
       return;
     }
     setState(WS_STATE.CONNECTING);
+    emit('socket_connect', {});
     try {
       api.ws = new WebSocketCtor(url);
     } catch (err) {
@@ -137,11 +138,12 @@ export function createWsClient(opts) {
       _scheduleReconnect();
       return;
     }
-    api.ws.onopen    = () => { /* wait for HELLO */ };
+    api.ws.onopen    = () => { emit('socket_open', {}); /* wait for HELLO */ };
     api.ws.onmessage = (ev) => _handleMessage(ev && ev.data);
     api.ws.onerror   = (err) => { api.lastError = err; };
     api.ws.onclose   = (ev) => {
       const wasConnected = api.state === WS_STATE.CONNECTED || api.state === WS_STATE.AUTHENTICATING;
+      emit('socket_close', { code: ev && ev.code, reason: ev && ev.reason });
       _stopKeepalive();
       setState(WS_STATE.CLOSED, { code: ev && ev.code, reason: ev && ev.reason });
       api.ws = null;

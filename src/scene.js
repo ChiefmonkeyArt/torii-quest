@@ -86,10 +86,50 @@ function initBloomComposer() {
   }
 }
 
+// ADR-0025 (Kami Mode) — one-shot frame capture.
+//
+// WHY IT IS SHAPED THIS WAY. The renderer is constructed WITHOUT
+// `preserveDrawingBuffer`, so the drawing buffer is cleared after compositing
+// and a `toDataURL()` at an arbitrary moment returns a blank image. The obvious
+// fix — turning `preserveDrawingBuffer` on — makes every player pay a copy on
+// every frame forever, to serve a maintainer-only feature. So instead: callers
+// queue a request, and the grab happens INSIDE the render function, in the same
+// tick as the draw, while the buffer is still valid. Zero cost when the queue is
+// empty, which is always unless an ema is being hung.
+const _grabQueue = [];
+
+/**
+ * Ask for a PNG/JPEG data URL of the next rendered frame.
+ * @param {(dataUrl: string|null) => void} cb  receives null if the grab failed
+ * @param {{ type?: string, quality?: number }} [opts]
+ */
+export function requestFrameGrab(cb, opts = {}) {
+  if (typeof cb !== 'function') return;
+  _grabQueue.push({ cb, type: opts.type || 'image/jpeg', quality: opts.quality ?? 0.72 });
+}
+
+function _drainFrameGrabs() {
+  if (_grabQueue.length === 0) return;
+  const pending = _grabQueue.splice(0, _grabQueue.length);
+  for (const req of pending) {
+    let url = null;
+    try {
+      url = renderer.domElement.toDataURL(req.type, req.quality);
+    } catch (err) {
+      // Tainted canvas or a lost context: report the failure rather than
+      // letting the caller hang waiting for a callback that never fires.
+      console.warn('[kami] frame grab failed', err);
+      url = null;
+    }
+    try { req.cb(url); } catch (err) { console.warn('[kami] frame grab callback threw', err); }
+  }
+}
+
 function renderArenaScene() {
   if (composer && typeof composer.render === 'function') {
     try {
       composer.render();
+      _drainFrameGrabs();
       return;
     } catch (err) {
       console.warn('[render] bloom composer render failed; falling back to direct renderer', err);
@@ -98,6 +138,7 @@ function renderArenaScene() {
     }
   }
   renderer.render(scene, camera);
+  _drainFrameGrabs();
 }
 
 initBloomComposer();

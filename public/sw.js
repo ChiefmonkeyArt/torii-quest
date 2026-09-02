@@ -8,7 +8,7 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.603-alpha';
+const CACHE_VERSION = 'tq-v0.2.739-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
 // Static assets to precache on install — ONLY immutable binary assets whose URL never
@@ -85,6 +85,13 @@ self.addEventListener('fetch', event => {
 
   // Only handle same-origin requests
   if (url.origin !== self.location.origin) return;
+
+  // Only intercept GET — the Cache API rejects POST/PUT/DELETE/etc., so
+  // attempting to cache them throws TypeError: Request method 'POST' is
+  // unsupported. Non-GET requests must pass straight through to the network.
+  // (Kami auto-capture /mp/kami/autocap, session auth /mp/session, admin
+  // update checks, etc. are all same-origin POSTs that hit this handler.)
+  if (event.request.method !== 'GET') return;
 
   const path = url.pathname;
 

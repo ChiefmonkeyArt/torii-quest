@@ -283,6 +283,13 @@ and *feels right*, circle back for shooter feel, mesh/material polish, and UX.
 - **Torii Asset Forge**: validator-first prompt-to-game-ready asset pipeline (external AI presets + routstr/NIP-60 credits + `torii.asset` validator/converter; not a rigging engine).
 - **Torii Environment Kit**: budgeted lightweight GLB scenery + WebP/JPG skies + illusion-grass building blocks.
 - **Community marketplace**: open Nostr-native listing layer where builders publish components for free or for sats.
+- **Character Forge**: validator-first character-creation pipeline (ADR-0091). Do NOT build an in-house generation model — orchestrate external generators (Meshy/Tripo/Hunyuan3D) via routstr/Cashu and own the interoperability contract: the canonical skeleton + auto-rig assessment, the `torii.character` manifest validator, and the kind-35100 character-event parser. Four slices: (1) presets + stickers only (zero AI, ships the loop); (2) texture/sticker generation; (3) `torii.character` manifest + validator published as a spec; (4) external mesh generation gated by the validator + auto-rig. The "smooth experience" seam — check whether the npub already has a `.glb` attached and seat it without prompting — is the kind-35100 read. UI lives in its own "Character" settings tab. GROUNDWORK LANDED v0.2.718 (`src/engine/character/{skeleton,rigAssessment,characterManifest,characterEvent}.js` + the Character settings tab), LIVE RELAY READ LANDED v0.2.719 (`characterRelayRead.js` + `fetchOwnCharacter()`), CREATE ROUND-TRIP LANDED v0.2.720 (`characterPresets.js` + `publishCharacter()` + `uploadBlossom()`), AUTOMATIC MESH LOADING (player path) LANDED v0.2.721 (`characterMesh.js` + `setCustomMeshUrl()` — the player's own mesh now loads from Blossom at login), PEER-AVATAR MESH LOADING LANDED v0.2.722 (the mesh hash is broadcast through the MP `character` field → resolved to a Blossom URL → loaded as the peer's avatar), STICKER PLACEMENT LANDED v0.2.724 (`stickerPlacement.js` — body-zone registry + bone→zone resolution + immutable manifest ops — plus the Character-tab sticker editor, ADR-0086), and EXTERNAL MESH GENERATION GATE LANDED v0.2.724 (`meshGeneration.js` — swappable backend registry + the `validateGeneratedMesh()` validator gate, ADR-0087), IN-WORLD RAYCAST STICKER PLACEMENT LANDED v0.2.725 (`stickerRaycast.js` + `stickerPlacementMode.js` pure modules + `stickerStudio.js` raycast of the player's own character, ADR-0088), and LIVE GENERATOR CLIENTS + EXECUTOR LANDED v0.2.725 (`meshGenerationClient.js` + `meshGenerationExecutor.js` — injectable fetcher + routstr/Cashu `charge` seam, inert by default, ADR-0089). Remaining: texture/sticker generation via routstr; the host wiring of the vendored API signing + the live routstr/Cashu `charge` behind the mesh-generation gate.
+
+### Future Transports
+
+Radar list of networking substrates we may adopt for world-to-world traffic once Torii has real multi-node workload. Not on the todo — recorded here so the option is visible when a real trigger appears (a second world operator behind NAT, an offline-resilience playtester demand, or a security/censorship-resistance requirement). Any adoption is a **node-layer sidecar** first, with existing HTTPS/WebSocket kept as fallback; the browser client is out of scope for these because a WebGL page cannot own a TUN device or raw sockets.
+
+- **FIPS (Free Internetworking Peering System)** — self-organizing encrypted mesh where node addresses **are** secp256k1/schnorr keypairs, the same primitive as our npubs. Would let a world be reached purely by npub even behind NAT / on a home box / with no public DNS, with E2E encryption, NAT traversal, and multi-transport (UDP/TCP/Tor/Nym/BLE) built in. Alignment is unusually clean: a Torii world node's npub is directly its FIPS address, no mapping layer. Trigger to reassess: a second operator wanting to run a node behind NAT, or an offline-worlds initiative (which also needs a content-addressing layer — e.g. Blossom / NIP-94 — that FIPS does not provide). Both projects are alpha today; adoption path is a weekend two-VPS spike, not a roadmap commitment. Upstream: https://github.com/jmcorgan/fips.
 
 ## Engineering Plan
 
@@ -797,6 +804,25 @@ All three kit pillars carry explicit budgets so a dropped-in environment can't
 silently wreck frame rate — the budgets are part of the manifest/validator
 contract, consistent with the Asset Forge.
 
+### UGC Sticker System (sticker anything)
+
+Stickers are the playful, shareable decal layer: players author an image, publish
+it as a content-addressed asset, pick it from a shared library, fire it from the
+gun, and watch it stick to **any** surface — walls, floors, crates, trees, and
+other characters. See ADR-0090 for the decision record.
+
+- **Author → publish → fire.** A sticker is an image uploaded via the Blossom path
+  (ADR-0091) and published as a `torii.asset`-shaped Nostr event; the sha256 is its
+  identity. The current single `ftff-sticker.png` becomes just the seed entry.
+- **Any surface.** Placement targets all world geometry (static meshes + skinned
+  characters), not a curated subset — decal-baked on statics, bone-parented on
+  skins (the `stickerNpc.js` path).
+- **Shared, not local.** Fired + attached stickers are cosmetic client-broadcasts
+  relayed over the arena WebSocket, so everyone in the room sees a sticker land —
+  NAP-zone-gated and rate-limited (no server authority for cosmetics; ADR-0006).
+- **Parked, not deleted.** The avatar self-decoration UI from ADR-0088
+  (`stickerSelfView.js`) is parked; its pure placement model is reused here.
+
 ## Community, Chat, and Commerce
 
 Torii Quest should support community building, not just combat.
@@ -949,24 +975,34 @@ Use these rules to avoid repeated AI-created bugs:
 - If a system has been used in three places, extract it.
 - If a system is only imagined, document it but do not abstract it yet.
 
+## Napplet Architecture (post-v0.2.717, main, untagged)
+
+The napplet contract now covers three shells with a shared trust boundary:
+
+- **Product shell (ADR-0058, `productNappletHost`).** Existing NAP-zone product/auction surface. In-place.
+- **Game shell (ADR-0082, PR #84).** New `gameNappletSrcdoc.js` / `gameNappletHandlers.js` / `NappletGameHost.js` under `src/engine/napplets/`, plus `GAME_NAMESPACE` on `nappletEnvelope.js`.
+- **Avatar shell (ADR-0083, PR #84).** New `avatarNappletSrcdoc.js` / `avatarNappletHandlers.js`, plus `AVATAR_NAMESPACE`. Handlers gate is enforced in code, not just UI.
+
+Async handler protocol lets handlers return `{ __async, promise }` so relay-mediated actions (signing, fanout) stay shell-owned. Trust boundary is unchanged across all three shells: `sandbox="allow-scripts"` only (opaque origin, no `allow-same-origin`), `MessageEvent.source` validated (never `event.origin`), per-mount channelId nonce stamped on every envelope, CSP `default-src 'none'; connect-src 'none'; img-src 'none'`.
+
+**Wiring-only registrations (ADR-0084, ADR-0085, PR #87).** The existing direct-Three arena and sticker studio now register as napplets via pure factories: `src/engine/napplets/arenaNappletRegistration.js` (dTag `torii-arena`, over `createGameHandlers`) and `src/engine/napplets/stickerStudioNappletRegistration.js` (dTag `sticker-studio`, over `createAvatarHandlers`, declares `requires: ['torii-avatar-write']`). Both use the `NAPPLET_IDENTITY` `@v0-wiring` placeholder that ADR-0094 will replace with real bundle hashes at release. Napplets never sign, never touch relays - the shell brokers publish through `signEvent` + `fanoutPublish` in `main.js`.
+
+**Character event (proposed, not yet published).** kind 35100 addressable, `d="torii-character"`, one per npub for v0. Mandatory `contrib` tags carry `(dTag, aggregateHash)` per contributing napplet.
+
+**Queued design work** (see `torii-quest-todo.md`):
+
+- **ADR-0092** arena full sandboxing (Three + Rapier inside the iframe, DOM<->WebGL bridge, per-frame snapshot protocol). Design done, proposed.
+- **ADR-0093** sticker studio full sandboxing (SkinnedMesh raycast inside the iframe, snapshot-based avatar API). Design done, DEFERRED - in-window placement (Character Forge ADR-0088) is the shipping path.
+- **ADR-0094** release-time napplet identity (replace `@v0-wiring` placeholders with real bundle hashes).
+
+> **ADR renumbering notes:** the napplet sandboxing + identity ADRs were renumbered twice — 0088/0089/0086 → 0090/0091/0092 (to clear Character Forge's ADR-0086/0088/0089), then 0090/0091/0092 → 0092/0093/0094 (after PR #92 landed ADR-0090 UGC-sticker-system and Character Forge's validator-first moved to ADR-0091 in PR #93). The napplet ADR-0082 (game-host scaffold) keeps 0082; Character Forge's validator-first is now ADR-0091.
+
 ## Immediate Next Steps
 
-1. ✅ FP body integrated via `chiefmonkey-headless.glb` (layer-2 FP body).
-2. ✅ Source reconciliation for v0.2.100 through v0.2.108 completed.
-3. ✅ Reverse-ported live fixes by concern (clean source modules, not minified diff).
-4. ✅ Extracted Rapier raycast and bodies seams.
-5. ✅ Created `window.ToriiDebug`.
-6. ✅ Added first combat targeting seam via shared classifier + reticle preview.
-7. Manually smoke test live `v0.2.113-alpha`.
-8. Create the lightweight Agent/Developer Efficiency Index.
-9. 🚧 Extract the player boundary — slices done in v0.2.114 (geometry + spawn + look-down POV) and v0.2.123 (movement heading basis) in `engine/entities/player.js`; next, lift the stateful movement tick, combat, lifecycle, and body-state behind the seam.
-10. 🚧 Implement explicit state machine — first slice done in v0.2.115 (`GAME_EVENT`/`TRANSITIONS`/`transition()` + predicates in `src/state.js`, all phase call sites routed through the seam); transition-table unit tests landed v0.2.120 (`tests/state.test.js`); `pointerLocked` folded into `isEngaged`/`needsPointerLock` predicates (v0.2.131) and `reloading` folded into `isReloading`/`tickReload` (v0.2.132); real `GAMEOVER` edge wired in v0.2.133 (`GAME_EVENT.END` + `endRun()`, terminal — no live caller yet; fire it from a future end-of-run screen).
-11. 🚧 Implement event bus / decoupling — seam formalised in v0.2.116; bot-hit bridge migrated in v0.2.117 (`EV.BOT_HIT_BY_PLAYER`, `window._onBotHit` deprecated, check 9); foliage shader globals migrated in v0.2.118 (`arena-foliage.js` registry — `tickFoliage`/`getGrassMat`/`getFlowerMat`, `_grassMat`/`_flowerMat` deprecated, check 10); mirror handle migrated in v0.2.119 (`mirror.js` `getMirror()`, `_mirrorMesh` deprecated, check 10 extended) — **all functional `window.*` globals now decoupled**; first real `PHASE_CHANGE` subscriber added in v0.2.121 (top-level screen visibility via pure `engine/ui/phaseScreens.js`); next, add further `PHASE_CHANGE` reactions (audio/presence), and emit `WS_*` when netcode lands.
-12. 🚧 Extract BotAgent interface — first slice done in v0.2.122 (pure `engine/entities/bot-agent.js`: decision helpers + `decideActions` facade; scalar helpers wired into `bots.js`, LOS short-circuit preserved; `tests/bot-agent.test.js`). Remaining: migrate the stateful tick/shoot/blowback runtime behind the boundary.
-13. 🚧 Start Vitest with one test per extracted boundary — first slice done in v0.2.120 (Vitest + `npm test`; suites for the state machine, event bus, and headshot classifier; classifier extracted to a pure `engine/combat/classifier.js`; check 11 guards the scaffold); phase→screen map added v0.2.121, BotAgent helpers added v0.2.122, player heading basis added v0.2.123, shot-diagnostics miss classifier added v0.2.124, combat damage/kill contract added v0.2.125 (`tests/combat-damage.test.js`, pure `engine/combat/damage.js`), barrel→crosshair aiming helper added v0.2.126 (`tests/aim.test.js`, pure `engine/combat/aim.js`) (100 tests / 9 files); next, add raycast/bodies tests with an injected mock world, then kind:0 profile fetch as those seams land.
-14. 🚧 Combat hit-registration — **barrel→crosshair fix LANDED v0.2.126**. Diagnostics landed v0.2.124 (pure `engine/combat/shotDiagnostics.js` + `ToriiDebug.combat.lastShot`/`lastMiss`). Manual feedback ("headshots still take two shots; body shots work") pinned the root cause to REGISTRATION parallax, not damage: the reticle previewed a headshot on the CAMERA ray but the bullet flew the BARREL→80m-convergence line, so muzzle parallax dropped the previewed headshot onto the BODY collider (3 dmg ⇒ two shots; torso survived because it's bigger). v0.2.125 first tried a camera-origin bullet (bullet == camera ray) — fixed parallax but moved the muzzle off the gun. **v0.2.126 (per user revision before publish) restores the gun-barrel origin:** `player.js shoot()` casts the camera/crosshair ray for the aimed point (first hit, or `CONVERGE_DIST` 80 m fallback), spawns the bullet at the barrel (`getGunBarrelWorld`), and fires it **barrel → crosshair point** via the pure `engine/combat/aim.js` (`crosshairPoint`/`aimDirection`). The projectile passes through exactly what the reticle classified, so a previewed headshot still lands as a headshot, and convergence is at the ACTUAL aimed point at any range. No damage value or classifier threshold changed; damage/kill contract locked by `engine/combat/damage.js` + `tests/combat-damage.test.js`; aiming locked by `tests/aim.test.js`. **Remaining open:** finite travel time (60 m/s) means the instantaneous reticle still over-promises on fast-moving targets at range — future options: raise `BULLET_SPEED`, target-lead, a thin at-range hit-assist radius, or a projectile-predicting reticle. Use `ToriiDebug.combat.lastShot` to confirm before picking; do NOT blindly loosen head/body thresholds.
-15. Formalise NAP zone metadata/decor hooks.
-16. Build a local NAP-to-NAP handoff demo.
+1. **ADR-0092/0093 sandboxing design - DONE (2026-08-31).** Full sandboxing plans authored, reviewed, and renumbered (0088/0089 → 0092/0093): arena full sandboxing (ADR-0092, proposed) and sticker studio full sandboxing (ADR-0093, deferred). No implementation until signed off; the deferred sandboxed studio waits on third-party character napplets becoming a real goal.
+2. **N2N travel test with Bekka (priority)** — chiefmonkey.art/quest/ ↔ torii.plebeian.build. Verify the open-visit travel path (direct navigate + `?torii-traveller=`) and presence discovery across the unified relay list (ADR-0081). Both instances are live again after the HashIT outage (resolved 2026-08-31; both ~0.17s TTFB).
+3. Confirm Bekka is on v0.2.713+ (one-command bootstrap) so her heartbeat/relay/access-tab changes are live.
+4. Deferred (need core refactors, not fake tabs): Audio tab (no master gain API), Graphics tab (no manual override), Controls tab (no keybind layer), Phase 3 truly-silent beacon (server-side delegated signer, ADR-0077 §3).
 
 ## Open Questions
 

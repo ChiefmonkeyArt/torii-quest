@@ -30,7 +30,7 @@ The wire (`PROTOCOL_VERSION = 1`) does **not** change. The interpretation of a c
 **Not in scope (deferred)**
 - Binary wire protocol (still MP-1.5)
 - Multi-room / matchmaking (MP-1.5)
-- Prize leaderboards / ranked play → MP-3 with NIP-60 eCash stakes
+- Prize leaderboards / ranked play → MP-3 with Cashu stakes
 - Server-side physics for movement (still client-authoritative — only combat resolution moves)
 - Anti-cheat on movement (teleport / speed-hack rejection) → MP-2.5 hardening pass
 - WebRTC P2P transport → MP-3 or later

@@ -33,7 +33,7 @@ MP-1 is scoped to the first use case's happy path, plus the gateway plumbing to 
 - ~25 tests, gate-first pattern (same as UPD-1 / SEC-1 / ACC-1)
 
 **Not in scope (deferred)**
-- Server-authoritative hit detection → **MP-2**, alongside NIP-60 eCash stakes
+- Server-authoritative hit detection → **MP-2**, alongside Cashu stakes
 - WebRTC P2P transport (option 3b) → **MP-3** or later
 - Prize leaderboards / ranked matchmaking → post-MP-2
 - Binary wire protocol → optimisation pass after MP-1 works

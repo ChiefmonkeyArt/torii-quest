@@ -22,7 +22,7 @@ export const MESH_GENERATION_VERSION = 1;
 
 // The external generators we orchestrate (swappable — this is the whole point
 // of the validator-first contract). `requiresPayment: true` reflects that every
-// call routes through routstr (NIP-60/Cashu) rather than a free tier.
+// call routes through routstr + cashu.me rather than a free tier.
 export const GENERATION_BACKENDS = Object.freeze([
   Object.freeze({ id: 'meshy',    label: 'Meshy',    kind: 'text-to-3d',  requiresPayment: true }),
   Object.freeze({ id: 'tripo',    label: 'Tripo',    kind: 'image-to-3d', requiresPayment: true }),

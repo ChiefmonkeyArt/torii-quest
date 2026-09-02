@@ -64,18 +64,18 @@ export function renderProfilePanel(state = {}) {
   const statusText = _statusLabel(st.publishStatus);
 
   const gate = !isLoggedIn
-    ? '<div class="gs-gate">Log in with Nostr to customise your profile.</div>'
-    : (!isOwner ? '<div class="gs-gate">Log in as the node owner to configure this node.</div>' : '');
+    ? '<div class="settings-gate">Log in with Nostr to edit your profile.</div>'
+    : (!isOwner ? '<div class="settings-gate">Log in as the node owner to edit this.</div>' : '');
 
   const fieldsHtml = FIELDS.map((f) => _fieldHtml(f, draft, !canEdit)).join('');
 
   return `
-    <div class="gs-header">
-      <h2 class="gs-title">Profile</h2>
-      ${statusText ? `<div class="gs-badge">${_escape(statusText)}</div>` : ''}
+    <div class="settings-header">
+      <h2 class="settings-title">Profile</h2>
+      ${statusText ? `<div class="settings-badge">${_escape(statusText)}</div>` : ''}
     </div>
-    <div class="gs-subtitle">Customise your Nostr profile for this Quest installation</div>
+    <div class="settings-subtitle">Your Nostr identity for this installation.</div>
     ${gate}
-    <div class="pf-form">${fieldsHtml}</div>
-    <button type="button" class="gs-btn" data-action="save-profile"${canEdit ? '' : ' disabled'}>Save Profile</button>`;
+    <div class="settings-form">${fieldsHtml}</div>
+    <button type="button" class="settings-btn settings-btn-primary" data-action="save-profile"${canEdit ? '' : ' disabled'}>Save profile</button>`;
 }

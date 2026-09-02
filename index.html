@@ -121,13 +121,13 @@
       text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
-    /* v0.2.733-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+    /* v0.2.740-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
     .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #d8c3ac; margin-top: 5px; }
     /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
-       v0.3: moved top-right → top-left. v0.2.733-alpha: moved again, top-left
+       v0.3: moved top-right → top-left. v0.2.740-alpha: moved again, top-left
        → bottom-left (screen corner, fixed not absolute, so it stays anchored
        to the viewport rather than scrolling with #title-header) to make room
        for the new top-left "This torii belongs to" owner caption. Opens the
@@ -144,14 +144,14 @@
     .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* v0.2.733-alpha: top-left "This torii belongs to: <owner>" caption —
+    /* v0.2.740-alpha: top-left "This torii belongs to: <owner>" caption —
        fixed corner label, sits directly on the sunset photo like the header
        text (no glass box; a plain text treatment reads lighter here and
        avoids a 4th competing panel on the screen). Populated by
        main.js's _refreshOwnerLabel() against capability.adminPubkey. */
     #torii-owner-caption {
       position: fixed; top: 18px; left: 18px; z-index: 20;
-      /* v0.2.733-alpha fix: a long displayName wrapping to a 2nd line pushed
+      /* v0.2.740-alpha fix: a long displayName wrapping to a 2nd line pushed
          into the header's TORII wordmark on narrow viewports. Kept single-
          line + ellipsis-truncated instead — a clipped-but-readable name is
          better than colliding text, and the full name is still visible in
@@ -330,7 +330,7 @@
     }
     #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(232,132,44,0.5); opacity: 1; }
 
-    /* Login button in centre — v0.2.733-alpha: promoted to the primary CTA with a
+    /* Login button in centre — v0.2.740-alpha: promoted to the primary CTA with a
        solid mint/green fill (matches the on-brand green accent used elsewhere) so
        it reads as clearly as ENTER ARENA. Overrides the .btn-secondary outline. */
     #btn-nostr-centre {
@@ -363,166 +363,436 @@
        #instance-settings-panel dialog chrome REMOVED — the button and the
        standalone floating-dialog positioning are gone (the settings icon now
        opens the new nav-left/content-right shell below). The .is-* content
-       styles are KEPT and re-themed bronze/amber: renderInstanceSettingsPanel()
-       still emits the same .is-* markup, now mounted straight into the
-       shell's content pane (#torii-settings-content) instead of a floating
-       card, so only the outer positioning rules were dropped. */
-    #torii-settings-content .is-header { display: flex; align-items: center; gap: 10px;
-      border-bottom: 1px solid rgba(232,178,120,0.25); padding-bottom: 8px; margin-bottom: 10px; }
-    #torii-settings-content .is-title { margin: 0; font-size: 14px; letter-spacing: 2px;
-      color: var(--panel-text); text-transform: uppercase; flex: 1; }
-    #torii-settings-content .is-admin { font-size: 10px; color: var(--panel-text-dim); }
-    #torii-settings-content .is-admin code { color: var(--accent); background: rgba(232,178,120,0.1);
-      padding: 1px 5px; border-radius: 3px; font-size: 10px; }
-    #torii-settings-content .is-close { background: transparent; border: 1px solid rgba(255,255,255,0.15);
-      color: var(--panel-text); border-radius: 3px; width: 24px; height: 24px; font-size: 16px;
+       styles are KEPT: renderInstanceSettingsPanel() still emits the same
+       .is-* markup (Access tab), now mounted straight into the shell's
+       content pane (#torii-settings-content) instead of a floating card, so
+       only the outer positioning rules were dropped. v0.5: re-themed onto the
+       neutral --settings-* tokens below (was bronze/amber) for visual
+       consistency with the other five tabs — copy/data-action/class NAMES
+       are unchanged (tests in tests/instance-settings.test.js lock the
+       literal copy), only colors/spacing/radius moved to the shared system. */
+    #torii-settings-content .is-header { display: flex; align-items: center; gap: var(--settings-space-3);
+      border-bottom: 1px solid var(--settings-border); padding-bottom: var(--settings-space-3); margin-bottom: var(--settings-space-3); }
+    #torii-settings-content .is-title { margin: 0; font-size: var(--settings-text-title); font-weight: 600;
+      color: var(--settings-text); flex: 1; }
+    #torii-settings-content .is-admin { font-size: var(--settings-text-caption); color: var(--settings-text-dim); }
+    #torii-settings-content .is-admin code { color: var(--settings-accent-strong); background: var(--settings-accent-wash);
+      padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    #torii-settings-content .is-close { background: transparent; border: 1px solid var(--settings-border);
+      color: var(--settings-text-dim); border-radius: 50%; width: 26px; height: 26px; font-size: 15px;
       line-height: 1; cursor: pointer; padding: 0; }
-    #torii-settings-content .is-close:hover { border-color: var(--accent); }
-    #torii-settings-content .is-section { margin-bottom: 12px; padding: 10px 12px;
-      background: rgba(30,18,12,0.5); border: 1px solid rgba(232,178,120,0.18); border-radius: 6px; }
-    #torii-settings-content .is-section-title { margin: 0 0 6px 0; font-size: 11px;
-      letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+    #torii-settings-content .is-close:hover { border-color: var(--settings-border-strong); color: var(--settings-text); }
+    #torii-settings-content .is-section { margin-bottom: var(--settings-space-3); padding: var(--settings-space-3) var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border); border-radius: var(--settings-radius); }
+    #torii-settings-content .is-section-title { margin: 0 0 var(--settings-space-2) 0; font-size: var(--settings-text-caption);
+      letter-spacing: 0.04em; font-weight: 600; color: var(--settings-text-faint); text-transform: uppercase; }
+    #torii-settings-content .is-subhead { font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.02em;
+      color: var(--settings-text-dim); text-transform: uppercase; margin: var(--settings-space-2) 0 6px; }
     #torii-settings-content .is-row { display: flex; justify-content: space-between; align-items: center;
-      padding: 4px 0; font-size: 12px; }
-    #torii-settings-content .is-row-label { color: var(--panel-text-dim); }
-    #torii-settings-content .is-row-value { color: var(--panel-text); font-weight: 600; text-transform: uppercase;
-      letter-spacing: 1px; font-size: 11px; }
-    #torii-settings-content .is-coming-soon { margin-top: 8px; padding-top: 8px;
-      border-top: 1px dashed rgba(232,178,120,0.22); }
-    #torii-settings-content .is-coming-soon-head { font-size: 9px; letter-spacing: 2px;
-      color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
-    #torii-settings-content .is-mode-list { margin: 0; padding: 0; list-style: none; }
-    #torii-settings-content .is-mode-list li { display: flex; flex-direction: column;
-      padding: 4px 0; border-bottom: 1px dotted rgba(232,178,120,0.12); }
-    #torii-settings-content .is-mode-list li:last-child { border-bottom: 0; }
-    #torii-settings-content .is-mode-label { color: var(--panel-text); font-size: 11px; font-weight: 600; }
-    #torii-settings-content .is-mode-hint { color: var(--panel-text-dim); font-size: 10px; margin-top: 2px; }
-    #torii-settings-content .is-note { margin: 8px 0 0 0; font-size: 10px; color: var(--panel-text-dim);
-      font-style: normal; }
-    #torii-settings-content .is-footer { border-top: 1px solid rgba(232,178,120,0.18);
-      padding-top: 8px; margin-top: 4px; font-size: 10px; color: var(--panel-text-dim); text-align: center; }
+      padding: 5px 0; font-size: var(--settings-text-body); }
+    #torii-settings-content .is-row-label { color: var(--settings-text-dim); }
+    #torii-settings-content .is-row-value { color: var(--settings-text); font-weight: 600;
+      font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-mode-group { display: flex; flex-direction: column; gap: 6px; margin: var(--settings-space-2) 0; }
+    #torii-settings-content .is-mode-option { display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 10px; border-radius: var(--settings-radius-sm); cursor: pointer; }
+    #torii-settings-content .is-mode-option:hover { background: var(--settings-surface-raised); }
+    #torii-settings-content .is-mode-option.is-mode-disabled { cursor: not-allowed; opacity: 0.55; }
+    #torii-settings-content .is-mode-copy { display: flex; flex-direction: column; gap: 2px; }
+    #torii-settings-content .is-mode-label { color: var(--settings-text); font-size: var(--settings-text-body); font-weight: 600; }
+    #torii-settings-content .is-mode-hint { color: var(--settings-text-dim); font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-coming-next-chip { font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase; color: var(--settings-text-faint); background: var(--settings-bg);
+      border: 1px solid var(--settings-border); border-radius: 4px; padding: 1px 6px; margin-left: 4px; }
+    #torii-settings-content .is-note { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption);
+      color: var(--settings-text-faint); font-style: normal; }
+    #torii-settings-content .is-status { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption); }
+    #torii-settings-content .is-status[data-tone="error"] { color: var(--settings-danger); }
+    #torii-settings-content .is-status[data-tone="success"] { color: var(--settings-success); }
 
-    /* ── New settings panel shell (v0.3): nav-left/content-right, bronze/amber ── */
-    #torii-settings-backdrop { font-family: var(--font); }
-    .ts-card {
-      position: relative; display: flex; width: min(880px, calc(100vw - 32px)); height: min(600px, calc(100vh - 64px));
-      background: rgba(20,13,9,0.8); border: 1px solid rgba(232,178,120,0.35); border-radius: 0.75rem;
-      overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,0.6);
-      backdrop-filter: blur(14px) saturate(1.15);
-      -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    /* v0.2.739: snappy button micro-interactions — lift on hover, press on
+       active, animated focus ring for keyboard nav. Applies to every
+       settings button + preset card + close-x. Respects reduced-motion. */
+    #torii-settings-panel .settings-btn,
+    #torii-settings-panel .cf-preset-card,
+    #torii-settings-panel .ts-nav-item,
+    #torii-settings-panel .ts-close-x {
+      transition: background 140ms ease, color 140ms ease, border-color 140ms ease,
+                  transform 120ms cubic-bezier(0.2, 0.7, 0.3, 1),
+                  box-shadow 140ms ease, opacity 140ms ease;
     }
-    /* v0.4: standard top-right dialog close button (replaces the former
-       bottom-left "× Close" text button inside .ts-nav). */
+    @media (prefers-reduced-motion: no-preference) {
+      #torii-settings-panel .settings-btn:not([disabled]):hover,
+      #torii-settings-panel .cf-preset-card:not([disabled]):hover { transform: translateY(-1px); }
+      #torii-settings-panel .settings-btn:not([disabled]):active,
+      #torii-settings-panel .cf-preset-card:not([disabled]):active { transform: translateY(0) scale(0.98); }
+    }
+    #torii-settings-panel .settings-btn:focus-visible,
+    #torii-settings-panel .cf-preset-card:focus-visible,
+    #torii-settings-panel .ts-nav-item:focus-visible,
+    #torii-settings-panel .ts-close-x:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--settings-accent-wash-strong);
+      border-color: var(--settings-accent) !important;
+    }
+    #torii-settings-panel .settings-btn[disabled],
+    #torii-settings-panel .cf-preset-card[disabled] {
+      opacity: 0.5; cursor: not-allowed;
+    }
+    #torii-settings-panel .settings-btn-primary:not([disabled]):hover {
+      background: var(--settings-accent-wash-strong) !important;
+      border-color: var(--settings-accent) !important;
+      color: var(--settings-accent-strong) !important;
+    }
+    #torii-settings-panel .settings-btn-danger:not([disabled]):hover {
+      background: var(--settings-danger-wash) !important;
+      border-color: var(--settings-danger) !important;
+      color: var(--settings-danger) !important;
+    }
+
+    /* v0.2.739: toast layer — slides in from the bottom, colored by tone,
+       auto-dismisses. Sits above the settings panel (z-index 300 > 200). */
+    #torii-toast-layer {
+      position: fixed; left: 0; right: 0; bottom: 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      z-index: 300; pointer-events: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+    }
+    .ts-toast {
+      pointer-events: auto;
+      min-width: 260px; max-width: 480px;
+      padding: 12px 16px; border-radius: 10px;
+      display: flex; align-items: center; gap: 10px;
+      background: #1b1e22; border: 1px solid rgba(255,255,255,0.16);
+      color: #e8eaed; font-size: 13.5px; font-weight: 500;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+    }
+    .ts-toast::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: #5fb8c9; flex: 0 0 auto;
+      box-shadow: 0 0 12px currentColor;
+    }
+    .ts-toast[data-tone="success"] { border-color: rgba(95,191,128,0.35); }
+    .ts-toast[data-tone="success"]::before { background: #5fbf80; color: #5fbf80; }
+    .ts-toast[data-tone="error"] { border-color: rgba(224,104,95,0.4); }
+    .ts-toast[data-tone="error"]::before { background: #e0685f; color: #e0685f; }
+    .ts-toast[data-tone="info"] { border-color: rgba(95,184,201,0.35); }
+    .ts-toast[data-tone="info"]::before { background: #5fb8c9; color: #5fb8c9; }
+    @keyframes ts-toast-in { from { opacity: 0; transform: translateY(20px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes ts-toast-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(8px); } }
+    @media (prefers-reduced-motion: no-preference) {
+      .ts-toast { animation: ts-toast-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+      .ts-toast.is-leaving { animation: ts-toast-out 180ms ease-in forwards; }
+    }
+    #torii-settings-content .is-readonly { margin: var(--settings-space-2) 0 0 0; font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
+    #torii-settings-content .is-save { margin-top: var(--settings-space-2); }
+    #torii-settings-content .is-footer { border-top: 1px solid var(--settings-border);
+      padding-top: var(--settings-space-3); margin-top: var(--settings-space-2); font-size: var(--settings-text-caption);
+      color: var(--settings-text-faint); text-align: center; }
+    #torii-settings-content .is-body { display: flex; flex-direction: column; gap: var(--settings-space-1); }
+    #torii-settings-content .is-access-form { display: flex; flex-direction: column; }
+    /* ── Settings panel design system (v0.5) ──────────────────────────────
+       Redesign away from the game's amber/sepia glass-morphism toward a
+       calm, conventional dark "settings page" look. Scoped ENTIRELY to
+       #torii-settings-panel (+ its backdrop/content) via --settings-* custom
+       properties so the rest of the game UI (title screen, HUD, --accent,
+       etc.) is untouched. One accent (cool teal) used only for interactive/
+       active states; everything else is neutral charcoal + a 4-step text
+       hierarchy (tab title / section heading / body-label / caption-hint)
+       shared by all six tabs (Profile, Character, Gateway Setup, Heartbeat,
+       Relay, Access). Semantic red/green are reserved for genuine
+       error/success (heartbeat on/off, remove actions) — never decoration.
+
+       Shared base classes every tab renderer uses (consolidates the former
+       near-duplicate .pf-input/.rl-add-input/.gs-card/etc into one system):
+         .settings-card    — neutral bordered surface (list rows, sections)
+         .settings-list     — vertical stack of .settings-card rows
+         .settings-btn       (+ -primary / -danger / -ghost modifiers)
+         .settings-input / .settings-textarea / .settings-label
+         .settings-switch    — on/off toggle (Heartbeat)
+         .settings-badge / .settings-hint / .settings-gate / .settings-empty
+       Per-tab modifiers stay minimal: .cf-preset-grid, .cf-create-card
+       (.cf-upload-card / .cf-ai-card variants), .cf-sticker-grid,
+       .settings-dot, etc. — layout-only, no new color/spacing decisions
+       of their own. */
+    /* v0.2.739: settings panel uses a proper UI sans stack, NOT the game's
+       Courier monospace — makes it read as a conventional settings page.
+       Scoped to the backdrop so it doesn't leak into the rest of the game. */
+    #torii-settings-backdrop { font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif; }
+    /* v0.2.739: entrance animation — dim + panel-rise for a snappy modal feel. */
+    @keyframes ts-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ts-card-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @media (prefers-reduced-motion: no-preference) {
+      #torii-settings-backdrop[style*="flex"] { animation: ts-backdrop-in 160ms ease-out; }
+      #torii-settings-backdrop[style*="flex"] .ts-card { animation: ts-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+    }
+    #torii-settings-panel {
+      --settings-bg: #15171a;
+      --settings-surface: #1b1e22;
+      --settings-surface-raised: #21252a;
+      --settings-border: rgba(255,255,255,0.09);
+      --settings-border-strong: rgba(255,255,255,0.16);
+      --settings-text: #e8eaed;
+      --settings-text-dim: #9aa1a9;
+      --settings-text-faint: #6b7178;
+      --settings-accent: #5fb8c9;
+      --settings-accent-strong: #7fcbda;
+      --settings-accent-wash: rgba(95,184,201,0.14);
+      --settings-accent-wash-strong: rgba(95,184,201,0.24);
+      --settings-danger: #e0685f;
+      --settings-danger-wash: rgba(224,104,95,0.14);
+      --settings-success: #5fbf80;
+      --settings-success-wash: rgba(95,191,128,0.16);
+      --settings-radius: 10px;
+      --settings-radius-sm: 7px;
+      --settings-space-1: 6px;
+      --settings-space-2: 10px;
+      --settings-space-3: 16px;
+      --settings-space-4: 24px;
+      --settings-space-5: 32px;
+      /* type scale — 4 steps max, shared by every tab */
+      --settings-text-title: 20px;
+      --settings-text-heading: 14px;
+      --settings-text-body: 13px;
+      --settings-text-caption: 11.5px;
+    }
+
+    /* ── Panel shell: nav-left / content-right ── */
+    .ts-card {
+      position: relative; display: flex;
+      width: min(920px, calc(100vw - 32px)); height: min(620px, calc(100vh - 64px));
+      background: var(--settings-bg); border: 1px solid var(--settings-border-strong);
+      border-radius: 1rem; overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+    }
     .ts-close-x {
-      position: absolute; top: 10px; right: 10px; z-index: 5;
-      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,0.25); border: 1px solid rgba(232,178,120,0.25); border-radius: 50%;
-      color: var(--panel-text-dim); font-family: inherit; font-size: 15px; line-height: 1;
+      position: absolute; top: 14px; right: 14px; z-index: 5;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      background: transparent; border: 1px solid var(--settings-border); border-radius: 50%;
+      color: var(--settings-text-dim); font-family: inherit; font-size: 15px; line-height: 1;
       cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
     }
-    .ts-close-x:hover { background: rgba(232,178,120,0.16); color: var(--panel-text); border-color: rgba(232,178,120,0.4); }
+    .ts-close-x:hover { background: var(--settings-surface-raised); color: var(--settings-text); border-color: var(--settings-border-strong); }
     .ts-nav {
-      display: flex; flex-direction: column; width: 232px; flex: 0 0 232px;
-      background: rgba(14,9,6,0.7); border-right: 1px solid rgba(232,178,120,0.2);
-      padding: 16px 12px;
+      display: flex; flex-direction: column; width: 220px; flex: 0 0 220px;
+      background: var(--settings-surface); border-right: 1px solid var(--settings-border);
+      padding: var(--settings-space-4) var(--settings-space-2);
     }
-    .ts-brand { font-size: 12px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase;
-      margin-bottom: 18px; padding: 0 6px; }
-    .ts-nav-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .ts-brand {
+      font-size: var(--settings-text-caption); letter-spacing: 1.5px; color: var(--settings-text-faint);
+      text-transform: uppercase; margin: 0 6px var(--settings-space-4) 6px; font-weight: 600;
+    }
+    .ts-nav-list { display: flex; flex-direction: column; gap: 2px; flex: 1; }
     .ts-nav-item {
-      text-align: left; background: transparent; border: 1px solid transparent; border-radius: 6px;
-      color: var(--panel-text-dim); font-family: inherit; font-size: 12px; letter-spacing: 0.5px;
-      padding: 10px 12px; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+      text-align: left; background: transparent; border: none; border-radius: var(--settings-radius-sm);
+      color: var(--settings-text-dim); font-family: inherit; font-size: var(--settings-text-body);
+      padding: 10px 12px; cursor: pointer; transition: background 0.12s, color 0.12s;
     }
-    .ts-nav-item:hover { background: rgba(232,178,120,0.08); color: var(--panel-text); }
-    .ts-nav-item.is-active { background: rgba(232,178,120,0.16); color: var(--accent); border-color: rgba(232,178,120,0.35); font-weight: 600; }
+    .ts-nav-item:hover { background: var(--settings-surface-raised); color: var(--settings-text); }
+    .ts-nav-item.is-active { background: var(--settings-accent-wash); color: var(--settings-accent-strong); font-weight: 600; }
 
-    .ts-content { flex: 1; overflow-y: auto; padding: 20px 24px; color: var(--panel-text); text-align: left; }
+    .ts-content { flex: 1; overflow-y: auto; padding: var(--settings-space-5) var(--settings-space-5); color: var(--settings-text); text-align: left; }
 
-    /* ── Gateway Setup tab cards (v0.3) ── */
-    .gs-header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
-      border-bottom: 1px solid rgba(232,178,120,0.25); padding-bottom: 8px; margin-bottom: 4px; }
-    .gs-title { margin: 0; font-size: 14px; letter-spacing: 2px; color: var(--panel-text); text-transform: uppercase; }
-    .gs-badge { font-size: 10px; letter-spacing: 1px; color: var(--accent); white-space: nowrap; }
-    .gs-subtitle { font-size: 11px; color: var(--panel-text-dim); margin: 6px 0 14px; }
-    .gs-list { display: flex; flex-direction: column; gap: 10px; }
-    .gs-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-      background: rgba(30,18,12,0.5); border: 1px solid rgba(232,178,120,0.18); border-radius: 8px; }
-    .gs-icon { font-size: 20px; flex: 0 0 auto; }
-    .gs-body { flex: 1; min-width: 0; }
-    .gs-label { font-size: 12px; font-weight: 600; color: var(--panel-text); }
-    .gs-hint { font-size: 10px; color: var(--panel-text-dim); margin-top: 2px; }
-    .gs-gate { font-size: 10px; color: var(--accent-soft); margin-top: 4px; }
-    .gs-btn {
-      flex: 0 0 auto; background: var(--accent); color: #1c0f06; border: none; border-radius: 6px;
-      font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
-      padding: 8px 14px; cursor: pointer; text-transform: uppercase;
+    /* ── Shared type hierarchy (4 sizes: title / heading / body / caption) ── */
+    .settings-header {
+      display: flex; align-items: baseline; justify-content: space-between; gap: var(--settings-space-3);
+      margin-bottom: 4px;
     }
-    .gs-btn:hover { background: var(--accent-soft); }
-    .gs-btn:disabled { background: rgba(255,255,255,0.08); color: var(--panel-text-dim); cursor: not-allowed; }
-    .gs-note { margin-top: 14px; font-size: 10px; color: var(--panel-text-dim); }
+    .settings-title {
+      margin: 0; font-size: var(--settings-text-title); font-weight: 600; color: var(--settings-text);
+      letter-spacing: -0.01em;
+    }
+    .settings-subtitle {
+      font-size: var(--settings-text-body); color: var(--settings-text-dim);
+      margin: 4px 0 var(--settings-space-4); line-height: 1.5;
+    }
+    .settings-section-heading {
+      font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.04em;
+      color: var(--settings-text-faint); text-transform: uppercase; margin: 0 0 var(--settings-space-2);
+    }
+    .settings-hint { font-size: var(--settings-text-caption); color: var(--settings-text-faint); margin-top: 4px; line-height: 1.45; }
+    .settings-badge {
+      font-size: var(--settings-text-caption); letter-spacing: 0.02em; color: var(--settings-accent-strong);
+      white-space: nowrap; font-weight: 600;
+    }
+    .settings-gate {
+      font-size: var(--settings-text-caption); color: var(--settings-text-faint);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm); padding: var(--settings-space-2) var(--settings-space-3);
+      margin: var(--settings-space-2) 0;
+    }
+    .settings-note { margin-top: var(--settings-space-3); font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
+    .settings-empty {
+      font-size: var(--settings-text-body); color: var(--settings-text-faint);
+      padding: var(--settings-space-3) 2px;
+    }
 
-    /* ── Heartbeat red/green switch (v0.4) — intuitive on/off, default ON ── */
-    .hb-switch {
+    /* ── Shared card / list ── */
+    .settings-list { display: flex; flex-direction: column; gap: var(--settings-space-2); margin-bottom: var(--settings-space-2); }
+    .settings-card {
+      display: flex; align-items: center; gap: var(--settings-space-3);
+      padding: var(--settings-space-3) var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius);
+    }
+    .settings-card-icon { font-size: 20px; flex: 0 0 auto; line-height: 1; opacity: 0.9; }
+    .settings-card-body { flex: 1; min-width: 0; }
+    .settings-card-label { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .settings-card-hint { font-size: var(--settings-text-caption); color: var(--settings-text-dim); margin-top: 3px; line-height: 1.4; }
+
+    /* ── Shared buttons ── */
+    .settings-btn {
+      flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+      background: var(--settings-surface-raised); color: var(--settings-text);
+      border: 1px solid var(--settings-border-strong); border-radius: var(--settings-radius-sm);
+      font-family: inherit; font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.01em;
+      padding: 9px 16px; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s, opacity 0.12s;
+    }
+    .settings-btn:hover { background: #282c31; border-color: var(--settings-border-strong); }
+    .settings-btn:disabled { background: var(--settings-surface); color: var(--settings-text-faint); border-color: var(--settings-border); cursor: not-allowed; opacity: 0.7; }
+    .settings-btn-primary {
+      background: var(--settings-accent); color: #0d2226; border-color: var(--settings-accent);
+    }
+    .settings-btn-primary:hover { background: var(--settings-accent-strong); border-color: var(--settings-accent-strong); }
+    .settings-btn-primary:disabled { background: var(--settings-surface); color: var(--settings-text-faint); border-color: var(--settings-border); }
+    .settings-btn-ghost {
+      background: transparent; border-color: var(--settings-border); color: var(--settings-text-dim);
+    }
+    .settings-btn-ghost:hover { border-color: var(--settings-danger); color: var(--settings-danger); background: var(--settings-danger-wash); }
+    .settings-btn-sm { padding: 6px 12px; font-size: 11px; }
+
+    /* ── Shared inputs ── */
+    .settings-form { display: flex; flex-direction: column; gap: var(--settings-space-3); margin-bottom: var(--settings-space-4); }
+    .settings-row { display: flex; flex-direction: column; gap: 6px; }
+    .settings-label {
+      font-size: var(--settings-text-caption); font-weight: 600; letter-spacing: 0.02em;
+      color: var(--settings-text-dim);
+    }
+    .settings-input, .settings-textarea {
+      width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit;
+      background: var(--settings-surface); border: 1px solid var(--settings-border-strong);
+      border-radius: var(--settings-radius-sm); color: var(--settings-text);
+      font-size: var(--settings-text-body); padding: 10px 12px; transition: border-color 0.12s;
+    }
+    .settings-input:disabled, .settings-textarea:disabled { cursor: not-allowed; opacity: 0.55; }
+    .settings-input:focus, .settings-textarea:focus { outline: none; border-color: var(--settings-accent); }
+    .settings-input::placeholder, .settings-textarea::placeholder { color: var(--settings-text-faint); }
+
+    /* ── Shared inline row-with-status (Relay list rows) ── */
+    .settings-row-inline {
+      display: flex; align-items: center; gap: var(--settings-space-2); padding: 10px 14px;
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm);
+    }
+    .settings-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--settings-success); flex: 0 0 auto; }
+    .settings-row-value { flex: 1; min-width: 0; font-size: var(--settings-text-body); color: var(--settings-text); overflow-wrap: anywhere; }
+    .settings-tag {
+      flex: 0 0 auto; font-size: 10px; letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--settings-accent-strong); border: 1px solid var(--settings-accent-wash-strong);
+      border-radius: 4px; padding: 2px 7px;
+    }
+
+    /* ── Switch (Heartbeat on/off) ── */
+    .settings-switch {
       flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
-      background: transparent; border: none; padding: 0; cursor: pointer;
-      font-family: inherit;
+      background: transparent; border: none; padding: 0; cursor: pointer; font-family: inherit;
     }
-    .hb-switch:disabled { cursor: not-allowed; opacity: 0.5; }
-    .hb-switch-track {
-      position: relative; display: inline-block; width: 40px; height: 22px;
-      border-radius: 11px; background: #7a2020; border: 1px solid rgba(0,0,0,0.35);
-      transition: background 0.15s ease;
+    .settings-switch:disabled { cursor: not-allowed; opacity: 0.5; }
+    .settings-switch-track {
+      position: relative; display: inline-block; width: 38px; height: 21px;
+      border-radius: 11px; background: var(--settings-danger); opacity: 0.55;
+      transition: background 0.15s ease, opacity 0.15s ease;
     }
-    .hb-switch.is-on .hb-switch-track { background: #2e8b3d; }
-    .hb-switch-knob {
-      position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-      border-radius: 50%; background: #f5f0e8; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    .settings-switch.is-on .settings-switch-track { background: var(--settings-success); opacity: 1; }
+    .settings-switch-knob {
+      position: absolute; top: 2px; left: 2px; width: 17px; height: 17px;
+      border-radius: 50%; background: #f4f6f7; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
       transition: transform 0.15s ease;
     }
-    .hb-switch.is-on .hb-switch-knob { transform: translateX(18px); }
-    .hb-switch-state {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-      color: #ff8080; min-width: 24px; text-align: left;
+    .settings-switch.is-on .settings-switch-knob { transform: translateX(17px); }
+    .settings-switch-state {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--settings-danger); min-width: 24px; text-align: left;
     }
-    .hb-switch.is-on .hb-switch-state { color: #5fd97a; }
+    .settings-switch.is-on .settings-switch-state { color: var(--settings-success); }
 
-    /* ── Relay tab (v0.4) ── */
-    .rl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
-    .rl-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-      background: rgba(30,18,12,0.5); border: 1px solid rgba(232,178,120,0.18); border-radius: 8px; }
-    .rl-dot { width: 7px; height: 7px; border-radius: 50%; background: #5fd97a; flex: 0 0 auto; }
-    .rl-url { flex: 1; min-width: 0; font-size: 11px; color: var(--panel-text); overflow-wrap: anywhere; }
-    .rl-remove { flex: 0 0 auto; background: transparent; border: 1px solid rgba(255,255,255,0.15);
-      color: var(--panel-text-dim); border-radius: 6px; font-family: inherit; font-size: 10px;
-      padding: 5px 10px; cursor: pointer; text-transform: uppercase; }
-    .rl-remove:hover { border-color: #d9534f; color: #ff8080; }
-    .rl-empty { font-size: 11px; color: var(--panel-text-dim); padding: 10px 2px; }
-    .rl-defaults-banner { font-size: 10px; line-height: 1.4; color: var(--accent-soft);
-      padding: 6px 2px 8px; border-bottom: 1px dashed rgba(232,178,120,0.2); margin-bottom: 8px; }
-    .rl-row-default { background: rgba(30,18,12,0.3); border-style: dashed; }
-    .rl-default-tag { flex: 0 0 auto; font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase;
-      color: var(--accent); border: 1px solid rgba(232,178,120,0.3); border-radius: 4px; padding: 2px 6px; }
-    .rl-add { margin-top: 6px; }
-    .rl-add-disabled { opacity: 0.6; }
-    .rl-add-label { display: block; font-size: 10px; letter-spacing: 0.5px; color: var(--panel-text-dim);
-      margin-bottom: 6px; text-transform: uppercase; }
-    .rl-add-input { width: 100%; box-sizing: border-box; resize: vertical;
-      background: rgba(0,0,0,0.3); border: 1px solid rgba(232,178,120,0.25); border-radius: 6px;
-      color: var(--panel-text); font-family: inherit; font-size: 11px; padding: 8px 10px; margin-bottom: 8px; }
-    .rl-add-input:disabled { cursor: not-allowed; opacity: 0.6; }
+    /* ── Relay tab layout ── */
+    .rl-defaults-banner {
+      font-size: var(--settings-text-caption); line-height: 1.45; color: var(--settings-text-dim);
+      padding: 0 0 var(--settings-space-3); margin-bottom: var(--settings-space-2);
+      border-bottom: 1px solid var(--settings-border);
+    }
+    .settings-row-inline.rl-row-default { background: var(--settings-bg); border-style: dashed; }
 
-    /* ── Profile tab (v0.4) ── */
-    .pf-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
-    .pf-row { display: flex; flex-direction: column; gap: 5px; }
-    .pf-label { font-size: 10px; letter-spacing: 0.5px; color: var(--panel-text-dim); text-transform: uppercase; }
-    .pf-input { width: 100%; box-sizing: border-box; resize: vertical; font-family: inherit;
-      background: rgba(0,0,0,0.3); border: 1px solid rgba(232,178,120,0.25); border-radius: 6px;
-      color: var(--panel-text); font-size: 12px; padding: 8px 10px; }
-    .pf-input:disabled { cursor: not-allowed; opacity: 0.6; }
-    .pf-input:focus { outline: none; border-color: var(--accent); }
+    /* ── Character tab: preset grid + upload/AI cards + sticker grid ── */
+    .cf-preset-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: var(--settings-space-3); margin-bottom: var(--settings-space-4);
+    }
+    .cf-preset-card {
+      display: flex; flex-direction: column; align-items: center; gap: var(--settings-space-2);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4) var(--settings-space-2);
+      cursor: pointer; font-family: inherit; transition: border-color 0.12s, background 0.12s;
+    }
+    .cf-preset-card:hover { border-color: var(--settings-accent-wash-strong); background: var(--settings-surface-raised); }
+    .cf-preset-thumb {
+      width: 56px; height: 56px; border-radius: 50%; background: var(--settings-surface-raised);
+      border: 1px solid var(--settings-border-strong);
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .cf-preset-name { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .cf-preset-select { font-size: 11px; font-weight: 600; color: var(--settings-accent-strong); }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.733-alpha) ── */
+    .cf-create-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--settings-space-3); }
+    @media (max-width: 640px) { .cf-create-grid { grid-template-columns: 1fr; } }
+    .cf-create-card {
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4);
+      display: flex; flex-direction: column; gap: var(--settings-space-2);
+    }
+    /* Upload card reads as a drop-zone (dashed border) even though the click
+       target is a plain button — sets it apart from the disabled AI card. */
+    .cf-upload-card { border-style: dashed; border-color: var(--settings-border-strong); }
+    .cf-ai-card { opacity: 0.85; }
+    .cf-create-card-title { font-size: var(--settings-text-heading); font-weight: 600; color: var(--settings-text); }
+    .cf-create-card-hint { font-size: var(--settings-text-caption); color: var(--settings-text-dim); line-height: 1.5; flex: 1; }
+    .cf-coming-soon {
+      align-self: flex-start; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--settings-text-faint); background: var(--settings-bg); border: 1px solid var(--settings-border);
+      border-radius: 4px; padding: 3px 8px;
+    }
+
+    .cf-summary-card {
+      display: flex; align-items: center; gap: var(--settings-space-4);
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-4);
+      margin-bottom: var(--settings-space-3);
+    }
+    .cf-summary-portrait {
+      width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--settings-surface-raised); border: 1px solid var(--settings-border-strong);
+      display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--settings-text-dim);
+    }
+    .cf-summary-body { flex: 1; min-width: 0; }
+    .cf-summary-name { font-size: var(--settings-text-heading); font-weight: 600; color: var(--settings-text); margin-bottom: 6px; }
+    .cf-summary-stats { display: flex; gap: var(--settings-space-4); }
+    .cf-summary-stat { display: flex; flex-direction: column; gap: 2px; }
+    .cf-summary-stat-value { font-size: var(--settings-text-body); font-weight: 600; color: var(--settings-text); }
+    .cf-summary-stat-label { font-size: 10px; color: var(--settings-text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .cf-sticker-list { display: flex; flex-direction: column; gap: var(--settings-space-1); margin-bottom: var(--settings-space-4); }
+    .cf-sticker-row {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--settings-space-2);
+      padding: 8px 12px; background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius-sm); font-size: var(--settings-text-caption); color: var(--settings-text);
+    }
+    .cf-sticker-library {
+      background: var(--settings-surface); border: 1px solid var(--settings-border);
+      border-radius: var(--settings-radius); padding: var(--settings-space-3);
+    }
+    .cf-sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--settings-space-2); margin-top: var(--settings-space-2); }
+
+    /* ── Live in-arena leaderboard overlay (v0.2.740-alpha) ── */
     /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
        (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
        #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
@@ -562,7 +832,7 @@
     .tq-arena-lb-hint { font-size: 7px; letter-spacing: 0.5px; color: #6b7280; }
 
     /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ──
-       v0.2.733-alpha: lifted out of the centre console's document flow into a
+       v0.2.740-alpha: lifted out of the centre console's document flow into a
        fixed bottom-right corner card, re-themed from the original blue/navy
        palette to the bronze/orange smoked-glass look used across the rest of
        the UI (settings panels, .up-row-value--new was already on-brand and is
@@ -591,7 +861,7 @@
     .up-row-value { font-size: 11px; color: #f5e6d8; word-break: break-all; }
     /* Highlight the Latest value cell when a newer release exists so the status
        is legible without a separate STATUS row (UPD-1, v0.2.361). Already
-       on-brand orange — unchanged by the v0.2.733-alpha re-theme. */
+       on-brand orange — unchanged by the v0.2.740-alpha re-theme. */
     .up-row-value.up-row-value--new {
       color: #f7931a; font-weight: 600; letter-spacing: 0.5px;
       text-shadow: 0 0 6px rgba(247,147,26,0.35);
@@ -602,7 +872,7 @@
        `runUpgradeInPlace` helper — SW purge + cache clear + reload; no deploy,
        no signer touch, no relay call. Same mauve palette as the ACC-1 admin
        Instance Settings link for surface consistency. */
-    /* v0.2.733-alpha (MP-1): the explicit `display: block` below would override
+    /* v0.2.740-alpha (MP-1): the explicit `display: block` below would override
        the HTML `hidden` attribute (whose UA default is `display: none`), so an
        admin-less / up-to-date state could leak the button. Guard first. */
     #update-upgrade-btn[hidden] { display: none !important; }
@@ -618,7 +888,7 @@
     #update-upgrade-btn:active { filter: brightness(0.9); }
     #update-upgrade-btn[disabled] { opacity: 0.6; cursor: progress; }
 
-    /* v0.2.733-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
+    /* v0.2.740-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
        orange accent fill (matches the version box + Update Now button). The
        'deploying' stage rides a shimmer keyframe while arena-ws restarts and the
        status endpoint is briefly unreachable; 'done' snaps green, 'failed' red. */
@@ -660,7 +930,7 @@
     }
     #update-status-line[hidden] { display: none !important; }
     /* Manual-install fallback (shown when auto-update capability is absent).
-       v0.2.733-alpha: previously unstyled (inherited plain body text on the
+       v0.2.740-alpha: previously unstyled (inherited plain body text on the
        old in-flow layout); now needs its own bronze treatment since it sits
        inside the smoked-glass corner card. */
     #update-copy-fallback[hidden] { display: none !important; }
@@ -1183,7 +1453,7 @@
 
   <!-- Header -->
   <div id="title-header">
-    <!-- v0.2.733-alpha: owner caption now occupies the top-left corner the
+    <!-- v0.2.740-alpha: owner caption now occupies the top-left corner the
          settings button used to sit in. Text-only, non-interactive
          (pointer-events:none in CSS) so it never intercepts clicks meant for
          whatever sits beneath it. Populated by main.js's _refreshOwnerLabel(). -->
@@ -1192,7 +1462,7 @@
       <div class="toc-line2" id="torii-owner-label"><span class="toc-owner-name" id="torii-owner-name" title="">—</span><span class="toc-loggedin" id="torii-loggedin-badge"><span class="toc-loggedin-dot" aria-hidden="true"></span><span class="toc-dim">you are </span><span class="toc-on">logged in</span></span></div>
     </div>
 
-    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.733-alpha:
+    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.740-alpha:
          moved again, top-left → bottom-left, to make room for the owner
          caption above. Opens the settings panel (nav-left/content-right),
          replacing the old Torii menu overlay. Same button element/id kept for
@@ -1274,7 +1544,7 @@
       <!-- v0.3: large standalone #version-label removed — the version is
            still shown, at a slightly larger size, inside #update-preview-body
            below (see .up-row-value).
-           v0.2.733-alpha: the #update-preview block itself was MOVED out of
+           v0.2.740-alpha: the #update-preview block itself was MOVED out of
            here — it now sits as a direct child of #screen-title (below), not
            nested inside #title-centre. #title-centre.glass-panel carries a
            backdrop-filter, and per spec backdrop-filter (like transform/
@@ -1296,7 +1566,7 @@
   </div><!-- /title-columns -->
 
   <!-- Version/upgrade check (kept — genuine operational surface, not
-       decorative). v0.2.733-alpha: lives here, as a direct child of
+       decorative). v0.2.740-alpha: lives here, as a direct child of
        #screen-title, specifically OUTSIDE #title-centre's backdrop-filter
        subtree (see the comment left at its old nesting point above) so its
        `position: fixed; bottom/right` resolves against the real viewport.
@@ -1311,7 +1581,7 @@
          occurrences of EXPECTED_VERSION in this file). main.js's
          renderUpdatePreview() replaces these children with the live
          view-model on load. -->
-    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.733-alpha</div></div>
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.740-alpha</div></div>
     <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
     <div id="update-progress" hidden>
       <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1445,7 +1715,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <div id="ver">v0.2.733-alpha · torii quest</div>
+  <div id="ver">v0.2.740-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

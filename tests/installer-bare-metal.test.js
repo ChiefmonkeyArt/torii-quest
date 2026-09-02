@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 const installSh = readFileSync(new URL('../install.sh', import.meta.url), 'utf8');
 const bareMetalSh = readFileSync(new URL('../install/lib/bare-metal.sh', import.meta.url), 'utf8');
 const dockerSh = readFileSync(new URL('../install/lib/docker.sh', import.meta.url), 'utf8');
+const dockerCompose = readFileSync(new URL('../docker-compose.yml', import.meta.url), 'utf8');
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const vpsInstallMd = readFileSync(new URL('../VPS_INSTALL.md', import.meta.url), 'utf8');
 
@@ -54,6 +55,13 @@ describe('install.sh — bare-metal default, Docker as an optional flag', () => 
     expect(installSh).toMatch(/if \[\[ "\$DRY_RUN" -ne 1 \]\]; then[\s\S]*?\} > \.env/);
   });
 
+  it('records QUEST_PUBLIC_URL + QUEST_NODE_RELAYS in .env (ADR-0094 beacon website/relays)', () => {
+    expect(installSh).toMatch(/echo "QUEST_PUBLIC_URL=https:\/\/\$DOMAIN_IN"/);
+    expect(installSh).toMatch(/echo "QUEST_NODE_RELAYS=wss:\/\/main\.relay\.gamestr\.io/);
+    expect(dockerCompose).toMatch(/QUEST_PUBLIC_URL: \$\{QUEST_PUBLIC_URL:-\}/);
+    expect(dockerCompose).toMatch(/QUEST_NODE_RELAYS: \$\{QUEST_NODE_RELAYS:-wss:\/\/main\.relay\.gamestr\.io/);
+  });
+
   it('never calls run_bare_metal_install or run_docker_install during --dry-run', () => {
     const dryRunBlockMatch = installSh.match(/if \[\[ "\$DRY_RUN" -eq 1 \]\][\s\S]*?exit 0\nfi/);
     expect(dryRunBlockMatch).toBeTruthy();
@@ -93,6 +101,10 @@ describe('bare-metal install path — matches VPS_INSTALL.md conventions', () =>
     expect(bareMetalSh).toMatch(/User=torii-quest/);
     expect(bareMetalSh).toMatch(/ExecStart=\/usr\/bin\/node \$MP_DIR\/arena-ws\.cjs/);
     expect(bareMetalSh).toMatch(/Environment=QUEST_ADMIN_NPUB=\$NPUB_IN/);
+    // ADR-0094: the server beacon needs the public origin + relay set injected so
+    // presence events point at the right world URL and publish to the node relays.
+    expect(bareMetalSh).toMatch(/Environment=QUEST_PUBLIC_URL=https:\/\/\$DOMAIN_IN/);
+    expect(bareMetalSh).toMatch(/Environment=QUEST_NODE_RELAYS=wss:\/\/main\.relay\.gamestr\.io/);
     expect(bareMetalSh).toMatch(/ProtectSystem=strict/);
   });
 

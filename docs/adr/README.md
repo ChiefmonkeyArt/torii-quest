@@ -129,6 +129,10 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0091](./0091-character-forge-validator-first.md) | Character Forge — validator-first character pipeline with auto-rig groundwork | Accepted |
 | [0092](./0092-arena-full-sandboxing.md) | Arena full sandboxing (Three + Rapier inside the napplet iframe) | Proposed |
 | [0093](./0093-sticker-studio-full-sandboxing.md) | Sticker studio full sandboxing (SkinnedMesh raycast inside the napplet iframe) | Deferred |
+| [0094](./0094-server-always-on-presence-beacon.md) | Server-Side Always-On Presence Beacon | Accepted |
+| [0095](./0095-settings-click-propagation-fix.md) | Settings Panel Action Buttons Were Dead (Click-Propagation Fix) | Accepted |
+| [0096](./0096-settings-visual-redesign.md) | Settings Panel — Neutral Visual System + Character Select/Create Redesign | Accepted |
+| [0097](./0097-settings-polish-v0.2.739.md) | Settings polish v0.2.739 (opacity + font + Character preview + toast + micro-interactions) | Accepted |
 
 ## Workflow for a new decision
 

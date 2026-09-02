@@ -5,10 +5,22 @@ import { describe, it, expect } from 'vitest';
 import { renderCharacterForgePanel } from '../src/engine/settings/characterForgePanel.js';
 
 describe('renderCharacterForgePanel', () => {
-  it('gates the tab behind login', () => {
-    const html = renderCharacterForgePanel({ isLoggedIn: false });
-    expect(html).toContain('Log in with Nostr');
-    expect(html).not.toContain('select-preset');
+  it('shows a preview (presets + create cards) and a sign-in banner when logged out', () => {
+    // v0.2.739: the tab renders the SAME preview shell logged-out as logged-out
+    // — preset grid + Upload + Create-with-AI cards are visible so the player
+    // can see what's on offer — but every action button is disabled behind a
+    // "Sign in with Nostr to save your character" banner. Nothing is written
+    // until they log in.
+    const html = renderCharacterForgePanel({
+      isLoggedIn: false,
+      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }, { id: 'nostrich', label: 'Nostrich' }],
+    });
+    expect(html).toContain('Sign in with Nostr');
+    expect(html).toContain('cf-preset-card');
+    // gated: every action button is disabled while logged out
+    expect(html).toMatch(/data-action="select-preset"[^>]*disabled/);
+    expect(html).toMatch(/data-action="upload-mesh"[^>]*disabled/);
+    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
   });
 
   it('shows the preset picker when logged in with no character', () => {
@@ -34,7 +46,7 @@ describe('renderCharacterForgePanel', () => {
       status: 'found',
       character: { name: 'Chiefmonkey', meshName: 'chiefmonkey6', stickerCount: 3 },
     });
-    expect(html).toContain('already has a character');
+    expect(html).toContain('already have a character');
     expect(html).toContain('Chiefmonkey');
     expect(html).toContain('chiefmonkey6');
     expect(html).toContain('Edit stickers');
@@ -92,5 +104,25 @@ describe('renderCharacterForgePanel', () => {
     });
     expect(html).not.toContain('<img src=x');
     expect(html).toContain('&lt;img');
+  });
+
+  // Upload + Create-with-AI are two clearly separated, fully-framed creation
+  // paths on the SELECT + CREATE screen. Create-with-AI is a future
+  // integration point (Meshy-style, via routstr/Cashu — ADR-0091): it must
+  // render as a complete, labeled, disabled/coming-soon card with NO handler
+  // wired in main.js, while Upload stays a real, clickable action.
+  it('renders separated Upload and Create-with-AI cards on the create screen', () => {
+    const html = renderCharacterForgePanel({
+      isLoggedIn: true,
+      status: 'none',
+      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }],
+    });
+    expect(html).toContain('Upload a character');
+    expect(html).toContain('data-action="upload-mesh"');
+    expect(html).not.toMatch(/data-action="upload-mesh"[^>]*disabled/);
+    expect(html).toContain('Create with AI');
+    expect(html).toContain('data-action="create-with-ai"');
+    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
+    expect(html.toLowerCase()).toContain('coming soon');
   });
 });

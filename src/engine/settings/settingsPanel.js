@@ -122,11 +122,17 @@ function _build() {
   const backdrop = doc.createElement('div');
   backdrop.id = 'torii-settings-backdrop';
   backdrop.setAttribute('role', 'presentation');
+  // v0.2.739: dim + blur the backdrop so the amber home-screen doesn't
+  // bleed through around the neutral settings panel. Modal-standard
+  // behaviour (opaque scrim), keeps the panel reading as a proper
+  // "settings page" rather than an overlay pane.
   Object.assign(backdrop.style, {
     position: 'fixed', inset: '0', zIndex: '200',
     display: 'none',
     alignItems: 'center', justifyContent: 'center',
-    background: 'transparent',
+    background: 'rgba(6, 8, 10, 0.72)',
+    backdropFilter: 'blur(8px)',
+    webkitBackdropFilter: 'blur(8px)',
   });
 
   const card = doc.createElement('div');
@@ -175,8 +181,13 @@ function _build() {
   card.append(closeBtn, nav, content);
   backdrop.append(card);
 
+  // Close-on-backdrop: guarded by `e.target === backdrop` so clicks INSIDE the
+  // card never close the panel. Do NOT stopPropagation() here — main.js routes
+  // every settings action button (save-profile / remove-relay / publish-node /
+  // choose-world / character actions / access form) through a document-level
+  // delegated click listener scoped to #torii-settings-content; stopping
+  // propagation on the card was swallowing those clicks so no button ever fired.
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeSettingsPanel(); });
-  card.addEventListener('click', (e) => e.stopPropagation());
 
   if (doc.body && typeof doc.body.appendChild === 'function') {
     doc.body.appendChild(backdrop);

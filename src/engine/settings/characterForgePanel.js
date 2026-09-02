@@ -5,9 +5,11 @@
 // The Character Forge is the player-facing surface for creating/reading a
 // character. v1 is validator-first: it first CHECKS whether the logged-in npub
 // already has a character (a signed kind-35100 event — the "smooth experience"
-// seam), and if not, offers the creation flow (presets + stickers first;
-// external mesh generation lands in a later slice). See nap-torii-avatar-v0.md
-// and the Character Forge entry in torii-quest-strategy.md.
+// seam), and if not, offers the creation flow: a preset grid (select-preset),
+// an "Upload your own" card (upload-mesh), and a disabled "Create with AI"
+// placeholder card (see ADR-0091 — future Meshy/routstr/Cashu integration,
+// no backend wired yet). See nap-torii-avatar-v0.md and the Character Forge
+// entry in torii-quest-strategy.md.
 //
 // renderCharacterForgePanel(state) — state:
 //   isLoggedIn  — boolean; gates the whole tab.
@@ -19,7 +21,9 @@
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
 // pattern (data-action="check-character" / "select-preset" / "upload-mesh" /
-// "edit-character" / "add-sticker" / "remove-sticker" / "done-edit").
+// "edit-character" / "add-sticker" / "remove-sticker" / "done-edit"). The
+// "create-with-ai" button is rendered disabled with NO handler wired in
+// main.js — it is a placeholder slot only (see _createView below).
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -31,10 +35,10 @@ function _escape(s) {
 }
 
 function _statusBadge(status) {
-  if (status === 'checking') return '<div class="gs-badge">Checking for an existing character…</div>';
-  if (status === 'found') return '<div class="gs-badge">Character found</div>';
-  if (status === 'creating') return '<div class="gs-badge">Creating…</div>';
-  if (status === 'failed') return '<div class="gs-badge">Something went wrong</div>';
+  if (status === 'checking') return '<div class="settings-badge">Checking…</div>';
+  if (status === 'found') return '<div class="settings-badge">Character found</div>';
+  if (status === 'creating') return '<div class="settings-badge">Creating…</div>';
+  if (status === 'failed') return '<div class="settings-badge">Something went wrong</div>';
   return '';
 }
 
@@ -43,33 +47,55 @@ function _shortHash(hash) {
   return h.length <= 12 ? h : `${h.slice(0, 8)}…`;
 }
 
+// _initial(name) — a single uppercase letter for the portrait placeholder
+// (no real avatar image exists yet; a clean initial reads better than a
+// generic icon and costs nothing to compute).
+function _initial(name) {
+  const n = typeof name === 'string' ? name.trim() : '';
+  return n ? n[0].toUpperCase() : '?';
+}
+
+// _foundView(character) — the "found" state reads as a character summary
+// card: a portrait-style circle (initial, since there's no real thumbnail
+// yet), the name, and a clean stat row (mesh / stickers), plus a single
+// "Edit stickers" action. Replaces the old plain label/value rows.
 function _foundView(character) {
   const c = character || {};
+  const name = c.name || 'Unnamed';
   return `
-    <div class="gs-subtitle">This npub already has a character — no setup needed.</div>
-    <div class="cf-summary">
-      <div class="cf-row"><span class="cf-label">Name</span><span class="cf-value">${_escape(c.name || 'Unnamed')}</span></div>
-      <div class="cf-row"><span class="cf-label">Mesh</span><span class="cf-value">${_escape(c.meshName || '—')}</span></div>
-      <div class="cf-row"><span class="cf-label">Stickers</span><span class="cf-value">${Number(c.stickerCount) || 0}</span></div>
+    <div class="settings-subtitle">You already have a character.</div>
+    <div class="cf-summary-card">
+      <div class="cf-summary-portrait" aria-hidden="true">${_escape(_initial(name))}</div>
+      <div class="cf-summary-body">
+        <div class="cf-summary-name">${_escape(name)}</div>
+        <div class="cf-summary-stats">
+          <div class="cf-summary-stat">
+            <span class="cf-summary-stat-value">${_escape(c.meshName || '—')}</span>
+            <span class="cf-summary-stat-label">Mesh</span>
+          </div>
+          <div class="cf-summary-stat">
+            <span class="cf-summary-stat-value">${Number(c.stickerCount) || 0}</span>
+            <span class="cf-summary-stat-label">Stickers</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <button type="button" class="gs-btn" data-action="edit-character">Edit stickers</button>`;
+    <button type="button" class="settings-btn settings-btn-primary" data-action="edit-character">Edit stickers</button>`;
 }
 
 // _stickerEditor(stickers, library) — the sticker-placement editor (mode 'edit').
-// Lists the character's stickers (zone + short hash + u/v/rot) each with a
-// Remove button, and offers the curated sticker library to add one. The actual
-// 3D placement (raycast → zone/u/v/rot) is a runtime step in main.js; here a
+// Placed stickers render as a clean list (zone + short id) each with a Remove
+// button; the curated library renders as its own labeled card with a small
+// button grid, not a wall of undifferentiated buttons. The actual 3D
+// placement (raycast → zone/u/v/rot) is a runtime step in main.js; here a
 // new sticker lands on its recommended zone by default.
 function _stickerEditor(stickers, library) {
   const rows = (Array.isArray(stickers) ? stickers : []).map((s, i) => {
     const st = s || {};
     const zone = (typeof st.zoneId === 'string' && st.zoneId) ? st.zoneId : 'unknown';
-    const u = (Number(st.u) || 0).toFixed(2);
-    const v = (Number(st.v) || 0).toFixed(2);
-    const rot = (Number(st.rot) || 0).toFixed(1);
     return `<div class="cf-sticker-row">
-      <span class="cf-value">${_escape(zone)} · ${_escape(_shortHash(st.hash))} · u ${u} / v ${v} / rot ${rot}</span>
-      <button type="button" class="gs-btn" data-action="remove-sticker" data-index="${i}">Remove</button>
+      <span>${_escape(zone)} · ${_escape(_shortHash(st.hash))}</span>
+      <button type="button" class="settings-btn settings-btn-ghost settings-btn-sm" data-action="remove-sticker" data-index="${i}">Remove</button>
     </div>`;
   }).join('');
 
@@ -77,31 +103,69 @@ function _stickerEditor(stickers, library) {
   const addButtons = lib.map((e) => {
     const id = (e && e.id) ? e.id : '';
     const label = (e && e.label) ? e.label : id;
-    return `<button type="button" class="gs-btn cf-preset" data-action="add-sticker" data-sticker="${_escape(id)}">${_escape(label)}</button>`;
+    return `<button type="button" class="settings-btn" data-action="add-sticker" data-sticker="${_escape(id)}">${_escape(label)}</button>`;
   }).join('');
 
   return `
-    <div class="gs-subtitle">Attach stickers to your character — saved to your signed character event.</div>
-    <div class="cf-stickers">${rows || '<div class="cf-empty">No stickers yet.</div>'}</div>
-    <div class="cf-add">
-      <div class="cf-label">Add sticker</div>
-      ${addButtons || '<div class="cf-empty">No stickers available.</div>'}
+    <div class="settings-subtitle">Add stickers to your character.</div>
+    <div class="cf-sticker-list">${rows || '<div class="settings-empty">No stickers yet.</div>'}</div>
+    <div class="cf-sticker-library">
+      <div class="settings-section-heading">Add a sticker</div>
+      <div class="cf-sticker-grid">${addButtons || '<div class="settings-empty">No stickers available.</div>'}</div>
     </div>
-    <button type="button" class="gs-btn" data-action="done-edit">Done</button>`;
+    <button type="button" class="settings-btn settings-btn-primary" data-action="done-edit">Done</button>`;
 }
 
-function _createView(presets) {
+// _presetGrid(presets) — the preset picker as a card grid (name + Select),
+// not plain buttons in a row.
+function _presetGrid(presets, opts) {
   const list = Array.isArray(presets) ? presets : [];
-  const buttons = list.map((p) => {
+  const disabled = !!(opts && opts.disabled);
+  const dAttr = disabled ? ' disabled' : '';
+  const cards = list.map((p) => {
     const id = (p && p.id) ? p.id : '';
     const label = (p && p.label) ? p.label : id;
-    return `<button type="button" class="gs-btn cf-preset" data-action="select-preset" data-preset="${_escape(id)}">${_escape(label)}</button>`;
+    return `<button type="button" class="cf-preset-card" data-action="select-preset" data-preset="${_escape(id)}"${dAttr}>
+      <span class="cf-preset-thumb" aria-hidden="true">${_escape(_initial(label))}</span>
+      <span class="cf-preset-name">${_escape(label)}</span>
+      <span class="cf-preset-select">Select</span>
+    </button>`;
   }).join('');
+  return `<div class="cf-preset-grid">${cards || '<div class="settings-empty">No presets available.</div>'}</div>`;
+}
+
+// _createView(presets) — the character SELECT + CREATE screen: a preset
+// grid, plus two clearly separated, fully-framed creation paths ("Upload
+// your own" and "Create with AI" — the latter a disabled placeholder for the
+// future Meshy-style routstr/Cashu integration, ADR-0091). The AI card's
+// button is deliberately disabled and NOT wired in main.js — wiring it is
+// out of scope for this pass; only the slot is real.
+function _createView(presets, opts) {
+  // v0.2.739: the create view renders the SAME shell whether the user is
+  // logged in or not. When logged out, every action button is disabled
+  // (via `opts.disabled`) so people can still see what's on offer without
+  // being blocked by an empty gate. `create-with-ai` is disabled in both
+  // states (Meshy/routstr wiring is a later slice per ADR-0091).
+  const disabled = !!(opts && opts.disabled);
+  const uploadDisabled = disabled ? ' disabled' : '';
+  const subtitle = disabled
+    ? 'Preview the roster — sign in with Nostr to select or create.'
+    : 'Pick a character, or create your own.';
   return `
-    <div class="gs-subtitle">Create your character from a curated base, or upload your own mesh. External mesh generation lands in a later slice.</div>
-    <div class="cf-presets">${buttons || '<div class="cf-empty">No presets available.</div>'}</div>
-    <div class="cf-upload">
-      <button type="button" class="gs-btn" data-action="upload-mesh">Upload custom mesh (.glb)</button>
+    <div class="settings-subtitle">${subtitle}</div>
+    ${_presetGrid(presets, { disabled })}
+    <div class="cf-create-grid">
+      <div class="cf-create-card cf-upload-card">
+        <div class="cf-create-card-title">Upload a character</div>
+        <div class="cf-create-card-hint">Upload a rigged .glb file — it must include a compatible humanoid skeleton.</div>
+        <button type="button" class="settings-btn" data-action="upload-mesh"${uploadDisabled}>Upload .glb</button>
+      </div>
+      <div class="cf-create-card cf-ai-card">
+        <div class="cf-create-card-title">Create with AI</div>
+        <div class="cf-create-card-hint">Describe your character and we'll generate a rigged mesh — validated automatically before it's saved to your npub.</div>
+        <span class="cf-coming-soon">Coming soon</span>
+        <button type="button" class="settings-btn" data-action="create-with-ai" disabled>Create with AI</button>
+      </div>
     </div>`;
 }
 
@@ -110,33 +174,37 @@ export function renderCharacterForgePanel(state = {}) {
   const isLoggedIn = st.isLoggedIn === true;
   const status = typeof st.status === 'string' ? st.status : 'idle';
 
+  // v0.2.739: pre-login now shows a friendly "Sign in with Nostr…" banner
+  // ABOVE a fully-rendered but disabled preview (preset grid + Upload + AI
+  // cards) so the tab reads as a real character-select screen even before
+  // login, instead of a blank gate wall.
   const gate = !isLoggedIn
-    ? '<div class="gs-gate">Log in with Nostr to create or load your character.</div>'
+    ? '<div class="settings-gate">Sign in with Nostr to save your character. You can browse the roster below.</div>'
     : '';
   const mode = (st.mode === 'edit') ? 'edit' : 'view';
 
   let body = '';
-  if (isLoggedIn) {
-    if (status === 'found' && st.character) {
-      body = (mode === 'edit')
-        ? _stickerEditor(st.character.stickers, st.stickerLibrary)
-        : _foundView(st.character);
-    } else if (status === 'failed') {
-      body = `<div class="cf-empty">${_escape(st.error || 'Could not load your character.')}</div>
-        <button type="button" class="gs-btn" data-action="check-character">Retry</button>`;
-    } else if (status === 'checking' || status === 'creating') {
-      body = '<div class="cf-empty">Working…</div>';
-    } else {
-      body = _createView(st.presets);
-    }
+  if (!isLoggedIn) {
+    body = _createView(st.presets, { disabled: true });
+  } else if (status === 'found' && st.character) {
+    body = (mode === 'edit')
+      ? _stickerEditor(st.character.stickers, st.stickerLibrary)
+      : _foundView(st.character);
+  } else if (status === 'failed') {
+    body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
+      <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;
+  } else if (status === 'checking' || status === 'creating') {
+    body = '<div class="settings-empty">Working…</div>';
+  } else {
+    body = _createView(st.presets);
   }
 
   return `
-    <div class="gs-header">
-      <h2 class="gs-title">Character</h2>
+    <div class="settings-header">
+      <h2 class="settings-title">Character</h2>
       ${_statusBadge(status)}
     </div>
-    <div class="gs-subtitle">Your playable character in Torii — portable across worlds via Nostr.</div>
+    <div class="settings-subtitle">Your playable character — portable across worlds via Nostr.</div>
     ${gate}
     ${body}`;
 }

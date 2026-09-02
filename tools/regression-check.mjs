@@ -66,6 +66,7 @@ const SETTIMEOUT_ALLOWED = new Set([
   'src/engine/kami/kamiMode.js', // ADR-0027/0034: status-badge auto-revert + note-highlight pulse-revert timers
   'src/engine/plebeian/marketStall.js', // ADR-0026: lazy market-panel status-message auto-revert timer
   'src/engine/plebeian/plebeianRelay.js', // ADR-0026/0035: relay reconnect-with-backoff + connect-error retry timers
+  'src/engine/ui/toast.js', // ADR-0097: settings toast auto-dismiss + leave-animation cleanup
 ]);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [

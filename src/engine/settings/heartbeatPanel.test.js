@@ -13,14 +13,14 @@ import { describe, it, expect } from 'vitest';
 import { renderHeartbeatPanel } from './heartbeatPanel.js';
 
 function switchIsOn(html) {
-  return /class="hb-switch is-on"/.test(html) && /aria-checked="true"/.test(html);
+  return /class="settings-switch is-on"/.test(html) && /aria-checked="true"/.test(html);
 }
 
 describe('renderHeartbeatPanel — switch visual state', () => {
   it('renders OFF for idle (fresh install, intent defaults on, never published)', () => {
     const html = renderHeartbeatPanel({ isOwner: true, heartbeatStatus: 'idle' });
     expect(switchIsOn(html)).toBe(false);
-    expect(html).toContain('class="hb-switch is-off"');
+    expect(html).toContain('class="settings-switch is-off"');
     expect(html).toContain('aria-checked="false"');
   });
 
@@ -48,15 +48,26 @@ describe('renderHeartbeatPanel — switch visual state', () => {
     }
   });
 
-  it('idle label says heartbeat is on by default and starts on owner login, never claims LIVE', () => {
+  // ADR-0094: the beacon is server-side and auto-on from the configured admin
+  // npub at install — no browser tab, login, or wallet needed. The idle label
+  // must reflect that (not the old "starts on owner login" client-side copy).
+  it('idle label says heartbeat is on by default, never claims Live', () => {
     const html = renderHeartbeatPanel({ isOwner: true, heartbeatStatus: 'idle' });
-    expect(html).not.toContain('(LIVE)');
-    expect(html).toMatch(/on by default.*starts on owner login/i);
+    expect(html).not.toContain('(Live)');
+    expect(html).toMatch(/on by default/i);
+    expect(html).not.toMatch(/starts on owner login/i);
+    expect(html).toMatch(/no login or wallet needed/i);
   });
 
   it('gates the switch behind isOwner (disabled + login note) regardless of heartbeatStatus', () => {
     const html = renderHeartbeatPanel({ isOwner: false, heartbeatStatus: 'idle' });
     expect(html).toContain('disabled');
     expect(html).toContain('Log in as the node owner');
+  });
+
+  it('describes the beacon as server-side, requiring no login or wallet (ADR-0094)', () => {
+    const html = renderHeartbeatPanel({ isOwner: true, heartbeatStatus: 'live' });
+    expect(html.toLowerCase()).toContain('server beacon');
+    expect(html.toLowerCase()).toContain('no login or wallet needed');
   });
 });

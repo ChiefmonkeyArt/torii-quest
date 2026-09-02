@@ -138,6 +138,8 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0100](./0100-recording-ring-toggle.md) | Recording-ring toggle — owner-controlled pause for the ADR-0055 1Hz auto-capture, registered on the ADR-0099 dev-menu shell | Accepted |
 | [0101](./0101-auto-deploy-on-tag.md) | Auto-deploy to VPS on tag push — deploy-only SSH key with forced-command + GitHub Actions workflow, so `main HEAD == latest tag == VPS` becomes automatic | Accepted |
 | [0102](./0102-admin-ssh-access.md) | Admin-scoped SSH key for AI-driven infra diagnosis + repair — dispatcher-gated, `workflow_dispatch`-only, audited via GitHub Actions | Accepted |
+| [0103](./0103-mixamo-colon-bone-names.md) | Character rig accepts Mixamo colon-form bone names (`mixamorig:X`, `Armature:mixamorig:X`) via pure `normalizeBoneName()` in the skeleton mapper | Accepted |
+| [0104](./0104-beacon-relay-coverage-refresh.md) | Refresh `DEFAULT_NODE_RELAYS` to a writable-verified 5-relay set; remove two silently-rejecting relays surfaced by `tools/relay-probe.mjs` | Accepted |
 
 ## Workflow for a new decision
 

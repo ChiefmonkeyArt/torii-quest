@@ -78,6 +78,7 @@ import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner } from './engine/kami/kamiMode.js';
 import { installDevMenu, registerDevToggle, pumpDevMenu } from './engine/dev/devMenu.js';
+import { isRecordingRingEnabled, setRecordingRingEnabled } from './engine/dev/recordingRingGate.js';
 import { setStickerForcePlaneMode, getStickerRenderState } from './stickerNpc.js';
 import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
 import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
@@ -622,7 +623,10 @@ export function createArenaRuntime(hooks = {}) {
   const _recIndicator = createRecIndicator({
     window,
     getReport: () => _autoCap.report(),
-    isActive: () => _autoCapOwnerChecked && _autoCapIsOwner && isPlaying(),
+    // ADR-0100 (v0.2.744-alpha): the recording-ring toggle also darkens the
+    // on-screen indicator when the owner disables the ring, so the surface
+    // and the underlying capture path stay in perfect sync.
+    isActive: () => _autoCapOwnerChecked && _autoCapIsOwner && isPlaying() && isRecordingRingEnabled(),
   });
 
   // v0.2.380-alpha: live in-arena leaderboard overlay (toggle: L / Tab).
@@ -981,6 +985,11 @@ export function createArenaRuntime(hooks = {}) {
   // render queue is empty (no preserveDrawingBuffer tax).
   function _driveAutoCapture(nowMs) {
     _ensureAutoCapOwner();
+    // ADR-0100: recording-ring gate. When the owner toggles the ring off via
+    // the Kami dev menu (or ToriiDebug.recording.enabled(false) on the
+    // console), short-circuit BEFORE _autoCap.tick() emits a request — no
+    // sealing, no upload, and the recIndicator dot goes dark.
+    if (!isRecordingRingEnabled()) return;
     const ctx = {
       isOwner: _autoCapIsOwner, // false until the async capability check resolves
       isPlaying: isPlaying(),
@@ -1421,6 +1430,17 @@ export function createArenaRuntime(hooks = {}) {
       hint: 'ADR-0090 A/B — force plane path even where baked is eligible',
       get: () => !!getStickerRenderState().forcePlaneMode,
       set: (on) => { setStickerForcePlaneMode(on); },
+    });
+    // ADR-0100 (v0.2.744-alpha): recording-ring toggle. Default ON (matches
+    // ADR-0055 default) — the owner turns it OFF to pause the 1Hz sealed
+    // frame + snapshot capture during a demo / on a metered network. Also
+    // darkens the on-screen recording indicator (isActive above).
+    registerDevToggle({
+      id: 'recording-ring',
+      label: 'Recording ring',
+      hint: 'ADR-0055 1Hz auto-capture. OFF pauses sealing + upload.',
+      get: () => isRecordingRingEnabled(),
+      set: (on) => { setRecordingRingEnabled(on); },
     });
 
     // Dev free-fly camera — wire the live scene graph handles + a HUD/label sync

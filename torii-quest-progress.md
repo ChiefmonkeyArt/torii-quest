@@ -1,6 +1,8 @@
 # Torii Quest — Progress Dashboard
 
-Current version: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface. Left-edge smoked-glass panel only visible when the admin is in Kami Mode; hidden on the public perpetual-world view. First toggle registered: sticker RENDER-MODE A/B (was ToriiDebug-only). Pure model + 1Hz DOM driver, gate enforced in CODE. 18 new tests. 3752 tests / 305 files, 21/21 gates. PR-C queues the recording-ring toggle against this same shell.
+Current version: v0.2.744-alpha — Recording-ring toggle (ADR-0100). Owner-controlled pause for the ADR-0055 1Hz auto-capture ring. New pure gate module (default ON — no behavioural change for anyone who never touches the menu). Registered as the second row on the ADR-0099 Kami dev-menu shell. `ToriiDebug.recording.enabled(false)` console mirror flips the same flag. On-screen recording indicator dot goes dark exactly when captures stop. 11 new tests. 3763 tests / 306 files, 21/21 gates.
+
+Prior: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface. Left-edge smoked-glass panel only visible when the admin is in Kami Mode; hidden on the public perpetual-world view. First toggle registered: sticker RENDER-MODE A/B (was ToriiDebug-only). Pure model + 1Hz DOM driver, gate enforced in CODE. 18 new tests. 3752 tests / 305 files, 21/21 gates. PR-C queues the recording-ring toggle against this same shell.
 
 Prior: v0.2.742-alpha — Home button client-suspend (ADR-0098).
 

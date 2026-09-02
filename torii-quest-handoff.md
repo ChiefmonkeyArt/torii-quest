@@ -1,6 +1,8 @@
 # Torii Quest — Contributor / Agent Handoff
 
-Current version: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface on the left edge; first toggle is the sticker RENDER-MODE A/B (was ToriiDebug console-only). Gate enforced in CODE, not just UI. 18 new tests. 3752 tests / 305 files.
+Current version: v0.2.744-alpha — Recording-ring toggle (ADR-0100). Owner-controlled pause for the ADR-0055 1Hz auto-capture ring, registered as the second row on the ADR-0099 Kami dev-menu shell. Default ON, no behavioural change for anyone who never touches the menu. 11 new tests. 3763 tests / 306 files.
+
+Prior: v0.2.743-alpha — Kami-mode dev menu (ADR-0099). Owner-only in-world runtime toggles surface on the left edge; first toggle is the sticker RENDER-MODE A/B (was ToriiDebug console-only). Gate enforced in CODE, not just UI. 18 new tests. 3752 tests / 305 files.
 
 Prior: v0.2.742-alpha — Home button client-suspend (ADR-0098).
 

@@ -42,24 +42,118 @@ chmod 600 "$AUTH"
 
 echo "==> Writing $SUDOERS (validated before commit)"
 TMP=$(mktemp)
+# sudoers does not accept wildcards in command ARGUMENTS. The clean fix is a
+# small setuid-style dispatcher: /usr/local/sbin/torii-admin-run gates the
+# actual verbs (path-prefix checks, unit-name checks, deny-list) in shell,
+# and sudoers just grants NOPASSWD access to that one dispatcher script.
+install -m 0755 -o root -g root /dev/null /usr/local/sbin/torii-admin-run
+cat > /usr/local/sbin/torii-admin-run <<'DISPATCH_EOF'
+#!/usr/bin/env bash
+# ADR-0102 privileged dispatcher. Runs allowlisted verbs on allowlisted paths.
+# Argv:  <verb> [args...]
+set -euo pipefail
+
+verb=${1:-}
+shift || true
+
+die() { echo "torii-admin-run: $*" >&2; exit 2; }
+
+# ---- path predicates -------------------------------------------------------
+is_project_path() {
+  case $1 in
+    /etc/nginx/sites-available/*|/etc/nginx/conf.d/*) return 0 ;;
+    /etc/nginx/sites-enabled/*)                       return 0 ;;
+    /etc/systemd/system/torii-*.service)              return 0 ;;
+    /etc/systemd/system/torii-*.timer)                return 0 ;;
+    /var/www/torii.quest/*)                           return 0 ;;
+    /opt/torii-quest/*)                               return 0 ;;
+  esac
+  return 1
+}
+is_denied_path() {
+  case $1 in
+    /root|/root/*|/etc/passwd|/etc/shadow|/etc/sudoers|/etc/sudoers.d|/etc/sudoers.d/*) return 0 ;;
+    /home/*/.ssh|/home/*/.ssh/*) return 0 ;;
+    /etc/ssh|/etc/ssh/*) return 0 ;;
+  esac
+  return 1
+}
+is_torii_unit() {
+  case $1 in torii-*|nginx) return 0 ;; esac
+  return 1
+}
+
+case "$verb" in
+  # read verbs — pass through, any path, no writes
+  cat|less|head|tail|grep|find|ls|stat|readlink|file|du|df)
+    exec /usr/bin/env "$verb" "$@"
+    ;;
+  # systemd status/show/journal — read-only
+  systemctl-status)  exec /bin/systemctl status  "$@" ;;
+  systemctl-show)    exec /bin/systemctl show    "$@" ;;
+  journalctl)        exec /bin/journalctl        "$@" ;;
+  # nginx read + reload
+  nginx-T)   exec /usr/sbin/nginx -T ;;
+  nginx-t)   exec /usr/sbin/nginx -t ;;
+  nginx-reload) exec /usr/sbin/nginx -s reload ;;
+  # systemd write — allowlisted units only
+  systemctl-start|systemctl-stop|systemctl-restart|systemctl-reload)
+    unit=${1:-}
+    is_torii_unit "$unit" || die "unit not in allowlist: $unit"
+    action=${verb#systemctl-}
+    exec /bin/systemctl "$action" "$unit"
+    ;;
+  systemctl-daemon-reload)
+    exec /bin/systemctl daemon-reload
+    ;;
+  # write file (stdin -> path). project paths only, deny sensitive paths.
+  write-file)
+    path=${1:-}; [ -n "$path" ] || die "write-file needs a path"
+    is_denied_path "$path" && die "denied path: $path"
+    is_project_path "$path" || die "path not in allowlist: $path"
+    exec /usr/bin/tee "$path" >/dev/null
+    ;;
+  # mkdir, mv, ln, rm — project paths only
+  mkdir-p)
+    path=${1:-}; is_denied_path "$path" && die "denied path: $path"
+    is_project_path "$path" || die "path not in allowlist: $path"
+    exec /bin/mkdir -p "$path"
+    ;;
+  mv)
+    src=${1:-}; dst=${2:-}
+    is_denied_path "$src" && die "denied path: $src"
+    is_denied_path "$dst" && die "denied path: $dst"
+    is_project_path "$src" || die "src not in allowlist: $src"
+    is_project_path "$dst" || die "dst not in allowlist: $dst"
+    exec /bin/mv "$src" "$dst"
+    ;;
+  ln-sf)
+    src=${1:-}; dst=${2:-}
+    is_denied_path "$dst" && die "denied path: $dst"
+    is_project_path "$dst" || die "dst not in allowlist: $dst"
+    exec /bin/ln -sf "$src" "$dst"
+    ;;
+  rm-file)
+    path=${1:-}
+    is_denied_path "$path" && die "denied path: $path"
+    case $path in
+      /etc/nginx/sites-enabled/*) exec /bin/rm "$path" ;;
+      *) die "rm scope is /etc/nginx/sites-enabled only, got: $path" ;;
+    esac
+    ;;
+  *)
+    die "unknown verb: $verb"
+    ;;
+esac
+DISPATCH_EOF
+chmod 0755 /usr/local/sbin/torii-admin-run
+chown root:root /usr/local/sbin/torii-admin-run
+
 cat > "$TMP" <<'SUDOERS_EOF'
-# torii-admin: AI-driven infra diagnosis + repair. See ADR-0102.
-# Read-only diagnostics: unlimited.
-torii-admin ALL=(root) NOPASSWD: /usr/bin/cat, /usr/bin/less, /usr/bin/head, /usr/bin/tail, /usr/bin/grep, /usr/bin/find, /usr/bin/ls, /usr/bin/stat, /usr/bin/readlink, /usr/bin/file, /usr/bin/du, /usr/bin/df
-torii-admin ALL=(root) NOPASSWD: /bin/systemctl status *, /bin/systemctl show *
-torii-admin ALL=(root) NOPASSWD: /bin/journalctl *
-torii-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -T, /usr/sbin/nginx -t
-
-# Targeted writes: project-owned paths only.
-torii-admin ALL=(root) NOPASSWD: /usr/bin/tee /etc/nginx/sites-available/*, /usr/bin/tee /etc/nginx/conf.d/*, /usr/bin/tee /etc/systemd/system/torii-*.service, /usr/bin/tee /etc/systemd/system/torii-*.timer, /usr/bin/tee /var/www/torii.quest/*, /usr/bin/tee /opt/torii-quest/*
-torii-admin ALL=(root) NOPASSWD: /bin/ln -sf /var/www/torii.quest/releases/*, /bin/mv /var/www/torii.quest/*, /bin/mkdir -p /var/www/torii.quest/*, /bin/mkdir -p /opt/torii-quest/*, /bin/rm /etc/nginx/sites-enabled/*, /bin/ln -s /etc/nginx/sites-available/* /etc/nginx/sites-enabled/*
-
-# Service control: allowlisted units only.
-torii-admin ALL=(root) NOPASSWD: /bin/systemctl start torii-*, /bin/systemctl stop torii-*, /bin/systemctl restart torii-*, /bin/systemctl reload nginx, /bin/systemctl restart nginx, /bin/systemctl daemon-reload
-torii-admin ALL=(root) NOPASSWD: /usr/sbin/nginx -s reload
-
-# Explicit deny list (defense in depth).
-torii-admin ALL=(root) NOPASSWD: !/bin/rm -rf /*, !/bin/dd, !/sbin/mkfs*, !/sbin/shutdown, !/sbin/reboot, !/sbin/halt, !/usr/sbin/useradd, !/usr/sbin/userdel, !/usr/sbin/usermod, !/usr/bin/passwd, !/usr/bin/chage, !/usr/bin/apt*, !/usr/bin/dpkg*, !/usr/bin/tee /root/*, !/usr/bin/tee /etc/passwd, !/usr/bin/tee /etc/shadow, !/usr/bin/tee /etc/sudoers*, !/usr/bin/tee /home/*/.ssh/*
+# torii-admin: AI-driven infra diagnosis + repair (ADR-0102). Sudoers grants
+# NOPASSWD only to the /usr/local/sbin/torii-admin-run dispatcher, which
+# enforces per-verb path and unit allowlists in shell.
+torii-admin ALL=(root) NOPASSWD: /usr/local/sbin/torii-admin-run
 SUDOERS_EOF
 
 if ! visudo -c -f "$TMP" >/dev/null; then

@@ -1,6 +1,6 @@
 {
   "version": "v0.2.740-alpha",
-  "generatedAt": "2026-09-02T09:31:53.477Z",
+  "generatedAt": "2026-09-02T09:38:52.724Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -193,7 +193,7 @@
     "statusLabel": "READY",
     "ready": true,
     "version": "v0.2.740-alpha",
-    "gitCommit": "a84bde9b",
+    "gitCommit": "1080b313",
     "signals": [
       {
         "key": "versionSync",
@@ -221,7 +221,7 @@
         "label": "Bundle baseline",
         "state": "advisory",
         "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-CODbX8qI.js"
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-C98eu8xR.js"
       },
       {
         "key": "zoneFallback",

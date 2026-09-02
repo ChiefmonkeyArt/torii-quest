@@ -2657,4 +2657,17 @@ if (typeof window !== 'undefined') {
       ready: !!(armed && hardened.ok && state.nostrPubkey),
     };
   };
+
+  // ADR-0090 slice 2 — sticker render-mode A/B toggle. Open the browser
+  // console and run:
+  //   ToriiDebug.stickers.state()               → { forcePlaneMode }
+  //   ToriiDebug.stickers.forcePlaneMode(true)  → next fires use plane path
+  //   ToriiDebug.stickers.forcePlaneMode(false) → next fires use baked-when-eligible
+  // Only the RENDER path flips; targeting always stays any-surface.
+  import('./stickerNpc.js').then(({ setStickerForcePlaneMode, getStickerRenderState }) => {
+    window.ToriiDebug.stickers = {
+      state: () => getStickerRenderState(),
+      forcePlaneMode: (on) => setStickerForcePlaneMode(on),
+    };
+  }).catch(() => { /* stickerNpc not loaded in this build */ });
 }

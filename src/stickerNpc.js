@@ -6,11 +6,24 @@
 // Object3D.attach() — it follows the bone's animation automatically.
 // For static objects (trees, crates): uses Three.js raycaster against meshes.
 import * as THREE from 'three';
+import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
 import { scene } from './scene.js';
 import { assetUrl } from './assetUrl.js';
 import { STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { stickerImageUrl } from './engine/character/stickerLibrary.js';
+import {
+  STICKER_RENDER_MODE, createStickerRenderState,
+  chooseStickerRenderMode, setForcePlaneMode,
+} from './engine/character/stickerRenderMode.js';
 import { castRay, colliderToBone } from './physics.js';
+
+// A/B render-mode state (ADR-0090 slice 2). Baked-vs-plane decal choice per
+// fire; the operator can force plane-mode globally via ToriiDebug.stickers.
+const _renderState = createStickerRenderState();
+export function setStickerForcePlaneMode(on) { return setForcePlaneMode(_renderState, on); }
+export function getStickerRenderState() {
+  return { forcePlaneMode: _renderState.forcePlaneMode };
+}
 
 let _texture = null;
 let _textureLoading = false;
@@ -37,10 +50,12 @@ const _meshCache = [];
 let _meshCacheTime = 0;
 const MESH_CACHE_TTL = 2000; // refresh every 2s
 
-// Names to exclude from sticker raycasting
+// Meshes to exclude from sticker raycasting.
+// ADR-0090 slice 2 removed the curated subset — EVERY world mesh becomes
+// sticker-able. The only remaining exclusion is the gun viewmodel: firing a
+// sticker at 0m distance from the barrel would wallpaper the screen.
 const EXCLUDE_NAMES = new Set([
-  'sea', 'world-gun-normalizer', 'coastline-wall', 'coastline-neon',
-  'portal-mesh-group', 'PORTAL_MESH_GROUP', 'grass-instanced',
+  'world-gun-normalizer',
 ]);
 
 const FLY_SIZE = 0.6;
@@ -93,11 +108,14 @@ function _preloadTexture() {
 }
 
 // Check if a mesh/object should be excluded from sticker placement.
+// ADR-0090 slice 2: this used to carry a curated subset of "non-sticker-able"
+// world meshes; now it only guards mesh types that need a DIFFERENT targeting
+// path (skinned via Rapier bone colliders + surface raycast; instanced grass
+// handled separately as its own bucket) plus the gun viewmodel.
 function _isExcluded(obj) {
   let o = obj;
   while (o) {
     if (o.name && EXCLUDE_NAMES.has(o.name)) return true;
-    if (o.name === 'fps-body' || o.name === 'player-model') return true;
     // Skip NPC + bot meshes — handled by Rapier colliders, not Three.js raycaster
     if (_npcRoot && o === _npcRoot) return true;
     if (o.userData?.isBotMesh) return true;
@@ -110,47 +128,79 @@ function _isExcluded(obj) {
 }
 
 // Collect all Mesh objects in the scene (not Sprites, Lights, Cameras).
+// InstancedMesh (grass) is bucketed separately — the standard
+// intersectObjects() path returns a face-less hit for InstancedMesh, but the
+// SEPARATE call in _raycastScene resolves the exact instanceId so grass can be
+// stickered per-blade with a plane decal.
 // Refreshed every MESH_CACHE_TTL ms to pick up dynamically loaded objects.
+const _instancedCache = [];
 function _getMeshes() {
   const now = performance.now();
   if (now - _meshCacheTime > MESH_CACHE_TTL) {
     _meshCache.length = 0;
+    _instancedCache.length = 0;
     scene.traverse(obj => {
-      if (obj.isMesh && !obj.userData.isSticker && !_isExcluded(obj)) {
-        const mat = obj.material;
-        if (mat && mat.visible === false) return;
-        _meshCache.push(obj);
-      }
+      if (!obj.isMesh || obj.userData.isSticker || _isExcluded(obj)) return;
+      const mat = obj.material;
+      if (mat && mat.visible === false) return;
+      if (obj.isInstancedMesh) _instancedCache.push(obj);
+      else _meshCache.push(obj);
     });
     _meshCacheTime = now;
   }
   return _meshCache;
 }
+function _getInstancedMeshes() {
+  // _getMeshes populates both caches together; ensure it's warm.
+  _getMeshes();
+  return _instancedCache;
+}
 
-// Three.js raycast for static meshes (trees, crates, terrain).
+// Three.js raycast for static meshes (trees, crates, terrain, InstancedMesh
+// grass). InstancedMesh hits carry an `instanceId`; treat them as plane-decal
+// candidates — the classifier (isBakedEligible) rejects them so grass gets a
+// per-blade quad rather than a bake against shared instance geometry.
 function _raycastScene(origin, dir) {
   _rayOrigin.copy(origin);
   _rayDir.copy(dir).normalize();
   _raycaster.set(_rayOrigin, _rayDir);
   _raycaster.far = 200;
 
+  let best = null;
+  let bestDist = Infinity;
+
   const meshes = _getMeshes();
-  const hits = _raycaster.intersectObjects(meshes, false);
-  for (const hit of hits) {
-    if (hit.face) {
-      _normal.copy(hit.face.normal);
-      _normal.transformDirection(hit.object.matrixWorld);
-    } else {
-      _normal.set(0, 0, 1);
-    }
-    return {
-      point: hit.point.clone(),
-      normal: _normal.clone(),
-      object: hit.object,
-      face: hit.face,
-    };
+  const staticHits = _raycaster.intersectObjects(meshes, false);
+  if (staticHits.length > 0) {
+    const hit = staticHits[0];
+    if (hit.distance < bestDist) { best = hit; bestDist = hit.distance; }
   }
-  return null;
+
+  const instanced = _getInstancedMeshes();
+  if (instanced.length > 0) {
+    // Per-object query so we can accept the closest instance hit; the shared
+    // raycaster reuses its internal ray, so this is cheap.
+    const instHits = _raycaster.intersectObjects(instanced, false);
+    if (instHits.length > 0) {
+      const hit = instHits[0];
+      if (hit.distance < bestDist) { best = hit; bestDist = hit.distance; }
+    }
+  }
+
+  if (!best) return null;
+  if (best.face) {
+    _normal.copy(best.face.normal);
+    _normal.transformDirection(best.object.matrixWorld);
+  } else {
+    _normal.set(0, 0, 1);
+  }
+  return {
+    point: best.point.clone(),
+    normal: _normal.clone(),
+    object: best.object,
+    face: best.face || null,
+    instanceId: (typeof best.instanceId === 'number') ? best.instanceId : null,
+  };
 }
 
 // Raycast against a specific SkinnedMesh to find the real animated-mesh surface
@@ -448,6 +498,7 @@ export function fireStickerAtNpc(origin, dir) {
     }
   }
 
+  let meshHitAccepted = null;
   if (meshHit) {
     const d = meshHit.point.distanceTo(origin);
     if (d < bestDist) {
@@ -455,6 +506,7 @@ export function fireStickerAtNpc(origin, dir) {
       hitPoint = meshHit.point;
       hitNormal = meshHit.normal;
       meshObj = meshHit.object;
+      meshHitAccepted = meshHit;
       npcRoot = null;
       bot = null;
       bone = null;
@@ -491,6 +543,12 @@ export function fireStickerAtNpc(origin, dir) {
   sprite.position.copy(origin);
   scene.add(sprite);
 
+  // Render-mode decision captured at fire time so a mid-flight A/B flip does
+  // not change how this specific sticker lands. Only static, non-instanced
+  // Mesh hits with a face qualify for baked; everything else falls back to
+  // the existing plane path (skinned, instanced grass, no-face fallbacks).
+  const renderMode = chooseStickerRenderMode(meshHitAccepted, _renderState);
+
   _stickers.push({
     sprite,
     from: origin.clone(),
@@ -503,6 +561,9 @@ export function fireStickerAtNpc(origin, dir) {
     peerRoot,
     boneLocalOffset,
     boneLocalNormal,
+    renderMode,
+    hitFace: meshHitAccepted?.face || null,
+    hitInstanceId: meshHitAccepted?.instanceId ?? null,
     t: 0,
     duration: FLIGHT_DURATION,
   });
@@ -547,6 +608,67 @@ export function tickStickerNpc(dt) {
       scene.remove(s.sprite);
       if (s.sprite.material) s.sprite.material.dispose();
       _stickers.splice(i, 1);
+
+      // ADR-0090 slice 2 — BAKED decal branch. When the fire hit a static,
+      // non-instanced Mesh with a face and `forcePlaneMode` was OFF, project a
+      // DecalGeometry onto the target mesh so the sticker wraps the actual
+      // surface (rather than a flat plane above it). Parented to the target so
+      // it inherits any world transform of that mesh (crates move, trees sway).
+      if (s.renderMode === STICKER_RENDER_MODE.BAKED && s.meshObj && _texture) {
+        try {
+          const target = s.meshObj;
+          target.updateMatrixWorld(true);
+          const worldPos = s.to.clone();
+          // Decal orientation: Euler pointing along the surface normal. Three's
+          // DecalGeometry helper reads the projector's rotation to build the
+          // cutting frustum, so we align its z-axis with the hit normal.
+          const projector = new THREE.Object3D();
+          projector.position.copy(worldPos);
+          projector.up.set(0, 1, 0);
+          const look = new THREE.Vector3().copy(worldPos).add(s.normal);
+          projector.lookAt(look);
+          // Decal box size (world units). Match the plane path's on-surface
+          // footprint; depth is the projection thickness through the mesh.
+          const size = new THREE.Vector3(
+            ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO, ATTACHED_SIZE
+          );
+          const decalGeo = new DecalGeometry(target, projector.position, projector.rotation, size);
+          const decalMat = new THREE.MeshBasicMaterial({
+            map: _texture,
+            color: 0xffffff,
+            transparent: true,
+            depthTest: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -4,
+            polygonOffsetUnits: -4,
+          });
+          const decal = new THREE.Mesh(decalGeo, decalMat);
+          decal.userData.isSticker = true;
+          // DecalGeometry is authored in WORLD space against the target mesh.
+          // Parenting to `target` inherits its world transform, so we must
+          // pre-invert to counteract that inheritance and keep the decal put.
+          target.getWorldQuaternion(_worldQuatInv).invert();
+          decal.quaternion.copy(_worldQuatInv);
+          const localPos = worldPos.clone();
+          target.worldToLocal(localPos);
+          decal.position.copy(localPos);
+          target.add(decal);
+          _attached.push({ mesh: decal, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME });
+          while (_attached.length > MAX_ATTACHED) {
+            const old = _attached.shift();
+            if (old.mesh.parent) old.mesh.parent.remove(old.mesh);
+            if (old.mesh.geometry) old.mesh.geometry.dispose();
+            if (old.mesh.material) old.mesh.material.dispose();
+          }
+          continue; // baked path took over; skip the plane-attach block
+        } catch (e) {
+          // A DecalGeometry failure (degenerate face, non-BufferGeometry, etc.)
+          // is not fatal — fall through to the plane path so the sticker still
+          // lands somewhere the player can see.
+          console.warn('[sticker] baked decal failed, falling back to plane:', e);
+        }
+      }
 
       // Create attached sticker
       const mat = new THREE.MeshBasicMaterial({

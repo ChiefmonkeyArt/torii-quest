@@ -23,12 +23,13 @@ describe('fetchOwnerProfileName', () => {
 
   it('resolves the displayName from a fanoutReq-shaped result, read-only (no state mutation)', async () => {
     const request = vi.fn(async (relays, filters, opts) => {
+      // ADR-0104 (v0.2.746): refreshed to writable-verified set only.
       expect(relays).toEqual([
-        'wss://main.relay.gamestr.io',
         'wss://relay.plebeian.market',
         'wss://relay.routstr.com',
         'wss://nos.lol',
-        'wss://relay.vertexlab.io',
+        'wss://relay.damus.io',
+        'wss://relay.primal.net',
       ]);
       expect(filters).toEqual([{ kinds: [0], authors: [OWNER], limit: 1 }]);
       expect(opts).toMatchObject({ timeoutMs: expect.any(Number) });

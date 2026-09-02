@@ -104,14 +104,23 @@ export function readNodeRelays(opts = {}) {
 // reach + discovery. What is gated is not the relay but the ACTION — every
 // publish (heartbeat, gamestr score, access settings) still requires its own
 // explicit user opt-in/click before anything is signed or sent (see ADR-0081).
-// wss ONLY (operator-identity-bearing, never plaintext). Verified live at the
-// WebSocket level (REQ + EOSE) on 2026-08-27.
+// wss ONLY (operator-identity-bearing, never plaintext).
+//
+// v0.2.746 (ADR-0104): the list was re-verified end-to-end with a WRITE probe
+// (tools/relay-probe.mjs) — each relay must accept our kind:30078 presence
+// event AND round-trip it on a REQ. Two previous entries were removed after
+// they explicitly rejected the write:
+//   - main.relay.gamestr.io   → "blocked: kind 30078 not allowed"
+//   - relay.vertexlab.io      → "unsupported kind: we only support 5312-5315"
+// (vertexlab is a DVM relay, not a NIP-45 aggregator; the earlier comment was
+// wrong.) Two general permissive relays were added in their place. All five
+// entries below were verified writable + round-tripping on 2026-09-02.
 export const DEFAULT_NODE_RELAYS = Object.freeze([
-  'wss://main.relay.gamestr.io',   // gaming notes + presence (Torii ecosystem)
-  'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem)
-  'wss://relay.routstr.com',       // routstr network relay (Torii ecosystem)
-  'wss://nos.lol',                 // popular general relay — good for reach
-  'wss://relay.vertexlab.io',      // NIP-45 profile aggregator
+  'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem) — writable, verified 2026-09-02
+  'wss://relay.routstr.com',       // routstr network relay (Torii ecosystem) — writable, verified 2026-09-02
+  'wss://nos.lol',                 // popular general relay — writable, verified 2026-09-02
+  'wss://relay.damus.io',          // major general relay — writable, verified 2026-09-02
+  'wss://relay.primal.net',        // major general relay — writable, verified 2026-09-02
 ]);
 
 // readEffectiveNodeRelays(opts) → the validated wss:// relay set the whole game

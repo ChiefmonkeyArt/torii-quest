@@ -102,13 +102,17 @@ describe('readEffectiveNodeRelays — curated starter defaults (ADR-0076)', () =
     expect(readEffectiveNodeRelays({ storage: s, metaGetter: () => '' })).toEqual(['wss://my.relay/']);
   });
 
-  it('defaults are the single 5-relay wss-only list (ADR-0081)', () => {
+  it('defaults are the single 5-relay wss-only list (ADR-0081; refreshed by ADR-0104)', () => {
+    // ADR-0104 (v0.2.746): main.relay.gamestr.io and relay.vertexlab.io were
+    // removed after a live WRITE probe showed they explicitly reject kind:30078.
+    // relay.damus.io and relay.primal.net replaced them. All five below
+    // verified writable + round-tripping on 2026-09-02.
     expect(DEFAULT_NODE_RELAYS).toEqual([
-      'wss://main.relay.gamestr.io',
       'wss://relay.plebeian.market',
       'wss://relay.routstr.com',
       'wss://nos.lol',
-      'wss://relay.vertexlab.io',
+      'wss://relay.damus.io',
+      'wss://relay.primal.net',
     ]);
     for (const u of DEFAULT_NODE_RELAYS) expect(u.startsWith('wss://')).toBe(true);
   });

@@ -5,8 +5,8 @@
 // This is the "live generation" seam: it composes the pieces from ADR-0087 (the
 // gate) and ADR-0089 (the clients) into one run() that NEVER signs, publishes,
 // seats, or relays — it returns a verdict + plan, and the host acts on an
-// `accepted` result through its own sign/publish seams. Payment (routstr NIP-60 /
-// Cashu) is an injected `charge` step; without it the run stops at
+// `accepted` result through its own sign/publish seams. Payment (routstr + cashu.me)
+// is an injected `charge` step (cashu.me integration placeholder); without it the run stops at
 // `payment-required` rather than inventing a charge.
 
 import { validateGeneratedMesh } from './meshGeneration.js';
@@ -16,7 +16,7 @@ export const MESH_GENERATION_EXECUTOR_VERSION = 1;
 // createMeshGenerationExecutor({
 //   generate,       // (request) → Promise<normalised generator result> (injected)
 //   validate,       // (result) → gate verdict           (defaults to validateGeneratedMesh)
-//   charge,         // (backend) → Promise<{ ok:boolean }> (routstr/Cashu, injected)
+//   charge,         // (backend) → Promise<{ ok:boolean }> (routstr + cashu.me, injected)
 // }) → { run(request) }
 export function createMeshGenerationExecutor({
   generate,

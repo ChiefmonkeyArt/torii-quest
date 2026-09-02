@@ -1,0 +1,56 @@
+name: VPS infra repair (manual)
+# ADR-0102: manually-triggered admin-scoped VPS access for AI-driven diagnosis
+# and repair. The private key lives ONLY in the TORII_ADMIN_SSH_KEY secret and
+# is gated on the VPS side by the sudoers allowlist in /etc/sudoers.d/torii-admin.
+# Every run is logged in Actions and can be revoked by deleting the secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Shell command to run as torii-admin on the VPS. Multi-line supported. Logged verbatim.'
+        required: true
+        type: string
+      reason:
+        description: 'One-line reason (goes into audit log).'
+        required: true
+        type: string
+
+concurrency:
+  group: torii-quest-vps-admin
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: SSH and run
+        env:
+          SSH_KEY: ${{ secrets.TORII_ADMIN_SSH_KEY }}
+          HOST: ${{ secrets.TORII_ADMIN_HOST }}
+          CMD: ${{ inputs.command }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "::group::Audit"
+          echo "Actor:  ${{ github.actor }}"
+          echo "Run:    ${{ github.run_id }}"
+          echo "Reason: $REASON"
+          echo "::endgroup::"
+          if [ -z "${SSH_KEY:-}" ] || [ -z "${HOST:-}" ]; then
+            echo "::error::TORII_ADMIN_SSH_KEY and TORII_ADMIN_HOST must be set."
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+          ssh-keyscan -T 15 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              "torii-admin@$HOST" "$CMD"

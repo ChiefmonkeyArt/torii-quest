@@ -384,7 +384,6 @@ export function renderInstanceSettingsPanel(model) {
     <div class="is-header">
       <h2 class="is-title">Instance Settings</h2>
       <div class="is-admin">Admin: <code>${admin}</code></div>
-      <button type="button" class="is-close" data-action="close" aria-label="Close settings">×</button>
     </div>
     <div class="is-body">
       ${sectionHtml}

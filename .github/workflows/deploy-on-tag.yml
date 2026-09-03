@@ -1,6 +1,6 @@
 name: Deploy to VPS on tag
 
-# ADR-0106: tags created by tag-release.yml use the default GITHUB_TOKEN, and
+# ADR-0105: tags created by tag-release.yml use the default GITHUB_TOKEN, and
 # GitHub's anti-recursion rule means a GITHUB_TOKEN-authored push never fires
 # other workflows' `on: push` triggers. A tag landed on origin (visible in
 # `git tag -l` / the Releases UI) with NO deploy ever firing -- silently.
@@ -43,7 +43,8 @@ jobs:
             # workflow_run doesn't tell us the tag directly -- read the version
             # tag-release just computed from package.json at that commit.
             SHA="${{ github.event.workflow_run.head_sha }}"
-            TAG="v$(gh api repos/${{ github.repository }}/contents/package.json?ref=$SHA --jq '.content' | base64 -d | node -p "require('/dev/stdin').version" 2>/dev/null || true)"
+            VERSION=$(gh api "repos/${{ github.repository }}/contents/package.json?ref=$SHA" --jq '.content' | base64 -d | jq -r '.version')
+            TAG="v${VERSION}"
             if [ -z "$TAG" ] || [ "$TAG" = "v" ]; then
               echo "::error::Could not resolve version tag from commit $SHA" >&2
               exit 1
@@ -81,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           # Give the update service a moment to finish the symlink swap.
-          # ADR-0106: scope the match to the #ver footer label specifically --
+          # ADR-0105: scope the match to the #ver footer label specifically --
           # a bare page-wide grep for /v0\.2\.[0-9]+-alpha/ matches whichever
           # version string appears FIRST in index.html, which is often a
           # changelog-style code comment ("v0.2.745-alpha: moved button") left

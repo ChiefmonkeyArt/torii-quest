@@ -60,21 +60,40 @@ export function initStickerSelfView({ camera: cam, scene: scn, playerObj, onConf
 
 export function isStickerPlacementActive() { return _active; }
 
-// _characterCenter(out) — the world centre of the player's own character mesh
-// (SkinnedMesh origin + half the geometry height). Fallback is a fixed 0.9m lift.
+// Torso bones used to find the authoritative orbit centre (hips → chest).
+// The skeleton's WORLD bone positions track the animated pose AND the player's
+// world transform exactly, so they're immune to the bind-pose bounding-box
+// axis/scale gotchas (Z-up GLBs, Armature 0.01 scales) that made the old
+// `mesh.getWorldPosition + geometry.boundingBox*0.5` centre land under the
+// terrain on real characters.
+const _CENTER_BONES = [
+  'Spine1', 'Spine', 'Hips',
+  'mixamorigSpine1', 'mixamorigSpine', 'mixamorigHips',
+  'mixamorig:Spine1', 'mixamorig:Spine', 'mixamorig:Hips',
+];
+
+// _characterCenter(out) — the world centre of the player's own character mesh.
 function _characterCenter(out) {
   const root = getPlayerModelRoot();
   if (!root) return out.set(0, 1, 0);
   let mesh = null;
   root.traverse((o) => { if (o.isSkinnedMesh && !mesh) mesh = o; });
-  if (mesh) {
-    mesh.getWorldPosition(out);
-    const bb = mesh.geometry && mesh.geometry.boundingBox;
-    out.y += bb ? (bb.max.y - bb.min.y) * 0.5 : 0.9;
-  } else {
-    root.getWorldPosition(out);
-    out.y += 0.9;
+  if (mesh && mesh.skeleton) {
+    for (const name of _CENTER_BONES) {
+      const bone = mesh.skeleton.getBoneByName(name);
+      if (bone) {
+        bone.updateWorldMatrix(true, false);
+        bone.getWorldPosition(out);
+        return out;
+      }
+    }
   }
+  // Fallback: mesh world origin + a nominal half-height. Refresh the world
+  // matrix first so a freshly-moved player isn't read from a stale transform.
+  const target = mesh || root;
+  target.updateWorldMatrix(true);
+  target.getWorldPosition(out);
+  out.y += 0.9;
   return out;
 }
 

@@ -962,6 +962,15 @@ export function createArenaRuntime(hooks = {}) {
     // grab drains in the SAME render tick as the snapshot (snapshot + JPEG align).
     // Fire-and-forget — the seal+POST never blocks the loop. The state machine's
     // inflight guard skips a tick if the previous upload is still resolving.
+    // Defensive (fixup): the full player character lives on layer 1 and must
+    // NEVER render in first-person view — only the mirror's reflection camera
+    // and the P-key self-view enable it. Force-disable layer 1 whenever the
+    // self-view isn't active so a leaked enable (e.g. a self-view entry that
+    // was never cleanly exited) can't leave a duplicate body on screen.
+    if (!isStickerPlacementActive()) {
+      camera.layers.disable(1);
+      camera.layers.enable(2);
+    }
     _driveAutoCapture(Date.now());
     try {
       renderFrame(isLive() && !isStickerPlacementActive()); // hide the gun viewmodel while placing a sticker

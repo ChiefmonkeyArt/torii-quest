@@ -241,10 +241,13 @@ describe('renderInstanceSettingsPanel', () => {
     expect(html).toContain('&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it('renders a close button hook for the shell', () => {
+  it('emits no dedicated close button (panel closes on backdrop click + ESC)', () => {
     const html = renderInstanceSettingsPanel(buildInstanceSettingsModel({ operatorPubkey: HEX_A, hostPubkey: HEX_A }));
-    expect(html).toContain('data-action="close"');
-    expect(html).toContain('aria-label="Close settings"');
+    // v0.2.751: the ✕ buttons were removed from settings + Access — the panel
+    // closes on backdrop click ("click anywhere outside") and ESC instead.
+    expect(html).not.toContain('data-action="close"');
+    expect(html).not.toContain('aria-label="Close settings"');
+    expect(html).not.toContain('is-close');
   });
 
   it('ADR-0078 (v0.2.712): when sections are filtered to only access (as the settings panel does), no placeholder "More coming soon" / multiplayer section is emitted, but the live access controls remain', () => {

@@ -142,17 +142,9 @@ function _build() {
   card.setAttribute('aria-label', 'Settings');
   card.className = 'ts-card';
 
-  // v0.4: standard close affordance moved to a top-right ✕ button (was a
-  // bottom-left "× Close" text button inside the nav column) — positioned
-  // absolutely over the whole card so it reads as a conventional dialog
-  // close control regardless of which tab/column layout is active.
-  const closeBtn = doc.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'ts-close-x';
-  closeBtn.textContent = '✕';
-  closeBtn.setAttribute('aria-label', 'Close settings');
-  closeBtn.addEventListener('click', () => closeSettingsPanel());
-
+  // No explicit ✕ close button — the panel closes on backdrop click ("click
+  // anywhere outside") and ESC, which the user prefers over a dedicated
+  // close control.
   const nav = doc.createElement('div');
   nav.className = 'ts-nav';
 
@@ -178,7 +170,7 @@ function _build() {
   content.className = 'ts-content';
   content.id = 'torii-settings-content';
 
-  card.append(closeBtn, nav, content);
+  card.append(nav, content);
   backdrop.append(card);
 
   // Close-on-backdrop: guarded by `e.target === backdrop` so clicks INSIDE the

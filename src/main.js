@@ -322,6 +322,47 @@ const _SHIPPED_WORLDS = Object.freeze([
   { id: 'chiefmonkey-template', name: 'Chiefmonkey Template' },
 ]);
 
+// _applyHeartbeatToggle(next) — shared ADR-0094-aware heartbeat toggle used by
+// BOTH the in-game menu (onToggleHeartbeat) and the Settings > Heartbeat tab
+// (onPublishNode). Mirrors the intent to the server beacon (the source of
+// truth) when reachable + holding the key, falling back to the client publish
+// otherwise. An explicit OFF always stops both.
+function _applyHeartbeatToggle(next) {
+  const wantOn = next === 'on';
+  setHeartbeatIntent(next);
+  const httpBase = resolveMpHttpBase();
+  const token = getStoredToken();
+  if (httpBase && token) {
+    setBeacon({ httpBase, token, action: next })
+      .then((r) => {
+        if (r && r.ok) {
+          _beacon.state.enabled = wantOn;
+          showEntryStatus(wantOn ? 'Heartbeat ON (server beacon).' : 'Heartbeat OFF.');
+          if (wantOn) refreshOnlineWorlds();
+        } else if (wantOn) {
+          _heartbeat.republishPaused = false;
+          _heartbeat.lastError = null;
+          publishOurWorldPresence().catch(() => {});
+          showEntryStatus('Server beacon unavailable — browser heartbeat active.');
+        } else {
+          showEntryStatus('Heartbeat OFF.');
+        }
+      })
+      .catch(() => {
+        if (wantOn) publishOurWorldPresence().catch(() => {});
+      });
+    return;
+  }
+  if (wantOn) {
+    _heartbeat.republishPaused = false;
+    _heartbeat.lastError = null;
+    publishOurWorldPresence().catch(() => { /* status surfaced */ });
+  } else {
+    _heartbeat.republishPaused = false;
+    showEntryStatus('Heartbeat OFF.');
+  }
+}
+
 function _getToriiMenuState() {
   const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
   const { friends, following, games, all } = classifySections({
@@ -382,47 +423,7 @@ function _getToriiMenuState() {
       gamestrLastPublish: _lastGamestrResult
         ? (_lastGamestrResult.published ? 'ok' : 'failed')
         : 'idle',
-      onToggleHeartbeat: (next) => {
-        const wantOn = next === 'on';
-        setHeartbeatIntent(next);
-        // ADR-0094: mirror the toggle to the server beacon (the source of truth).
-        // When the server is reachable and holds the key, presence is published
-        // server-side 24/7; the client-side publish below is only the fallback
-        // (server unreachable / unconfigured). An explicit OFF always stops both.
-        const httpBase = resolveMpHttpBase();
-        const token = getStoredToken();
-        if (httpBase && token) {
-          setBeacon({ httpBase, token, action: next })
-            .then((r) => {
-              if (r && r.ok) {
-                _beacon.state.enabled = wantOn;
-                showEntryStatus(wantOn ? 'Heartbeat ON (server beacon).' : 'Heartbeat OFF.');
-                if (wantOn) refreshOnlineWorlds();
-              } else if (wantOn) {
-                // Server rejected/unreachable — fall back to the client publish.
-                _heartbeat.republishPaused = false;
-                _heartbeat.lastError = null;
-                publishOurWorldPresence().catch(() => {});
-                showEntryStatus('Server beacon unavailable — browser heartbeat active.');
-              } else {
-                showEntryStatus('Heartbeat OFF.');
-              }
-            })
-            .catch(() => {
-              if (wantOn) publishOurWorldPresence().catch(() => {});
-            });
-          return;
-        }
-        // No server session/URL: pure client-side fallback (pre-existing path).
-        if (wantOn) {
-          _heartbeat.republishPaused = false;  // re-toggle clears a pause
-          _heartbeat.lastError = null;
-          publishOurWorldPresence().catch(() => { /* status surfaced */ });
-        } else {
-          _heartbeat.republishPaused = false;
-          showEntryStatus('Heartbeat OFF.');
-        }
-      },
+      onToggleHeartbeat: (next) => { _applyHeartbeatToggle(next); },
       onToggleGamestr: (next) => {
         // Owner-only: runtime opt-in for the gamestr.io score publish (kind 30762).
         // This is a localStorage override on top of the build-time GAMESTR_ENABLED
@@ -500,6 +501,12 @@ function _homepageStubState() {
     lastError: _heartbeat.lastError,
     republishPaused: _heartbeat.republishPaused,
   });
+  // ADR-0094: when the server beacon is enabled the SERVER publishes presence
+  // 24/7 — surface that truth so the Heartbeat tab's toggle reads ON, matching
+  // the in-game menu (which already applies this override). Without it the tab
+  // showed the raw client status ('idle' → OFF) even while the world was live,
+  // and its toggle never mirrored to the server beacon.
+  const effectiveHeartbeat = _beacon.state.enabled === true ? 'live' : hb;
   // v0.4: Relay tab reads the same validated node-relay set the heartbeat
   // publishes to (nodeRelays already computed above), plus the raw stored
   // string so the textarea shows exactly what's saved.
@@ -512,7 +519,7 @@ function _homepageStubState() {
     isOwner,
     isLoggedIn,
     activeWorld: getActiveWorld(),
-    heartbeatStatus: hb,
+    heartbeatStatus: effectiveHeartbeat,
     nodeRelays,
     nodeRelaysInput,
     profileDraft,
@@ -550,26 +557,14 @@ function _homepageStubCallbacks() {
     // Torii Gateway inside the NAP zone (KeyM in-game menu), so a second
     // UI-level node directory on the homepage would be redundant.
     onPublishNode: () => {
-      // Reuse the existing heartbeat consent-publish path (NOT a new publish
-      // path). Toggle direction is decided from whether we're ACTUALLY
-      // broadcasting (isHeartbeatBroadcasting on the current heartbeatStatus),
-      // never from the raw stored intent string. Intent defaults to 'on' on a
-      // fresh install even though nothing has ever published, so branching on
-      // getHeartbeatIntent() here would flip a first-time owner's very first
-      // click straight to 'off' instead of publishing + asking for NIP-07
-      // consent. Blocked states (no-signer / no-node-relay /
-      // wallet-requires-approval) surface via the tab's heartbeatStatus label.
+      // Reuse the shared ADR-0094-aware toggle (server beacon mirror + client
+      // fallback), NOT a client-only publish. Direction is decided from whether
+      // we're ACTUALLY broadcasting (isHeartbeatBroadcasting on the current
+      // heartbeatStatus), never from the raw stored intent string — the
+      // server-beacon-aware status means "on when live / off when idle".
       const currentlyBroadcasting = isHeartbeatBroadcasting(_homepageStubState().heartbeatStatus);
       const next = currentlyBroadcasting ? 'off' : 'on';
-      setHeartbeatIntent(next);
-      if (next === 'on') {
-        _heartbeat.republishPaused = false;
-        _heartbeat.lastError = null;
-        publishOurWorldPresence().catch(() => { /* status surfaced */ });
-      } else {
-        _heartbeat.republishPaused = false;
-        showEntryStatus('Heartbeat OFF.');
-      }
+      _applyHeartbeatToggle(next);
       // Re-render happens at the call site (settings content delegation),
       // which calls renderActiveSettingsTab() right after invoking this.
     },
@@ -1567,7 +1562,6 @@ registerSettingsTabRenderer('character', () => {
     if (!t.closest('#torii-settings-content')) return;
     const action = t.getAttribute && t.getAttribute('data-action');
     if (!action) return;
-    if (action === 'close') { e.preventDefault(); _closeSettingsContentPanel(); return; }
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }

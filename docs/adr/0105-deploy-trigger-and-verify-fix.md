@@ -89,4 +89,23 @@ that already fixes the verification bug.
 - `npm run check` — 21/21 gates green.
 - Manual: next tag `tag-release` creates on a future merge should show a
   corresponding `deploy-on-tag` run in Actions without any manual re-tag.
+
+## Follow-up (v0.2.748-alpha)
+
+The `workflow_run` trigger fix above shipped in v0.2.747-alpha and worked
+exactly as designed on the very next merge: `tag-release` auto-created
+`v0.2.747-alpha` with `GITHUB_TOKEN`, and the new `workflow_run` listener
+correctly fired `deploy-on-tag` anyway — proving the anti-recursion fix
+itself was sound. But the "Resolve tag to deploy" step's version-parsing
+line failed: `node -p "require('/dev/stdin').version"` piped through
+`base64 -d` does not reliably hand Node a readable stream in this runner
+shape (observed `base64: write error: Broken pipe` and Node exiting before
+consuming stdin), so the step errored out and no deploy occurred for
+v0.2.747-alpha. Fixed by dropping Node entirely and parsing the decoded
+JSON with `jq -r '.version'` (already used one line earlier for `--jq
+'.content'`, so no new dependency) into a `VERSION` variable, then building
+`TAG="v${VERSION}"`. Verified locally against the real `package.json`
+before shipping. v0.2.747-alpha was never live-served from this pipeline
+path (it deployed later, manually, alongside this fix) — no user-facing
+regression, caught same-night.
 </content>

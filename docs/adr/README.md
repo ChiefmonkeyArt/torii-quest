@@ -141,6 +141,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0103](./0103-mixamo-colon-bone-names.md) | Character Forge: normalize `mixamorig:X` colon-form bone names so real Mixamo GLBs pass the rig validator | Accepted |
 | [0104](./0104-beacon-relay-coverage-refresh.md) | Refresh `DEFAULT_NODE_RELAYS` to only relays that accept + round-trip `kind:30078`; commit `tools/relay-probe.mjs` for repeatability | Accepted |
 | [0105](./0105-deploy-trigger-and-verify-fix.md) | Fix silent auto-deploy gap: tag-release's GITHUB_TOKEN tags never fired deploy-on-tag; also fix a false-negative live-version-poll grep | Accepted |
+| [0106](./0106-never-force-update.md) | Never force-update — deploys are manual-only; renames `autoUpdate` capability to `selfUpdate` and re-triggers deploy via `workflow_dispatch` | Accepted |
 
 ## Workflow for a new decision
 

@@ -2012,7 +2012,7 @@ async function _publishMyScore() {
 // without re-probing on every login event. Both `null` until their first probe
 // resolves. `_updatePolling` guards against re-entrant status polls.
 let _latestUpdateView = null;
-let _updateCapability = null; // { autoUpdate, adminPubkey }
+let _updateCapability = null; // { selfUpdate, adminPubkey }
 let _updatePolling = false;
 
 // v0.2.706-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
@@ -2168,8 +2168,8 @@ function _fetchOwnerProfileNameOnce(adminPubkey) {
 
 // v0.2.387-alpha (UPD-2): Update Now button + copy-fallback visibility rule.
 // Fail-closed — nothing is shown unless the logged-in operator IS the configured
-// admin AND the latest probe says an update is available. When auto-update is
-// installed (capability.autoUpdate) the button is an ENABLED trigger; otherwise
+// admin AND the latest probe says an update is available. When self-update is
+// available (capability.selfUpdate) the button is an ENABLED trigger; otherwise
 // it is disabled and the copy-command fallback is revealed. Never throws.
 function _refreshUpdateButton() {
   const btn = document.getElementById('update-upgrade-btn');
@@ -2194,14 +2194,14 @@ function _refreshUpdateButton() {
     return;
   }
 
-  const auto = !!(cap && cap.autoUpdate === true);
-  if (auto) {
+  const selfUpdate = !!(cap && cap.selfUpdate === true);
+  if (selfUpdate) {
     btn.disabled = false;
     btn.textContent = '⬆ UPDATE NOW · CLICK HERE';
   } else {
-    // No auto-update installed on this instance — surface the manual command.
+    // No self-update available on this instance — surface the manual command.
     btn.disabled = true;
-    btn.textContent = 'AUTO-UPDATE NOT INSTALLED';
+    btn.textContent = 'UPDATE AVAILABLE · MANUAL INSTALL';
     if (fallback) {
       const cmd = document.getElementById('update-copy-cmd');
       if (cmd) cmd.textContent = deployCommand(view && view.latestVersion);
@@ -2395,7 +2395,7 @@ function renderUpdatePreview() {
   if (httpBase) {
     fetchCapability({ httpBase })
       .then((cap) => { _updateCapability = cap; _refreshUpdateButton(); })
-      .catch(() => { _updateCapability = { autoUpdate: false, adminPubkey: null }; });
+      .catch(() => { _updateCapability = { selfUpdate: false, adminPubkey: null }; });
   }
 
   checkForUpdateLive({ fetcher, storage })

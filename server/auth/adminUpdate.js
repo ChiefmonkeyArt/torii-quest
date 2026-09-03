@@ -82,14 +82,14 @@ export function createAdminUpdate(opts = {}) {
   }
 
   /**
-   * Public capability signal. autoUpdate is true only when an admin is configured
+   * Public capability signal. selfUpdate is true only when an admin is configured
    * AND the requests dir is writable (best-effort). adminPubkey is the admin's hex
    * pubkey (a PUBLIC key) so the client can compare its own logged-in pubkey — null
    * when unset so nothing is leaked about an unconfigured instance.
    */
   function capability() {
-    const autoUpdate = configured && requestsDirWritable();
-    return { autoUpdate, adminPubkey: configured ? admin : null };
+    const selfUpdate = configured && requestsDirWritable();
+    return { selfUpdate, adminPubkey: configured ? admin : null };
   }
 
   /** Read the runner-written status file, or { state:'unavailable' } when absent/bad. */

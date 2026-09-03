@@ -62,21 +62,21 @@ function make(overrides = {}) {
 }
 
 describe('capability', () => {
-  it('reports autoUpdate=true + the admin pubkey when configured and dir writable', () => {
+  it('reports selfUpdate=true + the admin pubkey when configured and dir writable', () => {
     const c = make().capability();
-    expect(c.autoUpdate).toBe(true);
+    expect(c.selfUpdate).toBe(true);
     expect(c.adminPubkey).toBe(ADMIN);
   });
 
-  it('reports autoUpdate=false and null pubkey when admin is unset', () => {
+  it('reports selfUpdate=false and null pubkey when admin is unset', () => {
     const c = createAdminUpdate({ adminPubkeyHex: '', requestsDir, statusPath }).capability();
-    expect(c.autoUpdate).toBe(false);
+    expect(c.selfUpdate).toBe(false);
     expect(c.adminPubkey).toBeNull();
   });
 
-  it('reports autoUpdate=false when the requests dir is missing', () => {
+  it('reports selfUpdate=false when the requests dir is missing', () => {
     const c = createAdminUpdate({ adminPubkeyHex: ADMIN, requestsDir: path.join(dir, 'nope'), statusPath }).capability();
-    expect(c.autoUpdate).toBe(false);
+    expect(c.selfUpdate).toBe(false);
     expect(c.adminPubkey).toBe(ADMIN); // pubkey is public, still surfaced
   });
 });

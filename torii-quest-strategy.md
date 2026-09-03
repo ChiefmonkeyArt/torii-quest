@@ -37,6 +37,7 @@ Torii Quest should become the playful, explorable, spatial layer of the Plebeian
 ## Core Principles
 
 - **Self-sovereignty first**: npub is the primary identity. No parallel account system should become the source of truth.
+- **Never force an update**: a self-hosted instance only ever *shows* that an update is available (the "Installed vs Latest" banner and the in-game "Update available" button). It changes nothing until its owner opts in. Deploys are never automatic — not via CI, not via a background agent, and never onto another person's machine. (ADR-0106)
 - **Bitcoin and Nostr only by default**: value, identity, messaging, presence, discovery, and handoff should prefer Bitcoin/Cashu/Nostr rails before platform-specific infrastructure.
 - **Federated, not centralised**: worlds should discover each other through relays and signed metadata, not a mandatory central registry.
 - **Fun before ideology**: the shoot'em up must remain fun. The freedom-tech architecture should make the game more meaningful, not make it boring.

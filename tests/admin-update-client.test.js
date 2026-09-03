@@ -60,16 +60,16 @@ describe('deployCommand', () => {
 
 describe('fetchCapability', () => {
   it('returns the parsed capability on a 200', async () => {
-    const fetchImpl = async () => ({ ok: true, json: async () => ({ autoUpdate: true, adminPubkey: HEX }) });
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ selfUpdate: true, adminPubkey: HEX }) });
     const c = await fetchCapability({ httpBase: 'https://h/mp', fetchImpl });
-    expect(c).toEqual({ autoUpdate: true, adminPubkey: HEX });
+    expect(c).toEqual({ selfUpdate: true, adminPubkey: HEX });
   });
-  it('degrades to autoUpdate:false / adminPubkey:null on any failure', async () => {
+  it('degrades to selfUpdate:false / adminPubkey:null on any failure', async () => {
     expect(await fetchCapability({ httpBase: 'https://h/mp', fetchImpl: async () => ({ ok: false }) }))
-      .toEqual({ autoUpdate: false, adminPubkey: null });
+      .toEqual({ selfUpdate: false, adminPubkey: null });
     expect(await fetchCapability({ httpBase: 'https://h/mp', fetchImpl: async () => { throw new Error('x'); } }))
-      .toEqual({ autoUpdate: false, adminPubkey: null });
-    expect(await fetchCapability({})).toEqual({ autoUpdate: false, adminPubkey: null });
+      .toEqual({ selfUpdate: false, adminPubkey: null });
+    expect(await fetchCapability({})).toEqual({ selfUpdate: false, adminPubkey: null });
   });
 });
 

@@ -1,21 +1,23 @@
-name: Deploy to VPS on tag
+name: Deploy to VPS (manual)
 
-# ADR-0105: tags created by tag-release.yml use the default GITHUB_TOKEN, and
-# GitHub's anti-recursion rule means a GITHUB_TOKEN-authored push never fires
-# other workflows' `on: push` triggers. A tag landed on origin (visible in
-# `git tag -l` / the Releases UI) with NO deploy ever firing -- silently.
-# Fix: also listen for `workflow_run` completion of tag-release, and resolve
-# the tag it just pushed independently (via the GitHub API) instead of relying
-# on the push event that never arrives. The direct `push: tags:` trigger is
-# kept for the case where a human/PAT-backed push DOES fire normally (belt and
-# braces; the job is idempotent either way since it always deploys HEAD's tag).
+# ADR-0106: NEVER force-update. Deploys are manual-only.
+#
+# This replaces the ADR-0101/0105 pipeline that auto-deployed on every tag push.
+# The commit → tag step (tag-release.yml) is unchanged, but nothing is shipped to
+# any VPS without an explicit human action. Run this workflow by hand — via the
+# GitHub Actions "Run workflow" button with an optional tag, or leave the tag
+# blank to deploy main's current package.json version.
+#
+# Note: this workflow targets the OWNER's canonical instance only (a single SSH
+# host secret). Self-hosted Torii Suite instances are never touched by CI — their
+# owners opt in through the in-game "Update available" button.
 on:
-  push:
-    tags:
-      - 'v*-alpha'
-  workflow_run:
-    workflows: ['tag-release']
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to deploy (e.g. v0.2.749-alpha). Blank deploys main HEAD.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -27,7 +29,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -37,19 +38,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            # workflow_run doesn't tell us the tag directly -- read the version
-            # tag-release just computed from package.json at that commit.
-            SHA="${{ github.event.workflow_run.head_sha }}"
-            VERSION=$(gh api "repos/${{ github.repository }}/contents/package.json?ref=$SHA" --jq '.content' | base64 -d | jq -r '.version')
-            TAG="v${VERSION}"
-            if [ -z "$TAG" ] || [ "$TAG" = "v" ]; then
-              echo "::error::Could not resolve version tag from commit $SHA" >&2
+            VERSION=$(gh api "repos/${{ github.repository }}/contents/package.json?ref=${{ github.ref_name }}" --jq '.content' | base64 -d | jq -r '.version')
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "::error::Could not resolve version from package.json on ${{ github.ref_name }}" >&2
               exit 1
             fi
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Trigger VPS update service over SSH
@@ -82,13 +79,9 @@ jobs:
         run: |
           set -euo pipefail
           # Give the update service a moment to finish the symlink swap.
-          # ADR-0105: scope the match to the #ver footer label specifically --
-          # a bare page-wide grep for /v0\.2\.[0-9]+-alpha/ matches whichever
-          # version string appears FIRST in index.html, which is often a
-          # changelog-style code comment ("v0.2.745-alpha: moved button") left
-          # over from an earlier release, not the actual deployed version. That
-          # false match made this gate report failure on a deploy that had, in
-          # fact, already succeeded.
+          # Scope the match to the #ver footer label specifically — a bare
+          # page-wide grep matches a stale changelog-comment version string,
+          # which previously reported failure on a deploy that had succeeded.
           for i in 1 2 3 4 5 6 7 8; do
             live=$(curl -sf https://chiefmonkey.art/quest/ | grep -oE '<div id="ver">v0\.2\.[0-9]+-alpha' | grep -oE 'v0\.2\.[0-9]+-alpha' || true)
             echo "poll $i: live=$live tag=${TARGET_TAG}"

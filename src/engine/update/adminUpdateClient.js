@@ -2,7 +2,7 @@
 // server-reinstall flow (UPD-2, v0.2.387-alpha).
 //
 // The version box's "Update Now" button is shown ONLY when the arena reports
-// autoUpdate=true AND the logged-in operator's pubkey === the admin pubkey the
+// selfUpdate=true AND the logged-in operator's pubkey === the admin pubkey the
 // (public) capability endpoint sends down. On click the client signs ONE fresh
 // intent event, POSTs it (with the existing session bearer token) to
 // /mp/admin/update, and polls /mp/admin/update-status until the root runner
@@ -75,23 +75,23 @@ export function isAdminOperator(operatorPubkey, adminPubkey) {
   return HEX64.test(op) && HEX64.test(admin) && op === admin;
 }
 
-// fetchCapability({ httpBase, fetchImpl }) → { autoUpdate, adminPubkey }. Public,
-// no auth. Any failure degrades to { autoUpdate:false, adminPubkey:null }.
+// fetchCapability({ httpBase, fetchImpl }) → { selfUpdate, adminPubkey }. Public,
+// no auth. Any failure degrades to { selfUpdate:false, adminPubkey:null }.
 export async function fetchCapability({ httpBase, fetchImpl } = {}) {
   const f = fetchImpl || (typeof globalThis !== 'undefined' ? globalThis.fetch : null);
   if (typeof httpBase !== 'string' || !httpBase || typeof f !== 'function') {
-    return { autoUpdate: false, adminPubkey: null };
+    return { selfUpdate: false, adminPubkey: null };
   }
   try {
     const res = await f(`${httpBase}/admin/update-capability`, { method: 'GET' });
-    if (!res || !res.ok) return { autoUpdate: false, adminPubkey: null };
+    if (!res || !res.ok) return { selfUpdate: false, adminPubkey: null };
     const body = await res.json();
     return {
-      autoUpdate: !!(body && body.autoUpdate === true),
+      selfUpdate: !!(body && body.selfUpdate === true),
       adminPubkey: body && typeof body.adminPubkey === 'string' ? body.adminPubkey : null,
     };
   } catch {
-    return { autoUpdate: false, adminPubkey: null };
+    return { selfUpdate: false, adminPubkey: null };
   }
 }
 

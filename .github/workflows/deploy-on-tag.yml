@@ -1,9 +1,25 @@
 name: Deploy to VPS on tag
 
+# ADR-0106: tags created by tag-release.yml use the default GITHUB_TOKEN, and
+# GitHub's anti-recursion rule means a GITHUB_TOKEN-authored push never fires
+# other workflows' `on: push` triggers. A tag landed on origin (visible in
+# `git tag -l` / the Releases UI) with NO deploy ever firing -- silently.
+# Fix: also listen for `workflow_run` completion of tag-release, and resolve
+# the tag it just pushed independently (via the GitHub API) instead of relying
+# on the push event that never arrives. The direct `push: tags:` trigger is
+# kept for the case where a human/PAT-backed push DOES fire normally (belt and
+# braces; the job is idempotent either way since it always deploys HEAD's tag).
 on:
   push:
     tags:
       - 'v*-alpha'
+  workflow_run:
+    workflows: ['tag-release']
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
 
 concurrency:
   group: torii-quest-vps-deploy
@@ -11,9 +27,30 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Resolve tag to deploy
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            # workflow_run doesn't tell us the tag directly -- read the version
+            # tag-release just computed from package.json at that commit.
+            SHA="${{ github.event.workflow_run.head_sha }}"
+            TAG="v$(gh api repos/${{ github.repository }}/contents/package.json?ref=$SHA --jq '.content' | base64 -d | node -p "require('/dev/stdin').version" 2>/dev/null || true)"
+            if [ -z "$TAG" ] || [ "$TAG" = "v" ]; then
+              echo "::error::Could not resolve version tag from commit $SHA" >&2
+              exit 1
+            fi
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Trigger VPS update service over SSH
         env:
           SSH_KEY: ${{ secrets.TORII_DEPLOY_SSH_KEY }}
@@ -39,17 +76,26 @@ jobs:
               ubuntu@"$SSH_HOST"
 
       - name: Verify live version matches tag
+        env:
+          TARGET_TAG: ${{ steps.resolve.outputs.tag }}
         run: |
           set -euo pipefail
           # Give the update service a moment to finish the symlink swap.
+          # ADR-0106: scope the match to the #ver footer label specifically --
+          # a bare page-wide grep for /v0\.2\.[0-9]+-alpha/ matches whichever
+          # version string appears FIRST in index.html, which is often a
+          # changelog-style code comment ("v0.2.745-alpha: moved button") left
+          # over from an earlier release, not the actual deployed version. That
+          # false match made this gate report failure on a deploy that had, in
+          # fact, already succeeded.
           for i in 1 2 3 4 5 6 7 8; do
-            live=$(curl -sf https://chiefmonkey.art/quest/ | grep -oE 'v0\.2\.[0-9]+-alpha' | head -1 || true)
-            echo "poll $i: live=$live tag=${GITHUB_REF_NAME}"
-            if [ "$live" = "${GITHUB_REF_NAME}" ]; then
+            live=$(curl -sf https://chiefmonkey.art/quest/ | grep -oE '<div id="ver">v0\.2\.[0-9]+-alpha' | grep -oE 'v0\.2\.[0-9]+-alpha' || true)
+            echo "poll $i: live=$live tag=${TARGET_TAG}"
+            if [ "$live" = "${TARGET_TAG}" ]; then
               echo "live version matches tag: $live"
               exit 0
             fi
             sleep 10
           done
-          echo "Live version never matched ${GITHUB_REF_NAME} after 80s of polling." >&2
+          echo "Live version never matched ${TARGET_TAG} after 80s of polling." >&2
           exit 1

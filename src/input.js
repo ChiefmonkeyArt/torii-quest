@@ -135,10 +135,28 @@ export function requestLock(el) {
   } catch { /* older browsers throw synchronously; ignore */ }
 }
 
+// DIAG — playtest reported the NAP-zone cursor «switching to mouse and back»
+// while firing stickers. A visible OS cursor means pointer lock dropped; track
+// rapid lock↔unlock cycles so the next report can name the trigger. Bounded to
+// a handful of consoles so it never spams a long session.
+let _lastLockWasLocked = null;
+let _lastLockFlipAt = 0;
+let _lockFlapLogs = 0;
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement !== null;
+  const now = performance.now();
+  if (_lastLockWasLocked !== null && _lastLockWasLocked !== locked && now - _lastLockFlipAt < 750) {
+    // State flipped TWICE within 750ms → a flap (locked → unlocked → locked, or
+    // the reverse). Only worth logging while in-game.
+    if (typeof isPlaying === 'function' && isPlaying() && _lockFlapLogs < 4) {
+      _lockFlapLogs++;
+      console.warn('[input] pointer-lock flap: ' + (_lastLockWasLocked ? 'lock→unlock' : 'unlock→lock') + ' in ' + Math.round(now - _lastLockFlipAt) + 'ms');
+    }
+  }
+  _lastLockWasLocked = locked;
+  _lastLockFlipAt = now;
   if (!locked) {
-    _lockReleasedAt = performance.now();
+    _lockReleasedAt = now;
     clearKeys(); // lock exit can eat keyups for held movement keys
   }
   state.pointerLocked = locked;

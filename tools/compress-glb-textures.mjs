@@ -16,6 +16,7 @@ const TARGETS = [
   'models/chiefmonkey7.glb',
   'chiefmonkey-npc-animations.glb',
   'models/animation-library.glb',
+  'models/guest-master.glb',
 ];
 
 const encoder = await createEncoderModule();

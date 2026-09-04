@@ -1,14 +1,24 @@
 // engine/character/skeleton.js — the canonical Torii humanoid skeleton contract.
 // Pure, node-safe (no THREE/Rapier/DOM). This is the foundation of the auto-rig
 // engine: it defines the skeleton by SEMANTIC ROLES (not exact bone names) so
-// arbitrary third-party bone conventions (Mixamo, Biped, future) can be mapped
-// onto Torii's animation library.
+// arbitrary third-party bone conventions (Mixamo, Biped, Tripo, Meshy, Unreal,
+// future) can be mapped onto Torii's animation library.
 //
 // The canonical skeleton is role-based on purpose. The whole point of the
 // Character Forge auto-rigger is to turn "AI made a humanoid mesh" into "it
 // walks in Torii" — and that means mapping whatever bone names a generator
 // emitted onto the roles the animation library drives. See
 // nap-torii-avatar-v0.md + the Character Forge entry in torii-quest-strategy.md.
+//
+// Two resolution layers:
+//   1. Explicit convention tables (MIXAMO / BIPED / TRIPO / GENERIC_HUMANOID) —
+//      exact, deterministic mappings for the known generator conventions. These
+//      are the source of truth for the four vendors we already accept.
+//   2. `classifyBone()` — a general keyword/side heuristic that maps an
+//      ARBITRARY humanoid bone name onto a role WITHOUT a per-vendor table, so
+//      a brand-new generator's `.glb` still resolves "no matter where it came
+//      from" (see ADR-0107). It is conservative: it returns null unless a
+//      confident match exists, so noise/helper nodes never map.
 
 // Ordered role list (root-first). `required` marks roles the animation library
 // needs to drive a playable character; optional roles degrade gracefully when
@@ -98,10 +108,72 @@ export const BIPED_BONE_MAP = Object.freeze({
   'Bip01 R Toe0': 'RightToe',
 });
 
+// Tripo bone names → canonical role. Tripo (the image/text-to-3D generator)
+// auto-rigs humanoids with its own `Hip` / `L_Thigh` / `L_Upperarm` underscore
+// convention. The legs hang off `Pelvis` (left as an extra here) while the
+// spine chain is `Waist` → `Spine01` → `Spine02`.
+export const TRIPO_BONE_MAP = Object.freeze({
+  Hip: 'Hips',
+  Waist: 'Spine',
+  Spine01: 'Spine1',
+  Spine02: 'Spine2',
+  Neck: 'Neck',
+  Head: 'Head',
+  L_Clavicle: 'LeftShoulder',
+  R_Clavicle: 'RightShoulder',
+  L_Upperarm: 'LeftUpperArm',
+  R_Upperarm: 'RightUpperArm',
+  L_Forearm: 'LeftLowerArm',
+  R_Forearm: 'RightLowerArm',
+  L_Hand: 'LeftHand',
+  R_Hand: 'RightHand',
+  L_Thigh: 'LeftUpperLeg',
+  R_Thigh: 'RightUpperLeg',
+  L_Calf: 'LeftLowerLeg',
+  R_Calf: 'RightLowerLeg',
+  L_Foot: 'LeftFoot',
+  R_Foot: 'RightFoot',
+  L_ToeBase: 'LeftToe',
+  R_ToeBase: 'RightToe',
+});
+
+// Generic humanoid names → canonical role. This is the prefix-stripped Mixamo
+// style (`Hips`, `Spine`, `LeftArm`, `LeftForeArm`, `LeftUpLeg`, `LeftLeg`, …)
+// that Meshy's auto-rigged output and the Unreal Mannequin both use — the most
+// common "plain" humanoid convention. `neck` (lowercase) is included because
+// Meshy emits it that way.
+export const GENERIC_HUMANOID_BONE_MAP = Object.freeze({
+  Hips: 'Hips',
+  Spine: 'Spine',
+  Spine01: 'Spine1',
+  Spine02: 'Spine2',
+  Neck: 'Neck',
+  neck: 'Neck',
+  Head: 'Head',
+  LeftShoulder: 'LeftShoulder',
+  RightShoulder: 'RightShoulder',
+  LeftArm: 'LeftUpperArm',
+  RightArm: 'RightUpperArm',
+  LeftForeArm: 'LeftLowerArm',
+  RightForeArm: 'RightLowerArm',
+  LeftHand: 'LeftHand',
+  RightHand: 'RightHand',
+  LeftUpLeg: 'LeftUpperLeg',
+  RightUpLeg: 'RightUpperLeg',
+  LeftLeg: 'LeftLowerLeg',
+  RightLeg: 'RightLowerLeg',
+  LeftFoot: 'LeftFoot',
+  RightFoot: 'RightFoot',
+  LeftToeBase: 'LeftToe',
+  RightToeBase: 'RightToe',
+});
+
 // All known bone-name maps, in detection priority order.
 export const BONE_MAPS = Object.freeze([
   { id: 'mixamo', map: MIXAMO_BONE_MAP },
   { id: 'biped', map: BIPED_BONE_MAP },
+  { id: 'tripo', map: TRIPO_BONE_MAP },
+  { id: 'generic', map: GENERIC_HUMANOID_BONE_MAP },
 ]);
 
 // ── Scale / axis normalization constants ────────────────────────────────────
@@ -139,50 +211,130 @@ export function normalizeBoneName(name) {
   return s.slice(lastColon + 1).replace(/:/g, '');
 }
 
-// detectConvention(boneNames) → 'mixamo' | 'biped' | 'unknown'.
-// Classifies a bone list by which known convention the majority of names match.
+// detectConvention(boneNames) → 'mixamo' | 'biped' | 'tripo' | 'generic' | 'unknown'.
+// Classifies a bone list by scoring how many names each known convention table
+// resolves (via normalizeBoneName). Highest score wins; a zero score is
+// 'unknown'. Scoring is more robust than the old prefix sniff — a Tripo or
+// prefix-stripped Meshy rig is now recognised by its actual bone names rather
+// than rejected.
 export function detectConvention(boneNames) {
   const names = Array.isArray(boneNames) ? boneNames.map((n) => String(n)) : [];
   if (names.length === 0) return 'unknown';
-  let mixamoHits = 0;
-  let bipedHits = 0;
-  for (const n of names) {
-    const norm = normalizeBoneName(n);
-    if (norm.startsWith('mixamorig')) mixamoHits += 1;
-    else if (norm.startsWith('Bip01') || norm.startsWith('bip01')) bipedHits += 1;
+  let best = 'unknown';
+  let bestScore = 0;
+  for (const entry of BONE_MAPS) {
+    let score = 0;
+    for (const n of names) {
+      if (entry.map[normalizeBoneName(n)]) score += 1;
+    }
+    if (score > bestScore) {
+      best = entry.id;
+      bestScore = score;
+    }
   }
-  if (mixamoHits > bipedHits && mixamoHits > 0) return 'mixamo';
-  if (bipedHits > mixamoHits && bipedHits > 0) return 'biped';
-  return 'unknown';
+  return best;
+}
+
+// _canon(name) → a compact, comparable lower-case string for `classifyBone`:
+// normalize colon/armature forms, drop every non-alphanumeric, lower-case, then
+// strip a known namespace/armature prefix (mixamorig, bip, armature, character,
+// …). "LeftForeArm", "L_Forearm", "left_forearm" and "Bip01 L Forearm" all
+// collapse onto comparable forms. Never throws.
+function _canon(name) {
+  let s = normalizeBoneName(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+  s = s.replace(/^(mixamorig|mixamo|bip01|bip|armature|character1|character|char1)/, '');
+  return s;
+}
+
+// _segmentRole(body, sided) → the center-role suffix for a side-stripped bone
+// name (e.g. "calf" → "LowerLeg"), or null. `sided` gates the LIMB roles so a
+// bare "arm"/"leg" with no left/right marker is never guessed a side. Ordered
+// so "forearm"/"lowerarm" win over "arm", "upleg"/"thigh" over "leg", and
+// "toebase" is handled before "foot".
+function _segmentRole(body, sided) {
+  if (!body) return null;
+  // Spine with optional trailing digit (Spine1/Spine2 are optional roles).
+  if (body === 'spine') return 'Spine';
+  if (body === 'spine1') return 'Spine1';
+  if (body === 'spine2') return 'Spine2';
+  // Center (no-side) roles.
+  if (body === 'pelvis' || body === 'hips' || body === 'hip') return 'Hips';
+  if (body === 'neck') return 'Neck';
+  if (body === 'head') return 'Head';
+  // Side-gated limb roles.
+  if (!sided) return null;
+  if (body === 'shoulder' || body === 'clavicle') return 'Shoulder';
+  if (body === 'upperarm' || body === 'arm') return 'UpperArm';
+  if (body === 'forearm' || body === 'lowerarm' || body === 'elbow') return 'LowerArm';
+  if (body === 'hand') return 'Hand';
+  if (body === 'thigh' || body === 'upleg' || body === 'upperleg') return 'UpperLeg';
+  if (body === 'calf' || body === 'shin' || body === 'leg' || body === 'lowerleg') return 'LowerLeg';
+  if (body === 'foot') return 'Foot';
+  if (body === 'toe' || body === 'toebase') return 'Toe';
+  return null;
+}
+
+// classifyBone(name) → a canonical role string, or null. GENERAL heuristic: maps
+// an arbitrary humanoid bone name onto a role without a per-vendor table so a
+// brand-new generator's `.glb` still resolves. Handles word prefixes
+// ("LeftArm"), short prefixes ("L_Thigh"/"l_thigh"), and Unreal-style suffixes
+// ("thigh_l"). Conservative — returns null unless a confident match exists, so
+// helper nodes ("head_end", "tripo_node_…", "char1", "root") stay unmapped.
+export function classifyBone(name) {
+  const canon = _canon(name);
+  if (!canon) return null;
+
+  let side = null;
+  let body = canon;
+
+  // Side detection. Explicit words first, then a leading single letter, then a
+  // trailing single letter (Unreal Mannequin "thigh_l"/"calf_r").
+  if (canon.startsWith('left')) { side = 'Left'; body = canon.slice(4); }
+  else if (canon.startsWith('right')) { side = 'Right'; body = canon.slice(5); }
+  else if (canon[0] === 'l') { side = 'Left'; body = canon.slice(1); }
+  else if (canon[0] === 'r') { side = 'Right'; body = canon.slice(1); }
+  else if (canon.length > 2 && canon.endsWith('l')) { side = 'Left'; body = canon.slice(0, -1); }
+  else if (canon.length > 2 && canon.endsWith('r')) { side = 'Right'; body = canon.slice(0, -1); }
+
+  const base = _segmentRole(body, side !== null);
+  if (!base) return null;
+  return side ? `${side}${base}` : base;
 }
 
 // mapBonesToRoles(boneNames) → { convention, mapped, missing, requiredMissing, extra }.
-// Maps a bone-name list onto canonical roles using the detected convention.
-// `mapped` is { role: boneName }; `missing` is every role with no mapping;
-// `requiredMissing` is the subset the animation library cannot do without;
-// `extra` is bone names that matched no role (ignored by the auto-rigger).
-// Bone names are normalized (see normalizeBoneName) before lookup, so
-// `mixamorig:Hips` (Blender/glTF form) and `mixamorigHips` (Adobe FBX form)
-// both map to the same role.
+// Maps a bone-name list onto canonical roles. Resolution is per-bone and
+// exhaustive: first try every known convention table (in priority order), then
+// fall back to the `classifyBone` heuristic, so a mixed or brand-new convention
+// still resolves. `mapped` is { role: boneName } (the ORIGINAL name, colon and
+// case preserved, so callers can address the real scene node); `missing` is
+// every role with no mapping; `requiredMissing` is the subset the animation
+// library cannot do without; `extra` is bone names that resolved to no role.
 export function mapBonesToRoles(boneNames) {
   const names = Array.isArray(boneNames) ? boneNames.map((n) => String(n)) : [];
   const convention = detectConvention(names);
-  const map = (BONE_MAPS.find((m) => m.id === convention) || {}).map || {};
   const mapped = {};
   const seen = new Set();
+  const extra = [];
   for (const n of names) {
-    const role = map[normalizeBoneName(n)];
-    if (role && !seen.has(role)) {
+    const norm = normalizeBoneName(n);
+    let role = null;
+    for (const entry of BONE_MAPS) {
+      const r = entry.map[norm];
+      if (r) { role = r; break; }
+    }
+    if (!role) role = classifyBone(n);
+    if (!role) { extra.push(n); continue; }
+    if (!seen.has(role)) {
       mapped[role] = n;
       seen.add(role);
     }
+    // else: duplicate role — drop this bone silently (as before).
   }
   const mappedRoles = Object.keys(mapped);
   const missing = SKELETON_ROLES
     .filter((r) => !mappedRoles.includes(r.role))
     .map((r) => r.role);
   const requiredMissing = missing.filter((r) => REQUIRED_ROLES.includes(r));
-  const extra = names.filter((n) => !map[normalizeBoneName(n)]);
   return { convention, mapped, missing, requiredMissing, extra };
 }
 

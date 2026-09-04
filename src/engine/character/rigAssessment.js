@@ -5,6 +5,10 @@
 // names (read from a third-party GLB) and reports whether the auto-rigger can
 // map it, what's missing, and what convention it is. It does NOT touch the
 // mesh — it only reasons about the skeleton contract (skeleton.js).
+//
+// The verdict ladder is mapping-based, not label-based: a rig resolves as
+// 'riggable' whenever every required role maps (by convention table OR the
+// general heuristic), regardless of whether its "convention" is a known label.
 
 import { mapBonesToRoles, REQUIRED_ROLES } from './skeleton.js';
 
@@ -12,8 +16,8 @@ export const RIG_ASSESSMENT_VERSION = 1;
 
 // Verdicts:
 //   'riggable'           — every required role maps; auto-rig can proceed.
-//   'partial'            — a known convention but some required roles missing.
-//   'unknown-convention' — bones present but no known name table matches.
+//   'partial'            — some required roles mapped, some still missing.
+//   'unknown-convention' — bones present but NOTHING mapped to a known role.
 //   'no-bones'           — no bones at all (unrigged/static mesh).
 
 // assessRig(boneNames, opts) → verdict object. `boneNames` is an array of
@@ -27,12 +31,16 @@ export function assessRig(boneNames, opts = {}) {
   if (names.length === 0) {
     verdict = 'no-bones';
     notes.push('No bones found — the mesh is unrigged/static. Auto-rig would need a generated skeleton, which is out of scope for v1.');
-  } else if (convention === 'unknown') {
-    verdict = 'unknown-convention';
-    notes.push('Bone names do not match a known convention (Mixamo/Biped). Cannot auto-map without a custom name table.');
   } else if (requiredMissing.length === 0) {
     verdict = 'riggable';
-    notes.push(`All ${REQUIRED_ROLES.length} required roles present (${convention} convention).`);
+    notes.push(
+      convention === 'unknown'
+        ? `All ${REQUIRED_ROLES.length} required roles mapped (general heuristic).`
+        : `All ${REQUIRED_ROLES.length} required roles present (${convention} convention).`,
+    );
+  } else if (Object.keys(mapped).length === 0) {
+    verdict = 'unknown-convention';
+    notes.push('Bone names do not match a known convention (Mixamo/Biped/Tripo/generic) and no heuristic match — cannot map.');
   } else {
     verdict = 'partial';
     notes.push(`Missing required roles: ${requiredMissing.join(', ')}.`);

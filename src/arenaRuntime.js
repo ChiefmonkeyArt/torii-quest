@@ -1285,8 +1285,11 @@ export function createArenaRuntime(hooks = {}) {
         playShoot();
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
         if (inNap) {
-          // NAP zone: stickers only, no bullets
-          fireStickerAtNpc(aim, ad);
+          // NAP zone: stickers only, no bullets. The sticker TARGETS along the
+          // aim ray (camera/crosshair) but must visibly leave the GUN muzzle, so
+          // pass the gun `origin` as the spawn origin — otherwise it fires from
+          // the player's face (the camera origin).
+          fireStickerAtNpc(aim, ad, origin);
           return;
         }
         // Arena: bullets only, no stickers

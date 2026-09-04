@@ -1,0 +1,205 @@
+{
+  "v": 1,
+  "name": "Torii Arena",
+  "mode": "arena-shooter",
+  "terrain": {
+    "arena": {
+      "minX": -20,
+      "maxX": 20,
+      "minZ": -20,
+      "maxZ": 20,
+      "cellSize": 0.32,
+      "islandBaseY": 0.6
+    },
+    "nap": {
+      "minX": 20,
+      "maxX": 45,
+      "minZ": -20,
+      "maxZ": 20,
+      "cellSize": 0.32,
+      "islandBaseY": 0.6
+    },
+    "seaLevel": -0.26,
+    "edges": {
+      "arena": {
+        "minX": "join",
+        "maxX": "sea",
+        "minZ": "sea",
+        "maxZ": "sea"
+      },
+      "nap": {
+        "minX": "join",
+        "maxX": "sea",
+        "minZ": "sea",
+        "maxZ": "sea"
+      }
+    }
+  },
+  "bounds": {
+    "arenaHalf": 20,
+    "napX": 20,
+    "napFarX": 45,
+    "wallH": 2.6,
+    "wallWallH": 0.5
+  },
+  "lights": [
+    {
+      "type": "ambient",
+      "color": "#ffd9a0",
+      "intensity": 0.9
+    },
+    {
+      "type": "directional",
+      "color": "#ffe5b0",
+      "intensity": 1.8,
+      "pos": [
+        40,
+        20,
+        -30
+      ],
+      "castShadow": true,
+      "shadowMapSize": 1024,
+      "shadowCamera": {
+        "near": 1,
+        "far": 80,
+        "left": -25,
+        "right": 25,
+        "bottom": -25,
+        "top": 25
+      }
+    },
+    {
+      "type": "hemisphere",
+      "sky": "#7fdfff",
+      "ground": "#b9a06b",
+      "intensity": 0.5,
+      "pos": [
+        0,
+        8.6,
+        0
+      ]
+    },
+    {
+      "type": "point",
+      "color": "#ffaa44",
+      "intensity": 1.2,
+      "distance": 60,
+      "pos": [
+        0,
+        4,
+        0
+      ]
+    }
+  ],
+  "spawns": {
+    "player": {
+      "x": -14,
+      "y": 3.1,
+      "z": -14,
+      "yaw": -2.356194490192345
+    },
+    "nap": {
+      "x": 40,
+      "z": -17,
+      "yaw": 1.5707963267948966
+    },
+    "botCorners": [
+      {
+        "x": -14,
+        "z": -14,
+        "radius": 6
+      }
+    ]
+  },
+  "objects": [
+    {
+      "type": "torii-gate",
+      "pos": [
+        20,
+        0,
+        0
+      ],
+      "rot": 0
+    },
+    {
+      "type": "travel-gate",
+      "pos": [
+        42,
+        0,
+        16
+      ],
+      "rot": -0.7853981633974483
+    },
+    {
+      "type": "bridge",
+      "pos": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "type": "tree",
+      "pos": [
+        34,
+        0,
+        7
+      ],
+      "variant": 0
+    },
+    {
+      "type": "fence",
+      "comment": "coastline glass wall + neon edge, built from terrain ring"
+    }
+  ],
+  "combat": {
+    "botCount": 5,
+    "botHp": 5,
+    "botSpeed": 2.2,
+    "botShootCd": 2.6,
+    "botSight": 14,
+    "botDamage": 6,
+    "botSpread": 0.22,
+    "botBodyRadius": 0.30,
+    "botHeadRadius": 0.30,
+    "bossCount": 1,
+    "bossHp": 60,
+    "bossSpeed": 1.0,
+    "bossDamage": 14,
+    "bossShootCd": 3.5,
+    "bossRadius": 0.8,
+    "bossTargetHeight": 3.0,
+    "bodyDamage": 3,
+    "headshotDamage": 9,
+    "lagCompMs": 300
+  },
+  "foliage": {
+    "enabled": true,
+    "bladeCount": 75000,
+    "bladeSegments": 4,
+    "bladeWidth": 0.05,
+    "bladeHeightMin": 0.42,
+    "bladeHeightMax": 0.58,
+    "zones": [
+      {
+        "type": "grass",
+        "bounds": {
+          "minX": 20,
+          "maxX": 45,
+          "minZ": -20,
+          "maxZ": 20
+        }
+      }
+    ]
+  },
+  "portals": [
+    {
+      "id": "travel-gate",
+      "pos": [
+        42,
+        0,
+        16
+      ]
+    }
+  ]
+}

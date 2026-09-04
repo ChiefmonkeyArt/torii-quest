@@ -392,8 +392,12 @@ function _boneGrazeFallback(bone, origin, dirN) {
   return { point, normal, bone };
 }
 
-// Spawn a sticker projectile from `origin` toward the nearest surface hit.
-export function fireStickerAtNpc(origin, dir) {
+// Spawn a sticker projectile from `spawnOrigin` (the gun muzzle) toward the
+// nearest surface hit resolved along the aim ray (`origin`/`dir`). The aim ray
+// drives TARGETING (what the crosshair points at), while `spawnOrigin` drives
+// where the sticker visibly leaves the weapon — they are the camera and the gun
+// respectively, so the sticker must not spawn from the player's face.
+export function fireStickerAtNpc(origin, dir, spawnOrigin) {
   _preloadTexture();
 
   const dirN = dir.clone().normalize();
@@ -581,7 +585,10 @@ export function fireStickerAtNpc(origin, dir) {
   const sprite = new THREE.Sprite(mat);
   sprite.userData.isSticker = true;
   sprite.scale.set(FLY_SIZE, FLY_SIZE * ATTACHED_RATIO, 1);
-  sprite.position.copy(origin);
+  // Spawn at the gun muzzle, not the ray origin (camera aim). Like a bullet, the
+  // sticker leaves the end of the gun, then flies to the crosshair's hit point.
+  const spawnPoint = spawnOrigin || origin;
+  sprite.position.copy(spawnPoint);
   scene.add(sprite);
 
   // Render-mode decision captured at fire time so a mid-flight A/B flip does
@@ -592,7 +599,7 @@ export function fireStickerAtNpc(origin, dir) {
 
   _stickers.push({
     sprite,
-    from: origin.clone(),
+    from: spawnPoint.clone(),
     to: hitPoint.clone(),
     normal: hitNormal.clone(),
     npcRoot,
@@ -614,6 +621,10 @@ export function fireStickerAtNpc(origin, dir) {
 
 // Called every frame to update flying + attached stickers.
 export function tickStickerNpc(dt) {
+  // Preload the FTFF texture on the FIRST tick (arena entry), not the first
+  // fire — otherwise the opening shots show the pink `0xff00ff` fallback while
+  // the image is still streaming. The guard makes this idempotent + free.
+  _preloadTexture();
   // Poll for NPC root (for gesture trigger detection)
   if (!_npcRoot) _pollNpcRoot();
   if (!_npcRoot && _getNpcRootFn) {

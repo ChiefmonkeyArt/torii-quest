@@ -46,3 +46,26 @@ describe('stickerNpc baked decal material — DoubleSide fix', () => {
     expect(SRC).toMatch(/depthWrite:\s*false/);
   });
 });
+
+describe('stickerNpc baked decal — local-space parenting (v0.2.757)', () => {
+  it('bakes the WORLD-space DecalGeometry into the hit mesh local space', () => {
+    // DecalGeometry emits world-space vertices; they must be pushed into the
+    // hit mesh's LOCAL space before parenting, via applyMatrix4(invert matrixWorld),
+    // otherwise the decal is double-transformed out of view.
+    expect(SRC).toMatch(/copy\(target\.matrixWorld\)\.invert\(\)/);
+    expect(SRC).toMatch(/decalGeo\.applyMatrix4\(invMatrix\)/);
+  });
+
+  it('parents the decal with an identity local transform (no quaternion/position counteraction)', () => {
+    // The old quaternion-inverse + worldToLocal counteraction is what left baked
+    // stickers invisible on static meshes (trees, the torii gate, the sats symbol)
+    // — it only cancelled rotation/translation, not scale. Replace it with identity.
+    expect(SRC).toMatch(/decal\.position\.set\(0,\s*0,\s*0\)/);
+    expect(SRC).toMatch(/decal\.quaternion\.identity\(\)/);
+    // The broken worldToLocal counteraction must be gone from the baked branch.
+    const baked = SRC.slice(SRC.indexOf('const decalMat = createBakedDecalMaterial'),
+                            SRC.indexOf('_attached.push({ mesh: decal'));
+    expect(baked).not.toMatch(/worldToLocal/);
+    expect(baked).not.toMatch(/copy\(_worldQuatInv\)/);
+  });
+});

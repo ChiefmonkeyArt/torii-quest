@@ -50,6 +50,16 @@ const _meshCache = [];
 let _meshCacheTime = 0;
 const MESH_CACHE_TTL = 2000; // refresh every 2s
 
+// Meshes we've already warned about for missing a `position` attribute — logged
+// once each so the console names the offender without spamming every cache refill.
+const _warnedPositionless = new Set();
+function _meshWarnKey(obj) {
+  let parent = '';
+  const p = obj.parent;
+  if (p) parent = (p.name ? p.name : p.type) || p.type;
+  return `${obj.type}:${obj.name || '(unnamed)'}<${parent}>`;
+}
+
 // Meshes to exclude from sticker raycasting.
 // ADR-0090 slice 2 removed the curated subset — EVERY world mesh becomes
 // sticker-able. The only remaining exclusion is the gun viewmodel: firing a
@@ -143,6 +153,23 @@ function _getMeshes() {
       if (!obj.isMesh || obj.userData.isSticker || _isExcluded(obj)) return;
       const mat = obj.material;
       if (mat && mat.visible === false) return;
+      // Guard: a Mesh whose geometry has no `position` attribute makes Three's
+      // raycast throw "Cannot read properties of undefined (reading 'getX')"
+      // inside getVertexPosition() → fromBufferAttribute(). That exception aborts
+      // the whole sticker fire and spams the console on every shot. Skip it and
+      // warn ONCE so the offender is named for a root-cause follow-up.
+      const geo = obj.geometry;
+      if (!geo || !geo.attributes || !geo.attributes.position) {
+        const key = _meshWarnKey(obj);
+        if (!_warnedPositionless.has(key)) {
+          _warnedPositionless.add(key);
+          console.warn(
+            '[sticker] skipping raycast of mesh without a position attribute:',
+            key, 'geometry=', geo ? (geo.type || 'unknown') : 'none'
+          );
+        }
+        return;
+      }
       if (obj.isInstancedMesh) _instancedCache.push(obj);
       else _meshCache.push(obj);
     });
@@ -170,7 +197,16 @@ function _raycastScene(origin, dir) {
   let bestDist = Infinity;
 
   const meshes = _getMeshes();
-  const staticHits = _raycaster.intersectObjects(meshes, false);
+  // Belt-and-suspenders: even after the _getMeshes() position guard, a mesh can
+  // have its geometry disposed/rebuilt between cache refills (every 2s), leaving
+  // a stale entry that still throws mid-raycast. Never let one broken mesh sink
+  // an entire fire — drop it and keep going.
+  let staticHits = [];
+  try {
+    staticHits = _raycaster.intersectObjects(meshes, false);
+  } catch (err) {
+    console.warn('[sticker] static mesh raycast failed (skipping):', err);
+  }
   if (staticHits.length > 0) {
     const hit = staticHits[0];
     if (hit.distance < bestDist) { best = hit; bestDist = hit.distance; }
@@ -180,7 +216,12 @@ function _raycastScene(origin, dir) {
   if (instanced.length > 0) {
     // Per-object query so we can accept the closest instance hit; the shared
     // raycaster reuses its internal ray, so this is cheap.
-    const instHits = _raycaster.intersectObjects(instanced, false);
+    let instHits = [];
+    try {
+      instHits = _raycaster.intersectObjects(instanced, false);
+    } catch (err) {
+      console.warn('[sticker] instanced mesh raycast failed (skipping):', err);
+    }
     if (instHits.length > 0) {
       const hit = instHits[0];
       if (hit.distance < bestDist) { best = hit; bestDist = hit.distance; }

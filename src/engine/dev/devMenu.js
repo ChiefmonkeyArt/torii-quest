@@ -5,18 +5,18 @@
 // is decided by the model — this driver never inspects Kami state directly, so
 // there's exactly one source of truth for "should the menu show right now".
 //
-// Update cadence: a 1Hz refresh, driven by the caller's animation frame
-// scheduler via `pumpDevMenu()`. Cheap: renderModel() is O(entries). We rebuild
-// the DOM only when the shape changes (visible flip, or a toggle state change)
-// so mid-play frames don't churn.
+// Update cadence: every frame (driven by the caller's animation-frame
+// scheduler via pumpDevMenu()). Cheap: renderModel() is O(entries) — a handful
+// of boolean reads. We rebuild the DOM only when the shape changes (visibility
+// flip, or a toggle state change) via the snapshot-key change detector, so
+// mid-play frames don't churn DOM. Same-frame visibility syncs keep the panel
+// appearing/disappearing in lock-step with Kami Mode (no 1Hz lag).
 
 import { createDevMenuModel } from './devMenuModel.js';
 
 let _model = null;
 let _root = null;
 let _lastKey = '';        // last-rendered snapshot key — cheap change detector
-let _lastPumpMs = -Infinity;
-const PUMP_INTERVAL_MS = 1000;
 
 // installDevMenu({ isVisible, doc? }) — one-time boot. Returns the model
 // handle so callers can register entries and (in tests) pump synchronously.
@@ -45,14 +45,12 @@ export function registerDevToggle(entry) {
   return _model.register(entry);
 }
 
-// pumpDevMenu(nowMs, doc?) — call once per frame; the driver rate-limits to 1Hz
-// internally. `nowMs` is `performance.now()` in production; tests pass 0 to
-// force an unconditional render.
+// pumpDevMenu(nowMs, doc?) — call once per frame. `nowMs` is accepted for
+// backward compatibility with callers/tests but no longer used (the old 1Hz
+// throttle is gone — the snapshot-key detector already skips unchanged DOM
+// work, and same-frame visibility syncs beat the previous up-to-1s lag).
 export function pumpDevMenu(nowMs, doc) {
   if (!_model) return;
-  const now = typeof nowMs === 'number' ? nowMs : 0;
-  if (now !== 0 && now - _lastPumpMs < PUMP_INTERVAL_MS) return;
-  _lastPumpMs = now;
 
   const D = doc || (typeof document !== 'undefined' ? document : null);
   const root = _root || (D ? D.getElementById('torii-dev-menu') : null);
@@ -79,7 +77,6 @@ export function __resetDevMenuForTests() {
   _model = null;
   _root = null;
   _lastKey = '';
-  _lastPumpMs = -Infinity;
   if (typeof window !== 'undefined') { try { delete window.__toriiDevMenu; } catch { /* noop */ } }
 }
 

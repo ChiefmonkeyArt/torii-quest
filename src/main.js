@@ -2007,6 +2007,7 @@ async function _publishMyScore() {
 // resolves. `_updatePolling` guards against re-entrant status polls.
 let _latestUpdateView = null;
 let _updateCapability = null; // { selfUpdate, adminPubkey }
+let _updateBtnDiagLogged = false; // one-shot diagnostic (update available but button hidden)
 let _updatePolling = false;
 
 // v0.2.706-alpha: the owner's PUBLISHED Nostr displayName, read-only fetched
@@ -2177,6 +2178,21 @@ function _refreshUpdateButton() {
   const admin = !!(cap && isAdminOperator(state.nostrPubkey || '', cap.adminPubkey));
   const updateAvailable = !!(view && view.updateAvailable === true);
   const show = admin && updateAvailable;
+
+  // Diagnostic (once per cause): when an update IS available but the button stays
+  // hidden, spell out WHY so the root cause is not guesswork. admin-gate checks:
+  // capability probe (cap.adminPubkey) vs the logged-in nostr pubkey.
+  if (updateAvailable && !show && !_updateBtnDiagLogged) {
+    _updateBtnDiagLogged = true;
+    console.warn('[update] update available but button hidden —', {
+      admin,
+      adminPubkey: cap ? cap.adminPubkey : null,
+      nostrPubkey: state.nostrPubkey || '',
+      selfUpdate: cap ? cap.selfUpdate : null,
+      latest: view ? view.latestVersion : null,
+      current: view ? view.currentVersion : null,
+    });
+  }
 
   btn.hidden = !show;
   if (fallback) fallback.hidden = true;

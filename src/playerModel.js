@@ -13,6 +13,21 @@ import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
 // Each entry maps logical animation slots → actual clip names in that GLB.
 // 'null' = no clip available, fall back to IDLE or skip.
 const CHARACTERS = {
+  // guest is the anonymous default. guest-head4.glb (Meshy/Blender humanoid,
+  // prefix-stripped Mixamo rig) carries only two authored motion clips plus the
+  // exporter's bind-pose "baselayer", so its anim table is intentionally sparse.
+  // The generic branch in loadPlayerModel() maps what exists and leaves the rest
+  // null — missing states fall back to the last-played clip instead of erroring.
+  // Full locomotion/combat coverage lands when the master animation-library is
+  // retargeted onto this mesh (the same offline path nostrich-master.glb used).
+  guest: {
+    file: '/models/guest-head4.glb',
+    anims: {
+      IDLE:  'Armature|clip0|baselayer',
+      WALK:  'Walking',
+      RUN:   'Running',
+    },
+  },
   chiefmonkey: {
     file: '/models/animation-library.glb',
     anims: {
@@ -61,7 +76,7 @@ const CHARACTERS = {
 };
 
 // ── Active character ──────────────────────────────────────────────────────────
-let _charKey = 'chiefmonkey'; // default
+let _charKey = 'guest'; // default — anonymous guest-first entry (v0.2.760)
 
 export function setCharacter(key) {
   if (CHARACTERS[key]) _charKey = key;

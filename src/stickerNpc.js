@@ -705,25 +705,20 @@ export function tickStickerNpc(dt) {
             ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO, ATTACHED_SIZE
           );
           const decalGeo = new DecalGeometry(target, projector.position, projector.rotation, size);
-          // Diagnostic: baked decals were landing invisibly in playtest. Log the
-          // vertex count + target so a success-but-invisible vs throw can be told
-          // apart in the console (the throw path already warns + falls back).
-          console.debug('[sticker] baked decal built:', {
-            verts: decalGeo && decalGeo.attributes && decalGeo.attributes.position
-              ? decalGeo.attributes.position.count : 0,
-            target: (target.name || target.type),
-          });
           const decalMat = createBakedDecalMaterial(_texture);
           const decal = new THREE.Mesh(decalGeo, decalMat);
           decal.userData.isSticker = true;
-          // DecalGeometry is authored in WORLD space against the target mesh.
-          // Parenting to `target` inherits its world transform, so we must
-          // pre-invert to counteract that inheritance and keep the decal put.
-          target.getWorldQuaternion(_worldQuatInv).invert();
-          decal.quaternion.copy(_worldQuatInv);
-          const localPos = worldPos.clone();
-          target.worldToLocal(localPos);
-          decal.position.copy(localPos);
+          // DecalGeometry is authored in WORLD space. To parent it to `target`
+          // (so it inherits position, rotation, AND scale — crates move, trees
+          // sway), bake the geometry DOWN into the target's LOCAL space and add
+          // it with an identity transform. The old quaternion-inverse +
+          // local-position counteraction only cancelled rotation/translation (not
+          // scale) and left static-mesh decals double-transformed out of view —
+          // baked stickers therefore appeared to "not stick" at all.
+          const invMatrix = new THREE.Matrix4().copy(target.matrixWorld).invert();
+          decalGeo.applyMatrix4(invMatrix); // positions + normals → local space
+          decal.position.set(0, 0, 0);
+          decal.quaternion.identity();
           target.add(decal);
           _attached.push({ mesh: decal, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME });
           while (_attached.length > MAX_ATTACHED) {

@@ -2419,26 +2419,10 @@ function renderUpdatePreview() {
 }
 renderUpdatePreview();
 
-// ── Character selector ──────────────────────────────────────────────────────────
-// Stash the chosen character key (default 'chiefmonkey') so the arena runtime can
-// apply it after it is lazily imported — selecting a model must NOT pull THREE in.
-let _selectedCharacter = null;
-document.querySelectorAll('.char-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.char-btn').forEach(b => {
-      b.style.border = '1.5px solid #4a5568';
-      b.style.background = '#0f0f1a';
-      b.style.color = '#a0aec0';
-    });
-    btn.style.border = '1.5px solid #8b5cf6';
-    btn.style.background = '#1a0a2e';
-    btn.style.color = '#e2d8f0';
-    _selectedCharacter = btn.dataset.char;
-    // If the arena is already loaded, apply immediately; otherwise it is applied
-    // when arenaRuntime is imported in the ENTER handler.
-    _arena?.setCharacter?.(_selectedCharacter);
-  });
-});
+// ── Character selector (removed, v0.2.760) ────────────────────────────────────
+// The title screen is guest-first: everyone enters anonymously with the guest
+// avatar (playerModel's default). The chiefmonkey/nostrich preset buttons that
+// lived here are gone; selecting/forging a character is now a Settings surface.
 
 // ── Boot loading overlay (v0.2.529) ──────────────────────────────────────────
 // Full-screen CSS-only overlay shown on ENTER, hidden after the first rendered
@@ -2580,9 +2564,10 @@ async function ensureArenaReady(loadingLabel) {
         // confirmed raycast placement into the character manifest + republish.
         confirmStickerPlacement: _confirmSelfViewPlacement,
       });
-      // Apply character selection BEFORE boot so the MP host sends the
-      // correct character in AUTH. boot() opens the WebSocket immediately.
-      if (_selectedCharacter) _arena.setCharacter(_selectedCharacter);
+      // Guest is the playerModel default, so no setCharacter() call is needed
+      // before AUTH: boot() opens the WebSocket with the guest key already in
+      // place. (Nostr login + Character Forge swap the mesh via the two calls
+      // that follow.)
       // Seat the player's own character mesh (Blossom URL) before boot so
       // loadPlayerModel() fetches it instead of the built-in default, and
       // broadcast its hash so peers resolve + load the same mesh.

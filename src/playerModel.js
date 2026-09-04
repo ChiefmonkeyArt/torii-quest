@@ -13,19 +13,29 @@ import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
 // Each entry maps logical animation slots → actual clip names in that GLB.
 // 'null' = no clip available, fall back to IDLE or skip.
 const CHARACTERS = {
-  // guest is the anonymous default. guest-head4.glb (Meshy/Blender humanoid,
-  // prefix-stripped Mixamo rig) carries only two authored motion clips plus the
-  // exporter's bind-pose "baselayer", so its anim table is intentionally sparse.
-  // The generic branch in loadPlayerModel() maps what exists and leaves the rest
-  // null — missing states fall back to the last-played clip instead of erroring.
-  // Full locomotion/combat coverage lands when the master animation-library is
-  // retargeted onto this mesh (the same offline path nostrich-master.glb used).
+  // guest is the anonymous default. guest-master.glb is guest-head4.glb (the
+  // Meshy/Blender humanoid) with ALL 18 animation-library.glb clips baked onto
+  // its rig via offline world-delta retargeting (tools/glb_retarget.py) — the
+  // same path nostrich-master.glb used. Both rigs share the Meshy 24-bone
+  // names, so every GAME_STATE_TO_CLIP name resolves directly.
   guest: {
-    file: '/models/guest-head4.glb',
+    file: '/models/guest-master.glb',
     anims: {
-      IDLE:  'Armature|clip0|baselayer',
-      WALK:  'Walking',
-      RUN:   'Running',
+      IDLE:       'Idle_02',
+      WALK:       'Stylish_Walk_inplace',
+      WALK_BACK:  'Walk_Backward',
+      WALK_LEFT:  'Run_Forward_Firing',
+      RUN:        'Running',
+      RUN_SHOOT:  'Run_Forward_Firing',
+      JUMP:       'Jump_Over_Obstacle_2',
+      RELOAD:     'Reload_Hand_Gun',
+      HIT:        'Hit_Reaction_to_Waist',
+      DEATH:      'Knock_Down',
+      DANCE:      'FunnyDancing_02',
+      VICTORY:    'Victory_Cheer',
+      MELEE:      'Melee_Left_Hand',
+      LAND:       'Fall_from_Bar',
+      FALL:       'Fall2',
     },
   },
   chiefmonkey: {
@@ -251,11 +261,12 @@ export async function loadPlayerModel(parentObj) {
       a.clampWhenFinished = true;
       _actions[name] = a;
     });
-    // Resolve _anims: for chiefmonkey AND nostrich, GAME_STATE_TO_CLIP provides
-    // the canonical mapping (both GLBs carry the master clip names). Any future
-    // character baked onto the master template joins this branch.
+    // Resolve _anims: chiefmonkey, nostrich and guest all carry the master clip
+    // names (guest-master.glb is the guest mesh with the library retargeted on),
+    // so GAME_STATE_TO_CLIP provides the canonical mapping for all three. Any
+    // future character baked onto the master template joins this branch.
     _anims = {};
-    if (_charKey === 'chiefmonkey' || _charKey === 'nostrich') {
+    if (_charKey === 'chiefmonkey' || _charKey === 'nostrich' || _charKey === 'guest') {
       for (const stateName of new Set([
         ...Object.keys(char.anims),
         ...Object.keys(GAME_STATE_TO_CLIP),

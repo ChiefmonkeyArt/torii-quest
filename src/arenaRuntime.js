@@ -1518,7 +1518,17 @@ export function createArenaRuntime(hooks = {}) {
       // this guard Escape is stolen (stopImmediatePropagation below) and the
       // modal can never close. Mark Escape as handled so the pointer-lock keyup
       // fallback below doesn't open pause either.
-      if (kamiNoteOpen()) { _escapeHandledOnKeyDown = true; return; }
+      // Esc with the ema note open DISCARDS the note AND exits Kami Mode in one
+      // press — matching the ✕ button and the "ESC EXIT" badge. Previously Esc
+      // discarded only the note and left the owner still in Kami (rack + dev menu
+      // visible), which read as "Esc doesn't work" and forced a click on the ✕.
+      if (kamiNoteOpen()) {
+        _escapeHandledOnKeyDown = true;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        kamiExit();
+        return;
+      }
       // ADR-0029: if the admin is in Kami Mode (rack visible, no note open), Esc
       // EXITS Kami Mode (back to normal play) instead of opening the pause menu.
       // Also covers the async first-enter: if Esc lands while the owner-check is

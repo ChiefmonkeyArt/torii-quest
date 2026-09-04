@@ -61,16 +61,18 @@ describe('pause modal input boundary', () => {
     expect(INPUT).toMatch(/export function setShootingSuppressed/);
   });
 
-  it('does not steal Escape into the pause menu while the ema note is open (ADR-0027)', () => {
+  it('Esc with the ema note open exits Kami (discard note + exit), not the pause menu (ADR-0027)', () => {
     // arenaRuntime's capture-phase Escape listener fires BEFORE the textarea's
     // own keydown. Without a guard it calls stopImmediatePropagation + opens the
     // pause menu, so the ema's Escape handler (finish(false) → close) never runs
     // and the owner is trapped on the note screen. The guard must yield when the
-    // note is open AND mark Escape as handled so the pointer-lock keyup fallback
-    // doesn't open pause on the same gesture.
-    expect(RUNTIME).toMatch(/kamiNoteOpen\(\)\) \{ _escapeHandledOnKeyDown = true; return; \}/);
-    // ADR-0032: kamiActive appended to the named-import list (reconnect resync).
-    // ADR-0052: kamiEntering appended for the ema snapshot diagnostic.
+    // note is open: mark Escape as handled (so the pointer-lock keyup fallback
+    // doesn't open pause) and call kamiExit() — which discards the open note AND
+    // exits Kami Mode in one press, matching the ✕ button and the "ESC EXIT" badge.
+    expect(RUNTIME).toMatch(/if \(kamiNoteOpen\(\)\) \{\s*_escapeHandledOnKeyDown = true;/);
+    expect(RUNTIME).toMatch(/if \(kamiNoteOpen\(\)\) \{[\s\S]*?kamiExit\(\);/);
+    expect(RUNTIME).toMatch(/if \(kamiNoteOpen\(\)\) \{[\s\S]*?stopImmediatePropagation\(\);/);
+    // ADR-0031: import list must still carry kamiExit for the one-press exit.
     expect(RUNTIME).toMatch(/import \{ installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner \}/);
     expect(RUNTIME).toMatch(/setGameInputSuppressed,/);
   });
@@ -119,5 +121,24 @@ describe('kami ema note input boundary (ADR-0027)', () => {
   it('stops propagation on its own Escape + Enter so no later listener sees them', () => {
     expect(KAMI).toMatch(/Escape'\) \{ ev\.preventDefault\(\); ev\.stopPropagation\(\); finish\(false\)/);
     expect(KAMI).toMatch(/Enter' && !ev\.shiftKey\) \{ ev\.preventDefault\(\); ev\.stopPropagation\(\); finish\(true\)/);
+  });
+
+  it('hides the empty tray badge via style.display, not the dead [hidden] attribute (little-orange-box leak)', () => {
+    // #kami-tray's cssText sets display:flex, which beats the UA [hidden]{display:none}
+    // rule (the same ADR-0027 gotcha as #kami-overlay). The badge therefore leaked as
+    // an empty amber-bordered pill at bottom-center whenever the rack was empty — the
+    // «little orange box» the owner sees after opening + closing Kami. ensureTrayBadge
+    // must set style.display:none explicitly, and renderTray must toggle style.display
+    // (never add/remove the hidden attribute).
+    const trayIdx = KAMI.indexOf('function ensureTrayBadge()');
+    const renderTrayIdx = KAMI.indexOf('function renderTray()', trayIdx);
+    expect(trayIdx).toBeGreaterThan(-1);
+    const traySrc = KAMI.slice(trayIdx, renderTrayIdx);
+    expect(traySrc).toMatch(/el\.style\.display = 'none';/);
+    expect(traySrc).not.toMatch(/setAttribute\('hidden'\)/);
+    // renderTray shows it back via style.display = 'flex'.
+    const renderSrc = KAMI.slice(renderTrayIdx, KAMI.indexOf('function setStatus', renderTrayIdx));
+    expect(renderSrc).toMatch(/el\.style\.display = 'flex';/);
+    expect(renderSrc).toMatch(/el\.style\.display = 'none';/);
   });
 });

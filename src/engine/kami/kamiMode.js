@@ -423,7 +423,6 @@ function ensureTrayBadge() {
   if (el) return el;
   el = doc.createElement('div');
   el.id = 'kami-tray';
-  el.setAttribute('hidden', '');
   el.style.cssText = [
     'position:fixed', 'left:50%', 'transform:translateX(-50%)', 'bottom:10px',
     'z-index:150', 'display:flex', 'gap:6px', 'align-items:center',
@@ -431,6 +430,12 @@ function ensureTrayBadge() {
     'background:rgba(20,20,35,0.85)', 'border:1px solid rgba(224,160,32,0.5)',
     'color:#e0a020', 'font-size:11px', 'letter-spacing:2px', 'pointer-events:none',
   ].join(';');
+  // ADR-0027 (same gotcha as #kami-overlay): cssText above sets display:flex,
+  // which beats the UA [hidden]{display:none} rule — so the `hidden` attribute
+  // alone could NOT hide the tray. It leaked as an empty amber-bordered pill at
+  // bottom-center whenever the rack was empty («little orange box» playtest
+  // report). Toggle style.display directly instead.
+  el.style.display = 'none';
   doc.body.appendChild(el);
   return el;
 }
@@ -438,16 +443,16 @@ function ensureTrayBadge() {
 function renderTray() {
   const el = ensureTrayBadge();
   if (_tray.length === 0) {
-    el.setAttribute('hidden', '');
+    el.style.display = 'none';
     return;
   }
-  el.removeAttribute('hidden');
+  el.style.display = 'flex';
   el.textContent = `${_tray.length} EMA ON THE RACK · ENTER HANGS · SHIFT+K RETRIES`;
 }
 
 function setStatus(msg) {
   const el = ensureTrayBadge();
-  el.removeAttribute('hidden');
+  el.style.display = 'flex';
   el.textContent = msg;
   if (!msg) renderTray();
 }

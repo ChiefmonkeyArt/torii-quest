@@ -117,6 +117,26 @@ function _preloadTexture() {
   });
 }
 
+/** Build the material for a BAKED (DecalGeometry) sticker. Exported for unit
+ *  coverage: the DoubleSide side is load-bearing — DecalGeometry is clipped in
+ *  world space and parented to the hit mesh with a pre-inverted quaternion, so
+ *  its winding isn't guaranteed to face the camera. FrontSide culling silently
+ *  hid every baked decal (they rendered, but back-facing). DoubleSide keeps them
+ *  visible regardless of winding. */
+export function createBakedDecalMaterial(texture) {
+  return new THREE.MeshBasicMaterial({
+    map: texture || null,
+    color: 0xffffff,
+    transparent: true,
+    depthTest: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
+  });
+}
+
 // Check if a mesh/object should be excluded from sticker placement.
 // ADR-0090 slice 2: this used to carry a curated subset of "non-sticker-able"
 // world meshes; now it only guards mesh types that need a DIFFERENT targeting
@@ -685,16 +705,15 @@ export function tickStickerNpc(dt) {
             ATTACHED_SIZE, ATTACHED_SIZE * ATTACHED_RATIO, ATTACHED_SIZE
           );
           const decalGeo = new DecalGeometry(target, projector.position, projector.rotation, size);
-          const decalMat = new THREE.MeshBasicMaterial({
-            map: _texture,
-            color: 0xffffff,
-            transparent: true,
-            depthTest: true,
-            depthWrite: false,
-            polygonOffset: true,
-            polygonOffsetFactor: -4,
-            polygonOffsetUnits: -4,
+          // Diagnostic: baked decals were landing invisibly in playtest. Log the
+          // vertex count + target so a success-but-invisible vs throw can be told
+          // apart in the console (the throw path already warns + falls back).
+          console.debug('[sticker] baked decal built:', {
+            verts: decalGeo && decalGeo.attributes && decalGeo.attributes.position
+              ? decalGeo.attributes.position.count : 0,
+            target: (target.name || target.type),
           });
+          const decalMat = createBakedDecalMaterial(_texture);
           const decal = new THREE.Mesh(decalGeo, decalMat);
           decal.userData.isSticker = true;
           // DecalGeometry is authored in WORLD space against the target mesh.

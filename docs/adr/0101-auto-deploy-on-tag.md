@@ -29,9 +29,9 @@ Add a **deploy-only SSH key** locked to the update-service invocation, stored as
   ```bash
   #!/usr/bin/env bash
   set -euo pipefail
-  sudo mkdir -p /opt/torii-quest/mp/update-requests
+  sudo mkdir -p /apps/quest/mp/update-requests
   ts=$(date +%s)
-  echo '{}' | sudo tee "/opt/torii-quest/mp/update-requests/manual-${ts}.json" > /dev/null
+  echo '{}' | sudo tee "/apps/quest/mp/update-requests/manual-${ts}.json" > /dev/null
   sudo systemctl start torii-quest-update.service
   sudo journalctl -u torii-quest-update.service --since "10 seconds ago" -n 200 --no-pager
   ```
@@ -128,7 +128,11 @@ This ADR itself is procedural, not a code change, but the workflow file will get
 ## References
 
 - `torii-quest-update.service` on the VPS (existing unit file)
-- `/opt/torii-quest/mp/update-requests/` (existing trigger directory)
+- `/apps/quest/mp/update-requests/` (the torii-suite runner's trigger directory, `APPS_ROOT=/apps`)
 - The manual deploy command from every prior ship report
 - GitHub Actions concurrency docs: https://docs.github.com/en/actions/using-jobs/using-concurrency
 - SSH forced-command reference: https://man.openbsd.org/sshd#AUTHORIZED_KEYS_FILE_FORMAT
+
+## Path correction (2026-09-05)
+
+The hook's request path was corrected from the stale `/opt/torii-quest/mp/update-requests/` to `/apps/quest/mp/update-requests/`. On the migrated host the torii-suite `torii-quest-update-runner` resolves its trigger dir from `APPS_ROOT` (default `/apps`), so the original ADR-0101 hook landed its request where the runner never looked — every GitHub-triggered deploy silently reported "no pending request" and no-op'd (observed live while shipping v0.2.760-alpha). A rerunnable installer now lives at `ops/install-deploy-ssh.sh`; re-run it (as root) to (re)install the hook + sudoers against the corrected path.

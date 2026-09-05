@@ -6,10 +6,10 @@
 // character. v1 is validator-first: it first CHECKS whether the logged-in npub
 // already has a character (a signed kind-35100 event — the "smooth experience"
 // seam), and if not, offers the creation flow: a preset grid (select-preset),
-// an "Upload your own" card (upload-mesh), and a disabled "Create with AI"
-// placeholder card (see ADR-0091 — future Meshy/routstr/Cashu integration,
-// no backend wired yet). See nap-torii-avatar-v0.md and the Character Forge
-// entry in torii-quest-strategy.md.
+// an "Upload your own" card (upload-mesh), and a "Create with AI" card that
+// runs a LOCAL MOCK generation (see ADR-0091 — the real Meshy/routstr/Cashu
+// backend is a later slice; the mock proves the prompt→validate→verdict loop).
+// See nap-torii-avatar-v0.md and the Character Forge entry in strategy.md.
 //
 // renderCharacterForgePanel(state) — state:
 //   isLoggedIn  — boolean; gates the whole tab.
@@ -18,12 +18,16 @@
 //   mode        — 'view' (default) | 'edit' — the 'edit' mode is the sticker editor.
 //   stickerLibrary — [{ id, label }] — curated decals shown in the sticker editor.
 //   presets     — [{ id, label }] — curated bases shown when status==='none'.
+//   ai          — { status:'idle'|'running'|'done', prompt, result } — the local
+//                 "Create with AI" mock flow sub-state; when ai.status !== 'idle'
+//                 (and logged in) the create view is replaced by _aiFlowView(ai).
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
 // pattern (data-action="check-character" / "select-preset" / "upload-mesh" /
-// "edit-character" / "add-sticker" / "remove-sticker" / "done-edit"). The
-// "create-with-ai" button is rendered disabled with NO handler wired in
-// main.js — it is a placeholder slot only (see _createView below).
+// "generate-ai" / "ai-reset" / "edit-character" / "add-sticker" /
+// "remove-sticker" / "done-edit"). "generate-ai" runs the LOCAL MOCK
+// generation flow (see _aiFlowView below); no real backend or signing is
+// involved yet.
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -136,18 +140,18 @@ function _presetGrid(presets, opts) {
 
 // _createView(presets) — the character SELECT + CREATE screen: a preset
 // grid, plus two clearly separated, fully-framed creation paths ("Upload
-// your own" and "Create with AI" — the latter a disabled placeholder for the
-// future Meshy-style routstr/Cashu integration, ADR-0091). The AI card's
-// button is deliberately disabled and NOT wired in main.js — wiring it is
-// out of scope for this pass; only the slot is real.
+// your own" and "Create with AI" — the latter a LOCAL MOCK generator that
+// runs prompt→validate→verdict with no backend; ADR-0091 reserves the real
+// Meshy/routstr/Cashu wiring for a later slice).
 function _createView(presets, opts) {
   // v0.2.739: the create view renders the SAME shell whether the user is
   // logged in or not. When logged out, every action button is disabled
   // (via `opts.disabled`) so people can still see what's on offer without
-  // being blocked by an empty gate. `create-with-ai` is disabled in both
-  // states (Meshy/routstr wiring is a later slice per ADR-0091).
+  // being blocked by an empty gate. `generate-ai` is disabled while logged
+  // out (the mock flow ends in a "save to npub" step that needs a login).
   const disabled = !!(opts && opts.disabled);
   const uploadDisabled = disabled ? ' disabled' : '';
+  const aiDisabled = disabled ? ' disabled' : '';
   const subtitle = disabled
     ? 'Preview the roster — sign in with Nostr to select or create.'
     : 'Pick a character, or create your own.';
@@ -163,9 +167,63 @@ function _createView(presets, opts) {
       <div class="cf-create-card cf-ai-card">
         <div class="cf-create-card-title">Create with AI</div>
         <div class="cf-create-card-hint">Describe your character and we'll generate a rigged mesh — validated automatically before it's saved to your npub.</div>
-        <span class="cf-coming-soon">Coming soon</span>
-        <button type="button" class="settings-btn" data-action="create-with-ai" disabled>Create with AI</button>
+        <textarea id="cf-ai-prompt" class="settings-textarea cf-ai-prompt" rows="2" maxlength="400" placeholder="e.g. a low-poly fox knight in silver armour"${aiDisabled}></textarea>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai"${aiDisabled}>Generate demo</button>
+        <div class="cf-ai-demo-note">Demo preview — real text-to-3D + auto-rig (Meshy/Tripo) wires up next.</div>
       </div>
+    </div>`;
+}
+
+// _aiFlowView(ai) — the "Create with AI" mock flow screen (Step B). Renders the
+// thinking state while ai.status==='running', then the gate verdict when 'done'
+// (accepted / rejected / invalid prompt). Purely presentational: main.js drives
+// the status transitions and wires the "Try again" (ai-reset) action. No real
+// mesh, event, or signing is produced — it is a mock demonstration.
+function _aiFlowView(ai) {
+  const a = (ai && typeof ai === 'object') ? ai : {};
+  if (a.status === 'running') {
+    return `
+      <div class="cf-ai-flow">
+        <div class="cf-ai-flow-title">Generating character…</div>
+        <div class="cf-ai-flow-hint">Demo — a real run would call Meshy/Tripo, auto-rig, then validate.</div>
+      </div>`;
+  }
+
+  const out = (a.result && typeof a.result === 'object') ? a.result : {};
+  if (out.planned === false) {
+    return `
+      <div class="cf-ai-flow cf-ai-rejected">
+        <div class="cf-ai-flow-title">Couldn't start</div>
+        <div class="cf-ai-flow-hint">Enter a description of your character (400 characters max), then try again.</div>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="ai-reset">Try again</button>
+      </div>`;
+  }
+
+  const v = (out.verdict && typeof out.verdict === 'object') ? out.verdict : null;
+  if (!v) {
+    return `
+      <div class="cf-ai-flow cf-ai-rejected">
+        <div class="cf-ai-flow-title">Something went wrong</div>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="ai-reset">Try again</button>
+      </div>`;
+  }
+
+  if (v.accepted) {
+    return `
+      <div class="cf-ai-flow cf-ai-accepted">
+        <div class="cf-ai-flow-title">✓ Validated — ready to save</div>
+        <div class="cf-ai-flow-hint">${_escape(v.rigConvention || 'humanoid')} rig · ${Number(v.rigBoneCount) || 0} bones · mapped to the Torii skeleton.</div>
+        <div class="cf-ai-demo-note">Demo result — real generation uploads the mesh to Blossom and signs your kind-35100 character event (a later slice).</div>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="ai-reset">Try another</button>
+      </div>`;
+  }
+
+  const reasons = (Array.isArray(v.reasons) ? v.reasons : []).join(' ');
+  return `
+    <div class="cf-ai-flow cf-ai-rejected">
+      <div class="cf-ai-flow-title">Rejected</div>
+      <div class="cf-ai-flow-hint">${_escape(reasons || 'Could not validate the generated mesh.')}</div>
+      <button type="button" class="settings-btn settings-btn-primary" data-action="ai-reset">Try again</button>
     </div>`;
 }
 
@@ -183,8 +241,14 @@ export function renderCharacterForgePanel(state = {}) {
     : '';
   const mode = (st.mode === 'edit') ? 'edit' : 'view';
 
+  const ai = (st.ai && typeof st.ai === 'object') ? st.ai : {};
+  const aiStatus = typeof ai.status === 'string' ? ai.status : 'idle';
+  const aiActive = isLoggedIn && aiStatus !== 'idle';
+
   let body = '';
-  if (!isLoggedIn) {
+  if (aiActive) {
+    body = _aiFlowView(ai);
+  } else if (!isLoggedIn) {
     body = _createView(st.presets, { disabled: true });
   } else if (status === 'found' && st.character) {
     body = (mode === 'edit')

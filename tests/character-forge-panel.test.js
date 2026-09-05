@@ -20,7 +20,7 @@ describe('renderCharacterForgePanel', () => {
     // gated: every action button is disabled while logged out
     expect(html).toMatch(/data-action="select-preset"[^>]*disabled/);
     expect(html).toMatch(/data-action="upload-mesh"[^>]*disabled/);
-    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
+    expect(html).toMatch(/data-action="generate-ai"[^>]*disabled/);
   });
 
   it('shows the preset picker when logged in with no character', () => {
@@ -107,11 +107,11 @@ describe('renderCharacterForgePanel', () => {
   });
 
   // Upload + Create-with-AI are two clearly separated, fully-framed creation
-  // paths on the SELECT + CREATE screen. Create-with-AI is a future
-  // integration point (Meshy-style, via routstr/Cashu — ADR-0091): it must
-  // render as a complete, labeled, disabled/coming-soon card with NO handler
-  // wired in main.js, while Upload stays a real, clickable action.
-  it('renders separated Upload and Create-with-AI cards on the create screen', () => {
+  // paths on the SELECT + CREATE screen. Create-with-AI is now a LOCAL MOCK
+  // generator (Step B — no backend/signing): it renders a prompt box + a
+  // "Generate demo" action (main.js wires it to runMockGeneration), while
+  // Upload stays a real, clickable action.
+  it('renders separated Upload and Create-with-AI (mock) cards on the create screen', () => {
     const html = renderCharacterForgePanel({
       isLoggedIn: true,
       status: 'none',
@@ -121,8 +121,74 @@ describe('renderCharacterForgePanel', () => {
     expect(html).toContain('data-action="upload-mesh"');
     expect(html).not.toMatch(/data-action="upload-mesh"[^>]*disabled/);
     expect(html).toContain('Create with AI');
-    expect(html).toContain('data-action="create-with-ai"');
-    expect(html).toMatch(/data-action="create-with-ai"[^>]*disabled/);
-    expect(html.toLowerCase()).toContain('coming soon');
+    expect(html).toContain('id="cf-ai-prompt"');
+    expect(html).toContain('data-action="generate-ai"');
+    expect(html).toContain('Generate demo');
+    expect(html).not.toMatch(/data-action="generate-ai"[^>]*disabled/);
+    expect(html.toLowerCase()).toContain('demo preview');
+  });
+
+  describe('Create-with-AI mock flow (ai sub-state)', () => {
+    it('renders the thinking state while running', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: { status: 'running', prompt: 'a fox knight', result: null },
+      });
+      expect(html).toContain('Generating character');
+      expect(html).not.toContain('data-action="generate-ai"');
+    });
+
+    it('renders the accepted verdict when done', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: {
+          status: 'done',
+          prompt: 'a fox knight',
+          result: { planned: true, mode: 'mock', verdict: { accepted: true, rigConvention: 'generic', rigBoneCount: 22, reasons: [] } },
+        },
+      });
+      expect(html).toContain('Validated');
+      expect(html).toContain('generic');
+      expect(html).toContain('22 bones');
+      expect(html).toContain('data-action="ai-reset"');
+    });
+
+    it('renders the rejected verdict when the gate fails', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: {
+          status: 'done',
+          prompt: 'x',
+          result: { planned: true, mode: 'mock', verdict: { accepted: false, reasons: ['manifest: mesh is required'] } },
+        },
+      });
+      expect(html).toContain('Rejected');
+      expect(html).toContain('manifest: mesh is required');
+      expect(html).toContain('Try again');
+    });
+
+    it('renders an invalid-prompt state when planned is false', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: { status: 'done', prompt: '', result: { planned: false, reason: 'invalid-request' } },
+      });
+      expect(html).toContain("Couldn't start");
+      expect(html).toContain('Try again');
+    });
+
+    it('keeps the create view when the ai state is idle', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }],
+        ai: { status: 'idle', prompt: '', result: null },
+      });
+      expect(html).toContain('data-action="generate-ai"');
+      expect(html).not.toContain('data-action="ai-reset"');
+    });
   });
 });

@@ -26,7 +26,12 @@
 //   used by guest / nostrich: ['Idle_02','Stylish_Walk_inplace','Running']).
 // `opts.headJointNames` — override the set of head-joint names (default:
 //   ['Head','head_end','headfront']).
-// `opts.compressTextures` — WebP re-encode; defaults to true.
+//   * texture compression (WebP via sharp) was REMOVED in v0.2.771-alpha: sharp's
+//     native binary + platform-specific optional deps were a fragile runtime
+//     install on the VPS (version drift to 0.35.4 broke @img/* exports), keeping
+//     arena-ws from starting. Draco geometry compression remains (the dominant
+//     GLB size win); re-add texture compression only if sharp can be installed
+//     reproducibly (pinned exact version + verified native binding).
 //
 // Errors we return (never thrown; callers rely on the tagged union):
 //   'invalid-glb'        — @gltf-transform failed to parse the buffer.
@@ -45,7 +50,7 @@ import {
   KHRMaterialsSpecular,
   KHRONOS_EXTENSIONS,
 } from '@gltf-transform/extensions';
-import { prune, draco, textureCompress } from '@gltf-transform/functions';
+import { prune, draco } from '@gltf-transform/functions';
 import draco3d from 'draco3d';
 
 export const HEADLESS_GLB_VERSION = 1;
@@ -82,8 +87,6 @@ export async function authorHeadlessGlb(buffer, opts = {}) {
       ? o.headJointNames
       : DEFAULT_HEAD_JOINTS,
   );
-  const compressTextures = o.compressTextures !== false;
-
   if (!buffer || typeof buffer !== 'object' || typeof buffer.length !== 'number') {
     return _fail('invalid-glb', 'buffer missing or not a byte array');
   }
@@ -195,11 +198,10 @@ export async function authorHeadlessGlb(buffer, opts = {}) {
     dropped++;
   }
 
-  // ── 4. Clean orphans + optional WebP + Draco re-encode ─────────────────────
+  // ── 4. Clean orphans + Draco re-encode (WebP texture compression removed —
+  //    see v0.2.771 note in the header) ───────────────────────────────────────
   try {
-    const transforms = [prune()];
-    if (compressTextures) transforms.push(textureCompress({ targetFormat: 'webp', quality: 85 }));
-    transforms.push(draco());
+    const transforms = [prune(), draco()];
     await doc.transform(...transforms);
   } catch (err) {
     return _fail('author-failed', (err && err.message) || 'transform failed');

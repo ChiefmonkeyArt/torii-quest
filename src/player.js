@@ -14,6 +14,10 @@ import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isInsideFence } from './terrain/coastline.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { crosshairPoint, aimDirection, CONVERGE_DIST } from './engine/combat/aim.js';
+// v0.2.772-alpha (Bug E): per-character POV eye offset (≤ 0). Applied only to
+// the local camera Y so gameplay geometry (playerObj position, capsule body,
+// bots' aim, peers' visible height) is unchanged.
+import { getCharacterEyeOffset } from './firstPersonBody.js';
 import { playReload } from './audio.js';
 import { PLAYER_HP, PLAYER_SPEED, MAX_AMMO, RELOAD_TIME, SHOOT_CD, RESPAWN_TIME, ARENA_HALF, JUMP_FORCE, GRAVITY, godMode, NAP_X, NAP_FAR_X } from './config.js';
 import { kamiInvincible } from './engine/kami/kamiMode.js'; // ADR-0029: Kami Mode invincibility
@@ -208,7 +212,10 @@ export function tickPlayer(dt) {
 
   // Neck-pivot look-down arc (v0.2.112), now sourced from the player boundary
   // (engine/entities/player.js). Allocation-free scalar helpers; same formula.
-  camera.position.y = lookDownEyeY(pitch);
+  // v0.2.772-alpha (Bug E): per-character POV. getCharacterEyeOffset() is 0 for
+  // full-height characters and negative for shorter ones (e.g. poo poo head).
+  // Bots still aim at the true eye at playerObj.y; only the local camera moves.
+  camera.position.y = lookDownEyeY(pitch) + getCharacterEyeOffset();
   camera.position.z = lookDownEyeZ(pitch);
 
   // Movement — heading basis sourced from the player boundary

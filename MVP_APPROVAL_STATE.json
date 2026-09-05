@@ -4,11 +4,11 @@
   "badge": "MVP APPROVAL STATE \u00b7 LOCAL \u00b7 READ-ONLY \u00b7 PENDING UNTIL EXPLICIT USER APPROVAL",
   "generatedAt": "2026-07-27T13:05:00Z",
   "status": "approved",
-  "version": "v0.2.769-alpha",
+  "version": "v0.2.770-alpha",
   "commit": "8167da7",
   "approved_by": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
   "approved_at": "2026-07-27T13:05:00Z",
-  "notes": "MVP APPROVED 2026-07-27 by chiefmonkey (admin npub) after live-browser playtest of v0.2.769-alpha on chiefmonkey.art/quest. SP 4 blockers pass (LAUNCH/SHOOT); MP asymmetry fixed by PR #30 (removed ACC-3 owner write-authority gate from per-frame MOVE/SHOT). Three non-blocking glitches tracked as follow-up slices: (1) ESC pause modal fires unprompted, (2) invisible bots dealing damage + bots not honing/aware, (3) leaderboard/scores not persisting to home screen (MP-3 publish/refresh gap). Bot hit-reg inconsistency deferred separately. Safety flags remain all false \u2014 approval is sign-off, not a deploy unlock.",
+  "notes": "MVP APPROVED 2026-07-27 by chiefmonkey (admin npub) after live-browser playtest of v0.2.770-alpha on chiefmonkey.art/quest. SP 4 blockers pass (LAUNCH/SHOOT); MP asymmetry fixed by PR #30 (removed ACC-3 owner write-authority gate from per-frame MOVE/SHOT). Three non-blocking glitches tracked as follow-up slices: (1) ESC pause modal fires unprompted, (2) invisible bots dealing damage + bots not honing/aware, (3) leaderboard/scores not persisting to home screen (MP-3 publish/refresh gap). Bot hit-reg inconsistency deferred separately. Safety flags remain all false \u2014 approval is sign-off, not a deploy unlock.",
   "safety": {
     "deploy": false,
     "publish": false,

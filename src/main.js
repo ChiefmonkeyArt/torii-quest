@@ -89,6 +89,7 @@ import { renderCharacterForgePanel } from './engine/settings/characterForgePanel
 import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
 import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
 import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
+import { runMockGeneration } from './engine/character/meshGenerationMock.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -202,6 +203,8 @@ let _ownerContacts = new Map();
 let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
 let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
+let _forgeAIPending = false;  // the "Create with AI" mock's thinking→done transition (shell rAF)
+let _forgeAIStartedAt = 0;    // ms timestamp when the mock run was requested (shell rAF)
 
 function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
@@ -1311,6 +1314,40 @@ const _characterForgeState = {
   _readStarted: false,
 };
 
+// _forgeAIState — the LOCAL MOCK "Create with AI" flow sub-state (Step B of the
+// character-creation plan). It is deliberately separate from _characterForgeState
+// so a mock run can never mutate the real manifest (which the sticker editor
+// relies on to republish). No network, payment, or signing is involved.
+const _forgeAIState = {
+  status: 'idle', // 'idle' | 'running' | 'done'
+  prompt: '',
+  result: null,   // runMockGeneration() output when status === 'done'
+};
+
+// _generateAICharacter() — read the prompt box, show the "thinking" state, then
+// reveal the deterministic mock verdict. The thinking→done transition rides the
+// shell rAF tick (no window timers in main.js — see _shellTick); the short delay
+// mirrors the async round-trip a real Meshy/Tripo fetch + routstr charge will take.
+function _generateAICharacter() {
+  const doc = typeof document !== 'undefined' ? document : null;
+  const ta = doc ? doc.getElementById('cf-ai-prompt') : null;
+  const prompt = ta ? ta.value : '';
+  _forgeAIState.prompt = prompt;
+  _forgeAIState.result = null;
+  _forgeAIState.status = 'running';
+  _forgeAIStartedAt = Date.now();
+  _forgeAIPending = true;
+  renderActiveSettingsTab();
+}
+
+// _resetAICharacter() — dismiss the mock flow and return to the create view.
+function _resetAICharacter() {
+  _forgeAIState.status = 'idle';
+  _forgeAIState.prompt = '';
+  _forgeAIState.result = null;
+  renderActiveSettingsTab();
+}
+
 // _summarizeCharacterManifest(manifest) → the panel's character summary, used
 // by every read/create/update path so the summary shape stays in one place.
 function _summarizeCharacterManifest(manifest) {
@@ -1543,6 +1580,11 @@ registerSettingsTabRenderer('character', () => {
     mode: _characterForgeState.mode,
     stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
     presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
+    ai: {
+      status: _forgeAIState.status,
+      prompt: _forgeAIState.prompt,
+      result: _forgeAIState.result,
+    },
     error: _characterForgeState.error,
   });
 });
@@ -1565,6 +1607,8 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'generate-ai') { e.preventDefault(); _generateAICharacter(); return; }
+    if (action === 'ai-reset') { e.preventDefault(); _resetAICharacter(); return; }
     if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
     if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
     if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(t.getAttribute('data-sticker') || ''); return; }
@@ -2659,6 +2703,15 @@ function _shellTick() {
     if (++_heartbeatFrame >= 120) {
       _heartbeatFrame = 0;
       _heartbeatTick(Date.now());
+    }
+    // Create-with-AI mock: resolve the thinking→done transition when enough
+    // wall-clock has passed (no window timers). Cosmetic — the real Step C will
+    // swap this for an awaited fetch + charge.
+    if (_forgeAIPending && Date.now() - _forgeAIStartedAt >= 450) {
+      _forgeAIPending = false;
+      _forgeAIState.result = runMockGeneration(_forgeAIState.prompt);
+      _forgeAIState.status = 'done';
+      renderActiveSettingsTab();
     }
   }
   requestAnimationFrame(_shellTick);

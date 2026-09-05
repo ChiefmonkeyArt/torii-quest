@@ -147,6 +147,20 @@ describe('index.html — service-worker registration self-heal', () => {
     expect(s).toMatch(/if\s*\(\s*reloading\s*\)\s*return/);
   });
 
+  it('never auto-reloads once the app has booted (double-mount guard)', () => {
+    // v0.2.765 double-mount fix: when the arena is already live, a fresh SW taking
+    // over mid-game must NOT reload — the old build's rAF/WebGL loop survived the
+    // reload beside the new one, duplicating NPCs/bots and breaking the mirror. The
+    // controllerchange handler must bail on __toriiEnterReady BEFORE it can reload.
+    const s = inlineRegistrationScript();
+    expect(s).toMatch(/if\s*\(\s*window\.__toriiEnterReady\s*\)\s*return/);
+    const readyIdx = s.search(/window\.__toriiEnterReady\s*\)\s*return/);
+    const reloadIdx = s.indexOf('location.reload()');
+    expect(readyIdx).toBeGreaterThan(-1);
+    expect(reloadIdx).toBeGreaterThan(-1);
+    expect(readyIdx).toBeLessThan(reloadIdx);
+  });
+
   it('CSP fallback sha256 matches the real default-root inline bootstrap', () => {
     // Shipped builds recompute the hash from final emitted HTML. This constant is the
     // root-deploy fallback used before an emitted dist/index.html is available.

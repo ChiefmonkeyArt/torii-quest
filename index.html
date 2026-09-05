@@ -121,13 +121,13 @@
       text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
-    /* v0.2.762-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+    /* v0.2.763-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
     .title-tagline-sm { font-size: 9px; letter-spacing: 5px; color: #d8c3ac; margin-top: 5px; }
     /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
-       v0.3: moved top-right → top-left. v0.2.762-alpha: moved again, top-left
+       v0.3: moved top-right → top-left. v0.2.763-alpha: moved again, top-left
        → bottom-left (screen corner, fixed not absolute, so it stays anchored
        to the viewport rather than scrolling with #title-header) to make room
        for the new top-left "This torii belongs to" owner caption. Opens the
@@ -144,14 +144,14 @@
     .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* v0.2.762-alpha: top-left "This torii belongs to: <owner>" caption —
+    /* v0.2.763-alpha: top-left "This torii belongs to: <owner>" caption —
        fixed corner label, sits directly on the sunset photo like the header
        text (no glass box; a plain text treatment reads lighter here and
        avoids a 4th competing panel on the screen). Populated by
        main.js's _refreshOwnerLabel() against capability.adminPubkey. */
     #torii-owner-caption {
       position: fixed; top: 18px; left: 18px; z-index: 20;
-      /* v0.2.762-alpha fix: a long displayName wrapping to a 2nd line pushed
+      /* v0.2.763-alpha fix: a long displayName wrapping to a 2nd line pushed
          into the header's TORII wordmark on narrow viewports. Kept single-
          line + ellipsis-truncated instead — a clipped-but-readable name is
          better than colliding text, and the full name is still visible in
@@ -330,7 +330,7 @@
     }
     #btn-enter-nap:hover { box-shadow: 0 0 40px rgba(232,132,44,0.5); opacity: 1; }
 
-    /* Login button in centre — v0.2.762-alpha: promoted to the primary CTA with a
+    /* Login button in centre — v0.2.763-alpha: promoted to the primary CTA with a
        solid mint/green fill (matches the on-brand green accent used elsewhere) so
        it reads as clearly as ENTER ARENA. Overrides the .btn-secondary outline. */
     #btn-nostr-centre {
@@ -343,6 +343,57 @@
       font-weight: bold;
     }
     #btn-nostr-centre:hover { opacity: 1; box-shadow: 0 0 40px rgba(34,197,94,0.55); }
+
+    /* ── v0.2.763-alpha: three-option login panel ───────────────────────────
+       Guest character picker (torso thumbnail cards) + Create-with-AI +
+       returning-player Nostr login, replacing the old two-step guest/login. */
+    .entry-eyebrow {
+      font-size: 0.62rem; letter-spacing: 0.24em; color: #e8a662; text-align: center;
+      margin-bottom: 1rem;
+    }
+    .entry-option { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .entry-option-title {
+      font-size: 11px; letter-spacing: 3px; font-weight: 700;
+      color: #f0dcc2; text-transform: uppercase; display: flex; align-items: center;
+    }
+    .entry-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.5em; height: 1.5em; margin-right: 8px; border-radius: 50%;
+      background: rgba(232,132,44,0.16); color: #f7931a; font-size: 11px; font-weight: 700;
+    }
+    .entry-option-sub { font-size: 9px; letter-spacing: 0.7px; color: #9ca3af; margin: 3px 0 12px; text-align: center; }
+
+    /* Character picker cards — torso-only thumbnails (head + legs out of frame). */
+    .char-picker { display: flex; gap: 14px; justify-content: center; width: 100%; margin-bottom: 14px; }
+    .char-card {
+      flex: 1 1 0; max-width: 160px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      background: rgba(20,13,9,0.55);
+      border: 1px solid rgba(232,178,120,0.28);
+      border-radius: 12px; padding: 8px 8px 10px;
+      cursor: pointer; font-family: var(--font);
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s, background 0.15s;
+    }
+    .char-card:hover { border-color: rgba(232,178,120,0.65); background: rgba(40,26,16,0.72); }
+    .char-card:focus-visible { outline: 2px solid #f7931a; outline-offset: 2px; }
+    .char-card.selected {
+      border-color: #f7931a;
+      box-shadow: 0 0 0 1px rgba(247,147,26,0.4), 0 0 22px rgba(247,147,26,0.35);
+      background: rgba(50,30,16,0.62);
+    }
+    .char-card-img {
+      width: 100%; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 8px; display: block;
+      /* subtle backdrop behind the transparent torso PNG so it reads against
+         the glass panel on any tint */
+      background: radial-gradient(120% 120% at 50% 22%, #2a1a10 0%, #140d07 58%, #0a0603 100%);
+    }
+    .char-card-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .char-card-name { font-size: 10px; letter-spacing: 1.5px; color: #f5e0c8; font-weight: 600; }
+    .char-card.selected .char-card-name { color: #ffd9a0; }
+    @media (prefers-reduced-motion: reduce) {
+      .char-card { transition: none; }
+    }
+
 
     /* Controls cheatsheet */
     #title-controls {
@@ -819,7 +870,7 @@
     }
     .cf-sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--settings-space-2); margin-top: var(--settings-space-2); }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.762-alpha) ── */
+    /* ── Live in-arena leaderboard overlay (v0.2.763-alpha) ── */
     /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
        (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
        #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
@@ -859,7 +910,7 @@
     .tq-arena-lb-hint { font-size: 7px; letter-spacing: 0.5px; color: #6b7280; }
 
     /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ──
-       v0.2.762-alpha: lifted out of the centre console's document flow into a
+       v0.2.763-alpha: lifted out of the centre console's document flow into a
        fixed bottom-right corner card, re-themed from the original blue/navy
        palette to the bronze/orange smoked-glass look used across the rest of
        the UI (settings panels, .up-row-value--new was already on-brand and is
@@ -888,7 +939,7 @@
     .up-row-value { font-size: 11px; color: #f5e6d8; word-break: break-all; }
     /* Highlight the Latest value cell when a newer release exists so the status
        is legible without a separate STATUS row (UPD-1, v0.2.361). Already
-       on-brand orange — unchanged by the v0.2.762-alpha re-theme. */
+       on-brand orange — unchanged by the v0.2.763-alpha re-theme. */
     .up-row-value.up-row-value--new {
       color: #f7931a; font-weight: 600; letter-spacing: 0.5px;
       text-shadow: 0 0 6px rgba(247,147,26,0.35);
@@ -899,7 +950,7 @@
        `runUpgradeInPlace` helper — SW purge + cache clear + reload; no deploy,
        no signer touch, no relay call. Same mauve palette as the ACC-1 admin
        Instance Settings link for surface consistency. */
-    /* v0.2.762-alpha (MP-1): the explicit `display: block` below would override
+    /* v0.2.763-alpha (MP-1): the explicit `display: block` below would override
        the HTML `hidden` attribute (whose UA default is `display: none`), so an
        admin-less / up-to-date state could leak the button. Guard first. */
     #update-upgrade-btn[hidden] { display: none !important; }
@@ -915,7 +966,7 @@
     #update-upgrade-btn:active { filter: brightness(0.9); }
     #update-upgrade-btn[disabled] { opacity: 0.6; cursor: progress; }
 
-    /* v0.2.762-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
+    /* v0.2.763-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
        orange accent fill (matches the version box + Update Now button). The
        'deploying' stage rides a shimmer keyframe while arena-ws restarts and the
        status endpoint is briefly unreachable; 'done' snaps green, 'failed' red. */
@@ -957,7 +1008,7 @@
     }
     #update-status-line[hidden] { display: none !important; }
     /* Manual-install fallback (shown when auto-update capability is absent).
-       v0.2.762-alpha: previously unstyled (inherited plain body text on the
+       v0.2.763-alpha: previously unstyled (inherited plain body text on the
        old in-flow layout); now needs its own bronze treatment since it sits
        inside the smoked-glass corner card. */
     #update-copy-fallback[hidden] { display: none !important; }
@@ -1048,7 +1099,7 @@
        it. Mirrors #emagake[hidden]. */
     #kami-mode-badge[hidden] { display: none; }
 
-    /* ── ADR-0099 (v0.2.762-alpha) — KAMI-MODE DEV MENU (#torii-dev-menu) ──
+    /* ── ADR-0099 (v0.2.763-alpha) — KAMI-MODE DEV MENU (#torii-dev-menu) ──
        A left-edge smoked-glass panel that surfaces owner-only runtime toggles
        (starting with the sticker RENDER-MODE A/B). Only visible while the owner
        is in Kami Mode; hidden on the public perpetual-world view. Same visual
@@ -1548,7 +1599,7 @@
 
   <!-- Header -->
   <div id="title-header">
-    <!-- v0.2.762-alpha: owner caption now occupies the top-left corner the
+    <!-- v0.2.763-alpha: owner caption now occupies the top-left corner the
          settings button used to sit in. Text-only, non-interactive
          (pointer-events:none in CSS) so it never intercepts clicks meant for
          whatever sits beneath it. Populated by main.js's _refreshOwnerLabel(). -->
@@ -1557,7 +1608,7 @@
       <div class="toc-line2" id="torii-owner-label"><span class="toc-owner-name" id="torii-owner-name" title="">—</span><span class="toc-loggedin" id="torii-loggedin-badge"><span class="toc-loggedin-dot" aria-hidden="true"></span><span class="toc-dim">you are </span><span class="toc-on">logged in</span></span></div>
     </div>
 
-    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.762-alpha:
+    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.763-alpha:
          moved again, top-left → bottom-left, to make room for the owner
          caption above. Opens the settings panel (nav-left/content-right),
          replacing the old Torii menu overlay. Same button element/id kept for
@@ -1587,34 +1638,63 @@
       <div class="gp-ring gp-ring4" aria-hidden="true"></div>
       <div class="gp-ring gp-tint" aria-hidden="true"></div>
       <div class="gp-content">
-      <div style="font-size:0.65rem;letter-spacing:0.12em;color:#e8a662;text-align:center;margin-bottom:0.5rem;">ENTER AS A GUEST &middot; OR SIGN IN</div>
-      <!-- v0.2.760: title screen is guest-first. Everyone enters anonymously with
-           the guest avatar — no account and no character pick required. LOGIN WITH
-           NOSTR is the optional second step for players who want to attach an
-           identity (and, via Character Forge, their own character). The
-           chiefmonkey/nostrich preset buttons lived here through v0.2.759 and are
-           gone; the character surface now lives in Settings. -->
-      <div class="step-row">
-        <span class="step-num">1</span>
+      <div class="entry-eyebrow">CHOOSE HOW YOU ENTER</div>
+
+      <!-- ── Option 1 — New player: pick a guest character ─────────────────
+           v0.2.763-alpha: the character picker returns to the title screen as a
+           guest-only choice (two torso thumbnail cards — nostrich / poo-poo-head),
+           per the three-option login redesign. Clicking a card stores the choice
+           in main.js (_pendingGuestChar) which seats it via setCharacter() before
+           boot. Returning players don't use this — their kind-35100 character is
+           auto-seated on Nostr login (option 3). -->
+      <section class="entry-option" aria-label="New player">
+        <div class="entry-option-title"><span class="entry-num">1</span> NEW PLAYER</div>
+        <div class="entry-option-sub">enter as a guest — pick your character</div>
+        <div class="char-picker" role="radiogroup" aria-label="Choose a guest character">
+          <button type="button" class="char-card" data-char="nostrich" role="radio" aria-checked="false">
+            <span class="char-card-img"><img src="/ui/char-nostrich-torso.png" alt="Nostrich — torso" width="320" height="400" loading="lazy" decoding="async"></span>
+            <span class="char-card-name">NOSTRICH</span>
+          </button>
+          <button type="button" class="char-card selected" data-char="guest" role="radio" aria-checked="true">
+            <span class="char-card-img"><img src="/ui/char-guest-torso.png" alt="Poo poo head — torso" width="320" height="400" loading="lazy" decoding="async"></span>
+            <span class="char-card-name">POO POO HEAD</span>
+          </button>
+        </div>
         <!-- id kept as btn-enter-nap so the existing main.js ENTER handler (which
-             already applies the NAP spawn override before boot) needs no logic
-             change — only the relabel. -->
-        <button class="btn btn-nap" id="btn-enter-nap" style="background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;width:220px;">ENTER AS GUEST</button>
-      </div>
-      <div style="font-size:9px;letter-spacing:0.5px;color:#9ca3af;text-align:center;margin:0 0 8px;">anonymous &middot; no account &middot; guest avatar</div>
-      <div class="step-row">
-        <span class="step-num">2</span>
-        <button class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:9px;margin-bottom:10px;">⚡ LOGIN WITH NOSTR</button>
-      </div>
-      <!-- v0.3: homepage FLY MODE toggle removed per design direction. In-game F
-           still toggles free-fly via arenaRuntime's initFlyCamera (unaffected —
-           its `document.getElementById('btn-fly-toggle')` sync is null-guarded). -->
-      <!-- Entry feedback line (v0.2.228). The single entry button writes here so a
-           cloud/no-extension click is never a silent no-op: ENTER surfaces
-           a clear failure/gated message if physics fails to load, and LOGIN WITH
-           NOSTR surfaces "NIP-07 extension not found" etc. when no signer exists.
-           Hidden until a message is set. role/aria-live announce it to AT. -->
-      <div id="entry-status" role="status" aria-live="polite" style="display:none;margin-top:8px;min-height:1em;font-size:11px;letter-spacing:1px;color:#f0b8c8;text-align:center;max-width:240px;"></div>
+             already applies the NAP spawn override before boot + seats the picked
+             character) needs no logic change — only the relabel. -->
+        <button type="button" class="btn btn-nap" id="btn-enter-nap" style="background:linear-gradient(135deg,#ff8c00,#e8590c);border:1px solid #ffa94d;width:220px;">ENTER AS GUEST</button>
+      </section>
+
+      <div class="c-divider"></div>
+
+      <!-- ── Option 2 — Create with AI ──────────────────────────────────────
+           Opens the settings Character Forge (the Create-with-AI card ships
+           there as a local mock in v0.2.762). Keeping it on the login panel for
+           now per product decision; may move to settings-only later. -->
+      <section class="entry-option" aria-label="Create with AI">
+        <div class="entry-option-title"><span class="entry-num">2</span> CREATE WITH AI</div>
+        <div class="entry-option-sub">design your own character</div>
+        <button type="button" class="btn btn-secondary" id="btn-create-ai" style="width:220px;font-size:10px;letter-spacing:2px;padding:10px;">✦ CREATE WITH AI</button>
+      </section>
+
+      <div class="c-divider"></div>
+
+      <!-- ── Option 3 — Returning player ────────────────────────────────────
+           Nostr login auto-recognises a kind-35100 character on the npub and
+           seats it (its mesh resolved from a Blossom sha256 / NIP-94 event), so
+           your avatar follows you everywhere. -->
+      <section class="entry-option" aria-label="Returning player">
+        <div class="entry-option-title"><span class="entry-num">3</span> RETURNING?</div>
+        <div class="entry-option-sub">sign in — your character follows you</div>
+        <button type="button" class="btn btn-secondary" id="btn-nostr-centre" style="width:220px;font-size:10px;letter-spacing:2px;padding:10px;margin-bottom:6px;">⚡ LOGIN WITH NOSTR</button>
+      </section>
+
+      <!-- Entry feedback line (v0.2.228). ENTER surfaces a clear failure/gated
+           message if physics fails to load, and LOGIN WITH NOSTR surfaces
+           "NIP-07 extension not found" etc. when no signer exists. Hidden until
+           a message is set. role/aria-live announce it to AT. -->
+      <div id="entry-status" role="status" aria-live="polite" style="display:none;margin-top:10px;min-height:1em;font-size:11px;letter-spacing:1px;color:#f0b8c8;text-align:center;max-width:240px;"></div>
 
       <div class="c-divider"></div>
 
@@ -1627,7 +1707,7 @@
       <!-- v0.3: large standalone #version-label removed — the version is
            still shown, at a slightly larger size, inside #update-preview-body
            below (see .up-row-value).
-           v0.2.762-alpha: the #update-preview block itself was MOVED out of
+           v0.2.763-alpha: the #update-preview block itself was MOVED out of
            here — it now sits as a direct child of #screen-title (below), not
            nested inside #title-centre. #title-centre.glass-panel carries a
            backdrop-filter, and per spec backdrop-filter (like transform/
@@ -1649,7 +1729,7 @@
   </div><!-- /title-columns -->
 
   <!-- Version/upgrade check (kept — genuine operational surface, not
-       decorative). v0.2.762-alpha: lives here, as a direct child of
+       decorative). v0.2.763-alpha: lives here, as a direct child of
        #screen-title, specifically OUTSIDE #title-centre's backdrop-filter
        subtree (see the comment left at its old nesting point above) so its
        `position: fixed; bottom/right` resolves against the real viewport.
@@ -1664,7 +1744,7 @@
          occurrences of EXPECTED_VERSION in this file). main.js's
          renderUpdatePreview() replaces these children with the live
          view-model on load. -->
-    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.762-alpha</div></div>
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.763-alpha</div></div>
     <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
     <div id="update-progress" hidden>
       <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1709,7 +1789,7 @@
      was too easy to miss over the weapon). pointer-events:none; never blocks. -->
 <div id="kami-mode-badge" hidden aria-label="Kami Mode active">⛩ KAMI MODE · K FOR EMA · ESC EXIT</div>
 
-<!-- ADR-0099 (v0.2.762-alpha) — Kami-mode dev menu. Owner-only, only visible
+<!-- ADR-0099 (v0.2.763-alpha) — Kami-mode dev menu. Owner-only, only visible
      while the admin is in Kami Mode. Rows are injected by devMenu.js from the
      model registered in arenaRuntime.js. -->
 <div id="torii-dev-menu" hidden aria-label="Kami-mode dev menu"></div>
@@ -1803,7 +1883,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <div id="ver">v0.2.762-alpha · torii quest</div>
+  <div id="ver">v0.2.763-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->

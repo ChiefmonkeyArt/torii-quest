@@ -138,6 +138,21 @@ const MP_PEER_CHARACTERS = Object.freeze({
     reload: 'Reload_Hand_Gun', melee: 'Melee_Left_Hand',
     victory: 'Victory_Cheer', land: 'Fall_from_Bar', fall: 'Fall2',
   },
+  // guest (the yellow crash-test dummy "poo poo head") also carries the SAME
+  // master clip names as chiefmonkey/nostrich — guest-master.glb has all 18
+  // animation-library.glb clips baked onto the Meshy humanoid rig.
+  // v0.2.764: previously MISSING, so any peer whose `character` was 'guest'
+  // fell back to MP_PEER_CHARACTERS.chiefmonkey and rendered as a teal monkey
+  // clone army — the "multiple versions of chiefmonkey" bug.
+  guest: {
+    file: '/models/guest-master.glb',
+    idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running',
+    back: 'Walk_Backward', strafeL: 'Run_Forward_Firing', strafeR: 'Run_Forward_Firing',
+    jump: 'Jump_Over_Obstacle_2',
+    shoot: 'Run_Forward_Firing', hit: 'Hit_Reaction_to_Waist', death: 'Knock_Down',
+    reload: 'Reload_Hand_Gun', melee: 'Melee_Left_Hand',
+    victory: 'Victory_Cheer', land: 'Fall_from_Bar', fall: 'Fall2',
+  },
 });
 
 // Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
@@ -306,7 +321,7 @@ async function _buildPeerAvatarObject(character, peer) {
   // Resolve idle + walk + run/back/strafe + one-shot actions (shoot/hit/death).
   // chiefmonkey AND nostrich both carry the master clip names, so both resolve
   // through GAME_STATE_TO_CLIP; cfg is the fallback for any clip not present.
-  const useMasterTable = character === 'chiefmonkey' || character === 'nostrich';
+  const useMasterTable = character === 'chiefmonkey' || character === 'nostrich' || character === 'guest';
   const resolveClip = (state) => {
     const libName = useMasterTable ? GAME_STATE_TO_CLIP[state] : null;
     return (libName && actions[libName]) || null;

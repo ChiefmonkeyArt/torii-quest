@@ -144,10 +144,15 @@ const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: p
 // players (Nostr login → kind-35100) leave this at the 'guest' default and swap
 // the mesh instead via _ownCharacterMeshUrl.
 let _pendingGuestChar = 'guest';
+// v0.2.764: an EXPLICIT card tap must take precedence over a returning player's
+// own kind-35100 mesh — otherwise a logged-in tester who picks a guest torso
+// card still gets their own chiefmonkey model (see ensureArenaReady).
+let _guestCharChosen = false;
 const _charCards = Array.from(document.querySelectorAll('.char-card'));
 function _selectGuestCharacter(char) {
   if (char !== 'guest' && char !== 'nostrich') return;
   _pendingGuestChar = char;
+  _guestCharChosen = true;
   for (const card of _charCards) {
     const on = card.getAttribute('data-char') === char;
     card.classList.toggle('selected', on);
@@ -2646,9 +2651,15 @@ async function ensureArenaReady(loadingLabel) {
       _arena.setCharacter(_pendingGuestChar || 'guest');
       // Seat the player's own character mesh (Blossom URL) before boot so
       // loadPlayerModel() fetches it instead of the built-in default, and
-      // broadcast its hash so peers resolve + load the same mesh.
-      _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
-      _arena.setCustomMeshHash(_ownCharacterMeshHash);
+      // broadcast its hash so peers resolve + load the same mesh. v0.2.764:
+      // an explicit guest card tap wins over the returning-player own mesh.
+      if (_guestCharChosen) {
+        _arena.setCustomMeshUrl(null);
+        _arena.setCustomMeshHash(null);
+      } else {
+        _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+        _arena.setCustomMeshHash(_ownCharacterMeshHash);
+      }
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');

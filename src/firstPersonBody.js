@@ -35,19 +35,57 @@ const FP_BODIES = {
 const EYE = 1.7;
 const FADE = 0.15;
 
+// v0.2.772-alpha (Bug E): per-character POV eye height. Some characters are
+// authored shorter than the canonical 1.7 m eye (poo poo head is teenage-sized;
+// he was intentionally shoulder-height to full-grown chars to give guests the
+// experience of looking UP at players). We compute the character's own eye Y
+// from the loaded headless GLB (mesh bounds — maxY is the head cap of the
+// headless body ~= where the eye would be, which is fine since the head is
+// removed at authoring time) and expose the DELTA against the canonical EYE.
+// Physics `EYE` (engine/entities/player.js) is UNCHANGED so bots keep aiming at
+// the true eye, spawn / body / respawn geometry keep their invariants, and
+// peers still see the character at the height its GLB was authored at. Only
+// the local camera Y is nudged down by the delta, and only for characters
+// SHORTER than default (never taller — clamped at 0 so tall custom meshes don't
+// float the POV above the head).
+let _characterEyeOffset = 0;
+// Minimum POV height above the foot — a safety floor so a malformed / tiny
+// custom mesh can't drop the POV below the knees.
+const MIN_CHARACTER_EYE = 1.10;
+// Small drop below the head cap so the POV sits between the eyes rather than
+// on top of the crown.
+const EYE_FROM_HEAD_CAP = 0.10;
+export function getCharacterEyeOffset() { return _characterEyeOffset; }
+
 // Horizontal plane (normal points DOWN) that clips everything above it. We keep
 // it just below the eye each frame so the neck stump never enters the FP view —
 // looking down now reveals chest → feet instead of the inside of the headless
-// body. v0.2.112: the constant tracks the live CAMERA world Y (not the parent),
-// so the slice follows the lowered base eye AND the look-down arc — the user
-// could still see a little inside the neck when the slice was pinned to the
-// parent eye, which didn't move as the camera tipped/lowered.
+// body.
+//
+// v0.2.112 tracked CAMERA world Y so the slice followed the look-down eye drop,
+// but that had the side effect of RAISING the slice when the camera pitched DOWN
+// (the camera dips a few cm on look-down via lookDownEyeY): with the slice up at
+// eye-minus-drop, the feet were then above the plane and got clipped away —
+// hence "no feet visible" in v0.2.771 (Bug D). v0.2.772-alpha (Bug D) pins the
+// slice to the PARENT rig world Y (playerObj) so it stays anchored at true
+// chest height regardless of camera pitch; feet are always below the slice and
+// always visible. The stump-when-looking-up case is still handled because the
+// stump lives ABOVE that same fixed chest line only when the camera itself is
+// physically above the neck, which the parent-anchored slice already excludes.
 const NECK_CLIP_DROP = 0.32; // metres below the eye where the body is sliced
 const _clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), EYE - NECK_CLIP_DROP);
 const _wp = new THREE.Vector3();
+// v0.2.772-alpha (Bug D): scratch vec3 reused each frame for the parent-Y read.
+// The Neck clip constant is `parent.y + (EYE − NECK_CLIP_DROP)` so the slice
+// follows the rig on ground/jump/crouch but does NOT follow the camera pitch.
+const _pp = new THREE.Vector3();
 
 export function loadFirstPersonBody(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; _cfg = null; }
+  // v0.2.772-alpha (Bug E): reset the per-character POV offset on hot-swap so
+  // switching from a shorter character (poo poo head) back to a full-height one
+  // returns to the canonical eye immediately, even before the new GLB streams in.
+  _characterEyeOffset = 0;
 
   // v0.2.767-alpha — for custom / Create-with-AI meshes the server authors a
   // headless variant at publish-time and the client stores that URL via
@@ -75,14 +113,28 @@ export function loadFirstPersonBody(parentObj) {
     _root = gltf.scene;
 
     let minY = Infinity;
+    let maxY = -Infinity;
     _root.traverse(o => {
       if (o.isMesh && o.geometry) {
         o.geometry.computeBoundingBox();
         const b = o.geometry.boundingBox;
-        if (b) minY = Math.min(minY, b.min.y);
+        if (b) {
+          minY = Math.min(minY, b.min.y);
+          maxY = Math.max(maxY, b.max.y);
+        }
       }
     });
     if (!Number.isFinite(minY)) minY = 0;
+    if (!Number.isFinite(maxY)) maxY = EYE;
+
+    // v0.2.772-alpha (Bug E): compute per-character POV eye height. characterEye
+    // = character's total mesh height minus a small drop from head cap to eye.
+    // Clamped to MIN so we never drop the POV to the knees on a broken mesh,
+    // and to ≤ EYE so we never RAISE the POV above the canonical player eye
+    // (that would mean bots aim at your chest while you look over their head).
+    const meshHeight = Math.max(0, maxY - minY);
+    const characterEye = Math.max(MIN_CHARACTER_EYE, Math.min(EYE, meshHeight - EYE_FROM_HEAD_CAP));
+    _characterEyeOffset = characterEye - EYE; // <= 0, applied to camera local Y
 
     _root.scale.setScalar(1.0);
     // Feet at the player's foot: parent eye sits at EYE above foot, so shift the
@@ -180,11 +232,19 @@ export function tickFirstPersonBody(dt) {
   if (!_mixer) return;
   _mixer.update(dt);
 
-  // Keep the neck clip just below the live eye height (CAMERA world Y, which
-  // includes the look-down arc + lowered base eye) so the slice tracks jumps,
-  // crouches and the pitch-coupled eye drop without re-reading per-vertex bounds.
-  camera.getWorldPosition(_wp);
-  _clipPlane.constant = _wp.y - NECK_CLIP_DROP;
+  // v0.2.772-alpha (Bug D): pin the neck clip to the PARENT rig world Y (the
+  // player's true eye anchor at ground level) plus the fixed chest offset. The
+  // slice therefore tracks jumps/crouches/terrain but is independent of the
+  // look-down camera pitch — feet stay below the plane at every pitch angle.
+  // We fall back to CAMERA world Y only when the body is not yet parented (a
+  // one-frame transient during hot-swap load), so the constant is never NaN.
+  if (_root && _root.parent) {
+    _root.parent.getWorldPosition(_pp);
+    _clipPlane.constant = _pp.y + (EYE - NECK_CLIP_DROP);
+  } else {
+    camera.getWorldPosition(_wp);
+    _clipPlane.constant = _wp.y - NECK_CLIP_DROP;
+  }
   _updateMirrorProximity();
 
   const fwd   = keys['KeyW'] || keys['ArrowUp'];

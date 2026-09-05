@@ -1,10 +1,10 @@
-// firstPersonBody.js — headless Chiefmonkey body visible in the FP camera
+// firstPersonBody.js — headless first-person body visible in the FP camera
 // (v0.2.108). Replaces the old clip-plane clone in playerModel.js. A dedicated
 // GLB with the head removed at authoring time renders on layer 2 (seen by the
 // main camera, hidden from the mirror reflection camera), parented to the
 // player so it tracks the eye. Its own mixer plays a small idle/walk/run set.
-// Chiefmonkey-only for now: guest/nostrich/custom have no headless variant yet,
-// so loadFirstPersonBody() early-returns for those (see comment there).
+// Each supported character has its own authored headless GLB (see FP_BODIES);
+// custom/Create-with-AI meshes have none yet, so the FP body is hidden for them.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -17,6 +17,19 @@ let _root  = null;
 let _mixer = null;
 let _actions = {};
 let _current = null;
+let _cfg = null; // FP_BODIES entry for the loaded character
+
+// Per-character headless first-person body: asset path + the idle/walk/run clip
+// names inside that GLB. chiefmonkey keeps its own reduced set (Idle_11 /
+// Walking / Running); guest and nostrich play the master-library clips (Idle_02
+// / Stylish_Walk_inplace / Running) baked into their headless variants, which
+// tools/headless-glb.mjs authors from the full master GLBs (head removed, three
+// clips kept). Custom/Create-with-AI meshes are absent here → FP body hidden.
+const FP_BODIES = {
+  chiefmonkey: { file: '/chiefmonkey-headless.glb', idle: 'Idle_11', walk: 'Walking',           run: 'Running' },
+  guest:       { file: '/guest-headless.glb',       idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running' },
+  nostrich:    { file: '/nostrich-headless.glb',    idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running' },
+};
 
 const EYE = 1.7;
 const FADE = 0.15;
@@ -33,21 +46,20 @@ const _clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), EYE - NECK_CLIP_
 const _wp = new THREE.Vector3();
 
 export function loadFirstPersonBody(parentObj) {
-  if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; }
+  if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; _cfg = null; }
 
-  // Only chiefmonkey has an authored headless first-person body
-  // (chiefmonkey-headless.glb). For guest / nostrich / custom meshes there is no
-  // headless variant yet, so loading chiefmonkey's would show the WRONG character
-  // (a teal monkey body for a guest) — and its layer-2 mesh is what leaks into
-  // the mirror as a "ghost". Hide the FP body instead; authoring per-character
-  // headless variants is tracked as a follow-up.
-  if (getCharacter() !== 'chiefmonkey') return;
+  // No authored headless body for this character (custom/Create-with-AI mesh) →
+  // hide the FP body rather than show the WRONG character's arms in first person
+  // (whose layer-2 mesh is also what leaks into the mirror as a "ghost").
+  const cfg = FP_BODIES[getCharacter()];
+  if (!cfg) return;
+  _cfg = cfg;
 
   const draco = new DRACOLoader();
   draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load(assetUrl('/chiefmonkey-headless.glb'), gltf => {
+  loader.load(assetUrl(cfg.file), gltf => {
     _root = gltf.scene;
 
     let minY = Infinity;
@@ -106,7 +118,7 @@ export function loadFirstPersonBody(parentObj) {
       a.setLoop(THREE.LoopRepeat, Infinity);
       _actions[c.name] = a;
     });
-    _play('Idle_11');
+    _play(_cfg.idle);
   }, undefined, err => {
     console.warn('[firstPersonBody] load failed:', err);
   });
@@ -153,7 +165,7 @@ export function tickFirstPersonBody(dt) {
   const run   = keys['ShiftLeft'] || keys['ShiftRight'];
   const moving = fwd || back || left || right;
 
-  if (!moving)            _play('Idle_11');
-  else if (run && moving) _play('Running');
-  else                    _play('Walking');
+  if (!moving)            _play(_cfg.idle);
+  else if (run && moving) _play(_cfg.run);
+  else                    _play(_cfg.walk);
 }

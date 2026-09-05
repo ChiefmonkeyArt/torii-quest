@@ -5,8 +5,8 @@
 // on-disk assets, plus the Create-with-AI entry and the returning-player Nostr
 // button. A silent id/asset-path/type would render a broken or dead card, so
 // this freezes the structure + the referenced image files + the JS wiring. It
-// also locks the headless-first-person-body fix: the FP body is chiefmonkey-only,
-// so guest/nostrich no longer see chiefmonkey's teal body.
+// also locks the headless-first-person-body fix: guest/nostrich load their OWN
+// authored headless variant instead of chiefmonkey's teal body.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -43,8 +43,18 @@ describe('guest character picker — three-option login panel', () => {
     expect(MAIN).toMatch(/openSettingsPanel\(\s*\{\s*initialTab:\s*['"]character['"]/);
   });
 
-  it('firstPersonBody is character-aware — only chiefmonkey loads the headless FP body', () => {
+  it('firstPersonBody loads a headless body for chiefmonkey, guest, and nostrich', () => {
+    // v0.2.766: guest + nostrich now have authored headless variants. The FP
+    // body looks up the current character in a map declaring all three paths, so
+    // a guest/nostrich sees their own body, not chiefmonkey's teal one.
     expect(FPB).toMatch(/getCharacter/);
-    expect(FPB).toMatch(/!==\s*['"]chiefmonkey['"]/);
+    expect(FPB).toMatch(/chiefmonkey-headless\.glb/);
+    expect(FPB).toMatch(/guest-headless\.glb/);
+    expect(FPB).toMatch(/nostrich-headless\.glb/);
+    // The authored assets must actually be on disk too — a missing GLB would
+    // render a guest/nostrich with no first-person body (the old disembodied feel).
+    expect(existsSync(join(ROOT, 'public/chiefmonkey-headless.glb'))).toBe(true);
+    expect(existsSync(join(ROOT, 'public/guest-headless.glb'))).toBe(true);
+    expect(existsSync(join(ROOT, 'public/nostrich-headless.glb'))).toBe(true);
   });
 });

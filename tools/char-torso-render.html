@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;background:#000;}
+  canvas{display:block;}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+// Serve's clean-URL rewrite strips the query string, so we read the char from
+// the hash fragment instead (e.g. char-torso-render#nostrich).
+const name = (location.hash.replace(/^#/, '') || 'guest');
+console.log('URL', location.href, 'name=', name);
+const MODELS = {
+  nostrich: '/public/models/nostrich-master.glb',
+  guest:    '/public/models/guest-master.glb'
+};
+const url = MODELS[name];
+if (!url) { document.body.textContent = 'bad char'; throw new Error('bad char'); }
+
+const W = 320, H = 400;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+
+// Key light + fill so the body reads on a transparent card, plus a rim light.
+scene.add(new THREE.AmbientLight(0xffffff, 1.4));
+const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(2, 3, 4); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffd9b0, 1.0); fill.position.set(-3, 1, 2); scene.add(fill);
+
+// (backdrop removed — the fixed overlay was painting above the canvas and
+// hiding the render; the canvas alone is the thumbnail source.)
+
+const draco = new DRACOLoader();
+draco.setDecoderPath('/node_modules/three/examples/jsm/libs/draco/');
+const loader = new GLTFLoader();
+loader.setDRACOLoader(draco);
+
+const dummy = new THREE.Object3D();  // never added — just for matrix math
+
+let finished = false;
+function signalDone() {
+  if (finished) return;
+  finished = true;
+  document.title = 'RENDERED';
+  window.__renderDone = true;
+}
+
+loader.load(url, (gltf) => {
+  const root = gltf.scene;
+  scene.add(root);
+  const meshCount = []; root.traverse(o => { if (o.isMesh) meshCount.push(o.name); });
+  console.log('LOADED', name, 'meshes=', meshCount.length, 'animations=', (gltf.animations||[]).length);
+
+  // Normalise scale + centre so framing math is stable across meshes.
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const TARGET_H = 3.0;
+  const s = TARGET_H / maxDim;
+  root.scale.setScalar(s);
+
+  // Recompute after scale.
+  box.setFromObject(root);
+  const b = box;
+  const h = b.max.y - b.min.y;
+
+  // Torso band: hips (~38%) up to just below the head (~72% of height).
+  // Head + legs fall outside this band → out of frame.
+  const tMin = b.min.y + h * 0.38;
+  const tMax = b.min.y + h * 0.72;
+  const tCentre = new THREE.Vector3(0, (tMin + tMax) / 2, b.getCenter(new THREE.Vector3()).z);
+
+  // Face the camera. The meshes are authored to face +Z (the camera's default
+  // forward for a thumbnail), so no Y-rotation here — keeping the natural front
+  // toward the lens. (An earlier 180° flip showed the character's back.)
+
+  const b2 = new THREE.Box3().setFromObject(root);
+  console.log('BOX', JSON.stringify({ min: b2.min.toArray(), max: b2.max.toArray(), size: b2.getSize(new THREE.Vector3()).toArray(), centre: b2.getCenter(new THREE.Vector3()).toArray() }));
+
+  // Natural (non-T-pose) thumbnail: if the GLB carries an idle/neutral clip,
+  // sample a mid-frame pose so the arms hang relaxed instead of spread wide.
+  const mixer = new THREE.AnimationMixer(root);
+  const idle = (gltf.animations || []).find(a => /idle|base|neutral|stand|rest|breath/i.test(a.name))
+            || (gltf.animations || [])[0];
+  if (idle) {
+    const action = mixer.clipAction(idle);
+    action.play();
+    mixer.update(0.6); // sample ~0.6s in — past any bind-pose start frame
+  }
+
+  const cam = new THREE.PerspectiveCamera(35, W / H, 0.1, 100);
+  const depth = 2.6;
+  cam.position.set(0, tCentre.y, depth);
+  cam.lookAt(new THREE.Vector3(0, tCentre.y, b2.getCenter(new THREE.Vector3()).z));
+
+  console.log('CAM at', cam.position.toArray(), 'looking at z', b2.getCenter(new THREE.Vector3()).z, 'tCentreY', tCentre.y);
+  renderer.render(scene, cam);
+  signalDone();
+
+  // Second frame after textures/shaders settle.
+  requestAnimationFrame(() => { renderer.render(scene, cam); signalDone(); });
+}, undefined, (err) => {
+  document.body.textContent = 'LOAD ERR: ' + err;
+  console.error(err);
+  document.title = 'ERROR';
+});
+
+// If the GLB's Draco decode is slow, still mark done so the harness can proceed.
+setTimeout(signalDone, 15000);
+</script>
+</body>
+</html>

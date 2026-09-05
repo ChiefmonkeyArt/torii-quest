@@ -3,12 +3,15 @@
 // GLB with the head removed at authoring time renders on layer 2 (seen by the
 // main camera, hidden from the mirror reflection camera), parented to the
 // player so it tracks the eye. Its own mixer plays a small idle/walk/run set.
+// Chiefmonkey-only for now: guest/nostrich/custom have no headless variant yet,
+// so loadFirstPersonBody() early-returns for those (see comment there).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
 import { assetUrl } from './assetUrl.js';
+import { getCharacter } from './playerModel.js';
 
 let _root  = null;
 let _mixer = null;
@@ -31,6 +34,14 @@ const _wp = new THREE.Vector3();
 
 export function loadFirstPersonBody(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; }
+
+  // Only chiefmonkey has an authored headless first-person body
+  // (chiefmonkey-headless.glb). For guest / nostrich / custom meshes there is no
+  // headless variant yet, so loading chiefmonkey's would show the WRONG character
+  // (a teal monkey body for a guest) — and its layer-2 mesh is what leaks into
+  // the mirror as a "ghost". Hide the FP body instead; authoring per-character
+  // headless variants is tracked as a follow-up.
+  if (getCharacter() !== 'chiefmonkey') return;
 
   const draco = new DRACOLoader();
   draco.setDecoderPath(assetUrl('/draco/'));

@@ -137,6 +137,37 @@ const elPause = document.getElementById('pause-overlay');
 const elNapBtn    = document.getElementById('btn-enter-nap');
 const elToriiMenuBtn = document.getElementById('btn-torii-menu'); // Phase 0c: persistent menu
 
+// ── Guest character picker (v0.2.763-alpha three-option login) ─────────────────
+// The title screen lets an anonymous player choose which guest avatar to drop in
+// with (nostrich / poo-poo-head). The choice is stored here and seated via
+// _arena.setCharacter() in ensureArenaReady() just before boot. Returning
+// players (Nostr login → kind-35100) leave this at the 'guest' default and swap
+// the mesh instead via _ownCharacterMeshUrl.
+let _pendingGuestChar = 'guest';
+const _charCards = Array.from(document.querySelectorAll('.char-card'));
+function _selectGuestCharacter(char) {
+  if (char !== 'guest' && char !== 'nostrich') return;
+  _pendingGuestChar = char;
+  for (const card of _charCards) {
+    const on = card.getAttribute('data-char') === char;
+    card.classList.toggle('selected', on);
+    card.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+}
+for (const card of _charCards) {
+  card.addEventListener('click', () => _selectGuestCharacter(card.getAttribute('data-char')));
+}
+
+// ── Create-with-AI entry (login panel) — opens settings Character Forge ────────
+// v0.2.763-alpha: kept on the login panel for now (per product decision); may be
+// moved to settings-only later. The mock generation flow lives in the Character
+// Forge tab.
+const elCreateAI = document.getElementById('btn-create-ai');
+elCreateAI?.addEventListener('click', () => {
+  if (!isTitle()) return;
+  openSettingsPanel({ initialTab: 'character', onClose: () => { /* title screen: nothing to resume */ } });
+});
+
 // The single EV.PHASE_CHANGE subscriber: title / HUD / pause visibility is derived
 // declaratively from the phase the FSM transitioned INTO. transition() stays the
 // single source of phase change; this just reacts. (phaseScreens.js has no three.)
@@ -2608,10 +2639,11 @@ async function ensureArenaReady(loadingLabel) {
         // confirmed raycast placement into the character manifest + republish.
         confirmStickerPlacement: _confirmSelfViewPlacement,
       });
-      // Guest is the playerModel default, so no setCharacter() call is needed
-      // before AUTH: boot() opens the WebSocket with the guest key already in
-      // place. (Nostr login + Character Forge swap the mesh via the two calls
-      // that follow.)
+      // v0.2.763-alpha: seat the guest's picked character (nostrich /
+      // poo-poo-head) before boot. Returning players keep the 'guest' default
+      // and instead swap the mesh via setCustomMeshUrl below (their kind-35100
+      // Blossom URL).
+      _arena.setCharacter(_pendingGuestChar || 'guest');
       // Seat the player's own character mesh (Blossom URL) before boot so
       // loadPlayerModel() fetches it instead of the built-in default, and
       // broadcast its hash so peers resolve + load the same mesh.

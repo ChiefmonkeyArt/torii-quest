@@ -1,5 +1,32 @@
 // main.js — shell wiring only. No game logic, NO THREE here.
 //
+// v0.2.773-alpha (double-boot guard). If a stale service worker cache serves an
+// older `torii-entry.js?v=<oldstamp>` alongside the freshly fetched
+// `torii-entry.js?v=<newstamp>`, the two module URLs are distinct entries in the
+// browser's ES module cache — so BOTH modules run their top-level side effects
+// and BOTH boot the arena in the same tab (visible symptoms: strobing render,
+// duplicate self in mirror, two WS auth events with different NIP-42 challenges,
+// pointer-lock flap logged twice, etc.). The guard below short-circuits every
+// module invocation after the first: subsequent boots log the collision and
+// return, so the first boot is the only one that wires timers, listeners, and
+// the render loop. See ADR-0107 ("single-boot invariant") for the full rationale
+// and the paired dist-shell `<script>` collision self-heal.
+if (typeof window !== 'undefined') {
+  if (window.__toriiBooted) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[torii-boot] duplicate boot suppressed — a stale bundle loaded alongside the current one. ' +
+      'If this persists across a hard refresh, unregister the service worker and clear site data.'
+    );
+    // A duplicate boot is a red flag but not by itself fatal — the shell self-heal
+    // (index.html) will reload once after unregistering the SW, and this guard keeps
+    // the current tab usable in the meantime. Re-exporting a stub is not needed:
+    // downstream imports never inspect main.js's exports; they consume side effects.
+    throw new Error('torii-boot: duplicate module invocation suppressed');
+  }
+  window.__toriiBooted = true;
+}
+//
 // R2 (v0.2.264): the root shell / title screen is now three-free. Every three-
 // dependent surface (scene/renderer, arena geometry, the game loop, players/bots/
 // weapons, the in-world portal mesh + ToriiDebug) lives in ./arenaRuntime.js,

@@ -12,6 +12,10 @@
 // subscriptions.
 
 import { parseProfileEvent } from './auctionModel.js';
+// v0.2.774: per-relay health tracking (opens, fails, latency, messages).
+// All record* calls are best-effort; wrapped in try/catch so a telemetry
+// failure never breaks the subscription/publish path.
+import { recordOpen, recordOpenFail, recordClose, recordMessage } from '../telemetry/relayHealth.js';
 
 export const PLEBEIAN_AUCTION_KIND = 30408;
 export const PLEBEIAN_BID_KIND = 1023;
@@ -59,26 +63,37 @@ export function subscribeAuction(opts) {
   }
   function connect() {
     if (closed) return;
+    const connectStart = Date.now();
+    let openRecorded = false;
     try {
       ws = new WebSocket(url);
     } catch {
+      try { recordOpenFail(url); } catch { /* telemetry no-op */ }
       if (onStatus) onStatus('error');
       retry = setTimeout(connect, 3000);
       return;
     }
     ws.onopen = () => {
+      openRecorded = true;
+      try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       if (onStatus) onStatus('open');
       ws.send(JSON.stringify(['REQ', 'auc', { ids: [auctionId] }]));
       ws.send(JSON.stringify(['REQ', 'bids', { '#e': [auctionId], kinds: [PLEBEIAN_BID_KIND], limit: 500 }]));
     };
     ws.onmessage = (msg) => {
+      try { recordMessage(url); } catch { /* telemetry no-op */ }
       let frame;
       try { frame = JSON.parse(msg.data); } catch { return; }
       const next = reduceEvents(state, frame);
       if (next !== state) { state = next; emit(); }
     };
-    ws.onerror = () => { if (onStatus) onStatus('error'); };
+    ws.onerror = () => {
+      if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      if (onStatus) onStatus('error');
+    };
     ws.onclose = () => {
+      if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
+      else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       if (closed) return;
       if (onStatus) onStatus('reconnecting');
       retry = setTimeout(connect, 3000);
@@ -145,25 +160,36 @@ export function subscribeByAuthor(opts) {
   function connect() {
     if (closed) return;
     if (!author || !Array.isArray(kinds) || !kinds.length) return;
+    const connectStart = Date.now();
+    let openRecorded = false;
     try {
       ws = new WebSocket(url);
     } catch {
+      try { recordOpenFail(url); } catch { /* telemetry no-op */ }
       if (onStatus) onStatus('error');
       retry = setTimeout(connect, 3000);
       return;
     }
     ws.onopen = () => {
+      openRecorded = true;
+      try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       if (onStatus) onStatus('open');
       ws.send(JSON.stringify(['REQ', 'byauthor', { authors: [author], kinds, limit: 500 }]));
     };
     ws.onmessage = (msg) => {
+      try { recordMessage(url); } catch { /* telemetry no-op */ }
       let frame;
       try { frame = JSON.parse(msg.data); } catch { return; }
       const next = reduceAuthorEvents(state, frame);
       if (next !== state) { state = next; emit(); }
     };
-    ws.onerror = () => { if (onStatus) onStatus('error'); };
+    ws.onerror = () => {
+      if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      if (onStatus) onStatus('error');
+    };
     ws.onclose = () => {
+      if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
+      else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       if (closed) return;
       if (onStatus) onStatus('reconnecting');
       retry = setTimeout(connect, 3000);
@@ -201,15 +227,28 @@ export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
     const timer = setTimeout(finish, timeoutMs);
     urls.forEach((url) => {
       let ws;
-      try { ws = new WebSocket(url); } catch { if (--pending <= 0) { clearTimeout(timer); finish(); } return; }
+      const connectStart = Date.now();
+      let openRecorded = false;
+      try { ws = new WebSocket(url); } catch {
+        try { recordOpenFail(url); } catch { /* telemetry no-op */ }
+        if (--pending <= 0) { clearTimeout(timer); finish(); } return;
+      }
       let done = false;
-      const settle = () => { if (done) return; done = true; if (--pending <= 0) { clearTimeout(timer); finish(); } };
+      const settle = () => {
+        if (done) return; done = true;
+        if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
+        else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+        if (--pending <= 0) { clearTimeout(timer); finish(); }
+      };
       ws.onopen = () => {
+        openRecorded = true;
+        try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
         try { ws.send(JSON.stringify(['REQ', 'prof', { authors: list, kinds: [0] }])); } catch { settle(); return; }
         // give each relay a 6s collection window, then close
         setTimeout(() => { try { ws.close(); } catch { /* noop */ } settle(); }, 6000);
       };
       ws.onmessage = (msg) => {
+        try { recordMessage(url); } catch { /* telemetry no-op */ }
         let frame;
         try { frame = JSON.parse(msg.data); } catch { return; }
         if (frame[0] !== 'EVENT' || !frame[2]) return;

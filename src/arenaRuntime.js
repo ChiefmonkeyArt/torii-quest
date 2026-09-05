@@ -190,10 +190,25 @@ function _peerMeshUrl(character) {
   return blossomMeshUrl(character); // 64-hex sha256 → Blossom URL; else null
 }
 
+// v0.2.768-alpha (Bug C): never silently render an unknown peer as chiefmonkey.
+// `chiefmonkey` is the OWNER's identity — an empty/unknown/unhashable character
+// key must fall back to the anonymous `guest` dummy, and warn once per bad key
+// so a buggy/garbled character never surfaces as a phantom owner clone.
+const _unknownPeerChars = new Set();
+function _resolvePeerCharacter(character) {
+  if (character && MP_PEER_CHARACTERS[character]) return character;
+  if (character && /^[0-9a-f]{64}$/.test(character)) return character; // Blossom mesh hash
+  if (character && typeof character === 'string' && !_unknownPeerChars.has(character)) {
+    _unknownPeerChars.add(character);
+    console.warn('[mp] unknown peer character, falling back to guest:', character);
+  }
+  return 'guest';
+}
+
 function _loadPeerTemplate(character) {
-  character = character || 'chiefmonkey';
+  character = _resolvePeerCharacter(character);
   if (_mpTemplateCache.has(character)) return _mpTemplateCache.get(character).promise;
-  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.guest;
   const meshUrl = _peerMeshUrl(character) || assetUrl(cfg.file);
   const entry = { scene: null, clips: [], gMinY: 0, axisFix: null, promise: null };
   _mpTemplateCache.set(character, entry);
@@ -273,7 +288,7 @@ const _mpWarmPool = new Map(); // character -> ready Promise<obj>
 // peer is used ONLY for obj.userData.peerId; omit it for the anonymous warm
 // instance (the join path stamps the real id in _createPeerAvatar).
 async function _buildPeerAvatarObject(character, peer) {
-  character = character || 'chiefmonkey';
+  character = _resolvePeerCharacter(character);
   await _loadPeerTemplate(character);
   const tpl = _mpTemplateCache.get(character);
   const model = skeletonClone(tpl.scene);
@@ -308,7 +323,7 @@ async function _buildPeerAvatarObject(character, peer) {
   });
 
   const mixer = new THREE.AnimationMixer(model);
-  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.chiefmonkey;
+  const cfg = MP_PEER_CHARACTERS[character] || MP_PEER_CHARACTERS.guest;
   const FADE = 0.15;
 
   // Build action map from available clips.
@@ -484,7 +499,7 @@ async function _buildPeerAvatarObject(character, peer) {
 // for that character is empty (two peers sharing one character, or prewarm still
 // in flight). peerId is stamped onto the pooled object here.
 async function _createPeerAvatar(peer) {
-  const character = (peer && peer.character) || 'chiefmonkey';
+  const character = _resolvePeerCharacter(peer && peer.character);
   const warm = _mpWarmPool.get(character);
   if (warm) {
     _mpWarmPool.delete(character);
@@ -541,6 +556,12 @@ export function createArenaRuntime(hooks = {}) {
   const confirmStickerPlacementHook = typeof hooks.confirmStickerPlacement === 'function'
     ? hooks.confirmStickerPlacement
     : () => {};
+  // v0.2.768-alpha (Bug C): the shell tells us whether the player is actually
+  // logged in (via a live Nostr session). We use it to gate the cached session
+  // token — an anonymous playthrough must NOT auto-auth as a prior identity and
+  // spawn a phantom clone of the owner/self. Defaults to true only for shells
+  // that predate the hook (they have no notion of "not logged in").
+  const isLoggedInHook = typeof hooks.isLoggedIn === 'function' ? hooks.isLoggedIn : () => true;
 
   let _booted = false;
 
@@ -1810,7 +1831,10 @@ export function createArenaRuntime(hooks = {}) {
         // v0.2.375-alpha: prefer the server-issued session token (login signed
         // once via NIP-98) so arena entry / reconnect needs no signature. A
         // rejected/expired token is cleared so the reconnect falls back to NIP-42.
-        getSessionToken: () => getStoredToken(),
+        // v0.2.768-alpha: only reuse a cached session token while actually
+        // logged in — otherwise an anonymous guest with a stale token would
+        // authenticate as a prior identity and appear as a phantom peer.
+        getSessionToken: () => (isLoggedInHook() ? getStoredToken() : null),
         clearSessionToken: () => clearStoredToken(),
         // NIP-42 kind:22242 auth (FALLBACK) — the server verifies via nostr-tools.
         // The client signer is browser-only (window.nostr); only the signed event
@@ -2083,6 +2107,18 @@ export function createArenaRuntime(hooks = {}) {
     if (state.flyMode && !isFlyEnabled()) enableFly({ atSky: true });
   }
 
+  // v0.2.768-alpha (Bug A fix): reload the local player's third-person model
+  // (layer 1, mirror-visible) and first-person headless body (layer 2) from the
+  // CURRENT character + custom-mesh seats. The shell calls this on every ENTER
+  // after re-seating the picker, so switching cards and re-entering swaps the
+  // mesh instead of leaving the first character's models parented to the player.
+  // Both loaders already remove their prior root before loading (see
+  // loadPlayerModel / loadFirstPersonBody), so re-invocation is safe.
+  async function reloadCharacterAssets() {
+    await loadPlayerModel(playerObj);
+    await loadFirstPersonBody(playerObj);
+  }
+
   // MP-1 cross-instance travel seam: the shell calls this in _executeJump before
   // window.location.href navigates away, so the server-side close is graceful and
   // peers see us LEFT immediately instead of after a ping-timeout gap.
@@ -2132,22 +2168,32 @@ export function createArenaRuntime(hooks = {}) {
     setClientSuspended(true);
     suspendAudioContext();
     stopLoop();
+    // v0.2.768-alpha (Bug C): exiting the world must remove us from the server
+    // roster immediately, not leave a phantom peer behind. Previously the socket
+    // was kept open across Home, which (with the 15s PING) let a parked session
+    // sit on the server indefinitely and render as a static peer. We disconnect
+    // now, but keep the `_mp` host object alive so enter() can re-dial it.
+    if (_mp) { try { _mp.stop('home'); } catch { /* noop */ } }
     try { document.exitPointerLock?.(); } catch { /* noop */ }
   }
 
   // Symmetric partner: called from enter() so the ENTER handoff after Home is a
   // proper resume rather than a fresh boot. Restarts the render loop, resumes
-  // the AudioContext, and clears the suspended flag. The MP socket was never
-  // dropped (see design note above), so peers/bots resume drawing immediately.
+  // the AudioContext, clears the suspended flag, and (v0.2.768-alpha) re-dials
+  // the MP socket that leaveToTitle dropped, so we rejoin the roster as a live
+  // character instead of a stale one.
   function resumeFromTitle() {
     setClientSuspended(false);
     resumeAudioContext();
     if (isLoopStopped()) startLoop();
+    if (_mp) { try { _mp.start(); } catch { /* noop */ } }
   }
 
   return {
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
     setCustomMeshHash, setSpawnOverride, stopMultiplayer,
+    // v0.2.768-alpha — re-seat + reload player/FP meshes on re-entry (Bug A).
+    reloadCharacterAssets,
     // v0.2.767-alpha — headless FP-body seam for custom characters.
     setCustomHeadlessUrl,
     // v0.2.742-alpha (ADR-0098):

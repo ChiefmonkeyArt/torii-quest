@@ -2634,10 +2634,37 @@ let _arenaBootstrapped = false;
 // removed — #btn-enter-nap below is now the only entry point and everyone
 // drops into the NAP zone by default, so it owns the whole flow.
 
+// v0.2.768-alpha (Bug A fix): seat the current character selection + custom
+// mesh/headless URLs into the arena. Runs on EVERY entry — not just the first
+// boot — so a guest who picks the nostrich card, goes Home, then re-enters does
+// not keep the previous character's meshes (the old code returned early in
+// ensureArenaReady and never re-seated, leaving the first character's FP body
+// and 3P model stuck in the scene).
+function _seatCharacterIntoArena(arena) {
+  arena.setCharacter(_pendingGuestChar || 'guest');
+  if (_guestCharChosen) {
+    arena.setCustomMeshUrl(null);
+    arena.setCustomMeshHash(null);
+    if (typeof arena.setCustomHeadlessUrl === 'function') arena.setCustomHeadlessUrl(null);
+  } else {
+    arena.setCustomMeshUrl(_ownCharacterMeshUrl);
+    arena.setCustomMeshHash(_ownCharacterMeshHash);
+    // v0.2.767-alpha: seat the returning player's headless FP-body variant too.
+    if (typeof arena.setCustomHeadlessUrl === 'function') arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
+  }
+}
+
 // v0.2.275: shared bootstrap for entering the game. Lazy-loads the
 // three-vendor chunk + Rapier ONCE, then returns the ready arena API.
 async function ensureArenaReady(loadingLabel) {
-  if (_arenaBootstrapped) return _arena;
+  // Re-entry: the arena is already bootstrapped. Re-seat the (possibly changed)
+  // character choice and reload the player + first-person-body meshes so the
+  // second entry reflects the latest pick. v0.2.768-alpha.
+  if (_arenaBootstrapped) {
+    _seatCharacterIntoArena(_arena);
+    if (typeof _arena.reloadCharacterAssets === 'function') await _arena.reloadCharacterAssets();
+    return _arena;
+  }
   elNapBtn.textContent = loadingLabel;
   elNapBtn.disabled = true;
   try {
@@ -2683,26 +2710,12 @@ async function ensureArenaReady(loadingLabel) {
         // ADR-0088: the in-world self-view placement confirm — main.js folds the
         // confirmed raycast placement into the character manifest + republish.
         confirmStickerPlacement: _confirmSelfViewPlacement,
+        // v0.2.768-alpha (Bug C): gate the cached MP session token on a live login
+        // so an anonymous playthrough can't re-auth as a prior identity (phantom
+        // chiefmonkey clone next to the resident NPC).
+        isLoggedIn: () => /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
       });
-      // v0.2.763-alpha: seat the guest's picked character (nostrich /
-      // poo-poo-head) before boot. Returning players keep the 'guest' default
-      // and instead swap the mesh via setCustomMeshUrl below (their kind-35100
-      // Blossom URL).
-      _arena.setCharacter(_pendingGuestChar || 'guest');
-      // Seat the player's own character mesh (Blossom URL) before boot so
-      // loadPlayerModel() fetches it instead of the built-in default, and
-      // broadcast its hash so peers resolve + load the same mesh. v0.2.764:
-      // an explicit guest card tap wins over the returning-player own mesh.
-      if (_guestCharChosen) {
-        _arena.setCustomMeshUrl(null);
-        _arena.setCustomMeshHash(null);
-        if (typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(null);
-      } else {
-        _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
-        _arena.setCustomMeshHash(_ownCharacterMeshHash);
-        // v0.2.767-alpha: seat the returning player's headless FP-body variant too.
-        if (typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
-      }
+      _seatCharacterIntoArena(_arena);
       startPhase('boot');
       await _arena.boot();
       endPhase('boot');

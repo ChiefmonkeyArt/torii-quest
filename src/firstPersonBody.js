@@ -10,6 +10,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
+import { getMirror } from './mirror.js';
 import { assetUrl } from './assetUrl.js';
 import { getCharacter, getCustomHeadlessUrl } from './playerModel.js';
 
@@ -143,20 +144,36 @@ function _play(name) {
   _current = name;
 }
 
-// Hide the FP body while the debug free-fly camera is active (it renders on
-// layer 2, which the fly camera sees). Stores the prior visibility on enable and
-// restores exactly that on disable — so a body already hidden (death/spawn) is
-// not force-shown when fly turns off.
-let _flyPrevVisible = null;
+// ── FP body visibility ────────────────────────────────────────────────────────
+// Two independent reasons to hide the FP body: (1) the debug free-fly camera
+// is active (it renders layer 2, so the body would be seen floating), and (2)
+// v0.2.768-alpha (Bug B) the camera is close to the NAP mirror — standing at
+// the mirror and looking in should show the reflection, not the near-field FP
+// chest overlapping the mirror frame. `_applyVisibility()` folds both flags
+// into `_root.visible` so they compose instead of fighting over the same bit.
+let _flyHidden = false;
+let _mirrorHidden = false;
+function _applyVisibility() {
+  if (_root) _root.visible = !_flyHidden && !_mirrorHidden;
+}
+
 export function setFlyHidden(hidden) {
+  _flyHidden = !!hidden;
+  _applyVisibility();
+}
+
+// Distance within which the FP body is hidden so it can't bleed into the mirror
+// surface when the player is standing right in front of it.
+const MIRROR_HIDE_DIST = 3.0; // metres
+const _mirrorPos = new THREE.Vector3();
+function _updateMirrorProximity() {
   if (!_root) return;
-  if (hidden) {
-    if (_flyPrevVisible === null) _flyPrevVisible = _root.visible;
-    _root.visible = false;
-  } else if (_flyPrevVisible !== null) {
-    _root.visible = _flyPrevVisible;
-    _flyPrevVisible = null;
-  }
+  const m = getMirror();
+  if (!m) { _mirrorHidden = false; _applyVisibility(); return; }
+  m.getWorldPosition(_mirrorPos);
+  camera.getWorldPosition(_wp);
+  const near = _wp.distanceTo(_mirrorPos) < MIRROR_HIDE_DIST;
+  if (near !== _mirrorHidden) { _mirrorHidden = near; _applyVisibility(); }
 }
 
 export function tickFirstPersonBody(dt) {
@@ -168,6 +185,7 @@ export function tickFirstPersonBody(dt) {
   // crouches and the pitch-coupled eye drop without re-reading per-vertex bounds.
   camera.getWorldPosition(_wp);
   _clipPlane.constant = _wp.y - NECK_CLIP_DROP;
+  _updateMirrorProximity();
 
   const fwd   = keys['KeyW'] || keys['ArrowUp'];
   const back  = keys['KeyS'] || keys['ArrowDown'];

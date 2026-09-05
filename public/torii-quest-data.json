@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.765-alpha",
-  "generatedAt": "2026-09-05T11:45:26.302Z",
+  "version": "v0.2.766-alpha",
+  "generatedAt": "2026-09-05T11:59:36.746Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,7 +49,7 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.765-alpha"
+        "value": "v0.2.766-alpha"
       },
       {
         "label": "Test files / profiles",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "21 / 21 regression checks GREEN · last green v0.2.765-alpha"
+        "value": "21 / 21 regression checks GREEN · last green v0.2.766-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -192,15 +192,15 @@
     "status": "not-ready",
     "statusLabel": "NOT READY",
     "ready": false,
-    "version": "v0.2.765-alpha",
-    "gitCommit": "73a30468",
+    "version": "v0.2.766-alpha",
+    "gitCommit": "977730fc",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.765-alpha / pkg 0.2.765-alpha"
+        "detail": "config v0.2.766-alpha / pkg 0.2.766-alpha"
       },
       {
         "key": "tests",
@@ -235,7 +235,7 @@
         "label": "Docs consistency",
         "state": "blocked",
         "pill": "gated",
-        "detail": "torii-quest-todo.md does not reference current version v0.2.765-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.765-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.765-alpha (doc drift)"
+        "detail": "torii-quest-todo.md does not reference current version v0.2.766-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.766-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.766-alpha (doc drift)"
       }
     ],
     "blockers": [
@@ -255,7 +255,7 @@
     "band": "near",
     "statusLabel": "NEAR · LOCAL GATES",
     "pill": "manual",
-    "version": "v0.2.765-alpha",
+    "version": "v0.2.766-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -270,7 +270,7 @@
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.765-alpha"
+        "value": "v0.2.766-alpha"
       },
       {
         "label": "Release manifest",
@@ -402,7 +402,7 @@
     "pill": "no-blocker",
     "status": "approved",
     "approved": true,
-    "version": "v0.2.765-alpha",
+    "version": "v0.2.766-alpha",
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
@@ -412,7 +412,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.765-alpha"
+        "value": "v0.2.766-alpha"
       },
       {
         "label": "Approved by",
@@ -564,7 +564,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.765-alpha"
+        "value": "v0.2.766-alpha"
       },
       {
         "label": "Live game",
@@ -741,7 +741,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.765-alpha",
+    "version": "v0.2.766-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

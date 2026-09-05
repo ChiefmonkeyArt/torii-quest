@@ -11,7 +11,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { keys } from './input.js';
 import { camera } from './scene.js';
 import { assetUrl } from './assetUrl.js';
-import { getCharacter } from './playerModel.js';
+import { getCharacter, getCustomHeadlessUrl } from './playerModel.js';
 
 let _root  = null;
 let _mixer = null;
@@ -48,10 +48,18 @@ const _wp = new THREE.Vector3();
 export function loadFirstPersonBody(parentObj) {
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; _cfg = null; }
 
-  // No authored headless body for this character (custom/Create-with-AI mesh) →
-  // hide the FP body rather than show the WRONG character's arms in first person
-  // (whose layer-2 mesh is also what leaks into the mirror as a "ghost").
-  const cfg = FP_BODIES[getCharacter()];
+  // v0.2.767-alpha — for custom / Create-with-AI meshes the server authors a
+  // headless variant at publish-time and the client stores that URL via
+  // setCustomHeadlessUrl. Prefer it whenever present. Custom meshes always ship
+  // with the master clip set (Idle_02 / Stylish_Walk_inplace / Running) baked in
+  // by tools/headless-glb.mjs, so we hard-code those clip names here.
+  // If the headless variant is absent (legacy manifest, or server authoring
+  // failed at publish) we fall back to the built-in FP_BODIES entry, and if that
+  // is also absent we hide the FP body — the pre-v0.2.767 behaviour.
+  const customUrl = getCustomHeadlessUrl();
+  const cfg = customUrl
+    ? { file: customUrl, idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running', external: true }
+    : FP_BODIES[getCharacter()];
   if (!cfg) return;
   _cfg = cfg;
 
@@ -59,7 +67,10 @@ export function loadFirstPersonBody(parentObj) {
   draco.setDecoderPath(assetUrl('/draco/'));
   const loader = new GLTFLoader();
   loader.setDRACOLoader(draco);
-  loader.load(assetUrl(cfg.file), gltf => {
+  // v0.2.767-alpha: `cfg.external === true` means cfg.file is a full URL (a
+  // Blossom URL) rather than a repo-relative asset path, so we bypass assetUrl.
+  const meshUrl = cfg.external ? cfg.file : assetUrl(cfg.file);
+  loader.load(meshUrl, gltf => {
     _root = gltf.scene;
 
     let minY = Infinity;

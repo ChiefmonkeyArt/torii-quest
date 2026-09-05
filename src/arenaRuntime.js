@@ -28,7 +28,7 @@ import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
 import { setClientSuspended } from './engine/state/clientSuspended.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
-import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
+import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setCustomHeadlessUrl, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
@@ -2148,6 +2148,8 @@ export function createArenaRuntime(hooks = {}) {
   return {
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
     setCustomMeshHash, setSpawnOverride, stopMultiplayer,
+    // v0.2.767-alpha — headless FP-body seam for custom characters.
+    setCustomHeadlessUrl,
     // v0.2.742-alpha (ADR-0098):
     leaveToTitle, resumeFromTitle,
   };

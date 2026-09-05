@@ -68,6 +68,31 @@ describe('validateCharacterManifest', () => {
     expect(r.errors.some((e) => e.includes('mesh.hash'))).toBe(true);
   });
 
+  // v0.2.767-alpha — optional headless FP-body variant hash. Absence is legal
+  // (legacy manifests); presence must be a 64-hex sha256 like the mesh hash.
+  it('accepts a valid mesh.headlessHash', () => {
+    const m = goodManifest();
+    m.mesh.headlessHash = 'b'.repeat(64);
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('accepts an absent mesh.headlessHash (legacy manifest)', () => {
+    const m = goodManifest();
+    expect('headlessHash' in m.mesh).toBe(false);
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(true);
+  });
+
+  it('rejects a bad mesh.headlessHash', () => {
+    const m = goodManifest();
+    m.mesh.headlessHash = 'not-a-hash';
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes('mesh.headlessHash'))).toBe(true);
+  });
+
   it('rejects a bad color hex', () => {
     const m = goodManifest();
     m.colors = [{ slot: 'primary', hex: 'orange' }];

@@ -115,6 +115,18 @@ export function setCustomMeshHash(hash) {
 }
 export function getCustomMeshHash() { return _customMeshHash; }
 
+// v0.2.767-alpha — headless FP-body variant of a custom character. When set,
+// firstPersonBody.js uses this URL for the visible-hands mesh instead of the
+// built-in FP_BODIES entry (or hiding the body entirely for legacy manifests).
+// The URL is a Blossom sha256 URL, authored server-side and uploaded to Blossom
+// under the player's own NIP-98 auth (see engine/character/authorHeadless.js).
+let _customHeadlessUrl = null;
+
+export function setCustomHeadlessUrl(url) {
+  _customHeadlessUrl = (typeof url === 'string' && url.trim()) ? url.trim() : null;
+}
+export function getCustomHeadlessUrl() { return _customHeadlessUrl; }
+
 // ── Module state ──────────────────────────────────────────────────────────────
 let _root    = null;
 let _mixer   = null;

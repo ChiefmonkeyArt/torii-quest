@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.768-alpha",
+  "version": "0.2.769-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -40,7 +40,7 @@
     "test:foundation": "vitest run --changed origin/main --passWithNoTests",
     "test:foundation:list": "node tools/test-profile.mjs foundation",
     "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run handoff:status",
-    "build:server": "esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --outfile=dist/server/arena-ws.cjs --log-level=warning"
+    "build:server": "esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --external:sharp --outfile=dist/server/arena-ws.cjs --log-level=warning"
   },
   "devDependencies": {
     "jsdom": "^29.1.1",

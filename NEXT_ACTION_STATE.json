@@ -3,8 +3,8 @@
   "schemaVersion": 1,
   "generatedAt": "2026-09-05T10:26:30.490Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.770-alpha",
-  "packageVersion": "0.2.770-alpha",
+  "version": "v0.2.771-alpha",
+  "packageVersion": "0.2.771-alpha",
   "gitCommit": "d46c7325",
   "liveUrl": "https://torii-quest.pplx.app",
   "release": {
@@ -24,7 +24,7 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 3891,
+    "passing": 3892,
     "files": 323
   },
   "manualBlocker": {
@@ -37,7 +37,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.770-alpha"
+    "version": "v0.2.771-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -83,7 +83,7 @@
   "liveSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.770-alpha",
+    "version": "v0.2.771-alpha",
     "smokedAt": "2026-06-26",
     "checks": 3,
     "passed": 3,
@@ -93,7 +93,7 @@
   "dashboardSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.770-alpha",
+    "version": "v0.2.771-alpha",
     "surface": "dashboard.html",
     "smokedAt": "2026-06-26",
     "checks": 4,
@@ -104,18 +104,18 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.770-alpha",
+    "version": "v0.2.771-alpha",
     "liveUrl": "https://torii-quest.pplx.app",
     "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
     "entrySmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.770-alpha"
+      "version": "v0.2.771-alpha"
     },
     "dashboardSmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.770-alpha"
+      "version": "v0.2.771-alpha"
     },
     "manualBlockerPending": true,
     "nextSafeTask": "Continue the read-only oversight loop — next safe infra/dashboard slice",

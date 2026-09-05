@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SERVER_EXTERNALS = ['ws', 'sharp', 'draco3d'];
+const SERVER_EXTERNALS = ['ws', 'draco3d'];
 
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const deps = pkg.dependencies || {};

@@ -41,9 +41,12 @@ describe('guest peer character — own-mesh does not override a guest pick', () 
     expect(MAIN).toMatch(/_guestCharChosen\s*=\s*true/);
   });
 
-  it('ensureArenaReady ignores the own mesh when a guest char was explicitly chosen', () => {
+  it('the character seat (v0.2.768 helper) ignores the own mesh when a guest char was explicitly chosen', () => {
     expect(MAIN).toMatch(/if\s*\(\s*_guestCharChosen\s*\)\s*\{/);
-    expect(MAIN).toMatch(/_arena\.setCustomMeshUrl\(null\)/);
-    expect(MAIN).toMatch(/_arena\.setCustomMeshHash\(null\)/);
+    // v0.2.768-alpha moved the seat into _seatCharacterIntoArena(arena) (called on
+    // every entry, not just first boot); the guest branch still clears the mesh.
+    expect(MAIN).toMatch(/function\s+_seatCharacterIntoArena\(\S*\)\s*\{/);
+    expect(MAIN).toMatch(/setCustomMeshUrl\(null\)/);
+    expect(MAIN).toMatch(/setCustomMeshHash\(null\)/);
   });
 });

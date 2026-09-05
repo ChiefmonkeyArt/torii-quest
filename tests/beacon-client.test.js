@@ -29,8 +29,17 @@ describe('fetchBeaconState', () => {
   });
 
   it('degrades to {enabled:false} without a fetch impl', async () => {
-    const st = await fetchBeaconState({ httpBase: 'https://host/mp', fetchImpl: null });
-    expect(st.enabled).toBe(false);
+    // v0.2.768 note: Node 18+ ships a global `fetch`, so `fetchImpl: null` alone
+    // falls through to the real network fetch and hangs. Stub the global to
+    // actually exercise the "no fetch available" degrade branch.
+    const orig = globalThis.fetch;
+    globalThis.fetch = undefined;
+    try {
+      const st = await fetchBeaconState({ httpBase: 'https://host/mp', fetchImpl: null });
+      expect(st.enabled).toBe(false);
+    } finally {
+      globalThis.fetch = orig;
+    }
   });
 });
 

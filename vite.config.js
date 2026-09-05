@@ -93,7 +93,17 @@ function cspHeaderPlugin() {
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
         }
-        const versionedImportLine = `  import('${entryUrlForHtml()}');`;
+        // v0.2.773-alpha: idempotent import guard. If two `torii-entry.js?v=<stamp>`
+        // scripts ever coexist in one tab (a stale SW cache serving an older bundle
+        // alongside the fresh one), the second inline scope runs `import()` a second
+        // time with a DIFFERENT stamp — the ES module cache treats those URLs as
+        // distinct entries and boots the arena twice. `__toriiShellImported` on
+        // window is checked before every dispatch, so at most one entry import per
+        // document ever fires regardless of how many shell scopes execute. Paired
+        // with the module guard in src/main.js which throws on duplicate module
+        // invocation (belt + braces).
+        const versionedImportLine =
+          `  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('${entryUrlForHtml()}'); }`;
         out = out.slice(0, lastCloseIdx) + `\n${versionedImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },

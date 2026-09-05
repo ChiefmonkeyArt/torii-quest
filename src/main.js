@@ -87,7 +87,8 @@ import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
-import { resolveCharacterMeshUrl } from './engine/character/characterMesh.js';
+import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
+import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { runMockGeneration } from './engine/character/meshGenerationMock.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
@@ -1092,6 +1093,11 @@ renderGatewayPreview();
 // fetches the custom mesh instead of the built-in default.
 let _ownCharacterMeshUrl = null;
 let _ownCharacterMeshHash = null;
+// v0.2.767-alpha — own character's headless FP-body Blossom URL (from
+// manifest.mesh.headlessHash). Seated with the mesh URL at boot; falls back to
+// null for legacy manifests, in which case firstPersonBody.js hides the FP
+// body (pre-v0.2.767 behaviour).
+let _ownCharacterHeadlessUrl = null;
 
 on(EV.NOSTR_LOGIN, () => {
   _handshake.setOurPubkey(state.nostrPubkey || '');
@@ -1116,14 +1122,19 @@ on(EV.NOSTR_LOGIN, () => {
 // leaves the built-in default avatar in place.
 async function _applyOwnCharacterMesh() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(pk)) { _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; return; }
+  if (!/^[0-9a-f]{64}$/.test(pk)) {
+    _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; _ownCharacterHeadlessUrl = null; return;
+  }
   try {
     const manifest = await fetchOwnCharacter(pk);
     _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
     _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
+    const hh = manifest && manifest.mesh && manifest.mesh.headlessHash;
+    _ownCharacterHeadlessUrl = (typeof hh === 'string' && /^[0-9a-f]{64}$/.test(hh)) ? blossomMeshUrl(hh) : null;
   } catch {
     _ownCharacterMeshUrl = null;
     _ownCharacterMeshHash = null;
+    _ownCharacterHeadlessUrl = null;
   }
 }
 
@@ -1364,6 +1375,12 @@ const _forgeAIState = {
 // reveal the deterministic mock verdict. The thinking→done transition rides the
 // shell rAF tick (no window timers in main.js — see _shellTick); the short delay
 // mirrors the async round-trip a real Meshy/Tripo fetch + routstr charge will take.
+//
+// v0.2.767-alpha: when the vendor executor lands and returns a Blob/File for the
+// generated GLB, route it through `_uploadCustomMesh(blob)` — that already runs
+// the full server-side headless-authoring flow (POST /mp/character/headless →
+// second Blossom upload → manifest.mesh.headlessHash) before publishing, so the
+// AI path gets a headless FP body for free. No separate wiring needed.
 function _generateAICharacter() {
   const doc = typeof document !== 'undefined' ? document : null;
   const ta = doc ? doc.getElementById('cf-ai-prompt') : null;
@@ -1569,9 +1586,26 @@ async function _uploadCustomMesh(file) {
       renderActiveSettingsTab();
       return;
     }
+    const meshEntry = { hash: up.sha256, name: (file && file.name) || 'custom.glb' };
+
+    // v0.2.767-alpha: author + publish a headless FP-body variant BEFORE the
+    // character event is signed, so `manifest.mesh.headlessHash` is present in
+    // the very first published manifest. On any failure we still publish the
+    // character (uploading a mesh should not fail because head-removal did) —
+    // the FP renderer just falls back to a hidden body for that character.
+    try {
+      const headless = await requestHeadlessVariant(file);
+      if (headless.ok && headless.blob) {
+        const headlessUpload = await uploadBlossom(headless.blob);
+        if (headlessUpload.ok && headlessUpload.sha256 === headless.sha256) {
+          meshEntry.headlessHash = headless.sha256;
+        }
+      }
+    } catch { /* non-fatal — publish without headlessHash */ }
+
     const manifest = {
       version: 1,
-      mesh: { hash: up.sha256, name: (file && file.name) || 'custom.glb' },
+      mesh: meshEntry,
       clips: [],
       stickers: [],
       name: '',
@@ -1590,6 +1624,12 @@ async function _uploadCustomMesh(file) {
       _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
       if (_arena && typeof _arena.setCustomMeshUrl === 'function') _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
       if (_arena && typeof _arena.setCustomMeshHash === 'function') _arena.setCustomMeshHash(_ownCharacterMeshHash);
+      // v0.2.767-alpha: seat the headless FP-body URL for the first-person
+      // renderer so it uses the head-stripped variant instead of hiding the
+      // body entirely. Legacy manifests (no headlessHash) still fall back.
+      const headlessHash = meshEntry.headlessHash || null;
+      _ownCharacterHeadlessUrl = headlessHash ? blossomMeshUrl(headlessHash) : null;
+      if (_arena && typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
     } else {
       _characterForgeState.status = 'failed';
       _characterForgeState.error = res.error === 'nip-07-unavailable'
@@ -2656,9 +2696,12 @@ async function ensureArenaReady(loadingLabel) {
       if (_guestCharChosen) {
         _arena.setCustomMeshUrl(null);
         _arena.setCustomMeshHash(null);
+        if (typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(null);
       } else {
         _arena.setCustomMeshUrl(_ownCharacterMeshUrl);
         _arena.setCustomMeshHash(_ownCharacterMeshHash);
+        // v0.2.767-alpha: seat the returning player's headless FP-body variant too.
+        if (typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
       }
       startPhase('boot');
       await _arena.boot();

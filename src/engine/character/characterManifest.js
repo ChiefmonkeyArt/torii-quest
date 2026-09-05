@@ -58,6 +58,13 @@ export function validateCharacterManifest(manifest) {
     if (typeof m.mesh.name !== 'string' || m.mesh.name.length === 0) {
       errors.push('mesh.name is required');
     }
+    // v0.2.767-alpha: optional headless-variant hash. When present, the client
+    // uses it as the FP body (see src/firstPersonBody.js) so the player never
+    // sees their own head clip through the camera. Absence is legal — the FP
+    // renderer falls back to a hidden body for legacy manifests.
+    if (m.mesh.headlessHash !== undefined && !isSha256(m.mesh.headlessHash)) {
+      errors.push('mesh.headlessHash must be a 64-hex sha256 if present');
+    }
   }
 
   // clips — animation clips (0..n).

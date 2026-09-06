@@ -8,8 +8,38 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.776-alpha';
+const CACHE_VERSION = 'tq-v0.2.777-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
+
+// v0.2.777-alpha (Bug K — SW cache-busting hardening): expose the controlling SW's
+// app version to the page so the shell can detect a stale-SW mismatch PROACTIVELY
+// (before any button click) instead of relying solely on the controllerchange auto-
+// reload, whose gate can miss the "buttons wired (green) but entry path stranded"
+// failure mode. The page sends TORII_SW_PING and we answer with TORII_SW_VERSION
+// carrying the bare semantic version (CACHE_VERSION minus the 'tq-' prefix). We also
+// broadcast on activate so an already-controlled page learns the version the instant
+// a freshly-deployed SW takes over. CACHE_VERSION is bumped in lockstep with
+// src/config.js VERSION by tools/bump-ver.sh, so this string is exactly the release
+// identity the shell expects in window.__TORII_APP_VERSION.
+const SW_APP_VERSION = CACHE_VERSION.replace(/^tq-/, '');
+function _broadcastVersion() {
+  if (typeof self.clients === 'undefined' || !self.clients.matchAll) return;
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then(clients => clients.forEach(client => {
+      client.postMessage({ type: 'TORII_SW_VERSION', version: SW_APP_VERSION });
+    }))
+    .catch(() => {});
+}
+self.addEventListener('message', event => {
+  const data = event.data;
+  if (data && data.type === 'TORII_SW_PING') {
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ type: 'TORII_SW_VERSION', version: SW_APP_VERSION });
+    } else if (event.source && event.source.postMessage) {
+      event.source.postMessage({ type: 'TORII_SW_VERSION', version: SW_APP_VERSION });
+    }
+  }
+});
 
 // Static assets to precache on install — ONLY immutable binary assets whose URL never
 // changes between deploys (GLBs/textures, ~7MB that would otherwise re-download every
@@ -75,7 +105,7 @@ self.addEventListener('activate', event => {
           .filter(key => key.startsWith('torii-quest-') && key !== CACHE_NAME)
           .map(key => caches.delete(key))
       )
-    ).then(() => self.clients.claim()) // take control of all open tabs immediately
+    ).then(() => { self.clients.claim(); _broadcastVersion(); }) // take control + tell pages the version
   );
 });
 

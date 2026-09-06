@@ -2909,6 +2909,13 @@ elNapBtn?.addEventListener('click', async () => {
   hideBootOverlay();
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
+  // v0.2.777-alpha (Bug K — SW cache-busting hardening): mark that the 3D runtime
+  // is actually LIVE (not merely wired). The shell's controllerchange auto-reload
+  // gate keys on THIS signal so a mid-game SW takeover is never disrupted (ADR-0106),
+  // while a title-screen visitor whose buttons are wired but whose arena boot is
+  // stranded still gets healed by the reload. Sticky by design: the double-mount
+  // risk persists for the duration of the 3D runtime's life, which is per-document.
+  window.__toriiEntered = true;
 });
 // v0.2.776-alpha (Bug I): expose the exact same boot the guest ENTER click
 // runs so loginBootstrap.js can trigger it for the armed LOGIN-NOSTR button.

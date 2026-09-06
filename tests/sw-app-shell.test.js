@@ -147,18 +147,18 @@ describe('index.html — service-worker registration self-heal', () => {
     expect(s).toMatch(/if\s*\(\s*reloading\s*\)\s*return/);
   });
 
-  it('never auto-reloads once the app has booted (double-mount guard)', () => {
-    // v0.2.765 double-mount fix: when the arena is already live, a fresh SW taking
-    // over mid-game must NOT reload — the old build's rAF/WebGL loop survived the
-    // reload beside the new one, duplicating NPCs/bots and breaking the mirror. The
-    // controllerchange handler must bail on __toriiEnterReady BEFORE it can reload.
+  it('never auto-reloads once the game has actually entered (double-mount guard)', () => {
+    // v0.2.777-alpha (Bug K): the double-mount guard now keys on window.__toriiEntered
+    // (set only when the arena is truly live), NOT __toriiEnterReady (set as soon as
+    // buttons are wired). This lets a title-screen visitor with wired-but-stranded
+    // buttons still auto-heal, while a live 3D runtime is never yanked (ADR-0106).
     const s = inlineRegistrationScript();
-    expect(s).toMatch(/if\s*\(\s*window\.__toriiEnterReady\s*\)\s*return/);
-    const readyIdx = s.search(/window\.__toriiEnterReady\s*\)\s*return/);
+    expect(s).toMatch(/if\s*\(\s*window\.__toriiEntered\s*\)\s*return/);
+    const enteredIdx = s.search(/window\.__toriiEntered\s*\)\s*return/);
     const reloadIdx = s.indexOf('location.reload()');
-    expect(readyIdx).toBeGreaterThan(-1);
+    expect(enteredIdx).toBeGreaterThan(-1);
     expect(reloadIdx).toBeGreaterThan(-1);
-    expect(readyIdx).toBeLessThan(reloadIdx);
+    expect(enteredIdx).toBeLessThan(reloadIdx);
   });
 
   it('CSP fallback sha256 matches the real default-root inline bootstrap', () => {

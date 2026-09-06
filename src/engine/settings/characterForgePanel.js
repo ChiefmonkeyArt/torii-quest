@@ -18,6 +18,8 @@
 //   character   — { name, meshName, stickerCount, stickers[] } | null (when 'found').
 //   mode        — 'view' (default) | 'edit' — the 'edit' mode is the sticker editor.
 //   stickerLibrary — [{ id, label }] — curated decals shown in the sticker editor.
+//   rig         — { verdict, convention, boneCount, note } | null — the last
+//                 upload's assessed rig, surfaced inline (upload + found views).
 //   ai          — { status:'idle'|'running'|'done', prompt, result } — the local
 //                 "Create with AI" mock flow sub-state; when ai.status !== 'idle'
 //                 the create view is replaced by _aiFlowView(ai).
@@ -59,11 +61,29 @@ function _initial(name) {
   return n ? n[0].toUpperCase() : '?';
 }
 
-// _foundView(character) — the "found" state reads as a character summary
+// _rigVerdict(rig) — the upload rig-assessment verdict as a compact status
+// line ("Rig OK" / "Rig warning"). `rig` is the summary from main.js's
+// _summarizeRig() (verdict + convention + boneCount + note). Renders nothing
+// when no rig is present, so it is safe to splice into any view.
+function _rigVerdict(rig) {
+  const r = (rig && typeof rig === 'object') ? rig : null;
+  if (!r || typeof r.verdict !== 'string') return '';
+  const ok = r.verdict === 'riggable';
+  const cls = ok ? 'cf-rig-ok' : 'cf-rig-warn';
+  const label = ok ? 'Rig OK' : 'Rig warning';
+  const convention = (typeof r.convention === 'string' && r.convention && r.convention !== 'unknown')
+    ? `${_escape(r.convention)} · ` : '';
+  const bones = (typeof r.boneCount === 'number' && r.boneCount > 0) ? `${r.boneCount} bones` : 'no bones';
+  const note = (!ok && r.note) ? ` <span class="cf-rig-note">${_escape(r.note)}</span>` : '';
+  return `<div class="cf-rig ${cls}"><span class="cf-rig-label">${label}</span><span class="cf-rig-detail">${convention}${bones}</span>${note}</div>`;
+}
+
+// _foundView(character, rig) — the "found" state reads as a character summary
 // card: a portrait-style circle (initial, since there's no real thumbnail
 // yet), the name, and a clean stat row (mesh / stickers), plus a single
-// "Edit stickers" action. Replaces the old plain label/value rows.
-function _foundView(character) {
+// "Edit stickers" action. Replaces the old plain label/value rows. When a
+// just-uploaded rig verdict is present it is shown below the card.
+function _foundView(character, rig) {
   const c = character || {};
   const name = c.name || 'Unnamed';
   return `
@@ -84,6 +104,7 @@ function _foundView(character) {
         </div>
       </div>
     </div>
+    ${_rigVerdict(rig)}
     <button type="button" class="settings-btn settings-btn-primary" data-action="edit-character">Edit stickers</button>`;
 }
 
@@ -211,6 +232,7 @@ export function renderCharacterForgePanel(state = {}) {
     ? '<div class="settings-gate">Sign in with Nostr to save your character — you can still explore the creation options below.</div>'
     : '';
   const mode = (st.mode === 'edit') ? 'edit' : 'view';
+  const rig = (st.rig && typeof st.rig === 'object') ? st.rig : null;
 
   const ai = (st.ai && typeof st.ai === 'object') ? st.ai : {};
   const aiStatus = typeof ai.status === 'string' ? ai.status : 'idle';
@@ -224,12 +246,12 @@ export function renderCharacterForgePanel(state = {}) {
   } else if (status === 'found' && st.character) {
     body = (mode === 'edit')
       ? _stickerEditor(st.character.stickers, st.stickerLibrary)
-      : _foundView(st.character);
+      : _foundView(st.character, rig);
   } else if (status === 'failed') {
     body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
       <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;
   } else if (status === 'checking' || status === 'creating') {
-    body = '<div class="settings-empty">Working…</div>';
+    body = `${_rigVerdict(rig)}<div class="settings-empty">Working…</div>`;
   } else {
     body = _createView();
   }

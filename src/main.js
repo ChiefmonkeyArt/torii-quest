@@ -7,10 +7,20 @@
 // and BOTH boot the arena in the same tab (visible symptoms: strobing render,
 // duplicate self in mirror, two WS auth events with different NIP-42 challenges,
 // pointer-lock flap logged twice, etc.). The guard below short-circuits every
-// module invocation after the first: subsequent boots log the collision and
-// return, so the first boot is the only one that wires timers, listeners, and
-// the render loop. See ADR-0107 ("single-boot invariant") for the full rationale
-// and the paired dist-shell `<script>` collision self-heal.
+// module invocation after the first by throwing at module-eval time, so the
+// first boot is the only one that wires timers, listeners, and the render loop.
+// See ADR-0107 ("single-boot invariant") for the full rationale and the paired
+// dist-shell `<script>` collision self-heal.
+//
+// v0.2.775-alpha (Bug H): tagged the thrown error with `torii-boot: duplicate
+// module invocation suppressed` AND a stable `.code = 'TORII_DUPLICATE_BOOT'`
+// so the ENTER-ARENA catch (main.js:_bootArena) can recognize it and swap the
+// user-hostile "Arena failed to load" surface for a graceful "stale bundle
+// detected, reloading…" toast + trigger the shell's SW-purge self-heal. The
+// throw itself remains fatal to the duplicate instance because keeping the
+// second instance alive would immediately reintroduce the exact strobing /
+// double-mount regression the guard exists to prevent — the side effects live
+// in top-level function calls all through this module, not just this block.
 if (typeof window !== 'undefined') {
   if (window.__toriiBooted) {
     // eslint-disable-next-line no-console
@@ -18,11 +28,9 @@ if (typeof window !== 'undefined') {
       '[torii-boot] duplicate boot suppressed — a stale bundle loaded alongside the current one. ' +
       'If this persists across a hard refresh, unregister the service worker and clear site data.'
     );
-    // A duplicate boot is a red flag but not by itself fatal — the shell self-heal
-    // (index.html) will reload once after unregistering the SW, and this guard keeps
-    // the current tab usable in the meantime. Re-exporting a stub is not needed:
-    // downstream imports never inspect main.js's exports; they consume side effects.
-    throw new Error('torii-boot: duplicate module invocation suppressed');
+    const _dupErr = new Error('torii-boot: duplicate module invocation suppressed');
+    _dupErr.code = 'TORII_DUPLICATE_BOOT';
+    throw _dupErr;
   }
   window.__toriiBooted = true;
 }
@@ -31,6 +39,35 @@ if (typeof window !== 'undefined') {
 // per boot thanks to the guard above. Kept below the guard so a suppressed second
 // boot cannot double-rotate. Wrapped in try/catch — telemetry never blocks boot.
 try { _rotateRelaySession(); } catch { /* telemetry no-op */ }
+
+// v0.2.775-alpha (Bug H): shell-level self-heal invoked from the ENTER-ARENA
+// catch when the double-boot guard fires on a lazy chunk. Mirrors the
+// __toriiShellRan self-heal already inlined in index.html: unregister every SW
+// registration, drop every cache entry, then hard-reload once with `?nuked=1`
+// pinned so the reload cannot loop. Idempotent per document: once __toriiNuking
+// is set, subsequent calls no-op. Kept small and dependency-free so it can run
+// even if half the module state is torn down.
+function _selfHealStaleShellAndReload() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+  if (window.__toriiNuking) return;
+  window.__toriiNuking = true;
+  const goReload = () => {
+    const sep = location.search ? '&' : '?';
+    const already = /[?&]nuked=1(?:&|$)/.test(location.search);
+    const target = already
+      ? location.pathname + location.search + location.hash
+      : location.pathname + location.search + sep + 'nuked=1' + location.hash;
+    location.replace(target);
+  };
+  if (!('serviceWorker' in navigator)) { goReload(); return; }
+  const unreg = navigator.serviceWorker.getRegistrations()
+    .then((regs) => Promise.all(regs.map((r) => r.unregister().catch(() => {}))))
+    .catch(() => {});
+  const purge = (typeof caches !== 'undefined' && caches && caches.keys)
+    ? caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k).catch(() => {})))).catch(() => {})
+    : Promise.resolve();
+  Promise.all([unreg, purge]).finally(goReload);
+}
 //
 // R2 (v0.2.264): the root shell / title screen is now three-free. Every three-
 // dependent surface (scene/renderer, arena geometry, the game loop, players/bots/
@@ -2795,6 +2832,22 @@ async function ensureArenaReady(loadingLabel) {
     console.error('Arena bootstrap failed:', e);
     elNapBtn.textContent = 'ENTER TORII';
     elNapBtn.disabled = false;
+    // v0.2.775-alpha (Bug H): if the failure is a re-invocation of main.js
+    // detected by the boot guard (typically caused by a stale-SW cache serving
+    // an older `?v=` stamp for the arenaRuntime chunk's static import back into
+    // torii-entry), swap the raw "Arena failed to load" surface for a graceful
+    // "stale bundle, reloading…" message and trigger the shell's SW-purge +
+    // hard-reload path so the next click on ENTER lands cleanly on a fresh
+    // pair of chunks. Identified by `.code === 'TORII_DUPLICATE_BOOT'` set by
+    // the guard in main.js:24. The message text match is a belt-and-braces
+    // fallback in case the error was re-thrown and stripped of custom props.
+    const isDupBoot = (e && (e.code === 'TORII_DUPLICATE_BOOT' ||
+      /torii-boot: duplicate module invocation/i.test(e.message || '')));
+    if (isDupBoot) {
+      showEntryStatus('⚠ Stale build detected — refreshing to sync…');
+      try { _selfHealStaleShellAndReload(); } catch {}
+      throw e;
+    }
     // v0.2.277: show the REAL error (bootstrapPhysics now throws a step-tagged
     // message; fall back to e.message for import/boot failures). The generic
     // message hid the actual failure.

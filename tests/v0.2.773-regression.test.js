@@ -49,7 +49,13 @@ describe('v0.2.773 — module-side double-boot guard (src/main.js)', () => {
   });
 
   it('throws on the duplicate invocation path so callers see a hard error', () => {
-    expect(src).toMatch(/throw new Error\(['"]torii-boot: duplicate module invocation suppressed/);
+    // v0.2.775-alpha (Bug H): the guard now constructs the error into a named
+    // local so it can tag `.code = 'TORII_DUPLICATE_BOOT'` before throwing.
+    // The single-boot invariant (fatal throw) is preserved; only the shape of
+    // the throw site changed. Match on the message text + the raw `throw`
+    // keyword against the same local, decoupled from the exact syntax.
+    expect(src).toMatch(/new Error\(['"]torii-boot: duplicate module invocation suppressed/);
+    expect(src).toMatch(/throw _dupErr/);
   });
 
   it('logs a diagnostic warning on the duplicate invocation path', () => {

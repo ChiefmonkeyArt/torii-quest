@@ -337,6 +337,7 @@ let _ownerContacts = new Map();
 let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
 let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
+let _beaconSyncFrame = 0; // frame-throttled server beacon state re-sync (v0.2.781, shell rAF)
 let _forgeAIPending = false;  // the "Create with AI" mock's thinking→done transition (shell rAF)
 let _forgeAIStartedAt = 0;    // ms timestamp when the mock run was requested (shell rAF)
 
@@ -1025,6 +1026,14 @@ const _beacon = {
 // the client heartbeat stays gated OFF while the SERVER is publishing. Pure
 // read — activation is the server's job (ADR-0094): it auto-enables from the
 // configured admin npub at boot, no login, no wallet, no browser involved.
+//
+// v0.2.781: called from THREE places instead of one, so the panel's ON/OFF
+// state stays honest for everyone (not just after admin login):
+//   1. Boot (below, at module init) — anyone loading the page sees the truth.
+//   2. On NOSTR_LOGIN (below) — an admin login re-reads immediately.
+//   3. On Settings panel open + periodically from the rAF _shellTick (~every
+//      600 frames ≈ 10 s at 60 fps) so lastPublishedAt drifts + external toggles
+//      (curl / another admin tab) don't leave the UI stale. No window timers.
 async function _syncServerBeacon() {
   if (_beacon.syncing) return;
   const httpBase = resolveMpHttpBase();
@@ -1035,7 +1044,18 @@ async function _syncServerBeacon() {
   } finally {
     _beacon.syncing = false;
   }
+  // If the Settings panel is open when the sync completes, repaint so the
+  // Heartbeat tab reflects the fresh state without needing a tab-switch.
+  try {
+    if (isSettingsPanelOpen()) renderActiveSettingsTab();
+  } catch { /* best-effort */ }
 }
+
+// v0.2.781: kick a boot-time sync so non-owners (and owners who arrive without
+// a signer) see the honest server-beacon state immediately, not just after
+// login. Fire-and-forget: _syncServerBeacon degrades to { enabled:false } on
+// any failure, so an unreachable server never blocks the shell.
+_syncServerBeacon().catch(() => { /* boot-time best-effort */ });
 
 // _nodeRelaysOpts() → the { storage, metaGetter } injection for the effective
 // reader (readEffectiveNodeRelays). Built once so the Relay tab's list and the
@@ -2641,6 +2661,8 @@ function _armRetryButton() {
 on(EV.NOSTR_LOGIN, _refreshUpdateButton);
 // ADR-0094: on admin login, read the server beacon state and activate it once if
 // never before activated. Runs after login so state.nostrPubkey is set.
+// v0.2.781: no longer the ONLY call site — see _syncServerBeacon's header for
+// the full list (boot + login + shell-tick + settings-panel-open).
 on(EV.NOSTR_LOGIN, _syncServerBeacon);
 
 // LIVE update-check: paint an immediate "checking…" row, then resolve against the
@@ -2986,6 +3008,14 @@ function _shellTick() {
     if (++_heartbeatFrame >= 120) {
       _heartbeatFrame = 0;
       _heartbeatTick(Date.now());
+    }
+    // v0.2.781: re-sync the server beacon state every ~600 frames (~10 s at 60
+    // fps) so the Settings > Heartbeat tab's ON/OFF pill + the client-heartbeat
+    // gate never lag behind server-side changes (external toggle, restart,
+    // lastPublishedAt drift). No window timer — rides the existing rAF loop.
+    if (++_beaconSyncFrame >= 600) {
+      _beaconSyncFrame = 0;
+      _syncServerBeacon().catch(() => {});
     }
     // Create-with-AI mock: resolve the thinking→done transition when enough
     // wall-clock has passed (no window timers). Cosmetic — the real Step C will

@@ -180,4 +180,66 @@ describe('renderCharacterForgePanel', () => {
       expect(html).not.toContain('data-action="ai-reset"');
     });
   });
+
+  describe('upload rig verdict (validator-first)', () => {
+    it('shows "Rig OK" for a riggable mesh during upload (creating)', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'creating',
+        rig: { verdict: 'riggable', convention: 'mixamo', boneCount: 18, note: '' },
+      });
+      expect(html).toContain('cf-rig');
+      expect(html).toContain('cf-rig-ok');
+      expect(html).toContain('Rig OK');
+      expect(html).toContain('mixamo');
+      expect(html).toContain('18 bones');
+      expect(html).not.toContain('cf-rig-warn');
+    });
+
+    it('shows "Rig warning" for a partial rig during upload', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'creating',
+        rig: { verdict: 'partial', convention: 'mixamo', boneCount: 10, note: 'Missing required roles: Head.' },
+      });
+      expect(html).toContain('cf-rig-warn');
+      expect(html).toContain('Rig warning');
+      expect(html).toContain('Missing required roles: Head.');
+      expect(html).not.toContain('cf-rig-ok');
+    });
+
+    it('shows "no bones" for an unrigged mesh during upload', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'creating',
+        rig: { verdict: 'no-bones', convention: '', boneCount: 0, note: 'No bones found — the mesh is unrigged/static.' },
+      });
+      expect(html).toContain('cf-rig-warn');
+      expect(html).toContain('Rig warning');
+      expect(html).toContain('no bones');
+    });
+
+    it('surfaces the rig verdict in the found summary card', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'found',
+        character: { name: 'Fox Knight', meshName: 'fox.glb', stickerCount: 0, stickers: [] },
+        rig: { verdict: 'riggable', convention: 'mixamo', boneCount: 18, note: '' },
+      });
+      expect(html).toContain('cf-rig');
+      expect(html).toContain('Rig OK');
+      expect(html).toContain('mixamo');
+    });
+
+    it('renders no rig line when no verdict is present', () => {
+      const checking = renderCharacterForgePanel({ isLoggedIn: true, status: 'checking' });
+      expect(checking).not.toContain('cf-rig');
+      const found = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'found',
+        character: { name: 'N', meshName: 'm', stickerCount: 0, stickers: [] },
+      });
+      expect(found).not.toContain('cf-rig');
+    });
+  });
 });

@@ -1484,6 +1484,7 @@ const _characterForgeState = {
   character: null, // { name, meshName, stickerCount, stickers } | null
   manifest: null, // the full `torii.character` manifest (used for sticker edits)
   mode: 'view',   // 'view' | 'edit' — 'edit' is the sticker editor
+  rig: null,      // the last upload's assessed rig (see _summarizeRig) | null
   error: null,
   _readStarted: false,
 };
@@ -1537,6 +1538,20 @@ function _summarizeCharacterManifest(manifest) {
     meshName: (m.mesh && typeof m.mesh.name === 'string') ? m.mesh.name : '',
     stickerCount: Array.isArray(m.stickers) ? m.stickers.length : 0,
     stickers: Array.isArray(m.stickers) ? m.stickers : [],
+  };
+}
+
+// _summarizeRig(rig) → the panel's rig-assessment summary. Stored on
+// _characterForgeState.rig after an upload so the Character tab can surface the
+// validator verdict inline (verdict + convention + bone count + the assessment's
+// first note), not just as a one-shot toast. Pure; safe on a garbled input.
+function _summarizeRig(rig) {
+  const r = (rig && typeof rig === 'object') ? rig : {};
+  return {
+    verdict: (typeof r.verdict === 'string') ? r.verdict : 'unknown',
+    convention: (typeof r.convention === 'string' && r.convention) ? r.convention : '',
+    boneCount: (typeof r.boneCount === 'number') ? r.boneCount : 0,
+    note: (Array.isArray(r.notes) && r.notes[0]) ? r.notes[0] : '',
   };
 }
 
@@ -1689,6 +1704,10 @@ async function _uploadCustomMesh(file) {
       return;
     }
     const rig = assessRig(parsed.boneNames);
+    // Persist the verdict into the panel state so the Character tab can show it
+    // inline (during upload + in the found summary), not just as a transient toast.
+    _characterForgeState.rig = _summarizeRig(rig);
+    renderActiveSettingsTab();
     if (rig.verdict !== 'riggable') {
       const detail = (Array.isArray(rig.notes) && rig.notes[0]) ? ` — ${rig.notes[0]}` : '';
       toastInfo(`Rig check: ${rig.verdict}${detail}`);
@@ -1772,6 +1791,7 @@ registerSettingsTabRenderer('character', () => {
     character: _characterForgeState.character,
     mode: _characterForgeState.mode,
     stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
+    rig: _characterForgeState.rig,
     ai: {
       status: _forgeAIState.status,
       prompt: _forgeAIState.prompt,

@@ -15,10 +15,36 @@
 // top-level installLoginBootstrap() runs (and sets __toriiLoginReady) before the renderer is ever
 // constructed. A loaded bundle therefore wires login even if the 3D boot later throws. nostrich.
 import { nostrLogin } from '../../nostr.js';
+import { state } from '../../state.js';
+import { on, EV } from '../../events.js';
 
 // The title-screen login button + the single visible status line (both static in index.html).
 const LOGIN_BTN_ID = 'btn-nostr-centre';
 const STATUS_ID = 'entry-status';
+
+// v0.2.776-alpha (Bug I): arm the LOGIN-NOSTR button once the user has
+// actually completed the signer round-trip — flip the CSS state via
+// data-armed="true" (styles in index.html), and relabel to "ENTER" so it
+// unambiguously reads as "you're in, click to enter the arena". Arming is
+// idempotent (safe to call on repeat login attempts). Only fires when we
+// see a valid 64-hex pubkey on state, so a rejected/dismissed extension
+// prompt leaves the button in its unarmed state and the status line
+// carries the actionable message.
+export function armLoginEnterButton(doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!doc) return false;
+  const btn = doc.getElementById(LOGIN_BTN_ID);
+  if (!btn) return false;
+  // Use setAttribute (universally available on real DOM + fake test doubles)
+  // instead of `dataset.armed = '...'` — fake elements in unit tests do not
+  // expose a `dataset` proxy, and a throw here would propagate through the
+  // EV.NOSTR_LOGIN emit() and crash the login round-trip.
+  if (typeof btn.setAttribute === 'function') {
+    btn.setAttribute('data-armed', 'true');
+    btn.setAttribute('aria-pressed', 'true');
+  }
+  if ('textContent' in btn) btn.textContent = 'ENTER';
+  return true;
+}
 
 // showStatus(el, msg) — visible feedback via textContent ONLY (never innerHTML): the kind:0 profile
 // name/pubkey is attacker-influenced, so no markup ever reaches the DOM here. Empty msg hides the line.
@@ -58,7 +84,36 @@ export function installLoginBootstrap(doc = (typeof document !== 'undefined' ? d
 
   const loginBtn = doc.getElementById(LOGIN_BTN_ID);
   const statusEl = doc.getElementById(STATUS_ID);
-  if (loginBtn) loginBtn.addEventListener('click', () => { doNostrLogin(statusEl); });
+  // Click routing: while unarmed, the button runs the real Nostr login (which
+  // sets state.nostrPubkey + emits EV.NOSTR_LOGIN on success → armLoginEnter
+  // Button() flips the button to ENTER via the EV.NOSTR_LOGIN subscriber
+  // below). Once armed, the ENTER surface delegates straight into the shared
+  // ENTER-ARENA boot path by clicking the guest ENTER button, so we reuse the
+  // exact same _bootArena code path with no duplicated wiring here.
+  if (loginBtn) {
+    loginBtn.addEventListener('click', () => {
+      if (loginBtn.dataset.armed === 'true') {
+        // main.js exposes the shared boot function on window at module init;
+        // if it isn't there (e.g. main.js failed to load) the click falls
+        // through to the login path, which is still safe (a second login is
+        // idempotent) and keeps the button clickable rather than dead.
+        const enter = typeof window !== 'undefined' && window.__toriiEnterArenaFromTitle;
+        if (typeof enter === 'function') { enter(); return; }
+      }
+      doNostrLogin(statusEl);
+    });
+  }
+
+  // Arm on successful login. We listen to EV.NOSTR_LOGIN (fired by nostrLogin
+  // right after state.nostrPubkey is set) so armLoginEnterButton() runs even
+  // if the button was rebuilt or reattached between click and success. We also
+  // arm eagerly here for the case where login already succeeded in this
+  // session before installLoginBootstrap ran (unusual but possible on hot
+  // re-import); the 64-hex guard makes the eager path safe.
+  on(EV.NOSTR_LOGIN, () => { armLoginEnterButton(doc); });
+  if (typeof state !== 'undefined' && /^[0-9a-f]{64}$/.test(state?.nostrPubkey || '')) {
+    armLoginEnterButton(doc);
+  }
 
   // Signal the inline fallback (index.html) that the REAL handler now owns the click — set even when
   // the button is briefly absent so the fallback's no-provider/"still loading" branch can't linger if

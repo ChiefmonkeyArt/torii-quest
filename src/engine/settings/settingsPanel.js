@@ -142,9 +142,33 @@ function _build() {
   card.setAttribute('aria-label', 'Settings');
   card.className = 'ts-card';
 
-  // No explicit ✕ close button — the panel closes on backdrop click ("click
-  // anywhere outside") and ESC, which the user prefers over a dedicated
-  // close control.
+  // v0.2.776-alpha (Bug J): always-visible ✕ close button as a safety net.
+  // A user hit a state where they clicked off the panel and it "froze half
+  // open" (backdrop click missed / opaque scrim didn't render, no way to
+  // dismiss). ESC still worked but wasn't discoverable. The X sits in the
+  // top-right of the card, high z-index, absolute-positioned so it doesn't
+  // depend on the nav flex layout being intact. Also gets a data-test hook.
+  const closeBtn = doc.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'ts-close-x';
+  closeBtn.setAttribute('aria-label', 'Close settings');
+  closeBtn.dataset.action = 'close-settings-panel';
+  closeBtn.textContent = '✕';
+  Object.assign(closeBtn.style, {
+    position: 'absolute', top: '10px', right: '12px', zIndex: '210',
+    width: '32px', height: '32px', lineHeight: '30px',
+    background: 'rgba(255,255,255,0.06)', color: '#f4d5a8',
+    border: '1px solid rgba(232,178,120,0.35)', borderRadius: '6px',
+    cursor: 'pointer', fontSize: '16px', fontWeight: 'bold',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: '0',
+  });
+  closeBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeSettingsPanel();
+  });
+
   const nav = doc.createElement('div');
   nav.className = 'ts-nav';
 
@@ -170,7 +194,9 @@ function _build() {
   content.className = 'ts-content';
   content.id = 'torii-settings-content';
 
-  card.append(nav, content);
+  // Panel needs relative positioning so the absolute close-X anchors to it.
+  card.style.position = 'relative';
+  card.append(closeBtn, nav, content);
   backdrop.append(card);
 
   // Close-on-backdrop: guarded by `e.target === backdrop` so clicks INSIDE the

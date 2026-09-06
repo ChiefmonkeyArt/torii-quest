@@ -28,21 +28,26 @@ const BOOT = readFileSync(join(ROOT, 'src/engine/ui/loginBootstrap.js'), 'utf8')
 const NOSTR = readFileSync(join(ROOT, 'src/nostr.js'), 'utf8');
 
 describe('entry-flow smoke — title-screen buttons exist (regression)', () => {
+  // v0.2.776-alpha (Bug I): the ENTER-AS-GUEST button starts inactive
+  // ("ENTER AS GUEST") and arms to "ENTER" only after a card is picked;
+  // the LOGIN-NOSTR button ships as "⚡ LOGIN NOSTR" and arms to "ENTER"
+  // once the signer confirms. Regressions on the label are guarded here so
+  // a rename can't silently ship without the state machine being wired.
   for (const { id, label } of [
-    { id: 'btn-enter-nap', label: 'ENTER TORII' },
-    { id: 'btn-nostr-centre', label: 'LOGIN WITH NOSTR' },
+    { id: 'btn-enter-nap', label: 'ENTER AS GUEST' },
+    { id: 'btn-nostr-centre', label: 'LOGIN NOSTR' },
   ]) {
     it(`index.html declares the ${label} button (id="${id}")`, () => {
       expect(HTML).toContain(`id="${id}"`);
     });
   }
 
-  it('main.js resolves #btn-enter-nap into elNapBtn and binds a click handler (ENTER TORII)', () => {
+  it('main.js resolves #btn-enter-nap into elNapBtn and binds a click handler (ENTER AS GUEST)', () => {
     expect(MAIN).toMatch(/elNapBtn\s*=\s*document\.getElementById\(\s*['"]btn-enter-nap['"]\s*\)/);
     expect(MAIN).toMatch(/elNapBtn\??\.addEventListener\(\s*['"]click['"]/);
   });
 
-  it('loginBootstrap.js resolves #btn-nostr-centre and binds a click handler (LOGIN WITH NOSTR)', () => {
+  it('loginBootstrap.js resolves #btn-nostr-centre and binds a click handler (LOGIN NOSTR)', () => {
     expect(BOOT).toMatch(/getElementById\(\s*\w+\s*\)/); // resolved via a LOGIN_BTN_ID constant
     expect(BOOT).toMatch(/LOGIN_BTN_ID\s*=\s*['"]btn-nostr-centre['"]/);
     expect(BOOT).toMatch(/\.addEventListener\(\s*['"]click['"]/);

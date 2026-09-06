@@ -5,39 +5,30 @@ import { describe, it, expect } from 'vitest';
 import { renderCharacterForgePanel } from '../src/engine/settings/characterForgePanel.js';
 
 describe('renderCharacterForgePanel', () => {
-  it('shows a preview (presets + create cards) and a sign-in banner when logged out', () => {
-    // v0.2.739: the tab renders the SAME preview shell logged-out as logged-out
-    // — preset grid + Upload + Create-with-AI cards are visible so the player
-    // can see what's on offer — but every action button is disabled behind a
-    // "Sign in with Nostr to save your character" banner. Nothing is written
-    // until they log in.
-    const html = renderCharacterForgePanel({
-      isLoggedIn: false,
-      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }, { id: 'nostrich', label: 'Nostrich' }],
-    });
+  it('shows the create cards + sign-in banner when logged out (no roster, buttons enabled)', () => {
+    // The preset roster (Chiefmonkey/Nostrich) and the logged-out disabled gate
+    // were removed: the tab now shows only the always-enabled Upload + AI cards
+    // behind a "Sign in with Nostr" banner.
+    const html = renderCharacterForgePanel({ isLoggedIn: false });
     expect(html).toContain('Sign in with Nostr');
-    expect(html).toContain('cf-preset-card');
-    // gated: every action button is disabled while logged out
-    expect(html).toMatch(/data-action="select-preset"[^>]*disabled/);
-    expect(html).toMatch(/data-action="upload-mesh"[^>]*disabled/);
-    expect(html).toMatch(/data-action="generate-ai"[^>]*disabled/);
+    expect(html).not.toContain('cf-preset-card');
+    expect(html).not.toContain('data-action="select-preset"');
+    // Upload + AI cards render, and their buttons are NOT disabled
+    expect(html).toContain('data-action="upload-mesh"');
+    expect(html).not.toMatch(/data-action="upload-mesh"[^>]*disabled/);
+    expect(html).toContain('data-action="generate-ai"');
+    expect(html).not.toMatch(/data-action="generate-ai"[^>]*disabled/);
   });
 
-  it('shows the preset picker when logged in with no character', () => {
-    const html = renderCharacterForgePanel({
-      isLoggedIn: true,
-      status: 'none',
-      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }, { id: 'nostrich', label: 'Nostrich' }],
-    });
-    expect(html).toContain('data-action="select-preset"');
-    expect(html).toContain('data-preset="chiefmonkey"');
-    expect(html).toContain('Chiefmonkey');
-    expect(html).toContain('Nostrich');
-  });
-
-  it('shows an empty state when no presets are available', () => {
-    const html = renderCharacterForgePanel({ isLoggedIn: true, status: 'none', presets: [] });
-    expect(html).toContain('No presets available');
+  it('shows only the create paths (Upload + AI) when logged in with no character', () => {
+    const html = renderCharacterForgePanel({ isLoggedIn: true, status: 'none' });
+    expect(html).toContain('data-action="upload-mesh"');
+    expect(html).toContain('data-action="generate-ai"');
+    // no Chiefmonkey/Nostrich roster cards remain
+    expect(html).not.toContain('cf-preset-card');
+    expect(html).not.toContain('data-action="select-preset"');
+    expect(html).not.toContain('Chiefmonkey');
+    expect(html).not.toContain('Nostrich');
   });
 
   it('shows the found summary when a character exists', () => {
@@ -115,7 +106,6 @@ describe('renderCharacterForgePanel', () => {
     const html = renderCharacterForgePanel({
       isLoggedIn: true,
       status: 'none',
-      presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }],
     });
     expect(html).toContain('Upload a character');
     expect(html).toContain('data-action="upload-mesh"');
@@ -184,7 +174,6 @@ describe('renderCharacterForgePanel', () => {
       const html = renderCharacterForgePanel({
         isLoggedIn: true,
         status: 'none',
-        presets: [{ id: 'chiefmonkey', label: 'Chiefmonkey' }],
         ai: { status: 'idle', prompt: '', result: null },
       });
       expect(html).toContain('data-action="generate-ai"');

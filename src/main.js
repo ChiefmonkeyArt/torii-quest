@@ -26,6 +26,11 @@ if (typeof window !== 'undefined') {
   }
   window.__toriiBooted = true;
 }
+
+// v0.2.774: rotate the per-session relay-health window ONCE per boot. Idempotent
+// per boot thanks to the guard above. Kept below the guard so a suppressed second
+// boot cannot double-rotate. Wrapped in try/catch — telemetry never blocks boot.
+try { _rotateRelaySession(); } catch { /* telemetry no-op */ }
 //
 // R2 (v0.2.264): the root shell / title screen is now three-free. Every three-
 // dependent surface (scene/renderer, arena geometry, the game loop, players/bots/
@@ -111,6 +116,10 @@ import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSet
 import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
+// v0.2.774: relay health tracking — read the store for the Relay tab display
+// and rotate the rolling per-session window on page load so the sparkline gets
+// one bar per boot. Recording seams are wired in nostr.js + plebeianRelay.js.
+import { readHealth as _readRelayHealth, rotateSession as _rotateRelaySession } from './engine/telemetry/relayHealth.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
@@ -985,7 +994,7 @@ function _nodeRelaysOpts() {
 // _effectiveRelays() → the validated wss:// relay set the WHOLE game uses —
 // reads (profile/login/leaderboard/discovery) AND presence publish (ADR-0081).
 // The operator's configured node relays (localStorage `torii.node.relays` +
-// <meta name="torii-relays">), else the curated 5-relay DEFAULT_NODE_RELAYS so
+// <meta name="torii-relays">), else the curated DEFAULT_NODE_RELAYS so
 // a fresh install works with zero config. Returns [] only if both configured
 // AND defaults are empty (defaults are non-empty, so this practically never
 // blocks).
@@ -1364,7 +1373,37 @@ registerSettingsTabRenderer('heartbeat', () => renderHeartbeatPanel(_homepageStu
 
 // Relay tab content renderer (v0.4) — view/add/remove the wss:// relays this
 // node publishes presence to. Same state builder as the other tabs.
-registerSettingsTabRenderer('relay', () => renderRelayPanel(_homepageStubState()));
+// v0.2.774 (v0.5): now also passes relayHealth (per-relay counter records
+// derived from the LS-backed tracker) so the panel can render the health
+// section under the relay selection.
+registerSettingsTabRenderer('relay', () => renderRelayPanel({
+  ..._homepageStubState(),
+  relayHealth: _computeRelayHealthDisplay(),
+}));
+
+// _computeRelayHealthDisplay() — read the raw counter store and derive the
+// display shape the panel expects: for each relay, { opens, opensFailed,
+// closes, messages, avgLatencyMs, sessions, failStreak }. Pure; safe to call
+// on every tab-open (no I/O beyond one LS read).
+function _computeRelayHealthDisplay() {
+  try {
+    const h = _readRelayHealth();
+    const out = {};
+    for (const [url, rec] of Object.entries(h.relays || {})) {
+      const avg = rec.latencySamples > 0 ? rec.latencyMsSum / rec.latencySamples : null;
+      out[url] = {
+        opens: rec.opens,
+        opensFailed: rec.opensFailed,
+        closes: rec.closes,
+        messages: rec.messages,
+        avgLatencyMs: avg,
+        sessions: rec.sessions,
+        failStreak: rec.failStreak,
+      };
+    }
+    return out;
+  } catch { return {}; }
+}
 
 // Profile tab content renderer (v0.4) — standard Nostr kind:0 fields for
 // this Quest installation's identity. Same state builder as the other tabs.

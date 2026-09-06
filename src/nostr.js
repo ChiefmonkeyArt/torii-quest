@@ -13,13 +13,14 @@ import {
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
 import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
+import { recordOpen, recordOpenFail, recordClose, recordMessage } from './engine/telemetry/relayHealth.js';
 
 // v0.2.715-alpha (ADR-0081): ONE relay list for the whole game. The separate
 // hardcoded `RELAYS` (nos.lol + vertexlab.io) that profile/login/leaderboard
 // reads used is gone — every relay-consuming path now reads the SAME single
 // list the operator edits in the Relay settings tab (localStorage
 // `torii.node.relays` + <meta name="torii-relays">), falling back to the
-// curated 5-relay DEFAULT_NODE_RELAYS. Public relays are fine here; what is
+// curated DEFAULT_NODE_RELAYS. Public relays are fine here; what is
 // gated is the ACTION (each publish keeps its own opt-in), not the relay.
 function _effectiveRelays() {
   let metaGetter = null;
@@ -205,16 +206,24 @@ export function fetchProfileProgressive(pubkey, opts = {}) {
 
     for (const relay of relays) {
       let ws;
+      const connectStart = Date.now();
+      let openRecorded = false;
       try { ws = new WebSocketCtor(relay); }
-      catch { continue; }
+      catch {
+        try { recordOpenFail(relay); } catch { /* telemetry no-op */ }
+        continue;
+      }
       const entry = { relay, ws, subId: 'rq' + Math.random().toString(36).slice(2, 9), done: false };
       sockets.push(entry);
       pending++;
       ws.onopen = () => {
+        openRecorded = true;
+        try { recordOpen(relay, Date.now() - connectStart); } catch { /* telemetry no-op */ }
         try { ws.send(JSON.stringify(['REQ', entry.subId, ...filters])); }
         catch { markDone(entry); maybeFinish(); }
       };
       ws.onmessage = (ev) => {
+        try { recordMessage(relay); } catch { /* telemetry no-op */ }
         try {
           const frame = JSON.parse(ev.data);
           if (!Array.isArray(frame)) return;
@@ -224,8 +233,15 @@ export function fetchProfileProgressive(pubkey, opts = {}) {
           else if (verb === 'EOSE' || verb === 'NOTICE') markDone(entry);
         } catch { /* ignore a malformed frame */ }
       };
-      ws.onerror = () => { markDone(entry); maybeFinish(); };
-      ws.onclose = () => { markDone(entry); maybeFinish(); };
+      ws.onerror = () => {
+        if (!openRecorded) { try { recordOpenFail(relay); } catch { /* telemetry no-op */ } }
+        markDone(entry); maybeFinish();
+      };
+      ws.onclose = () => {
+        if (openRecorded) { try { recordClose(relay); } catch { /* telemetry no-op */ } }
+        else { try { recordOpenFail(relay); } catch { /* telemetry no-op */ } }
+        markDone(entry); maybeFinish();
+      };
     }
 
     if (!pending) {
@@ -395,8 +411,16 @@ export function relayReq(url, filters, opts = {}) {
       return;
     }
     let ws;
+    // v0.2.774: relay health tracking. connectStart is captured just before
+    // WS construction so the latency measurement includes DNS + TLS + upgrade.
+    // All record* calls are best-effort and swallow their own errors.
+    const connectStart = Date.now();
+    let openRecorded = false;
     try { ws = new WebSocket(url); }
-    catch (e) { resolve({ ok: false, events: [], relay: url, error: 'bad-url' }); return; }
+    catch (e) {
+      try { recordOpenFail(url); } catch { /* telemetry no-op */ }
+      resolve({ ok: false, events: [], relay: url, error: 'bad-url' }); return;
+    }
     const events = [];
     let done = false;
     let inGrace = false;
@@ -411,10 +435,13 @@ export function relayReq(url, filters, opts = {}) {
     };
     mainTimer = setTimeout(() => finish(events.length ? true : false, 'timeout'), timeoutMs);
     ws.onopen = () => {
+      openRecorded = true;
+      try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       try { ws.send(JSON.stringify(['REQ', subsId, ...flt])); }
       catch (e) { finish(false, 'send-failed'); }
     };
     ws.onmessage = (ev) => {
+      try { recordMessage(url); } catch { /* telemetry no-op */ }
       try {
         const frame = JSON.parse(ev.data);
         if (!Array.isArray(frame)) return;
@@ -435,8 +462,15 @@ export function relayReq(url, filters, opts = {}) {
         else if (verb === 'NOTICE') { finish(false, 'notice'); }
       } catch { /* ignore a malformed frame */ }
     };
-    ws.onerror = () => { finish(false, 'error'); };
-    ws.onclose = () => { finish(events.length ? true : false, 'closed'); };
+    ws.onerror = () => {
+      if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      finish(false, 'error');
+    };
+    ws.onclose = () => {
+      if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
+      else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      finish(events.length ? true : false, 'closed');
+    };
   });
 }
 
@@ -507,8 +541,14 @@ export function publishEvent(url, event, opts = {}) {
       return;
     }
     let ws;
+    // v0.2.774: relay health tracking (mirrors relayReq shape).
+    const connectStart = Date.now();
+    let openRecorded = false;
     try { ws = new WebSocket(url); }
-    catch (e) { resolve({ ok: false, relay: url, accepted: false, error: 'bad-url' }); return; }
+    catch (e) {
+      try { recordOpenFail(url); } catch { /* telemetry no-op */ }
+      resolve({ ok: false, relay: url, accepted: false, error: 'bad-url' }); return;
+    }
     let done = false;
     const finish = (ok, accepted, error) => {
       if (done) return; done = true;
@@ -517,10 +557,13 @@ export function publishEvent(url, event, opts = {}) {
     };
     const timer = setTimeout(() => finish(false, false, 'timeout'), timeoutMs);
     ws.onopen = () => {
+      openRecorded = true;
+      try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       try { ws.send(JSON.stringify(['EVENT', event])); }
       catch (e) { clearTimeout(timer); finish(false, false, 'send-failed'); }
     };
     ws.onmessage = (ev) => {
+      try { recordMessage(url); } catch { /* telemetry no-op */ }
       try {
         const frame = JSON.parse(ev.data);
         if (!Array.isArray(frame)) return;
@@ -532,8 +575,15 @@ export function publishEvent(url, event, opts = {}) {
         }
       } catch { /* ignore a malformed frame */ }
     };
-    ws.onerror = () => { clearTimeout(timer); finish(false, false, 'error'); };
-    ws.onclose = () => { clearTimeout(timer); finish(false, false, 'closed'); };
+    ws.onerror = () => {
+      if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      clearTimeout(timer); finish(false, false, 'error');
+    };
+    ws.onclose = () => {
+      if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
+      else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
+      clearTimeout(timer); finish(false, false, 'closed');
+    };
   });
 }
 

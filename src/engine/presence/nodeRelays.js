@@ -115,12 +115,24 @@ export function readNodeRelays(opts = {}) {
 // (vertexlab is a DVM relay, not a NIP-45 aggregator; the earlier comment was
 // wrong.) Two general permissive relays were added in their place. All five
 // entries below were verified writable + round-tripping on 2026-09-02.
+//
+// v0.2.774: two additional relays added to spread load away from the giants
+// and reach smaller/newer well-run relays ("spread the love", user pref):
+//   - wss://relay.snort.social  → snort client's own relay, mid-size, mature.
+//   - wss://nostr.mom           → small independent, well-run, geographic
+//                                  diversity from the ecosystem set.
+// Both were WRITE-probed 2026-09-05 (kind:30078 accepted + round-tripped).
+// wss://nostr.wine was probed too but rejected new connections with HTTP 403
+// (paywalled AUTH-required relay) — not usable as a public default; users
+// with paid access can still add it manually via the Relay settings tab.
 export const DEFAULT_NODE_RELAYS = Object.freeze([
   'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem) — writable, verified 2026-09-02
   'wss://relay.routstr.com',       // routstr network relay (Torii ecosystem) — writable, verified 2026-09-02
   'wss://nos.lol',                 // popular general relay — writable, verified 2026-09-02
   'wss://relay.damus.io',          // major general relay — writable, verified 2026-09-02
   'wss://relay.primal.net',        // major general relay — writable, verified 2026-09-02
+  'wss://relay.snort.social',      // snort client relay, mid-size — writable, verified 2026-09-05
+  'wss://nostr.mom',               // small independent, load-spread — writable, verified 2026-09-05
 ]);
 
 // readEffectiveNodeRelays(opts) → the validated wss:// relay set the whole game

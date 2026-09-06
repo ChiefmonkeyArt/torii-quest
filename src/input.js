@@ -92,6 +92,10 @@ document.addEventListener('mousemove', e => {
  *  sees a wrapped value. */
 export function wrapAngle(a) {
   const TAU = Math.PI * 2;
+  // v0.2.778-alpha (Bug L): guard non-finite input so a poisoned angle can never
+  // propagate NaN downstream (and, combined with the engine/math/angle.js fix,
+  // no angle path can re-enter a non-terminating normalisation loop).
+  if (!Number.isFinite(a)) return 0;
   a = a % TAU;
   if (a > Math.PI) a -= TAU;
   if (a < -Math.PI) a += TAU;

@@ -79,6 +79,12 @@ function _selfHealStaleShellAndReload() {
 // route notice) render with zero three in the synchronous import graph.
 import { state, isTitle, isPlaying, transition, GAME_EVENT } from './state.js';
 import { emit, on, EV } from './events.js';
+// v0.2.778-alpha (Bug L): spawn the off-thread freeze watchdog as early as
+// possible so even a boot-time stall is observable. It spawns a blob worker and
+// no-ops under node/test. Kept before the heavy 3D boot so a freeze anywhere in
+// the title→arena path still gets flagged with a timestamp.
+import { installFreezeWatchdog } from './engine/diagnostics/freezeWatchdog.js';
+installFreezeWatchdog();
 // v0.2.236: install the REAL "LOGIN WITH NOSTR" handler before anything heavy. It
 // has no THREE/scene deps and self-installs on import, so a loaded bundle wires
 // login regardless of the (now deferred) 3D boot.

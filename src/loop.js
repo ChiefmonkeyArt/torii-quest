@@ -12,6 +12,7 @@
 // healthy frame resets the streak, so a one-off hiccup is still tolerated.
 import * as THREE from 'three';
 import { heartbeat } from './engine/diagnostics/connectionDiagnostics.js';
+import { setFreezeStage } from './engine/diagnostics/freezeWatchdog.js';
 
 // ADR-0063: THREE.Clock is deprecated since three r183. THREE.Timer is the
 // replacement — same per-frame delta semantics via update(ts) + getDelta(),
@@ -58,7 +59,12 @@ export function startLoop() {
     const dt = Math.min(_timer.getDelta(), 0.05);
     if (_onUpdate) {
       try {
+        // v0.2.778-alpha (Bug L): stamp the coarse loop stage so the freeze
+        // watchdog's last-responsive-stage label can distinguish a stall inside
+        // the game update from one outside it.
+        setFreezeStage('loop-update');
         _onUpdate(dt, _frame);
+        setFreezeStage('loop-idle');
         _errStreak = 0; // healthy frame — forget any prior transient throw
       } catch (e) {
         _errStreak++;

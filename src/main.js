@@ -223,6 +223,22 @@ let _pendingGuestChar = 'guest';
 // card still gets their own chiefmonkey model (see ensureArenaReady).
 let _guestCharChosen = false;
 const _charCards = Array.from(document.querySelectorAll('.char-card'));
+// v0.2.776-alpha (Bug I): the ENTER-AS-GUEST button starts inactive (grey,
+// disabled) and only "arms" once the user picks a character card. Arming
+// swaps CSS state (data-armed) + relabels the button to "ENTER" so it is
+// unambiguous that the picked character is now what they'll spawn as. We
+// keep the DOM lookup lazy so the reference is fresh even if the boot
+// order changes (index.html defines it before this module runs, but
+// asserting freshness is cheap insurance).
+function _armGuestEnterButton() {
+  const btn = document.getElementById('btn-enter-nap');
+  if (!btn) return;
+  btn.dataset.armed = 'true';
+  btn.classList.remove('is-inactive');
+  btn.removeAttribute('disabled');
+  btn.setAttribute('aria-disabled', 'false');
+  btn.textContent = 'ENTER';
+}
 function _selectGuestCharacter(char) {
   if (char !== 'guest' && char !== 'nostrich') return;
   _pendingGuestChar = char;
@@ -232,6 +248,7 @@ function _selectGuestCharacter(char) {
     card.classList.toggle('selected', on);
     card.setAttribute('aria-checked', on ? 'true' : 'false');
   }
+  _armGuestEnterButton();
 }
 for (const card of _charCards) {
   card.addEventListener('click', () => _selectGuestCharacter(card.getAttribute('data-char')));
@@ -2830,7 +2847,11 @@ async function ensureArenaReady(loadingLabel) {
     endPhase('bootstrap-physics');
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
-    elNapBtn.textContent = 'ENTER TORII';
+    // v0.2.776-alpha: keep the armed "ENTER" copy on retry (the button was
+    // armed the moment the user picked a character card or completed login;
+    // reverting to "ENTER TORII" on a boot failure was inconsistent with
+    // the armed CTA copy the user saw when they clicked).
+    elNapBtn.textContent = 'ENTER';
     elNapBtn.disabled = false;
     // v0.2.775-alpha (Bug H): if the failure is a re-invocation of main.js
     // detected by the boot guard (typically caused by a stale-SW cache serving
@@ -2863,7 +2884,9 @@ async function ensureArenaReady(loadingLabel) {
 
 function resetEnterButton() {
   if (elNapBtn) {
-    elNapBtn.textContent = 'ENTER TORII';
+    // v0.2.776-alpha: armed CTA copy ("ENTER") — see the boot-failure branch
+    // above for the rationale (single, stable armed label).
+    elNapBtn.textContent = 'ENTER';
     elNapBtn.disabled = false;
   }
 }
@@ -2887,6 +2910,26 @@ elNapBtn?.addEventListener('click', async () => {
   _arena.setSpawnOverride(NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW);
   _arena.enter();
 });
+// v0.2.776-alpha (Bug I): expose the exact same boot the guest ENTER click
+// runs so loginBootstrap.js can trigger it for the armed LOGIN-NOSTR button.
+// Implemented as a function-shaped adapter (not a module reference) that
+// programmatically clicks the guest button (which is already re-enabled once
+// login arms the login button — we also toggle its disabled attribute here
+// for the login-first case where the user never picked a card). Reusing the
+// button's native click event keeps ONE code path so the v0.2.775 dupe-boot
+// catch + self-heal wraps every entry path with zero duplication.
+if (typeof window !== 'undefined') {
+  window.__toriiEnterArenaFromTitle = function _enterArenaFromTitle() {
+    if (!elNapBtn) return;
+    // Login-first users may not have picked a guest card, so the button
+    // could still carry data-armed="false" + disabled from the initial
+    // markup. Enable it in-place — the boot itself uses the current
+    // _pendingGuestChar which defaults to 'guest', overridden by
+    // _ownCharacterMeshUrl for a returning player inside ensureArenaReady.
+    if (elNapBtn.hasAttribute('disabled')) elNapBtn.removeAttribute('disabled');
+    elNapBtn.click();
+  };
+}
 // v0.3: homepage FLY MODE toggle button removed per design direction; the
 // wiring IIFE that used to sync #btn-fly-toggle went with it. state.flyMode
 // stays false by default; in-game F still calls arenaRuntime's initFlyCamera

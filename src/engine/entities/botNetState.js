@@ -14,7 +14,9 @@
 //   • alive flips (kill: true→false, respawn: false→true)
 //   • position error between consecutive samples exceeds SNAP_DIST (teleport)
 //
-// PURE: no THREE, no imports. Angles lerp the short way around the circle.
+// PURE: no THREE, no DOM. The only import is a trivial pure angle helper.
+// Angles lerp the short way around the circle.
+import { normalizeAngle } from '../math/angle.js';
 
 // render ~1.5 server ticks in the past. EXPORTED so the shot-timestamp
 // compensation (peerCombat / multiplayerHost) can rewind the shot ts by the
@@ -208,9 +210,9 @@ export function createBotNetState(opts = {}) {
 
 // Shortest-arc angle lerp.
 function _lerpAngle(a, b, u) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
+  // v0.2.778-alpha (Bug L): single-shot wrap — the old `while (d > Math.PI) d -= 2π`
+  // loop infinite-loops on ±Infinity/NaN and hard-freezes the main thread.
+  const d = normalizeAngle(b - a);
   return a + d * u;
 }
 

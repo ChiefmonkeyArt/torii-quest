@@ -9,6 +9,8 @@ import { scene } from './scene.js';
 import { sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand, NAP_BBOX } from './terrain/tomoeShape.js';
 import { assetUrl } from './assetUrl.js';
+import { normalizeAngle } from './engine/math/angle.js';
+import { setFreezeStage } from './engine/diagnostics/freezeWatchdog.js';
 import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
          createNpcBoneColliders, syncNpcBoneColliders } from './physics.js';
 
@@ -212,9 +214,11 @@ export function tickNapNpc(dt) {
 
       // Face walking direction
       const targetYaw = Math.atan2(dx, dz);
-      let dyaw = targetYaw - _root.rotation.y;
-      while (dyaw > Math.PI) dyaw -= 2 * Math.PI;
-      while (dyaw < -Math.PI) dyaw += 2 * Math.PI;
+      // v0.2.778-alpha (Bug L): single-shot non-finite-safe wrap — the old
+      // `while (dyaw > Math.PI) dyaw -= 2π` loop hard-freezes the main thread if
+      // a poisoned animation quaternion ever makes dyaw ±Infinity/NaN.
+      setFreezeStage('napNpc-walk');
+      const dyaw = normalizeAngle(targetYaw - _root.rotation.y);
       _root.rotation.y += dyaw * Math.min(1, dt * 5);
 
       // Follow terrain height — use stored _minY for feet placement

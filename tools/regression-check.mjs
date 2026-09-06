@@ -67,6 +67,7 @@ const SETTIMEOUT_ALLOWED = new Set([
   'src/engine/plebeian/marketStall.js', // ADR-0026: lazy market-panel status-message auto-revert timer
   'src/engine/plebeian/plebeianRelay.js', // ADR-0026/0035: relay reconnect-with-backoff + connect-error retry timers
   'src/engine/ui/toast.js', // ADR-0097: settings toast auto-dismiss + leave-animation cleanup
+  'src/engine/diagnostics/freezeWatchdog.js', // v0.2.778 (Bug L): worker-thread ping heartbeat — string-embedded, runs OFF the main thread (not a main-loop timer)
 ]);
 // Files where a per-frame hot path must stay allocation-free.
 const NO_ALLOC_FILES = [

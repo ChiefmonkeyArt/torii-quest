@@ -165,11 +165,12 @@ import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { readHealth as _readRelayHealth, rotateSession as _rotateRelaySession } from './engine/telemetry/relayHealth.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
-import { CHARACTER_PRESETS, getCharacterPreset, presetToManifest } from './engine/character/characterPresets.js';
 import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { runMockGeneration } from './engine/character/meshGenerationMock.js';
+import { inspectGlb } from './engine/character/glbInspect.js';
+import { assessRig } from './engine/character/rigAssessment.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
 // access-control surface (arrival authority + write authority) that was hidden
 // since v0.2.676. The view-model + renderer are the unchanged instanceSettings.js
@@ -1644,41 +1645,6 @@ async function _checkOwnCharacter() {
   renderActiveSettingsTab();
 }
 
-// _createOwnCharacter(presetId) — the create round-trip write half: build the
-// manifest from a curated preset, sign the kind-35100 event via NIP-07, and
-// publish to the unified relay list. On success the tab flips to 'found' (the
-// same view the read half produces), so create→read round-trips seamlessly.
-async function _createOwnCharacter(presetId) {
-  const preset = getCharacterPreset(presetId);
-  if (!preset) {
-    _characterForgeState.status = 'failed';
-    _characterForgeState.error = 'Unknown preset.';
-    renderActiveSettingsTab();
-    return;
-  }
-  _characterForgeState.status = 'creating';
-  renderActiveSettingsTab();
-  try {
-    const manifest = presetToManifest(preset);
-    const res = await publishCharacter(manifest);
-    if (res.ok) {
-      _characterForgeState.status = 'found';
-      _characterForgeState.manifest = manifest;
-      _characterForgeState.character = _summarizeCharacterManifest(manifest);
-      _characterForgeState.error = null;
-    } else {
-      _characterForgeState.status = 'failed';
-      _characterForgeState.error = res.error === 'nip-07-unavailable'
-        ? 'Signing needs a NIP-07 extension (e.g. nos2x / Alby).'
-        : (res.error || 'Could not publish your character.');
-    }
-  } catch {
-    _characterForgeState.status = 'failed';
-    _characterForgeState.error = 'Could not publish your character.';
-  }
-  renderActiveSettingsTab();
-}
-
 // _pickCustomMesh() — open a file picker for a .glb and hand the file to
 // _uploadCustomMesh. The picker is created dynamically (not baked into the pure
 // panel HTML) so the panel stays a node-testable string renderer.
@@ -1687,7 +1653,7 @@ function _pickCustomMesh() {
   if (!doc) return;
   const input = doc.createElement('input');
   input.type = 'file';
-  input.accept = '.glb,.gltf';
+  input.accept = '.glb';
   input.onchange = () => {
     const file = input.files && input.files[0];
     if (file) _uploadCustomMesh(file);
@@ -1703,6 +1669,31 @@ async function _uploadCustomMesh(file) {
   _characterForgeState.status = 'creating';
   renderActiveSettingsTab();
   try {
+    // Validator-first: read the raw bytes and confirm it is a well-formed GLB
+    // with a skeleton the auto-rigger can map (assessRig). A malformed file is
+    // rejected before any Blossom upload / NIP-07 prompt; a valid-but-unriggable
+    // GLB still uploads, with a toast warning that it may not animate.
+    let buffer = null;
+    try { buffer = await file.arrayBuffer(); } catch { buffer = null; }
+    if (buffer == null) {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = 'Could not read the file.';
+      renderActiveSettingsTab();
+      return;
+    }
+    const parsed = inspectGlb(buffer);
+    if (!parsed.ok) {
+      _characterForgeState.status = 'failed';
+      _characterForgeState.error = parsed.error || 'Not a valid .glb file.';
+      renderActiveSettingsTab();
+      return;
+    }
+    const rig = assessRig(parsed.boneNames);
+    if (rig.verdict !== 'riggable') {
+      const detail = (Array.isArray(rig.notes) && rig.notes[0]) ? ` — ${rig.notes[0]}` : '';
+      toastInfo(`Rig check: ${rig.verdict}${detail}`);
+    }
+
     const up = await uploadBlossom(file);
     if (!up.ok) {
       _characterForgeState.status = 'failed';
@@ -1781,7 +1772,6 @@ registerSettingsTabRenderer('character', () => {
     character: _characterForgeState.character,
     mode: _characterForgeState.mode,
     stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
-    presets: CHARACTER_PRESETS.map((p) => ({ id: p.id, label: p.label })),
     ai: {
       status: _forgeAIState.status,
       prompt: _forgeAIState.prompt,
@@ -1807,7 +1797,6 @@ registerSettingsTabRenderer('character', () => {
     const action = t.getAttribute && t.getAttribute('data-action');
     if (!action) return;
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
-    if (action === 'select-preset') { e.preventDefault(); _createOwnCharacter(t.getAttribute('data-preset') || ''); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
     if (action === 'generate-ai') { e.preventDefault(); _generateAICharacter(); return; }
     if (action === 'ai-reset') { e.preventDefault(); _resetAICharacter(); return; }

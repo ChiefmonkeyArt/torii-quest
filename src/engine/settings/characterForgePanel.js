@@ -5,10 +5,11 @@
 // The Character Forge is the player-facing surface for creating/reading a
 // character. v1 is validator-first: it first CHECKS whether the logged-in npub
 // already has a character (a signed kind-35100 event — the "smooth experience"
-// seam), and if not, offers the creation flow: a preset grid (select-preset),
-// an "Upload your own" card (upload-mesh), and a "Create with AI" card that
-// runs a LOCAL MOCK generation (see ADR-0091 — the real Meshy/routstr/Cashu
-// backend is a later slice; the mock proves the prompt→validate→verdict loop).
+// seam), and if not, offers the creation flow: an "Upload your own" card
+// (upload-mesh — validated client-side via glbInspect + assessRig before the
+// Blossom upload), and a "Create with AI" card that runs a LOCAL MOCK
+// generation (see ADR-0091 — the real Meshy/routstr/Cashu backend is a later
+// slice; the mock proves the prompt→validate→verdict loop).
 // See nap-torii-avatar-v0.md and the Character Forge entry in strategy.md.
 //
 // renderCharacterForgePanel(state) — state:
@@ -17,15 +18,14 @@
 //   character   — { name, meshName, stickerCount, stickers[] } | null (when 'found').
 //   mode        — 'view' (default) | 'edit' — the 'edit' mode is the sticker editor.
 //   stickerLibrary — [{ id, label }] — curated decals shown in the sticker editor.
-//   presets     — [{ id, label }] — curated bases shown when status==='none'.
 //   ai          — { status:'idle'|'running'|'done', prompt, result } — the local
 //                 "Create with AI" mock flow sub-state; when ai.status !== 'idle'
-//                 (and logged in) the create view is replaced by _aiFlowView(ai).
+//                 the create view is replaced by _aiFlowView(ai).
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
-// pattern (data-action="check-character" / "select-preset" / "upload-mesh" /
-// "generate-ai" / "ai-reset" / "edit-character" / "add-sticker" /
-// "remove-sticker" / "done-edit"). "generate-ai" runs the LOCAL MOCK
+// pattern (data-action="check-character" / "upload-mesh" / "generate-ai" /
+// "ai-reset" / "edit-character" / "add-sticker" / "remove-sticker" /
+// "done-edit"). "generate-ai" runs the LOCAL MOCK
 // generation flow (see _aiFlowView below); no real backend or signing is
 // involved yet.
 
@@ -120,55 +120,27 @@ function _stickerEditor(stickers, library) {
     <button type="button" class="settings-btn settings-btn-primary" data-action="done-edit">Done</button>`;
 }
 
-// _presetGrid(presets) — the preset picker as a card grid (name + Select),
-// not plain buttons in a row.
-function _presetGrid(presets, opts) {
-  const list = Array.isArray(presets) ? presets : [];
-  const disabled = !!(opts && opts.disabled);
-  const dAttr = disabled ? ' disabled' : '';
-  const cards = list.map((p) => {
-    const id = (p && p.id) ? p.id : '';
-    const label = (p && p.label) ? p.label : id;
-    return `<button type="button" class="cf-preset-card" data-action="select-preset" data-preset="${_escape(id)}"${dAttr}>
-      <span class="cf-preset-thumb" aria-hidden="true">${_escape(_initial(label))}</span>
-      <span class="cf-preset-name">${_escape(label)}</span>
-      <span class="cf-preset-select">Select</span>
-    </button>`;
-  }).join('');
-  return `<div class="cf-preset-grid">${cards || '<div class="settings-empty">No presets available.</div>'}</div>`;
-}
-
-// _createView(presets) — the character SELECT + CREATE screen: a preset
-// grid, plus two clearly separated, fully-framed creation paths ("Upload
-// your own" and "Create with AI" — the latter a LOCAL MOCK generator that
-// runs prompt→validate→verdict with no backend; ADR-0091 reserves the real
-// Meshy/routstr/Cashu wiring for a later slice).
-function _createView(presets, opts) {
-  // v0.2.739: the create view renders the SAME shell whether the user is
-  // logged in or not. When logged out, every action button is disabled
-  // (via `opts.disabled`) so people can still see what's on offer without
-  // being blocked by an empty gate. `generate-ai` is disabled while logged
-  // out (the mock flow ends in a "save to npub" step that needs a login).
-  const disabled = !!(opts && opts.disabled);
-  const uploadDisabled = disabled ? ' disabled' : '';
-  const aiDisabled = disabled ? ' disabled' : '';
-  const subtitle = disabled
-    ? 'Preview the roster — sign in with Nostr to select or create.'
-    : 'Pick a character, or create your own.';
+// _createView() — the character CREATE screen: two clearly separated,
+// fully-framed creation paths — "Upload your own" (.glb, validated client-side
+// via glbInspect + assessRig before the Blossom upload) and "Create with AI"
+// (a LOCAL MOCK generator that runs prompt→validate→verdict with no backend;
+// ADR-0091 reserves the real Meshy/routstr/Cashu wiring for a later slice).
+// Both paths are always enabled: the earlier preset roster (select-preset) and
+// its logged-out disabled gate were removed — creation is the only entry point.
+function _createView() {
   return `
-    <div class="settings-subtitle">${subtitle}</div>
-    ${_presetGrid(presets, { disabled })}
+    <div class="settings-subtitle">Create your character — upload a rigged .glb, or generate one.</div>
     <div class="cf-create-grid">
       <div class="cf-create-card cf-upload-card">
         <div class="cf-create-card-title">Upload a character</div>
-        <div class="cf-create-card-hint">Upload a rigged .glb file — it must include a compatible humanoid skeleton.</div>
-        <button type="button" class="settings-btn" data-action="upload-mesh"${uploadDisabled}>Upload .glb</button>
+        <div class="cf-create-card-hint">Upload a rigged .glb with a compatible humanoid skeleton — it's validated before it's saved to your npub.</div>
+        <button type="button" class="settings-btn" data-action="upload-mesh">Upload .glb</button>
       </div>
       <div class="cf-create-card cf-ai-card">
         <div class="cf-create-card-title">Create with AI</div>
         <div class="cf-create-card-hint">Describe your character and we'll generate a rigged mesh — validated automatically before it's saved to your npub.</div>
-        <textarea id="cf-ai-prompt" class="settings-textarea cf-ai-prompt" rows="2" maxlength="400" placeholder="e.g. a low-poly fox knight in silver armour"${aiDisabled}></textarea>
-        <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai"${aiDisabled}>Generate demo</button>
+        <textarea id="cf-ai-prompt" class="settings-textarea cf-ai-prompt" rows="2" maxlength="400" placeholder="e.g. a low-poly fox knight in silver armour"></textarea>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai">Generate demo</button>
         <div class="cf-ai-demo-note">Demo preview — real text-to-3D + auto-rig (Meshy/Tripo) wires up next.</div>
       </div>
     </div>`;
@@ -232,24 +204,23 @@ export function renderCharacterForgePanel(state = {}) {
   const isLoggedIn = st.isLoggedIn === true;
   const status = typeof st.status === 'string' ? st.status : 'idle';
 
-  // v0.2.739: pre-login now shows a friendly "Sign in with Nostr…" banner
-  // ABOVE a fully-rendered but disabled preview (preset grid + Upload + AI
-  // cards) so the tab reads as a real character-select screen even before
-  // login, instead of a blank gate wall.
+  // Pre-login shows a friendly "Sign in with Nostr…" banner ABOVE the fully
+  // rendered, always-enabled creation cards (Upload + AI), so the tab reads as
+  // a real creation screen even before login instead of a blank gate wall.
   const gate = !isLoggedIn
-    ? '<div class="settings-gate">Sign in with Nostr to save your character. You can browse the roster below.</div>'
+    ? '<div class="settings-gate">Sign in with Nostr to save your character — you can still explore the creation options below.</div>'
     : '';
   const mode = (st.mode === 'edit') ? 'edit' : 'view';
 
   const ai = (st.ai && typeof st.ai === 'object') ? st.ai : {};
   const aiStatus = typeof ai.status === 'string' ? ai.status : 'idle';
-  const aiActive = isLoggedIn && aiStatus !== 'idle';
+  const aiActive = aiStatus !== 'idle';
 
   let body = '';
   if (aiActive) {
     body = _aiFlowView(ai);
   } else if (!isLoggedIn) {
-    body = _createView(st.presets, { disabled: true });
+    body = _createView();
   } else if (status === 'found' && st.character) {
     body = (mode === 'edit')
       ? _stickerEditor(st.character.stickers, st.stickerLibrary)
@@ -260,7 +231,7 @@ export function renderCharacterForgePanel(state = {}) {
   } else if (status === 'checking' || status === 'creating') {
     body = '<div class="settings-empty">Working…</div>';
   } else {
-    body = _createView(st.presets);
+    body = _createView();
   }
 
   return `

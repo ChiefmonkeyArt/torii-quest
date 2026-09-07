@@ -161,8 +161,8 @@ function _createView() {
         <div class="cf-create-card-title">Create with AI</div>
         <div class="cf-create-card-hint">Describe your character and we'll generate a rigged mesh — validated automatically before it's saved to your npub.</div>
         <textarea id="cf-ai-prompt" class="settings-textarea cf-ai-prompt" rows="2" maxlength="400" placeholder="e.g. a low-poly fox knight in silver armour"></textarea>
-        <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai">Generate demo</button>
-        <div class="cf-ai-demo-note">Demo preview — real text-to-3D + auto-rig (Meshy/Tripo) wires up next.</div>
+        <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai">Generate</button>
+        <div class="cf-ai-demo-note">Generate a humanoid from text (Meshy text-to-3D + auto-rig), then sign it to Blossom with your NIP-07 key.</div>
       </div>
     </div>`;
 }
@@ -178,7 +178,7 @@ function _aiFlowView(ai) {
     return `
       <div class="cf-ai-flow">
         <div class="cf-ai-flow-title">Generating character…</div>
-        <div class="cf-ai-flow-hint">Demo — a real run would call Meshy/Tripo, auto-rig, then validate.</div>
+        <div class="cf-ai-flow-hint">Calling Meshy text-to-3D + auto-rig — this can take a minute or two.</div>
       </div>`;
   }
 

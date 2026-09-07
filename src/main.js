@@ -168,7 +168,7 @@ import { renderCharacterForgePanel } from './engine/settings/characterForgePanel
 import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
-import { runMockGeneration } from './engine/character/meshGenerationMock.js';
+import { requestMeshGeneration } from './engine/character/liveMeshGeneration.js';
 import { inspectGlb } from './engine/character/glbInspect.js';
 import { assessRig } from './engine/character/rigAssessment.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
@@ -338,8 +338,6 @@ let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout i
 let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
 let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
 let _beaconSyncFrame = 0; // frame-throttled server beacon state re-sync (v0.2.781, shell rAF)
-let _forgeAIPending = false;  // the "Create with AI" mock's thinking→done transition (shell rAF)
-let _forgeAIStartedAt = 0;    // ms timestamp when the mock run was requested (shell rAF)
 
 function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
@@ -1509,35 +1507,52 @@ const _characterForgeState = {
   _readStarted: false,
 };
 
-// _forgeAIState — the LOCAL MOCK "Create with AI" flow sub-state (Step B of the
-// character-creation plan). It is deliberately separate from _characterForgeState
-// so a mock run can never mutate the real manifest (which the sticker editor
-// relies on to republish). No network, payment, or signing is involved.
+// _forgeAIState — the "Create with AI" flow sub-state (Step C, ADR-0091). It is
+// deliberately separate from _characterForgeState so a generation can never mutate
+// the real manifest out-of-band (the sticker editor relies on that). A real run
+// calls the server proxy (Meshy text-to-3d → auto-rig, operator-paid), downloads
+// the rigged GLB, and hands it to _uploadCustomMesh for the validator-first publish.
 const _forgeAIState = {
   status: 'idle', // 'idle' | 'running' | 'done'
   prompt: '',
-  result: null,   // runMockGeneration() output when status === 'done'
+  result: null,   // a failure shape (no `.verdict`) when status === 'done'
 };
 
-// _generateAICharacter() — read the prompt box, show the "thinking" state, then
-// reveal the deterministic mock verdict. The thinking→done transition rides the
-// shell rAF tick (no window timers in main.js — see _shellTick); the short delay
-// mirrors the async round-trip a real Meshy/Tripo fetch + routstr charge will take.
-//
-// v0.2.767-alpha: when the vendor executor lands and returns a Blob/File for the
-// generated GLB, route it through `_uploadCustomMesh(blob)` — that already runs
-// the full server-side headless-authoring flow (POST /mp/character/headless →
-// second Blossom upload → manifest.mesh.headlessHash) before publishing, so the
-// AI path gets a headless FP body for free. No separate wiring needed.
-function _generateAICharacter() {
+// _generateAICharacter() — read the prompt box, request a real Meshy character
+// through the server proxy, then hand the rigged GLB to the validator-first upload
+// path. On success the AI flow returns to 'idle' and _uploadCustomMesh drives the
+// 'creating'→'found' badge + publish; on failure the flow shows the 'done' error.
+async function _generateAICharacter() {
   const doc = typeof document !== 'undefined' ? document : null;
   const ta = doc ? doc.getElementById('cf-ai-prompt') : null;
-  const prompt = ta ? ta.value : '';
+  const prompt = ta ? (ta.value || '').trim() : '';
+  if (!prompt) return;
+
   _forgeAIState.prompt = prompt;
   _forgeAIState.result = null;
   _forgeAIState.status = 'running';
-  _forgeAIStartedAt = Date.now();
-  _forgeAIPending = true;
+  renderActiveSettingsTab();
+
+  const res = await requestMeshGeneration(prompt);
+  if (res && res.ok && res.glbUrl) {
+    let blob = null;
+    try {
+      const dl = await fetch(res.glbUrl);
+      if (dl && dl.ok) blob = await dl.blob();
+    } catch { blob = null; }
+    if (blob && blob.size > 0) {
+      // Same validator-first pipeline as a .glb upload: inspect → assessRig →
+      // headless author → Blossom → publish → seat.
+      _forgeAIState.status = 'idle';
+      _forgeAIState.result = null;
+      renderActiveSettingsTab();
+      await _uploadCustomMesh(blob);
+      return;
+    }
+  }
+
+  _forgeAIState.result = { ok: false, message: (res && res.error) || 'Generation failed.' };
+  _forgeAIState.status = 'done';
   renderActiveSettingsTab();
 }
 
@@ -3026,15 +3041,8 @@ function _shellTick() {
       _beaconSyncFrame = 0;
       _syncServerBeacon().catch(() => {});
     }
-    // Create-with-AI mock: resolve the thinking→done transition when enough
-    // wall-clock has passed (no window timers). Cosmetic — the real Step C will
-    // swap this for an awaited fetch + charge.
-    if (_forgeAIPending && Date.now() - _forgeAIStartedAt >= 450) {
-      _forgeAIPending = false;
-      _forgeAIState.result = runMockGeneration(_forgeAIState.prompt);
-      _forgeAIState.status = 'done';
-      renderActiveSettingsTab();
-    }
+    // Create-with-AI is now a real async fetch (see _generateAICharacter); no
+    // rAF-driven mock resolution here.
   }
   requestAnimationFrame(_shellTick);
 }

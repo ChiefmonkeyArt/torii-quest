@@ -98,11 +98,11 @@ describe('renderCharacterForgePanel', () => {
   });
 
   // Upload + Create-with-AI are two clearly separated, fully-framed creation
-  // paths on the SELECT + CREATE screen. Create-with-AI is now a LOCAL MOCK
-  // generator (Step B — no backend/signing): it renders a prompt box + a
-  // "Generate demo" action (main.js wires it to runMockGeneration), while
-  // Upload stays a real, clickable action.
-  it('renders separated Upload and Create-with-AI (mock) cards on the create screen', () => {
+  // paths on the SELECT + CREATE screen. Create-with-AI is now LIVE (Step C,
+  // ADR-0091): it renders a prompt box + a "Generate" action (main.js wires it to
+  // requestMeshGeneration → the server-side Meshy proxy), while Upload is a real
+  // .glb file picker.
+  it('renders separated Upload and Create-with-AI (live) cards on the create screen', () => {
     const html = renderCharacterForgePanel({
       isLoggedIn: true,
       status: 'none',
@@ -113,9 +113,9 @@ describe('renderCharacterForgePanel', () => {
     expect(html).toContain('Create with AI');
     expect(html).toContain('id="cf-ai-prompt"');
     expect(html).toContain('data-action="generate-ai"');
-    expect(html).toContain('Generate demo');
+    expect(html).toContain('Generate');
     expect(html).not.toMatch(/data-action="generate-ai"[^>]*disabled/);
-    expect(html.toLowerCase()).toContain('demo preview');
+    expect(html.toLowerCase()).toContain('meshy text-to-3d');
   });
 
   describe('Create-with-AI mock flow (ai sub-state)', () => {

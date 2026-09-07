@@ -170,6 +170,37 @@ describe('renderCharacterForgePanel', () => {
       expect(html).toContain('Try again');
     });
 
+    it('maps no-session-token to a "Sign in to generate" message (not a bare error)', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: false,
+        status: 'none',
+        ai: { status: 'done', prompt: 'x', result: { ok: false, message: 'no-session-token' } },
+      });
+      expect(html).toContain('Sign in to generate');
+      expect(html).toContain('Nostr session');
+      expect(html).not.toContain('no-session-token');
+    });
+
+    it('maps generator-unavailable to a clear offline message', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: { status: 'done', prompt: 'x', result: { ok: false, message: 'generator unavailable' } },
+      });
+      expect(html).toContain('Generator is offline');
+      expect(html).toContain('Meshy API key');
+    });
+
+    it('falls back to showing the raw message for an unknown error', () => {
+      const html = renderCharacterForgePanel({
+        isLoggedIn: true,
+        status: 'none',
+        ai: { status: 'done', prompt: 'x', result: { ok: false, message: 'relay unreachable' } },
+      });
+      expect(html).toContain('Something went wrong');
+      expect(html).toContain('relay unreachable');
+    });
+
     it('keeps the create view when the ai state is idle', () => {
       const html = renderCharacterForgePanel({
         isLoggedIn: true,

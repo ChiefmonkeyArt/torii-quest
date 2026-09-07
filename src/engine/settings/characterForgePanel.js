@@ -167,6 +167,29 @@ function _createView() {
     </div>`;
 }
 
+// _friendlyAiError(message) → { title, hint }. Maps the raw generation error
+// (res.error from requestMeshGeneration) to copy a player can act on, instead of a
+// bare "Something went wrong". 'no-session-token' / 'session required' are the
+// common case: generation is session-gated, so a signed-out player hits them before
+// the request ever leaves the browser (v0.2.787-alpha).
+function _friendlyAiError(message) {
+  const m = (typeof message === 'string') ? message.trim().toLowerCase() : '';
+  if (m === 'no-session-token' || m === 'session required') {
+    return { title: 'Sign in to generate', hint: 'AI character generation needs a Nostr session — sign in and try again.' };
+  }
+  if (m === 'generator unavailable') {
+    return { title: 'Generator is offline', hint: 'This instance has not configured a Meshy API key.' };
+  }
+  if (m === 'prompt too long') {
+    return { title: 'Description too long', hint: 'Keep your description under 400 characters.' };
+  }
+  if (m === 'generation failed') {
+    return { title: 'Generation failed', hint: 'The 3D generator could not complete this character — try a different description.' };
+  }
+  if (m) return { title: 'Something went wrong', hint: message };
+  return { title: 'Something went wrong', hint: '' };
+}
+
 // _aiFlowView(ai) — the "Create with AI" flow screen. Renders the thinking state
 // while ai.status==='running', the payment sheet while 'payment' (paid character-
 // creation — v0.2.785-alpha), then the gate verdict when 'done'. Purely
@@ -213,9 +236,13 @@ function _aiFlowView(ai) {
 
   const v = (out.verdict && typeof out.verdict === 'object') ? out.verdict : null;
   if (!v) {
+    // No verdict when the flow 'done'-failed (no planned mock result). Surface the
+    // real error instead of a bare "Something went wrong" (v0.2.787-alpha).
+    const friendly = _friendlyAiError(out.message);
     return `
       <div class="cf-ai-flow cf-ai-rejected">
-        <div class="cf-ai-flow-title">Something went wrong</div>
+        <div class="cf-ai-flow-title">${_escape(friendly.title)}</div>
+        ${friendly.hint ? `<div class="cf-ai-flow-hint">${_escape(friendly.hint)}</div>` : ''}
         <button type="button" class="settings-btn settings-btn-primary" data-action="ai-reset">Try again</button>
       </div>`;
   }

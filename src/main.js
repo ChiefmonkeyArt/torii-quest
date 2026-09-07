@@ -1834,7 +1834,16 @@ registerSettingsTabRenderer('character', () => {
     const t = e && e.target;
     if (!t || !t.closest) return;
     if (!t.closest('#torii-settings-content')) return;
-    const action = t.getAttribute && t.getAttribute('data-action');
+    // Resolve the action element via closest() — NOT e.target — because several
+    // action buttons wrap their content in nested <span>s (e.g. the Heartbeat
+    // switch's .settings-switch-track/.settings-switch-knob/.settings-switch-state,
+    // where data-action lives on the <button>). Reading data-action off e.target
+    // returned null for those, silently dropping every click. This also fixes the
+    // data-* reads below (data-relay / data-sticker / data-index), which are all
+    // siblings of data-action on the same element.
+    const actionEl = t.closest('[data-action]');
+    if (!actionEl) return;
+    const action = actionEl.getAttribute('data-action');
     if (!action) return;
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
@@ -1842,8 +1851,8 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'ai-reset') { e.preventDefault(); _resetAICharacter(); return; }
     if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
     if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
-    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(t.getAttribute('data-sticker') || ''); return; }
-    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(t.getAttribute('data-index')); return; }
+    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(actionEl.getAttribute('data-sticker') || ''); return; }
+    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(actionEl.getAttribute('data-index')); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); toastSuccess('Heartbeat updated.'); return; }
@@ -1857,7 +1866,7 @@ registerSettingsTabRenderer('character', () => {
     }
     if (action === 'remove-relay') {
       e.preventDefault();
-      const url = t.getAttribute('data-relay') || '';
+      const url = actionEl.getAttribute('data-relay') || '';
       // Remove from the EFFECTIVE list (curated defaults included) and persist
       // the remaining set as the operator's configured list — so deleting a
       // starter relay materialises the rest as an explicit config rather than

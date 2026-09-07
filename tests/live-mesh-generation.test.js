@@ -3,7 +3,7 @@
 // No network, no sessionStorage.
 
 import { describe, it, expect } from 'vitest';
-import { requestMeshGeneration } from '../src/engine/character/liveMeshGeneration.js';
+import { requestMeshGeneration, confirmMeshGeneration } from '../src/engine/character/liveMeshGeneration.js';
 import { MAX_PROMPT_LENGTH } from '../src/engine/character/meshGeneration.js';
 
 const okJson = (obj, status = 200) => ({
@@ -67,6 +67,74 @@ describe('requestMeshGeneration', () => {
 
   it('fails with no-glb-url when a 200 body omits the URL', async () => {
     const out = await requestMeshGeneration('a fox', {
+      fetchImpl: async () => okJson({ ok: true }),
+      httpBase: 'https://x/mp', token: 't',
+    });
+    expect(out.error).toBe('no-glb-url');
+  });
+
+  it('surfaces the requirePayment shape when the server charges', async () => {
+    const out = await requestMeshGeneration('a fox', {
+      fetchImpl: async () => okJson({
+        ok: false, requirePayment: true, generationId: 'gid123', invoice: 'lnbc1', amountSats: 1369,
+      }),
+      httpBase: 'https://x/mp', token: 't',
+    });
+    expect(out.ok).toBe(false);
+    expect(out.requirePayment).toBe(true);
+    expect(out.generationId).toBe('gid123');
+    expect(out.invoice).toBe('lnbc1');
+    expect(out.amountSats).toBe(1369);
+  });
+});
+
+describe('confirmMeshGeneration', () => {
+  it('POSTs the generationId and returns the glbUrl', async () => {
+    const log = [];
+    const fetchImpl = async (url, init = {}) => {
+      log.push({ url, init });
+      return okJson({ ok: true, glbUrl: 'https://assets.meshy.ai/rigged.glb' });
+    };
+    const out = await confirmMeshGeneration('gid123', {
+      fetchImpl, httpBase: 'https://game.example/mp', token: 'tok123',
+    });
+    expect(out.ok).toBe(true);
+    expect(out.glbUrl).toBe('https://assets.meshy.ai/rigged.glb');
+    expect(log[0].url).toBe('https://game.example/mp/mesh/generate/confirm');
+    expect(log[0].init.method).toBe('POST');
+    expect(log[0].init.headers.Authorization).toBe('Bearer tok123');
+    expect(JSON.parse(log[0].init.body)).toEqual({ generationId: 'gid123' });
+  });
+
+  it('rejects an empty generationId before any fetch', async () => {
+    let called = false;
+    const out = await confirmMeshGeneration('   ', {
+      fetchImpl: async () => { called = true; return okJson({}); },
+      httpBase: 'https://x/mp', token: 't',
+    });
+    expect(out.error).toBe('generation-id-required');
+    expect(called).toBe(false);
+  });
+
+  it('surfaces a payment-required error on a 402', async () => {
+    const out = await confirmMeshGeneration('gid123', {
+      fetchImpl: async () => okJson({ ok: false, error: 'payment required', detail: 'not-settled' }, 402),
+      httpBase: 'https://x/mp', token: 't',
+    });
+    expect(out.ok).toBe(false);
+    expect(out.error).toBe('payment required');
+    expect(out.detail).toBe('not-settled');
+  });
+
+  it('fails with no-session-token when neither injected nor stored', async () => {
+    const out = await confirmMeshGeneration('gid123', {
+      fetchImpl: async () => okJson({}), httpBase: 'https://x/mp',
+    });
+    expect(out.error).toBe('no-session-token');
+  });
+
+  it('fails with no-glb-url when a 200 body omits the URL', async () => {
+    const out = await confirmMeshGeneration('gid123', {
       fetchImpl: async () => okJson({ ok: true }),
       httpBase: 'https://x/mp', token: 't',
     });

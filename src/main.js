@@ -168,7 +168,7 @@ import { renderCharacterForgePanel } from './engine/settings/characterForgePanel
 import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
-import { requestMeshGeneration } from './engine/character/liveMeshGeneration.js';
+import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
 import { inspectGlb } from './engine/character/glbInspect.js';
 import { assessRig } from './engine/character/rigAssessment.js';
 // v0.2.712 (ADR-0078): the Access tab re-surfaces the existing signed kind:30078
@@ -1513,9 +1513,12 @@ const _characterForgeState = {
 // calls the server proxy (Meshy text-to-3d → auto-rig, operator-paid), downloads
 // the rigged GLB, and hands it to _uploadCustomMesh for the validator-first publish.
 const _forgeAIState = {
-  status: 'idle', // 'idle' | 'running' | 'done'
+  status: 'idle', // 'idle' | 'running' | 'payment' | 'done'
   prompt: '',
-  result: null,   // a failure shape (no `.verdict`) when status === 'done'
+  result: null,   // a failure/hint shape when status === 'done' (or a hint during 'payment')
+  invoice: null,      // BOLT11 for the paid path (status === 'payment')
+  amountSats: null,   // the operator's per-generation price in sats
+  generationId: null, // server-side correlation for the confirm step
 };
 
 // _generateAICharacter() — read the prompt box, request a real Meshy character
@@ -1531,24 +1534,27 @@ async function _generateAICharacter() {
   _forgeAIState.prompt = prompt;
   _forgeAIState.result = null;
   _forgeAIState.status = 'running';
+  _forgeAIState.invoice = null;
+  _forgeAIState.amountSats = null;
+  _forgeAIState.generationId = null;
   renderActiveSettingsTab();
 
   const res = await requestMeshGeneration(prompt);
+
+  // Paid path (operator charges): pause on the invoice and wait for payment.
+  if (res && res.requirePayment && res.invoice && res.generationId) {
+    _forgeAIState.status = 'payment';
+    _forgeAIState.invoice = res.invoice;
+    _forgeAIState.amountSats = res.amountSats;
+    _forgeAIState.generationId = res.generationId;
+    renderActiveSettingsTab();
+    return;
+  }
+
+  // Free / operator-paid path: generation already happened server-side.
   if (res && res.ok && res.glbUrl) {
-    let blob = null;
-    try {
-      const dl = await fetch(res.glbUrl);
-      if (dl && dl.ok) blob = await dl.blob();
-    } catch { blob = null; }
-    if (blob && blob.size > 0) {
-      // Same validator-first pipeline as a .glb upload: inspect → assessRig →
-      // headless author → Blossom → publish → seat.
-      _forgeAIState.status = 'idle';
-      _forgeAIState.result = null;
-      renderActiveSettingsTab();
-      await _uploadCustomMesh(blob);
-      return;
-    }
+    const done = await _finishGenerationFromUrl(res.glbUrl);
+    if (done) return;
   }
 
   _forgeAIState.result = { ok: false, message: (res && res.error) || 'Generation failed.' };
@@ -1556,11 +1562,81 @@ async function _generateAICharacter() {
   renderActiveSettingsTab();
 }
 
+// _finishGenerationFromUrl(glbUrl) — download the rigged GLB and hand it to the
+// validator-first upload pipeline (inspect → assessRig → headless author →
+// Blossom → publish → seat). Returns true once the upload path has taken over.
+async function _finishGenerationFromUrl(glbUrl) {
+  let blob = null;
+  try {
+    const dl = await fetch(glbUrl);
+    if (dl && dl.ok) blob = await dl.blob();
+  } catch { blob = null; }
+  if (blob && blob.size > 0) {
+    _forgeAIState.status = 'idle';
+    _forgeAIState.result = null;
+    renderActiveSettingsTab();
+    await _uploadCustomMesh(blob);
+    return true;
+  }
+  return false;
+}
+
+// _payForGeneration() — one-tap WebLN payment when a wallet extension is present.
+async function _payForGeneration() {
+  const wl = (typeof window !== 'undefined') ? (window.webln || null) : null;
+  if (wl && typeof wl.enable === 'function' && typeof wl.sendPayment === 'function') {
+    try {
+      await wl.enable();
+      await wl.sendPayment(_forgeAIState.invoice);
+    } catch {
+      _forgeAIState.result = { ok: false, message: 'Payment failed — is your Lightning wallet unlocked?' };
+      _forgeAIState.status = 'done';
+      renderActiveSettingsTab();
+      return;
+    }
+    await _confirmGeneration();
+    return;
+  }
+  _forgeAIState.result = { ok: false, message: 'No Lightning wallet detected — copy the invoice, pay it from your wallet, then press “I\u2019ve paid”.' };
+  renderActiveSettingsTab();
+}
+
+// _confirmGeneration() — ask the server to verify settlement and run the mesh.
+async function _confirmGeneration() {
+  const gid = _forgeAIState.generationId;
+  if (!gid) return;
+  _forgeAIState.status = 'running';
+  renderActiveSettingsTab();
+  const res = await confirmMeshGeneration(gid);
+  if (res && res.ok && res.glbUrl) {
+    const done = await _finishGenerationFromUrl(res.glbUrl);
+    if (done) return;
+  }
+  if (res && res.error === 'payment required') {
+    _forgeAIState.status = 'payment';
+    _forgeAIState.result = { ok: false, message: 'Payment not detected yet — pay the invoice, then press “I\u2019ve paid”.' };
+  } else {
+    _forgeAIState.status = 'done';
+    _forgeAIState.result = { ok: false, message: (res && res.error) || 'Generation failed.' };
+  }
+  renderActiveSettingsTab();
+}
+
+function _copyGenerationInvoice() {
+  const inv = _forgeAIState.invoice;
+  if (inv && typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(inv).then(() => toastSuccess('Invoice copied.')).catch(() => {});
+  }
+}
+
 // _resetAICharacter() — dismiss the mock flow and return to the create view.
 function _resetAICharacter() {
   _forgeAIState.status = 'idle';
   _forgeAIState.prompt = '';
   _forgeAIState.result = null;
+  _forgeAIState.invoice = null;
+  _forgeAIState.amountSats = null;
+  _forgeAIState.generationId = null;
   renderActiveSettingsTab();
 }
 
@@ -1863,6 +1939,9 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
     if (action === 'generate-ai') { e.preventDefault(); _generateAICharacter(); return; }
+    if (action === 'generate-ai-pay') { e.preventDefault(); _payForGeneration(); return; }
+    if (action === 'generate-ai-confirm') { e.preventDefault(); _confirmGeneration(); return; }
+    if (action === 'generate-ai-copy') { e.preventDefault(); _copyGenerationInvoice(); return; }
     if (action === 'ai-reset') { e.preventDefault(); _resetAICharacter(); return; }
     if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
     if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }

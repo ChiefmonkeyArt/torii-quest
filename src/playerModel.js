@@ -7,7 +7,8 @@ import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
-import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
+import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
+import { buildBoneRebind, retargetClip, collectTrackBoneNames } from './engine/character/animationRetarget.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -143,6 +144,27 @@ const _SIZE = new THREE.Vector3();
 const TARGET_HEIGHT = 1.8;
 const FADE = 0.15;
 
+// _collectSkinnedBones(root) → the distinct bone names of every SkinnedMesh in
+// the loaded scene, in traversal order. This is the TARGET side of the runtime
+// animation retarget (animationRetarget.buildBoneRebind maps library bones onto
+// these). Returns [] for an unrigged/static mesh.
+function _collectSkinnedBones(root) {
+  const names = [];
+  const seen = new Set();
+  if (!root || typeof root.traverse !== 'function') return names;
+  root.traverse((o) => {
+    if (o && o.isSkinnedMesh && o.skeleton && Array.isArray(o.skeleton.bones)) {
+      for (const b of o.skeleton.bones) {
+        if (b && b.name && !seen.has(b.name)) {
+          seen.add(b.name);
+          names.push(b.name);
+        }
+      }
+    }
+  });
+  return names;
+}
+
 // ── Load ──────────────────────────────────────────────────────────────────────
 export async function loadPlayerModel(parentObj) {
   // Remove previous model if switching characters mid-session
@@ -252,21 +274,51 @@ export async function loadPlayerModel(parentObj) {
     if (_rh) setRightHandBone(_rh);
     else console.warn('[playerModel] RightHand bone not found — world gun will not attach');
 
-    // Use character's own clips (no separate library load — chiefmonkey
-    // already uses animation-library.glb as its mesh file, so its clips
-    // are in the correct coordinate system).
+    // Animation source differs by mesh: a built-in character's clips are baked
+    // onto its rig (offline retargeting — every clip name resolves directly); an
+    // UPLOADED custom mesh instead retargets the shared animation-library clips
+    // onto its skeleton at RUNTIME (bone-name remap via the canonical role
+    // contract), so an arbitrary humanoid rig animates without baked clips.
     _mixer = new THREE.AnimationMixer(_root);
     _clips = {};
     _actions = {};
     const availableClips = new Map();
-    gltf.animations.forEach(clip => {
-      // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
-      // which causes visual blips during animation transitions and at
-      // loop boundaries (scale values interpolate through collapse states).
-      const stripped = clip.clone();
-      stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
-      availableClips.set(stripped.name, stripped);
-    });
+
+    if (_customMeshUrl) {
+      try {
+        const library = await loadAnimationLibrary(_loader);   // Map<name, clip>
+        const libBones = collectTrackBoneNames(library);
+        const tgtBones = _collectSkinnedBones(_root);
+        const rebind = buildBoneRebind(libBones, tgtBones);
+        for (const [name, clip] of library) {
+          const retargeted = retargetClip(clip, rebind);
+          if (retargeted && retargeted.tracks.length > 0) availableClips.set(name, retargeted);
+        }
+        if (availableClips.size > 0) {
+          console.log(`[playerModel] retargeted ${availableClips.size} clips onto custom rig (${rebind.size} bones remapped)`);
+        }
+      } catch (err) {
+        console.warn('[playerModel] animation-library retarget failed; falling back to mesh clips:', err);
+        availableClips.clear();
+      }
+    }
+
+    if (availableClips.size === 0) {
+      // Built-in characters, or a custom mesh whose skeleton didn't map: use
+      // the mesh's OWN clips (existing behaviour).
+      gltf.animations.forEach(clip => {
+        // Strip scale tracks — Meshy.ai GLBs include scale on every bone,
+        // which causes visual blips during animation transitions and at
+        // loop boundaries (scale values interpolate through collapse states).
+        const stripped = clip.clone();
+        stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
+        availableClips.set(stripped.name, stripped);
+      });
+      if (_customMeshUrl && availableClips.size === 0) {
+        console.warn('[playerModel] custom mesh has no usable clips — static pose');
+      }
+    }
+
     availableClips.forEach((clip, name) => {
       _clips[name] = clip;
       const a = _mixer.clipAction(clip);

@@ -6,10 +6,13 @@ import {
   createTextTo3D,
   getTask,
   createRigTask,
+  createRemeshTask,
+  getRemeshTask,
   waitForTask,
   riggedGlbUrl,
   generateCharacterGlb,
   MESHY_API_BASE,
+  REMESH_TARGET_POLYCOUNT,
 } from '../server/character/meshyClient.js';
 
 // scriptedFetch(routes, log) → a mock fetch. `routes` is a list of
@@ -48,6 +51,10 @@ const fullHappyRoutes = () => [
     respond: { result: 'refine-1' } },
   { match: (m, p) => m === 'GET' && p === '/v2/text-to-3d/refine-1',
     respond: { id: 'refine-1', status: 'SUCCEEDED', model_urls: { glb: 'https://assets.meshy.ai/r.glb' } } },
+  { match: (m, p) => m === 'POST' && p === '/v1/remesh',
+    respond: { result: 'remesh-1' } },
+  { match: (m, p) => m === 'GET' && p === '/v1/remesh/remesh-1',
+    respond: { id: 'remesh-1', status: 'SUCCEEDED', model_urls: { glb: 'https://assets.meshy.ai/remeshed.glb' } } },
   { match: (m, p) => m === 'POST' && p === '/v1/rigging',
     respond: { result: 'rig-1' } },
   { match: (m, p) => m === 'GET' && p === '/v1/rigging/rig-1',
@@ -95,6 +102,35 @@ describe('createRigTask', () => {
   });
 });
 
+describe('createRemeshTask', () => {
+  it('posts input_task_id + target_polycount (defaults to the roster budget)', async () => {
+    const log = [];
+    const id = await createRemeshTask({ apiKey: 'k', fetch: scriptedFetch([
+      { match: (m, p) => m === 'POST' && p === '/v1/remesh', respond: { result: 'remesh-9' } },
+    ], log), sleep: noSleep }, { inputTaskId: 'refine-1' });
+    expect(id).toBe('remesh-9');
+    const sent = JSON.parse(log[0].body);
+    expect(sent.input_task_id).toBe('refine-1');
+    expect(sent.target_polycount).toBe(REMESH_TARGET_POLYCOUNT);
+    expect(REMESH_TARGET_POLYCOUNT).toBe(90000);
+  });
+
+  it('honours an explicit targetPolycount (and stays under the 320k rig ceiling)', async () => {
+    const log = [];
+    await createRemeshTask({ apiKey: 'k', fetch: scriptedFetch([
+      { match: (m, p) => m === 'POST' && p === '/v1/remesh', respond: { result: 'remesh-9' } },
+    ], log), sleep: noSleep }, { inputTaskId: 'refine-1', targetPolycount: 150000 });
+    const sent = JSON.parse(log[0].body);
+    expect(sent.target_polycount).toBe(150000);
+    expect(sent.target_polycount).toBeLessThan(320000);
+  });
+
+  it('requires an input task id', async () => {
+    await expect(createRemeshTask({ apiKey: 'k', fetch: scriptedFetch([]), sleep: noSleep }, {}))
+      .rejects.toThrow(/inputTaskId/);
+  });
+});
+
 describe('waitForTask', () => {
   it('returns the SUCCEEDED task, polling IN_PROGRESS first', async () => {
     let n = 0;
@@ -131,7 +167,7 @@ describe('riggedGlbUrl', () => {
 });
 
 describe('generateCharacterGlb', () => {
-  it('orchestrates preview → refine → rig and returns the rigged GLB URL', async () => {
+  it('orchestrates preview → refine → remesh → rig and returns the rigged GLB URL', async () => {
     const log = [];
     const url = await generateCharacterGlb(
       { apiKey: 'k', fetch: scriptedFetch(fullHappyRoutes(), log), sleep: noSleep },
@@ -139,19 +175,34 @@ describe('generateCharacterGlb', () => {
       { heightMeters: 1.7 },
     );
     expect(url).toBe('https://assets.meshy.ai/rigged.glb');
-    // sequence: preview POST → preview GET → refine POST → refine GET → rig POST → rig GET
+    // sequence: preview → refine → REMESH → rig (each POST then GET)
     const steps = log.map((c) => `${c.method} ${c.path}`);
     expect(steps).toEqual([
       'POST /v2/text-to-3d', 'GET /v2/text-to-3d/preview-1',
       'POST /v2/text-to-3d', 'GET /v2/text-to-3d/refine-1',
+      'POST /v1/remesh', 'GET /v1/remesh/remesh-1',
       'POST /v1/rigging', 'GET /v1/rigging/rig-1',
     ]);
-    // refine call carries the preview task id (snake_case on the wire); rig call carries refine id
+    // refine carries the preview id; remesh carries the refine id and the roster
+    // poly budget; rig carries the remesh id (NOT the refine id — the decimated model).
     const refineBody = JSON.parse(log[2].body);
     expect(refineBody.preview_task_id).toBe('preview-1');
-    const rigBody = JSON.parse(log[4].body);
-    expect(rigBody.input_task_id).toBe('refine-1');
+    const remeshBody = JSON.parse(log[4].body);
+    expect(remeshBody.input_task_id).toBe('refine-1');
+    expect(remeshBody.target_polycount).toBe(REMESH_TARGET_POLYCOUNT);
+    const rigBody = JSON.parse(log[6].body);
+    expect(rigBody.input_task_id).toBe('remesh-1');
     expect(rigBody.height_meters).toBe(1.7);
+  });
+
+  it('reports each stage through the injected onStage callback', async () => {
+    const stages = [];
+    await generateCharacterGlb(
+      { apiKey: 'k', fetch: scriptedFetch(fullHappyRoutes()), sleep: noSleep },
+      'a cartoon astronaut',
+      { onStage: (s) => stages.push(s) },
+    );
+    expect(stages).toEqual(['preview', 'refine', 'remesh', 'rig', 'done']);
   });
 
   it('throws when rigging succeeds but returns no GLB URL', async () => {
@@ -163,6 +214,17 @@ describe('generateCharacterGlb', () => {
     await expect(generateCharacterGlb(
       { apiKey: 'k', fetch: scriptedFetch(routes), sleep: noSleep }, 'x',
     )).rejects.toThrow(/no rigged GLB URL/);
+  });
+
+  it('throws (fail-closed) when remesh returns no task id', async () => {
+    const routes = fullHappyRoutes().map((r) => (
+      r.match('POST', '/v1/remesh')
+        ? { ...r, respond: {} }
+        : r
+    ));
+    await expect(generateCharacterGlb(
+      { apiKey: 'k', fetch: scriptedFetch(routes), sleep: noSleep }, 'x',
+    )).rejects.toThrow(/remesh did not return a task id/);
   });
 });
 

@@ -176,9 +176,10 @@ function _aiFlowView(ai) {
   const a = (ai && typeof ai === 'object') ? ai : {};
   if (a.status === 'running') {
     return `
-      <div class="cf-ai-flow">
+      <div class="cf-ai-flow cf-ai-running">
+        <div class="cf-ai-spinner" aria-hidden="true"></div>
         <div class="cf-ai-flow-title">Generating character…</div>
-        <div class="cf-ai-flow-hint">Calling Meshy text-to-3D + auto-rig — this can take a minute or two.</div>
+        <div class="cf-ai-flow-hint">Running four Meshy passes (shape → texture → remesh → rig). This typically takes several minutes — please keep this tab open.</div>
       </div>`;
   }
 

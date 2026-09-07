@@ -11,6 +11,13 @@
 
 export const MESHY_API_BASE = 'https://api.meshy.ai/openapi';
 
+// Remesh target for AI characters. Meshy's rigging rejects models over 320k faces, but
+// that ceiling is far above our actual budget: the canonical player character
+// chiefmonkey7.glb is 90,367 triangles / 2.40 MiB, and the whole built-in roster sits
+// ~48k–90k. We decimate to ~90k so a generated character matches the existing mine in
+// render cost, load time, and file size (and comfortably clears the rigging limit).
+export const REMESH_TARGET_POLYCOUNT = 90000;
+
 export const CREATED_STATUSES = { SUCCEEDED: 'SUCCEEDED', FAILED: 'FAILED', CANCELED: 'CANCELED' };
 
 const BACKOFF_BASE = 2000;
@@ -90,6 +97,26 @@ export async function getRigTask(opts, id) {
   return _request(o, `/v1/rigging/${encodeURIComponent(id)}`);
 }
 
+// createRemeshTask(opts, { inputTaskId, targetPolycount }) → the remesh task id.
+// Decimates a SUCCEEDED (textured) text-to-3d task to `targetPolycount` faces so
+// the result clears Meshy's 320k rigging limit and matches the game's poly budget.
+export async function createRemeshTask(opts, { inputTaskId, targetPolycount = REMESH_TARGET_POLYCOUNT } = {}) {
+  const o = _normOpts(opts);
+  if (!inputTaskId) throw new Error('createRemeshTask requires inputTaskId');
+  const body = await _request(o, '/v1/remesh', {
+    method: 'POST',
+    body: JSON.stringify({ input_task_id: inputTaskId, target_polycount: targetPolycount }),
+  });
+  return (body && body.result) || null;
+}
+
+// getRemeshTask(opts, id) → the polled remesh task object.
+export async function getRemeshTask(opts, id) {
+  const o = _normOpts(opts);
+  if (!id) throw new Error('getRemeshTask requires a task id');
+  return _request(o, `/v1/remesh/${encodeURIComponent(id)}`);
+}
+
 // waitForTask(opts, get, id, {timeoutMs, intervalMs}) → the terminal task object.
 // `get` is getTask or getRigTask. Throws on timeout or FAILED/CANCELED. Bounds
 // are explicit (a hung upstream task must not wedge the server request forever).
@@ -122,25 +149,43 @@ export function riggedGlbUrl(task) {
   return cand || null;
 }
 
-// generateCharacterGlb(opts, prompt, { heightMeters }) → the rigged-GLB URL for a
-// HUMAN character from a prompt. Orchestrates preview → refine → rig, polling each
-// to completion. This is the single seam the route calls.
-export async function generateCharacterGlb(opts, prompt, { heightMeters = 1.8 } = {}) {
+// generateCharacterGlb(opts, prompt, { heightMeters, targetPolycount, onStage })
+//   → the rigged-GLB URL for a HUMAN character from a prompt. Orchestrates
+//   preview → refine → REMESH → rig, polling each to completion. The remesh step
+//   (added v0.2.786) decimates the textured model to the game's poly budget before
+//   rigging: Meshy's rigging rejects models over 320k faces (the refine output was
+//   ~1.9M), and the canonical character is ~90k. `onStage(stage)` is an optional
+//   injected progress callback (the route wires it to the server log so an
+//   operator tailing journalctl sees which pass is running).
+export async function generateCharacterGlb(
+  opts, prompt,
+  { heightMeters = 1.8, targetPolycount = REMESH_TARGET_POLYCOUNT, onStage } = {},
+) {
   const o = _normOpts(opts);
+  const stage = (typeof onStage === 'function') ? onStage : () => {};
 
+  stage('preview');
   const previewId = await createTextTo3D(o, { mode: 'preview', prompt });
   if (!previewId) throw new Error('Meshy preview did not return a task id');
   await waitForTask(opts, getTask, previewId);
 
+  stage('refine');
   const refineId = await createTextTo3D(o, { mode: 'refine', previewTaskId: previewId });
   if (!refineId) throw new Error('Meshy refine did not return a task id');
   await waitForTask(opts, getTask, refineId);
 
-  const rigId = await createRigTask(o, { inputTaskId: refineId, heightMeters });
+  stage('remesh');
+  const remeshId = await createRemeshTask(o, { inputTaskId: refineId, targetPolycount });
+  if (!remeshId) throw new Error('Meshy remesh did not return a task id');
+  await waitForTask(opts, getRemeshTask, remeshId);
+
+  stage('rig');
+  const rigId = await createRigTask(o, { inputTaskId: remeshId, heightMeters });
   if (!rigId) throw new Error('Meshy rigging did not return a task id');
   const rigTask = await waitForTask(opts, getRigTask, rigId);
 
   const url = riggedGlbUrl(rigTask);
   if (!url) throw new Error('Meshy rigging succeeded but returned no rigged GLB URL');
+  stage('done');
   return url;
 }

@@ -167,11 +167,11 @@ function _createView() {
     </div>`;
 }
 
-// _aiFlowView(ai) — the "Create with AI" mock flow screen (Step B). Renders the
-// thinking state while ai.status==='running', then the gate verdict when 'done'
-// (accepted / rejected / invalid prompt). Purely presentational: main.js drives
-// the status transitions and wires the "Try again" (ai-reset) action. No real
-// mesh, event, or signing is produced — it is a mock demonstration.
+// _aiFlowView(ai) — the "Create with AI" flow screen. Renders the thinking state
+// while ai.status==='running', the payment sheet while 'payment' (paid character-
+// creation — v0.2.785-alpha), then the gate verdict when 'done'. Purely
+// presentational: main.js drives the status transitions and wires the actions
+// (ai-reset / generate-ai-pay / generate-ai-copy / generate-ai-confirm).
 function _aiFlowView(ai) {
   const a = (ai && typeof ai === 'object') ? ai : {};
   if (a.status === 'running') {
@@ -179,6 +179,24 @@ function _aiFlowView(ai) {
       <div class="cf-ai-flow">
         <div class="cf-ai-flow-title">Generating character…</div>
         <div class="cf-ai-flow-hint">Calling Meshy text-to-3D + auto-rig — this can take a minute or two.</div>
+      </div>`;
+  }
+
+  if (a.status === 'payment') {
+    const amount = Number(a.amountSats) || 0;
+    const hint = (a.result && typeof a.result.message === 'string') ? a.result.message : '';
+    return `
+      <div class="cf-ai-flow cf-ai-payment">
+        <div class="cf-ai-flow-title">Pay to generate</div>
+        <div class="cf-ai-flow-hint">This generation costs ${amount} sats and covers the operator's 3D-generation cost. Pay the invoice below and your character is generated instantly.</div>
+        ${hint ? `<div class="cf-ai-flow-hint cf-ai-pay-hint">${_escape(hint)}</div>` : ''}
+        <textarea class="settings-textarea cf-ai-invoice" rows="3" readonly>${_escape(a.invoice || '')}</textarea>
+        <div class="cf-ai-pay-actions">
+          <button type="button" class="settings-btn settings-btn-primary" data-action="generate-ai-pay">Pay ${amount} sats</button>
+          <button type="button" class="settings-btn" data-action="generate-ai-copy">Copy invoice</button>
+          <button type="button" class="settings-btn" data-action="generate-ai-confirm">I've paid</button>
+        </div>
+        <button type="button" class="settings-btn settings-btn-ghost" data-action="ai-reset">Cancel</button>
       </div>`;
   }
 

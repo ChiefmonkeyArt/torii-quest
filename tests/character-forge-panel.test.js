@@ -41,6 +41,8 @@ describe('renderCharacterForgePanel', () => {
     expect(html).toContain('Chiefmonkey');
     expect(html).toContain('chiefmonkey6');
     expect(html).toContain('Edit stickers');
+    expect(html).toContain('data-action="replace-character"');
+    expect(html).toContain('Replace character');
   });
 
   it('renders the sticker editor in edit mode', () => {

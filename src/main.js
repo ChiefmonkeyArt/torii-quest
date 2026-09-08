@@ -155,7 +155,7 @@ import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
 import { openToriiMenu, closeToriiMenu, isToriiMenuOpen } from './engine/menu/toriiMenu.js';
-import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSettingsTabRenderer, renderActiveSettingsTab } from './engine/settings/settingsPanel.js';
+import { openSettingsPanel, closeSettingsPanel, isSettingsPanelOpen, registerSettingsTabRenderer, renderActiveSettingsTab, getActiveSettingsTab } from './engine/settings/settingsPanel.js';
 import { renderGatewaySetupPanel } from './engine/settings/gatewaySetupPanel.js';
 import { renderHeartbeatPanel } from './engine/settings/heartbeatPanel.js';
 import { renderRelayPanel } from './engine/settings/relayPanel.js';
@@ -1042,10 +1042,13 @@ async function _syncServerBeacon() {
   } finally {
     _beacon.syncing = false;
   }
-  // If the Settings panel is open when the sync completes, repaint so the
-  // Heartbeat tab reflects the fresh state without needing a tab-switch.
+  // If the Settings panel is open on the HEARTBEAT tab when the sync completes,
+  // repaint so the ON/OFF pill reflects the fresh state without a tab-switch.
+  // v0.2.788: gated to the heartbeat tab only — a timer-driven full re-render of
+  // ANY other tab would destroy in-progress input (e.g. the Create-with-AI prompt
+  // textarea, which users reported losing their text a few seconds after typing).
   try {
-    if (isSettingsPanelOpen()) renderActiveSettingsTab();
+    if (isSettingsPanelOpen() && getActiveSettingsTab() === 'heartbeat') renderActiveSettingsTab();
   } catch { /* best-effort */ }
 }
 

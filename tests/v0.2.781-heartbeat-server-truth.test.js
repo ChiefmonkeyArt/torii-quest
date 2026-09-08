@@ -57,10 +57,12 @@ describe('v0.2.781 — server beacon is the honest source of truth for heartbeat
     expect(SRC).toContain('on(EV.NOSTR_LOGIN, _syncServerBeacon);');
   });
 
-  it('repaints the Settings panel when a sync completes while it is open', () => {
-    // Otherwise the Heartbeat pill would stay stale until the operator
-    // manually switched tabs or closed and re-opened the panel.
-    expect(SRC).toMatch(/isSettingsPanelOpen\(\)\s*\)\s*renderActiveSettingsTab\(\);/);
+  it('repaints the Settings panel on sync — gated to the Heartbeat tab only (v0.2.788)', () => {
+    // The Heartbeat pill updates without a tab-switch, but a ~10s timer must NOT
+    // re-render other tabs (that clobbered in-progress input — see
+    // v0.2.788-forge-prompt-preserved). The guard lives in _syncServerBeacon's
+    // repaint block.
+    expect(SRC).toContain("if (isSettingsPanelOpen() && getActiveSettingsTab() === 'heartbeat') renderActiveSettingsTab();");
   });
 
   it('preserves the effectiveHeartbeat server-beacon override in _homepageStubState', () => {

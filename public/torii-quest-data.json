@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.792-alpha",
-  "generatedAt": "2026-09-08T20:34:12.320Z",
+  "version": "v0.2.793-alpha",
+  "generatedAt": "2026-09-08T22:25:42.968Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.792-alpha"
+        "value": "v0.2.793-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 345"
+        "value": "fast 5 · foundation 25 · full 346"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "4119 passing / 345 files"
+        "value": "4123 passing / 346 files"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "21 / 21 regression checks GREEN · last green v0.2.792-alpha"
+        "value": "21 / 21 regression checks GREEN · last green v0.2.793-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 7,
         "label": "Foundation coverage",
-        "sub": "25/345 files"
+        "sub": "25/346 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "not-ready",
     "statusLabel": "NOT READY",
     "ready": false,
-    "version": "v0.2.792-alpha",
-    "gitCommit": "c389e5c6",
+    "version": "v0.2.793-alpha",
+    "gitCommit": "b3d2f862",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.792-alpha / pkg 0.2.792-alpha"
+        "detail": "config v0.2.793-alpha / pkg 0.2.793-alpha"
       },
       {
         "key": "tests",
@@ -235,7 +235,7 @@
         "label": "Docs consistency",
         "state": "blocked",
         "pill": "gated",
-        "detail": "torii-quest-todo.md does not reference current version v0.2.792-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.792-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.792-alpha (doc drift)"
+        "detail": "torii-quest-todo.md does not reference current version v0.2.793-alpha (doc drift); torii-quest-progress.md does not reference current version v0.2.793-alpha (doc drift); torii-quest-handoff.md does not reference current version v0.2.793-alpha (doc drift)"
       }
     ],
     "blockers": [
@@ -255,7 +255,7 @@
     "band": "near",
     "statusLabel": "NEAR · LOCAL GATES",
     "pill": "manual",
-    "version": "v0.2.792-alpha",
+    "version": "v0.2.793-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -263,14 +263,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "4119 passing / 345 files",
+    "testLabel": "4123 passing / 346 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "NOT READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.792-alpha"
+        "value": "v0.2.793-alpha"
       },
       {
         "label": "Release manifest",
@@ -282,7 +282,7 @@
       },
       {
         "label": "Tests",
-        "value": "4119 passing / 345 files"
+        "value": "4123 passing / 346 files"
       },
       {
         "label": "Test profiles",
@@ -402,7 +402,7 @@
     "pill": "no-blocker",
     "status": "approved",
     "approved": true,
-    "version": "v0.2.792-alpha",
+    "version": "v0.2.793-alpha",
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
@@ -412,7 +412,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.792-alpha"
+        "value": "v0.2.793-alpha"
       },
       {
         "label": "Approved by",
@@ -456,7 +456,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 4119 passing / 345 files"
+        "value": "green — 4123 passing / 346 files"
       },
       {
         "label": "Explicit approval",
@@ -564,7 +564,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.792-alpha"
+        "value": "v0.2.793-alpha"
       },
       {
         "label": "Live game",
@@ -741,7 +741,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.792-alpha",
+    "version": "v0.2.793-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

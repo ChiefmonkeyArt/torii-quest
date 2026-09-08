@@ -177,8 +177,24 @@ export async function loadPlayerModel(parentObj) {
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
   try {
-    const meshSrc = _customMeshUrl || assetUrl(char.file);
-    const gltf = await _loader.loadAsync(meshSrc);
+    // v0.2.789: a custom (kind-35100) mesh URL can 404 — e.g. a character whose
+    // Blossom blob was never uploaded (the 'nostrich' preset shipped the hash but
+    // the operator never pushed the GLB). Fall back to the built-in default
+    // character instead of throwing, so a logged-in user with an unruly character
+    // still enters the world (and sees the avatar they always had).
+    let gltf = null;
+    let usedCustomMesh = false;
+    if (_customMeshUrl) {
+      try {
+        gltf = await _loader.loadAsync(_customMeshUrl);
+        usedCustomMesh = true;
+      } catch (err) {
+        console.warn('[playerModel] custom mesh failed to load — falling back to the built-in default:', (err && err.message) || err);
+      }
+    }
+    if (!usedCustomMesh) {
+      gltf = await _loader.loadAsync(assetUrl(char.file));
+    }
     _root = gltf.scene;
 
     // Compute geometry bounding box across both Y and Z axes.
@@ -284,7 +300,7 @@ export async function loadPlayerModel(parentObj) {
     _actions = {};
     const availableClips = new Map();
 
-    if (_customMeshUrl) {
+    if (usedCustomMesh) {
       try {
         const library = await loadAnimationLibrary(_loader);   // Map<name, clip>
         const libBones = collectTrackBoneNames(library);
@@ -314,7 +330,7 @@ export async function loadPlayerModel(parentObj) {
         stripped.tracks = stripped.tracks.filter(t => t.name.endsWith('.scale') === false);
         availableClips.set(stripped.name, stripped);
       });
-      if (_customMeshUrl && availableClips.size === 0) {
+      if (usedCustomMesh && availableClips.size === 0) {
         console.warn('[playerModel] custom mesh has no usable clips — static pose');
       }
     }

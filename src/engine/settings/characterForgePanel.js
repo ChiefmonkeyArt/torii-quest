@@ -25,8 +25,8 @@
 //                 the create view is replaced by _aiFlowView(ai).
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
-// pattern (data-action="check-character" / "upload-mesh" / "generate-ai" /
-// "ai-reset" / "edit-character" / "add-sticker" / "remove-sticker" /
+// pattern (data-action="check-character" / "upload-mesh" / "replace-character" /
+// "generate-ai" / "ai-reset" / "edit-character" / "add-sticker" / "remove-sticker" /
 // "done-edit"). "generate-ai" runs the LOCAL MOCK
 // generation flow (see _aiFlowView below); no real backend or signing is
 // involved yet.
@@ -105,7 +105,10 @@ function _foundView(character, rig) {
       </div>
     </div>
     ${_rigVerdict(rig)}
-    <button type="button" class="settings-btn settings-btn-primary" data-action="edit-character">Edit stickers</button>`;
+    <div class="cf-summary-actions">
+      <button type="button" class="settings-btn settings-btn-primary" data-action="edit-character">Edit stickers</button>
+      <button type="button" class="settings-btn" data-action="replace-character">Replace character</button>
+    </div>`;
 }
 
 // _stickerEditor(stickers, library) — the sticker-placement editor (mode 'edit').

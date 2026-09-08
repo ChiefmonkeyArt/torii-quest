@@ -1838,7 +1838,11 @@ async function _uploadCustomMesh(file) {
       renderActiveSettingsTab();
       return;
     }
-    const meshEntry = { hash: up.sha256, name: (file && file.name) || 'custom.glb' };
+    const fileName = (file && file.name) || 'custom.glb';
+    // Default the character's display name to the uploaded file's stem (e.g.
+    // chiefmonkey7.glb → chiefmonkey7) so a fresh upload isn't left as "Unnamed".
+    const characterName = fileName.replace(/\.glb$/i, '').trim() || 'Custom';
+    const meshEntry = { hash: up.sha256, name: fileName };
 
     // v0.2.767-alpha: author + publish a headless FP-body variant BEFORE the
     // character event is signed, so `manifest.mesh.headlessHash` is present in
@@ -1860,7 +1864,7 @@ async function _uploadCustomMesh(file) {
       mesh: meshEntry,
       clips: [],
       stickers: [],
-      name: '',
+      name: characterName,
       colors: [],
       contrib: [],
     };
@@ -1943,6 +1947,7 @@ registerSettingsTabRenderer('character', () => {
     if (!action) return;
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'replace-character') { e.preventDefault(); _pickCustomMesh(); return; }
     if (action === 'generate-ai') { e.preventDefault(); _generateAICharacter(); return; }
     if (action === 'generate-ai-pay') { e.preventDefault(); _payForGeneration(); return; }
     if (action === 'generate-ai-confirm') { e.preventDefault(); _confirmGeneration(); return; }

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-01
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Related:** ADR-0078 (settings panel), ADR-0091 (Character Forge validator-first), ADR-0094 (server-side presence beacon), ADR-0095 (settings click-propagation fix), `src/engine/settings/*Panel.js`, `src/engine/ui/instanceSettings.js`, `index.html` (`<style>`)
 
 ## Context

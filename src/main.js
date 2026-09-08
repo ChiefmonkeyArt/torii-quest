@@ -766,8 +766,8 @@ function _openHomepageStub() {
 // mode). Direct-navigate to the world's hardened https `website`, tagging the
 // traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
 // reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
-// default path. allowPrivate is gated on the dev/staging domain (localhost /
-// *.pplx.app) so production stays private-host-rejecting.
+// default path. allowPrivate is gated on localhost only, so any real host stays
+// private-host-rejecting.
 //
 // Phase 0c: opts.zoneSlug (a valid NAP-zone slug) is forwarded to buildVisitUrl so
 // the canonical hash route `#/zone/<slug>` is appended — visiting lands in the
@@ -777,7 +777,7 @@ function _gwOpenVisit(world, opts) {
   const allowPrivate = (() => {
     try {
       const h = (typeof location !== 'undefined' && location.hostname) || '';
-      return h === 'localhost' || h.endsWith('.pplx.app');
+      return h === 'localhost';
     } catch { return false; }
   })();
   const zoneSlug = opts && typeof opts.zoneSlug === 'string' ? opts.zoneSlug : null;

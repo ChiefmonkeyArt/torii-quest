@@ -6,7 +6,7 @@
   "result": "pass",
   "version": "v0.2.231-alpha",
   "commit": "aba849c",
-  "dashboardUrl": "https://torii-quest.pplx.app/dashboard.html",
+  "dashboardUrl": "https://chiefmonkey.art/dashboard.html",
   "surface": "dashboard.html",
   "smokedAt": "2026-06-26",
   "smokedBy": "parent-agent cloud-browser smoke",

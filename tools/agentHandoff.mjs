@@ -1,5 +1,5 @@
 // tools/agentHandoff.mjs — PURE, node-safe AGENT HANDOFF READINESS assembly + formatting
-// (v0.2.199). Folds the EXISTING local status signals a NEXT agent — including non-Perplexity
+// (v0.2.199). Folds the EXISTING local status signals a NEXT agent — including other
 // tools (DeepSeek / Perplexica / Routstr-style handoffs) — needs to continue the safe MVP
 // pipeline WITHOUT reading the entire repo: current version, live URL, the gate verdict, test
 // counts, the latest reports, the standing hard constraints, the recommended next SAFE task,
@@ -206,7 +206,7 @@ export function formatAgentHandoff(handoff) {
 }
 
 // formatAgentHandoffMarkdown(handoff) → a markdown export suitable for HANDOFF.generated.md.
-// Pure. This is the artifact a non-Perplexity agent reads to continue without the whole repo.
+// Pure. This is the artifact a other agent reads to continue without the whole repo.
 export function formatAgentHandoffMarkdown(handoff) {
   if (!handoff || typeof handoff !== 'object') return '# Agent handoff\n\n_(no handoff)_\n';
   const g = handoff.gate || {};

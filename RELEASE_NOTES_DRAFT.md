@@ -4,7 +4,7 @@
 > generated: 2026-06-26T18:29:11.820Z
 
 - **Version:** v0.2.232-alpha @ aba849c (source)
-- **Live:** https://torii-quest.pplx.app
+- **Live:** https://chiefmonkey.art
 - **Release candidate:** YES (READY, 100%)
 - **MVP readiness:** 100% · READY
 

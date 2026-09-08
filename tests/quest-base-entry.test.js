@@ -1,6 +1,6 @@
 // tests/quest-base-entry.test.js — emitted deploy-base contracts.
 //
-// The Suite mounts Torii Quest at `/quest/`, and the private deploy_website
+// The Suite mounts Torii Quest at `/quest/`, and the deploy tool
 // preview serves the bundle under an arbitrary sub-path (unknown at build
 // time). Real production builds therefore emit the versioned entry-import
 // graph as RELATIVE specifiers so it resolves correctly at root, `/quest/`,

@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 // The CSP ships as an HTTP RESPONSE HEADER, never a <meta> tag. It is emitted in three
 // places, all derived from CSP_VALUE here so they cannot drift:
 //   1. dist/_headers  — written at build by the vite plugin; honoured by the static host
-//      (S3 / torii-quest.pplx.app, Netlify/Cloudflare-style `_headers`).
+//      (S3 / chiefmonkey.art, Netlify/Cloudflare-style `_headers`).
 //   2. the Vite preview server (production-parity local serving).
 //   3. the Caddy / Nginx server blocks documented in VPS_INSTALL.md (VPS deploy path).
 //
@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-GkMa8bcCU6i8p+h5dVKkdFxnhRh6qZPFtU4vp53Je/A=";
+export const INLINE_SCRIPT_SHA256 = "sha256-h/i+/b/aAqJC0/qETDIF8PqLDiVVWRIFneohv95V8as=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;

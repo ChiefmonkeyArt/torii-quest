@@ -10,9 +10,9 @@
 // the pure byte formatter from bundleSizes.mjs.
 import { formatBytes } from './bundleSizes.mjs';
 
-// The live instance (a Perplexity Space). Deploy is a separate manual maintainer step — this
+// The live instance (a self-hosted VPS). Deploy is a separate manual maintainer step — this
 // is display text for the handoff, NOT a fetched/navigated URL.
-export const LIVE_URL = 'https://torii-quest.pplx.app';
+export const LIVE_URL = 'https://chiefmonkey.art';
 
 // The cross-model handoff / source-of-truth docs a new agent should read first. Presence is
 // reported so a handoff immediately sees if one is missing.

@@ -2,7 +2,7 @@
 
 - **Status**: Accepted (retroactive — written after ship, per standing ADR policy)
 - **Date**: 2026-08-26
-- **Deciders**: chiefmonkey (maintainer), Perplexity Computer (agent)
+- **Deciders**: chiefmonkey (maintainer), Computer (agent)
 - **Related**: Builds on ADR-0065 (the Docker installer, now demoted). Scoped entirely to the `torii-quest` repo — no runtime dependency on `torii-suite`. Reuses the terminal UX from `install/lib/ui.sh` + `install/lib/run.sh` (already vendored in ADR-0065) as read-only libraries, not a new dependency.
 
 ## Context

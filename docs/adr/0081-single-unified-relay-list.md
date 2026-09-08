@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-28
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Supersedes (partially):** ADR-0076's rationale for splitting relay lists by
   "public vs. Torii-ecosystem" trust. ADR-0076's *default relay set* and its
   per-action opt-in gates (heartbeat, gamestr, access settings) are preserved

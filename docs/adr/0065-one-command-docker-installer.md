@@ -2,7 +2,7 @@
 
 - **Status**: Accepted (retroactive — written after ship, per standing ADR policy)
 - **Date**: 2026-08-26
-- **Deciders**: chiefmonkey (maintainer), Perplexity Computer (agent)
+- **Deciders**: chiefmonkey (maintainer), Computer (agent)
 - **Related**: Scoped entirely to the `torii-quest` repo — does not modify or depend on `torii-suite`/`bootstrap.sh`. Borrows terminal-UX style (colourful boxes/spinners) from `torii-suite`'s `bootstrap.sh`/`ui.sh`/`run.sh` as read-only reference, not a shared dependency.
 
 ## Context

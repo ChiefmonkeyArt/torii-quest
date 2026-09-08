@@ -6,7 +6,7 @@
 - **Verdict:** NEAR
 - **Version:** v0.2.232-alpha @ aba849c (source)
 - **package.json:** 0.2.232-alpha
-- **Live:** https://torii-quest.pplx.app
+- **Live:** https://chiefmonkey.art
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@
 - ✓ Release notes draft present (RELEASE_NOTES_DRAFT.md) — _ok_: RELEASE_NOTES_DRAFT.md present
 - ✓ Release package index present (MVP_RELEASE_PACKAGE.md) — _ok_: MVP_RELEASE_PACKAGE.md present
 - ? Tests + RC gate green (npm run test:release) — _unknown_: run npm run test:release to confirm
-- ✓ Public live URL known — _ok_: https://torii-quest.pplx.app
+- ✓ Public live URL known — _ok_: https://chiefmonkey.art
 - ✓ Release metadata non-actionable (no autoUpdate) — _ok_: metadata non-actionable
 
 ## Missing / not-yet-satisfied

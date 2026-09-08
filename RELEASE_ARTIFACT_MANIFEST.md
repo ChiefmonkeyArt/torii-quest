@@ -6,7 +6,7 @@
 - **Status:** COMPLETE
 - **Version:** v0.2.232-alpha @ aba849c (source)
 - **Package version:** 0.2.232-alpha
-- **Live (manual deploy):** https://torii-quest.pplx.app
+- **Live (manual deploy):** https://chiefmonkey.art
 - **Coverage:** 6/6 required present · 6/6 optional present · 12 hashed
 
 ## Required artifacts

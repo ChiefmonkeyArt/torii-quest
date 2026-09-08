@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-01
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Related:** ADR-0077 (client-side auto-on — this supersedes its "deferred" note), ADR-0081 (single unified relay list), `server/arena-ws.js`, `server/kami/kamiNostr.js` (`publishEventToRelay`), `src/engine/gateway/worldPresence.js` (`buildPresenceEvent`), `src/engine/gateway/gatewayRead.js`, `src/engine/presence/heartbeat.js`, `src/main.js` (`_heartbeatTick`)
 
 ## Context

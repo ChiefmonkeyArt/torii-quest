@@ -4,7 +4,7 @@ An open-world arena shooter built on [Nostr](https://nostr.com) and Bitcoin.
 
 **Sats. Shots. Sovereignty.**
 
-🎮 **Play now:** [torii-quest.pplx.app](https://torii-quest.pplx.app)
+🎮 **Play now:** [chiefmonkey.art](https://chiefmonkey.art)
 
 ---
 
@@ -36,7 +36,7 @@ The game is a gateway to a decentralised open world powered by the Nostr protoco
 | Payments | Bitcoin / ecash (fake sats in alpha) |
 | Build | Vite 8 |
 | 3D Models | Blender → glTF/GLB (Draco compressed) |
-| Deployment | pplx.app |
+| Deployment | self-hosted VPS (chiefmonkey.art) |
 
 ## Controls
 

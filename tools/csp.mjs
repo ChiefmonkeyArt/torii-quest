@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-h/i+/b/aAqJC0/qETDIF8PqLDiVVWRIFneohv95V8as=";
+export const INLINE_SCRIPT_SHA256 = "sha256-1QcVJg5wavLJvXB68TG4Ifm4Zer7ZBblKpTly2CwMLA=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -75,18 +75,20 @@ export const CSP_DIRECTIVES = [
 export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");
 
 // The exact dynamic-import line the build plugin appends to the trusted inline bootstrap.
-// v0.2.285: a per-build cache-bust query is appended so Cloudflare's edge cache (4h)
-// can never serve a stale entry that points at a dead/old chunk hash after a publish.
-// The query is filled in by the plugin at build time; this constant is the dev fallback.
+// v0.2.791-alpha: the entry is now CONTENT-HASHED (torii-entry-[hash].js) and the old
+// `?v=<timestamp>` cache-bust query is gone — the hash in the filename IS the cache-bust
+// (a stale cached chunk can only reference an old, now-404 entry file). The real hashed
+// filename is filled in by the plugin at build time; this constant is the dev/root-fallback
+// representation with a literal `[hash]` token mirroring vite.config.js `entryFileNames`.
 // v0.2.773-alpha: keep in lockstep with the vite build injection
-// (vite.config.js `versionedImportLine`). The `__toriiShellImported` guard
+// (vite.config.js `entryImportLine`). The `__toriiShellImported` guard
 // prevents duplicate entry `import()` calls when a stale SW cache serves an
-// older versioned entry alongside the fresh one — protects against the
+// older entry alongside the fresh one — protects against the
 // duplicate-self / strobing regression the v0.2.773 shell + module guards
 // close. Any bit-level change here shifts the sha256 that pins the trusted
 // inline bootstrap; INLINE_SCRIPT_SHA256 above MUST be updated in the same
 // commit or the CSP will block the bootstrap and the page will be dead.
-export const ENTRY_IMPORT_LINE = "  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('/assets/torii-entry.js'); }";
+export const ENTRY_IMPORT_LINE = "  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('./assets/torii-entry-[hash].js'); }";
 
 // Build a CSP value whose script-src carries the GIVEN inline-script sha (used at build
 // time so the emitted _headers always matches the actual emitted inline bootstrap).

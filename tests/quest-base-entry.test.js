@@ -2,15 +2,19 @@
 //
 // The Suite mounts Torii Quest at `/quest/`, and the deploy tool
 // preview serves the bundle under an arbitrary sub-path (unknown at build
-// time). Real production builds therefore emit the versioned entry-import
-// graph as RELATIVE specifiers so it resolves correctly at root, `/quest/`,
-// AND any preview sub-path — no build-time base knowledge is needed. A
-// root-absolute regression (`/assets/torii-entry.js`) would 404 under the
-// sub-path deploy and ship a dead bundle. The inline bootstrap (in index.html,
-// depth 0) uses `./assets/torii-entry.js?v=<stamp>`; every chunk back-reference
-// (in /assets/, depth 1) uses `./torii-entry.js?v=<stamp>` (peer-relative). Both
-// forms resolve to the same versioned entry module, so the browser dedupes to
-// one fresh fetch (CDN edge-cache busting still works via the shared `?v=`).
+// time). Real production builds therefore emit the entry-import graph as
+// RELATIVE specifiers so it resolves correctly at root, `/quest/`, AND any
+// preview sub-path — no build-time base knowledge is needed. A root-absolute
+// regression (`/assets/torii-entry-<hash>.js`) would 404 under the sub-path
+// deploy and ship a dead bundle.
+//
+// v0.2.791-alpha: the entry is CONTENT-HASHED (`torii-entry-<hash>.js`) and the
+// per-build `?v=<timestamp>` query is gone. The inline bootstrap (in index.html,
+// depth 0) imports `./assets/torii-entry-<hash>.js`; every chunk back-reference
+// (in /assets/, depth 1) imports `./torii-entry-<hash>.js` (peer-relative, emitted
+// by the bundler). Both forms resolve to the SAME content-hashed entry filename, so
+// the browser fetches one immutable module and a stale cached chunk can only point at
+// an old, now-404 entry file — never re-evaluate the fresh entry.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
@@ -27,9 +31,9 @@ const QUEST_OUT = join(ROOT, '.tmp-quest-base-build');
 const QUEST_BASE = '/quest/';
 const VITE = join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js');
 
-// Every specifier that targets the pinned entry chunk, from the inline bootstrap
-// and from each chunk's back-reference import.
-const ENTRY_URL_RE = /['"]([^'"]*torii-entry\.js\?v=[^'"]*)['"]/g;
+// Every specifier that targets the content-hashed entry chunk, from the inline
+// bootstrap and from each chunk's back-reference import.
+const ENTRY_URL_RE = /['"]([^'"]*torii-entry-[A-Za-z0-9_-]+\.js)['"]/g;
 
 function collectEntryUrls(text) {
   return [...text.matchAll(ENTRY_URL_RE)].map((m) => m[1]);
@@ -124,11 +128,11 @@ afterAll(() => {
   rmSync(QUEST_OUT, { recursive: true, force: true });
 });
 
-describe('quest-base entry-import — every torii-entry URL is relative + versioned (root, /quest/, and arbitrary sub-path safe)', () => {
+describe('quest-base entry-import — every torii-entry URL is relative + content-hashed (root, /quest/, and arbitrary sub-path safe)', () => {
   it('the inline bootstrap imports the entry via a relative ./assets/ path', () => {
     const urls = collectEntryUrls(questBuild.indexHtml);
     expect(urls.length).toBe(1);
-    expect(urls[0]).toMatch(/^\.\/assets\/torii-entry\.js\?v=/);
+    expect(urls[0]).toMatch(/^\.\/assets\/torii-entry-[A-Za-z0-9_-]+\.js$/);
     // No root-absolute regression: the inline bootstrap must NOT point at
     // '/assets/...' (404s under a sub-path deploy) NOR carry a deploy base
     // prefix like '/quest/assets/...' (also 404s under a different sub-path).
@@ -140,42 +144,44 @@ describe('quest-base entry-import — every torii-entry URL is relative + versio
     expect(all.length).toBeGreaterThan(0);
     for (const url of all) {
       // Relative form only — never root-absolute '/...' (404s under sub-path)
-      // nor base-prefixed '/quest/...' (404s under a different sub-path).
+      // nor base-prefixed '/quest/...' (404s under a different sub-path). Rolldown
+      // emits three valid relative forms: './assets/…' (inline bootstrap), './…'
+      // (chunk peer back-reference), and bare 'assets/…' (the runtime chunk registry).
       expect(url.startsWith('/')).toBe(false);
-      expect(url).toMatch(/^\.\/(assets\/)?torii-entry\.js\?v=/);
+      expect(url).toMatch(/^(\.\/)?(assets\/)?torii-entry-[A-Za-z0-9_-]+\.js$/);
     }
   });
 
-  it('the arenaRuntime chunk back-references the entry via a relative ./torii-entry.js path', () => {
+  it('the arenaRuntime chunk back-references the entry via a relative ./torii-entry path', () => {
     expect(questBuild.arenaChunk.length).toBeGreaterThan(0);
     const urls = collectEntryUrls(questBuild.arenaChunk);
     expect(urls.length).toBeGreaterThanOrEqual(1);
     for (const url of urls) {
-      // Chunks live in /assets/, so the peer-relative form is './torii-entry.js'.
-      expect(url).toMatch(/^\.\/torii-entry\.js\?v=/);
+      // Chunks live in /assets/, so the peer-relative form is './torii-entry-<hash>.js'.
+      expect(url).toMatch(/^\.\/torii-entry-[A-Za-z0-9_-]+\.js$/);
       expect(url.startsWith('/')).toBe(false);
     }
   });
 
-  it('the inline bootstrap and every chunk share one ?v= stamp (one versioned entry graph)', () => {
+  it('the inline bootstrap and every chunk share ONE content-hashed entry filename', () => {
     const htmlUrls = collectEntryUrls(questBuild.indexHtml);
     const chunkUrls = questBuild.chunkUrls;
     const all = [...htmlUrls, ...chunkUrls];
     expect(all.length).toBeGreaterThanOrEqual(2);
-    // The HTML ('./assets/torii-entry.js?v=X') and chunk ('./torii-entry.js?v=X')
-    // forms are intentionally DIFFERENT strings (different depth) but MUST share
-    // the same cache-bust stamp so the browser dedupes to one fresh entry fetch.
-    const stamps = new Set(all.map((url) => url.match(/\?v=([^"']*)/)[1]));
-    expect(stamps.size).toBe(1);
-    // Every specifier targets the same pinned entry filename + is versioned.
+    // The HTML ('./assets/torii-entry-<hash>.js') and chunk ('./torii-entry-<hash>.js')
+    // forms are intentionally DIFFERENT strings (different depth) but MUST share the
+    // same content-hashed basename so the browser fetches one immutable entry module.
+    const baseNames = new Set(all.map((url) => url.split('/').pop()));
+    expect(baseNames.size).toBe(1);
+    // Every specifier targets the same content-hashed entry filename.
     for (const url of all) {
-      expect(url).toMatch(/torii-entry\.js\?v=/);
+      expect(url).toMatch(/torii-entry-[A-Za-z0-9_-]+\.js$/);
     }
   });
 
   it('no static entry script tag survives', () => {
     expect(existsSync(join(QUEST_OUT, 'index.html'))).toBe(true);
-    expect(questBuild.indexHtml).not.toMatch(/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/);
+    expect(questBuild.indexHtml).not.toMatch(/<script\b[^>]*\bsrc=["'][^"']*torii-entry-[A-Za-z0-9_-]+\.js["']/);
   });
 });
 

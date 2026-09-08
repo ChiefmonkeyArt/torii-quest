@@ -43,11 +43,15 @@ describe('v0.2.792 — "Replace character" re-upload path', () => {
     expect(src).toContain('_pickCustomMesh()');
   });
 
-  it('main.js defaults the uploaded character name to the file stem', () => {
+  it('main.js writes the uploaded manifest with a characterName (not a fixed empty string)', () => {
+    // v0.2.792 introduced the characterName variable + non-empty manifest.name.
+    // v0.2.793 changed the SOURCE of that name from the file stem to the
+    // player's Nostr profile name; that source is locked in v0.2.793-regression.
+    // Here we only lock the invariant this ship established: the manifest name
+    // is a computed characterName, no longer a fixed empty string.
     const src = stripComments(SRC.main);
     expect(src).toContain('characterName');
-    expect(src).toContain('fileName.replace(');
-    expect(src).toContain('name: characterName,'); // manifest name no longer fixed to ''
+    expect(src).toContain('name: characterName,');
   });
 
   it('index.html carries the actions-row layout style', () => {

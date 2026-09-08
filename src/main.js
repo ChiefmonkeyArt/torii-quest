@@ -1839,9 +1839,15 @@ async function _uploadCustomMesh(file) {
       return;
     }
     const fileName = (file && file.name) || 'custom.glb';
-    // Default the character's display name to the uploaded file's stem (e.g.
-    // chiefmonkey7.glb → chiefmonkey7) so a fresh upload isn't left as "Unnamed".
-    const characterName = fileName.replace(/\.glb$/i, '').trim() || 'Custom';
+    // v0.2.793-alpha: default the character's display name to the player's own
+    // Nostr display name (kind:0 `name`/`display_name`, already sanitised into
+    // state.nostrName at login by nostr.js). Falls back to the npub's short
+    // pubkey slice when the profile is empty, then to 'Custom' for guests.
+    // The uploaded file name is intentionally NOT used — a character is named
+    // after the person, not the file.
+    const characterName = (state.nostrName && String(state.nostrName).trim())
+      || (state.nostrPubkey && String(state.nostrPubkey).slice(0, 8).toUpperCase())
+      || 'Custom';
     const meshEntry = { hash: up.sha256, name: fileName };
 
     // v0.2.767-alpha: author + publish a headless FP-body variant BEFORE the

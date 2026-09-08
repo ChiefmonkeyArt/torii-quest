@@ -452,7 +452,6 @@ sudo truncate -s 0 /var/log/torii-quest-update.log && sudo torii-deploy v0.2.603
 - Repo: `https://github.com/ChiefmonkeyArt/torii-quest.git`
 - Live URL: https://chiefmonkey.art/quest/
 - VPS: the Torii Suite host (chiefmonkey.art)
-- SSH key NOT available from sandbox — print deploy command for user to run manually
 - dist/ is in .gitignore — VPS builds from source via `npm run build`
 - Service worker: network-first for JS/CSS/HTML, cache-first for GLBs/images/fonts
 

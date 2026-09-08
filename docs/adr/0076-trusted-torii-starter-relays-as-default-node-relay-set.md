@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Related:** ADR-0067 (leaderboard relay trim), `src/engine/presence/nodeRelays.js`, `src/engine/settings/relayPanel.js`, `src/main.js` (`_nodeRelaysForPublish`, `_homepageStubState`)
 
 ## Context

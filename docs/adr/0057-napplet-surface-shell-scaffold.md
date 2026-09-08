@@ -4,7 +4,7 @@
 
 ## Context
 
-Torii's napplet architecture ([torii-napplet-architecture](https://www.perplexity.ai/projects/torii-8qN21IWsQ7.yuEGH9oNihw)) turns Quest into a trusted host shell for
+Torii's napplet architecture (torii-napplet-architecture) turns Quest into a trusted host shell for
 independently distributed Nostr applets. The v0 design is split into three capability
 contracts — `nap-torii-world` (in-world surface napplets), `nap-torii-game` (game
 napplets that own their scene), `nap-torii-avatar` (character read/write). Three NAP

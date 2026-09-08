@@ -2,7 +2,7 @@
 
 **Status:** Accepted · **Date:** 2026-08-30
 **Deciders:** chiefmonkey
-**Related:** ADR-0057 (world surface shell), ADR-0058 (product panel conversion), ADR-0083 (avatar shell), [nap-torii-game v0](https://www.perplexity.ai/computer/tasks/340057be-94d5-4511-b671-081be607f69c)
+**Related:** ADR-0057 (world surface shell), ADR-0058 (product panel conversion), ADR-0083 (avatar shell), nap-torii-game v0
 
 ## Context
 

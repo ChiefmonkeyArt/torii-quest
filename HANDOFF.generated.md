@@ -6,7 +6,7 @@
 
 - **Version:** v0.2.233-alpha (pkg 0.2.233-alpha)
 - **Source commit:** f05f4cd (source commit at generation — precedes this file's own commit)
-- **Live (manual deploy):** https://torii-quest.pplx.app
+- **Live (manual deploy):** https://chiefmonkey.art
 - **MVP readiness:** 100% · READY (9/9 signals)
 - **Gate verdict:** READY (READY)
 - **Regression:** 15 / 15 checks

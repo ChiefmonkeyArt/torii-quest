@@ -2,7 +2,7 @@
 
 **Status:** Accepted · **Date:** 2026-08-30
 **Deciders:** chiefmonkey
-**Related:** ADR-0057 (world surface shell), ADR-0082 (game host shell), [nap-torii-avatar v0](https://www.perplexity.ai/computer/tasks/340057be-94d5-4511-b671-081be607f69c)
+**Related:** ADR-0057 (world surface shell), ADR-0082 (game host shell), nap-torii-avatar v0
 
 ## Context
 

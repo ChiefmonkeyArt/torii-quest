@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-26
-- **Deciders**: chiefmonkey (maintainer), Perplexity Computer (agent)
+- **Deciders**: chiefmonkey (maintainer), Computer (agent)
 - **Related**: Builds on the Phase 0f/0h gamestr work (`gamestrScore.js`, `gamestrLeaderboard.js`, `gamestrPublisher.js`). No relay-client code changes — only the relay URL lists and the CSP `connect-src` that gates them.
 
 ## Context

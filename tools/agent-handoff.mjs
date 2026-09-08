@@ -1,6 +1,6 @@
 // tools/agent-handoff.mjs — local, read-only AGENT HANDOFF READINESS export CLI (v0.2.199).
 // Run with: node tools/agent-handoff.mjs  (or: npm run handoff:agent).
-// Produces the agent-friendly handoff a NEXT agent/model — including non-Perplexity tools
+// Produces the agent-friendly handoff a NEXT agent/model — including other tools
 // (DeepSeek / Perplexica / Routstr-style handoffs) — needs to continue the safe MVP pipeline
 // WITHOUT reading the whole repo: version, live URL, gate verdict, test counts, latest reports,
 // the standing hard constraints, the next SAFE task, the pure smoke-harness inventory, and the

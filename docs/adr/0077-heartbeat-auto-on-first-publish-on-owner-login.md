@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Related:** ADR-0076 (trusted starter relays), ADR-0068 (original consent-gated heartbeat), `src/main.js` (`_heartbeatTick`), `src/engine/presence/heartbeat.js` (`isHeartbeatDue`), `src/engine/settings/heartbeatPanel.js`
 
 ## Context

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-01
-- **Deciders:** chiefmonkey (+ Perplexity Computer agent)
+- **Deciders:** chiefmonkey (+ Computer agent)
 - **Related:** ADR-0078 (settings panel + Access tab), `src/engine/settings/settingsPanel.js`, `src/main.js` (`_wireSettingsContentDelegation`), `tests/settings-panel-click.test.js`
 
 ## Context

@@ -21,8 +21,8 @@ import { MP_WS_PATH } from '../../config.js';
 export const SESSION_TOKEN_KEY = 'tq.mp.sessionToken';
 export const LOGIN_EVENT_KIND  = 27235; // NIP-98 HTTP Auth
 
-// PORT_SENTINEL: deploy_website rewrites __PORT_5000__ → 'port/5000' at upload
-// time (pplx sandbox). Mirrors multiplayerHost.resolveUrl so the HTTP base and
+// PORT_SENTINEL: the deploy tool rewrites __PORT_5000__ → 'port/5000' at upload
+// time (hosted sandbox). Mirrors multiplayerHost.resolveUrl so the HTTP base and
 // the WS URL always share the same mount prefix.
 const PORT_SENTINEL = '__PORT_5000__';
 

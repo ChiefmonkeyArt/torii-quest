@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-26
-- **Deciders**: chiefmonkey (maintainer), Perplexity Computer (agent)
+- **Deciders**: chiefmonkey (maintainer), Computer (agent)
 - **Related**: Supersedes the two-step K entry documented in [ADR-0029](./0029-kami-mode-state-machine.md); extends the instant-post behaviour of [ADR-0042](./0042-ema-instant-post-on-enter.md). Builds on the in-game HUD work of [ADR-0031](./0031-kami-mode-hotkey-bare-key.md) and [ADR-0034](./0034-second-kami-press-highlights-note.md).
 
 ## Context

@@ -39,7 +39,7 @@ const ENTRY_IMPORT_RE = /(from\s*["'])([.\w/-]*\/assets\/torii-entry\.js|[.]+\/t
 
 // v0.2.370-alpha → preview-basepath fix: the pinned-entry URL is now RELATIVE so
 // the bundle loads at root `/`, the Suite `/quest/` mount, AND any arbitrary
-// deploy_website preview sub-path (unknown at build time). Relative specifiers
+// the deploy tool preview sub-path (unknown at build time). Relative specifiers
 // resolve against the document/chunk URL, so no build-time base knowledge is
 // needed. The cache-bust `?v=<stamp>` query is preserved on both forms.
 //

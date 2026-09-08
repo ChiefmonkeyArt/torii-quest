@@ -88,16 +88,15 @@ export function createMultiplayerHost(deps) {
   };
 
   function resolveUrl() {
-    // MP-1.5: pplx.app sandbox port-forward sentinel. deploy_website rewrites
-    // __PORT_5000__ → 'port/5000' at S3 upload time; local dev keeps the literal
+    // MP-1.5: hosted-sandbox port-forward sentinel. The deploy tool rewrites
+    // __PORT_5000__ → 'port/5000' at upload time; local dev keeps the literal
     // sentinel and we fall through to same-origin (VPS/dev shape wss://host/mp).
-    // See skills/website-building/shared/19-backend.md.
     const PORT_SENTINEL = '__PORT_5000__';
     const rewritten = !PORT_SENTINEL.startsWith('__');
     const wsPath = rewritten ? `/${PORT_SENTINEL}${MP_WS_PATH}` : MP_WS_PATH;
 
     if (typeof origin === 'string' && origin.length > 0) return `wss://${origin}${wsPath}`;
-    // Browser path: same origin, wss guaranteed for pplx.app / any HTTPS host.
+    // Browser path: same origin, wss guaranteed for any HTTPS host.
     if (typeof globalThis !== 'undefined' && globalThis.location && globalThis.location.host) {
       return `wss://${globalThis.location.host}${wsPath}`;
     }

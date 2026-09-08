@@ -7,7 +7,7 @@
 > maintainer publishes the static `dist/` bundle to `torii.quest` (or any static host).
 >
 > **v0.2.243 update — trailing-slash directory-index shell (renderable).** The live host
-> (`torii-quest.pplx.app`) serves by EXACT path with NO SPA rewrite and NO backend, so a
+> (`chiefmonkey.art`) serves by EXACT path with NO SPA rewrite and NO backend, so a
 > host-level `try_files … /index.html` rule (§2) is NOT available there. The v0.2.242
 > EXTENSIONLESS file `dist/zone/<slug>` made the exact no-slash URL return bytes, but the host
 > infers Content-Type from file EXTENSION, so it served the extensionless file as
@@ -28,8 +28,8 @@
 > default behaviour and is unverifiable locally — confirm via a live re-smoke after publish.
 >
 > **v0.2.244 update — canonical route is now the URL FRAGMENT `/#/zone/<slug>` (no shell on
-> pplx.app).** The live rendered screenshot of `/zone/plebeian-market-bazaar/` STILL showed the
-> JSON 404, confirming the published host (`torii-quest.pplx.app`) normalises BOTH `/zone/<slug>`
+> the static host).** The live rendered screenshot of `/zone/plebeian-market-bazaar/` STILL showed the
+> JSON 404, confirming the published host (`chiefmonkey.art`) normalises BOTH `/zone/<slug>`
 > AND `/zone/<slug>/` to an exact static-asset lookup with no directory index — so the v0.2.243
 > directory-index shell 404d too and EVERY `/zone/*` PATH strategy is non-viable on this host.
 > Only the root `/` reliably serves `index.html` as `text/html`. v0.2.244 therefore moves the
@@ -39,9 +39,9 @@
 > any more** — the build step and `tools/zoneShells.mjs` / `tools/generate-zone-shells.mjs` were
 > removed, and the dist ships NO `/zone/*` file (so §7 below is historical). The legacy
 > `/zone/<slug>` path still PARSES client-side (normalised to the canonical hash route) but is
-> NON-CANONICAL on pplx.app — never generate/share it as a cold deep-link, because it 404s before
+> NON-CANONICAL on chiefmonkey.art — never generate/share it as a cold deep-link, because it 404s before
 > the bundle loads. The `index.html` SPA-fallback documented below remains the right model for any
-> non-pplx host that supports a `try_files … /index.html` rewrite, and is kept for that case.
+> non-exact-path host that supports a `try_files … /index.html` rewrite, and is kept for that case.
 >
 > See also: `torii-quest-handoff.md` §7 (the SPA-rewrite note), `VPS_INSTALL.md` §6a/§6b/§11 (the
 > concrete Caddy/Nginx config), `GATEWAY_PROTOCOL.md`, and `UPDATE_CHECK.md` §4 (the
@@ -68,7 +68,7 @@ There are two ways to satisfy the cold hit, and the repo now ships BOTH where ap
 1. **Host-level SPA fallback** (`try_files … /index.html`) on a host that supports rewrites
    (self-hosted Caddy/Nginx, §2). Preferred when available.
 2. **Static per-zone shells** (v0.2.243) for an exact-path host with no rewrite capability
-   (the live `torii-quest.pplx.app`). The build copies `dist/index.html` byte-for-byte to the
+   (the live `chiefmonkey.art`). The build copies `dist/index.html` byte-for-byte to the
    directory-index file `dist/zone/<slug>/index.html` for every `DEPLOYABLE_ZONE_SLUGS` entry,
    so the canonical trailing-slash URL `/zone/<slug>/` resolves to that nested `.html` file via
    directory-index resolution and is served as renderable `text/html`. `dist/index.html` uses
@@ -196,7 +196,7 @@ contract narrative lives in `VPS_INSTALL.md` §15.
 
 ## 7. Static per-zone shells (v0.2.243) — the trailing-slash directory-index workaround
 
-The live host `torii-quest.pplx.app` serves by EXACT path with NO SPA rewrite and NO backend.
+The live host `chiefmonkey.art` serves by EXACT path with NO SPA rewrite and NO backend.
 v0.2.242 made the exact no-slash URL `/zone/<slug>` a real file by writing an EXTENSIONLESS
 shell at `dist/zone/<slug>`. That removed the JSON 404, but the host infers `Content-Type` from
 the file EXTENSION, so the extensionless file was served as `application/octet-stream`: a real

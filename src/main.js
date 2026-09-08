@@ -1,9 +1,11 @@
 // main.js — shell wiring only. No game logic, NO THREE here.
 //
-// v0.2.773-alpha (double-boot guard). If a stale service worker cache serves an
-// older `torii-entry.js?v=<oldstamp>` alongside the freshly fetched
-// `torii-entry.js?v=<newstamp>`, the two module URLs are distinct entries in the
-// browser's ES module cache — so BOTH modules run their top-level side effects
+// v0.2.773-alpha (double-boot guard). A stale service-worker (or HTTP) cache could
+// serve an OLDER torii-entry module alongside the freshly fetched one — two distinct
+// module URLs for the same file. v0.2.791-alpha content-hashes the entry so stale and
+// fresh builds can no longer collide, but the guard stays as the single-boot invariant.
+// Formerly those two URLs landed in the browser's ES module cache as distinct entries —
+// so BOTH modules ran their top-level side effects
 // and BOTH boot the arena in the same tab (visible symptoms: strobing render,
 // duplicate self in mirror, two WS auth events with different NIP-42 challenges,
 // pointer-lock flap logged twice, etc.). The guard below short-circuits every
@@ -2997,9 +2999,10 @@ async function ensureArenaReady(loadingLabel) {
     elNapBtn.textContent = 'ENTER';
     elNapBtn.disabled = false;
     // v0.2.775-alpha (Bug H): if the failure is a re-invocation of main.js
-    // detected by the boot guard (typically caused by a stale-SW cache serving
-    // an older `?v=` stamp for the arenaRuntime chunk's static import back into
-    // torii-entry), swap the raw "Arena failed to load" surface for a graceful
+    // detected by the boot guard (historically a stale-SW cache served an older
+    // `?v=` stamp for the arenaRuntime chunk's static import back into torii-entry;
+    // v0.2.791-alpha content-hashing makes that stale/fresh collision impossible, but
+    // the graceful recovery path is kept), swap the raw "Arena failed to load" surface for a graceful
     // "stale bundle, reloading…" message and trigger the shell's SW-purge +
     // hard-reload path so the next click on ENTER lands cleanly on a fresh
     // pair of chunks. Identified by `.code === 'TORII_DUPLICATE_BOOT'` set by

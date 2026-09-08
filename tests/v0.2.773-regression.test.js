@@ -114,9 +114,9 @@ describe('v0.2.773 — build-time entry-import idempotency guard (vite.config.js
     expect(cfg).toMatch(/window\.__toriiShellImported = true/);
   });
 
-  it('still injects the versioned entry URL', () => {
+  it('still injects the hashed entry URL', () => {
     // Sanity: don't let the guard rewrite accidentally drop the actual import.
-    expect(cfg).toMatch(/import\('\$\{entryUrlForHtml\(\)\}'\)/);
+    expect(cfg).toMatch(/import\('\$\{entryUrl\}'\)/);
   });
 });
 
@@ -135,6 +135,6 @@ describe('v0.2.773 — CSP fallback + build injection stay in lockstep', () => {
     expect(ENTRY_IMPORT_LINE).toMatch(/if \(!window\.__toriiShellImported\)/);
     expect(ENTRY_IMPORT_LINE).toMatch(/window\.__toriiShellImported = true/);
     // Still an import() call — the guard mustn't swallow the actual load.
-    expect(ENTRY_IMPORT_LINE).toMatch(/import\(['"][^'"]*torii-entry\.js['"]\)/);
+    expect(ENTRY_IMPORT_LINE).toMatch(/import\(['"][^'"]*torii-entry-[^\s'"]*\.js['"]\)/);
   });
 });

@@ -1,6 +1,6 @@
-import { writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { defineConfig } from 'vite';
 import {
   CSP_VALUE,
@@ -13,53 +13,52 @@ import { buildReleaseMeta, validateReleaseMeta } from './tools/releaseMeta.mjs';
 
 // CSP via HTTP header (S3, v0.2.266). The policy lives in tools/csp.mjs (single source).
 // This plugin: (1) rewrites the BUILT index.html so the trusted classic inline bootstrap
-// script `import()`s the pinned entry (assets/torii-entry.js) instead of a static
-// <script> tag — keeping one hash-authorized inline loader while script-src `'self'`
+// script `import()`s the CONTENT-HASHED entry (assets/torii-entry-<hash>.js) instead of a
+// static <script> tag — keeping one hash-authorized inline loader while script-src `'self'`
 // authorizes the same-origin ESM graph; (2) writes dist/_headers for the static host;
 // (3) serves the same header from `vite preview`.
 //
-// v0.2.285: the entry import now carries a per-build cache-bust query (?v=<stamp>) so
-// Cloudflare's 4h edge cache can never serve a stale entry that points at a dead/old
-// chunk hash after a publish. Because that changes the inline-script text, the CSP sha is
-// recomputed from the EMITTED inline script at writeBundle time and written into
-// dist/_headers — so the policy always matches the shipped bootstrap.
-//
-// v0.2.285: the versioned query MUST also be injected into every chunk's back-reference
-// import of the entry (`from"./torii-entry.js"`). Without this the browser sees two
-// different module URLs for the same entry — `torii-entry.js?v=<stamp>` (from the inline
-// bootstrap, fresh) and `torii-entry.js` (from the chunk, CDN-stale) — fetches the stale
-// one, and throws "does not provide an export named 'Lt'" (or any symbol added since).
-// Rewriting both to the same versioned URL makes the browser dedupe to the fresh fetch.
-const BUILD_STAMP = Date.now().toString(36);
-const ENTRY_BASE = 'torii-entry.js';
-// Matches import specifiers pointing at the pinned entry, e.g. from"./torii-entry.js"
-// or from'./torii-entry.js' or from"/assets/torii-entry.js" or from"/quest/assets/torii-entry.js".
-// Avoids touching the entry file itself or unrelated strings.
-const ENTRY_IMPORT_RE = /(from\s*["'])([.\w/-]*\/assets\/torii-entry\.js|[.]+\/torii-entry\.js)(["'])/g;
+// v0.2.791-alpha (ADR-0109): the entry is now content-hashed (torii-entry-[hash].js)
+// and the per-build `?v=<timestamp>` cache-bust query is REMOVED. The previous scheme
+// pinned the entry to a STABLE filename (`torii-entry.js`) and distinguished builds only
+// by a timestamp query string. That is fragile: a stale cached chunk could still resolve
+// a valid (current) entry file under an old `?v=<stamp>` URL, re-evaluate `torii-entry.js`
+// a second time, and trip the duplicate-boot guard ("Stale build detected") in a loop that
+// survives cache-clear + service-worker-unregister. With a content hash in the filename,
+// a stale chunk references an old entry file that no longer exists (404), so stale and
+// fresh builds can never be confused at the module-URL level and the double-boot guard
+// can never fire. The bundler emits every chunk's back-reference as the relative
+// `./torii-entry-<hash>.js` automatically, so the old write-time back-reference rewrite is
+// gone too.
 
-// v0.2.370-alpha → preview-basepath fix: the pinned-entry URL is now RELATIVE so
-// the bundle loads at root `/`, the Suite `/quest/` mount, AND any arbitrary
-// the deploy tool preview sub-path (unknown at build time). Relative specifiers
-// resolve against the document/chunk URL, so no build-time base knowledge is
-// needed. The cache-bust `?v=<stamp>` query is preserved on both forms.
+// Locate the content-hashed entry chunk's emitted filename (e.g.
+// 'assets/torii-entry-AbCdEf.js') from the build output bundle.
+function hashedEntryFileName(bundle) {
+  for (const value of Object.values(bundle)) {
+    if (value && value.type === 'chunk' && value.isEntry) return value.fileName;
+  }
+  return null;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// v0.2.370-alpha → preview-basepath fix (kept, now hash-based): the entry URL is RELATIVE
+// so the bundle loads at root `/`, the Suite `/quest/` mount, AND any arbitrary preview
+// sub-path (unknown at build time). The content hash — not a query string — is the
+// cache-bust, so relative specifiers are both immutable and base-agnostic.
 //
-//   entryUrlForHtml()  → './assets/torii-entry.js?v=<stamp>' (relative to index.html
-//                        at the deploy root, where /assets/ is a sibling dir).
-//   entryUrlForChunk() → './torii-entry.js?v=<stamp>' (relative to a chunk living
-//                        in /assets/, where torii-entry.js is a peer).
+//   entryUrl (HTML)       → './assets/torii-entry-<hash>.js' (relative to index.html
+//                           at the deploy root, where /assets/ is a sibling dir).
+//   chunk back-reference   → './torii-entry-<hash>.js' (emitted by the bundler relative
+//                           to a chunk living in /assets/, where the entry is a peer).
 //
 // Why this works for ALL deploy contexts:
 //   root `/`            → ./assets/...  resolves to /assets/...        ✓
 //   `/quest/`           → ./assets/...  resolves to /quest/assets/... ✓
 //   `/computer/a/.../`  → ./assets/...  resolves to /computer/a/.../assets/... ✓
-// (and likewise ./torii-entry.js from a chunk in <base>/assets/).
-function entryUrlForHtml() {
-  return `./assets/${ENTRY_BASE}?v=${BUILD_STAMP}`;
-}
-
-function entryUrlForChunk() {
-  return `./${ENTRY_BASE}?v=${BUILD_STAMP}`;
-}
+// (and likewise ./torii-entry-<hash>.js from a chunk in <base>/assets/).
 
 // Bootstrap selection and hashing are shared with check 16 and the emitted-build
 // tests so HTML-comment decoys cannot make the policy hash different source bytes.
@@ -73,61 +72,44 @@ function cspHeaderPlugin() {
         // static module tag (no CSP header in dev — strict-dynamic would block
         // Vite's own injected client/HMR scripts).
         if (!ctx.bundle) return html;
-        // Drop the parser-inserted entry tag + any modulepreload hint for it; the
+        const entryFileName = hashedEntryFileName(ctx.bundle);
+        if (!entryFileName) return html;
+        // Resolve the hashed entry against the document (deploy root) — base-agnostic so
+        // root `/`, `/quest/`, and any preview sub-path all resolve the same file.
+        const entryUrl = './' + entryFileName;
+        const entryBaseRe = escapeRegExp(basename(entryFileName));
+        // Drop the bundler-emitted static entry tag + any modulepreload hint for it; the
         // trusted inline bootstrap remains the single entry-loader path.
         // Base-agnostic: matches `/assets/…` and base-prefixed `/quest/assets/…`.
         let out = html
-          .replace(/\s*<script\b[^>]*\bsrc="[^"]*\/assets\/torii-entry\.js"[^>]*><\/script>/, '')
-          .replace(/\s*<link\b[^>]*\bhref="[^"]*\/assets\/torii-entry\.js"[^>]*>/g, '');
-        // Append the versioned entry import to the single classic inline bootstrap
-        // script. The ?v=<stamp> query busts the 4h CDN edge cache on every publish so a
-        // stale entry (pointing at a dead chunk hash) can never reach a returning player.
-        // Append the versioned entry import to the LAST inline bootstrap <script>
-        // in the document. v0.2.360-alpha regression fix: previously matched
-        // `\n</script>\n</body>` verbatim, which silently no-op'd when v0.2.358
-        // added DOM elements (Instance Settings overlay) between the script and
-        // </body>, shipping a live build with NO entry import and every button
-        // dead. This lastIndexOf-based append is decoupled from what sits between
-        // </script> and </body>.
+          .replace(new RegExp('\\s*<script\\b[^>]*\\bsrc="[^"]*\\/assets\\/' + entryBaseRe + '"[^>]*><\\/script>'), '')
+          .replace(new RegExp('<link\\b[^>]*\\bhref="[^"]*\\/assets\\/' + entryBaseRe + '"[^>]*>', 'g'), '');
+        // Append the hashed entry import to the LAST inline bootstrap <script>. The
+        // content hash in the filename is the cache-bust (a stale cached chunk can only
+        // point at an old, now-404 entry file — never re-evaluate the fresh entry).
+        // v0.2.360-alpha regression fix: previously matched `\n</script>\n</body>`
+        // verbatim, which silently no-op'd when DOM elements landed between the script
+        // and </body>. This lastIndexOf-based append is decoupled from that layout.
         const lastCloseIdx = out.lastIndexOf('</script>');
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');
         }
-        // v0.2.773-alpha: idempotent import guard. If two `torii-entry.js?v=<stamp>`
-        // scripts ever coexist in one tab (a stale SW cache serving an older bundle
-        // alongside the fresh one), the second inline scope runs `import()` a second
-        // time with a DIFFERENT stamp — the ES module cache treats those URLs as
-        // distinct entries and boots the arena twice. `__toriiShellImported` on
-        // window is checked before every dispatch, so at most one entry import per
-        // document ever fires regardless of how many shell scopes execute. Paired
-        // with the module guard in src/main.js which throws on duplicate module
-        // invocation (belt + braces).
-        const versionedImportLine =
-          `  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('${entryUrlForHtml()}'); }`;
-        out = out.slice(0, lastCloseIdx) + `\n${versionedImportLine}\n` + out.slice(lastCloseIdx);
+        // v0.2.773-alpha: idempotent import guard (belt + braces with the module guard
+        // in src/main.js). With content-hashing this can no longer be tripped by a stale
+        // entry, but the guard remains so at most one entry import ever fires per document.
+        const entryImportLine =
+          `  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('${entryUrl}'); }`;
+        out = out.slice(0, lastCloseIdx) + `\n${entryImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },
     },
     writeBundle(options) {
       const dir = options.dir || join(process.cwd(), 'dist');
-      const assetsDir = join(dir, 'assets');
-      // v0.2.285: rewrite every chunk's back-reference import of the pinned entry to the
-      // SAME versioned URL the inline bootstrap uses, so the browser dedupes to one fresh
-      // module fetch instead of hitting the CDN-stale un-versioned URL.
-      if (existsSync(assetsDir)) {
-        for (const f of readdirSync(assetsDir)) {
-          if (!f.endsWith('.js') || f === ENTRY_BASE) continue; // skip the entry itself
-          const p = join(assetsDir, f);
-          const src = readFileSync(p, 'utf8');
-          // Skip if this chunk doesn't import the entry at all (cheap guard).
-          if (!src.includes(ENTRY_BASE)) continue;
-          const rewritten = src.replace(ENTRY_IMPORT_RE, (_m, pre, _spec, post) =>
-            `${pre}${entryUrlForChunk()}${post}`);
-          if (rewritten !== src) writeFileSync(p, rewritten);
-        }
-      }
-      // Recompute the inline-bootstrap sha from the EMITTED dist/index.html (which now
-      // carries the versioned import line) and write _headers with the matching policy.
+      // v0.2.791-alpha: no more back-reference rewrite — the bundler already emits every
+      // chunk's import of the entry as the relative `./torii-entry-<hash>.js` (verified in
+      // tests/quest-base-entry.test.js). Recompute the inline-bootstrap sha from the EMITTED
+      // dist/index.html (which now carries the hashed import line) and write _headers with
+      // the matching policy.
       const htmlPath = join(dir, 'index.html');
       let body = headersFileBody(); // fallback to the hardcoded sha
       if (existsSync(htmlPath)) {
@@ -195,9 +177,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 2500,
     rollupOptions: {
       output: {
-        // Pin the entry chunk to a stable filename so the inline bootstrap's
-        // import() target (and therefore its sha256 in the CSP) never churns.
-        entryFileNames: 'assets/torii-entry.js',
+        // v0.2.791-alpha: content-hash the entry so a stale cached chunk can only point
+        // at an old, now-404 entry file — it can never re-evaluate the fresh entry and
+        // trip the duplicate-boot guard. The inline bootstrap's import target (and thus
+        // its CSP sha256) is recomputed at build time, so per-build churn is expected and
+        // handled (see writeBundle).
+        entryFileNames: 'assets/torii-entry-[hash].js',
         manualChunks(id) {
           // All three.js core + addons in one vendor chunk. (Addons can't be
           // deferred separately yet: the arena modules that import them are

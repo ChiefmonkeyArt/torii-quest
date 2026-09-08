@@ -202,16 +202,15 @@ console.log('[6] dist markers (skipped if no dist/)');
       if (distHtmlSrc.includes(EXPECTED_VERSION)) pass('dist index.html version ok');
       else fail('dist index.html missing version');
       // v0.2.360-alpha: bootstrap-less build guard. The vite CSP plugin appends
-      // `import('/assets/torii-entry.js?v=<stamp>');` inside the LAST inline
-      // <script>. If that import is missing, no game code runs on live and every
-      // button is a silent no-op (the v0.2.358/359 live regression). Assert it.
-      // Match absolute (`/assets/`), depth-rewritten relative (`./assets/`), AND
-      // base-prefixed (`/quest/assets/`) — the vite plugin now emits the deploy base
-      // (v0.2.370-alpha), tools/relfix.mjs rewrites to relative for subpath proxies.
-      if (/import\(\s*['"][^'"]*\/assets\/torii-entry\.js\?v=/.test(distHtmlSrc)) {
-        pass('dist index.html bootstraps torii-entry.js (versioned import present)');
+      // `import('./assets/torii-entry-<hash>.js');` inside the LAST inline <script>.
+      // If that import is missing, no game code runs on live and every button is a
+      // silent no-op (the v0.2.358/359 live regression). Assert it. v0.2.791-alpha:
+      // the entry is content-hashed (no more `?v=` query). Match absolute (`/assets/`),
+      // depth-rewritten relative (`./assets/`), AND base-prefixed (`/quest/assets/`).
+      if (/import\(\s*['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\s*\)/.test(distHtmlSrc)) {
+        pass('dist index.html bootstraps the content-hashed torii-entry-<hash>.js import');
       } else {
-        fail('dist index.html has NO versioned torii-entry.js import — build would ship a dead bundle');
+        fail('dist index.html has NO hashed torii-entry-<hash>.js import — build would ship a dead bundle');
       }
     }
   }
@@ -452,7 +451,7 @@ console.log('[15] SPA /zone/* fallback readiness (zoneFallbackReadiness)');
 //   (c) when dist/ exists: dist/_headers carries the exact CSP_VALUE; the built inline
 //       bootstrap script's recomputed sha256 matches INLINE_SCRIPT_SHA256 (so a changed
 //       inline script fails the check); the static entry <script> tag is gone and the
-//       import('/assets/torii-entry.js') line is present; the entry chunk + vendored
+//       import('./assets/torii-entry-<hash>.js') line is present; the entry chunk + vendored
 //       Draco files are emitted into dist/.
 console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
 {
@@ -646,16 +645,18 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
       fail(`dist inline bootstrap selection failed: ${e.message}`);
     }
 
-    if (/<script\b[^>]*\bsrc=["'][^"']*\/assets\/torii-entry\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (the trusted inline bootstrap must remain the single entry-loader path)');
+    if (/<script\b[^>]*\bsrc=["'][^"']*torii-entry-[A-Za-z0-9_-]+\.js["']/.test(distHtml)) fail('dist/index.html still has a static entry <script> tag (the trusted inline bootstrap must remain the single entry-loader path)');
     // Accept absolute (`/assets/`), depth-rewritten relative (`./assets/`), or
-    // base-prefixed (`/quest/assets/`) — the plugin emits the deploy base
-    // (v0.2.370-alpha), tools/relfix.mjs rewrites to relative post-build.
-    else if (!/import\(['"][^'"]*\/assets\/torii-entry\.js(\?[^'"\)]*)?['"]\)/.test(distHtml)) fail("dist/index.html missing import('.../assets/torii-entry.js[?v=...]') in the inline bootstrap");
-    else if (!/\?v=/.test(distHtml)) fail("dist/index.html entry import lacks a ?v= cache-bust query (CDN would serve stale entry)");
-    else pass("entry loaded via versioned import() from the trusted inline bootstrap ('self' module graph + CDN cache-bust)");
+    // base-prefixed (`/quest/assets/`) — the plugin emits the hashed entry relative
+    // to the document. v0.2.791-alpha: no more `?v=` cache-bust query (the hash IS it).
+    else if (!/import\(['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\)/.test(distHtml)) fail("dist/index.html missing import('...torii-entry-<hash>.js') in the inline bootstrap");
+    else pass("entry loaded via content-hashed import() from the trusted inline bootstrap ('self' module graph + hash cache-bust)");
 
-    if (!existsSync(join(ROOT, 'dist/assets/torii-entry.js'))) fail('dist/assets/torii-entry.js (pinned entry) missing');
-    else pass('pinned entry chunk dist/assets/torii-entry.js present');
+    const hashedEntryFiles = existsSync(join(ROOT, 'dist/assets'))
+      ? readdirSync(join(ROOT, 'dist/assets')).filter((f) => /^torii-entry-[A-Za-z0-9_-]+\.js$/.test(f))
+      : [];
+    if (hashedEntryFiles.length !== 1) fail(`expected exactly one dist/assets/torii-entry-<hash>.js, found ${hashedEntryFiles.length}`);
+    else pass(`content-hashed entry chunk dist/assets/${hashedEntryFiles[0]} present`);
 
     const distDraco = ['draco_wasm_wrapper.js', 'draco_decoder.wasm'];
     const missingDraco = distDraco.filter((d) => !existsSync(join(ROOT, 'dist/draco', d)));

@@ -36,6 +36,7 @@ export function buildRigBind(bones) {
   const localP = new Map();
   const worldQ = new Map();
   const worldP = new Map();
+  const childOf = new Map();
 
   const roots = bones.filter((b) => !set.has(b.parent));
   const seen = new Set();
@@ -56,12 +57,54 @@ export function buildRigBind(bones) {
       worldP.set(b.name, localP.get(b.name).clone());
     }
     names.push(b.name);
-    for (const c of b.children) walk(c);
+    for (const c of b.children) {
+      if (set.has(c) && !childOf.has(b.name)) childOf.set(b.name, c.name);
+      walk(c);
+    }
   };
   for (const r of roots) walk(r);
 
-  return { names, parentOf, localQ, localP, worldQ, worldP };
+  return { names, parentOf, localQ, localP, worldQ, worldP, childOf };
 }
+
+// buildBoneAlignment(libBind, tgtBind, rebind) → Map<targetBone, Quaternion> of the
+// per-bone shortest-arc bind alignment (glb_retarget.py's A_bone). Each bone's
+// parent→first-child WORLD direction is measured in both rigs' bind pose; the
+// source direction is frame-mapped (Z-up→Y-up), then the rotation mapping the
+// target's child axis onto the frame-mapped source axis is baked. Without it,
+// bones whose child-axis differs between rigs (the head/neck, upper arm, …) keep
+// a residual twist — the head tilts back and the firing pose washes out. Leaf
+// bones (no child) keep identity. This is the runtime port of the offline bake's
+// bone-axis step and is the piece that actually stands the head/arms up straight.
+export function buildBoneAlignment(libBind, tgtBind, rebind) {
+  const masterOfTarget = new Map();
+  for (const [m, t] of rebind) masterOfTarget.set(t, m);
+
+  const A = new Map();
+  const dS = new THREE.Vector3();
+  const dT = new THREE.Vector3();
+  const dSF = new THREE.Vector3();
+  for (const tName of tgtBind.names) {
+    const a = new THREE.Quaternion();
+    const mName = masterOfTarget.get(tName);
+    const tcName = tgtBind.childOf.get(tName);
+    if (mName && tcName) {
+      const mcName = masterOfTarget.get(tcName);
+      if (mcName && libBind.worldP.has(mName) && libBind.worldP.has(mcName) &&
+          tgtBind.worldP.has(tName) && tgtBind.worldP.has(tcName)) {
+        dS.copy(libBind.worldP.get(mcName)).sub(libBind.worldP.get(mName));
+        dT.copy(tgtBind.worldP.get(tcName)).sub(tgtBind.worldP.get(tName));
+        if (dS.lengthSq() > 1e-18 && dT.lengthSq() > 1e-18) {
+          dSF.copy(dS).applyQuaternion(FRAME).normalize();
+          a.setFromUnitVectors(dT.normalize(), dSF);
+        }
+      }
+    }
+    A.set(tName, a);
+  }
+  return A;
+}
+
 
 function extractTracks(clip) {
   const quat = new Map();
@@ -114,6 +157,7 @@ export function retargetClipWorldDelta(clip, libBind, tgtBind, rebind, opts = {}
   const invLibWorldQ = new Map();
   for (const n of libBind.names) invLibWorldQ.set(n, libBind.worldQ.get(n).clone().invert());
   const FInv = FRAME.clone().invert();
+  const abone = buildBoneAlignment(libBind, tgtBind, rebind);
 
   // ── resample + retarget ───────────────────────────────────────────────────
   const times = new Float32Array(nfr);
@@ -147,7 +191,7 @@ export function retargetClipWorldDelta(clip, libBind, tgtBind, rebind, opts = {}
       const wl = mWorldQ.get(mName);
       const delta = qa.copy(wl).multiply(invLibWorldQ.get(mName)).normalize();
       const dw = qb.copy(FRAME).multiply(delta).multiply(FInv).normalize();
-      const wt = dw.clone().multiply(tgtBind.worldQ.get(tName)).normalize();
+      const wt = dw.clone().multiply(abone.get(tName)).multiply(tgtBind.worldQ.get(tName)).normalize();
       const p = tgtBind.parentOf.get(tName);
       if (p && tWorldQ.has(p)) wt.premultiply(tWorldQ.get(p).clone().invert());
       wt.normalize();

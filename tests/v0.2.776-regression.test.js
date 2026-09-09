@@ -32,17 +32,26 @@ const BOOT = readFileSync(join(ROOT, 'src/engine/ui/loginBootstrap.js'), 'utf8')
 const PANEL = readFileSync(join(ROOT, 'src/engine/settings/settingsPanel.js'), 'utf8');
 
 describe('v0.2.776 — Bug I: three-option entry panel copy + arm-state', () => {
-  it('option 1 title reads "ENTER AS GUEST" (renamed from NEW PLAYER)', () => {
-    // The section heading is the user-visible label above the character
-    // cards. Freezing the exact string prevents a silent regression to
-    // "NEW PLAYER" or a variant like "GUEST ENTRY".
-    expect(HTML).toMatch(/<span class="entry-num">1<\/span>\s*ENTER AS GUEST/);
-    expect(HTML).not.toMatch(/<span class="entry-num">1<\/span>\s*NEW PLAYER/);
+  it('ENTER-AS-GUEST button ships with the correct copy (never "NEW PLAYER")', () => {
+    // v0.2.806-alpha: the numbered eyebrow-style section heading ("1 ENTER AS
+    // GUEST") was stripped from the homepage — no `.entry-num` element, no
+    // section titles at all, just the button + character cards. What still
+    // matters is that the ENTER-AS-GUEST button itself carries the correct
+    // label, that no stripped node has come back, and that no `NEW PLAYER`
+    // copy has silently regressed anywhere on the title screen.
+    expect(HTML).toMatch(/id="btn-enter-nap"[^>]*>ENTER AS GUEST</);
+    expect(HTML).not.toMatch(/NEW PLAYER/);
+    expect(HTML).not.toMatch(/class="entry-num"/);
+    expect(HTML).not.toMatch(/class="entry-eyebrow"/);
+    expect(HTML).not.toMatch(/class="entry-option-title"/);
+    expect(HTML).not.toMatch(/class="entry-option-sub"/);
   });
 
-  it('option 3 title reads "LOGIN NOSTR" (renamed from RETURNING?)', () => {
-    expect(HTML).toMatch(/<span class="entry-num">3<\/span>\s*LOGIN NOSTR/);
-    expect(HTML).not.toMatch(/<span class="entry-num">3<\/span>\s*RETURNING\?/);
+  it('LOGIN-NOSTR button ships with the correct copy (never "RETURNING?")', () => {
+    // Same shape as above for option 3 — the numbered section heading is
+    // gone; the button copy is the authoritative label.
+    expect(HTML).toMatch(/id="btn-nostr-centre"[^>]*>⚡ LOGIN NOSTR</);
+    expect(HTML).not.toMatch(/RETURNING\?/);
   });
 
   it('LOGIN button copy is "⚡ LOGIN NOSTR" (dropped the "WITH ")', () => {

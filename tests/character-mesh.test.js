@@ -4,7 +4,7 @@
 // fully node-testable.
 import { describe, it, expect } from 'vitest';
 import {
-  blossomMeshUrl, resolveCharacterMeshUrl, DEFAULT_BLOSSOM_SERVER,
+  blossomMeshUrl, resolveCharacterMeshUrl, resolveCharacterPortraitUrl, DEFAULT_BLOSSOM_SERVER,
 } from '../src/engine/character/characterMesh.js';
 import * as SDK from '../src/sdk/index.js';
 
@@ -43,6 +43,25 @@ describe('resolveCharacterMeshUrl', () => {
 
   it('honours a server override', () => {
     const url = resolveCharacterMeshUrl({ mesh: { hash: SHA } }, { server: 'https://cdn.example' });
+    expect(url).toBe(`https://cdn.example/${SHA}`);
+  });
+});
+
+describe('resolveCharacterPortraitUrl', () => {
+  it('resolves a manifest with a portrait', () => {
+    const url = resolveCharacterPortraitUrl({ portrait: { hash: SHA, name: 'portrait.png' } });
+    expect(url).toBe(`${DEFAULT_BLOSSOM_SERVER}/${SHA}`);
+  });
+
+  it('returns null when the manifest has no valid portrait', () => {
+    expect(resolveCharacterPortraitUrl(null)).toBe(null);
+    expect(resolveCharacterPortraitUrl({})).toBe(null);
+    expect(resolveCharacterPortraitUrl({ portrait: null })).toBe(null);
+    expect(resolveCharacterPortraitUrl({ portrait: { hash: 'bad' } })).toBe(null);
+  });
+
+  it('honours a server override', () => {
+    const url = resolveCharacterPortraitUrl({ portrait: { hash: SHA } }, { server: 'https://cdn.example' });
     expect(url).toBe(`https://cdn.example/${SHA}`);
   });
 });

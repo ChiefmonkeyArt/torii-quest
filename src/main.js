@@ -168,7 +168,8 @@ import { readHealth as _readRelayHealth, rotateSession as _rotateRelaySession } 
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { renderStickerPanel } from './engine/settings/stickerPanel.js';
-import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
+import { resolveCharacterMeshUrl, resolveCharacterPortraitUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
+import { renderCharacterPortrait } from './engine/character/characterPortraitRenderer.js';
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
@@ -1696,6 +1697,47 @@ async function _republishCharacter(manifest) {
   renderActiveSettingsTab();
 }
 
+// _generateOwnPortrait() — render the current character's mesh to a portrait
+// PNG, upload it to Blossom, and republish the manifest with portrait.hash.
+// Used by the "Generate portrait" action on the found view for characters that
+// predate portraits (or whose auto-generated portrait failed on upload). Reuses
+// _republishCharacter for the sign+publish half so state + re-render stay
+// consistent. Fails soft into the standard failed state.
+async function _generateOwnPortrait() {
+  const manifest = _characterForgeState.manifest;
+  if (!manifest || !manifest.mesh || !manifest.mesh.hash) {
+    _characterForgeState.error = 'Create a character first.';
+    renderActiveSettingsTab();
+    return;
+  }
+  const meshUrl = resolveCharacterMeshUrl(manifest);
+  if (!meshUrl) return;
+
+  _characterForgeState.status = 'creating';
+  _characterForgeState.error = null;
+  renderActiveSettingsTab();
+
+  let portrait = null;
+  try { portrait = await renderCharacterPortrait(meshUrl); } catch { portrait = null; }
+  if (!portrait || !portrait.ok || !portrait.blob) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not render a portrait from this mesh.';
+    renderActiveSettingsTab();
+    return;
+  }
+
+  let pu = null;
+  try { pu = await uploadBlossom(portrait.blob); } catch { pu = null; }
+  if (!pu || !pu.ok || !pu.sha256) {
+    _characterForgeState.status = 'failed';
+    _characterForgeState.error = 'Could not upload the portrait.';
+    renderActiveSettingsTab();
+    return;
+  }
+
+  await _republishCharacter({ ...manifest, portrait: { hash: pu.sha256, name: 'portrait.png' } });
+}
+
 // _confirmSelfViewPlacement(placement) — the self-view sticker placement confirm
 // half (ADR-0088). The in-world orbit self-view confirms a real 3D raycast
 // placement ({hash, zoneId, u, v, rot}); fold it into the manifest + republish.
@@ -1837,9 +1879,25 @@ async function _uploadCustomMesh(file) {
       }
     } catch { /* non-fatal — publish without headlessHash */ }
 
+    // v0.2.796-alpha: render + upload a portrait snapshot so the character has
+    // an avatar image everywhere (fails soft — a character without one still
+    // publishes and can generate its portrait later from the found view).
+    let portraitEntry = null;
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      let portrait;
+      try { portrait = await renderCharacterPortrait(blobUrl); }
+      finally { URL.revokeObjectURL(blobUrl); }
+      if (portrait && portrait.ok && portrait.blob) {
+        const pu = await uploadBlossom(portrait.blob);
+        if (pu && pu.ok && pu.sha256) portraitEntry = { hash: pu.sha256, name: 'portrait.png' };
+      }
+    } catch { /* non-fatal — publish without portrait */ }
+
     const manifest = {
       version: 1,
       mesh: meshEntry,
+      portrait: portraitEntry,
       clips: [],
       stickers: [],
       name: characterName,
@@ -1887,6 +1945,7 @@ registerSettingsTabRenderer('character', () => {
     isLoggedIn: st.isLoggedIn,
     status: _characterForgeState.status,
     character: _characterForgeState.character,
+    portraitUrl: resolveCharacterPortraitUrl(_characterForgeState.manifest),
     rig: _characterForgeState.rig,
     ai: {
       status: _forgeAIState.status,
@@ -1934,6 +1993,7 @@ registerSettingsTabRenderer('stickers', () => {
     if (action === 'check-character') { e.preventDefault(); _checkOwnCharacter(); return; }
     if (action === 'upload-mesh') { e.preventDefault(); _pickCustomMesh(); return; }
     if (action === 'replace-character') { e.preventDefault(); _pickCustomMesh(); return; }
+    if (action === 'generate-portrait') { e.preventDefault(); _generateOwnPortrait(); return; }
     if (action === 'generate-ai') { e.preventDefault(); _generateAICharacter(); return; }
     if (action === 'generate-ai-pay') { e.preventDefault(); _payForGeneration(); return; }
     if (action === 'generate-ai-confirm') { e.preventDefault(); _confirmGeneration(); return; }

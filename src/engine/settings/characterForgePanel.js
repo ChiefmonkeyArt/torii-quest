@@ -18,6 +18,9 @@
 //   character   — { name, meshName, stickerCount, stickers[] } | null (when 'found').
 //   rig         — { verdict, convention, boneCount, note } | null — the last
 //                 upload's assessed rig, surfaced inline (upload + found views).
+//   portraitUrl — string | null — the character's rendered avatar PNG (Blossom
+//                 URL resolved from the manifest's portrait.hash); when null the
+//                 card shows a letter initial + a "Generate portrait" affordance.
 //   ai          — { status:'idle'|'running'|'done', prompt, result } — the local
 //                 "Create with AI" mock flow sub-state; when ai.status !== 'idle'
 //                 the create view is replaced by _aiFlowView(ai).
@@ -74,19 +77,22 @@ function _rigVerdict(rig) {
   return `<div class="cf-rig ${cls}"><span class="cf-rig-label">${label}</span><span class="cf-rig-detail">${convention}${bones}</span>${note}</div>`;
 }
 
-// _foundView(character, rig) — the "found" state reads as a character summary
-// card: a portrait-style circle (initial, since there's no real thumbnail
-// yet), the name, and a clean stat row (mesh), plus a "Replace character"
-// action. Stickers were moved to their OWN settings tab (v0.2.795-alpha) — the
-// character card no longer shows a sticker count or an inline sticker editor.
-// When a just-uploaded rig verdict is present it is shown below the card.
-function _foundView(character, rig) {
+// _foundView(character, rig, portraitUrl) — the "found" state reads as a
+// character summary card: a portrait thumbnail (the character's rendered PNG
+// when present, else a letter initial), the name, and a mesh stat row, plus
+// "Replace character" (and "Generate portrait" when none exists yet). Stickers
+// moved to their own tab (v0.2.795-alpha). When a just-uploaded rig verdict is
+// present it is shown below the card.
+function _foundView(character, rig, portraitUrl) {
   const c = character || {};
   const name = c.name || 'Unnamed';
+  const portrait = portraitUrl
+    ? `<div class="cf-summary-portrait cf-summary-portrait-photo" style="background-image:url(${_escape(portraitUrl)})"></div>`
+    : `<div class="cf-summary-portrait" aria-hidden="true">${_escape(_initial(name))}</div>`;
   return `
     <div class="settings-subtitle">You already have a character.</div>
     <div class="cf-summary-card">
-      <div class="cf-summary-portrait" aria-hidden="true">${_escape(_initial(name))}</div>
+      ${portrait}
       <div class="cf-summary-body">
         <div class="cf-summary-name">${_escape(name)}</div>
         <div class="cf-summary-stats">
@@ -100,6 +106,7 @@ function _foundView(character, rig) {
     ${_rigVerdict(rig)}
     <div class="cf-summary-actions">
       <button type="button" class="settings-btn settings-btn-primary" data-action="replace-character">Replace character</button>
+      ${portraitUrl ? '' : '<button type="button" class="settings-btn" data-action="generate-portrait">Generate portrait</button>'}
     </div>`;
 }
 
@@ -251,7 +258,7 @@ export function renderCharacterForgePanel(state = {}) {
   } else if (!isLoggedIn) {
     body = _createView();
   } else if (status === 'found' && st.character) {
-    body = _foundView(st.character, rig);
+    body = _foundView(st.character, rig, st.portraitUrl);
   } else if (status === 'failed') {
     body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
       <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;

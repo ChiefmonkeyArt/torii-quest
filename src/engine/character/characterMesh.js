@@ -31,3 +31,13 @@ export function resolveCharacterMeshUrl(manifest, opts = {}) {
   if (!m.mesh || typeof m.mesh !== 'object' || !m.mesh.hash) return null;
   return blossomMeshUrl(m.mesh.hash, o.server);
 }
+
+// resolveCharacterPortraitUrl(manifest, opts) → the Blossom URL for the
+// character's avatar portrait PNG, or null when the manifest carries none
+// (legacy manifests predate portraits — the UI falls back to an initial).
+export function resolveCharacterPortraitUrl(manifest, opts = {}) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  const m = (manifest && typeof manifest === 'object') ? manifest : {};
+  if (!m.portrait || typeof m.portrait !== 'object' || !m.portrait.hash) return null;
+  return blossomMeshUrl(m.portrait.hash, o.server);
+}

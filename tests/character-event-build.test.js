@@ -17,6 +17,7 @@ const fullManifest = {
   name: 'Chiefmonkey',
   colors: [{ slot: 'skin', hex: '#ff8800' }],
   contrib: [{ nappletDTag: 'mesh-gen', aggregateHash: 'd'.repeat(64), tags: ['meshy', 'v1'] }],
+  portrait: { hash: 'f'.repeat(64), name: 'portrait.png' },
 };
 
 describe('buildCharacterEvent', () => {
@@ -40,6 +41,7 @@ describe('buildCharacterEvent', () => {
     expect(parsed.manifest.colors[0]).toEqual({ slot: 'skin', hex: '#ff8800' });
     expect(parsed.manifest.contrib[0].nappletDTag).toBe('mesh-gen');
     expect(parsed.manifest.contrib[0].tags).toEqual(['meshy', 'v1']);
+    expect(parsed.manifest.portrait).toEqual({ hash: 'f'.repeat(64), name: 'portrait.png' });
   });
 
   it('defaults created_at to now and pubkey to empty', () => {

@@ -61,6 +61,21 @@ describe('parseCharacterEvent', () => {
     expect(r).not.toBe(null);
     expect(r.valid).toBe(false);
   });
+
+  // v0.2.796-alpha — the portrait tag round-trips into manifest.portrait.
+  it('parses a portrait tag into manifest.portrait', () => {
+    const e = characterEvent();
+    e.tags.push(['portrait', SHA, 'portrait.png']);
+    const r = parseCharacterEvent(e);
+    expect(r).not.toBe(null);
+    expect(r.valid).toBe(true);
+    expect(r.manifest.portrait).toEqual({ hash: SHA, name: 'portrait.png' });
+  });
+
+  it('leaves portrait null when the tag is absent (legacy)', () => {
+    const r = parseCharacterEvent(characterEvent());
+    expect(r.manifest.portrait).toBe(null);
+  });
 });
 
 describe('hasCharacter', () => {

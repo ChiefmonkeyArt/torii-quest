@@ -34,6 +34,7 @@ describe('helpers', () => {
     const m = emptyCharacterManifest();
     expect(m.version).toBe(CHARACTER_MANIFEST_VERSION);
     expect(m.mesh).toBe(null);
+    expect(m.portrait).toBe(null);
     expect(m.clips).toEqual([]);
     expect(m.stickers).toEqual([]);
   });
@@ -91,6 +92,45 @@ describe('validateCharacterManifest', () => {
     const r = validateCharacterManifest(m);
     expect(r.valid).toBe(false);
     expect(r.errors.some((e) => e.includes('mesh.headlessHash'))).toBe(true);
+  });
+
+  // v0.2.796-alpha — optional portrait snapshot (Blossom PNG hash). Absence is
+  // legal (legacy manifests); presence must be a 64-hex sha256.
+  it('accepts a valid portrait.hash', () => {
+    const m = goodManifest();
+    m.portrait = { hash: 'c'.repeat(64), name: 'portrait.png' };
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+  });
+
+  it('accepts an absent portrait (legacy manifest)', () => {
+    const m = goodManifest();
+    expect('portrait' in m).toBe(false);
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(true);
+  });
+
+  it('accepts an explicit null portrait', () => {
+    const m = goodManifest();
+    m.portrait = null;
+    expect(validateCharacterManifest(m).valid).toBe(true);
+  });
+
+  it('rejects a bad portrait.hash', () => {
+    const m = goodManifest();
+    m.portrait = { hash: 'not-a-hash', name: 'portrait.png' };
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes('portrait.hash'))).toBe(true);
+  });
+
+  it('rejects a non-object portrait', () => {
+    const m = goodManifest();
+    m.portrait = 'nope';
+    const r = validateCharacterManifest(m);
+    expect(r.valid).toBe(false);
+    expect(r.errors.some((e) => e.includes('portrait'))).toBe(true);
   });
 
   it('rejects a bad color hex', () => {

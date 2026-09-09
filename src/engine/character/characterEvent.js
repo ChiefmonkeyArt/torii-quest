@@ -38,6 +38,8 @@ export function parseCharacterEvent(event) {
     const rest = t.slice(1);
     if (name === 'mesh') {
       manifest.mesh = { hash: rest[0] || '', name: rest[1] || '' };
+    } else if (name === 'portrait') {
+      manifest.portrait = { hash: rest[0] || '', name: rest[1] || '' };
     } else if (name === 'clip') {
       manifest.clips.push({ hash: rest[0] || '', name: rest[1] || '' });
     } else if (name === 'sticker') {
@@ -85,6 +87,9 @@ export function buildCharacterEvent(manifest, opts = {}) {
 
   if (m.mesh && typeof m.mesh === 'object' && m.mesh.hash) {
     tags.push(['mesh', m.mesh.hash, m.mesh.name || '']);
+  }
+  if (m.portrait && typeof m.portrait === 'object' && m.portrait.hash) {
+    tags.push(['portrait', m.portrait.hash, m.portrait.name || '']);
   }
   for (const c of (Array.isArray(m.clips) ? m.clips : [])) {
     if (c && c.hash) tags.push(['clip', c.hash, c.name || '']);

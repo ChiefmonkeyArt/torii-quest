@@ -24,6 +24,7 @@ export function emptyCharacterManifest() {
   return {
     version: CHARACTER_MANIFEST_VERSION,
     mesh: null,
+    portrait: null, // v0.2.796-alpha: { hash, name } — avatar snapshot on Blossom
     clips: [],
     stickers: [],
     name: '',
@@ -64,6 +65,17 @@ export function validateCharacterManifest(manifest) {
     // renderer falls back to a hidden body for legacy manifests.
     if (m.mesh.headlessHash !== undefined && !isSha256(m.mesh.headlessHash)) {
       errors.push('mesh.headlessHash must be a 64-hex sha256 if present');
+    }
+  }
+
+  // portrait — optional avatar snapshot (v0.2.796-alpha). A PNG rendered from
+  // this mesh and stored on Blossom; its hash lets any surface show the player's
+  // character as their avatar. Absence is legal (the UI falls back to an initial).
+  if (m.portrait !== undefined && m.portrait !== null) {
+    if (typeof m.portrait !== 'object') {
+      errors.push('portrait must be an object if present');
+    } else if (!isSha256(m.portrait.hash)) {
+      errors.push('portrait.hash must be a 64-hex sha256 if present');
     }
   }
 

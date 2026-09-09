@@ -44,7 +44,7 @@ describe('v0.2.780 — upload rig verdict in the Character tab', () => {
     expect(src).toMatch(/function _rigVerdict\(/);
     expect(src).toContain('cf-rig-ok');
     expect(src).toContain('cf-rig-warn');
-    expect(src).toContain('_foundView(st.character, rig)');
+    expect(src).toContain('_foundView(st.character, rig, st.portraitUrl)');
   });
 
   it('index.html carries styles for the rig verdict line', () => {

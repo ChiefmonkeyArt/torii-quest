@@ -226,6 +226,43 @@ describe('retargetClipWorldDelta', () => {
     }
   });
 
+  it('replaces verbatim position remaps with a single frame-mapped Hips root motion', () => {
+    // Regression: library clips carry a CONSTANT position track on every bone
+    // (centimetre, Z-up). The old code name-remapped them verbatim, so the target
+    // Hips got the library's Y=19 (instead of its own Y=95) and the character sank
+    // into the floor. The fix must (a) DROP every non-Hips position track, and
+    // (b) emit ONE Hips.position = target bind + frame-map(scale · delta).
+    const mHips = new THREE.Bone(); mHips.name = 'Hips';
+    const mSpine = new THREE.Bone(); mSpine.name = 'Spine';
+    mHips.add(mSpine);
+    mHips.quaternion.copy(IDENT); mHips.position.set(0, 0, -100);   // Z-up, h_l = 100
+    mSpine.quaternion.copy(IDENT); mSpine.position.set(0, 40, 0);
+
+    const tHips = new THREE.Bone(); tHips.name = 'Hips';
+    const tSpine = new THREE.Bone(); tSpine.name = 'Spine';
+    tHips.add(tSpine);
+    tHips.quaternion.copy(IDENT); tHips.position.set(0, 1, 0);      // Y-up, h_t = 1
+    tSpine.quaternion.copy(IDENT); tSpine.position.set(0, 0.4, 0);
+
+    const clip = new THREE.AnimationClip('G', 1.0, [
+      new THREE.QuaternionKeyframeTrack('Hips.quaternion', [0], [0, 0, 0, 1]),
+      new THREE.VectorKeyframeTrack('Hips.position', [0], [0, 0, -90]),       // +10 unit hop in Z
+      new THREE.QuaternionKeyframeTrack('Spine.quaternion', [0], [0, 0, 0, 1]),
+      new THREE.VectorKeyframeTrack('Spine.position', [0], [0, 40, 0]),       // wrong-value tail → must vanish
+    ]);
+
+    const out = retargetClipWorldDelta(clip, buildRigBind([mHips, mSpine]), buildRigBind([tHips, tSpine]), REBIND, { fps: 2 });
+    expect(out).not.toBe(null);
+    const posTracks = out.tracks.filter((t) => t.name.endsWith('.position'));
+    expect(posTracks.length).toBe(1);
+    expect(posTracks[0].name).toBe('Hips.position');
+    // delta = (0,0,-90)-(0,0,-100) = (0,0,10); frame-map (x,-z,y) → (0,-10,0);
+    // ·scale(1/100) → (0,-0.1,0); + target bind (0,1,0) → (0,0.9,0).
+    expect(posTracks[0].values[0]).toBeCloseTo(0, 3);
+    expect(posTracks[0].values[1]).toBeCloseTo(0.9, 3);
+    expect(posTracks[0].values[2]).toBeCloseTo(0, 3);
+  });
+
   it('returns null for a non-cloneable clip or empty rebind', () => {
     expect(retargetClipWorldDelta(null, null, null, REBIND)).toBe(null);
     expect(retargetClipWorldDelta(bindIdleClip(), buildRigBind(masterRig()), buildRigBind(targetRig()), new Map())).toBe(null);

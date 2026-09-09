@@ -57,4 +57,16 @@ describe('guest character picker — three-option login panel', () => {
     expect(existsSync(join(ROOT, 'public/guest-headless.glb'))).toBe(true);
     expect(existsSync(join(ROOT, 'public/nostrich-headless.glb'))).toBe(true);
   });
+
+  it('an npub login overrides a prior guest-card pick', () => {
+    // v0.2.800-alpha: the guest flag was STICKY — a guest who tapped a torso
+    // card, then logged in, kept that torso instead of their own kind-35100
+    // mesh. The NOSTR_LOGIN handler must reset _guestCharChosen (and deselect
+    // the cards) so the player's own character seats; the explicit-pick-wins
+    // rule still holds for a card tapped AFTER login.
+    const loginHandler = MAIN.match(/on\(EV\.NOSTR_LOGIN,?\s*\(\)\s*=>\s*\{([\s\S]*?)\n\}\);/);
+    expect(loginHandler).toBeTruthy();
+    expect(loginHandler[1]).toMatch(/_guestCharChosen\s*=\s*false/);
+    expect(loginHandler[1]).toMatch(/classList\.remove\(['"]selected['"]\)/);
+  });
 });

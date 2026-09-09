@@ -1230,6 +1230,16 @@ on(EV.NOSTR_LOGIN, () => {
   // seats instead. The explicit-pick-wins rule still holds AFTER login: tapping a
   // card once logged in re-arms the flag and the card wins again.
   _guestCharChosen = false;
+  // v0.2.803-alpha: also reset the character KEY away from the guest picker's
+  // last value. The FP body loader (src/firstPersonBody.js) falls back to
+  // FP_BODIES[getCharacter()] whenever the manifest carries no headlessHash —
+  // an npub whose kind-35100 mesh predates the headless field would inherit the
+  // stale guest key ('guest' = the yellow poo-poo-head torso) and load THAT as
+  // the first-person body while the world mesh correctly rendered the player's
+  // own character. Seat the full-height built-in ('chiefmonkey') as the default
+  // headless class for logged-in players so a manifest without a headlessHash
+  // still shows a full-height first-person body, matching the world mesh.
+  _pendingGuestChar = 'chiefmonkey';
   if (_charCards && _charCards.length) {
     for (const card of _charCards) {
       card.classList.remove('selected');

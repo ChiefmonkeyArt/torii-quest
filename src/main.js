@@ -167,9 +167,10 @@ import { renderRelayPanel } from './engine/settings/relayPanel.js';
 import { readHealth as _readRelayHealth, rotateSession as _rotateRelaySession } from './engine/telemetry/relayHealth.js';
 import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
+import { renderStickerPanel } from './engine/settings/stickerPanel.js';
 import { resolveCharacterMeshUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
-import { addSticker, removeSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
+import { addSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
 import { inspectGlb } from './engine/character/glbInspect.js';
 import { assessRig } from './engine/character/rigAssessment.js';
@@ -1506,7 +1507,6 @@ const _characterForgeState = {
   status: 'idle', // 'idle' | 'checking' | 'found' | 'none' | 'failed'
   character: null, // { name, meshName, stickerCount, stickers } | null
   manifest: null, // the full `torii.character` manifest (used for sticker edits)
-  mode: 'view',   // 'view' | 'edit' — 'edit' is the sticker editor
   rig: null,      // the last upload's assessed rig (see _summarizeRig) | null
   error: null,
   _readStarted: false,
@@ -1694,34 +1694,6 @@ async function _republishCharacter(manifest) {
     _characterForgeState.error = 'Could not update your character.';
   }
   renderActiveSettingsTab();
-}
-
-// _addOwnSticker(stickerId) — place a sticker from the curated library on its
-// recommended zone (default centre u/v), then republish. The precise 3D
-// placement (raycast → zone/u/v/rot) is a later in-world step; this is the
-// settings-tab authoring path that closes the create→edit loop.
-async function _addOwnSticker(stickerId) {
-  const manifest = _characterForgeState.manifest;
-  if (!manifest) return;
-  const entry = STICKER_LIBRARY.find((s) => s.id === stickerId);
-  if (!entry) return;
-  const next = addSticker(manifest, {
-    hash: entry.hash,
-    zoneId: entry.recommendedZone,
-    u: 0.5,
-    v: 0.5,
-    rot: 0,
-  });
-  if (next !== manifest) await _republishCharacter(next);
-}
-
-// _removeOwnSticker(index) — remove the sticker at `index` from the manifest and
-// republish. Out-of-range index is a no-op (removeSticker returns the input).
-async function _removeOwnSticker(index) {
-  const manifest = _characterForgeState.manifest;
-  if (!manifest) return;
-  const next = removeSticker(manifest, index);
-  if (next !== manifest) await _republishCharacter(next);
 }
 
 // _confirmSelfViewPlacement(placement) — the self-view sticker placement confirm
@@ -1915,8 +1887,6 @@ registerSettingsTabRenderer('character', () => {
     isLoggedIn: st.isLoggedIn,
     status: _characterForgeState.status,
     character: _characterForgeState.character,
-    mode: _characterForgeState.mode,
-    stickerLibrary: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label })),
     rig: _characterForgeState.rig,
     ai: {
       status: _forgeAIState.status,
@@ -1924,6 +1894,16 @@ registerSettingsTabRenderer('character', () => {
       result: _forgeAIState.result,
     },
     error: _characterForgeState.error,
+  });
+});
+
+registerSettingsTabRenderer('stickers', () => {
+  const st = _homepageStubState();
+  const character = _characterForgeState.character;
+  return renderStickerPanel({
+    isLoggedIn: st.isLoggedIn,
+    library: STICKER_LIBRARY.map((s) => ({ id: s.id, label: s.label, hash: s.hash, recommendedZone: s.recommendedZone })),
+    ownedCount: character ? (Number(character.stickerCount) || 0) : 0,
   });
 });
 
@@ -1959,10 +1939,6 @@ registerSettingsTabRenderer('character', () => {
     if (action === 'generate-ai-confirm') { e.preventDefault(); _confirmGeneration(); return; }
     if (action === 'generate-ai-copy') { e.preventDefault(); _copyGenerationInvoice(); return; }
     if (action === 'ai-reset') { e.preventDefault(); _resetAICharacter(); return; }
-    if (action === 'edit-character') { e.preventDefault(); _characterForgeState.mode = 'edit'; renderActiveSettingsTab(); return; }
-    if (action === 'done-edit') { e.preventDefault(); _characterForgeState.mode = 'view'; renderActiveSettingsTab(); return; }
-    if (action === 'add-sticker') { e.preventDefault(); _addOwnSticker(actionEl.getAttribute('data-sticker') || ''); return; }
-    if (action === 'remove-sticker') { e.preventDefault(); _removeOwnSticker(actionEl.getAttribute('data-index')); return; }
     if (action === 'choose-blank') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('gateway-blank'); return; }
     if (action === 'choose-template') { e.preventDefault(); _homepageStubCallbacks().onChooseWorld('chiefmonkey-template'); return; }
     if (action === 'publish-node') { e.preventDefault(); _homepageStubCallbacks().onPublishNode(); renderActiveSettingsTab(); toastSuccess('Heartbeat updated.'); return; }

@@ -46,11 +46,6 @@ describe('v0.2.783 — heartbeat switch click reaches the publish-node handler',
     expect(SRC).toContain("const url = actionEl.getAttribute('data-relay') || '';");
   });
 
-  it('reads sticker data-sticker / data-index off the resolved action element', () => {
-    expect(SRC).toContain("_addOwnSticker(actionEl.getAttribute('data-sticker') || '')");
-    expect(SRC).toContain("_removeOwnSticker(actionEl.getAttribute('data-index'))");
-  });
-
   it('renders data-action on the button and nested spans that resolve back to it via closest', () => {
     const host = document.createElement('div');
     host.innerHTML = renderHeartbeatPanel({ isOwner: true, heartbeatStatus: 'live' });

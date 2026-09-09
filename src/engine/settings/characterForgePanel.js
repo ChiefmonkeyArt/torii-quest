@@ -16,8 +16,6 @@
 //   isLoggedIn  — boolean; gates the whole tab.
 //   status      — 'idle' | 'checking' | 'found' | 'none' | 'creating' | 'failed'.
 //   character   — { name, meshName, stickerCount, stickers[] } | null (when 'found').
-//   mode        — 'view' (default) | 'edit' — the 'edit' mode is the sticker editor.
-//   stickerLibrary — [{ id, label }] — curated decals shown in the sticker editor.
 //   rig         — { verdict, convention, boneCount, note } | null — the last
 //                 upload's assessed rig, surfaced inline (upload + found views).
 //   ai          — { status:'idle'|'running'|'done', prompt, result } — the local
@@ -26,10 +24,8 @@
 //   error       — string | null (when status==='failed').
 // Returns an HTML string. main.js wires the actions via the delegated 'click'
 // pattern (data-action="check-character" / "upload-mesh" / "replace-character" /
-// "generate-ai" / "ai-reset" / "edit-character" / "add-sticker" / "remove-sticker" /
-// "done-edit"). "generate-ai" runs the LOCAL MOCK
-// generation flow (see _aiFlowView below); no real backend or signing is
-// involved yet.
+// "generate-ai" / "ai-reset"). Stickers no longer live here — they have their
+// own Settings tab (stickerPanel.js) as of v0.2.795-alpha.
 
 function _escape(s) {
   return String(s == null ? '' : s)
@@ -80,9 +76,10 @@ function _rigVerdict(rig) {
 
 // _foundView(character, rig) — the "found" state reads as a character summary
 // card: a portrait-style circle (initial, since there's no real thumbnail
-// yet), the name, and a clean stat row (mesh / stickers), plus a single
-// "Edit stickers" action. Replaces the old plain label/value rows. When a
-// just-uploaded rig verdict is present it is shown below the card.
+// yet), the name, and a clean stat row (mesh), plus a "Replace character"
+// action. Stickers were moved to their OWN settings tab (v0.2.795-alpha) — the
+// character card no longer shows a sticker count or an inline sticker editor.
+// When a just-uploaded rig verdict is present it is shown below the card.
 function _foundView(character, rig) {
   const c = character || {};
   const name = c.name || 'Unnamed';
@@ -97,51 +94,13 @@ function _foundView(character, rig) {
             <span class="cf-summary-stat-value">${_escape(c.meshName || '—')}</span>
             <span class="cf-summary-stat-label">Mesh</span>
           </div>
-          <div class="cf-summary-stat">
-            <span class="cf-summary-stat-value">${Number(c.stickerCount) || 0}</span>
-            <span class="cf-summary-stat-label">Stickers</span>
-          </div>
         </div>
       </div>
     </div>
     ${_rigVerdict(rig)}
     <div class="cf-summary-actions">
-      <button type="button" class="settings-btn settings-btn-primary" data-action="edit-character">Edit stickers</button>
-      <button type="button" class="settings-btn" data-action="replace-character">Replace character</button>
+      <button type="button" class="settings-btn settings-btn-primary" data-action="replace-character">Replace character</button>
     </div>`;
-}
-
-// _stickerEditor(stickers, library) — the sticker-placement editor (mode 'edit').
-// Placed stickers render as a clean list (zone + short id) each with a Remove
-// button; the curated library renders as its own labeled card with a small
-// button grid, not a wall of undifferentiated buttons. The actual 3D
-// placement (raycast → zone/u/v/rot) is a runtime step in main.js; here a
-// new sticker lands on its recommended zone by default.
-function _stickerEditor(stickers, library) {
-  const rows = (Array.isArray(stickers) ? stickers : []).map((s, i) => {
-    const st = s || {};
-    const zone = (typeof st.zoneId === 'string' && st.zoneId) ? st.zoneId : 'unknown';
-    return `<div class="cf-sticker-row">
-      <span>${_escape(zone)} · ${_escape(_shortHash(st.hash))}</span>
-      <button type="button" class="settings-btn settings-btn-ghost settings-btn-sm" data-action="remove-sticker" data-index="${i}">Remove</button>
-    </div>`;
-  }).join('');
-
-  const lib = Array.isArray(library) ? library : [];
-  const addButtons = lib.map((e) => {
-    const id = (e && e.id) ? e.id : '';
-    const label = (e && e.label) ? e.label : id;
-    return `<button type="button" class="settings-btn" data-action="add-sticker" data-sticker="${_escape(id)}">${_escape(label)}</button>`;
-  }).join('');
-
-  return `
-    <div class="settings-subtitle">Add stickers to your character.</div>
-    <div class="cf-sticker-list">${rows || '<div class="settings-empty">No stickers yet.</div>'}</div>
-    <div class="cf-sticker-library">
-      <div class="settings-section-heading">Add a sticker</div>
-      <div class="cf-sticker-grid">${addButtons || '<div class="settings-empty">No stickers available.</div>'}</div>
-    </div>
-    <button type="button" class="settings-btn settings-btn-primary" data-action="done-edit">Done</button>`;
 }
 
 // _createView() — the character CREATE screen: two clearly separated,
@@ -280,7 +239,6 @@ export function renderCharacterForgePanel(state = {}) {
   const gate = !isLoggedIn
     ? '<div class="settings-gate">Sign in with Nostr to save your character — you can still explore the creation options below.</div>'
     : '';
-  const mode = (st.mode === 'edit') ? 'edit' : 'view';
   const rig = (st.rig && typeof st.rig === 'object') ? st.rig : null;
 
   const ai = (st.ai && typeof st.ai === 'object') ? st.ai : {};
@@ -293,9 +251,7 @@ export function renderCharacterForgePanel(state = {}) {
   } else if (!isLoggedIn) {
     body = _createView();
   } else if (status === 'found' && st.character) {
-    body = (mode === 'edit')
-      ? _stickerEditor(st.character.stickers, st.stickerLibrary)
-      : _foundView(st.character, rig);
+    body = _foundView(st.character, rig);
   } else if (status === 'failed') {
     body = `<div class="settings-empty">${_escape(st.error || 'Could not load your character.')}</div>
       <button type="button" class="settings-btn" data-action="check-character">Retry</button>`;

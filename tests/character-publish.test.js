@@ -1,7 +1,7 @@
 // tests/character-publish.test.js — locks the create round-trip write half and
 // the Blossom upload path (both in src/nostr.js): publishCharacter (build →
-// sign → verify → fan-out), buildBlossomAuthEvent (NIP-98), and uploadBlossom
-// (NIP-98 auth + PUT). Signing/publish/fetch are injected so the tests run in
+// sign → verify → fan-out), buildBlossomAuthEvent (BUD-11), and uploadBlossom
+// (BUD-11 auth + PUT). Signing/publish/fetch are injected so the tests run in
 // node with no NIP-07 extension or live relay.
 import { describe, it, expect, afterEach } from 'vitest';
 import {
@@ -57,12 +57,24 @@ describe('publishCharacter', () => {
 });
 
 describe('buildBlossomAuthEvent', () => {
-  it('builds a NIP-98 auth event over the upload URL', () => {
-    const e = buildBlossomAuthEvent('https://blossom.example/', 'PUT', { createdAt: 1700000000 });
+  it('builds a BUD-11 auth event scoped to the upload action + blob hash', () => {
+    const sha = 'a'.repeat(64);
+    const e = buildBlossomAuthEvent('https://blossom.example/', 'PUT', { createdAt: 1700000000, sha256: sha });
     expect(e.kind).toBe(BLOSSOM_AUTH_KIND);
+    expect(e.kind).toBe(24242); // BUD-11, not NIP-98's 27235
     expect(e.created_at).toBe(1700000000);
+    expect(e.tags).toContainEqual(['t', 'upload']);
+    expect(e.tags).toContainEqual(['x', sha]);
+    expect(e.tags).toContainEqual(['expiration', String(1700000000 + 300)]);
+    // u/method kept as harmless scope hints.
     expect(e.tags).toContainEqual(['u', 'https://blossom.example/upload']);
     expect(e.tags).toContainEqual(['method', 'PUT']);
+    expect(e.content).toBe('Upload Blob');
+  });
+
+  it('omits the x tag when no sha256 is supplied (invalid/absent scope)', () => {
+    const e = buildBlossomAuthEvent('https://blossom.example/', 'PUT', {});
+    expect(e.tags.some((t) => t[0] === 'x')).toBe(false);
   });
 });
 
@@ -80,6 +92,28 @@ describe('uploadBlossom', () => {
     const res = await uploadBlossom(file, { sign: okSign });
     expect(res.ok).toBe(true);
     expect(res.sha256).toBe(SHA);
+  });
+
+  it('scopes the auth token x-tag + X-SHA-256 header to the exact blob hash', async () => {
+    let signedEvent = null;
+    let fetchInit = null;
+    globalThis.fetch = async (url, init) => {
+      fetchInit = init;
+      return { ok: true, status: 200, json: async () => ({ sha256: SHA, url: `${DEFAULT_BLOSSOM_SERVER}/${SHA}` }) };
+    };
+    const capturingSign = async (unsigned) => { signedEvent = unsigned; return okSign(unsigned); };
+    await uploadBlossom(file, { sign: capturingSign });
+
+    // The token's x tag is the REAL sha256 of the uploaded bytes (8 zero bytes),
+    // not the server's echo SHA. bytesToHex(sha256(new Uint8Array(8))) is deterministic.
+    const xTag = signedEvent.tags.find((t) => t[0] === 'x');
+    expect(xTag).toBeTruthy();
+    expect(xTag[1]).toMatch(/^[0-9a-f]{64}$/);
+    expect(xTag[1]).not.toBe(SHA);
+    expect(signedEvent.tags).toContainEqual(['t', 'upload']);
+    expect(signedEvent.kind).toBe(24242);
+    // The PUT also carries the X-SHA-256 header so stricter servers can enforce it.
+    expect(fetchInit.headers['X-SHA-256']).toBe(xTag[1]);
   });
 
   it('fails when no file is provided', async () => {

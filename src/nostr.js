@@ -14,6 +14,8 @@ import {
 } from './engine/gateway/writeAuthority.js';
 import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
 import { recordOpen, recordOpenFail, recordClose, recordMessage } from './engine/telemetry/relayHealth.js';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 // v0.2.715-alpha (ADR-0081): ONE relay list for the whole game. The separate
 // hardcoded `RELAYS` (nos.lol + vertexlab.io) that profile/login/leaderboard
@@ -641,25 +643,43 @@ export async function publishCharacter(manifest, opts = {}) {
   return out;
 }
 
-// ── Blossom upload (NIP-96/NIP-98) ───────────────────────────────────────────
+// ── Blossom upload (BUD-02 / BUD-11) ──────────────────────────────────────────
 // The "make it so" path for a custom mesh: upload a GLB to a Blossom server and
 // get back its content-addressed sha256, which then slots into the manifest's
-// mesh.hash. NIP-98 HTTP auth signs a kind-27235 event over the upload URL; the
-// file bytes go up in a PUT. Signing is delegated to NIP-07 (no key here).
+// mesh.hash. Blossom uses its OWN authorisation event (kind 24242, NOT NIP-98's
+// 27235) — see BUD-11. The token MUST carry a `t` action verb (`upload`) and an
+// `x` tag scoping it to the exact blob's lowercase hex sha256, plus a NIP-40
+// `expiration`. Signing is delegated to NIP-07 (no key here).
 
-export const BLOSSOM_AUTH_KIND = 27235;
+export const BLOSSOM_AUTH_KIND = 24242;
 export const DEFAULT_BLOSSOM_SERVER = 'https://blossom.primal.net';
 
-// buildBlossomAuthEvent(server, method, opts) → the UNSIGNED NIP-98 auth event
-// for a Blossom upload. Pure; the signer fills pubkey/sig/id.
+// Default auth-token lifetime (seconds). Long enough that a user approving the
+// NIP-07 prompt can't out-live it, short enough that a leaked token is useless.
+const BLOSSOM_AUTH_TTL_S = 300;
+
+// buildBlossomAuthEvent(server, method, opts) → the UNSIGNED Blossom (BUD-11)
+// auth event for an upload. Pure; the signer fills pubkey/sig/id. `opts.sha256`
+// is the lowercase hex sha256 of the blob being uploaded — REQUIRED for the
+// `upload` action so the token is scoped to exactly that blob.
 export function buildBlossomAuthEvent(server, method = 'PUT', opts = {}) {
   const o = (opts && typeof opts === 'object') ? opts : {};
   const base = typeof server === 'string' ? server.replace(/\/+$/, '') : '';
+  const now = Number.isFinite(o.createdAt) ? Math.floor(o.createdAt) : Math.floor(Date.now() / 1000);
+  const exp = Number.isFinite(o.expiration) ? Math.floor(o.expiration) : now + BLOSSOM_AUTH_TTL_S;
+  const tags = [['t', 'upload']];
+  if (typeof o.sha256 === 'string' && /^[0-9a-f]{64}$/i.test(o.sha256)) {
+    tags.push(['x', o.sha256.toLowerCase()]);
+  }
+  tags.push(['expiration', String(exp)]);
+  // `u`/`method` are harmless extra scope hints (NIP-98 convention); blossom
+  // servers ignore unknown tags, but keeping them aids debugging.
+  tags.push(['u', `${base}/upload`], ['method', String(method || 'PUT').toUpperCase()]);
   return {
     kind: BLOSSOM_AUTH_KIND,
-    created_at: Number.isFinite(o.createdAt) ? Math.floor(o.createdAt) : Math.floor(Date.now() / 1000),
-    tags: [['u', `${base}/upload`], ['method', String(method || 'PUT').toUpperCase()]],
-    content: '',
+    created_at: now,
+    tags,
+    content: 'Upload Blob',
   };
 }
 
@@ -684,14 +704,24 @@ export async function uploadBlossom(file, opts = {}) {
   if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
   if (typeof fetch !== 'function') { out.error = 'fetch-unavailable'; return out; }
 
+  // BUD-11: the auth token's `x` tag MUST scope the upload to the exact blob's
+  // sha256. Compute it client-side over the raw bytes BEFORE signing so the
+  // token and the uploaded body are provably the same blob.
+  let shaHex = null;
+  try {
+    const buf = await file.arrayBuffer();
+    shaHex = bytesToHex(sha256(new Uint8Array(buf)));
+  } catch { out.error = 'hash-failed'; return out; }
+  if (!/^[0-9a-f]{64}$/.test(shaHex)) { out.error = 'hash-failed'; return out; }
+
   let signed;
-  try { signed = await sign(buildBlossomAuthEvent(server, 'PUT')); } catch { out.error = 'nip-07-threw'; return out; }
+  try { signed = await sign(buildBlossomAuthEvent(server, 'PUT', { sha256: shaHex })); } catch { out.error = 'nip-07-threw'; return out; }
   if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
 
   const authHeader = 'Nostr ' + _b64(JSON.stringify(signed.event));
   let res;
   try {
-    res = await fetch(`${server}/upload`, { method: 'PUT', headers: { Authorization: authHeader }, body: file });
+    res = await fetch(`${server}/upload`, { method: 'PUT', headers: { Authorization: authHeader, 'X-SHA-256': shaHex }, body: file });
   } catch { out.error = 'upload-failed'; return out; }
   if (!res || !res.ok) { out.error = 'upload-http-' + (res ? res.status : 'err'); return out; }
 

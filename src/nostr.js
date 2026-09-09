@@ -274,6 +274,11 @@ async function _fetchProfile(pubkey) {
 const OWNER_PROFILE_NAME_CACHE = new Map(); // pubkey -> { name, expiresAt }
 const OWNER_PROFILE_NAME_CACHE_TTL_MS = 5 * 60 * 1000;
 
+// v0.2.795-alpha — character-manifest cache: see fetchOwnCharacter. Keyed by
+// hex pubkey, holds the RESOLVED manifest (or null for "no character").
+const CHARACTER_CACHE = new Map(); // pubkey -> { value, expiresAt }
+const CHARACTER_CACHE_TTL_MS = 60 * 1000;
+
 export async function fetchOwnerProfileName(pubkey, opts = {}) {
   const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
   const pk = typeof pubkey === 'string' ? pubkey.trim().toLowerCase() : '';
@@ -345,6 +350,15 @@ export async function fetchOwnCharacter(pubkey, opts = {}) {
   const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
   const request = typeof o.request === 'function' ? o.request : fanoutReq;
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+  const nowMs = Number.isFinite(o.nowMs) ? o.nowMs : Date.now();
+  const ttlMs = Number.isFinite(o.cacheTtlMs) ? o.cacheTtlMs : CHARACTER_CACHE_TTL_MS;
+  const cache = (o.cache && typeof o.cache.get === 'function') ? o.cache : CHARACTER_CACHE;
+
+  // A non-positive TTL (or an injectable test cache) skips caching entirely.
+  if (ttlMs > 0 && cache && typeof cache.get === 'function') {
+    const hit = cache.get(pk);
+    if (hit && hit.expiresAt > nowMs) return hit.value;
+  }
 
   let raw;
   try {
@@ -355,9 +369,17 @@ export async function fetchOwnCharacter(pubkey, opts = {}) {
   const events = raw && Array.isArray(raw.events) ? raw.events : [];
   const { characters } = readCharacters(events);
   const entry = characters.find((c) => c.pubkey === pk);
-  if (!entry || !entry.valid) return null;
-  const manifest = entry.manifest;
-  return (manifest && manifest.mesh && manifest.mesh.hash) ? manifest : null;
+  const manifest = (entry && entry.valid && entry.manifest) ? entry.manifest : null;
+  const result = (manifest && manifest.mesh && manifest.mesh.hash) ? manifest : null;
+
+  if (ttlMs > 0 && cache && typeof cache.set === 'function') {
+    cache.set(pk, { value: result, expiresAt: nowMs + ttlMs });
+  }
+  return result;
+}
+
+export function __resetCharacterCache() {
+  CHARACTER_CACHE.clear();
 }
 
 function _updateTitleUI() {
@@ -640,6 +662,7 @@ export async function publishCharacter(manifest, opts = {}) {
   out.event = signed.event;
   out.ok = out.accepted > 0;
   if (!out.ok) out.error = 'no-relay-accepted';
+  else CHARACTER_CACHE.clear(); // v0.2.795-alpha: bust the read cache on publish
   return out;
 }
 

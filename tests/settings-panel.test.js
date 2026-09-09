@@ -5,9 +5,9 @@ import { describe, it, expect } from 'vitest';
 import { getSettingsTabIds, SETTINGS_PANEL_VERSION } from '../src/engine/settings/settingsPanel.js';
 
 describe('settings panel tab inventory (ADR-0078, v0.2.712)', () => {
-  it('exposes six tabs with Character after Profile and Access at the foot', () => {
+  it('exposes seven tabs with Stickers after Character and Access at the foot', () => {
     const ids = getSettingsTabIds();
-    expect(ids).toEqual(['profile', 'character', 'gateway', 'heartbeat', 'relay', 'access']);
+    expect(ids).toEqual(['profile', 'character', 'stickers', 'gateway', 'heartbeat', 'relay', 'access']);
   });
 
   it('includes the Access tab id + label so the nav renders it', () => {

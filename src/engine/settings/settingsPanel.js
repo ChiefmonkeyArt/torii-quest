@@ -93,6 +93,7 @@ export function getSettingsTabIds() {
 const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'character', label: 'Character' },
+  { id: 'stickers', label: 'Stickers' },
   { id: 'gateway', label: 'Gateway Setup' },
   { id: 'heartbeat', label: 'Heartbeat' },
   { id: 'relay', label: 'Relay' },

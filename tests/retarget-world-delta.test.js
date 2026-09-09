@@ -95,6 +95,43 @@ function bindIdleClip() {
   ]);
 }
 
+// Frame-consistent 3-bone chain with an OFF-AXIS Hips (so a non-root bone's
+// WORLD rotation differs from its LOCAL). targetRigTilt is exactly the
+// RotX(+90) frame-map of masterRigTilt: target Hips = RotX(+90)*RotX(-70)
+// = RotX(+20). This is the case that exposed the parent-LOCAL bug below the
+// hips (chiefmonkey's Hips rest is ~+19deg, not identity).
+function masterRigTilt() {
+  const hips = new THREE.Bone(); hips.name = 'Hips';
+  const spine = new THREE.Bone(); spine.name = 'Spine';
+  const head = new THREE.Bone(); head.name = 'Head';
+  spine.add(head); hips.add(spine);
+  hips.quaternion.copy(rotX(-70));
+  spine.quaternion.copy(IDENT); spine.position.set(0, 0.4, 0);
+  head.quaternion.copy(IDENT); head.position.set(0, 0, -0.4);
+  return [hips, spine, head];
+}
+
+function targetRigTilt() {
+  const hips = new THREE.Bone(); hips.name = 'Hips';
+  const spine = new THREE.Bone(); spine.name = 'Spine';
+  const head = new THREE.Bone(); head.name = 'Head';
+  spine.add(head); hips.add(spine);
+  hips.quaternion.copy(rotX(20));
+  spine.quaternion.copy(IDENT); spine.position.set(0, 0.4, 0);
+  head.quaternion.copy(IDENT); head.position.set(0, 0, -0.4);
+  return [hips, spine, head];
+}
+
+function bindClipTilt() {
+  const h = rotX(-70).toArray();
+  return new THREE.AnimationClip('Bind', 1.0, [
+    new THREE.QuaternionKeyframeTrack('Hips.quaternion', [0, 1], [...h, ...h]),
+    new THREE.QuaternionKeyframeTrack('Spine.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]),
+    new THREE.QuaternionKeyframeTrack('Head.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]),
+  ]);
+}
+
+
 const REBIND = new Map([['Hips', 'Hips'], ['Spine', 'Spine'], ['Head', 'Head']]);
 
 describe('buildRigBind', () => {
@@ -152,6 +189,40 @@ describe('retargetClipWorldDelta', () => {
         expect(Number.isFinite(q.w)).toBe(true);
         expect(q.length()).toBeCloseTo(1, 3);
       }
+    }
+  });
+
+  it('uses the parent baked WORLD (not local) when computing a deep-bone local', () => {
+    const tgtBind = buildRigBind(targetRigTilt());
+    const out = retargetClipWorldDelta(bindClipTilt(), buildRigBind(masterRigTilt()), tgtBind, REBIND, { fps: 2 });
+    expect(out).not.toBe(null);
+    // A bind clip must reproduce the TARGET bind locals for every bone. Head is
+    // the witness: with the off-axis Hips (+20deg), the old parent-LOCAL bug left
+    // it at rotX(20deg) instead of identity.
+    for (const n of ['Hips', 'Spine', 'Head']) {
+      const tr = out.tracks.find((t) => t.name === n + '.quaternion');
+      expect(tr).toBeTruthy();
+      const q = new THREE.Quaternion(tr.values[0], tr.values[1], tr.values[2], tr.values[3]);
+      expect(q.angleTo(tgtBind.localQ.get(n))).toBeLessThan(0.01);
+    }
+  });
+
+  it('interpolates across an opposite-hemisphere keyframe pair without throwing', () => {
+    // Hips keyframes [0,0,0,1] and [0,0,0,-1] are the SAME rotation in opposite
+    // quaternion hemispheres (dot<0). Sampling mid-way forces the slerp branch,
+    // which used to call the nonexistent Quaternion.multiplyScalar and throw.
+    const clip = new THREE.AnimationClip('Cross', 1.0, [
+      new THREE.QuaternionKeyframeTrack('Hips.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, -1]),
+      new THREE.QuaternionKeyframeTrack('Spine.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]),
+    ]);
+    const out = retargetClipWorldDelta(clip, buildRigBind(masterRig()), buildRigBind(targetRig()), REBIND, { fps: 3 });
+    expect(out).not.toBe(null);
+    const hips = out.tracks.find((t) => t.name === 'Hips.quaternion');
+    expect(hips.values.length).toBeGreaterThan(4); // >1 sampled frame → slerp ran
+    for (let i = 0; i < hips.values.length; i += 4) {
+      const q = new THREE.Quaternion(hips.values[i], hips.values[i + 1], hips.values[i + 2], hips.values[i + 3]);
+      expect(Number.isFinite(q.x)).toBe(true);
+      expect(q.length()).toBeCloseTo(1, 3);
     }
   });
 

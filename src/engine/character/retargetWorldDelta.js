@@ -129,7 +129,11 @@ function sampleQuat(track, t, out) {
   const k = (t - ts[i]) / (ts[i + 1] - ts[i]);
   const qa = new THREE.Quaternion(vs[i * 4], vs[i * 4 + 1], vs[i * 4 + 2], vs[i * 4 + 3]).normalize();
   const qb = new THREE.Quaternion(vs[(i + 1) * 4], vs[(i + 1) * 4 + 1], vs[(i + 1) * 4 + 2], vs[(i + 1) * 4 + 3]).normalize();
-  if (qa.dot(qb) < 0) qb.multiplyScalar(-1);
+  // Hemisphere alignment: negate qb when the two stored samples sit in opposite
+  // quaternion hemispheres (same rotation, opposite sign). THREE.Quaternion has
+  // no multiplyScalar/negate — flip the components directly or slerp would take
+  // the long way around and the runtime would throw on the missing method.
+  if (qa.dot(qb) < 0) { qb.x = -qb.x; qb.y = -qb.y; qb.z = -qb.z; qb.w = -qb.w; }
   return out.set(0, 0, 0, 1).slerpQuaternions(qa, qb, k);
 }
 
@@ -184,20 +188,27 @@ export function retargetClipWorldDelta(clip, libBind, tgtBind, rebind, opts = {}
     }
 
     // world-delta retarget
-    const tWorldQ = new Map();
+    const tWorldQ = new Map();  // baked WORLD rotation (parent lookup uses world)
     for (const tName of tgtBind.names) {
       const mName = tgtByMaster.get(tName);
       if (!mName || !mWorldQ.has(mName)) continue;
       const wl = mWorldQ.get(mName);
       const delta = qa.copy(wl).multiply(invLibWorldQ.get(mName)).normalize();
       const dw = qb.copy(FRAME).multiply(delta).multiply(FInv).normalize();
-      const wt = dw.clone().multiply(abone.get(tName)).multiply(tgtBind.worldQ.get(tName)).normalize();
+      // wtWorld = dw * A_bone * target.bind_world (world-space, matches
+      // glb_retarget.py: wt = dw @ A_bone @ target.bind_world).
+      const wtWorld = dw.clone().multiply(abone.get(tName)).multiply(tgtBind.worldQ.get(tName)).normalize();
+      // Baked LOCAL = inv(parent_baked_world) * wtWorld. The parent lookup MUST
+      // use the parent's baked WORLD, not its local — the old code premultiplied
+      // wt in place and then stored the (already-local) result, so every child
+      // below the hips used a local where a world was required.
       const p = tgtBind.parentOf.get(tName);
-      if (p && tWorldQ.has(p)) wt.premultiply(tWorldQ.get(p).clone().invert());
-      wt.normalize();
-      tWorldQ.set(tName, wt);
+      const local = (p && tWorldQ.has(p))
+        ? tWorldQ.get(p).clone().invert().multiply(wtWorld).normalize()
+        : wtWorld.clone();
+      tWorldQ.set(tName, wtWorld);
       const arr = outVals.get(tName);
-      if (arr) { arr[fi * 4] = wt.x; arr[fi * 4 + 1] = wt.y; arr[fi * 4 + 2] = wt.z; arr[fi * 4 + 3] = wt.w; }
+      if (arr) { arr[fi * 4] = local.x; arr[fi * 4 + 1] = local.y; arr[fi * 4 + 2] = local.z; arr[fi * 4 + 3] = local.w; }
     }
   }
 

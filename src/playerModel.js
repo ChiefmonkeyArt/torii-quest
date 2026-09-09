@@ -7,8 +7,9 @@ import { scene } from './scene.js';
 import { keys } from './input.js';
 import { setRightHandBone } from './weapons.js';
 import { assetUrl } from './assetUrl.js';
-import { GAME_STATE_TO_CLIP, loadAnimationLibrary } from './engine/animationLibrary.js';
-import { buildBoneRebind, retargetClip, collectTrackBoneNames } from './engine/character/animationRetarget.js';
+import { GAME_STATE_TO_CLIP, loadAnimationLibrary, getAnimationLibraryBones } from './engine/animationLibrary.js';
+import { buildBoneRebind, collectTrackBoneNames } from './engine/character/animationRetarget.js';
+import { buildRigBind, retargetClipWorldDelta } from './engine/character/retargetWorldDelta.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -165,6 +166,24 @@ function _collectSkinnedBones(root) {
   return names;
 }
 
+// _collectSkinnedBoneObjs(root) → the distinct THREE.Bone objects of every
+// SkinnedMesh in the scene. This is the target-side BIND-POSE source for the
+// world-delta retarget (retargetWorldDelta.buildRigBind needs the actual bone
+// transforms, not just names). Returns [] for an unrigged/static mesh.
+function _collectSkinnedBoneObjs(root) {
+  const bones = [];
+  const seen = new Set();
+  if (!root || typeof root.traverse !== 'function') return bones;
+  root.traverse((o) => {
+    if (o && o.isSkinnedMesh && o.skeleton && Array.isArray(o.skeleton.bones)) {
+      for (const b of o.skeleton.bones) {
+        if (b && !seen.has(b)) { seen.add(b); bones.push(b); }
+      }
+    }
+  });
+  return bones;
+}
+
 // ── Load ──────────────────────────────────────────────────────────────────────
 export async function loadPlayerModel(parentObj) {
   // Remove previous model if switching characters mid-session
@@ -303,11 +322,17 @@ export async function loadPlayerModel(parentObj) {
     if (usedCustomMesh) {
       try {
         const library = await loadAnimationLibrary(_loader);   // Map<name, clip>
-        const libBones = collectTrackBoneNames(library);
-        const tgtBones = _collectSkinnedBones(_root);
-        const rebind = buildBoneRebind(libBones, tgtBones);
+        const libBones = getAnimationLibraryBones() || [];
+        const tgtBones = _collectSkinnedBoneObjs(_root);
+        const libBind = buildRigBind(libBones);
+        const tgtBind = buildRigBind(tgtBones);
+        const libBonesNamed = collectTrackBoneNames(library);
+        const tgtBonesNamed = _collectSkinnedBones(_root);
+        const rebind = buildBoneRebind(libBonesNamed, tgtBonesNamed);
         for (const [name, clip] of library) {
-          const retargeted = retargetClip(clip, rebind);
+          // v0.2.797-alpha: world-delta retarget (frame-map + rest-cancel) so a
+          // Z-up library animates a Y-up upload instead of tipping it on its back.
+          const retargeted = retargetClipWorldDelta(clip, libBind, tgtBind, rebind);
           if (retargeted && retargeted.tracks.length > 0) availableClips.set(name, retargeted);
         }
         if (availableClips.size > 0) {

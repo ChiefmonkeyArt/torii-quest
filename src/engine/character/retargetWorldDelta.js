@@ -137,6 +137,20 @@ function sampleQuat(track, t, out) {
   return out.set(0, 0, 0, 1).slerpQuaternions(qa, qb, k);
 }
 
+// sampleVec3(track, t, out) — sample a Vector3 position track (used for the Hips
+// root-motion delta). Mirrors sampleQuat's linear interpolation over time.
+function sampleVec3(track, t, out) {
+  const ts = track.times, vs = track.values, n = ts.length;
+  if (!n) return out.set(0, 0, 0);
+  if (t <= ts[0]) return out.set(vs[0], vs[1], vs[2]);
+  if (t >= ts[n - 1]) return out.set(vs[(n - 1) * 3], vs[(n - 1) * 3 + 1], vs[(n - 1) * 3 + 2]);
+  let i = 0; while (i < n - 1 && ts[i + 1] < t) i++;
+  const k = (t - ts[i]) / (ts[i + 1] - ts[i]);
+  const ax = vs[i * 3], ay = vs[i * 3 + 1], az = vs[i * 3 + 2];
+  const bx = vs[(i + 1) * 3], by = vs[(i + 1) * 3 + 1], bz = vs[(i + 1) * 3 + 2];
+  return out.set(ax + (bx - ax) * k, ay + (by - ay) * k, az + (bz - az) * k);
+}
+
 // invert the rebind (Map<master, target>) → Map<target, master>
 function invertRebind(rebind) {
   const inv = new Map();
@@ -228,15 +242,42 @@ export function retargetClipWorldDelta(clip, libBind, tgtBind, rebind, opts = {}
     outTracks.push(new THREE.QuaternionKeyframeTrack(tName + '.quaternion', Array.from(times), Array.from(arr)));
   }
 
-  // ── position tracks: name-remap only (root motion). The in-place game clips
-  // carry no meaningful root translation; any jump/fall root motion is preserved
-  // as the pre-existing name-remap did — the world-delta fix targets rotation.
-  for (const [mName, trk] of libPos) {
-    const tName = rebind.get(mName);
-    if (!tName) continue;
-    const remapped = trk.clone();
-    remapped.name = tName + '.position';
-    outTracks.push(remapped);
+  // ── Hips root motion (the ONLY position track, matching glb_retarget.py) ──
+  // The library clips carry a CONSTANT position track on every bone (the bind
+  // offset, authored in the library's centimetre / Z-up convention). Name-remapping
+  // those verbatim corrupted the target's metre / Y-up skeleton — e.g. the target
+  // Hips got the library's Y=19.63 instead of its own Y=95.98, sinking the
+  // character ~76cm into the floor. The offline bake instead emits ONE translation
+  // track for the Hips: world delta frame-mapped Z-up→Y-up and height-scaled,
+  // added back onto the target's bind position. All other bones keep their bind
+  // positions (no track).
+  if (libPos.has('Hips')) {
+    const tH = rebind.get('Hips');
+    const lH = libBind.worldP.get('Hips');
+    const tHP = tH ? tgtBind.worldP.get(tH) : null;
+    if (tH && lH && tHP && tgtBind.worldQ.has(tH)) {
+      const hL = lH.length();
+      const hT = tHP.length();
+      const s = (hL > 1e-9 && hT > 1e-9) ? hT / hL : 1;
+      const hipTrk = libPos.get('Hips');
+      const arr = new Float32Array(nfr * 3);
+      const tv = new THREE.Vector3();
+      const dv = new THREE.Vector3();
+      const ov = new THREE.Vector3();
+      const pHips = tgtBind.parentOf.get(tH);
+      for (let fi = 0; fi < nfr; fi++) {
+        const t = (nfr === 1) ? 0 : (fi / (nfr - 1)) * dur;
+        sampleVec3(hipTrk, t, tv);                 // library Hips world translation
+        dv.copy(tv).sub(lH);                       // delta from library bind
+        dv.applyQuaternion(FRAME).multiplyScalar(s); // Z-up → Y-up world, height-scaled
+        ov.copy(tHP).add(dv);                      // target Hips world position
+        if (pHips) {
+          ov.sub(tgtBind.worldP.get(pHips)).applyQuaternion(tgtBind.worldQ.get(pHips).clone().invert());
+        }
+        arr[fi * 3] = ov.x; arr[fi * 3 + 1] = ov.y; arr[fi * 3 + 2] = ov.z;
+      }
+      outTracks.push(new THREE.VectorKeyframeTrack(tH + '.position', Array.from(times), Array.from(arr)));
+    }
   }
 
   const out = clip.clone();

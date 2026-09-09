@@ -1222,6 +1222,20 @@ let _ownCharacterMeshHash = null;
 let _ownCharacterHeadlessUrl = null;
 
 on(EV.NOSTR_LOGIN, () => {
+  // v0.2.800-alpha: a real npub login OVERRIDES any earlier guest-card pick. The
+  // guest flag was sticky — a player who picked a torso card as a guest, then
+  // logged in, kept the guest torso instead of their own kind-35100 mesh because
+  // _seatCharacterIntoArena still read the stale _guestCharChosen and cleared the
+  // custom mesh. Reset it (and deselect the cards) so the player's own character
+  // seats instead. The explicit-pick-wins rule still holds AFTER login: tapping a
+  // card once logged in re-arms the flag and the card wins again.
+  _guestCharChosen = false;
+  if (_charCards && _charCards.length) {
+    for (const card of _charCards) {
+      card.classList.remove('selected');
+      card.setAttribute('aria-checked', 'false');
+    }
+  }
   _handshake.setOurPubkey(state.nostrPubkey || '');
   renderGatewayCard();
   _applyOwnCharacterMesh();

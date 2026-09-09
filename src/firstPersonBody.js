@@ -216,15 +216,25 @@ export function setFlyHidden(hidden) {
 
 // Distance within which the FP body is hidden so it can't bleed into the mirror
 // surface when the player is standing right in front of it.
+// v0.2.802-alpha: also require the player to be roughly FACING the mirror, not
+// merely near it. The original distance-only guard hid the entire first-person
+// body whenever the player was within 3m — so standing by the mirror and looking
+// DOWN (away from the glass) showed no body/feet at all.
 const MIRROR_HIDE_DIST = 3.0; // metres
+const MIRROR_FACING_DOT = 0.3; // cos(≈72°) — mirror must lie in front of the view
 const _mirrorPos = new THREE.Vector3();
+const _fwd = new THREE.Vector3();
+const _toMirror = new THREE.Vector3();
 function _updateMirrorProximity() {
   if (!_root) return;
   const m = getMirror();
   if (!m) { _mirrorHidden = false; _applyVisibility(); return; }
   m.getWorldPosition(_mirrorPos);
   camera.getWorldPosition(_wp);
-  const near = _wp.distanceTo(_mirrorPos) < MIRROR_HIDE_DIST;
+  camera.getWorldDirection(_fwd);
+  _toMirror.copy(_mirrorPos).sub(_wp).normalize();
+  const facing = _fwd.dot(_toMirror);
+  const near = _wp.distanceTo(_mirrorPos) < MIRROR_HIDE_DIST && facing > MIRROR_FACING_DOT;
   if (near !== _mirrorHidden) { _mirrorHidden = near; _applyVisibility(); }
 }
 

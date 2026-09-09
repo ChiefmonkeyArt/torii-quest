@@ -3145,6 +3145,27 @@ elNapBtn?.addEventListener('click', async () => {
 if (typeof window !== 'undefined') {
   window.__toriiEnterArenaFromTitle = function _enterArenaFromTitle() {
     if (!elNapBtn) return;
+    // v0.2.804-alpha: entering via the LOGIN-NOSTR/ENTER surface must enforce
+    // the LOGGED-IN NPUB character, not whatever the guest picker last set.
+    // Repro: log in as npub → enter → exit → tap a guest torso card (or the
+    // user was previously a guest with nostrich in this session) → click the
+    // LOGIN-NOSTR/ENTER surface. Without this reset, _pendingGuestChar +
+    // _guestCharChosen stayed at the guest pick and the player entered as the
+    // guest torso even though the button says ENTER (as the logged-in npub).
+    // NOSTR_LOGIN only fires on the FIRST login of the session, so a second
+    // click won't rerun that handler; this button must own the enforcement.
+    // The 64-hex guard keeps this a no-op for a genuine guest ENTER (button
+    // not yet armed / no login), so the guest boot path is unchanged.
+    if (/^[0-9a-f]{64}$/.test(state?.nostrPubkey || '')) {
+      _guestCharChosen = false;
+      _pendingGuestChar = 'chiefmonkey';
+      if (_charCards && _charCards.length) {
+        for (const card of _charCards) {
+          card.classList.remove('selected');
+          card.setAttribute('aria-checked', 'false');
+        }
+      }
+    }
     // Login-first users may not have picked a guest card, so the button
     // could still carry data-armed="false" + disabled from the initial
     // markup. Enable it in-place — the boot itself uses the current

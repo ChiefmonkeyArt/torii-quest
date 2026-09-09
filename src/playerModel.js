@@ -10,6 +10,7 @@ import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP, loadAnimationLibrary, getAnimationLibraryBones } from './engine/animationLibrary.js';
 import { buildBoneRebind, collectTrackBoneNames } from './engine/character/animationRetarget.js';
 import { buildRigBind, retargetClipWorldDelta } from './engine/character/retargetWorldDelta.js';
+import { synthStandShoot, STAND_SHOOT_NAME } from './engine/character/standShootBlend.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -360,6 +361,15 @@ export async function loadPlayerModel(parentObj) {
       }
     }
 
+    // v0.2.801-alpha: built-in characters carry baked clips only, so synthesize
+    // the stand-and-shoot clip here too (the custom-mesh path already gets it via
+    // loadAnimationLibrary → retarget). Frame-agnostic blend of the firing upper
+    // body + idle lower body.
+    if (!availableClips.has(STAND_SHOOT_NAME)) {
+      const standShoot = synthStandShoot(availableClips);
+      if (standShoot) availableClips.set(STAND_SHOOT_NAME, standShoot);
+    }
+
     availableClips.forEach((clip, name) => {
       _clips[name] = clip;
       const a = _mixer.clipAction(clip);
@@ -492,7 +502,7 @@ export function tickPlayerModel(dt, isShooting, isReloading, isJumping) {
   // overrides idle. Play the SAME clip here so your own mirror reflection shows
   // you firing when stationary, instead of plain IDLE. Precedes the !moving
   // early-return so it wins over idle but stays below the moving branch.
-  if (isShooting && !moving)            { _play(_anims.RUN_SHOOT, true); return; }
+  if (isShooting && !moving)            { _play(_anims.STAND_SHOOT || _anims.RUN_SHOOT, true); return; }
   if (!moving)                          { _play(_anims.IDLE, true);      return; }
   // RUN_SHOOT only for forward/run movement — mirrors the MP anim-hint
   // priority so remote peers see the same clip the local player sees.

@@ -1,4 +1,5 @@
 import { assetUrl } from '../assetUrl.js';
+import { synthStandShoot, STAND_SHOOT_NAME } from './character/standShootBlend.js';
 
 const ANIMATION_LIBRARY_URL = '/models/animation-library.glb';
 
@@ -11,6 +12,7 @@ export const GAME_STATE_TO_CLIP = Object.freeze({
   WALK: 'Stylish_Walk_inplace',
   WALK_BACK: 'Walk_Backward',
   RUN: 'Running',
+  STAND_SHOOT: 'Stand_Shoot',
   RUN_SHOOT: 'Run_Forward_Firing',
   RUN_BACK: 'Run_Backward',
   STRAFE_LEFT: 'Run_Forward_Firing',
@@ -39,6 +41,11 @@ export async function loadAnimationLibrary(loader) {
       stripped.tracks = stripped.tracks.filter((track) => !track.name.endsWith('.scale'));
       _clips.set(stripped.name, stripped);
     }
+    // v0.2.801-alpha: synthesize the missing "stand and shoot" clip from the
+    // firing + idle clips so a stationary character fires from a planted stance
+    // instead of replaying Run_Forward_Firing (whose legs run in place).
+    const standShoot = synthStandShoot(_clips);
+    if (standShoot) _clips.set(STAND_SHOOT_NAME, standShoot);
     return _clips;
   });
 

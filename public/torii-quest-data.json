@@ -1,6 +1,6 @@
 {
-  "version": "v0.2.800-alpha",
-  "generatedAt": "2026-09-09T17:19:20.081Z",
+  "version": "v0.2.801-alpha",
+  "generatedAt": "2026-09-09T17:56:04.581Z",
   "badge": "PROJECT OVERSIGHT · STATIC · READ-ONLY",
   "totals": {
     "tasksAhead": 12,
@@ -49,17 +49,17 @@
       {
         "label": "Build version",
         "kind": "generated",
-        "value": "v0.2.800-alpha"
+        "value": "v0.2.801-alpha"
       },
       {
         "label": "Test files / profiles",
         "kind": "generated",
-        "value": "fast 5 · foundation 25 · full 351"
+        "value": "fast 5 · foundation 25 · full 353"
       },
       {
         "label": "Total tests",
         "kind": "last-known",
-        "value": "4171 passing / 351 files"
+        "value": "4177 passing / 353 files"
       },
       {
         "label": "Profile timings",
@@ -79,7 +79,7 @@
       {
         "label": "Release gate",
         "kind": "last-known",
-        "value": "21 / 21 regression checks GREEN · last green v0.2.800-alpha"
+        "value": "21 / 21 regression checks GREEN · last green v0.2.801-alpha"
       },
       {
         "label": "Source-of-truth docs",
@@ -101,7 +101,7 @@
       {
         "pct": 7,
         "label": "Foundation coverage",
-        "sub": "25/351 files"
+        "sub": "25/353 files"
       }
     ]
   },
@@ -192,15 +192,15 @@
     "status": "ready",
     "statusLabel": "READY",
     "ready": true,
-    "version": "v0.2.800-alpha",
-    "gitCommit": "3a9cf57b",
+    "version": "v0.2.801-alpha",
+    "gitCommit": "38d55d75",
     "signals": [
       {
         "key": "versionSync",
         "label": "Version sync",
         "state": "ok",
         "pill": "no-blocker",
-        "detail": "config v0.2.800-alpha / pkg 0.2.800-alpha"
+        "detail": "config v0.2.801-alpha / pkg 0.2.801-alpha"
       },
       {
         "key": "tests",
@@ -221,7 +221,7 @@
         "label": "Bundle baseline",
         "state": "advisory",
         "pill": "manual",
-        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-CrjvUzzF.js"
+        "detail": "advisory — over limit: rapier-DE6a0vmv.js, three-vendor-B_DgK7ss.js"
       },
       {
         "key": "zoneFallback",
@@ -253,7 +253,7 @@
     "band": "gates-green",
     "statusLabel": "LOCAL GATES GREEN · MANUAL VALIDATION + APPROVAL PENDING",
     "pill": "manual",
-    "version": "v0.2.800-alpha",
+    "version": "v0.2.801-alpha",
     "manifestStatus": "COMPLETE",
     "manifestRequiredPresent": 6,
     "manifestRequired": 6,
@@ -261,14 +261,14 @@
     "manifestOptional": 6,
     "rcDocsPresent": 7,
     "rcDocsTotal": 7,
-    "testLabel": "4171 passing / 351 files",
+    "testLabel": "4177 passing / 353 files",
     "profileSummary": "fast ~5 · foundation ~25 · full",
     "manualValidationRemaining": 7,
     "gateStatusLabel": "READY",
     "metrics": [
       {
         "label": "Source version",
-        "value": "v0.2.800-alpha"
+        "value": "v0.2.801-alpha"
       },
       {
         "label": "Release manifest",
@@ -280,7 +280,7 @@
       },
       {
         "label": "Tests",
-        "value": "4171 passing / 351 files"
+        "value": "4177 passing / 353 files"
       },
       {
         "label": "Test profiles",
@@ -400,7 +400,7 @@
     "pill": "no-blocker",
     "status": "approved",
     "approved": true,
-    "version": "v0.2.800-alpha",
+    "version": "v0.2.801-alpha",
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
     "metrics": [
@@ -410,7 +410,7 @@
       },
       {
         "label": "Version",
-        "value": "v0.2.800-alpha"
+        "value": "v0.2.801-alpha"
       },
       {
         "label": "Approved by",
@@ -454,7 +454,7 @@
       },
       {
         "label": "Test suite",
-        "value": "green — 4171 passing / 351 files"
+        "value": "green — 4177 passing / 353 files"
       },
       {
         "label": "Explicit approval",
@@ -562,7 +562,7 @@
     "metrics": [
       {
         "label": "Version",
-        "value": "v0.2.800-alpha"
+        "value": "v0.2.801-alpha"
       },
       {
         "label": "Live game",
@@ -739,7 +739,7 @@
   },
   "leaderboard": {
     "badge": "LEADERBOARD · TOP 5 · NOSTR-BACKED · READ-ONLY",
-    "version": "v0.2.800-alpha",
+    "version": "v0.2.801-alpha",
     "rows": [],
     "empty": true,
     "emptyLabel": "No scores yet — play a match to get on the board.",

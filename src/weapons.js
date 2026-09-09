@@ -559,6 +559,17 @@ function _buildWorldGun(srcScene) {
 }
 
 export function setRightHandBone(bone) {
+  // v0.2.801-alpha: a NEW bone means the player body was reloaded (login /
+  // character swap). The old world gun (if any) is still parented to the
+  // REMOVED body, so detach it and re-attach to the new body's bone — otherwise
+  // the mirror shows no gun after a character reload. Idempotent for the same
+  // bone.
+  if (bone && bone === _rightHandBone && _worldGun) return;
+  if (_worldGun) {
+    const wrap = _worldGun.parent;
+    if (wrap && wrap.parent) wrap.parent.remove(wrap);
+    _worldGun = null;
+  }
   _rightHandBone = bone;
   if (_worldGunSrc && !_worldGun) _attachWorldGun();
 }

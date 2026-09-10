@@ -182,16 +182,25 @@ describe('v0.2.806 — vertical readability band (post-glass-panel treatment)', 
     expect(body).toMatch(/rgba\([^)]*,\s*0\)\s*100%/);
   });
 
-  it('the #title-centre.glass-panel CSS rule declares NO backdrop-filter blur', () => {
+  it('the #title-centre.glass-panel CSS rule declares NO active backdrop-filter blur', () => {
     // Whole point of the reset: nothing on #title-centre samples the world
     // through a filter, so there is nothing that can draw a hard blur edge.
     // The rule body is examined directly (backdrop-filter elsewhere in the
     // stylesheet, on e.g. the settings modal, is fine).
+    //
+    // v0.2.807-alpha reshape: the rule may now declare `backdrop-filter: none`
+    // and `-webkit-backdrop-filter: none` explicitly (to override the
+    // inherited `.glass-panel` blur+saturate). Only NON-`none` values are
+    // forbidden — any value with `blur(...)`, `saturate(...)`, or anything
+    // other than the `none` reset re-introduces the sampling edge.
     const rule = HTML.match(/#title-centre\.glass-panel\s*\{[^}]*\}/s);
     expect(rule).toBeTruthy();
     const body = rule[0];
-    expect(body).not.toMatch(/backdrop-filter/);
-    expect(body).not.toMatch(/-webkit-backdrop-filter/);
+    const decls = body.match(/(?:^|;|\{)\s*(-webkit-)?backdrop-filter\s*:\s*([^;]+?)(?=;|\})/g) || [];
+    for (const decl of decls) {
+      const value = decl.replace(/(?:^|;|\{)\s*(-webkit-)?backdrop-filter\s*:\s*/, '').trim();
+      expect(value).toBe('none');
+    }
   });
 
   it('the .gp-band CSS rule ALSO declares NO backdrop-filter (flat tint only)', () => {

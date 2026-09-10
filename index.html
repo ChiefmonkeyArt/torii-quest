@@ -88,7 +88,7 @@
     #screen-title {
       position: fixed; inset: 0; z-index: 100;
       display: flex; flex-direction: column; align-items: center;
-      /* v0.2.807-alpha: full-viewport top-to-bottom darkening overlay removed
+      /* v0.2.808-alpha: full-viewport top-to-bottom darkening overlay removed
          per design direction — the sunset photo now sits unfiltered behind
          the homepage. Only the centre-column .gp-band provides text-behind
          readability treatment. */
@@ -123,13 +123,13 @@
       text-shadow: 0 0 60px rgba(232,132,44,0.45);
     }
     .title-logo-text span { color: #f7931a; }
-    /* v0.2.807-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
+    /* v0.2.808-alpha: torii-gate logo mark (bolt inside the gateway), inline SVG,
        monochrome via currentColor so it inherits the orange span colour. */
     .logo-mark { display: inline-flex; align-items: flex-end; vertical-align: -0.12em; }
     .logo-mark .logo-torii { width: 0.82em; height: 0.82em; margin: 0 0.06em; }
-    /* v0.2.807-alpha: .title-tagline-sm rule removed — tagline was stripped. */
+    /* v0.2.808-alpha: .title-tagline-sm rule removed — tagline was stripped. */
     /* Phase 0c: persistent Torii/settings-menu button (title-screen header).
-       v0.3: moved top-right → top-left. v0.2.807-alpha: moved again, top-left
+       v0.3: moved top-right → top-left. v0.2.808-alpha: moved again, top-left
        → bottom-left (screen corner, fixed not absolute, so it stays anchored
        to the viewport rather than scrolling with #title-header) to make room
        for the new top-left "This torii belongs to" owner caption. Opens the
@@ -146,14 +146,14 @@
     .btn-torii-menu:hover { background: rgba(232,132,44,0.25); color: #fff; border-color: rgba(245,206,158,0.6); }
     .btn-torii-menu svg { display: block; }
 
-    /* v0.2.807-alpha: top-left "This torii belongs to: <owner>" caption —
+    /* v0.2.808-alpha: top-left "This torii belongs to: <owner>" caption —
        fixed corner label, sits directly on the sunset photo like the header
        text (no glass box; a plain text treatment reads lighter here and
        avoids a 4th competing panel on the screen). Populated by
        main.js's _refreshOwnerLabel() against capability.adminPubkey. */
     #torii-owner-caption {
       position: fixed; top: 18px; left: 18px; z-index: 20;
-      /* v0.2.807-alpha fix: a long displayName wrapping to a 2nd line pushed
+      /* v0.2.808-alpha fix: a long displayName wrapping to a 2nd line pushed
          into the header's TORII wordmark on narrow viewports. Kept single-
          line + ellipsis-truncated instead — a clipped-but-readable name is
          better than colliding text, and the full name is still visible in
@@ -243,7 +243,7 @@
       position: relative;
     }
     #title-centre.glass-panel {
-      /* v0.2.807-alpha: single vertical band, peak alpha 0.70 (was 0.32 in
+      /* v0.2.808-alpha: single vertical band, peak alpha 0.70 (was 0.32 in
          v0.2.806). The old rings + flat tint are gone; the .gp-band child
          owns the entire panel treatment as a flat rgba tint whose opacity
          peaks on the vertical centre axis and gradient-fades continuously
@@ -261,7 +261,7 @@
       isolation: isolate;
     }
     .gp-band {
-      /* Vertical readability band — the ONLY panel treatment in v0.2.807-alpha.
+      /* Vertical readability band — the ONLY panel treatment in v0.2.808-alpha.
          Flat dark tint, peaks on the vertical centre line, fades linearly to
          fully transparent well before the panel's left/right edges. Extends
          well past top/bottom via negative inset so there is no horizontal
@@ -322,7 +322,7 @@
       margin: 22px 0;
     }
 
-    /* ── v0.2.807-alpha: armed/inactive state model for entry buttons ─────
+    /* ── v0.2.808-alpha: armed/inactive state model for entry buttons ─────
        Both #btn-enter-nap (guest) and #btn-nostr-centre (login) start
        unhighlighted (grey/outline). They flip to a solid green CTA only
        once the user has (a) picked a guest character card, or (b)
@@ -356,7 +356,7 @@
       opacity: 1; box-shadow: 0 0 40px rgba(34,197,94,0.55);
     }
 
-    /* Login button in centre — v0.2.807-alpha: starts as a plain outline
+    /* Login button in centre — v0.2.808-alpha: starts as a plain outline
        (secondary) and only flips to the solid green ENTER CTA once the user
        has confirmed via their signer. Prevents the button from mis-selling
        itself as "ready to enter" before login has actually happened. */
@@ -386,7 +386,7 @@
       opacity: 1; box-shadow: 0 0 40px rgba(34,197,94,0.55);
     }
 
-    /* ── v0.2.807-alpha: three-option login panel (post-strip) ─────────────
+    /* ── v0.2.808-alpha: three-option login panel (post-strip) ─────────────
        Guest character picker + Create-with-AI + Nostr login. All decorative
        copy (eyebrow, numbered step labels, per-option subheads) removed per
        design direction. .entry-option keeps its flex layout because sections
@@ -394,26 +394,65 @@
        / .entry-num / .entry-option-sub classes deleted — no longer referenced. */
     .entry-option { display: flex; flex-direction: column; align-items: center; width: 100%; }
 
-    /* v0.2.807-alpha: soft descriptor line under each entry-option button.
-       Complements the button copy without shouting like the removed numbered
-       step labels did. Dim, letter-spaced, small, no background of its own
-       (relies on the .gp-band underneath for legibility over the sunset). */
+    /* v0.2.808-alpha: soft descriptor line ABOVE each entry-option button (was
+       under in v0.2.807). Complements the button copy without shouting like
+       the removed numbered step labels did. Dim, letter-spaced, small, no
+       background of its own (relies on the .gp-band underneath for legibility
+       over the sunset). Vertical rhythm: sits directly above its option and
+       the .torii-divider between sections owns the gap. */
     .entry-caption {
-      margin-top: 6px;
-      font-size: 10px;
-      letter-spacing: 2px;
+      margin: 0 0 8px 0;
+      font-size: 11px;
+      letter-spacing: 3px;
       text-transform: uppercase;
-      color: rgba(245,224,200,0.62);
+      color: rgba(245,224,200,0.72);
       text-shadow: 0 1px 3px rgba(0,0,0,0.55);
       text-align: center;
-      max-width: 220px;
+      max-width: 260px;
       line-height: 1.35;
     }
 
-    /* Character picker cards — torso-only thumbnails (head + legs out of frame). */
-    .char-picker { display: flex; gap: 14px; justify-content: center; width: 100%; margin-bottom: 14px; }
+    /* v0.2.808-alpha: horizontal divider between entry-panel sections.
+       Aesthetic: japanese kamon + adventure map + metaverse HUD. A thin
+       ochre-orange gradient hairline flanked by two soft glow ends, with
+       a small central orange lozenge (crystal/rhombus glyph) sitting on
+       the line as a section marker. Not decorative-only: it also creates
+       clear visual sections (guest picker / AI create / nostr login). */
+    .torii-divider {
+      display: flex; align-items: center; justify-content: center;
+      width: 260px; margin: 18px auto;
+      color: rgba(247,147,26,0.85);
+      pointer-events: none; user-select: none;
+    }
+    .torii-divider::before,
+    .torii-divider::after {
+      content: "";
+      flex: 1 1 auto; height: 1px; display: block;
+      background: linear-gradient(to right,
+        rgba(232,178,120,0) 0%,
+        rgba(232,178,120,0.55) 45%,
+        rgba(232,178,120,0.55) 55%,
+        rgba(232,178,120,0) 100%);
+    }
+    .torii-divider__glyph {
+      display: inline-block;
+      width: 8px; height: 8px;
+      margin: 0 12px;
+      background: rgba(247,147,26,0.9);
+      transform: rotate(45deg);
+      box-shadow:
+        0 0 6px rgba(247,147,26,0.55),
+        0 0 12px rgba(247,147,26,0.28);
+      border-radius: 1px;
+    }
+
+    /* Character picker cards — torso-only thumbnails (head + legs out of frame).
+       v0.2.808-alpha: cards shrunk 15% (max-width 160 -> 136, gap 14 -> 12)
+       so the two-card row reads as a secondary preview above the primary CTA
+       buttons, not a competing hero unit. */
+    .char-picker { display: flex; gap: 12px; justify-content: center; width: 100%; margin-bottom: 14px; }
     .char-card {
-      flex: 1 1 0; max-width: 160px;
+      flex: 1 1 0; max-width: 136px;
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(20,13,9,0.55);
       border: 1px solid rgba(232,178,120,0.28);
@@ -442,7 +481,7 @@
     }
 
 
-    /* v0.2.807-alpha: the on-screen keyboard-controls hint block and the
+    /* v0.2.808-alpha: the on-screen keyboard-controls hint block and the
        chip styling underneath the entry panel are removed from the homepage. */
     /* Continuum oversight dashboard link (v0.2.171) — same-origin static page. */
     #torii-quest-dashboard-link { display: inline-block; margin-top: 7px; font-size: 9px; letter-spacing: 2px;
@@ -925,7 +964,7 @@
     .cf-rig-warn { border-color: var(--settings-danger); }
     .cf-rig-warn .cf-rig-label { color: var(--settings-danger); }
 
-    /* Stickers tab (v0.2.807-alpha) — browse/library surface + owned count. */
+    /* Stickers tab (v0.2.808-alpha) — browse/library surface + owned count. */
     .cs-owned { display: flex; align-items: baseline; gap: var(--settings-space-2); margin-bottom: var(--settings-space-3); }
     .cs-owned-value { font-size: var(--settings-text-heading); font-weight: 600; color: var(--settings-text); }
     .cs-owned-label { font-size: var(--settings-text-caption); color: var(--settings-text-dim); }
@@ -945,7 +984,7 @@
     .cs-sticker-detail { font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
     .cs-sticker-note { margin-top: var(--settings-space-3); font-size: var(--settings-text-caption); color: var(--settings-text-faint); }
 
-    /* ── Live in-arena leaderboard overlay (v0.2.807-alpha) ── */
+    /* ── Live in-arena leaderboard overlay (v0.2.808-alpha) ── */
     /* v0.3 cleanup: the homepage MVP-loop/gateway/leaderboard PREVIEW cards
        (and their now-elementless #mvp-loop*/#gateway-preview*/.gw-*/
        #leaderboard-preview*/.lb-*/#gamestr-leaderboard*/#leaderboard-publish*
@@ -985,7 +1024,7 @@
     .tq-arena-lb-hint { font-size: 7px; letter-spacing: 0.5px; color: #6b7280; }
 
     /* ── Version panel (live GitHub release probe + admin upgrade button, UPD-1 v0.2.361) ──
-       v0.2.807-alpha: lifted out of the centre console's document flow into a
+       v0.2.808-alpha: lifted out of the centre console's document flow into a
        fixed bottom-right corner card, re-themed from the original blue/navy
        palette to the bronze/orange smoked-glass look used across the rest of
        the UI (settings panels, .up-row-value--new was already on-brand and is
@@ -1014,7 +1053,7 @@
     .up-row-value { font-size: 11px; color: #f5e6d8; word-break: break-all; }
     /* Highlight the Latest value cell when a newer release exists so the status
        is legible without a separate STATUS row (UPD-1, v0.2.361). Already
-       on-brand orange — unchanged by the v0.2.807-alpha re-theme. */
+       on-brand orange — unchanged by the v0.2.808-alpha re-theme. */
     .up-row-value.up-row-value--new {
       color: #f7931a; font-weight: 600; letter-spacing: 0.5px;
       text-shadow: 0 0 6px rgba(247,147,26,0.35);
@@ -1025,7 +1064,7 @@
        `runUpgradeInPlace` helper — SW purge + cache clear + reload; no deploy,
        no signer touch, no relay call. Same mauve palette as the ACC-1 admin
        Instance Settings link for surface consistency. */
-    /* v0.2.807-alpha (MP-1): the explicit `display: block` below would override
+    /* v0.2.808-alpha (MP-1): the explicit `display: block` below would override
        the HTML `hidden` attribute (whose UA default is `display: none`), so an
        admin-less / up-to-date state could leak the button. Guard first. */
     #update-upgrade-btn[hidden] { display: none !important; }
@@ -1041,7 +1080,7 @@
     #update-upgrade-btn:active { filter: brightness(0.9); }
     #update-upgrade-btn[disabled] { opacity: 0.6; cursor: progress; }
 
-    /* v0.2.807-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
+    /* v0.2.808-alpha (UPD-3): animated deploy progress bar. Dark-navy track,
        orange accent fill (matches the version box + Update Now button). The
        'deploying' stage rides a shimmer keyframe while arena-ws restarts and the
        status endpoint is briefly unreachable; 'done' snaps green, 'failed' red. */
@@ -1083,7 +1122,7 @@
     }
     #update-status-line[hidden] { display: none !important; }
     /* Manual-install fallback (shown when auto-update capability is absent).
-       v0.2.807-alpha: previously unstyled (inherited plain body text on the
+       v0.2.808-alpha: previously unstyled (inherited plain body text on the
        old in-flow layout); now needs its own bronze treatment since it sits
        inside the smoked-glass corner card. */
     #update-copy-fallback[hidden] { display: none !important; }
@@ -1174,7 +1213,7 @@
        it. Mirrors #emagake[hidden]. */
     #kami-mode-badge[hidden] { display: none; }
 
-    /* ── ADR-0099 (v0.2.807-alpha) — KAMI-MODE DEV MENU (#torii-dev-menu) ──
+    /* ── ADR-0099 (v0.2.808-alpha) — KAMI-MODE DEV MENU (#torii-dev-menu) ──
        A left-edge smoked-glass panel that surfaces owner-only runtime toggles
        (starting with the sticker RENDER-MODE A/B). Only visible while the owner
        is in Kami Mode; hidden on the public perpetual-world view. Same visual
@@ -1674,7 +1713,7 @@
 
   <!-- Header -->
   <div id="title-header">
-    <!-- v0.2.807-alpha: owner caption now occupies the top-left corner the
+    <!-- v0.2.808-alpha: owner caption now occupies the top-left corner the
          settings button used to sit in. Text-only, non-interactive
          (pointer-events:none in CSS) so it never intercepts clicks meant for
          whatever sits beneath it. Populated by main.js's _refreshOwnerLabel(). -->
@@ -1683,7 +1722,7 @@
       <div class="toc-line2" id="torii-owner-label"><span class="toc-owner-name" id="torii-owner-name" title="">—</span><span class="toc-loggedin" id="torii-loggedin-badge"><span class="toc-loggedin-dot" aria-hidden="true"></span><span class="toc-dim">you are </span><span class="toc-on">logged in</span></span></div>
     </div>
 
-    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.807-alpha:
+    <!-- Settings entry point. v0.3: moved top-right → top-left. v0.2.808-alpha:
          moved again, top-left → bottom-left, to make room for the owner
          caption above. Opens the settings panel (nav-left/content-right),
          replacing the old Torii menu overlay. Same button element/id kept for
@@ -1692,7 +1731,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/></svg>
     </button>
     <div class="title-logo-text">TORII<span class="logo-mark"><svg class="logo-torii" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><path d="M2 3.4h20v2.5H2z"/><path d="M4.5 7.4h15v1.7h-15z"/><path d="M6 5.9h2.4v14.7H6z"/><path d="M15.6 5.9H18v14.7h-2.4z"/><polygon points="12.9,9.6 9.7,14.7 11.8,14.7 10.9,18 14.5,12.7 12.2,12.7 13.7,9.6"/></svg></span>QUEST</div>
-    <!-- v0.2.807-alpha: tagline strip beneath the logo removed for a clearer,
+    <!-- v0.2.808-alpha: tagline strip beneath the logo removed for a clearer,
          simpler homepage per design direction. -->
   </div>
 
@@ -1708,13 +1747,13 @@
 
     <!-- CENTRE: boxed console, now a frosted-glass panel over the sunset photo -->
     <div id="title-centre" class="glass-panel">
-      <!-- v0.2.807-alpha: prior four backdrop-blur rings + flat tint replaced
+      <!-- v0.2.808-alpha: prior four backdrop-blur rings + flat tint replaced
            by a single .gp-band — a vertical readability band whose opacity
            peaks on the centre axis and fades continuously to 100% transparent
            left/right. No visible edge. -->
       <div class="gp-band" aria-hidden="true"></div>
       <div class="gp-content">
-      <!-- v0.2.807-alpha: title-screen simplified per design direction. All
+      <!-- v0.2.808-alpha: title-screen simplified per design direction. All
            decorative copy removed — no section eyebrow, no numbered step labels,
            no per-option sub-copy, no keyboard-controls hint, no c-divider
            rules, no tagline above the logo. What remains is the
@@ -1724,6 +1763,10 @@
            readers still hear the option purpose without on-screen text. -->
 
       <section class="entry-option" aria-label="Enter as guest">
+        <!-- v0.2.808-alpha: caption MOVED above the picker (was under the
+             button). "above" dropped from the copy because it now describes
+             the picker directly beneath it. -->
+        <span class="entry-caption" data-for="btn-enter-nap">pick a character</span>
         <div class="char-picker" role="radiogroup" aria-label="Choose a guest character">
           <button type="button" class="char-card" data-char="nostrich" role="radio" aria-checked="false">
             <span class="char-card-img"><img src="/ui/char-nostrich-torso.png" alt="Nostrich — torso" width="320" height="400" loading="lazy" decoding="async"></span>
@@ -1736,21 +1779,34 @@
         </div>
         <!-- Button state machine unchanged: starts inactive (grey, disabled).
              _selectGuestCharacter() arms it (data-armed="true", removes
-             disabled, relabels to "ENTER") once a card is tapped. -->
-        <button type="button" class="btn btn-nap is-inactive" id="btn-enter-nap" data-armed="false" aria-disabled="true" disabled style="width:220px;">ENTER AS GUEST</button>
-        <span class="entry-caption" data-for="btn-enter-nap">pick a character above</span>
+             disabled, relabels to "ENTER") once a card is tapped.
+             v0.2.808-alpha: width 220 -> 242 (+10%). The other two CTAs
+             below drop their font-size/letter-spacing/padding overrides so
+             all three buttons render at identical size. -->
+        <button type="button" class="btn btn-nap is-inactive" id="btn-enter-nap" data-armed="false" aria-disabled="true" disabled style="width:242px;">ENTER AS GUEST</button>
       </section>
+
+      <!-- v0.2.808-alpha: horizontal divider between guest-entry section and
+           AI-create section. Kamon + adventure + metaverse aesthetic. -->
+      <div class="torii-divider" role="presentation" aria-hidden="true"><span class="torii-divider__glyph"></span></div>
 
       <section class="entry-option" aria-label="Create with AI">
-        <button type="button" class="btn btn-secondary" id="btn-create-ai" style="width:220px;font-size:10px;letter-spacing:2px;padding:10px;">✦ CREATE WITH AI</button>
         <span class="entry-caption" data-for="btn-create-ai">design your own</span>
+        <button type="button" class="btn btn-secondary" id="btn-create-ai" style="width:242px;">✦ CREATE WITH AI</button>
       </section>
 
+      <!-- v0.2.808-alpha: horizontal divider between AI-create section and
+           returning-player nostr-login section. -->
+      <div class="torii-divider" role="presentation" aria-hidden="true"><span class="torii-divider__glyph"></span></div>
+
       <section class="entry-option" aria-label="Login with Nostr">
+        <!-- v0.2.808-alpha: caption copy changed from "your character
+             follows you" (moved from below) to "regular players" (moved
+             above), reframing the section as the returning-player path. -->
+        <span class="entry-caption" data-for="btn-nostr-centre">regular players</span>
         <!-- Arm-on-login unchanged: loginBootstrap.js flips data-armed="true"
              and relabels to "ENTER" on EV.NOSTR_LOGIN. -->
-        <button type="button" class="btn btn-secondary" id="btn-nostr-centre" data-armed="false" style="width:220px;font-size:10px;letter-spacing:2px;padding:10px;margin-bottom:6px;">⚡ LOGIN NOSTR</button>
-        <span class="entry-caption" data-for="btn-nostr-centre">your character follows you</span>
+        <button type="button" class="btn btn-secondary" id="btn-nostr-centre" data-armed="false" style="width:242px;margin-bottom:6px;">⚡ LOGIN NOSTR</button>
       </section>
 
       <!-- Entry feedback line (v0.2.228). Hidden until a message is set. -->
@@ -1760,7 +1816,7 @@
       <!-- v0.3: large standalone #version-label removed — the version is
            still shown, at a slightly larger size, inside #update-preview-body
            below (see .up-row-value).
-           v0.2.807-alpha: the #update-preview block itself was MOVED out of
+           v0.2.808-alpha: the #update-preview block itself was MOVED out of
            here — it now sits as a direct child of #screen-title (below), not
            nested inside #title-centre. #title-centre.glass-panel carries a
            backdrop-filter, and per spec backdrop-filter (like transform/
@@ -1782,7 +1838,7 @@
   </div><!-- /title-columns -->
 
   <!-- Version/upgrade check (kept — genuine operational surface, not
-       decorative). v0.2.807-alpha: lives here, as a direct child of
+       decorative). v0.2.808-alpha: lives here, as a direct child of
        #screen-title, specifically OUTSIDE #title-centre's backdrop-filter
        subtree (see the comment left at its old nesting point above) so its
        `position: fixed; bottom/right` resolves against the real viewport.
@@ -1797,7 +1853,7 @@
          occurrences of EXPECTED_VERSION in this file). main.js's
          renderUpdatePreview() replaces these children with the live
          view-model on load. -->
-    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.807-alpha</div></div>
+    <div id="update-preview-body"><div class="up-row-label">Current</div><div class="up-row-value">v0.2.808-alpha</div></div>
     <button id="update-upgrade-btn" type="button" hidden>⬆ UPDATE NOW · CLICK HERE</button>
     <div id="update-progress" hidden>
       <div id="update-progress-track"><div id="update-progress-fill"></div></div>
@@ -1842,7 +1898,7 @@
      was too easy to miss over the weapon). pointer-events:none; never blocks. -->
 <div id="kami-mode-badge" hidden aria-label="Kami Mode active">⛩ KAMI MODE · K FOR EMA · ESC EXIT</div>
 
-<!-- ADR-0099 (v0.2.807-alpha) — Kami-mode dev menu. Owner-only, only visible
+<!-- ADR-0099 (v0.2.808-alpha) — Kami-mode dev menu. Owner-only, only visible
      while the admin is in Kami Mode. Rows are injected by devMenu.js from the
      model registered in arenaRuntime.js. -->
 <div id="torii-dev-menu" hidden aria-label="Kami-mode dev menu"></div>
@@ -1936,7 +1992,7 @@
 
   <div id="ammo-display"><span id="ammo-cur">30</span><span class="ammo-max">/30</span></div>
 
-  <div id="ver">v0.2.807-alpha · torii quest</div>
+  <div id="ver">v0.2.808-alpha · torii quest</div>
 </div>
 
 <!-- Crosshair -->
@@ -2012,14 +2068,14 @@
     });
   })();
 
-  // v0.2.807-alpha (Bug K — SW cache-busting hardening). The shell's expected app
+  // v0.2.808-alpha (Bug K — SW cache-busting hardening). The shell's expected app
   // version; tools/bump-ver.sh keeps this literal in lockstep with src/config.js
   // VERSION (it rewrites every v0.2.NNN(-suffix)?-alpha token in this file). Used
   // for PROACTIVE stale-SW detection: if the CONTROLLING SW reports a different
   // version, the shell self-heals before any button click.
-  window.__TORII_APP_VERSION = 'v0.2.807-alpha';
+  window.__TORII_APP_VERSION = 'v0.2.808-alpha';
 
-  // v0.2.807-alpha (Bug K): idempotent stale-shell self-heal — unregister every SW,
+  // v0.2.808-alpha (Bug K): idempotent stale-shell self-heal — unregister every SW,
   // purge every cache, hard-reload once with ?nuked=1 pinned. Shared by BOTH the
   // __toriiShellRan double-boot fingerprint and the version-mismatch check below,
   // so there is exactly one heal path. Guarded by window.__toriiNuking (never loops)
@@ -2043,7 +2099,7 @@
     ]).then(goReload);
   }
 
-  // v0.2.807-alpha (double-boot self-heal). If the shell inline scope has already
+  // v0.2.808-alpha (double-boot self-heal). If the shell inline scope has already
   // run once in this document — the fingerprint of stale-SW cache duality serving
   // TWO distinct versioned entry bundles into one tab — aggressively heal once via
   // the shared self-heal. Paired with the module guard in src/main.js which throws
@@ -2063,7 +2119,7 @@
     // but every button is inert because the bundle 404s). When the freshly-deployed
     // version-named SW activates and claims the page, controllerchange fires; reload
     // once to pick up the fresh shell + live bundle. Guarded so the reload can't loop.
-    // v0.2.807-alpha (Bug K): the auto-reload gate now keys on window.__toriiEntered
+    // v0.2.808-alpha (Bug K): the auto-reload gate now keys on window.__toriiEntered
     // (set only when the game ACTUALLY enters the arena), not __toriiEnterReady. The
     // old gate suppressed the reload as soon as main.js wired the entry buttons — but
     // the v0.2.776 "green-but-dead" report was exactly that state: buttons armed yet
@@ -2079,7 +2135,7 @@
       window.location.reload();
     });
 
-    // v0.2.807-alpha (Bug K): PROACTIVE stale-SW version check. Compare the
+    // v0.2.808-alpha (Bug K): PROACTIVE stale-SW version check. Compare the
     // CONTROLLING SW's reported version against the shell's expected version and
     // self-heal immediately on mismatch — before any user interaction — rather than
     // betting everything on controllerchange timing. This closes the gap a stale SW

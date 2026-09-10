@@ -130,8 +130,12 @@ describe('v0.2.807 — soft descriptor lines under each entry-option button', ()
     const rule = HTML.match(/\.entry-caption\s*\{[^}]*\}/s);
     expect(rule).toBeTruthy();
     const body = rule[0];
-    expect(body).toMatch(/font-size:\s*10px/);
-    expect(body).toMatch(/letter-spacing:\s*2px/);
+    // v0.2.808-alpha nudge: caption text sizing bumped now the captions sit
+    // above the option and act as its label (font-size 10 -> 11, letter-
+    // spacing 2 -> 3). Kept in-file to keep the "exists + small + dim +
+    // spaced + uppercase + no fill" shape assertion together.
+    expect(body).toMatch(/font-size:\s*11px/);
+    expect(body).toMatch(/letter-spacing:\s*3px/);
     expect(body).toMatch(/text-transform:\s*uppercase/);
     // Alpha < 1 so it reads as a secondary line, not competing with the button.
     expect(body).toMatch(/color:\s*rgba\([^)]+,\s*0\.\d+\)/);
@@ -141,20 +145,20 @@ describe('v0.2.807 — soft descriptor lines under each entry-option button', ()
     expect(body).not.toMatch(/background\s*:/);
   });
 
-  it('every entry-option button has exactly one <span class="entry-caption"> sibling immediately after it', () => {
-    // Structural lock: each of the three CTA buttons gets one caption
-    // sibling. If a section forgets its caption the UX regresses to
-    // three bare buttons over the sunset.
-    const enterCap = HTML.match(/id="btn-enter-nap"[^>]*>ENTER AS GUEST<\/button>\s*<span class="entry-caption"[^>]*>([^<]+)<\/span>/);
-    expect(enterCap).toBeTruthy();
-    const createCap = HTML.match(/id="btn-create-ai"[^>]*>✦ CREATE WITH AI<\/button>\s*<span class="entry-caption"[^>]*>([^<]+)<\/span>/);
-    expect(createCap).toBeTruthy();
-    const nostrCap = HTML.match(/id="btn-nostr-centre"[^>]*>⚡ LOGIN NOSTR<\/button>\s*<span class="entry-caption"[^>]*>([^<]+)<\/span>/);
-    expect(nostrCap).toBeTruthy();
-    // Every caption is non-empty.
-    expect(enterCap[1].trim().length).toBeGreaterThan(0);
-    expect(createCap[1].trim().length).toBeGreaterThan(0);
-    expect(nostrCap[1].trim().length).toBeGreaterThan(0);
+  it('every entry-option button has exactly one .entry-caption span referencing it via data-for', () => {
+    // v0.2.808-alpha reshape: captions no longer required to sit after
+    // the button. In v0.2.808 they moved ABOVE the option (over the char
+    // picker for ENTER AS GUEST, over the button for the other two).
+    // The structural contract is now purely relational: for every CTA
+    // button id, exactly one .entry-caption[data-for=<id>] exists somewhere
+    // in the doc, and has non-empty text content. Positional layout is
+    // owned by v0.2.808-regression.test.js.
+    for (const btnId of ['btn-enter-nap', 'btn-create-ai', 'btn-nostr-centre']) {
+      const re = new RegExp(`<span class="entry-caption"[^>]*data-for="${btnId}"[^>]*>([^<]+)</span>`, 'g');
+      const matches = [...HTML.matchAll(re)];
+      expect(matches.length, `caption count for ${btnId}`).toBe(1);
+      expect(matches[0][1].trim().length, `caption text non-empty for ${btnId}`).toBeGreaterThan(0);
+    }
   });
 
   it('exactly three .entry-caption spans exist on the title screen (one per option, no dupes)', () => {

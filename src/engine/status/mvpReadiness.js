@@ -55,7 +55,7 @@ const SAFETY_FLAGS = Object.freeze([
 // the two captures agree, so this count can't quietly drift from the dashboard's.
 export const DEFAULT_TEST_STATUS = Object.freeze({
   passing: 4236,
-  files: 360,
+  files: 361,
   profile: 'full',
   ok: true,
 });

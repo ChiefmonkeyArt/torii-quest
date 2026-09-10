@@ -54,18 +54,23 @@ describe('v0.2.808 — guest character cards shrunk 15%', () => {
   });
 });
 
-describe('v0.2.808 — CTA buttons resized to identical 242px width', () => {
-  it('#btn-enter-nap inline width is 242px (was 220px, +10%)', () => {
+describe('v0.2.808 — CTA buttons resized to identical width (284px in v0.2.810)', () => {
+  // v0.2.810 re-widened the CTAs from 242px to 284px so they align with
+  // the guest character-picker row above (two .char-card at max-width
+  // 136px + .char-picker gap 12px = 284px). The "identical width"
+  // invariant is what matters; the exact value tracks the picker geometry.
+  it('#btn-enter-nap inline width is 284px (aligned to the char-picker row)', () => {
     // The button markup carries its own inline width -- neither the shared
     // .btn nor .btn-nap rule fixes a width. Locking the inline value keeps
     // it a single source of truth for the CTA size.
     const m = HTML.match(/id="btn-enter-nap"[^>]*style="([^"]*)"/);
     expect(m).toBeTruthy();
-    expect(m[1]).toMatch(/width:\s*242px/);
+    expect(m[1]).toMatch(/width:\s*284px/);
     expect(m[1]).not.toMatch(/width:\s*220px/);
+    expect(m[1]).not.toMatch(/width:\s*242px/);
   });
 
-  it('#btn-create-ai inline width is 242px and NO smaller-text overrides', () => {
+  it('#btn-create-ai inline width is 284px and NO smaller-text overrides', () => {
     // v0.2.807 shipped `width:220px;font-size:10px;letter-spacing:2px;padding:10px;`
     // on this button, giving it a visibly smaller footprint than the guest
     // CTA. v0.2.808 drops those three overrides so it inherits the .btn
@@ -73,28 +78,31 @@ describe('v0.2.808 — CTA buttons resized to identical 242px width', () => {
     const m = HTML.match(/id="btn-create-ai"[^>]*style="([^"]*)"/);
     expect(m).toBeTruthy();
     const style = m[1];
-    expect(style).toMatch(/width:\s*242px/);
+    expect(style).toMatch(/width:\s*284px/);
     expect(style).not.toMatch(/font-size\s*:\s*10px/);
     expect(style).not.toMatch(/letter-spacing\s*:\s*2px/);
     expect(style).not.toMatch(/padding\s*:\s*10px/);
   });
 
-  it('#btn-nostr-centre inline width is 242px and NO smaller-text overrides', () => {
+  it('#btn-nostr-centre inline width is 284px and NO smaller-text overrides', () => {
     // v0.2.809: margin-bottom:6px removed so all three CTAs have an
     // identical footprint (including trailing space). Height parity is
     // now purely a consequence of the .btn base padding + font sizing.
     const m = HTML.match(/id="btn-nostr-centre"[^>]*style="([^"]*)"/);
     expect(m).toBeTruthy();
     const style = m[1];
-    expect(style).toMatch(/width:\s*242px/);
+    expect(style).toMatch(/width:\s*284px/);
     expect(style).not.toMatch(/font-size\s*:\s*10px/);
     expect(style).not.toMatch(/letter-spacing\s*:\s*2px/);
     expect(style).not.toMatch(/padding\s*:\s*10px/);
     expect(style).not.toMatch(/margin-bottom/);
   });
 
-  it('all three CTA button widths agree (identical footprint)', () => {
-    // Cross-check that a future edit to one width has to touch all three.
+  it('all three CTA button widths agree AND match the char-picker row width', () => {
+    // Cross-check that a future edit to one width has to touch all three,
+    // AND that they stay aligned with the guest character-picker row
+    // (v0.2.810 alignment invariant: two .char-card of max-width 136px
+    // separated by .char-picker gap 12px = 284px).
     const widths = ['btn-enter-nap', 'btn-create-ai', 'btn-nostr-centre'].map((id) => {
       const m = HTML.match(new RegExp(`id="${id}"[^>]*style="([^"]*)"`));
       const w = m[1].match(/width:\s*(\d+)px/);
@@ -102,6 +110,13 @@ describe('v0.2.808 — CTA buttons resized to identical 242px width', () => {
     });
     expect(widths[0]).toBe(widths[1]);
     expect(widths[1]).toBe(widths[2]);
+    // Char-picker geometry -> row width.
+    const cardMax = HTML.match(/\.char-card\b[\s\S]*?max-width:\s*(\d+)px/);
+    const pickerGap = HTML.match(/\.char-picker\b[^{}]*\{[^}]*gap:\s*(\d+)px/);
+    expect(cardMax).toBeTruthy();
+    expect(pickerGap).toBeTruthy();
+    const rowWidth = 2 * Number(cardMax[1]) + Number(pickerGap[1]);
+    expect(widths[0]).toBe(rowWidth);
   });
 });
 

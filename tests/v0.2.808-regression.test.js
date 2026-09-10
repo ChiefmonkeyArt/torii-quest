@@ -80,8 +80,9 @@ describe('v0.2.808 — CTA buttons resized to identical 242px width', () => {
   });
 
   it('#btn-nostr-centre inline width is 242px and NO smaller-text overrides', () => {
-    // Same reset as create-ai, plus keeps the margin-bottom:6px that
-    // arm-on-login relies on (spacing before the entry-status line).
+    // v0.2.809: margin-bottom:6px removed so all three CTAs have an
+    // identical footprint (including trailing space). Height parity is
+    // now purely a consequence of the .btn base padding + font sizing.
     const m = HTML.match(/id="btn-nostr-centre"[^>]*style="([^"]*)"/);
     expect(m).toBeTruthy();
     const style = m[1];
@@ -89,6 +90,7 @@ describe('v0.2.808 — CTA buttons resized to identical 242px width', () => {
     expect(style).not.toMatch(/font-size\s*:\s*10px/);
     expect(style).not.toMatch(/letter-spacing\s*:\s*2px/);
     expect(style).not.toMatch(/padding\s*:\s*10px/);
+    expect(style).not.toMatch(/margin-bottom/);
   });
 
   it('all three CTA button widths agree (identical footprint)', () => {

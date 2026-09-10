@@ -102,17 +102,20 @@ describe('v0.2.776 — Bug I: three-option entry panel copy + arm-state', () => 
   });
 
   it('CSS drives the armed/inactive treatment declaratively from [data-armed]', () => {
-    // Two style blocks per button — one for the unarmed grey/outline
-    // treatment, one for the armed solid-green ENTER treatment. Freezes
-    // the "styling is state-driven, not class-driven" invariant so a
-    // manual DOM class toggle can't drift from the source of truth.
+    // Style blocks per button — one for the unarmed transparent-outline
+    // treatment, one for the armed muted-sage-green ENTER treatment.
+    // Freezes the "styling is state-driven, not class-driven" invariant
+    // so a manual DOM class toggle can't drift from the source of truth.
     expect(HTML).toMatch(/#btn-enter-nap\[data-armed="false"\]/);
     expect(HTML).toMatch(/#btn-enter-nap\[data-armed="true"\]/);
     expect(HTML).toMatch(/#btn-nostr-centre\[data-armed="false"\]/);
     expect(HTML).toMatch(/#btn-nostr-centre\[data-armed="true"\]/);
-    // Armed treatment uses the on-brand green (matches ENTER-ARENA elsewhere).
-    expect(HTML).toMatch(/#btn-enter-nap\[data-armed="true"\][^{}]*\{[^}]*#22c55e/);
-    expect(HTML).toMatch(/#btn-nostr-centre\[data-armed="true"\][^{}]*\{[^}]*#22c55e/);
+    // Armed treatment uses the muted sage palette (v0.2.809-alpha) — the
+    // sunset-blending rgba(77,122,58,*) fill + rgba(110,169,77,*) border.
+    // Grep the same selector's rule body for either palette component so
+    // future palette tweaks that keep the sage family still pass.
+    expect(HTML).toMatch(/#btn-enter-nap\[data-armed="true"\][^{}]*\{[^}]*(?:rgba\(\s*77\s*,\s*122\s*,\s*58|rgba\(\s*110\s*,\s*169\s*,\s*77)/);
+    expect(HTML).toMatch(/#btn-nostr-centre\[data-armed="true"\][^{}]*\{[^}]*(?:rgba\(\s*77\s*,\s*122\s*,\s*58|rgba\(\s*110\s*,\s*169\s*,\s*77)/);
   });
 
   it('main.js exposes _armGuestEnterButton() called from _selectGuestCharacter()', () => {

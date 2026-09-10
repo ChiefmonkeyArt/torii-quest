@@ -39,7 +39,11 @@ describe('v0.2.776 — Bug I: three-option entry panel copy + arm-state', () => 
     // matters is that the ENTER-AS-GUEST button itself carries the correct
     // label, that no stripped node has come back, and that no `NEW PLAYER`
     // copy has silently regressed anywhere on the title screen.
-    expect(HTML).toMatch(/id="btn-enter-nap"[^>]*>ENTER AS GUEST</);
+    // v0.2.812-alpha: the initial label lives inside a <span
+    // class="btn-label btn-label-base"> so the hover-swap can crossfade
+    // it with .btn-label-hover ("PICK A CHARACTER"). Match the base
+    // label text regardless of the nested span opener.
+    expect(HTML).toMatch(/id="btn-enter-nap"[\s\S]{0,260}?>ENTER AS GUEST</);
     expect(HTML).not.toMatch(/NEW PLAYER/);
     expect(HTML).not.toMatch(/class="entry-num"/);
     expect(HTML).not.toMatch(/class="entry-eyebrow"/);
@@ -77,18 +81,25 @@ describe('v0.2.776 — Bug I: three-option entry panel copy + arm-state', () => 
   });
 
   it('ENTER-AS-GUEST button ships inactive: data-armed="false" + disabled + aria-disabled', () => {
-    // Defence in depth: CSS ([data-armed="false"] { pointer-events:none })
-    // + native disabled + aria-disabled ensure the button cannot fire the
-    // boot handler before the user has picked a character. Any ONE of these
-    // being missing would let the button click through.
+    // Defence in depth: native `disabled` + aria-disabled="true" +
+    // cursor:not-allowed + guarded onclick handler ensure the button
+    // cannot fire the boot handler before the user has picked a
+    // character. Any one of these being missing would let the button
+    // click through. (v0.2.811-alpha dropped `pointer-events:none` here
+    // so :hover can fire the ochre halo + label-swap effect; the click
+    // block moved to native `disabled` + the guarded handler.)
     const btn = HTML.match(/<button[^>]*id="btn-enter-nap"[^>]*>/)?.[0] || '';
     expect(btn).toMatch(/data-armed="false"/);
     expect(btn).toMatch(/\bdisabled\b/);
     expect(btn).toMatch(/aria-disabled="true"/);
     // Initial label is "ENTER AS GUEST" — the button relabels to "ENTER"
-    // only after main.js _armGuestEnterButton() fires.
+    // only after main.js _armGuestEnterButton() fires. v0.2.812-alpha:
+    // the label now sits inside a <span class="btn-label btn-label-base">
+    // so a hover-swap CSS rule can crossfade it with .btn-label-hover
+    // ("PICK A CHARACTER"). Widen the slice + match regardless of the
+    // span opener.
     const idx = HTML.indexOf('id="btn-enter-nap"');
-    const around = HTML.slice(idx, idx + 260);
+    const around = HTML.slice(idx, idx + 400);
     expect(around).toMatch(/>ENTER AS GUEST</);
   });
 

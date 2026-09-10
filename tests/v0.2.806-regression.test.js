@@ -109,7 +109,11 @@ describe('v0.2.806 — homepage copy strip (title screen minimalism)', () => {
     // Positive lock: the strip must NOT accidentally take out any of the
     // three CTAs that actually drive the flow. Each keeps its stable id so
     // the wiring in main.js / loginBootstrap.js still binds.
-    expect(HTML).toMatch(/id="btn-enter-nap"[^>]*>ENTER AS GUEST</);
+    // v0.2.812-alpha: btn-enter-nap wraps its label in a <span
+    // class="btn-label btn-label-base"> for the hover-swap effect, so
+    // the button's own `>` no longer immediately precedes the text.
+    // Match through the intervening span opener.
+    expect(HTML).toMatch(/id="btn-enter-nap"[\s\S]{0,260}?>ENTER AS GUEST</);
     expect(HTML).toMatch(/id="btn-create-ai"[^>]*>✦ CREATE WITH AI</);
     expect(HTML).toMatch(/id="btn-nostr-centre"[^>]*>⚡ LOGIN NOSTR</);
   });

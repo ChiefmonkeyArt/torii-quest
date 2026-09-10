@@ -1,6 +1,10 @@
-// napNpc.js — peaceful Chiefmonkey NPC in the NAP zone (v0.2.519).
-// Wanders freely across the NAP island, performs random gesture animations
-// from chiefmonkey-npc-animations.glb every 5-10 seconds.
+// napNpc.js — peaceful Nakama NPC in the NAP zone (v0.2.813).
+// The instance owner's Nakama: adopts chiefmonkey's movements, gestures, and
+// model. Wanders freely across the NAP island, performs random gesture
+// animations from chiefmonkey-npc-animations.glb every 5-10 seconds. Displays
+// a nameplate '<OwnerName> Nakama' pulled from the admin's Nostr kind:0 —
+// so on Bekka's instance the NAP-zone greeter is 'BitcoinBekka Nakama',
+// on chiefmonkey's it is 'Chiefmonkey Nakama', etc.
 // NPC-ONLY: does NOT touch playable character or MP peer animation systems.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -13,6 +17,11 @@ import { normalizeAngle } from './engine/math/angle.js';
 import { setFreezeStage } from './engine/diagnostics/freezeWatchdog.js';
 import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
          createNpcBoneColliders, syncNpcBoneColliders } from './physics.js';
+// v0.2.813: the label rules live in a pure, node-safe module so tests can
+// exercise them without pulling in three/scene. Re-exported here so callers
+// that already import from napNpc.js keep working.
+import { composeNakamaLabel, NAKAMA_SUFFIX, NAKAMA_DEFAULT_LABEL } from './engine/character/nakamaLabel.js';
+export { composeNakamaLabel, NAKAMA_SUFFIX, NAKAMA_DEFAULT_LABEL };
 
 let _root   = null;
 let _mixer  = null;
@@ -23,6 +32,9 @@ let _skinnedMesh = null;      // NPC SkinnedMesh reference for bone collider set
 let _gestureClips = [];     // clips from chiefmonkey-npc-animations.glb
 let _walkClip = null;       // walk clip from the model GLB
 let _idleClip = null;       // idle clip from the model GLB
+let _nameplate = null;      // v0.2.813: THREE.Sprite over the NPC head
+let _nameplateHeight = 2.4; // world-Y offset above the root for the nameplate
+let _pendingLabel = NAKAMA_DEFAULT_LABEL; // set before buildNapNpc, applied on load
 
 const NPC_START_X = -4;
 const NPC_START_Z = 22;
@@ -97,6 +109,70 @@ let _currentAction = null;
 export function getNpcRoot() { return _root; }
 export function getNpcSkinnedMesh() { return _skinnedMesh; }
 
+// v0.2.813: internal — make a canvas-textured sprite for the Nakama label.
+// Mirrors botModel.js:_makeNameplate but sized larger + no HP bar (NPC is
+// friendly, no combat). Returns null in non-DOM environments so unit tests
+// (node/vitest) can drive setNapNpcName without a real canvas.
+function _makeNakamaNameplate(text) {
+  try {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext && canvas.getContext('2d');
+    if (!ctx) return null;
+    canvas.width = 512; canvas.height = 128;
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(3.2, 0.8, 1);
+    sprite.renderOrder = 999;
+    sprite._npCanvas = canvas;
+    sprite._npCtx    = ctx;
+    sprite._npTex    = tex;
+    _drawNakamaLabel(sprite, text);
+    return sprite;
+  } catch {
+    return null;
+  }
+}
+
+// v0.2.813: internal — redraw the label. Warm-orange text (matches the
+// homepage 'Welcome <name>,' orange, toc-name) on a subtle dark backdrop so
+// the label reads at any viewing angle without demanding attention.
+function _drawNakamaLabel(sprite, text) {
+  if (!sprite || !sprite._npCtx || !sprite._npCanvas) return;
+  const ctx = sprite._npCtx;
+  const canvas = sprite._npCanvas;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Backdrop — rounded rectangle, semi-transparent black.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  const r = 24;
+  const w = canvas.width, h = canvas.height;
+  ctx.beginPath();
+  ctx.moveTo(r, 0); ctx.lineTo(w - r, 0); ctx.quadraticCurveTo(w, 0, w, r);
+  ctx.lineTo(w, h - r); ctx.quadraticCurveTo(w, h, w - r, h);
+  ctx.lineTo(r, h); ctx.quadraticCurveTo(0, h, 0, h - r);
+  ctx.lineTo(0, r); ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath(); ctx.fill();
+  // Text.
+  ctx.font = 'bold 56px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f0a04b';   // Torii orange (matches .toc-name)
+  ctx.fillText(String(text || NAKAMA_DEFAULT_LABEL), w / 2, h / 2);
+  if (sprite._npTex) sprite._npTex.needsUpdate = true;
+}
+
+// v0.2.813: PUBLIC API — update the Nakama's on-world nameplate to reflect the
+// owner's Nostr kind:0 display name. Safe to call any time: BEFORE the NPC
+// GLB loads (the label is remembered and applied on load), during any state,
+// and repeatedly (idempotent redraw). Never throws. Bare `Nakama` when no name.
+export function setNapNpcName(ownerName) {
+  const label = composeNakamaLabel(ownerName);
+  _pendingLabel = label;
+  if (_nameplate) _drawNakamaLabel(_nameplate, label);
+}
+
 export function buildNapNpc() {
   if (_root) return;
 
@@ -130,10 +206,30 @@ export function buildNapNpc() {
     });
     if (!Number.isFinite(_minY)) _minY = 0;
 
+    // v0.2.813: derive nameplate height from geometry (top of the model +
+    // small headroom) instead of a magic 2.4. Falls back to 2.4 when the
+    // bounding box can't be resolved.
+    let modelMaxY = -Infinity;
+    _root.traverse(o => {
+      if (o.isMesh && o.geometry && o.geometry.boundingBox) {
+        modelMaxY = Math.max(modelMaxY, o.geometry.boundingBox.max.y);
+      }
+    });
+    _nameplateHeight = Number.isFinite(modelMaxY) ? (modelMaxY - _minY + 0.35) : 2.4;
+
     _root.scale.setScalar(1.0);
     _root.position.set(NPC_START_X, -_minY + sampleNapHeight(NPC_START_X, NPC_START_Z), NPC_START_Z);
     _root.rotation.y = 0;
     scene.add(_root);
+
+    // v0.2.813: attach the Nakama nameplate. Applies _pendingLabel so any
+    // setNapNpcName(...) that fired before buildNapNpc lands correctly.
+    _nameplate = _makeNakamaNameplate(_pendingLabel);
+    if (_nameplate) {
+      _nameplate.raycast = () => {};
+      _nameplate.position.set(_root.position.x, _root.position.y + _nameplateHeight, _root.position.z);
+      scene.add(_nameplate);
+    }
 
     // Create Rapier sensor collider for sticker raycasting
     _npcColliderBody = createNpcCollider(_root,
@@ -241,5 +337,11 @@ export function tickNapNpc(dt) {
   if (_boneColliders.length > 0) {
     _root.updateMatrixWorld(true);
     syncNpcBoneColliders(_boneColliders);
+  }
+
+  // v0.2.813: track the NPC with the nameplate. Sprites bill-board themselves,
+  // so all we do is follow the root's world position + a fixed head offset.
+  if (_nameplate) {
+    _nameplate.position.set(_root.position.x, _root.position.y + _nameplateHeight, _root.position.z);
   }
 }

@@ -2588,6 +2588,17 @@ function _refreshOwnerLabel() {
   const badge = document.getElementById('torii-loggedin-badge');
   if (badge) badge.classList.toggle('show', isOwner);
   _fetchOwnerProfileNameOnce(adminPubkey);
+
+  // v0.2.813 (Nakama identity): the NAP-zone NPC's nameplate always reflects
+  // the OWNER's kind:0 display name — not the viewer's. Fires every time the
+  // owner label repaints (login/logout, capability probe, kind:0 resolve) so
+  // the sprite stays in sync. Dynamic import: napNpc lives in the arena bundle
+  // and is not resident in main.js's own graph. Silent on any failure — the
+  // nameplate is a homepage-adjacent nicety, not a load-bearing feature.
+  const nakamaOwnerName = (adminPubkey && adminPubkey === _ownerProfileNamePubkey) ? _ownerProfileName : '';
+  import('./napNpc.js').then(({ setNapNpcName }) => {
+    try { setNapNpcName(nakamaOwnerName); } catch { /* non-fatal */ }
+  }).catch(() => { /* module not resident yet — will paint on next _refreshOwnerLabel */ });
 }
 
 // Kick off a read-only relay lookup of the owner's published displayName, once

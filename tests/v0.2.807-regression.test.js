@@ -107,12 +107,13 @@ describe('v0.2.807 — soft descriptor lines under each entry-option button', ()
     const rule = HTML.match(/\.entry-caption\s*\{[^}]*\}/s);
     expect(rule).toBeTruthy();
     const body = rule[0];
-    // v0.2.808-alpha nudge: caption text sizing bumped now the captions sit
-    // above the option and act as its label (font-size 10 -> 11, letter-
-    // spacing 2 -> 3). Kept in-file to keep the "exists + small + dim +
+    // v0.2.808-alpha nudge: caption sizing bumped as captions moved above
+    // the option. v0.2.811-alpha bumped again per user direction so the
+    // free-title copy reads at a comfortable size (font-size 11 -> 13,
+    // letter-spacing 3 -> 3.5). Kept in-file to keep the "exists + dim +
     // spaced + uppercase + no fill" shape assertion together.
-    expect(body).toMatch(/font-size:\s*11px/);
-    expect(body).toMatch(/letter-spacing:\s*3px/);
+    expect(body).toMatch(/font-size:\s*13px/);
+    expect(body).toMatch(/letter-spacing:\s*3\.5px/);
     expect(body).toMatch(/text-transform:\s*uppercase/);
     // Alpha < 1 so it reads as a secondary line, not competing with the button.
     expect(body).toMatch(/color:\s*rgba\([^)]+,\s*0\.\d+\)/);

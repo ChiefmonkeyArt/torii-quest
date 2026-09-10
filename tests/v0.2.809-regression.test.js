@@ -32,15 +32,18 @@ describe('v0.2.809-alpha: unified CTA styling', () => {
       );
     });
 
-    it('base transparent-outline treatment is shared across all three CTAs', () => {
+    it('base ochre-outline treatment is shared across all three CTAs (with 20% ochre fill in v0.2.811)', () => {
       // Grep the shared selector that gives the unarmed state its
-      // transparent bg + ochre outline + cream-ochre text.
+      // ochre outline + cream-ochre text. v0.2.811-alpha added a 20%
+      // alpha ochre fill for body/depth; the border + text colour are
+      // unchanged. See v0.2.811-regression.test.js for the exact fill lock.
       const sharedBase = HTML.match(
         /#btn-enter-nap\[data-armed="false"\]:not\(:hover\)\s*,\s*#btn-create-ai:not\(:hover\):not\(\[data-armed="true"\]\)\s*,\s*#btn-nostr-centre\[data-armed="false"\]:not\(:hover\)\s*\{([^}]*)\}/
       );
       expect(sharedBase).toBeTruthy();
       const body = sharedBase[1];
-      expect(body).toMatch(/background:\s*transparent/);
+      expect(body).toMatch(/background:\s*rgba\(232,178,120,0\.20?\)/);
+      expect(body).not.toMatch(/background:\s*transparent/);
       expect(body).toMatch(/border:\s*1px\s+solid\s+rgba\(232,178,120,0\.55\)/);
       expect(body).toMatch(/color:\s*#f4d5a8/);
     });
@@ -57,9 +60,10 @@ describe('v0.2.809-alpha: unified CTA styling', () => {
 
   describe('sage green hover (unarmed)', () => {
     it('CREATE WITH AI + LOGIN NOSTR-unarmed share the sage hover treatment', () => {
-      // Guest button is pointer-events:none while unarmed so it never
-      // reaches this rule. When ARMED, guest button uses the ARMED-hover
-      // rule below.
+      // Guest button uses its own ochre-halo inactive-hover rule
+      // (added in v0.2.811-alpha) so it is NOT part of this sage hover
+      // selector list. When ARMED, guest button uses the ARMED-hover
+      // rule further below.
       const hover = HTML.match(
         /#btn-create-ai:hover\s*,\s*#btn-nostr-centre\[data-armed="false"\]:hover\s*\{([^}]*)\}/
       );
@@ -112,10 +116,17 @@ describe('v0.2.809-alpha: unified CTA styling', () => {
   });
 
   describe('inactive guest button is still click-blocked', () => {
-    it('unarmed #btn-enter-nap sets opacity:0.55 + cursor:not-allowed + pointer-events:none', () => {
+    it('unarmed #btn-enter-nap sets opacity:0.55 + cursor:not-allowed', () => {
       // The visual moved from grey-slate to dimmed-transparent, but the
       // click-block must survive so the user cannot "enter" before they
-      // have picked a character.
+      // have picked a character. v0.2.811-alpha removed `pointer-events:
+      // none` from this rule so the button can receive :hover for the
+      // new ochre-halo inactive-hover effect. The click-block is now
+      // asserted through the surviving belt-and-braces defences:
+      // native `disabled` + `aria-disabled="true"` on the <button>,
+      // `cursor:not-allowed`, and the guarded onclick handler. See
+      // v0.2.811-regression.test.js for the pointer-events removal +
+      // hover-halo locks.
       const inactive = HTML.match(
         /#btn-enter-nap\[data-armed="false"\]\s*\{([^}]*)\}/
       );
@@ -123,7 +134,16 @@ describe('v0.2.809-alpha: unified CTA styling', () => {
       const body = inactive[1];
       expect(body).toMatch(/opacity:\s*0\.55/);
       expect(body).toMatch(/cursor:\s*not-allowed/);
-      expect(body).toMatch(/pointer-events:\s*none/);
+    });
+
+    it('unarmed #btn-enter-nap markup carries `disabled` + `aria-disabled="true"`', () => {
+      // Native disabled is the primary click-block; aria-disabled is
+      // the AT parity. Freeze both so a future edit cannot remove one
+      // and leave the click-block leaning only on the other.
+      const tag = HTML.match(/<button[^>]*id="btn-enter-nap"[^>]*>/);
+      expect(tag).toBeTruthy();
+      expect(tag[0]).toMatch(/\sdisabled(\s|>)/);
+      expect(tag[0]).toMatch(/aria-disabled="true"/);
     });
   });
 });

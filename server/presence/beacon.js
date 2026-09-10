@@ -176,12 +176,13 @@ export function createBeacon(opts = {}) {
   }
 
   /**
-   * Turn the beacon on. Generates + persists the keypair on first use. Requires
-   * a configured admin (fail-closed otherwise — an ownerless instance must not
-   * hold a key). Returns { ok, error }.
+   * Turn the beacon on. Generates + persists the keypair on first use. With a
+   * configured admin the world is attributed to that owner; with no admin the
+   * beacon self-enables in NODE-IDENTITY mode (its own scoped key is the world
+   * identity, exactly like the NPC greeter key — never the sovereign owner).
+   * Returns { ok, error }.
    */
   function enable() {
-    if (!configured) return { ok: false, error: 'admin-not-configured' };
     if (!_validPath()) return { ok: false, error: 'no-state-path' };
     if (!state.secretKeyHex) {
       let sk;
@@ -207,9 +208,11 @@ export function createBeacon(opts = {}) {
   }
 
   /**
-   * Auto-activate at startup, backed ONLY by the configured admin npub — zero
-   * login, zero wallet, zero browser (ADR-0094). A fresh install turns the pulse
-   * on the moment the server boots; the admin never has to log in to start it.
+   * Auto-activate at startup with zero login/wallet/browser (ADR-0094). A fresh
+   * install turns the pulse on the moment the server boots. With a configured
+   * admin npub the world is owner-attributed; with none it self-enables in
+   * NODE-IDENTITY mode using the beacon's own scoped key, so a first-time
+   * operator gets a discoverable, crossable node with no identity setup.
    * An admin who explicitly disabled it (enabled=false but activatedAt set) is
    * NOT re-enabled on a later boot — "on until the admin stops it."
    * Returns { ok, activated, error }; activated=true only when this call turned
@@ -225,11 +228,21 @@ export function createBeacon(opts = {}) {
   /** Build the signed presence event (in-memory), or { ok:false, error }. */
   function _buildSignedEvent() {
     if (!state.enabled) return { ok: false, error: 'disabled' };
-    if (!configured || state.adminPubkey !== admin) return { ok: false, error: 'admin-mismatch' };
     if (!state.pubkey || !state.secretKeyHex) return { ok: false, error: 'no-key' };
 
+    // Owner-attribution when an admin is configured; otherwise NODE-IDENTITY
+    // mode where the beacon's own scoped key is the world identity (the reader
+    // resolves owner from the p-tag, falling back to the signer pubkey).
+    let identityHex;
+    if (configured) {
+      if (state.adminPubkey !== admin) return { ok: false, error: 'admin-mismatch' };
+      identityHex = admin;
+    } else {
+      identityHex = state.pubkey;
+    }
+
     let npub;
-    try { npub = npubEncode(admin); } catch { npub = null; }
+    try { npub = npubEncode(identityHex); } catch { npub = null; }
 
     const built = buildPresenceEvent({
       pubkey: state.pubkey,
@@ -244,8 +257,9 @@ export function createBeacon(opts = {}) {
 
     const event = built.event;
     // ADR-0094 §2: canonical owner marker so the reader attributes this world to
-    // the admin (event.pubkey is the beacon key, not the admin).
-    event.tags.push(['p', admin]);
+    // the admin (event.pubkey is the beacon key, not the admin). Omitted in
+    // node-identity mode (no sovereign owner configured yet).
+    if (configured) event.tags.push(['p', admin]);
 
     let sk = hexToU8(state.secretKeyHex);
     if (!sk) return { ok: false, error: 'bad-secret-key' };

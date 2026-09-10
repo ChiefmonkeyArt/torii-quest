@@ -61,11 +61,13 @@ function make(overrides = {}) {
 }
 
 describe('createBeacon lifecycle', () => {
-  it('fails closed to enable when no admin is configured', () => {
+  it('enables in node-identity mode when no admin is configured', () => {
     const b = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t });
-    expect(b.enable()).toEqual({ ok: false, error: 'admin-not-configured' });
-    expect(b.capability().enabled).toBe(false);
-    expect(b.capability().pubkey).toBeNull();
+    const res = b.enable();
+    expect(res.ok).toBe(true);
+    expect(b.capability().enabled).toBe(true);
+    expect(b.capability().pubkey).toMatch(/^[0-9a-f]{64}$/);
+    expect(b.capability().adminPubkey).toBeNull();
   });
 
   it('generates a key on first enable and persists enabled + activatedAt', () => {
@@ -157,13 +159,15 @@ describe('createBeacon autoEnable (ADR-0094 — no login/wallet activation)', ()
     expect(again.capability().enabled).toBe(true);
   });
 
-  it('fails closed (no activation) when no admin npub is configured', () => {
+  it('auto-activates in node-identity mode when no admin npub is configured', () => {
     const b = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t });
     b.load();
     const r = b.autoEnable();
-    expect(r.ok).toBe(false);
-    expect(r.error).toBe('admin-not-configured');
-    expect(b.capability().enabled).toBe(false);
+    expect(r.ok).toBe(true);
+    expect(r.activated).toBe(true);
+    expect(b.capability().enabled).toBe(true);
+    expect(b.capability().pubkey).toMatch(/^[0-9a-f]{64}$/);
+    expect(b.capability().adminPubkey).toBeNull();
   });
 
   it('does NOT re-enable a beacon the admin explicitly turned off', () => {
@@ -264,6 +268,32 @@ describe('beacon event wire contract (real signing + verification)', () => {
     expect(content.zoneId).toBe('quest-torii');
     expect(content.website).toBe('https://torii.plebeian.build/');
     expect(content.npub).toBe(nip19.npubEncode(ADMIN_HEX));
+  });
+
+  it('node-identity mode (no admin) signs with the beacon key and carries no owner p-tag', async () => {
+    const captured = { event: null };
+    const b = createBeacon({
+      statePath, adminPubkeyHex: '',
+      relays: ['wss://r.example'],
+      website: 'https://fresh.example/quest/',
+      fs, now: () => clock.t,
+      generateKey: generateSecretKey, getPubkey: getPublicKey, finalize: finalizeEvent, npubEncode: nip19.npubEncode,
+      publishToRelay: async (url, event) => { captured.event = event; return { ok: true, relay: url, accepted: true }; },
+    });
+    b.enable();
+    await b.publishOnce();
+
+    const evt = captured.event;
+    expect(evt).toBeTruthy();
+    expect(evt.kind).toBe(30078);
+    const pkHex = b.capability().pubkey;
+    expect(evt.pubkey).toBe(pkHex);
+    expect(verifyNostrEventSig(evt)).toBe(true);
+    // No owner p-tag in node-identity mode.
+    expect(evt.tags.find((t) => t[0] === 'p')).toBeUndefined();
+    const content = JSON.parse(evt.content);
+    expect(content.npub).toBe(nip19.npubEncode(pkHex));
+    expect(content.website).toBe('https://fresh.example/quest/');
   });
 });
 

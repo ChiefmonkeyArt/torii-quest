@@ -165,3 +165,35 @@ aware of, and every publish surface retains an explicit off switch.
   relays keeps fresh installs zero-config.
 - The beacon state file is deliberately separate from `.env` and never committed;
   it is mutable runtime state, not configuration.
+
+## Amendment (v0.2.814) — Node-identity mode (no admin npub required)
+
+The original decision made a configured admin npub (`QUEST_ADMIN_NPUB`) the
+*sole* trigger for first activation, so a fresh install without one stayed
+silently offline (no presence, not crossable). That violated the product goal of
+a **one-line, no-identity-prerequisite install** (Bekka / any non-technical
+operator).
+
+**Change:** `beacon.enable()` / `autoEnable()` no longer fail closed when no
+admin npub is configured. In **node-identity mode** (`adminPubkey` empty/unset)
+the beacon still mints its own scoped keypair and self-enables, but the presence
+event is attributable to the **beacon key itself**:
+
+- no `["p", <admin hex>]` tag is added, and
+- `content.npub` is the beacon's own npub (the node identity).
+
+The gateway reader already resolves the owner as
+`_tagValues(tags,'p').find(hex) || pubkey`, so a node-identity event resolves to
+the beacon pubkey with no reader change.
+
+**What this does NOT do:** it never mints or stores the operator's sovereign
+identity. A configured `QUEST_ADMIN_NPUB` still wins when present and still
+attributes the world to the admin's pubkey (Friends/Follows buckets). The
+sovereign owner key remains in the operator's NIP-07 signer. Node-identity mode
+is intentionally scoped to the **presence/crossability** surface only.
+
+**Security / consent:** the beacon key is still a server-held, `0600`,
+presence-only scoped secret (as before). Publishing a "world is online" presence
+event auto-activates from an explicit install-time consent path and retains the
+heartbeat off-switch. This is consistent with the original "list every live
+record, don't verify sigs" posture.

@@ -173,6 +173,12 @@ console.log(`[5] version markers == ${EXPECTED_VERSION}`);
   if (!swMatch) fail('public/sw.js: no CACHE_VERSION literal found');
   else if (!swMatch[1].includes(EXPECTED_VERSION)) fail(`public/sw.js CACHE_VERSION "${swMatch[1]}" does not embed ${EXPECTED_VERSION} (stale-cache risk)`);
   else pass(`public/sw.js CACHE_VERSION tracks ${EXPECTED_VERSION} (${swMatch[1]})`);
+  // public/torii-quest-data.json is served build metadata that bump-ver.sh used to
+  // skip (it seds dashboard.html + toriiQuestDashboardData.js but forgot this one,
+  // leaving it a version behind). Lock it so a bump gap cannot silently recur.
+  const cdata = readFileSync(join(ROOT, 'public/torii-quest-data.json'), 'utf8');
+  if (!cdata.includes(EXPECTED_VERSION)) fail(`public/torii-quest-data.json does not reference ${EXPECTED_VERSION} (bump-ver.sh gap)`);
+  else pass(`public/torii-quest-data.json tracks ${EXPECTED_VERSION}`);
 }
 
 // 6. dist markers (only if built)

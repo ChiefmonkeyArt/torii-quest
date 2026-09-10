@@ -19,7 +19,7 @@ sed -i "s/v0\.2\.[0-9][0-9][0-9]\(-[a-z]*\)\?-alpha/$V/g; s/0\.2\.[0-9][0-9][0-9
   package.json package-lock.json \
   src/config.js src/engine/dashboard/toriiQuestDashboardData.js \
   server/arena-ws.js \
-  public/sw.js public/dashboard.html \
+  public/sw.js public/dashboard.html public/torii-quest-data.json \
   NEXT_ACTION_STATE.json MVP_APPROVAL_STATE.json \
   index.html \
   tests/torii-quest-dashboard.helpers.test.js \
@@ -64,6 +64,11 @@ block = re.sub(r"expect\(v\.behindBy\)\.toBe\([0-9]+\);",
 lines[start:end] = [block]
 open(p, 'w').write(''.join(lines))
 PYEOF
+
+# Re-pin the CSP fallback hash — the version bump shifted the inline bootstrap bytes
+# (index.html carries the version literal), so tools/csp.mjs INLINE_SCRIPT_SHA256 must
+# follow or tests/sw-app-shell.test.js fails the release gate.
+node tools/rehash-csp.mjs
 
 echo "Version bumped. Verify:"
 grep -oE '0\.2\.[0-9][0-9][0-9](-[a-z]*)?-alpha' package.json src/config.js public/sw.js index.html | head -6

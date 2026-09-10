@@ -29,44 +29,21 @@ import { describe, it, expect } from 'vitest';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HTML = readFileSync(join(ROOT, 'index.html'), 'utf8');
 
-describe('v0.2.807 — .gp-band peak alpha bump (0.32 -> 0.70)', () => {
-  it('the .gp-band linear-gradient centre stop is rgba(...,0.7) at 50%', () => {
-    // Freezes the "peak on centre axis is 0.70" contract. Going below 0.5
-    // makes the band invisible again (see Playwright pixel-sum measurement
-    // in the v0.2.806 postmortem: sum-of-RGB delta was ~10/255 at peak).
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    expect(rule).toBeTruthy();
-    const body = rule[0];
-    expect(body).toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.70?\)\s*50%/);
+describe('v0.2.807 — .gp-band alpha bump (superseded by v0.2.810 removal)', () => {
+  // The v0.2.807 alpha-bump assertions were retired in v0.2.810 when the
+  // whole .gp-band vertical readability layer was removed per user
+  // direction. Kept here as a small "the band stays gone" lock so a
+  // future edit that resurrects the band fails loudly against the
+  // original ship's own regression file, not just v0.2.810's.
+  it('the .gp-band CSS rule no longer exists', () => {
+    expect(HTML).not.toMatch(/\.gp-band\s*\{/);
   });
 
-  it('the .gp-band shoulders (either side of centre) are rgba(...,0.48)', () => {
-    // Symmetric shoulders keep the curve smooth. If someone drops just the
-    // peak without lifting the shoulders it snaps to a spike; if the
-    // shoulders are lifted higher than the peak the whole shape inverts.
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    const body = rule[0];
-    expect(body).toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.48\)\s*42%/);
-    expect(body).toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.48\)\s*58%/);
-  });
-
-  it('the old v0.2.806 peak alpha 0.32 and shoulder 0.22 stops are gone', () => {
-    // Anti-regression: if the old constants come back the band goes back
-    // to invisible. Both the 0.32 peak and 0.22 shoulders are forbidden.
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    const body = rule[0];
-    expect(body).not.toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.32\)/);
-    expect(body).not.toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.22\)/);
-  });
-
-  it('the .gp-band 0% and 100% end-stops are still rgba(...,0)', () => {
-    // Belt-and-braces with the v0.2.806 test that checks the same shape —
-    // this repeats it locally so the alpha bump alone can't accidentally
-    // stop the ends fading to transparent.
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    const body = rule[0];
-    expect(body).toMatch(/rgba\([^)]*,\s*0\)\s*0%/);
-    expect(body).toMatch(/rgba\([^)]*,\s*0\)\s*100%/);
+  it('the old v0.2.807 peak alpha 0.70 and shoulder 0.48 stops are gone with the band', () => {
+    // Anti-regression on the exact peak/shoulder alphas the band shipped
+    // with. They should no longer appear anywhere in the stylesheet.
+    expect(HTML).not.toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.70?\)/);
+    expect(HTML).not.toMatch(/rgba\(\s*12\s*,\s*8\s*,\s*6\s*,\s*0\.48\)/);
   });
 });
 
@@ -139,9 +116,10 @@ describe('v0.2.807 — soft descriptor lines under each entry-option button', ()
     expect(body).toMatch(/text-transform:\s*uppercase/);
     // Alpha < 1 so it reads as a secondary line, not competing with the button.
     expect(body).toMatch(/color:\s*rgba\([^)]+,\s*0\.\d+\)/);
-    // No background fill on this element — it relies on the .gp-band
-    // underneath for legibility, per the "only .gp-band tints behind text"
-    // shape decision.
+    // No background fill on this element — in v0.2.810 the .gp-band
+    // underneath was removed, so the caption now sits directly on the
+    // sunset photo. Keeping the "no background" invariant so a future edit
+    // does not compensate by putting a fill on the caption itself.
     expect(body).not.toMatch(/background\s*:/);
   });
 

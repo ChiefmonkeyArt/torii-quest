@@ -142,44 +142,18 @@ describe('v0.2.806 — homepage copy strip (title screen minimalism)', () => {
   });
 });
 
-describe('v0.2.806 — vertical readability band (post-glass-panel treatment)', () => {
-  it('the four .gp-ring* backdrop-blur children and .gp-tint child are gone from the panel markup', () => {
-    // Every ring div and the flat-tint div that made up the old smoked-glass
-    // stack are stripped from #title-centre. The child DOM is now: one
-    // .gp-band + one .gp-content wrapper.
+describe('v0.2.806 — post-glass-panel treatment (band removed in v0.2.810)', () => {
+  it('the four .gp-ring* backdrop-blur children and .gp-tint child are still gone from the panel markup', () => {
+    // Anti-regression on the v0.2.806 strip: even after the .gp-band was
+    // removed in v0.2.810 the older ring stack must NOT come back.
     const centreOpen = HTML.indexOf('id="title-centre"');
     expect(centreOpen).toBeGreaterThan(-1);
-    // Look inside the first ~2500 chars after the opener (the panel body is
-    // ~1.3KB after the strip; this is a comfortable ceiling).
     const panelSlice = HTML.slice(centreOpen, centreOpen + 2500);
     expect(panelSlice).not.toMatch(/class="gp-ring gp-ring1"/);
     expect(panelSlice).not.toMatch(/class="gp-ring gp-ring2"/);
     expect(panelSlice).not.toMatch(/class="gp-ring gp-ring3"/);
     expect(panelSlice).not.toMatch(/class="gp-ring gp-ring4"/);
     expect(panelSlice).not.toMatch(/class="gp-ring gp-tint"/);
-  });
-
-  it('a single .gp-band vertical readability band child is present inside #title-centre', () => {
-    const centreOpen = HTML.indexOf('id="title-centre"');
-    const panelSlice = HTML.slice(centreOpen, centreOpen + 2500);
-    expect(panelSlice).toMatch(/<div class="gp-band" aria-hidden="true"><\/div>/);
-  });
-
-  it('the .gp-band CSS rule paints a horizontal linear-gradient with 0% opacity at both sides', () => {
-    // Nail the "band peaks on centre, fades to 100% transparent at edges"
-    // shape: the background is a `linear-gradient(to right, …)` whose
-    // first-stop AND last-stop colours are fully transparent
-    // (rgba(…,0)). Freezing this prevents a refactor from silently
-    // switching to a two-stop ramp or a solid colour that reintroduces an
-    // edge on either side of the panel.
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    expect(rule).toBeTruthy();
-    const body = rule[0];
-    expect(body).toMatch(/background:\s*linear-gradient\(\s*to right/);
-    // First stop is transparent (…,0) at 0%.
-    expect(body).toMatch(/rgba\([^)]*,\s*0\)\s*0%/);
-    // Last stop is transparent (…,0) at 100%.
-    expect(body).toMatch(/rgba\([^)]*,\s*0\)\s*100%/);
   });
 
   it('the #title-centre.glass-panel CSS rule declares NO active backdrop-filter blur', () => {
@@ -201,16 +175,5 @@ describe('v0.2.806 — vertical readability band (post-glass-panel treatment)', 
       const value = decl.replace(/(?:^|;|\{)\s*(-webkit-)?backdrop-filter\s*:\s*/, '').trim();
       expect(value).toBe('none');
     }
-  });
-
-  it('the .gp-band CSS rule ALSO declares NO backdrop-filter (flat tint only)', () => {
-    // The band paints a flat rgba tint through a mask — no blur, no
-    // saturate, no filter of any kind. This is what stops the edge from
-    // ever coming back through the band itself.
-    const rule = HTML.match(/\.gp-band\s*\{[^}]*\}/s);
-    expect(rule).toBeTruthy();
-    const body = rule[0];
-    expect(body).not.toMatch(/backdrop-filter/);
-    expect(body).not.toMatch(/-webkit-backdrop-filter/);
   });
 });

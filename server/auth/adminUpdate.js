@@ -92,7 +92,10 @@ export function createAdminUpdate(opts = {}) {
     return { selfUpdate, adminPubkey: configured ? admin : null };
   }
 
-  /** Read the runner-written status file, or { state:'unavailable' } when absent/bad. */
+  /** Read the runner-written status file, projecting ONLY the documented progress
+   *  fields (lower-priority contract gap): whitelist {state, targetRef, startedAt,
+   *  finishedAt, message} with capped strings, so any future secret or extra field
+   *  in the status file can never leak through the PUBLIC update-status route. */
   function readStatus() {
     if (typeof statusPath !== 'string' || !statusPath) return { state: 'unavailable' };
     let raw;
@@ -102,7 +105,18 @@ export function createAdminUpdate(opts = {}) {
     if (!parsed || typeof parsed !== 'object' || typeof parsed.state !== 'string') {
       return { state: 'unavailable' };
     }
-    return parsed;
+    const cap = (v, n) => {
+      const s = typeof v === 'string' ? v : '';
+      return s.length > n ? s.slice(0, n) : s;
+    };
+    const finiteNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : undefined);
+    return {
+      state: cap(parsed.state, 40),
+      targetRef: cap(parsed.targetRef, 80) || undefined,
+      startedAt: finiteNum(parsed.startedAt),
+      finishedAt: finiteNum(parsed.finishedAt),
+      message: cap(parsed.message, 200) || undefined,
+    };
   }
 
   /** Is a request already pending (any *.json request file present)? */

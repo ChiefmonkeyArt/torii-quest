@@ -198,9 +198,28 @@ describe('readStatus', () => {
   it('returns unavailable when the status file is absent', () => {
     expect(make().readStatus()).toEqual({ state: 'unavailable' });
   });
-  it('reads a well-formed status file', () => {
-    fs.writeFileSync(statusPath, JSON.stringify({ state: 'succeeded', version: 'v0.2.387-alpha' }));
-    expect(make().readStatus()).toMatchObject({ state: 'succeeded' });
+  it('reads a well-formed status file and projects only the progress fields', () => {
+    fs.writeFileSync(statusPath, JSON.stringify({ state: 'succeeded', targetRef: 'v0.2.838-alpha', startedAt: 1700000000, finishedAt: 1700000009, message: 'ok', version: 'v0.2.838-alpha' }));
+    const r = make().readStatus();
+    expect(r.state).toBe('succeeded');
+    expect(r.targetRef).toBe('v0.2.838-alpha');
+    expect(r.startedAt).toBe(1700000000);
+    expect(r.finishedAt).toBe(1700000009);
+    expect(r.message).toBe('ok');
+  });
+  it('drops any non-whitelisted field (e.g. a secret) from the public projection', () => {
+    fs.writeFileSync(statusPath, JSON.stringify({ state: 'succeeded', secretToken: 'hunter2', nonce: 'n1', path: '/tmp/x', version: 'v0.2.838-alpha' }));
+    const r = make().readStatus();
+    expect(r.state).toBe('succeeded');
+    expect(r).not.toHaveProperty('secretToken');
+    expect(r).not.toHaveProperty('nonce');
+    expect(r).not.toHaveProperty('path');
+    expect(r).not.toHaveProperty('version');
+  });
+  it('caps oversized strings in the projection', () => {
+    fs.writeFileSync(statusPath, JSON.stringify({ state: 'succeeded', message: 'x'.repeat(1000) }));
+    const r = make().readStatus();
+    expect(r.message.length).toBeLessThanOrEqual(200);
   });
   it('returns unavailable for malformed JSON', () => {
     fs.writeFileSync(statusPath, 'not json');

@@ -42,7 +42,7 @@ export function classifyAsset(name) {
   if (/(^|\/)rapier-/.test(f) || f.includes('rapier')) return 'rapier';
   if (f.includes('three-vendor') || /(^|\/)three-/.test(f)) return 'three';
   if (f.includes('rolldown-runtime') || f.includes('runtime')) return 'runtime';
-  if (/(^|\/)index-.*\.js$/.test(f)) return 'app';
+  if (/(^|\/)index-.*\.js$/.test(f) || /(^|\/)torii-entry-.*\.js$/.test(f)) return 'app';
   return 'other';
 }
 

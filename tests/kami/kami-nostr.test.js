@@ -100,6 +100,14 @@ describe('publishEventToRelay', () => {
     expect(res.reason).toBe('rate-limited');
   });
 
+  it('ignores an OK for a different event id (F15) and times out instead of accepting', async () => {
+    const event = { id: 'a'.repeat(64), kind: 1059, pubkey: 'b'.repeat(64), content: 'x', sig: 'c'.repeat(128), tags: [] };
+    const FakeWS = makeFakeWS([JSON.stringify(['OK', 'f'.repeat(64), true, ''])]); // wrong id
+    const res = await publishEventToRelay('wss://x', event, { WebSocketCtor: FakeWS, timeoutMs: 80 });
+    expect(res.accepted).toBe(false);
+    expect(res.ok).toBe(false);
+  });
+
   it('returns ok=false when there is no WebSocket constructor', async () => {
     const res = await publishEventToRelay('wss://x', { id: 'a'.repeat(64) }, { WebSocketCtor: null, timeoutMs: 200 });
     expect(res.ok).toBe(false);

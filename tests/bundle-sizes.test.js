@@ -32,6 +32,7 @@ describe('formatBytes', () => {
 describe('classifyAsset', () => {
   it('classifies the known dist chunks by stem, ignoring the content hash', () => {
     expect(classifyAsset('index-BcVmFbfD.js')).toBe('app');
+    expect(classifyAsset('torii-entry-BcVmFbfD.js')).toBe('app'); // F15: actual entry chunk is torii-entry-*
     expect(classifyAsset('three-vendor-BZJ-67gd.js')).toBe('three');
     expect(classifyAsset('rapier-DE6a0vmv.js')).toBe('rapier');
     expect(classifyAsset('rolldown-runtime-DK3Fl9T5.js')).toBe('runtime');

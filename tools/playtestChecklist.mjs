@@ -316,7 +316,7 @@ export const PLAYTEST_CHECKLIST_ADVISORIES = Object.freeze([
   'The rapier-*.js chunk exceeds the 700 KB bundle advisory (standing, never gated) — expect a one-time load cost.',
   'Nostr read surfaces depend on public relays; a slow/unreachable relay is an advisory, not a failure, as long as the UI degrades gracefully.',
   'Audio (footsteps/feedback) may be blocked until the first user interaction by the browser autoplay policy — interact once before judging audio items.',
-  'This is an alpha proof-of-concept: live runtime / Nostr write paths stay gated behind SEC review; there is no signing/publishing to test.',
+  'This is an alpha: signed login, character publication, the presence beacon and Kami ema are live; other Nostr write paths stay gated behind review.',
 ]);
 
 // How-to-use guidance rendered atop the checklist so a first-time tester knows the protocol.

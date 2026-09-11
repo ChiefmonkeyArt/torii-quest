@@ -1,3 +1,8 @@
+# Operator key material (audit F14) — keep private keys out of the build context
+kami-priv.hex
+*.priv.hex
+.secrets/
+
 # Build artefacts (regenerated inside the image)
 node_modules
 dist

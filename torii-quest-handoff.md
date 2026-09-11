@@ -1,6 +1,7 @@
 # Torii Quest — Contributor / Agent Handoff
 
-Current version: v0.2.835-alpha - CASHU QUOTE IS NOT PAYMENT (AUDIT F13): charge() requires a verified-paid state ({ok:true AND state:'paid'}); a quote yields unpaid-quote-only; adapter renamed createCashuMeltQuote. +6 tests. Suite 4631 / 374. F13 closed.
+Current version: v0.2.836-alpha - KEYGEN OVERWRITE + FAIL-CLOSED (AUDIT F14): generateKamiKey() core — exclusive create (O_EXCL, --force to rotate), fail-closed self-verify (writes only on a proven round-trip), 0600; .gitignore/.dockerignore exclude kami-priv.hex/*.priv.hex/.secrets/. +7 tests. Suite 4638 / 375. F14 closed.
+Prior: Current version: v0.2.835-alpha - CASHU QUOTE IS NOT PAYMENT (AUDIT F13): charge() requires a verified-paid state ({ok:true AND state:'paid'}); a quote yields unpaid-quote-only; adapter renamed createCashuMeltQuote. +6 tests. Suite 4631 / 374. F13 closed.
 Prior: Current version: v0.2.834-alpha - BOUNDED RETAINED HISTORIES (AUDIT F12): closeSession drops _shotLogAt per-session diagnostic entry; score-ledger O(1) index + top-k and kami reply poll cursor (already in v0.2.816) regression-locked. +4 tests. Suite 4625 / 374. F12 closed.
 Prior: Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11): enable()/disable() now fail closed (persist-failed) when the atomic write fails; HTTP off route propagates. +3 tests. Suite 4621 / 373. F11 closed.
 Prior: Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10): isValidKamiId (strict `/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/`) enforced in validateKamiBatch + both stores (writeShot/writeFrame fail closed). +7 tests. Suite 4618 / 373. F10 closed.

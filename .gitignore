@@ -21,5 +21,11 @@ yarn-error.log*
 *.tsbuildinfo
 
 
+# Operator key material (audit F14) — never commit private keys
+kami-priv.hex
+*.priv.hex
+.secrets/
+
+
 # Python tooling cache
 tools/__pycache__/

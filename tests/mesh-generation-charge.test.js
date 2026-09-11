@@ -3,7 +3,7 @@
 // invoice + melt-payment composition, truthful failure when a piece is unwired,
 // and the Cashu NUT-05 melt-quote request shape.
 import { describe, it, expect } from 'vitest';
-import { createGenerationCharge, createCashuMeltPayment } from '../server/character/meshGenerationCharge.js';
+import { createGenerationCharge, createCashuMeltQuote } from '../server/character/meshGenerationCharge.js';
 
 describe('createGenerationCharge — payment composition', () => {
   it('fails closed (no-price) for an unpriced backend', async () => {
@@ -47,9 +47,9 @@ describe('createGenerationCharge — payment composition', () => {
   });
 });
 
-describe('createCashuMeltPayment — NUT-05 melt quote', () => {
+describe('createCashuMeltQuote — NUT-05 melt quote', () => {
   it('fails closed without a mint url', async () => {
-    const p = createCashuMeltPayment({ mintUrl: '' });
+    const p = createCashuMeltQuote({ mintUrl: '' });
     const r = await p({ invoice: 'lnbc_x' });
     expect(r.ok).toBe(false);
     expect(r.error).toBe('cashu:missing-mint-url');
@@ -61,7 +61,7 @@ describe('createCashuMeltPayment — NUT-05 melt quote', () => {
       calls.push({ url, method: init.method, body: init.body });
       return { ok: true, status: 200, json: async () => ({ quote: 'q1', amount: 6000, fee_reserve: 10 }) };
     };
-    const p = createCashuMeltPayment({ mintUrl: 'https://mint.example', fetchFn: fetch });
+    const p = createCashuMeltQuote({ mintUrl: 'https://mint.example', fetchFn: fetch });
     const r = await p({ invoice: 'lnbc_x', amountSats: 6000 });
     expect(r.ok).toBe(true);
     expect(r.quoteId).toBe('q1');
@@ -73,9 +73,79 @@ describe('createCashuMeltPayment — NUT-05 melt quote', () => {
 
   it('surfaces a non-2xx mint response as an error', async () => {
     const fetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
-    const p = createCashuMeltPayment({ mintUrl: 'https://mint.example', fetchFn: fetch });
+    const p = createCashuMeltQuote({ mintUrl: 'https://mint.example', fetchFn: fetch });
     const r = await p({ invoice: 'lnbc_x' });
     expect(r.ok).toBe(false);
     expect(r.error).toContain('cashu:melt-quote-400');
+  });
+});
+describe('F13 — a melt QUOTE is not settlement', () => {
+  it('a quote-only result (ok:true, state:quoted) fails the charge, not paid', async () => {
+    const charge = createGenerationCharge({
+      price: () => 6000,
+      requestInvoice: async () => ({ invoice: 'lnbc_x' }),
+      payInvoice: async () => ({ ok: true, state: 'quoted', quoteId: 'q1' }),
+    });
+    const r = await charge({ id: 'meshy' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('unpaid-quote-only');
+    expect(r.payment).toEqual({ state: 'quoted' }); // surfaced so the host sees only a quote
+  });
+
+  it('a non-paid state (pending) is not accepted as settlement', async () => {
+    const charge = createGenerationCharge({
+      price: () => 6000,
+      requestInvoice: async () => ({ invoice: 'lnbc_x' }),
+      payInvoice: async () => ({ ok: true, state: 'pending' }),
+    });
+    const r = await charge({ id: 'meshy' });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('payment-failed');
+  });
+
+  it('a contradictory ok:false + state:paid is not accepted', async () => {
+    const charge = createGenerationCharge({
+      price: () => 6000,
+      requestInvoice: async () => ({ invoice: 'lnbc_x' }),
+      payInvoice: async () => ({ ok: false, state: 'paid' }),
+    });
+    const r = await charge({ id: 'meshy' });
+    expect(r.ok).toBe(false);
+  });
+
+  it('composing createCashuMeltQuote as the payer never yields a paid charge', async () => {
+    const fetch = async () => ({ ok: true, status: 200, json: async () => ({ quote: 'q1', amount: 6000, fee_reserve: 10 }) });
+    const charge = createGenerationCharge({
+      price: () => 6000,
+      requestInvoice: async () => ({ invoice: 'lnbc_x' }),
+      payInvoice: createCashuMeltQuote({ mintUrl: 'https://mint.example', fetchFn: fetch }),
+    });
+    const r = await charge({ id: 'meshy' });
+    // The adapter returns state:'quoted' (a quote, not a melt) — so the vendor
+    // is never authorised: charge() must fail closed.
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('unpaid-quote-only');
+    expect(r.payment).toEqual({ state: 'quoted' });
+  });
+
+  it('a real paid result still authorises the charge', async () => {
+    const charge = createGenerationCharge({
+      price: () => 6000,
+      requestInvoice: async () => ({ invoice: 'lnbc_x' }),
+      payInvoice: async () => ({ ok: true, state: 'paid' }),
+    });
+    const r = await charge({ id: 'meshy' });
+    expect(r.ok).toBe(true);
+    expect(r.payment).toEqual({ state: 'paid' });
+  });
+
+  it('the quote adapter never leaks proofs or secrets', async () => {
+    const fetch = async () => ({ ok: true, status: 200, json: async () => ({ quote: 'q1', amount: 6000, fee_reserve: 10 }) });
+    const p = createCashuMeltQuote({ mintUrl: 'https://mint.example', fetchFn: fetch });
+    const r = await p({ invoice: 'lnbc_x', amountSats: 6000 });
+    expect(r.state).toBe('quoted');
+    expect(JSON.stringify(r)).not.toContain('proof');
+    expect(JSON.stringify(r)).not.toContain('secret');
+    expect(r).not.toHaveProperty('inputs');
   });
 });

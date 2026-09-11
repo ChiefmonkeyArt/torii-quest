@@ -1,6 +1,7 @@
 # Torii Quest ToDo
 
-Current version: v0.2.834-alpha - BOUNDED RETAINED HISTORIES (AUDIT F12, SHIPPED): closeSession now drops the _shotLogAt diagnostic entry; score-ledger index + kami reply cursor (already in v0.2.816) regression-locked. +4 tests. F12 closed. Next: F13 (Cashu quote vs payment).
+Current version: v0.2.835-alpha - CASHU QUOTE IS NOT PAYMENT (AUDIT F13, SHIPPED): charge() requires verified-paid state; adapter renamed createCashuMeltQuote. +6 tests. F13 closed. Next: F14 (kami keygen overwrite).
+Prior: Current version: v0.2.834-alpha - BOUNDED RETAINED HISTORIES (AUDIT F12, SHIPPED): closeSession now drops the _shotLogAt diagnostic entry; score-ledger index + kami reply cursor (already in v0.2.816) regression-locked. +4 tests. F12 closed. Next: F13 (Cashu quote vs payment).
 Prior: Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11, SHIPPED): enable/disable return persist-failed on write failure; HTTP off route propagates it. +3 tests. F11 closed. Next: F12 (bounded retained histories).
 Prior: Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10, SHIPPED): strict generated-ID grammar (isValidKamiId) enforced in validateKamiBatch + both stores. +7 tests. F10 closed. Next: F11 (beacon fail-closed).
 Prior: Current version: v0.2.831-alpha - DEAD CODE REMOVAL (AUDIT F09+F10, SHIPPED): playerStats.js + portalGlow.js deleted (both proven-dead); authoritative SCORE persistence stays in main.js. +5 tests. F09 (portalGlow) + F10 closed.

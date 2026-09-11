@@ -56,3 +56,27 @@ describe('F04 — Docker proxy preserves /mp and canonical CSP', () => {
     expect(dockerfile).not.toMatch(/wss:\/\/relay\.damus\.io/);
   });
 });
+
+const arenaWs = readFileSync(new URL('../server/arena-ws.js', import.meta.url), 'utf8');
+
+describe('F07 — the plaintext server binds loopback, never 0.0.0.0, on host', () => {
+  it('server HOST default is loopback, not the public 0.0.0.0', () => {
+    // A host deployment that does not set HOST must fall back to loopback so
+    // the raw port never faces the internet; only the reverse proxy reaches it.
+    expect(arenaWs).toMatch(/const HOST\s+= process\.env\.HOST \|\| '127\.0\.0\.1'/);
+    // The old wildcard default is the F07 leak — must be gone.
+    expect(arenaWs).not.toMatch(/process\.env\.HOST \|\| '0\.0\.0\.0'/);
+  });
+
+  it('container opts back into container-internal 0.0.0.0 explicitly', () => {
+    // Inside a container the process must listen on 0.0.0.0 so the sibling
+    // reverse-proxy container on the compose network can reach it — but it is
+    // explicit here, and docker-compose publishes no host port.
+    expect(dockerfile).toMatch(/^ENV HOST=0\.0\.0\.0$/m);
+  });
+
+  it('bare-metal systemd unit pins HOST=127.0.0.1 (no unit drift to wildcard)', () => {
+    expect(bareMetalSh).toMatch(/Environment=HOST=127\.0\.0\.1/);
+    expect(bareMetalSh).not.toMatch(/Environment=HOST=0\.0\.0\.0/);
+  });
+});

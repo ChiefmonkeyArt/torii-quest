@@ -57,6 +57,11 @@ WORKDIR /app
 COPY --from=build /app/dist/package.json ./package.json
 COPY --from=build /app/dist/server/arena-ws.cjs ./server/arena-ws.cjs
 RUN npm install --omit=dev --no-audit --no-fund
+# Loopback is the source default (audit F07). A container must listen on
+# container-internal 0.0.0.0 so the Caddy reverse proxy (a sibling container on
+# the compose network) can reach it — but the port is NEVER published to the
+# host (docker-compose.yml sets no `ports:` on arena-ws).
+ENV HOST=0.0.0.0
 USER node
 EXPOSE 8787
 CMD ["node", "server/arena-ws.cjs"]

@@ -8,10 +8,10 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.825-alpha';
+const CACHE_VERSION = 'tq-v0.2.826-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
-// v0.2.825-alpha (Bug K — SW cache-busting hardening): expose the controlling SW's
+// v0.2.826-alpha (Bug K — SW cache-busting hardening): expose the controlling SW's
 // app version to the page so the shell can detect a stale-SW mismatch PROACTIVELY
 // (before any button click) instead of relying solely on the controllerchange auto-
 // reload, whose gate can miss the "buttons wired (green) but entry path stranded"
@@ -125,6 +125,14 @@ self.addEventListener('fetch', event => {
 
   const path = url.pathname;
 
+  // F05: the Cache API keys by URL+method only — it cannot key by Authorization,
+  // cookie or Vary. So never intercept API/status/admin/account traffic (the /mp
+  // mount) or any request that carries a credential header; those must reach the
+  // network fresh, and their responses are additionally filtered below so a
+  // no-store/private/Vary response is never written even on the public paths.
+  if (path === '/mp' || path.startsWith('/mp/')) return;
+  if (event.request.headers.get('Authorization')) return;
+
   // Cache-first: GLBs, images, fonts — these never change between deploys
   if (isStaticAsset(path)) {
     event.respondWith(cacheFirst(event.request));
@@ -144,13 +152,25 @@ function isStaticAsset(path) {
     || path.endsWith('.wasm'); // Rapier WASM
 }
 
+// F05: only public, cacheable responses may be written to the cache. Reject
+// no-store/private (the server says don't store) and any Vary-bearing response
+// (the Cache API can't key on request headers, so caching it would serve the
+// wrong variant to a different caller).
+function _canCacheResponse(response) {
+  if (!response || !response.ok) return false;
+  const cc = (response.headers.get('Cache-Control') || '').toLowerCase();
+  if (cc.includes('no-store') || cc.includes('private')) return false;
+  if (response.headers.has('Vary')) return false;
+  return true;
+}
+
 // Cache-first: serve from cache, fall back to network, store result
 async function cacheFirst(request) {
   const cached = await caches.match(request);
   if (cached) return cached;
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (_canCacheResponse(response)) {
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, response.clone());
     }
@@ -164,7 +184,7 @@ async function cacheFirst(request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (_canCacheResponse(response)) {
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, response.clone());
     }

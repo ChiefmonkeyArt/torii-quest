@@ -33,6 +33,7 @@ import {
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SW = readFileSync(join(ROOT, 'public/sw.js'), 'utf8');
 const HTML = readFileSync(join(ROOT, 'index.html'), 'utf8');
+const MAIN = readFileSync(join(ROOT, 'src/main.js'), 'utf8');
 
 // Extract the PRECACHE_ASSETS array literal contents.
 function precacheList() {
@@ -188,5 +189,72 @@ describe('index.html — service-worker registration self-heal', () => {
     expectSingleQuotedHashSource(dynamicCsp, suppliedHash);
     expectSameOriginModuleGraphPolicy(dynamicCsp);
     expectWorkerBlobPolicy(dynamicCsp);
+  });
+});
+
+describe('service worker — F05 cache boundaries (no private response is stored)', () => {
+  it('never intercepts API/status/admin /mp traffic or credentialed GETs', () => {
+    // F05: the Cache API keys by URL+method only. The /mp mount and any request
+    // carrying an Authorization header must pass straight to the network, before
+    // any respondWith(cacheFirst/networkFirst) call can store the response.
+    const m = SW.match(/addEventListener\('fetch',\s*event\s*=>\s*\{([\s\S]*?)\n\}\);/);
+    expect(m).not.toBeNull();
+    const handler = m[1];
+    expect(handler).toMatch(/path\s*===\s*'\/mp'\s*\|\|\s*path\.startsWith\('\/mp\/'\)/);
+    expect(handler).toMatch(/Authorization/);
+    // The /mp bypass must appear before the first respondWith call.
+    const mpIdx = handler.search(/startsWith\('\/mp\/'\)/);
+    const respondIdx = handler.search(/respondWith/);
+    expect(mpIdx).toBeGreaterThan(-1);
+    expect(respondIdx).toBeGreaterThan(-1);
+    expect(mpIdx).toBeLessThan(respondIdx);
+  });
+
+  it('rejects no-store/private/Vary responses before any cache.put', () => {
+    const m = SW.match(/function _canCacheResponse\(response\)\s*\{([\s\S]*?)\n\}/);
+    expect(m).not.toBeNull();
+    const body = m[1];
+    expect(body).toMatch(/no-store/);
+    expect(body).toMatch(/private/);
+    expect(body).toMatch(/Vary/);
+    // Both store helpers must gate cache.put on _canCacheResponse.
+    expect(SW).toMatch(/if\s*\(\s*_canCacheResponse\(response\)\s*\)\s*\{/);
+  });
+});
+
+describe('index.html + main.js — F07 recovery is scoped to Quest', () => {
+  it('purges only the torii-quest- cache namespace, not sibling-app caches', () => {
+    const inventory = [HTML, MAIN];
+    for (const src of inventory) {
+      expect(src).toMatch(/torii-quest-/);
+      // The delete must be gated by a filter on the torii-quest- namespace, not a
+      // bare keys().map(delete) that would also drop sibling-app caches.
+      expect(src).toMatch(/filter[\s\S]{0,80}torii-quest-/);
+    }
+  });
+
+  it('unregisters only Quest\'s own registration scope', () => {
+    // Both self-heal paths must filter registrations by Quest's scope and never
+    // blanket-unregister every same-origin registration.
+    expect(HTML).toMatch(/r\.scope\s*===\s*questScope/);
+    expect(MAIN).toMatch(/r\.scope\s*===\s*questScope/);
+  });
+
+  it('the module recovery path keeps the persistent ?nuked=1 loop guard', () => {
+    // F07: src/main.js _selfHealStaleShellAndReload must early-return once the
+    // ?nuked=1 URL pin is present (the inline path always had it).
+    expect(MAIN).toMatch(/\[\?&\]nuked=1/);
+    expect(MAIN).toMatch(/if\s*\(\s*\/\[\?&\]nuked=1/);
+  });
+
+  it('the version-mismatch handler never disrupts an active arena session', () => {
+    // F07: the TORII_SW_VERSION mismatch branch must respect window.__toriiEntered
+    // (the same guard controllerchange uses) rather than self-heal mid-game.
+    const s = inlineRegistrationScript();
+    const msgIdx = s.indexOf("type !== 'TORII_SW_VERSION'");
+    const enteredIdx = s.indexOf('window.__toriiEntered) return', msgIdx);
+    expect(msgIdx).toBeGreaterThan(-1);
+    expect(enteredIdx).toBeGreaterThan(-1);
+    expect(enteredIdx).toBeGreaterThan(msgIdx);
   });
 });

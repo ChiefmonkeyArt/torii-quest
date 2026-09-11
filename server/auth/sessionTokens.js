@@ -33,6 +33,30 @@ export const TOKEN_BYTES      = 32;           // opaque bearer token entropy
 export const MAX_CHALLENGES = 10_000;
 export const MAX_TOKENS     = 10_000;
 
+// F09 — the login event's `u` tag must name THIS service (audience), not just be
+// nonempty. The /mp mount is always at the domain ROOT in every deployment target
+// (Caddy `handle /mp`, bare-metal nginx `location = /mp/session`), so the canonical
+// login URL is <origin>/mp/session.
+export const LOGIN_PATH = '/mp/session';
+
+/**
+ * Resolve the canonical login audience URL. Prefer the explicit
+ * LOGIN_AUDIENCE_URL (operators who mount /mp off-root); otherwise derive it
+ * from QUEST_PUBLIC_URL's ORIGIN (that var points at the static app base, e.g.
+ * https://host/quest/, but /mp lives at the root). Returns '' when unconfigured
+ * (the caller skips the audience/ fresh checks — sandbox + dynamic origins).
+ * Never trusts a forwarded Host header.
+ */
+export function defaultLoginAudienceUrl(env = process.env) {
+  const explicit = (env && env.LOGIN_AUDIENCE_URL ? String(env.LOGIN_AUDIENCE_URL).trim() : '');
+  if (explicit) return explicit;
+  const base = (env && env.QUEST_PUBLIC_URL ? String(env.QUEST_PUBLIC_URL).trim() : '');
+  if (!base) return '';
+  let origin;
+  try { origin = new URL(base).origin; } catch { return ''; }
+  return `${origin}${LOGIN_PATH}`;
+}
+
 const HEX64 = /^[0-9a-f]{64}$/;
 
 function sha256Hex(str) {
@@ -57,6 +81,10 @@ function sha256Hex(str) {
  * @param {Map} [deps.tokenStore]      sha256(token) -> { pubkey, expiresAt }
  * @param {number} [deps.maxChallenges] outstanding-challenge count cap (F08)
  * @param {number} [deps.maxTokens]     outstanding-token count cap (F08)
+ * @param {string} [deps.loginAudienceUrl] canonical login audience URL (F09);
+ *        default resolves from LOGIN_AUDIENCE_URL / QUEST_PUBLIC_URL via
+ *        defaultLoginAudienceUrl(). Empty string disables the audience+
+ *        freshness checks (sandbox / dynamic-origin previews).
  */
 export function createSessionTokens(deps = {}) {
   const {
@@ -69,6 +97,7 @@ export function createSessionTokens(deps = {}) {
     tokenStore = new Map(),
     maxChallenges = MAX_CHALLENGES,
     maxTokens = MAX_TOKENS,
+    loginAudienceUrl = defaultLoginAudienceUrl(),
   } = deps;
 
   function randHex(nBytes) {
@@ -116,6 +145,16 @@ export function createSessionTokens(deps = {}) {
     const mTag = event.tags.find((t) => Array.isArray(t) && (t[0] === 'method'));
     if (!uTag || !uTag[1]) return null;
     if (!mTag || String(mTag[1]).toUpperCase() !== 'POST') return null;
+    // F09 — audience: when configured, the signer must have scoped the event to
+    // THIS service's canonical login URL (exact string match). Never compare
+    // against a forwarded Host header — a relayer could spoof it.
+    if (loginAudienceUrl && uTag[1] !== loginAudienceUrl) return null;
+    // F09 — freshness: created_at must be a finite unix-seconds timestamp within
+    // the challenge TTL of "now" (symmetric, tolerating signer clock skew). A
+    // pre-signed event can't be relaid once it has aged out of this window.
+    const createdAt = event.created_at;
+    if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) return null;
+    if (Math.abs(now() / 1000 - createdAt) > Math.ceil(challengeTtlMs / 1000)) return null;
     if (!verifyEventSig(event)) return null;
     return event.pubkey;
   }

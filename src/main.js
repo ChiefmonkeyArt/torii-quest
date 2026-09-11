@@ -127,7 +127,7 @@ import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionA
 import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -724,24 +724,27 @@ function _homepageStubCallbacks() {
       if (!HEX64.test(pubkey) || !hasSigner) {
         _profilePublishStatus = 'saved-local';
         showEntryStatus('Profile saved locally — log in with a Nostr signer to publish.');
-        return;
+        return false;
       }
       const built = buildProfileMetadataEvent({ pubkey, ...fields });
       if (!built.ok) {
         _profilePublishStatus = 'failed';
         showEntryStatus('Profile not published — please check the entered fields.');
-        return;
+        return false;
       }
       _profilePublishStatus = 'publishing';
-      try {
-        const signed = await signEvent(built.event);
-        await fanoutPublish(_effectiveRelays(), signed);
+      // F01: signEvent returns { ok, event, error } — publish ONLY the signed
+      // event, never the envelope, and claim success only when a relay actually
+      // accepted it (accepted > 0). publishProfileMetadata never throws.
+      const res = await publishProfileMetadata(built.event, { relays: _effectiveRelays() });
+      if (res.ok) {
         _profilePublishStatus = 'published';
         showEntryStatus('Profile published.');
-      } catch {
-        _profilePublishStatus = 'failed';
-        showEntryStatus('Profile saved locally — publish failed (relay or signer error).');
+        return true;
       }
+      _profilePublishStatus = 'saved-local';
+      showEntryStatus('Profile saved locally — no relay accepted the publication yet.');
+      return false;
     },
     onClose: () => { /* title screen: no pause to resume */ },
   };
@@ -2056,7 +2059,7 @@ registerSettingsTabRenderer('stickers', () => {
         if (el) fields[id] = el.value;
       }
       Promise.resolve(_homepageStubCallbacks().onSaveProfile(fields))
-        .then(() => { toastSuccess('Profile saved.'); })
+        .then((published) => { if (published === true) toastSuccess('Profile published.'); else toastInfo('Profile saved locally.'); })
         .catch(() => { toastError('Profile save failed.'); })
         .finally(() => {
           renderActiveSettingsTab();

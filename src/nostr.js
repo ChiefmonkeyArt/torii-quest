@@ -454,17 +454,22 @@ export function relayReq(url, filters, opts = {}) {
       if (done) return; done = true;
       if (mainTimer) clearTimeout(mainTimer);
       if (graceTimer) clearTimeout(graceTimer);
-      try { if (ws.readyState === 1) ws.close(); } catch { /* best-effort close */ }
+      // F04: terminate in EVERY readyState (incl. CONNECTING) — a timed-out
+      // handshake must not open later and emit a stray REQ; callbacks guard on
+      // `done` below so a late open cannot re-enter a settled call.
+      try { ws.close(); } catch { /* best-effort close */ }
       resolve({ ok, events, relay: url, error: ok ? null : (error || 'failed') });
     };
     mainTimer = setTimeout(() => finish(events.length ? true : false, 'timeout'), timeoutMs);
     ws.onopen = () => {
+      if (done) return; // F04: settled (e.g. timeout) before the handshake opened
       openRecorded = true;
       try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       try { ws.send(JSON.stringify(['REQ', subsId, ...flt])); }
       catch (e) { finish(false, 'send-failed'); }
     };
     ws.onmessage = (ev) => {
+      if (done) return; // F04: ignore post-settlement frames
       try { recordMessage(url); } catch { /* telemetry no-op */ }
       try {
         const frame = JSON.parse(ev.data);
@@ -487,10 +492,12 @@ export function relayReq(url, filters, opts = {}) {
       } catch { /* ignore a malformed frame */ }
     };
     ws.onerror = () => {
+      if (done) return; // F04
       if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       finish(false, 'error');
     };
     ws.onclose = () => {
+      if (done) return; // F04
       if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
       else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       finish(events.length ? true : false, 'closed');
@@ -574,19 +581,25 @@ export function publishEvent(url, event, opts = {}) {
       resolve({ ok: false, relay: url, accepted: false, error: 'bad-url' }); return;
     }
     let done = false;
+    let timer = null;
     const finish = (ok, accepted, error) => {
       if (done) return; done = true;
-      try { if (ws.readyState === 1) ws.close(); } catch { /* best-effort close */ }
+      if (timer) clearTimeout(timer);
+      // F04 (as in relayReq): close in every readyState and let callbacks guard on
+      // `done` so a timed-out CONNECTING socket can't open later and send EVENT.
+      try { ws.close(); } catch { /* best-effort close */ }
       resolve({ ok, relay: url, accepted, error });
     };
-    const timer = setTimeout(() => finish(false, false, 'timeout'), timeoutMs);
+    timer = setTimeout(() => finish(false, false, 'timeout'), timeoutMs);
     ws.onopen = () => {
+      if (done) return; // F04
       openRecorded = true;
       try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       try { ws.send(JSON.stringify(['EVENT', event])); }
       catch (e) { clearTimeout(timer); finish(false, false, 'send-failed'); }
     };
     ws.onmessage = (ev) => {
+      if (done) return; // F04
       try { recordMessage(url); } catch { /* telemetry no-op */ }
       try {
         const frame = JSON.parse(ev.data);
@@ -600,10 +613,12 @@ export function publishEvent(url, event, opts = {}) {
       } catch { /* ignore a malformed frame */ }
     };
     ws.onerror = () => {
+      if (done) return; // F04
       if (!openRecorded) { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       clearTimeout(timer); finish(false, false, 'error');
     };
     ws.onclose = () => {
+      if (done) return; // F04
       if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
       else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
       clearTimeout(timer); finish(false, false, 'closed');
@@ -663,6 +678,38 @@ export async function publishCharacter(manifest, opts = {}) {
   out.ok = out.accepted > 0;
   if (!out.ok) out.error = 'no-relay-accepted';
   else CHARACTER_CACHE.clear(); // v0.2.795-alpha: bust the read cache on publish
+  return out;
+}
+
+// publishProfileMetadata(unsigned, opts) → Promise<{ ok, event, accepted, used, failed, error }>.
+// Signs a PRE-BUILT kind:0 profile event via NIP-07, publishes ONLY the signed
+// event (never the signEvent envelope — audit F01), and reports ok:true only
+// when a relay actually accepted it. Never throws. Mirrors publishCharacter.
+export async function publishProfileMetadata(unsigned, opts = {}) {
+  const o = opts && typeof opts === 'object' && !Array.isArray(opts) ? opts : {};
+  const sign = typeof o.sign === 'function' ? o.sign : signEvent;
+  const publish = typeof o.publish === 'function' ? o.publish : fanoutPublish;
+  const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
+  const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? Math.floor(o.timeoutMs) : 5000;
+  const out = { ok: false, event: null, accepted: 0, used: [], failed: [], error: null };
+
+  if (!unsigned || typeof unsigned !== 'object') { out.error = 'profile-event-required'; return out; }
+  if (typeof sign !== 'function') { out.error = 'nip-07-unavailable'; return out; }
+  if (typeof publish !== 'function') { out.error = 'publish-transport-required'; return out; }
+  if (!relays.length) { out.error = 'at-least-one-relay-required'; return out; }
+
+  let signed;
+  try { signed = await sign(unsigned); } catch { out.error = 'nip-07-threw'; return out; }
+  if (!signed || !signed.ok || !signed.event) { out.error = (signed && signed.error) || 'nip-07-failed'; return out; }
+  out.event = signed.event;
+
+  let res;
+  try { res = await publish(relays, signed.event, { timeoutMs }); } catch { out.error = 'publish-threw'; return out; }
+  out.accepted = (res && res.accepted) || 0;
+  out.used = Array.isArray(res && res.used) ? res.used : [];
+  out.failed = Array.isArray(res && res.failed) ? res.failed : [];
+  out.ok = out.accepted > 0;
+  if (!out.ok) out.error = 'no-relay-accepted';
   return out;
 }
 

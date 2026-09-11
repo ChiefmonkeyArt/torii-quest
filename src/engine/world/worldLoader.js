@@ -50,8 +50,9 @@ function _manifestUrl(worldId, baseUrl) {
   return `${normalizedBase}${stripped}`;
 }
 
-// resolveWorldManifest({ worldId, fetchImpl, baseUrl }) → { ok, world, source,
-// fallback, errors? }. Pure; never throws.
+// resolveWorldManifest({ worldId, fetchImpl, baseUrl }) → Promise<{ ok, world,
+// source, fallback, errors? }>. Async; never rejects (every failure resolves to
+// { ok:false, fallback:'legacy' }). Always return a Promise — await the result.
 //   worldId    — string; blank → { ok:false, fallback:'legacy' } (caller uses buildArena).
 //   fetchImpl  — optional; defaults to the global `fetch`. Injected so tests
 //                can stub it and the leaf never imports a transport.
@@ -67,13 +68,13 @@ function _manifestUrl(worldId, baseUrl) {
 // `baseUrl` is passed it overrides import.meta.env.BASE_URL inside assetUrl via
 // a local helper so the pure core stays deterministic in node tests.
 //
-// Returns:
+// Returns (a Promise that resolves to):
 //   { ok:false, fallback:'legacy' }            — blank id / fetch fail / non-200 / invalid JSON
 //   { ok:false, fallback:'legacy', errors }    — manifest present but invalid
 //   { ok:true,  world, fallback:'legacy' }      — manifest valid but world.legacy === true
 //                                                  (renderer should still use buildArena)
 //   { ok:true,  world, fallback:'none' }        — manifest valid; render from data
-export function resolveWorldManifest({ worldId, fetchImpl, baseUrl } = {}) {
+export async function resolveWorldManifest({ worldId, fetchImpl, baseUrl } = {}) {
   if (_isBlank(worldId) || typeof worldId !== 'string') {
     return { ok: false, fallback: 'legacy' };
   }
@@ -81,53 +82,30 @@ export function resolveWorldManifest({ worldId, fetchImpl, baseUrl } = {}) {
   if (!fetchFn) return { ok: false, fallback: 'legacy' };
 
   const url = _manifestUrl(worldId, baseUrl);
-  let res;
   try {
-    res = fetchFn(url);
-    // Support both Promise-returning fetch (browser/node) and a synchronous
-    // fake (tests). A synchronous fake returns a plain object; we detect a
-    // thenable to decide whether to await.
-    if (res && typeof res.then === 'function') {
-      // Async path — return a promise that resolves to the same shape. We
-      // can't `await` here without making the function async, so wrap it.
-      return _resolveAsync(res, worldId, url);
-    }
+    // A single await on the fetch result: a real promise is awaited, while a
+    // synchronous test fake (plain value) is returned unchanged by `await`.
+    const res = await fetchFn(url);
+    return await _fromResponse(res, worldId);
   } catch {
     return { ok: false, fallback: 'legacy' };
   }
-  return _fromResponse(res, worldId);
 }
 
-// Async branch: a real (thenable) fetch response. Resolves to the same result
-// shape as the sync branch. Never rejects — every rejection → fallback:'legacy'.
-function _resolveAsync(resPromise, worldId, url) {
-  return resPromise
-    .then((res) => _fromResponse(res, worldId))
-    .catch(() => ({ ok: false, fallback: 'legacy' }));
-}
-
-// _fromResponse(res, worldId) — shared sync handling of a fetched response
-// object (works for both real fetch Response and a test fake). Returns the
-// result shape. Never throws.
-function _fromResponse(res, worldId) {
+// _fromResponse(res, worldId) — shared async handling of a fetched response
+// object (works for both a real fetch Response and a test fake). Resolves to the
+// result shape. Never rejects.
+async function _fromResponse(res, worldId) {
   if (!res || res.ok === false || (typeof res.status === 'number' && !(res.status >= 200 && res.status < 300))) {
     return { ok: false, fallback: 'legacy' };
   }
-  // Read the body. Support res.json() (Promise or plain value) and a pre-parsed
-  // res.body. A test fake may provide either.
+  // Read the body. Support res.json() (real fetch → Promise; a sync fake may
+  // return a plain value, which `await` passes through) and a pre-parsed
+  // res.body (non-json test fake).
   let json;
   try {
     if (typeof res.json === 'function') {
-      const j = res.json();
-      // Synchronous fake returns a plain value/object; real fetch returns a
-      // thenable. We can't await in this sync helper, so a thenable is handled
-      // by the async branch above (resolveWorldManifest only calls this
-      // directly for sync fakes). If we somehow get a thenable here, treat the
-      // body as unreadable → fall back.
-      if (j && typeof j.then === 'function') {
-        return { ok: false, fallback: 'legacy' };
-      }
-      json = j;
+      json = await res.json();
     } else if ('body' in res) {
       json = res.body;
     } else {

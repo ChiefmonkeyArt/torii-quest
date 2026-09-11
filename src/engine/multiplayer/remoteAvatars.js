@@ -54,8 +54,11 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
     roster.set(peer.id, entry);
     try {
       const obj = await avatarLoader(peer);
-      // Peer might have left mid-load.
-      if (!roster.has(peer.id)) {
+      // Peer may have left mid-load, or left and rejoined under the same id while
+      // this load was pending. Only attach when THIS entry is still the one the
+      // roster tracks for this id — otherwise dispose the stale result so it
+      // cannot orphan a second scene object (audit F3).
+      if (roster.get(peer.id) !== entry) {
         if (obj && typeof obj.dispose === 'function') obj.dispose();
         return;
       }
@@ -71,10 +74,31 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
       scene.add(obj);
       emit('avatar_added', { id: peer.id });
     } catch (err) {
-      // Load failed — clear the entry so we don't leak a half-initialised slot.
-      roster.delete(peer.id);
+      // Load failed — only clear THIS slot if it is still current. A newer
+      // leave+rejoin entry must not be deleted by a stale rejection (audit F3).
+      if (roster.get(peer.id) === entry) {
+        roster.delete(peer.id);
+      }
       emit('avatar_load_error', { id: peer.id, error: String(err && err.message || err) });
     }
+  }
+
+  // reconcile(peers) — apply an authoritative roster snapshot (WELCOME/reconnect):
+  // upsert every listed peer and remove any tracked peer absent from the snapshot.
+  // A peer that left while we were disconnected can only be repaired here, since
+  // its missed `peerLeft` frame never arrived (audit F2). Returns snapshot size.
+  function reconcile(peers) {
+    const snapshot = new Set();
+    for (const p of peers || []) {
+      if (p && typeof p.id === 'string') {
+        snapshot.add(p.id);
+        upsert(p); // async avatar load; fire-and-forget as with normal joins
+      }
+    }
+    for (const id of Array.from(roster.keys())) {
+      if (!snapshot.has(id)) remove(id);
+    }
+    return snapshot.size;
   }
 
   function remove(peerId) {
@@ -128,7 +152,7 @@ export function createRemoteAvatarRoster({ avatarLoader, scene, emit = () => {} 
   }
 
   return {
-    upsert, remove, applyMove, tick, dispose,
+    upsert, remove, reconcile, applyMove, tick, dispose,
     // Test / debug seam — never depend on this in production wiring.
     _peek: (id) => roster.get(id) || null,
     get size() { return roster.size; },

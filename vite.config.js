@@ -210,7 +210,10 @@ export default defineConfig({
   // dedicated vitest project with isolate:true rather than reverting this default.
   test: {
     environment: 'node',
-    include: ['tests/**/*.test.js'],
+    // Colocated engine tests (src/engine/**) were previously excluded from
+    // vitest discovery, so real-fetch regressions (worldLoader) never ran in CI.
+    // Both trees are pure node-safe (THREE math only, no DOM) — see F8.
+    include: ['tests/**/*.test.js', 'src/engine/**/*.test.js'],
     pool: 'threads',
     poolOptions: { threads: { isolate: false, singleThread: false } },
   },

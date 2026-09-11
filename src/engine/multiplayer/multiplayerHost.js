@@ -151,7 +151,9 @@ export function createMultiplayerHost(deps) {
         return;
       }
       case 'roster': {
-        for (const p of payload.roster || []) roster.upsert(p);
+        // Authoritative snapshot (WELCOME / reconnect): reconcile against the
+        // current set so departed peers are removed, not just new ones added (audit F2).
+        roster.reconcile(payload.roster || []);
         return;
       }
       case 'peerJoin': {

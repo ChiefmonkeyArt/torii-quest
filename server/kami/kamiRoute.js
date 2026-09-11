@@ -5,6 +5,7 @@
 // admin-gate (adminFromRequest), body cap (readJsonBodyCapped), then these two.
 
 import { emaLine } from './kamiStore.js';
+import { isValidKamiId } from './kamiId.js';
 
 /** Validate the outer POST shape: {v:1, batch:[{id, ema, shot?}]}.
  *  Returns the batch array (filtered to well-formed entries) or null if the
@@ -17,7 +18,10 @@ export function validateKamiBatch(parsed) {
   for (const item of batch) {
     const id = item && typeof item.id === 'string' ? item.id : null;
     const sealedEma = item && item.ema && typeof item.ema === 'object' ? item.ema : null;
-    if (!id || !sealedEma) continue; // skip a malformed entry, keep the batch
+    // F10: reject any id that cannot be a safe filesystem name before it reaches
+    // the store — a slash/backslash/dot/absolute/traversal id must never map to a
+    // path outside the intended shots/ or autocap/ directory.
+    if (!id || !isValidKamiId(id) || !sealedEma) continue; // skip a malformed entry, keep the batch
     const shot = item.shot && item.shot.env ? item.shot : null;
     clean.push({ id, sealedEma, shot });
   }

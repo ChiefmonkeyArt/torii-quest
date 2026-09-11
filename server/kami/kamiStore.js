@@ -22,6 +22,7 @@
 // arena-ws.js, which calls into here after adminFromRequest succeeds.
 
 import path from 'path';
+import { isValidKamiId } from './kamiId.js';
 
 const SCREENSHOT_KEEP_DEFAULT = 420;
 
@@ -54,6 +55,9 @@ export function createKamiStore({ dir, fs, keep = SCREENSHOT_KEEP_DEFAULT }) {
 
   /** Write one sealed shot envelope. Returns the path written. */
   async function writeShot(id, envJson) {
+    // F10: fail closed on an unsafe record id — it becomes a filename, so it
+    // must never contain a path separator / dot / traversal sequence.
+    if (!isValidKamiId(id)) throw new Error('kamiStore: invalid record id');
     await ensure();
     const p = path.join(shotsDir, `${id}.bin`);
     await f.writeFile(p, envJson);

@@ -1,8 +1,10 @@
 // src/engine/world/worldLoader.test.js — locks the Phase 0 world manifest loader
 // (resolveWorldManifest). Pure vitest: inject a fake fetchImpl so the leaf
-// touches no network. Verifies the feature-flag fallback contract — every
-// failure mode resolves to { fallback:'legacy' } so the host falls back to
-// buildArena() rather than crashing. No three/DOM.
+// touches no network, plus real `Response` fixtures to prove the actual runtime
+// (browser fetch path) now resolves the body instead of falling back. Verifies
+// the feature-flag fallback contract — every failure mode resolves to
+// { fallback:'legacy' } so the host falls back to buildArena() rather than
+// crashing. No three/DOM.
 import { describe, it, expect } from 'vitest';
 import { resolveWorldManifest, readWorldIdFromDom } from './worldLoader.js';
 
@@ -23,8 +25,8 @@ const LEGACY_MANIFEST = { version: 1, id: 'chiefmonkey-template', name: 'Chiefmo
 
 // fakeFetch(handler) — builds a synchronous fake fetchImpl. The handler is
 // called with the url and returns either a response object ({ ok, status,
-// body }) or throws. Synchronous so resolveWorldManifest's sync branch handles
-// it directly (no thenable) — keeps the test deterministic and promise-free.
+// body }) or throws. The loader `await`s the fetch result, so a synchronous
+// plain-value return is passed through unchanged by `await`.
 function fakeFetch(handler) {
   return (url) => handler(url);
 }
@@ -32,88 +34,126 @@ function fakeFetch(handler) {
 function okResponse(body) { return { ok: true, status: 200, body }; }
 function notFoundResponse() { return { ok: false, status: 404 }; }
 
+// realResponse(json, status) — a genuine Node `Response` with a well-formed
+// JSON body, mirroring what the browser fetch path hands the loader.
+function realResponse(json, status = 200) {
+  return new Response(JSON.stringify(json), { status, headers: { 'content-type': 'application/json' } });
+}
+
 describe('resolveWorldManifest — valid manifest', () => {
-  it('returns { ok:true, fallback:"none" } for a valid non-legacy manifest', () => {
+  it('returns ok:true fallback:"none" for a valid non-legacy manifest', async () => {
     const fetchImpl = fakeFetch(() => okResponse(VALID_MANIFEST));
-    const r = resolveWorldManifest({ worldId: 'gateway-blank', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'gateway-blank', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(true);
     expect(r.fallback).toBe('none');
     expect(r.world.id).toBe('gateway-blank');
     expect(r.source).toBe('gateway-blank');
   });
 
-  it('builds the manifest URL from the injected baseUrl + worldId (dev base /)', () => {
+  it('resolves a real fetch Response body (the F1 async-body defect)', async () => {
+    // The actual runtime passes the browser `fetch`, which resolves a real
+    // Response whose json() is a Promise. Before the async refactor this
+    // produced fallback:"legacy" for a perfectly valid manifest.
+    const fetchImpl = () => realResponse(VALID_MANIFEST);
+    const r = await resolveWorldManifest({ worldId: 'gateway-blank', fetchImpl, baseUrl: '/' });
+    expect(r.ok).toBe(true);
+    expect(r.fallback).toBe('none');
+    expect(r.world.id).toBe('gateway-blank');
+  });
+
+  it('builds the manifest URL from the injected baseUrl + worldId (dev base /)', async () => {
     let fetchedUrl = '';
     const fetchImpl = fakeFetch((url) => { fetchedUrl = url; return okResponse(VALID_MANIFEST); });
-    resolveWorldManifest({ worldId: 'gw', fetchImpl, baseUrl: '/' });
+    await resolveWorldManifest({ worldId: 'gw', fetchImpl, baseUrl: '/' });
     expect(fetchedUrl).toBe('/worlds/gw/world.json');
   });
 
-  it('builds the manifest URL from the injected baseUrl + worldId (Suite base /quest/)', () => {
+  it('builds the manifest URL from the injected baseUrl + worldId (Suite base /quest/)', async () => {
     let fetchedUrl = '';
     const fetchImpl = fakeFetch((url) => { fetchedUrl = url; return okResponse(VALID_MANIFEST); });
-    resolveWorldManifest({ worldId: 'gw', fetchImpl, baseUrl: '/quest/' });
+    await resolveWorldManifest({ worldId: 'gw', fetchImpl, baseUrl: '/quest/' });
     expect(fetchedUrl).toBe('/quest/worlds/gw/world.json');
   });
 });
 
-describe('resolveWorldManifest — 404 → fallback:legacy', () => {
-  it('falls back to legacy on a 404', () => {
+describe('resolveWorldManifest — HTTP failure → fallback:legacy', () => {
+  it('falls back to legacy on a 404', async () => {
     const fetchImpl = fakeFetch(() => notFoundResponse());
-    const r = resolveWorldManifest({ worldId: 'missing', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'missing', fetchImpl, baseUrl: '/' });
+    expect(r.ok).toBe(false);
+    expect(r.fallback).toBe('legacy');
+  });
+
+  it('falls back to legacy on a real 404 Response', async () => {
+    const fetchImpl = () => realResponse({}, 404);
+    const r = await resolveWorldManifest({ worldId: 'missing', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 });
 
-describe('resolveWorldManifest — invalid JSON → fallback:legacy', () => {
-  it('falls back to legacy when the body is not a world object', () => {
+describe('resolveWorldManifest — body/rejection → fallback:legacy', () => {
+  it('falls back to legacy when the body is not a world object', async () => {
     const fetchImpl = fakeFetch(() => okResponse('not-json-object'));
-    const r = resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 
-  it('falls back to legacy when the body is an array', () => {
+  it('falls back to legacy when the body is an array', async () => {
     const fetchImpl = fakeFetch(() => okResponse([1, 2, 3]));
-    const r = resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 
-  it('falls back to legacy when the body is null', () => {
+  it('falls back to legacy when the body is null', async () => {
     const fetchImpl = fakeFetch(() => okResponse(null));
-    const r = resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    expect(r.ok).toBe(false);
+    expect(r.fallback).toBe('legacy');
+  });
+
+  it('falls back to legacy when the async json() promise rejects', async () => {
+    const fetchImpl = () => ({ ok: true, status: 200, json: async () => { throw new Error('bad json'); } });
+    const r = await resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    expect(r.ok).toBe(false);
+    expect(r.fallback).toBe('legacy');
+  });
+
+  it('falls back to legacy when the async fetch promise rejects', async () => {
+    const fetchImpl = () => Promise.reject(new Error('network down'));
+    const r = await resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 });
 
 describe('resolveWorldManifest — blank worldId → fallback:legacy', () => {
-  it('falls back to legacy when worldId is blank', () => {
-    const r = resolveWorldManifest({ worldId: '', fetchImpl: () => okResponse(VALID_MANIFEST), baseUrl: '/' });
+  it('falls back to legacy when worldId is blank', async () => {
+    const r = await resolveWorldManifest({ worldId: '', fetchImpl: () => okResponse(VALID_MANIFEST), baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 
-  it('falls back to legacy when worldId is undefined', () => {
-    const r = resolveWorldManifest({ fetchImpl: () => okResponse(VALID_MANIFEST), baseUrl: '/' });
+  it('falls back to legacy when worldId is undefined', async () => {
+    const r = await resolveWorldManifest({ fetchImpl: () => okResponse(VALID_MANIFEST), baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 
-  it('does not call fetch when worldId is blank', () => {
+  it('does not call fetch when worldId is blank', async () => {
     let called = false;
     const fetchImpl = () => { called = true; return okResponse(VALID_MANIFEST); };
-    resolveWorldManifest({ worldId: '', fetchImpl, baseUrl: '/' });
+    await resolveWorldManifest({ worldId: '', fetchImpl, baseUrl: '/' });
     expect(called).toBe(false);
   });
 });
 
 describe('resolveWorldManifest — legacy:true manifest → ok + fallback:legacy', () => {
-  it('returns ok:true with fallback:"legacy" for a valid legacy manifest', () => {
+  it('returns ok:true with fallback:"legacy" for a valid legacy manifest', async () => {
     const fetchImpl = fakeFetch(() => okResponse(LEGACY_MANIFEST));
-    const r = resolveWorldManifest({ worldId: 'chiefmonkey-template', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'chiefmonkey-template', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(true);
     expect(r.fallback).toBe('legacy');
     expect(r.world.legacy).toBe(true);
@@ -122,9 +162,9 @@ describe('resolveWorldManifest — legacy:true manifest → ok + fallback:legacy
 });
 
 describe('resolveWorldManifest — invalid manifest → ok:false + errors', () => {
-  it('returns ok:false with fallback:legacy and errors for an invalid manifest', () => {
+  it('returns ok:false with fallback:legacy and errors for an invalid manifest', async () => {
     const fetchImpl = fakeFetch(() => okResponse({ id: 'x', name: 'X' })); // missing version
-    const r = resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'bad', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
     expect(Array.isArray(r.errors)).toBe(true);
@@ -132,16 +172,15 @@ describe('resolveWorldManifest — invalid manifest → ok:false + errors', () =
   });
 });
 
-describe('resolveWorldManifest — never throws', () => {
-  it('does not throw when fetch throws', () => {
+describe('resolveWorldManifest — never rejects', () => {
+  it('resolves fallback:legacy when fetch throws synchronously', async () => {
     const fetchImpl = fakeFetch(() => { throw new Error('network down'); });
-    expect(() => resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '/' })).not.toThrow();
-    const r = resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '/' });
+    const r = await resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '/' });
     expect(r.ok).toBe(false);
     expect(r.fallback).toBe('legacy');
   });
 
-  it('delegates to assetUrl when baseUrl is blank (browser path)', () => {
+  it('delegates to assetUrl when baseUrl is blank (browser path)', async () => {
     // A blank baseUrl is NOT a failure: the loader delegates to assetUrl(), which
     // reads import.meta.env.BASE_URL (defaulting to '/'). In the node test env that
     // is '/' so the URL is '/worlds/x/world.json' — the fake fetch sees it and the
@@ -149,7 +188,7 @@ describe('resolveWorldManifest — never throws', () => {
     // the browser path, not an error.
     let fetchedUrl = '';
     const fetchImpl = fakeFetch((url) => { fetchedUrl = url; return okResponse(VALID_MANIFEST); });
-    const r = resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '' });
+    const r = await resolveWorldManifest({ worldId: 'x', fetchImpl, baseUrl: '' });
     expect(fetchedUrl).toBe('/worlds/x/world.json');
     expect(r.ok).toBe(true);
     expect(r.fallback).toBe('none');

@@ -152,3 +152,87 @@ describe('remoteAvatarRoster', () => {
     expect(roster.size).toBe(1);
   });
 });
+
+describe('remoteAvatarRoster — reconcile (audit F2)', () => {
+  it('removes peers absent from an authoritative snapshot', async () => {
+    const scene = makeFakeScene();
+    const roster = createRemoteAvatarRoster({ avatarLoader: async (p) => makeFakeObj(p.id), scene });
+    await roster.upsert(peer('p1'));
+    await roster.upsert(peer('p2'));
+    roster.reconcile([peer('p1')]); // authoritative WELCOME: only p1 remains
+    expect(roster.size).toBe(1);
+    expect(roster._peek('p1')).toBeTruthy();
+    expect(roster._peek('p2')).toBeFalsy();
+  });
+
+  it('clears everything on an empty roster (departure while disconnected)', async () => {
+    const scene = makeFakeScene();
+    const roster = createRemoteAvatarRoster({ avatarLoader: async (p) => makeFakeObj(p.id), scene });
+    await roster.upsert(peer('p1'));
+    await roster.upsert(peer('p2'));
+    roster.reconcile([]);
+    expect(roster.size).toBe(0);
+    expect(scene._removed.length).toBe(2);
+  });
+
+  it('adds new peers present in a larger snapshot', async () => {
+    const scene = makeFakeScene();
+    const roster = createRemoteAvatarRoster({ avatarLoader: async (p) => makeFakeObj(p.id), scene });
+    await roster.upsert(peer('p1'));
+    roster.reconcile([peer('p1'), peer('p2')]);
+    expect(roster.size).toBe(2);
+    expect(roster._peek('p2')).toBeTruthy();
+  });
+
+  it('is idempotent across repeated WELCOME snapshots', async () => {
+    const scene = makeFakeScene();
+    const loader = vi.fn(async (p) => makeFakeObj(p.id));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    roster.reconcile([peer('p1'), peer('p2')]);
+    await Promise.resolve();
+    roster.reconcile([peer('p1'), peer('p2')]); // same snapshot again → no reload
+    expect(roster.size).toBe(2);
+    expect(loader).toHaveBeenCalledTimes(2); // one load per NEW peer, not per snapshot
+  });
+});
+
+describe('remoteAvatarRoster — peer-id reuse races (audit F3)', () => {
+  it('a stale slow load is disposed and never orphans a second scene object', async () => {
+    const scene = makeFakeScene();
+    const pending = [];
+    const loader = (p) => new Promise((res) => pending.push({ res }));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    const first = roster.upsert(peer('p1')); // entry A, load pending[0]
+    roster.remove('p1');
+    const second = roster.upsert(peer('p1')); // entry B, load pending[1]
+    const objB = makeFakeObj('p1-b');
+    pending[1].res(objB); // current (B) load succeeds
+    await second;
+    const objA = makeFakeObj('p1-a');
+    pending[0].res(objA); // stale (A) load resolves late
+    await first;
+    expect(roster.size).toBe(1);
+    expect(roster._peek('p1').obj).toBe(objB);
+    expect(scene._added.has(objB)).toBe(true);
+    expect(scene._added.has(objA)).toBe(false);
+    expect(objA.disposed).toBe(true); // stale object cleaned up, not attached
+  });
+
+  it('a stale rejection after a newer success does not delete the new slot', async () => {
+    const scene = makeFakeScene();
+    const pending = [];
+    const loader = (p) => new Promise((res, rej) => pending.push({ res, rej }));
+    const roster = createRemoteAvatarRoster({ avatarLoader: loader, scene });
+    const first = roster.upsert(peer('p1')); // entry A, load pending[0]
+    roster.remove('p1');
+    const second = roster.upsert(peer('p1')); // entry B, load pending[1]
+    const objB = makeFakeObj('p1-b');
+    pending[1].res(objB); // replacement succeeds
+    await second;
+    pending[0].rej(new Error('stale fail')); // old load rejects late
+    await first;
+    expect(roster.size).toBe(1);
+    expect(roster._peek('p1').obj).toBe(objB);
+    expect(scene._added.has(objB)).toBe(true); // new slot survived the stale rejection
+  });
+});

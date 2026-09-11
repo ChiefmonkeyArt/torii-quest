@@ -233,3 +233,21 @@ describe('MESHY_API_BASE', () => {
     expect(MESHY_API_BASE).toBe('https://api.meshy.ai/openapi');
   });
 });
+
+describe('F08b — a hung request aborts (AbortSignal)', () => {
+  it('rejects with "Meshy request timed out" instead of hanging forever', async () => {
+    const hungFetch = (_url, init = {}) => new Promise((_resolve, reject) => {
+      init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+    await expect(
+      getTask({ apiKey: 'k', fetch: hungFetch, requestTimeoutMs: 30 }, 'x'),
+    ).rejects.toThrow('Meshy request timed out');
+  });
+
+  it('passes an AbortSignal to fetch on every request', async () => {
+    let seenSignal;
+    const fetch = async (_url, init = {}) => { seenSignal = init.signal; return { ok: true, status: 200, text: async () => 'null' }; };
+    await getTask({ apiKey: 'k', fetch }, 'x');
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+  });
+});

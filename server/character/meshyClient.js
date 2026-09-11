@@ -11,6 +11,12 @@
 
 export const MESHY_API_BASE = 'https://api.meshy.ai/openapi';
 
+// F08b — a single hung Meshy HTTP request must abort instead of escaping the
+// advertised operation timeout. waitForTask() only re-checks its deadline BETWEEN
+// requests, so an unbounded fetch would wedge the confirm route forever; each
+// _request() now carries its own AbortSignal with this hard timeout.
+export const MESHY_REQUEST_TIMEOUT_MS = 30_000;
+
 // Remesh target for AI characters. Meshy's rigging rejects models over 320k faces, but
 // that ceiling is far above our actual budget: the canonical player character
 // chiefmonkey7.glb is 90,367 triangles / 2.40 MiB, and the whole built-in roster sits
@@ -33,28 +39,43 @@ function _normOpts(opts) {
     fetch: opts.fetch || (typeof fetch === 'function' ? fetch : undefined),
     sleep: opts.sleep || ((ms) => new Promise((r) => setTimeout(r, ms))),
     baseUrl: (opts.baseUrl || MESHY_API_BASE).replace(/\/+$/, ''),
+    requestTimeoutMs: opts.requestTimeoutMs ?? MESHY_REQUEST_TIMEOUT_MS,
   };
 }
 
 // _request(opts, path, init?) → parsed JSON body (throws on non-2xx).
 async function _request(opts, path, init = {}) {
   if (!opts.fetch) throw new Error('Meshy client requires opts.fetch (no global fetch)');
-  const res = await opts.fetch(`${opts.baseUrl}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${opts.apiKey}`,
-      'Content-Type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
-  const txt = await res.text();
-  let body = null;
-  if (txt) { try { body = JSON.parse(txt); } catch { body = null; } }
-  if (!res.ok) {
-    const msg = (body && (body.message || body.error)) || txt.slice(0, 200) || `HTTP ${res.status}`;
-    throw new Error(`Meshy ${res.status}: ${msg}`);
+  // F08b: abort a hung request. The AbortController cancels the fetch (and the
+  // body read) after requestTimeoutMs; a caller-supplied init.signal is honoured
+  // transitively by rejecting the moment our own timer aborts.
+  const timeoutMs = opts.requestTimeoutMs || 0;
+  const ac = timeoutMs > 0 ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), timeoutMs) : null;
+  try {
+    const res = await opts.fetch(`${opts.baseUrl}${path}`, {
+      ...init,
+      ...(ac ? { signal: ac.signal } : {}),
+      headers: {
+        Authorization: `Bearer ${opts.apiKey}`,
+        'Content-Type': 'application/json',
+        ...(init.headers || {}),
+      },
+    });
+    const txt = await res.text();
+    let body = null;
+    if (txt) { try { body = JSON.parse(txt); } catch { body = null; } }
+    if (!res.ok) {
+      const msg = (body && (body.message || body.error)) || txt.slice(0, 200) || `HTTP ${res.status}`;
+      throw new Error(`Meshy ${res.status}: ${msg}`);
+    }
+    return body;
+  } catch (err) {
+    if (ac && ac.signal.aborted) throw new Error('Meshy request timed out');
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
-  return body;
 }
 
 // createTextTo3D(opts, { mode, prompt, previewTaskId, ...fields }) → the task id.

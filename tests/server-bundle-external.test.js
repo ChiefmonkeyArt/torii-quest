@@ -80,3 +80,23 @@ describe('server bundle keeps native/asset modules external', () => {
     expect(PKG.dependencies?.sharp).toBeUndefined();
   });
 });
+
+describe('dependency declarations (audit F14)', () => {
+  it('declares @noble/hashes directly (used, not a phantom transitive)', () => {
+    expect(PKG.dependencies?.['@noble/hashes']).toBeDefined();
+  });
+
+  it('declares esbuild directly in devDependencies (invoked by build:server)', () => {
+    expect(PKG.scripts['build:server']).toContain('esbuild');
+    expect(PKG.devDependencies?.esbuild).toBeDefined();
+    expect(PKG.dependencies?.esbuild).toBeUndefined();
+  });
+
+  it('keeps undici as a tooling dependency, not a runtime dependency', () => {
+    // undici is only imported by tools/kami-nostr-reply.mjs (a local admin
+    // script), never the bundled server or the browser runtime, so it belongs
+    // in devDependencies.
+    expect(PKG.dependencies?.undici).toBeUndefined();
+    expect(PKG.devDependencies?.undici).toBeDefined();
+  });
+});

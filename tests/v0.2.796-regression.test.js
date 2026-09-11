@@ -70,7 +70,10 @@ describe('v0.2.796 — manifest portrait.hash', () => {
 describe('v0.2.796 — main.js wiring', () => {
   it('auto-generates a portrait during upload/replace (fails soft)', () => {
     expect(MAIN).toContain('let portraitEntry = null;');
-    expect(MAIN).toContain('renderCharacterPortrait(blobUrl)');
+    // F06: portrait rendering is now loaded lazily (dynamic import) so the
+    // pre-ENTER shell stays free of Three.js — the call site goes through the
+    // _renderCharacterPortrait wrapper.
+    expect(MAIN).toContain('_renderCharacterPortrait(blobUrl)');
     expect(MAIN).toContain('portrait: portraitEntry,');
   });
 

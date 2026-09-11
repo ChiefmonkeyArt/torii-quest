@@ -8,9 +8,12 @@
 # reports "no pending request" and no deploy happens (observed 2026-09-05).
 #
 # SECURITY MODEL (unchanged from ADR-0101): the key's authorized_keys entry uses
-# a forced-command, and sudoers narrows the deploy user to exactly three verbs
-# (mkdir on the request dir, tee, systemctl start torii-quest-update.service).
-# No shell, no other paths, no other services.
+# a forced-command, and sudoers narrows the deploy user to exactly three verbs:
+# mkdir on the request dir, tee scoped to the single fixed manual.json request
+# file, systemctl start torii-quest-update.service. sudo-rs (the default sudo on
+# Ubuntu 25.04+) rejects wildcards in command ARGUMENTS, so tee is pinned to a
+# fixed filename rather than a $REQ_DIR/* glob. No shell, no other paths, no
+# other services.
 
 set -euo pipefail
 
@@ -57,19 +60,20 @@ cat > "$HOOK" <<HOOK_EOF
 #!/usr/bin/env bash
 set -euo pipefail
 sudo mkdir -p "$REQ_DIR"
-ts=\$(date +%s)
-echo '{}' | sudo tee "$REQ_DIR/manual-\${ts}.json" > /dev/null
+echo '{}' | sudo tee "$REQ_DIR/manual.json" > /dev/null
 sudo systemctl start torii-quest-update.service
 sudo journalctl -u torii-quest-update.service --since "10 seconds ago" -n 200 --no-pager
 HOOK_EOF
 
-# 4. sudoers — narrow to exactly the verbs the hook needs, scoped to REQ_DIR.
+# 4. sudoers — narrow to exactly the verbs the hook needs, tee scoped to the
+# fixed request file (sudo-rs accepts no wildcards in command arguments).
 TMP="$(mktemp)"
 cat > "$TMP" <<SUDO_EOF
-$DEPLOY_USER ALL=(root) NOPASSWD: /usr/bin/mkdir -p $REQ_DIR, /usr/bin/tee $REQ_DIR/*, /usr/bin/systemctl start torii-quest-update.service, /usr/bin/journalctl -u torii-quest-update.service
+$DEPLOY_USER ALL=(root) NOPASSWD: /usr/bin/mkdir -p $REQ_DIR, /usr/bin/tee $REQ_DIR/manual.json, /usr/bin/systemctl start torii-quest-update.service, /usr/bin/journalctl -u torii-quest-update.service
 SUDO_EOF
-if ! visudo -c -f "$TMP" >/dev/null 2>&1; then
+if ! visudo -c -f "$TMP" >/dev/null; then
   echo "sudoers validation FAILED. Not installing." >&2
+  cat "$TMP" >&2
   rm -f "$TMP"
   exit 1
 fi

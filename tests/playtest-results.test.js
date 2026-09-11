@@ -191,12 +191,24 @@ describe('playtest-results — summary', () => {
     expect(summary.verdict).toBe('ATTENTION');
   });
 
-  it('verdict COMPLETE when every item is PASS / N/A with no blanks', () => {
+  it('verdict COMPLETE when every canonical item is PASS / N/A with no blanks (F16)', () => {
+    const allIds = PLAYTEST_CHECKLIST_SECTIONS.flatMap((s) => s.items.map((it) => it.id));
+    const md = allIds.map((id) => `### [ ] ${id}\n| Result (PASS / FAIL / N/A) | PASS |`).join('\n');
+    const s = summarizePlaytestResults(parsePlaytestResults(md));
+    expect(s.verdict).toBe('COMPLETE');
+    expect(s.missing).toEqual([]);
+  });
+
+  it('verdict INCOMPLETE when a canonical item is omitted even if others pass (F16)', () => {
+    // Record ONLY one arbitrary canonical heading (plus a foreign ID) — the real checklist
+    // is not fully recorded, so this must NOT claim COMPLETE.
     const md = [
-      '### [ ] A-1', '| Result (PASS / FAIL / N/A) | PASS |',
-      '### [ ] B-1', '| Result (PASS / FAIL / N/A) | N/A |',
+      '### [ ] LAUNCH-1', '| Result (PASS / FAIL / N/A) | PASS |',
+      '### [ ] XYZ-9', '| Result (PASS / FAIL / N/A) | PASS |',
     ].join('\n');
-    expect(summarizePlaytestResults(parsePlaytestResults(md)).verdict).toBe('COMPLETE');
+    const s = summarizePlaytestResults(parsePlaytestResults(md));
+    expect(s.verdict).toBe('INCOMPLETE');
+    expect(s.missing.length).toBeGreaterThan(0);
   });
 
   it('verdict EMPTY for no items; accepts raw markdown directly', () => {
@@ -204,7 +216,7 @@ describe('playtest-results — summary', () => {
     // accepts a raw markdown string as well as a parsed object
     const s = summarizePlaytestResults('### [ ] A-1\n| Result (PASS / FAIL / N/A) | PASS |');
     expect(s.total).toBe(1);
-    expect(s.verdict).toBe('COMPLETE');
+    expect(s.verdict).toBe('INCOMPLETE'); // single arbitrary id is not the full checklist
   });
 
   it('summary formatter is null-safe and lists failing ids', () => {

@@ -176,3 +176,21 @@ describe('dashboard-smoke-state — committed artifact is not stale', () => {
     expect(recorded).toBeLessThanOrEqual(build);
   });
 });
+
+describe('F16 — skip-only/mixed records cannot validate as PASS', () => {
+  const good = { version: 'v0.2.836-alpha', smokedAt: '2026-09-11' };
+  it('rejects skip-only pass (skip/unknown is not positive evidence)', () => {
+    const s = buildDashboardSmokeState({ result: 'pass', ...good, checks: [{ id: 'a', outcome: 'skip' }] });
+    expect(validateDashboardSmokeState(s).ok).toBe(false);
+  });
+  it('rejects a mixed pass+skip record', () => {
+    const s = buildDashboardSmokeState({ result: 'pass', ...good, checks: [
+      { id: 'a', outcome: 'pass' }, { id: 'b', outcome: 'skip' },
+    ]});
+    expect(validateDashboardSmokeState(s).ok).toBe(false);
+  });
+  it('still accepts an all-pass record', () => {
+    const s = buildDashboardSmokeState({ result: 'pass', ...good, checks: passingChecks });
+    expect(validateDashboardSmokeState(s).ok).toBe(true);
+  });
+});

@@ -193,7 +193,10 @@ export function buildRcSnapshotModel({
 
   // --- Freeze-candidate verdict (never over-claims) ---
   const anyBlocked = rcStatus === 'BLOCKED' || drStatus === 'blocked';
-  const localGatesGreen = rcCandidate && drStatus !== 'blocked';
+  // F16: a non-blocked dry-run is not the same as a READY one. An unknown/near
+  // dry-run must not authorise FREEZE-CANDIDATE — require an explicit ready
+  // signal (dr.ready === true), never just "not blocked".
+  const localGatesGreen = rcCandidate && drReady;
   let status;
   if (anyBlocked) status = 'BLOCKED';
   else if (localGatesGreen) status = 'FREEZE-CANDIDATE';

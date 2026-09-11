@@ -52,6 +52,9 @@ try { _rotateRelaySession(); } catch { /* telemetry no-op */ }
 function _selfHealStaleShellAndReload() {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
   if (window.__toriiNuking) return;
+  // F07: persistent loop guard — once ?nuked=1 is pinned, never heal again
+  // (mirrors the inline path's early-return the module path was missing).
+  if (/[?&]nuked=1(?:&|$)/.test(location.search)) return;
   window.__toriiNuking = true;
   const goReload = () => {
     const sep = location.search ? '&' : '?';
@@ -62,11 +65,14 @@ function _selfHealStaleShellAndReload() {
     location.replace(target);
   };
   if (!('serviceWorker' in navigator)) { goReload(); return; }
+  // F07: scope the heal to THIS app — Quest's own registration scope + cache
+  // namespace only, never a sibling app sharing this origin.
+  const questScope = new URL((import.meta.env && import.meta.env.BASE_URL) || '/', window.location.href).href;
   const unreg = navigator.serviceWorker.getRegistrations()
-    .then((regs) => Promise.all(regs.map((r) => r.unregister().catch(() => {}))))
+    .then((regs) => Promise.all(regs.filter((r) => r.scope === questScope).map((r) => r.unregister().catch(() => {}))))
     .catch(() => {});
   const purge = (typeof caches !== 'undefined' && caches && caches.keys)
-    ? caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k).catch(() => {})))).catch(() => {})
+    ? caches.keys().then((keys) => Promise.all(keys.filter((k) => k.startsWith('torii-quest-')).map((k) => caches.delete(k).catch(() => {})))).catch(() => {})
     : Promise.resolve();
   Promise.all([unreg, purge]).finally(goReload);
 }

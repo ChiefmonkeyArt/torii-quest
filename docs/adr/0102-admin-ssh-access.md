@@ -6,6 +6,19 @@
 - **Depends on:** [ADR-0101](0101-auto-deploy-on-tag.md) (the deploy-only key stays exactly as it is; this is a **second** key with a wider scope).
 - **Related:** none.
 
+## Audit remediation (2026-09-11)
+
+The Torii Suite Code & Storage Audit found the original argv-passthrough dispatcher was effectively root-capable: "read" verbs were raw command names (`find -exec`, `less` shell escape), `write-file` + `daemon-reload` + `start` could run a supplied unit body as root, path checks were symlink-blind, and the `torii-*` unit glob was a namespace rather than an allowlist.
+
+Fixed by moving the dispatcher to a committed, tested file `ops/torii-admin-run.sh` ("fixed-operation edition" v2) installed verbatim with a pinned sha256:
+
+- Named subcommands only; no user argv is spliced into an action flag.
+- Paths are realpath-canonicalized and allow/deny runs on the resolved path (symlink/`.`-`..` escapes caught); writes are no-follow.
+- The unit set is a frozen, versioned enumeration (nginx + the six `torii-*` units on chiefmonkey.art as of 2026-09-11), not a glob.
+- `config-write systemd-unit` rejects `User=root`/`User=0`, non-allowlisted `Exec*` binaries, and bodies failing `systemd-analyze verify` before any reload.
+
+Decisions recorded: (1) release handling is infra-only — no app version tag; the dispatcher carries its own version and is tracked at `main`, redeployed by re-running `install-admin-ssh.sh`; (2) the frozen enumeration above is the exact live inventory.
+
 ## Context
 
 ADR-0101 gave the AI a deploy-only SSH key locked to a single forced-command (`torii-deploy-hook`). That was the right first step: tag → auto-deploy is fully hands-off now, and the blast radius is exactly one systemd verb.
@@ -54,9 +67,9 @@ torii-admin ALL=(root) NOPASSWD: /usr/local/sbin/torii-admin-run
 
 Rules of thumb:
 
-1. **Everything read-only is allowed as `sudo`** so diagnostics never bounces. The AI can `sudo cat /etc/nginx/nginx.conf`, `sudo journalctl -u torii-arena-ws --since "1 hour ago"`, `sudo nginx -T`, etc. Nothing about reading configs is dangerous.
-2. **Writes are scoped by path**. The `torii-admin` user can edit Nginx site configs, project-owned systemd units, and the project's release directory — the surfaces this project actually needs to touch. It cannot touch `/etc/passwd`, `/etc/sudoers*`, any other user's home, or any file outside the allowlist.
-3. **Service verbs are scoped by unit name**. The `torii-*` glob covers every service this project owns and only those.
+1. **Reads are the fixed read verbs** (`reader`, `search`, `journal`, `unit-status`) scoped to the read roots (`/etc/nginx`, `/etc/systemd/system`, `/var/www/torii.quest`, `/var/log`, `/apps`, `/opt`), with sensitive trees (`/root`, `/etc/shadow`, `/etc/sudoers*`, `/etc/ssh`, `/home/*/.ssh`) denied on the resolved path. Diagnostics no longer rely on arbitrary `cat`/`find`/`less` pass-through.
+2. **Writes are scoped by path and kind** — `config-write nginx-site|nginx-conf|systemd-unit <name>` and `config-remove <name>` (sites-enabled symlinks only). A systemd-unit body is validated before it is written or reloaded.
+3. **Service verbs are scoped to a frozen, versioned unit enumeration**, not a `torii-*` glob; adding a unit is an explicit reviewed change.
 4. **`sudo -i` and `sudo bash` are NOT in the allowlist**, so there is no path to an interactive root shell. Every privileged action is a discrete, logged verb.
 
 ### The GitHub Actions workflow

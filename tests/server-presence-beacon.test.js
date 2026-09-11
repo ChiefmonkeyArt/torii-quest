@@ -302,3 +302,63 @@ describe('BEACON_INTERVAL_MS', () => {
     expect(BEACON_INTERVAL_MS).toBe(600000);
   });
 });
+describe('F11 — persistence failure fails closed (no false success)', () => {
+  // A fs that succeeds except renameSync, which throws (simulates ENOSPC /
+  // EACCES on the atomic-rename persist step).
+  function failingFs() {
+    return {
+      mkdirSync: (...a) => fs.mkdirSync(...a),
+      writeFileSync: (...a) => fs.writeFileSync(...a),
+      renameSync: () => { throw new Error('ENOSPC: no space left on device'); },
+      chmodSync: (...a) => fs.chmodSync(...a),
+      readFileSync: (...a) => fs.readFileSync(...a),
+    };
+  }
+
+  it('enable() returns persist-failed instead of a false ok', () => {
+    const b = createBeacon({
+      statePath, adminPubkeyHex: ADMIN_HEX, relays: [], fs: failingFs(),
+      now: () => clock.t, generateKey: generateSecretKey, getPubkey: getPublicKey,
+      finalize: finalizeEvent, npubEncode: nip19.npubEncode,
+      publishToRelay: fakePublisher([]),
+    });
+    const r = b.enable();
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('persist-failed');
+  });
+
+  it('disable() surfaces a failed off-state so a restart cannot silently resume', () => {
+    // First enable against a healthy fs so a real on-state exists on disk.
+    const good = make();
+    good.enable();
+    const onDiskBefore = fs.readFileSync(statePath, 'utf8');
+    expect(JSON.parse(onDiskBefore).enabled).toBe(true);
+
+    // Now a fresh authority over the SAME file, but persist is broken.
+    const b = createBeacon({
+      statePath, adminPubkeyHex: ADMIN_HEX, relays: [], fs: failingFs(),
+      now: () => clock.t, generateKey: generateSecretKey, getPubkey: getPublicKey,
+      finalize: finalizeEvent, npubEncode: nip19.npubEncode,
+      publishToRelay: fakePublisher([]),
+    });
+    b.load();
+    const r = b.disable();
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('persist-failed');
+    // The old on-state is STILL on disk — the operator now knows off didn't take.
+    expect(JSON.parse(fs.readFileSync(statePath, 'utf8')).enabled).toBe(true);
+  });
+
+  it('the error never leaks the secret key or state path', () => {
+    const b = createBeacon({
+      statePath, adminPubkeyHex: ADMIN_HEX, relays: [], fs: failingFs(),
+      now: () => clock.t, generateKey: generateSecretKey, getPubkey: getPublicKey,
+      finalize: finalizeEvent, npubEncode: nip19.npubEncode,
+      publishToRelay: fakePublisher([]),
+    });
+    const r = b.enable();
+    expect(r.error).toBe('persist-failed');
+    expect(JSON.stringify(r)).not.toMatch(/[0-9a-f]{64}/);
+    expect(r.error).not.toContain(statePath);
+  });
+});

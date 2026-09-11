@@ -1,6 +1,7 @@
 # Torii Quest ToDo
 
-Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10, SHIPPED): strict generated-ID grammar (isValidKamiId) enforced in validateKamiBatch + both stores. +7 tests. F10 closed. Next: F11 (beacon fail-closed).
+Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11, SHIPPED): enable/disable return persist-failed on write failure; HTTP off route propagates it. +3 tests. F11 closed. Next: F12 (bounded retained histories).
+Prior: Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10, SHIPPED): strict generated-ID grammar (isValidKamiId) enforced in validateKamiBatch + both stores. +7 tests. F10 closed. Next: F11 (beacon fail-closed).
 Prior: Current version: v0.2.831-alpha - DEAD CODE REMOVAL (AUDIT F09+F10, SHIPPED): playerStats.js + portalGlow.js deleted (both proven-dead); authoritative SCORE persistence stays in main.js. +5 tests. F09 (portalGlow) + F10 closed.
 Prior: Current version: v0.2.830-alpha - LAZY ENTRY SHELL (AUDIT F06, SHIPPED): portrait renderer + stickerNpc debug hook now load lazily (dynamic import + DEV gate); build shows three-vendor split out of the entry chunk. +5 tests. F06 closed.
 Prior: Current version: v0.2.829-alpha - SERIALIZED POLLING (AUDIT F11, SHIPPED): _shellTick polls handshake/presence/heartbeat/beaconSync via a serialized elapsed-time poller (no overlap, wall-clock cadence). +6 tests. F11 closed.

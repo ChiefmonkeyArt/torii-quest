@@ -196,14 +196,21 @@ export function createBeacon(opts = {}) {
     if (state.activatedAt === null) state.activatedAt = now();
     state.enabled = true;
     state.lastError = null;
-    _persist();
+    // F11: make persistence part of the state transition. If the write fails,
+    // fail closed and report it — an unwritable install must not silently accept
+    // a key that will be regenerated (and diverge) on the next boot.
+    if (!_persist()) return { ok: false, error: 'persist-failed' };
     return { ok: true };
   }
 
   /** Turn the beacon off. Persists so it stays off across restarts. */
   function disable() {
     state.enabled = false;
-    _persist();
+    state.lastError = null;
+    // F11: if the off-state fails to persist, the old on-state remains on disk
+    // and a restart would resume publishing. Report the failure instead of a
+    // false success so the operator knows the off did not durably take.
+    if (!_persist()) return { ok: false, error: 'persist-failed' };
     return { ok: true };
   }
 

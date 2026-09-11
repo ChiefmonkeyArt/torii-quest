@@ -8,10 +8,10 @@
 // assets — no stale assets after an asset-changing deploy. Bump in lockstep with the
 // other version markers; regression-check [5] FAILS if this does not embed the current
 // EXPECTED_VERSION (so it can never silently rot back to a stale literal like 'tq-v1').
-const CACHE_VERSION = 'tq-v0.2.826-alpha';
+const CACHE_VERSION = 'tq-v0.2.827-alpha';
 const CACHE_NAME    = `torii-quest-${CACHE_VERSION}`;
 
-// v0.2.826-alpha (Bug K — SW cache-busting hardening): expose the controlling SW's
+// v0.2.827-alpha (Bug K — SW cache-busting hardening): expose the controlling SW's
 // app version to the page so the shell can detect a stale-SW mismatch PROACTIVELY
 // (before any button click) instead of relying solely on the controllerchange auto-
 // reload, whose gate can miss the "buttons wired (green) but entry path stranded"

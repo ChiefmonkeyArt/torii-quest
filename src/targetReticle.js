@@ -47,7 +47,10 @@ export function tickTargetReticle() {
   }
 
   camera.getWorldPosition(_camPos);
-  _camDir.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+  // F03: use the camera's WORLD direction. The camera is parented to the player
+  // (yaw lives on the parent), so camera.quaternion is only the LOCAL tilt and
+  // `[0,0,-1] * camera.quaternion` stayed wrong once the parent yawed.
+  camera.getWorldDirection(_camDir);
 
   // Direct hit — what would the shot actually score? Read-only reticle preview,
   // routed through the RaycastService facade — behaviour-identical to castRay

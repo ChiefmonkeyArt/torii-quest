@@ -5,7 +5,7 @@
 // node with no NIP-07 extension or live relay.
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  publishCharacter, buildBlossomAuthEvent, uploadBlossom,
+  publishCharacter, publishProfileMetadata, buildBlossomAuthEvent, uploadBlossom,
   BLOSSOM_AUTH_KIND, DEFAULT_BLOSSOM_SERVER,
 } from '../src/nostr.js';
 import { presetToManifest, getCharacterPreset } from '../src/engine/character/characterPresets.js';
@@ -53,6 +53,52 @@ describe('publishCharacter', () => {
     const res = await publishCharacter(manifest, { sign: badSign, publish: okPublish, relays: ['wss://x'] });
     expect(res.ok).toBe(false);
     expect(res.error).toBe('signed-character-invalid');
+  });
+});
+
+describe('publishProfileMetadata (F01 — publish the signed event, not the envelope)', () => {
+  const unsigned = { kind: 0, created_at: 1700000000, content: '{}', tags: [] };
+
+  it('publishes the signed .event and reports ok when a relay accepts', async () => {
+    let publishedEvent = null;
+    const publish = async (relays, event) => { publishedEvent = event; return { accepted: 1, used: ['wss://r'], failed: [] }; };
+    const res = await publishProfileMetadata(unsigned, { sign: okSign, publish, relays: ['wss://r'] });
+    expect(res.ok).toBe(true);
+    expect(res.accepted).toBe(1);
+    // The published payload must be the signed EVENT (has id/sig), not the
+    // { ok, event, error } envelope the bug was passing.
+    expect(publishedEvent.id).toBe('f'.repeat(64));
+    expect(publishedEvent.sig).toBe('g'.repeat(128));
+    expect(publishedEvent.kind).toBe(0);
+    expect(res.event.id).toBe('f'.repeat(64));
+  });
+
+  it('fails closed when the signer rejects, without calling publish', async () => {
+    let published = false;
+    const res = await publishProfileMetadata(unsigned, {
+      sign: async () => ({ ok: false, event: null, error: 'nip-07-rejected' }),
+      publish: async () => { published = true; return { accepted: 0, used: [], failed: [] }; },
+      relays: ['wss://r'],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('nip-07-rejected');
+    expect(published).toBe(false);
+  });
+
+  it('fails closed when every relay rejects', async () => {
+    const res = await publishProfileMetadata(unsigned, {
+      sign: okSign,
+      publish: async () => ({ accepted: 0, used: [], failed: ['wss://r'] }),
+      relays: ['wss://r'],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('no-relay-accepted');
+  });
+
+  it('requires a built profile event', async () => {
+    const res = await publishProfileMetadata(null, { sign: okSign, publish: okPublish, relays: ['wss://r'] });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('profile-event-required');
   });
 });
 

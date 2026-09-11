@@ -7,7 +7,7 @@
 // verifier stub to isolate the structural checks.
 import { describe, it, expect, vi } from 'vitest';
 import {
-  createSessionTokens,
+  createSessionTokens, defaultLoginAudienceUrl,
   CHALLENGE_TTL_MS, TOKEN_TTL_MS, LOGIN_EVENT_KIND,
 } from '../../server/auth/sessionTokens.js';
 import { nostrEventId } from '../../src/engine/crypto/nostrSig.js';
@@ -23,12 +23,12 @@ function sha256Hex(str) {
 }
 
 // A real NIP-98 (kind:27235) login event bound to `challenge`, schnorr-signed.
-function signLoginEvent({ challenge, sk = SK, url = 'https://host/mp/session', method = 'POST', kind = LOGIN_EVENT_KIND }) {
+function signLoginEvent({ challenge, sk = SK, url = 'https://host/mp/session', method = 'POST', kind = LOGIN_EVENT_KIND, createdAtSec = Math.floor(Date.now() / 1000) }) {
   const pubkey = bytesToHex(schnorr.getPublicKey(sk));
   const evt = {
     pubkey,
     kind,
-    created_at: 1_700_000_000,
+    created_at: createdAtSec,
     content: '',
     tags: [
       ['u', url],
@@ -63,7 +63,9 @@ describe('createSessionTokens — challenges', () => {
     let t = 1000;
     const st = createSessionTokens({ now: () => t, verifyEventSig: () => true });
     const { challenge } = st.issueChallenge();
-    const evt = signLoginEvent({ challenge });
+    // Fresh relative to the fake clock (t=1000ms => 1s), so the F09 freshness
+    // check passes and the rejection below is purely the expired challenge.
+    const evt = signLoginEvent({ challenge, createdAtSec: Math.floor(t / 1000) });
     t += CHALLENGE_TTL_MS + 1;
     expect(st.verifyLoginEvent({ event: evt, challenge })).toBeNull();
   });
@@ -212,5 +214,47 @@ describe('createSessionTokens — F08 issuance count caps', () => {
     expect(b).toBeTruthy();
     expect(st.issueToken(PUBKEY)).toBeNull();
     expect(st._tokenStore.size).toBe(2);
+  });
+});
+
+describe('createSessionTokens — F09 login audience + freshness', () => {
+  const AUD = 'https://chiefmonkey.art/mp/session';
+
+  it('rejects a well-signed event scoped to a different audience URL', () => {
+    const s = createSessionTokens({ loginAudienceUrl: AUD, verifyEventSig: () => true });
+    const { challenge } = s.issueChallenge();
+    const evt = signLoginEvent({ challenge, url: 'https://evil.example/mp/session' });
+    expect(s.verifyLoginEvent({ event: evt, challenge })).toBeNull();
+  });
+
+  it('accepts the canonical audience URL', () => {
+    const s = createSessionTokens({ loginAudienceUrl: AUD, verifyEventSig: () => true });
+    const { challenge } = s.issueChallenge();
+    const evt = signLoginEvent({ challenge, url: AUD });
+    expect(s.verifyLoginEvent({ event: evt, challenge })).toBe(PUBKEY);
+  });
+
+  it('rejects a stale created_at (outside the challenge TTL window)', () => {
+    const s = createSessionTokens({ loginAudienceUrl: AUD, verifyEventSig: () => true });
+    const { challenge } = s.issueChallenge();
+    const evt = signLoginEvent({ challenge, url: AUD, createdAtSec: Math.floor(Date.now() / 1000) - 3600 });
+    expect(s.verifyLoginEvent({ event: evt, challenge })).toBeNull();
+  });
+
+  it('rejects a non-numeric created_at', () => {
+    const s = createSessionTokens({ loginAudienceUrl: AUD, verifyEventSig: () => true });
+    const { challenge } = s.issueChallenge();
+    const evt = signLoginEvent({ challenge, url: AUD });
+    evt.created_at = 'yesterday';
+    expect(s.verifyLoginEvent({ event: evt, challenge })).toBeNull();
+  });
+
+  it('derives the default audience URL (origin + /mp/session) or stays empty', () => {
+    expect(defaultLoginAudienceUrl({ LOGIN_AUDIENCE_URL: 'https://a.example/odd' })).toBe('https://a.example/odd');
+    // QUEST_PUBLIC_URL points at the static base (may have a /quest/ path); the
+    // /mp mount is at the root, so only the ORIGIN carries over.
+    expect(defaultLoginAudienceUrl({ QUEST_PUBLIC_URL: 'https://chiefmonkey.art/quest/' })).toBe('https://chiefmonkey.art/mp/session');
+    expect(defaultLoginAudienceUrl({ QUEST_PUBLIC_URL: 'https://solo.example' })).toBe('https://solo.example/mp/session');
+    expect(defaultLoginAudienceUrl({})).toBe('');
   });
 });

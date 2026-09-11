@@ -129,7 +129,10 @@ export function validateLiveSmokeState(state) {
   if (state.result === LIVE_SMOKE_RESULTS.PASS) {
     // The safety floor: a green verdict MUST carry its evidence (≥1 check, all passing) + provenance.
     if (checks.length === 0) add('result "pass" requires at least one recorded check');
-    if (checks.some((c) => c.outcome === 'fail')) add('result "pass" is invalid while any check failed');
+    // F16: a green verdict must carry all-passing evidence — a skip (including an
+    // unknown outcome coerced to skip) is NOT positive evidence of success, so a
+    // skip-only/mixed record must not validate as PASS.
+    if (checks.some((c) => c.outcome !== 'pass')) add('result "pass" requires every check to be "pass" (no skip/unknown)');
     if (!isVersionMarker(state.version)) add('result "pass" requires a concrete version marker');
     if (!_str(state.smokedAt)) add('result "pass" requires a non-empty smokedAt timestamp');
   } else if (state.result === LIVE_SMOKE_RESULTS.FAIL) {

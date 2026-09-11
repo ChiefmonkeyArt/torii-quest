@@ -37,6 +37,12 @@ const nearDryRun = {
   missing: [{ key: 'clean-tree', label: 'Working tree clean (all changes committed)' }],
   approvalGate: 'Manual user approval is REQUIRED before any git tag, push, or gh release.',
 };
+// A ready GitHub dry-run (all gating checks ok).
+const readyDryRun = {
+  version: V, status: 'ready', ready: true,
+  missing: [],
+  approvalGate: 'Manual user approval is REQUIRED before any git tag, push, or gh release.',
+};
 
 describe('rc-snapshot — constants', () => {
   it('exposes a stable schema, version, badge, write filename, title, and states', () => {
@@ -103,11 +109,11 @@ describe('rc-snapshot — version consistency', () => {
 });
 
 describe('rc-snapshot — assembly + verdict', () => {
-  it('FREEZE-CANDIDATE when the RC gate is a candidate and the dry-run is not blocked', () => {
+  it('FREEZE-CANDIDATE when the RC gate is a candidate and the dry-run is READY', () => {
     const m = buildRcSnapshotModel({
       version: V, packageVersion: '0.2.210-alpha', gitCommit: 'abc1234',
       liveUrl: 'https://chiefmonkey.art',
-      rcGate: readyGate, mvpReadiness: readyMvp, dryRun: nearDryRun,
+      rcGate: readyGate, mvpReadiness: readyMvp, dryRun: readyDryRun,
       testStatus: { passing: 1342, files: 85, profile: 'full' },
       regression: { count: 15, expected: 15 },
       present: { 'release-notes': true, 'playtest-results': false },
@@ -119,13 +125,26 @@ describe('rc-snapshot — assembly + verdict', () => {
     expect(m.version).toBe(V);
     expect(m.rcGate.isCandidate).toBe(true);
     expect(m.mvpReadiness.pct).toBe(100);
-    expect(m.releaseDryRun.status).toBe('near');
-    expect(m.releaseDryRun.missing).toContain('Working tree clean (all changes committed)');
+    expect(m.releaseDryRun.status).toBe('ready');
     expect(m.tests).toMatchObject({ passing: 1342, files: 85, profile: 'full' });
     const byKey = Object.fromEntries(m.docs.map((d) => [d.key, d]));
     expect(byKey['release-notes'].present).toBe(true);
     expect(byKey['playtest-results'].present).toBe(false);
     expect(byKey['handoff'].present).toBe(null);
+  });
+
+  it('NEAR (not FREEZE-CANDIDATE) when the dry-run is near/unknown despite a candidate gate (F16)', () => {
+    const m = buildRcSnapshotModel({
+      version: V, rcGate: readyGate, mvpReadiness: readyMvp, dryRun: nearDryRun,
+    });
+    expect(m.status).toBe('NEAR');
+    expect(m.freezeCandidate).toBe(false);
+    // A fully unknown dry-run must also not freeze.
+    const m2 = buildRcSnapshotModel({
+      version: V, rcGate: readyGate, mvpReadiness: readyMvp, dryRun: { status: 'unknown', ready: false },
+    });
+    expect(m2.status).toBe('NEAR');
+    expect(m2.freezeCandidate).toBe(false);
   });
 
   it('BLOCKED when the RC gate is blocked', () => {
@@ -183,7 +202,7 @@ describe('rc-snapshot — assembly + verdict', () => {
 describe('rc-snapshot — formatters', () => {
   const model = buildRcSnapshotModel({
     version: V, gitCommit: 'abc1234', liveUrl: 'https://chiefmonkey.art',
-    rcGate: readyGate, mvpReadiness: readyMvp, dryRun: nearDryRun,
+    rcGate: readyGate, mvpReadiness: readyMvp, dryRun: readyDryRun,
     testStatus: { passing: 1342, files: 85, profile: 'full' },
     regression: { count: 15, expected: 15 },
     present: { 'release-notes': true },

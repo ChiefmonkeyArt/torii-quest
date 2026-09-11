@@ -1,6 +1,7 @@
 # Torii Quest ToDo
 
-Current version: v0.2.836-alpha - KEYGEN OVERWRITE + FAIL-CLOSED (AUDIT F14, SHIPPED): generateKamiKey core; exclusive create + fail-closed verify + 0600; git/docker exclusions. +7 tests. F14 closed. Next: F15 (helper drift) → F16 (status evidence).
+Current version: v0.2.837-alpha - EVIDENCE-STATE CONTRACT (AUDIT F16, SHIPPED): six sub-items fixed (smoke skip-only, manifest UNKNOWN, unreadable→null, rc ready-only freeze, approval .status, playtest canonical ids). +12 tests. F16 closed. Next: F15 (helper drift batch).
+Prior: Current version: v0.2.836-alpha - KEYGEN OVERWRITE + FAIL-CLOSED (AUDIT F14, SHIPPED): generateKamiKey core; exclusive create + fail-closed verify + 0600; git/docker exclusions. +7 tests. F14 closed. Next: F15 (helper drift) → F16 (status evidence).
 Prior: Current version: v0.2.835-alpha - CASHU QUOTE IS NOT PAYMENT (AUDIT F13, SHIPPED): charge() requires verified-paid state; adapter renamed createCashuMeltQuote. +6 tests. F13 closed. Next: F14 (kami keygen overwrite).
 Prior: Current version: v0.2.834-alpha - BOUNDED RETAINED HISTORIES (AUDIT F12, SHIPPED): closeSession now drops the _shotLogAt diagnostic entry; score-ledger index + kami reply cursor (already in v0.2.816) regression-locked. +4 tests. F12 closed. Next: F13 (Cashu quote vs payment).
 Prior: Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11, SHIPPED): enable/disable return persist-failed on write failure; HTTP off route propagates it. +3 tests. F11 closed. Next: F12 (bounded retained histories).

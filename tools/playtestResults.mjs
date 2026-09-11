@@ -17,6 +17,14 @@
 // inputs degrade to honest defaults; never throws — the parser tolerates blanks by design.
 import { PLAYTEST_CHECKLIST_SECTIONS, PLAYTEST_SEVERITIES } from './playtestChecklist.mjs';
 
+// The canonical checklist ID set (derived from the checklist sections) — every item must be
+// recorded before a playtest summary may claim COMPLETE (F16). An arbitrary/foreign ID alone
+// is not evidence the real checklist ran.
+const PLAYTEST_CANONICAL_IDS = Object.freeze(
+  PLAYTEST_CHECKLIST_SECTIONS.flatMap((s) => s.items.map((it) => it.id)).slice()
+);
+export { PLAYTEST_CANONICAL_IDS };
+
 // Stable schema ids + integer versions for the machine-readable (--json) modes. Bump the
 // matching *_SCHEMA_VERSION on any breaking shape change.
 export const PLAYTEST_RESULTS_SCHEMA = 'torii.playtest-results';
@@ -311,11 +319,20 @@ export function summarizePlaytestResults(parsedOrText) {
     else counts.blank += 1;
   }
   let verdict;
+  // F16: COMPLETE requires the canonical checklist to be fully recorded (every canonical ID
+  // present and pass/na) — a subset of arbitrary headings is NOT evidence of a full pass. A
+  // real fail stays ATTENTION (more urgent than an omission), then a missing canonical item
+  // degrades an otherwise all-pass record to INCOMPLETE.
+  const presentIds = new Set(items.map((it) => it && it.id).filter(Boolean));
+  const missing = PLAYTEST_CANONICAL_IDS.filter((id) => !presentIds.has(id));
   if (counts.total === 0) verdict = 'EMPTY';
   else if (counts.blank > 0 || counts.other > 0) verdict = 'INCOMPLETE';
   else if (counts.fail > 0) verdict = 'ATTENTION';
+  else if (missing.length > 0) verdict = 'INCOMPLETE';
   else verdict = 'COMPLETE';
-  return { schema: PLAYTEST_RESULTS_SUMMARY_SCHEMA, total: counts.total, counts, fails, verdict };
+  return {
+    schema: PLAYTEST_RESULTS_SUMMARY_SCHEMA, total: counts.total, counts, fails, verdict, missing,
+  };
 }
 
 // formatPlaytestResultsSummary(summary) → a concise multi-line text block. Pure; null-safe.

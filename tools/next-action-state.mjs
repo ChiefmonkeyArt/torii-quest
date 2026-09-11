@@ -224,7 +224,9 @@ if (invokedDirectly) {
       pill: manualValidation ? manualValidation.pill : null,
     },
     mvpApproval: mvpApproval
-      ? { approved: mvpApproval.approved === true, status: mvpApproval.status }
+      // F16: the approval record carries a `.status` ('approved'|'pending'), not an
+      // `.approved` boolean — reading `.approved` lost every valid approval.
+      ? { approved: mvpApproval.status === MVP_APPROVAL_STATUSES.APPROVED, status: mvpApproval.status }
       : null,
     nextSafeTask: SHIP_NEXT_SAFE_TASK,
   });

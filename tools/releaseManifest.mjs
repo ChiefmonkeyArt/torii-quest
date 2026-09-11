@@ -33,10 +33,11 @@ export const RELEASE_MANIFEST_WRITE_FILENAME = 'RELEASE_ARTIFACT_MANIFEST.md';
 // The product title shown atop the manifest.
 export const RELEASE_MANIFEST_TITLE = 'Torii Quest — Release Artifact Manifest';
 
-// The two coarse manifest verdicts (never over-claims):
-//   COMPLETE   — every REQUIRED artifact is present on disk (optional ones may still be missing)
+// The three manifest verdicts (never over-claims):
+//   COMPLETE   — every REQUIRED artifact is present on disk (optional may still be missing)
 //   INCOMPLETE — at least one REQUIRED artifact is missing (a future release would be blocked)
-export const RELEASE_MANIFEST_STATES = Object.freeze(['COMPLETE', 'INCOMPLETE']);
+//   UNKNOWN    — at least one REQUIRED artifact's presence is unverified (not evidence of success)
+export const RELEASE_MANIFEST_STATES = Object.freeze(['COMPLETE', 'INCOMPLETE', 'UNKNOWN']);
 
 // RELEASE_MANIFEST_REQUIRED — the artifacts a future GitHub release / VPS self-update flow MUST have
 // to verify package integrity, each { key, file, label, category }. Frozen so a consumer can rely on
@@ -165,15 +166,20 @@ export function buildReleaseManifestModel({
   const requiredEntries = reqRefs.map((d) => _entry(d, artMap[d.key]));
   const optionalEntries = optRefs.map((d) => _entry(d, artMap[d.key]));
 
-  // A REQUIRED artifact counts as missing only when explicitly known-absent (present === false).
-  // An unknown (null) present flag is NOT treated as missing — the manifest never invents a blocker.
+  // A REQUIRED artifact counts as missing when explicitly known-absent (present === false). An
+  // unknown (null) present flag is NOT treated as present either — F16 fixes the old policy where
+  // empty/unknown input falsely reported COMPLETE with 0 artifacts known present and 0 hashes.
   const missingRequired = requiredEntries.filter((e) => e.present === false).map((e) => e.file);
-  const status = missingRequired.length ? 'INCOMPLETE' : 'COMPLETE';
+  const unknownRequired = requiredEntries.filter((e) => e.present === null).map((e) => e.file);
+  const status = missingRequired.length ? 'INCOMPLETE'
+    : unknownRequired.length ? 'UNKNOWN'
+    : 'COMPLETE';
 
   const counts = {
     required: requiredEntries.length,
     requiredPresent: requiredEntries.filter((e) => e.present === true).length,
     requiredMissing: missingRequired.length,
+    requiredUnknown: unknownRequired.length,
     optional: optionalEntries.length,
     optionalPresent: optionalEntries.filter((e) => e.present === true).length,
     hashed: requiredEntries.concat(optionalEntries).filter((e) => e.sha256).length,
@@ -195,6 +201,7 @@ export function buildReleaseManifestModel({
     required: requiredEntries,
     optional: optionalEntries,
     missingRequired,
+    unknownRequired,
     counts,
     notes: _strList(notes, RELEASE_MANIFEST_NOTES),
     latestReports: _arr(reports).map(String).filter(Boolean),

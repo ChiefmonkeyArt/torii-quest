@@ -36,7 +36,7 @@ describe('release-manifest — constants', () => {
     expect(RELEASE_MANIFEST_BADGE).toBe('RELEASE ARTIFACT MANIFEST · LOCAL · READ-ONLY');
     expect(RELEASE_MANIFEST_WRITE_FILENAME).toBe('RELEASE_ARTIFACT_MANIFEST.md');
     expect(RELEASE_MANIFEST_TITLE).toBe('Torii Quest — Release Artifact Manifest');
-    expect(RELEASE_MANIFEST_STATES).toEqual(['COMPLETE', 'INCOMPLETE']);
+    expect(RELEASE_MANIFEST_STATES).toEqual(['COMPLETE', 'INCOMPLETE', 'UNKNOWN']);
     expect(Object.isFrozen(RELEASE_MANIFEST_STATES)).toBe(true);
   });
 
@@ -97,11 +97,14 @@ describe('release-manifest — assembly + verdict', () => {
     expect(m.counts.requiredMissing).toBe(1);
   });
 
-  it('an unknown (null) required present flag is NOT treated as missing', () => {
+  it('an unknown (null) required present flag yields UNKNOWN, not COMPLETE (F16)', () => {
     const m = buildReleaseManifestModel({ version: V });
     // No artifacts injected → every present flag is null, none known-absent.
-    expect(m.status).toBe('COMPLETE');
+    expect(m.status).toBe('UNKNOWN');
+    expect(m.complete).toBe(false);
     expect(m.missingRequired).toEqual([]);
+    expect(m.unknownRequired.length).toBe(m.required.length);
+    expect(m.counts.requiredUnknown).toBe(m.required.length);
     for (const e of m.required) expect(e.present).toBe(null);
   });
 
@@ -225,7 +228,7 @@ describe('release-manifest — robustness', () => {
     expect(() => buildReleaseManifestModel({})).not.toThrow();
     const m = buildReleaseManifestModel({});
     expect(m.version).toBe(null);
-    expect(m.status).toBe('COMPLETE');
+    expect(m.status).toBe('UNKNOWN');
     for (const e of m.required) expect(e.present).toBe(null);
   });
 

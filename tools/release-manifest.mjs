@@ -66,7 +66,10 @@ function artifactRecord(rel) {
     try { bytes = statSync(abs).size; } catch { /* keep buffer length */ }
     return { present: true, sha256, bytes };
   } catch {
-    return { present: true, sha256: null, bytes: null };
+    // F16: an existing-but-unreadable file is NOT a verified artifact. Presence
+    // with no readable hash must not count toward a COMPLETE verdict, so degrade
+    // to present:null (unknown) rather than present:true with a null hash.
+    return { present: null, sha256: null, bytes: null };
   }
 }
 

@@ -31,12 +31,15 @@
 	}
 
 	# Multiplayer arena server. Must come before the catch-all `handle` block
-	# below (Caddy evaluates handlers in order; a matched handle_path stops
-	# there, so this needs no separate priority rule).
-	handle_path /mp {
+	# below (Caddy evaluates handlers in order; a matched handle stops there, so
+	# this needs no separate priority rule).
+	# `handle` (NOT `handle_path`) preserves the /mp prefix — the server matches
+	# /mp/session, /mp/mesh/generate and the WS path /mp, so stripping the prefix
+	# here would route them as /session, /mesh/generate and / (audit F04).
+	handle /mp {
 		reverse_proxy arena-ws:8787
 	}
-	handle_path /mp/* {
+	handle /mp/* {
 		reverse_proxy arena-ws:8787
 	}
 

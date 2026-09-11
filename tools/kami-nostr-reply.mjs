@@ -70,18 +70,20 @@ const built = buildGiftWrap({ kamiPrivHex: KAMI_PRIV, ownerPubHex: ADMIN_PUBKEY_
 if (!built.ok) die(`buildGiftWrap failed: ${built.error}`);
 const { wrap, id: eventId, ts } = built;
 
-// 2) Dual-write the plaintext reply to the in-game emagake feed (ADR-0039 path).
+// 2) DRY-RUN is genuinely read-only (F15): exit BEFORE the local jsonl write, so
+//    a --dry-run run never mutates the in-game feed nor publishes to relays.
+if (args.dryRun) {
+  console.log(`kami-nostr-reply: DRY-RUN wrap=${eventId.slice(0,12)} (no jsonl write, no relay publish)`);
+  process.exit(0);
+}
+
+// 3) Dual-write the plaintext reply to the in-game emagake feed (ADR-0039 path).
 const dir = process.env.KAMI_DIR || '/var/lib/torii-quest/kami';
 const store = makeReplyStore({ dir });
 const lineId = randomBytes(8).toString('hex');
 await store.appendReply({ id: lineId, ts, from: 'kami', ref: args.ref || null, quote: quote || null, text: built.text });
 
-if (args.dryRun) {
-  console.log(`kami-nostr-reply: DRY-RUN wrap=${eventId.slice(0,12)} jsonl=${lineId} text=${Math.min(built.text.length, REPLY_TEXT_CAP)}c (no relay publish)`);
-  process.exit(0);
-}
-
-// 3) Publish the NIP-17 gift wrap to relays (best-effort; the in-game feed is
+// 4) Publish the NIP-17 gift wrap to relays (best-effort; the in-game feed is
 //    already written, so a relay failure does not lose the reply).
 const relays = args.relays && args.relays.length ? args.relays : DEFAULT_NOSTR_RELAYS;
 // Node 20 has no global WebSocket; undici (Node 18+ built-in) is browser-API

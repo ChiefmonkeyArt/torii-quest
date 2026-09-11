@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # bump-ver.sh <newversion>  e.g. v0.2.296-alpha
-# Bumps the version string everywhere it appears, rebuilds continuum data, runs tests.
+# bumps the version string everywhere it appears and re-pins the CSP fallback hash.
+# It does NOT rebuild dist or run tests — run `npm run test:release` afterwards
+# (that gate rebuilds dist and runs the full suite, which depends on the re-pinned hash).
 set -e
 cd "$(dirname "$0")/.."
 V="$1"

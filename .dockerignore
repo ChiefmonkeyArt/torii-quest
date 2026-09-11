@@ -3,6 +3,11 @@ kami-priv.hex
 *.priv.hex
 .secrets/
 
+# Operator environment (audit F15) — `COPY . .` must not admit local secrets
+.env
+.env.*
+!.env.example
+
 # Build artefacts (regenerated inside the image)
 node_modules
 dist

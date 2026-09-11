@@ -48,7 +48,7 @@ export const RELEASE_NOTES_SECTIONS = Object.freeze([
     heading: 'Nostr read / profile / leaderboard proof surfaces',
     items: Object.freeze([
       'Read-only Nostr surfaces: live read health, profile lookup, and a leaderboard proof view.',
-      'No signing and no publishing in this proof — write paths stay gated behind the SEC review.',
+      'Signed login, character publication, the presence beacon and Kami ema are implemented here; other write paths stay gated behind review.',
       'A nostrich-friendly relay read path with bounded WS handling.',
     ]),
   }),

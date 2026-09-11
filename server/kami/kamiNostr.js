@@ -81,6 +81,9 @@ export function publishEventToRelay(url, event, { WebSocketCtor, timeoutMs = 800
       try { frame = JSON.parse(s); }
       catch (_) { return; }
       if (!Array.isArray(frame) || frame[0] !== 'OK') return;
+      // F15: correlate the relay's acknowledgment to the event we actually sent —
+      // an OK for a DIFFERENT event id must not count as this event being accepted.
+      if (frame[1] !== event.id) return; // ignore an unrelated OK
       const accepted = frame[2] === true || frame[2] === 'true';
       clearTimeout(timer);
       finish({ ok: accepted, relay: url, accepted, reason: accepted ? null : (frame[3] || 'rejected') });

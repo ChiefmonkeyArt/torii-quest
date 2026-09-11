@@ -14,6 +14,51 @@
 //     players who have since left (v0.2.384-alpha). Rows persist until clear()
 //     (server restart). A reconnecting npub resumes its tally via register().
 
+// Deterministic rank: kills desc, damage desc, id asc. Ids are unique so this is
+// a total order (no true ties) — the top-k is always well-defined.
+function rankCmp(a, b) {
+  return (b.kills - a.kills) || (b.damage - a.damage)
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
+// The k highest-ranked items (by cmp), themselves sorted. O(n log k) time and
+// O(k) memory via a bounded min-heap, instead of materializing + fully sorting
+// every row (O(n log n)). A falsy k delegates to a plain full sort.
+function selectTop(items, cmp, k) {
+  if (!k) {
+    const all = Array.from(items);
+    all.sort(cmp);
+    return all;
+  }
+  const worse = (x, y) => cmp(x, y) > 0; // x ranks after y ⇒ x is "worse"
+  const heap = []; // min-heap by `worse`: root is the worst kept candidate
+  const siftUp = (i) => {
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (worse(heap[i], heap[p])) { [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
+      else break;
+    }
+  };
+  const siftDown = (i) => {
+    const n = heap.length;
+    for (;;) {
+      const l = i * 2 + 1;
+      if (l >= n) break;
+      let c = l;
+      const r = l + 1;
+      if (r < n && worse(heap[r], heap[l])) c = r;
+      if (worse(heap[c], heap[i])) { [heap[i], heap[c]] = [heap[c], heap[i]]; i = c; }
+      else break;
+    }
+  };
+  for (const item of items) {
+    if (heap.length < k) { heap.push(item); siftUp(heap.length - 1); }
+    else if (cmp(item, heap[0]) < 0) { heap[0] = item; siftDown(0); }
+  }
+  heap.sort(cmp);
+  return heap;
+}
+
 /**
  * Create a fresh ledger.
  * @returns ledger API
@@ -21,6 +66,11 @@
 export function createScoreLedger() {
   /** @type {Map<string, { npub: string, kills: number, deaths: number, damage: number, retired: boolean }>} */
   const rows = new Map();
+  // O(1) lookup of the retired id for an npub, so reconnect resume doesn't have
+  // to linearly scan every row (which grows without bound over an arena session).
+  // Invariant: at most one retired row per npub (npub is captured once and is
+  // immutable), matching the documented reconnect contract.
+  const retiredByNpub = new Map();
 
   function register(id, npub) {
     if (typeof id !== 'string' || id.length === 0)   throw new TypeError('id required');
@@ -28,16 +78,19 @@ export function createScoreLedger() {
       throw new TypeError('npub must be 64-hex');
     }
     if (!rows.has(id)) {
-      // Reconnect: if a RETIRED row already exists for this npub (the same human
-      // rejoining within the server session), re-key it onto the new peer id and
-      // resume its tally, so we never double-count or lose their standing.
-      let resumed = null;
-      for (const [oldId, r] of rows) {
-        if (r.retired && r.npub === npub) { resumed = r; rows.delete(oldId); break; }
+      // Reconnect: if a RETIRED row exists for this npub (the same human rejoining
+      // within the server session), re-key it onto the new peer id and resume its
+      // tally so we never double-count or lose their standing. The npub→id index
+      // makes this O(1) instead of scanning every retained row.
+      const oldId = retiredByNpub.get(npub);
+      const resumed = oldId === undefined ? null : rows.get(oldId);
+      if (resumed && resumed.retired && resumed.npub === npub) {
+        rows.delete(oldId);
+        retiredByNpub.delete(npub);
+        rows.set(id, { npub, kills: resumed.kills, deaths: resumed.deaths, damage: resumed.damage, retired: false });
+      } else {
+        rows.set(id, { npub, kills: 0, deaths: 0, damage: 0, retired: false });
       }
-      rows.set(id, resumed
-        ? { npub, kills: resumed.kills, deaths: resumed.deaths, damage: resumed.damage, retired: false }
-        : { npub, kills: 0, deaths: 0, damage: 0, retired: false });
     }
     return rows.get(id);
   }
@@ -87,20 +140,23 @@ export function createScoreLedger() {
 
   // snapshot(limit?) — wire-safe tally rows, sorted (kills desc, damage desc,
   // id asc). Includes retired (disconnected) peers. When `limit` is a positive
-  // integer, only the top N rows are returned (the SCORE wire frame caps at 32).
+  // integer, only the top N rows are returned via bounded top-k selection (the
+  // SCORE wire frame caps at 32), so it never sorts the whole retained ledger.
   function snapshot(limit) {
-    const out = [];
+    const k = Number.isInteger(limit) && limit > 0 ? limit : 0;
+    const items = [];
     for (const [id, r] of rows) {
-      out.push({ id, npub: r.npub, kills: r.kills, deaths: r.deaths, damage: r.damage });
+      items.push({ id, npub: r.npub, kills: r.kills, deaths: r.deaths, damage: r.damage });
     }
-    // Deterministic order — sort by (kills desc, damage desc, id asc)
-    out.sort((a, b) => (b.kills - a.kills) || (b.damage - a.damage) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    if (Number.isInteger(limit) && limit > 0 && out.length > limit) return out.slice(0, limit);
-    return out;
+    return selectTop(items, rankCmp, k);
   }
 
   function drop(id) {
-    return rows.delete(id);
+    const r = rows.get(id);
+    const removed = rows.delete(id);
+    // Keep the index from pointing at a dropped retired row.
+    if (r && retiredByNpub.get(r.npub) === id) retiredByNpub.delete(r.npub);
+    return removed;
   }
 
   // retire(id) — the peer disconnected but its tally stays on the LOCAL board.
@@ -108,12 +164,16 @@ export function createScoreLedger() {
     const r = rows.get(id);
     if (!r) return false;
     r.retired = true;
+    retiredByNpub.set(r.npub, id);
     return true;
   }
 
   function size() { return rows.size; }
 
-  function clear() { rows.clear(); }
+  function clear() {
+    rows.clear();
+    retiredByNpub.clear();
+  }
 
   return {
     register, has, addDamage, addKill, addBotKill, addBotDeath,

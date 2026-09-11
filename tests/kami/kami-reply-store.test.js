@@ -15,6 +15,9 @@ function memFs() {
       if (ex) ex.content += s;
       else files.set(p, { content: s });
     },
+    async writeFile(p, s) {
+      files.set(p, { content: s });
+    },
     async readFile(p) {
       const f = files.get(p);
       if (!f) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
@@ -81,5 +84,51 @@ describe('kamiReplyStore', () => {
     expect(r.ref).toBe('ema-123');
     expect(r.from).toBe('kami');
     expect(r.quote).toBe('orig');
+  });
+});
+
+describe('kamiReplyStore — poll cursor', () => {
+  it('monotonic polls return only new rows without duplicates or misses', async () => {
+    const fs = memFs();
+    const store = makeReplyStore({ dir: '/k', fs });
+    for (let i = 1; i <= 10; i++) await store.appendReply({ id: 'r' + i, ts: 1000 * i, text: 'n' + i });
+    const first = await store.readRepliesSince(0);
+    expect(first.map((r) => r.id)).toEqual(Array.from({ length: 10 }, (_, i) => 'r' + (i + 1)));
+    for (let i = 11; i <= 13; i++) await store.appendReply({ id: 'r' + i, ts: 1000 * i, text: 'n' + i });
+    const second = await store.readRepliesSince(10000);
+    expect(second.map((r) => r.id)).toEqual(['r11', 'r12', 'r13']);
+    const third = await store.readRepliesSince(13000);
+    expect(third.map((r) => r.id)).toEqual([]);
+  });
+
+  it('a non-monotonic since falls back and still returns history', async () => {
+    const fs = memFs();
+    const store = makeReplyStore({ dir: '/k', fs });
+    await store.appendReply({ id: 'a', ts: 1000, text: 'one' });
+    await store.appendReply({ id: 'b', ts: 2000, text: 'two' });
+    await store.readRepliesSince(2000);
+    const out = await store.readRepliesSince(0);
+    expect(out.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('a fresh instance reads the full backlog from scratch', async () => {
+    const fs = memFs();
+    const s1 = makeReplyStore({ dir: '/k', fs });
+    await s1.appendReply({ id: 'a', ts: 1000, text: 'x' });
+    await s1.appendReply({ id: 'b', ts: 2000, text: 'y' });
+    const s2 = makeReplyStore({ dir: '/k', fs });
+    const out = await s2.readRepliesSince(0);
+    expect(out.map((r) => r.id)).toEqual(['a', 'b']);
+  });
+
+  it('recovers when the replies file shrinks (external reset)', async () => {
+    const fs = memFs();
+    const store = makeReplyStore({ dir: '/k', fs });
+    await store.appendReply({ id: 'a', ts: 1000, text: 'x' });
+    await store.appendReply({ id: 'b', ts: 2000, text: 'y' });
+    await store.readRepliesSince(0);
+    await fs.writeFile(store.replyPath, JSON.stringify({ v: 1, id: 'c', ts: 3000, from: 'kami', ref: null, quote: '', text: 'z' }) + '\n');
+    const out = await store.readRepliesSince(2000);
+    expect(out.map((r) => r.id)).toEqual(['c']);
   });
 });

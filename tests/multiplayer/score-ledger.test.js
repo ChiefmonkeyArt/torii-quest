@@ -151,3 +151,54 @@ describe('newSessionId', () => {
     expect(id).toMatch(/^[0-9a-f]{16}$/);
   });
 });
+
+describe('scoreLedger — top-k equivalence and large-ledger reconnect', () => {
+  it('snapshot(limit) returns exactly the top-k of a full sort', () => {
+    const l = createScoreLedger();
+    for (let i = 0; i < 150; i++) {
+      const id = 'p' + String(i).padStart(3, '0');
+      const npub = (i + 1).toString(16).padStart(64, '0'); // unique 64-hex
+      l.register(id, npub);
+      for (let k = 0; k < (i % 40); k++) l.addBotKill(id);
+      l.addDamage(id, (i * 7) % 90);
+    }
+    const full = l.snapshot();
+    const top = l.snapshot(32);
+    expect(top.length).toBe(32);
+    // Bounded top-k selection must be byte-for-byte identical to a full sort.
+    expect(top).toEqual(full.slice(0, 32));
+    // A limit larger than the ledger returns everything, still sorted.
+    expect(l.snapshot(999).length).toBe(150);
+  });
+
+  it('reconnect resume stays correct with many retired identities', () => {
+    const l = createScoreLedger();
+    const npubs = [];
+    for (let i = 0; i < 100; i++) {
+      const id = 'p' + i;
+      const npub = (i + 1).toString(16).padStart(64, '0');
+      npubs.push(npub);
+      l.register(id, npub);
+      l.addDamage(id, i + 1);
+      l.retire(id);
+    }
+    const target = npubs[42];
+    l.register('rejoin', target); // resume via the npub→id index
+    expect(l.get('rejoin').damage).toBe(43);
+    expect(l.has('p42')).toBe(false); // old id re-keyed away
+    const snap = l.snapshot();
+    expect(snap.filter((r) => r.npub === target).length).toBe(1); // no duplicate
+  });
+
+  it('drop on a retired peer clears its npub index', () => {
+    const l = createScoreLedger();
+    const npub = 'e'.repeat(64);
+    l.register('p1', npub);
+    l.addDamage('p1', 5);
+    l.retire('p1');
+    l.drop('p1');
+    // Reconnect: no retired row remains, so a fresh (not resumed) row is built.
+    l.register('p2', npub);
+    expect(l.get('p2').damage).toBe(0);
+  });
+});

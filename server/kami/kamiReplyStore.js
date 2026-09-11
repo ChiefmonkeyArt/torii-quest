@@ -34,6 +34,13 @@ export function makeReplyStore({ dir, fs } = {}) {
   }
   const replyPath = join(dir, 'replies.jsonl');
 
+  // Poll cursor. The file is append-only, so consecutive polls only need to
+  // parse the NEW tail instead of re-parsing the whole growing history each
+  // time. `readOffset` is the byte offset already consumed; `maxTs` is the
+  // highest timestamp seen (the monotonic watermark for the rack's `?since=`).
+  let readOffset = 0;
+  let maxTs = 0;
+
   async function ensure() {
     await f.mkdir(dir, { recursive: true });
   }
@@ -60,27 +67,47 @@ export function makeReplyStore({ dir, fs } = {}) {
 
   /** Read all replies with ts > since. Malformed lines are skipped, not fatal. */
   async function readRepliesSince(ts) {
+    const since = Number(ts) || 0;
     let raw;
     try { raw = await f.readFile(replyPath, 'utf8'); }
     catch { return []; }
-    const since = Number(ts) || 0;
+
+    // Append-only invariant broken (external reset/rotation): re-parse from the
+    // start, never trust a cursor beyond the current file length.
+    if (raw.length < readOffset) {
+      readOffset = 0;
+      maxTs = 0;
+    }
+
+    // A non-monotonic `since` (the poll went backwards) must see history again,
+    // so fall back to parsing the whole file in that case only.
+    const needHistory = since < maxTs;
+    const text = needHistory ? raw : raw.slice(readOffset);
     const out = [];
-    for (const line of raw.split('\n')) {
+    let scanMax = 0;
+    for (const line of text.split('\n')) {
       const t = line.trim();
       if (!t) continue;
       let rec;
       try { rec = JSON.parse(t); } catch { continue; }
       if (!rec || rec.v !== 1) continue;
-      if ((Number(rec.ts) || 0) <= since) continue;
+      const recTs = Number(rec.ts) || 0;
+      if (recTs > scanMax) scanMax = recTs;
+      if (recTs <= since) continue;
       out.push({
         id: String(rec.id || ''),
-        ts: Number(rec.ts) || 0,
+        ts: recTs,
         from: rec.from || 'kami',
         ref: rec.ref ? String(rec.ref) : null,
         quote: capStr(rec.quote, REPLY_QUOTE_CAP),
         text: capStr(rec.text, REPLY_TEXT_CAP),
       });
     }
+
+    // Advance the cursor past everything just consumed, and keep the true
+    // maximum timestamp as the monotonic watermark.
+    readOffset = raw.length;
+    maxTs = needHistory ? scanMax : Math.max(maxTs, scanMax);
     return out;
   }
 

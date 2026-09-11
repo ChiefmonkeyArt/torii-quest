@@ -1,6 +1,7 @@
 # Torii Quest — Contributor / Agent Handoff
 
-Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11): enable()/disable() now fail closed (persist-failed) when the atomic write fails; HTTP off route propagates. +3 tests. Suite 4621 / 373. F11 closed.
+Current version: v0.2.834-alpha - BOUNDED RETAINED HISTORIES (AUDIT F12): closeSession drops _shotLogAt per-session diagnostic entry; score-ledger O(1) index + top-k and kami reply poll cursor (already in v0.2.816) regression-locked. +4 tests. Suite 4625 / 374. F12 closed.
+Prior: Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11): enable()/disable() now fail closed (persist-failed) when the atomic write fails; HTTP off route propagates. +3 tests. Suite 4621 / 373. F11 closed.
 Prior: Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10): isValidKamiId (strict `/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/`) enforced in validateKamiBatch + both stores (writeShot/writeFrame fail closed). +7 tests. Suite 4618 / 373. F10 closed.
 Prior: Current version: v0.2.831-alpha - DEAD CODE REMOVAL (AUDIT F09+F10): playerStats.js + portalGlow.js deleted (proven dead; SCORE persistence retained in main.js). +5 tests. Suite 4611 / 372. F09(portalGlow)+F10 closed.
 Prior: Current version: v0.2.830-alpha - LAZY ENTRY SHELL (AUDIT F06): portrait renderer -> cached dynamic import; stickerNpc debug hook gated behind import.meta.env.DEV; three-vendor now a lazy chunk (no eager edge). +5 tests. Suite 4606 / 371. F06 closed.

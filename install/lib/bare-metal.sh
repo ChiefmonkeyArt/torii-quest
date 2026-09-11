@@ -134,13 +134,14 @@ run_bare_metal_install() {
 
   run_stage "Copying arena-ws bundle into $MP_DIR" bash -c "
     cp '$ROOT/dist/server/arena-ws.cjs' '$MP_DIR/arena-ws.cjs'
-    # A minimal package.json so npm install --omit=dev can resolve 'ws'.
-    cat > '$MP_DIR/package.json' <<'PKG'
-{ \"name\": \"torii-quest-arena-ws\", \"version\": \"1.0.0\", \"private\": true, \"type\": \"commonjs\", \"dependencies\": { \"ws\": \"^8.18.0\" } }
-PKG
+    # Consume the SAME generated runtime manifest (dist/package.json) the Docker
+    # + VPS install paths use, so BOTH ws and draco3d are installed. draco3d is
+    # imported at server startup by the headless-GLB path — a hand-written
+    # ws-only manifest here leaves it missing and crashes a clean install (F03).
+    cp '$ROOT/dist/package.json' '$MP_DIR/package.json'
     chown torii-quest:torii-quest '$MP_DIR/arena-ws.cjs' '$MP_DIR/package.json'
   "
-  run_stage "Installing runtime deps (ws only)" bash -c "cd '$MP_DIR' && sudo -u torii-quest -H npm install --omit=dev --no-audit --no-fund"
+  run_stage "Installing runtime deps (ws + draco3d)" bash -c "cd '$MP_DIR' && sudo -u torii-quest -H npm install --omit=dev --no-audit --no-fund"
 
   # systemd unit — mirrors VPS_INSTALL.md §16.2 + the production install-quest.sh.
   UNIT_FILE="/etc/systemd/system/torii-arena-ws.service"

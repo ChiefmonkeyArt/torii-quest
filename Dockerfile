@@ -30,12 +30,14 @@ FROM caddy:2-alpine AS web
 # the Vite plugin in tools/csp.mjs) into the Caddyfile's __CSP_HEADER__
 # placeholder. This is the single source of truth for the policy — copying
 # a second hand-written copy here would drift the first time the inline
-# bootstrap sha changes. connect-src also grows a wss://$DOMAIN entry so the
-# browser may open the multiplayer socket back to this origin (VPS_INSTALL.md §16).
+# bootstrap sha changes. connect-src only APPENDS wss://$DOMAIN to the
+# existing canonical relay list (so the browser may open the multiplayer
+# socket back to this origin, VPS_INSTALL.md §16), never replaces it — a
+# replacement drops the configured Gamestr/Routstr/Vertex/Plebeian relays (F04).
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist/_headers /tmp/_headers
 RUN CSP="$(grep 'Content-Security-Policy' /tmp/_headers | sed -E 's/^[[:space:]]*Content-Security-Policy:[[:space:]]*//')" && \
-    CSP="${CSP%connect-src*}connect-src 'self' blob: https://api.github.com wss://relay.damus.io wss://nos.lol wss://relay.nostr.band wss://relay.primal.net wss://{\$DOMAIN}" && \
+    CSP="$(printf '%s' "$CSP" | sed -E 's#(connect-src[^;]*)#\1 wss://{$DOMAIN}#')" && \
     sed -i "s#__CSP_HEADER__#${CSP}#" /etc/caddy/Caddyfile && \
     rm /tmp/_headers
 
@@ -46,13 +48,15 @@ EXPOSE 80 443
 
 ## ---- Stage 2b: run the multiplayer server (slim Node, no source tree) ----
 # The esbuild bundle in dist/server/arena-ws.cjs inlines everything except the
-# `ws` package (marked --external so native-free npm resolution still works),
-# so this stage only needs that one dependency — no full node_modules, no
-# repo source, smallest possible attack surface for a network-facing service.
+# `ws` AND `draco3d` packages (both marked --external: see tools/write-server-
+# runtime-manifest.mjs). draco3d is imported at module load by the headless-GLB
+# authoring path, so a ws-only install crashes the server at startup. Consume
+# the SAME generated manifest the VPS installer uses instead of re-listing deps.
 FROM node:20-alpine AS arena-ws
 WORKDIR /app
-RUN npm install --no-save --omit=dev ws@8
+COPY --from=build /app/dist/package.json ./package.json
 COPY --from=build /app/dist/server/arena-ws.cjs ./server/arena-ws.cjs
+RUN npm install --omit=dev --no-audit --no-fund
 USER node
 EXPOSE 8787
 CMD ["node", "server/arena-ws.cjs"]

@@ -55,6 +55,14 @@ import draco3d from 'draco3d';
 
 export const HEADLESS_GLB_VERSION = 1;
 
+// F08b — decompressed geometry/texture budget. The HTTP body cap (32 MiB) bounds
+// ENCODED bytes only; Draco-compressed geometry can inflate far beyond that once
+// decoded. Sum the materialized accessor + texture bytes after parse and reject
+// before the O(n) vertex loops + re-encode. ~256 MiB is generous for a legit
+// character (a 90k-tri mesh decodes to low tens of MiB) while still bounding a
+// malicious multi-gigabyte decompression.
+export const DECOMPRESSED_BUDGET_BYTES = 256 * 1024 * 1024;
+
 // Sensible defaults matching guest-master.glb / nostrich-master.glb clip names.
 // Callers can override; validateGeneratedMesh should ensure any AI mesh ships
 // clips matching one of the supported sets.
@@ -111,6 +119,25 @@ export async function authorHeadlessGlb(buffer, opts = {}) {
     return _fail('invalid-glb', (err && err.message) || 'read failed');
   }
   const root = doc.getRoot();
+
+  // F08b — reject a GLB whose DECODED buffers/images blow past the budget before
+  // any vertex processing or Draco re-encode runs against them.
+  const budget = (Number.isFinite(o.decompressedBudgetBytes) && o.decompressedBudgetBytes > 0)
+    ? o.decompressedBudgetBytes
+    : DECOMPRESSED_BUDGET_BYTES;
+  let decompressedBytes = 0;
+  for (const acc of root.listAccessors()) {
+    const arr = acc.getArray();
+    decompressedBytes += (arr && arr.byteLength) || 0;
+  }
+  for (const tex of root.listTextures()) {
+    const img = tex.getImage();
+    const len = (img && (img.byteLength ?? img.length)) || 0;
+    decompressedBytes += len;
+  }
+  if (decompressedBytes > budget) {
+    return _fail('glb-too-large', `decoded geometry/textures are ${decompressedBytes} bytes (> ${budget})`);
+  }
 
   // ── 1. Locate head skin-joints ─────────────────────────────────────────────
   const skins = root.listSkins();

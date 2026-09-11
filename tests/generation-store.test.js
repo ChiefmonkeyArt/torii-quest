@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeGenerationStore, GEN_STATES } from '../server/character/generationStore.js';
+import { createConcurrencyGate } from '../server/character/concurrencyGate.js';
 
 let dir;
 let filePath;
@@ -195,5 +196,31 @@ describe('arena-ws wiring (source-level lock)', () => {
   it('generation create + sweep route through the store', () => {
     expect(arena).toMatch(/generationStore\.create\(\{/);
     expect(arena).toMatch(/generationStore\.sweep\(now\)/);
+  });
+});
+
+describe('concurrency gate (F08b)', () => {
+  it('admits up to the global cap, then refuses', () => {
+    const g = createConcurrencyGate({ maxGlobal: 2, maxPerKey: 5 });
+    expect(g.tryEnter('a')).toBe(true);
+    expect(g.tryEnter('b')).toBe(true);
+    expect(g.tryEnter('c')).toBe(false); // global cap
+    expect(g._inFlight()).toBe(2);
+  });
+
+  it('bounds per-key concurrency independently of the global cap', () => {
+    const g = createConcurrencyGate({ maxGlobal: 10, maxPerKey: 1 });
+    expect(g.tryEnter('a')).toBe(true);
+    expect(g.tryEnter('a')).toBe(false); // same key already has its one slot
+    expect(g.tryEnter('b')).toBe(true);  // another key is fine
+  });
+
+  it('leave() frees a slot (global and per-key)', () => {
+    const g = createConcurrencyGate({ maxGlobal: 1, maxPerKey: 1 });
+    expect(g.tryEnter('a')).toBe(true);
+    expect(g.tryEnter('a')).toBe(false);
+    g.leave('a');
+    expect(g.tryEnter('a')).toBe(true);
+    expect(g._perKey('a')).toBe(1);
   });
 });

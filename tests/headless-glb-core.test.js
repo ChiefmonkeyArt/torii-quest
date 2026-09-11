@@ -85,6 +85,13 @@ describe('authorHeadlessGlb — error branches', () => {
     const res = await authorHeadlessGlb(Buffer.from(master));
     expect(res.ok).toBe(true);
   }, 30_000);
+
+  it('returns { ok:false, error:"glb-too-large" } when decoded buffers exceed the F08b budget', async () => {
+    const buf = await loadMaster('guest-master.glb');
+    const res = await authorHeadlessGlb(buf, { decompressedBudgetBytes: 1024 });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('glb-too-large');
+  }, 30_000);
 });
 
 describe('authorHeadlessGlb — defaults surface', () => {

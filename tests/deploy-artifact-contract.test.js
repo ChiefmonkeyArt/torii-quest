@@ -80,3 +80,17 @@ describe('F07 — the plaintext server binds loopback, never 0.0.0.0, on host', 
     expect(bareMetalSh).not.toMatch(/Environment=HOST=0\.0\.0\.0/);
   });
 });
+
+describe('F08 — connection caps bound per-client ingress/egress', () => {
+  it('WebSocketServer sets an explicit maxPayload before parsing inbound frames', () => {
+    // No explicit maxPayload leaves ws at its 100 MiB default; a small arena
+    // frame must be rejected long before that.
+    expect(arenaWs).toMatch(/new WebSocketServer\(\{ noServer: true, maxPayload: MAX_WS_PAYLOAD_BYTES \}\)/);
+    expect(arenaWs).toMatch(/const MAX_WS_PAYLOAD_BYTES = 64 \* 1024/);
+  });
+
+  it('send helpers terminate slow readers via bufferedAmount, never buffer unbounded', () => {
+    expect(arenaWs).toMatch(/bufferedAmount > MAX_BUFFERED_BYTES/);
+    expect(arenaWs).toMatch(/const MAX_BUFFERED_BYTES\s+= 1 \* 1024 \* 1024/);
+  });
+});

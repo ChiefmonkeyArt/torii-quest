@@ -27,6 +27,11 @@ export const CHALLENGE_TTL_MS = 60_000;      // login challenge freshness window
 export const TOKEN_TTL_MS     = 8 * 60 * 60 * 1000; // 8h session lifetime
 export const LOGIN_EVENT_KIND = 27235;       // NIP-98 HTTP Auth
 export const TOKEN_BYTES      = 32;           // opaque bearer token entropy
+// F08 — bound auth-issuance Maps by COUNT, not just TTL, so login churn can't grow
+// them unbounded between cleanup sweeps. Both stores are cheap Maps of tiny records;
+// 10k outstanding is far past any legitimate fleet while still capping memory.
+export const MAX_CHALLENGES = 10_000;
+export const MAX_TOKENS     = 10_000;
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -50,6 +55,8 @@ function sha256Hex(str) {
  * @param {number} [deps.tokenTtlMs]
  * @param {Map} [deps.challengeStore]  nonce -> { expiresAt }
  * @param {Map} [deps.tokenStore]      sha256(token) -> { pubkey, expiresAt }
+ * @param {number} [deps.maxChallenges] outstanding-challenge count cap (F08)
+ * @param {number} [deps.maxTokens]     outstanding-token count cap (F08)
  */
 export function createSessionTokens(deps = {}) {
   const {
@@ -60,6 +67,8 @@ export function createSessionTokens(deps = {}) {
     tokenTtlMs = TOKEN_TTL_MS,
     challengeStore = new Map(),
     tokenStore = new Map(),
+    maxChallenges = MAX_CHALLENGES,
+    maxTokens = MAX_TOKENS,
   } = deps;
 
   function randHex(nBytes) {
@@ -69,8 +78,13 @@ export function createSessionTokens(deps = {}) {
     return hex;
   }
 
-  /** Issue a fresh one-time login challenge. Returns { challenge, ttl } (ttl in seconds). */
+  /**
+   * Issue a fresh one-time login challenge. Returns { challenge, ttl } (ttl in
+   * seconds), or null when outstanding challenges are at their F08 count cap
+   * (the caller should return 429 — login churn must not grow this Map unbounded).
+   */
   function issueChallenge() {
+    if (challengeStore.size >= maxChallenges) return null;
     const challenge = randHex(32);
     challengeStore.set(challenge, { expiresAt: now() + challengeTtlMs });
     return { challenge, ttl: Math.floor(challengeTtlMs / 1000) };
@@ -110,10 +124,11 @@ export function createSessionTokens(deps = {}) {
    * Issue an opaque bearer token for a verified hex pubkey. Only sha256(token)
    * is persisted; the raw token is returned once and never stored/logged.
    * @param {string} pubkey hex64
-   * @returns {string|null} raw token, or null if pubkey malformed.
+   * @returns {string|null} raw token, or null if pubkey malformed / token store at cap.
    */
   function issueToken(pubkey) {
     if (!HEX64.test(pubkey || '')) return null;
+    if (tokenStore.size >= maxTokens) return null; // F08: bound outstanding tokens
     const token = randHex(TOKEN_BYTES);
     tokenStore.set(sha256Hex(token), { pubkey, expiresAt: now() + tokenTtlMs });
     return token;

@@ -52,9 +52,15 @@ export function createGenerationCharge({
     }
 
     const paid = await pay({ invoice: inv.invoice, amountSats, backendId: info.id });
+    // F13: `ok:true` alone is NOT proof of settlement. The Cashu adapter returns
+    // `{ ok:true, state:'quoted' }` after only requesting a melt QUOTE (NUT-05
+    // step 1 — no proofs melted). Only a distinct verified-paid state authorizes
+    // the vendor call, so a quote (or any non-paid state) fails closed here.
+    const isPaid = !!(paid && paid.ok === true && paid.state === 'paid');
+    const isQuoted = !!(paid && paid.state === 'quoted');
     return {
-      ok: !!(paid && paid.ok === true),
-      reason: (paid && paid.ok === true) ? null : 'payment-failed',
+      ok: isPaid,
+      reason: isPaid ? null : (isQuoted ? 'unpaid-quote-only' : 'payment-failed'),
       detail: (paid && paid.error) || null,
       amountSats,
       invoice: inv.invoice,
@@ -63,15 +69,14 @@ export function createGenerationCharge({
   };
 }
 
-// createCashuMeltPayment({ mintUrl, fetchFn }) → ({ invoice, amountSats }) =>
-//   Promise<{ ok, state?, error? }>. The concrete NUT-05 payer: request a melt
-// quote from the mint for the invoice, then melt proofs to it. The actual
-// proof-bearing is left to an injected wallet (the host's Cashu wallet holds
-// the keys/proofs) — this adapter owns the mint HTTP round-trip shape so it is
-// correct-by-construction against the NUT. Callers pass their own proofs via
-// opts.proofs when available; without proofs it still returns the quote so the
-// host can present/complete the payment.
-export function createCashuMeltPayment({ mintUrl, fetchFn = globalThis.fetch } = {}) {
+// createCashuMeltQuote({ mintUrl, fetchFn }) → ({ invoice, amountSats }) =>
+//   Promise<{ ok, state:'quoted', quoteId?, amount?, fee?, error? }>. The NUT-05
+//   melt-QUOTE request (step 1 of 2): ask the mint what it would charge to route
+//   the invoice. This is NOT payment — no proofs are melted, so callers must NOT
+//   treat `ok:true` here as settlement. The proof submission (POST /v1/melt/<id>)
+//   is a separate wallet step that yields the verified-paid state charge()
+//   requires. Named "Quote" (not "Payment") to make that boundary explicit.
+export function createCashuMeltQuote({ mintUrl, fetchFn = globalThis.fetch } = {}) {
   if (typeof mintUrl !== 'string' || !mintUrl) {
     return async () => ({ ok: false, error: 'cashu:missing-mint-url' });
   }

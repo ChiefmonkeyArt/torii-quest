@@ -62,6 +62,7 @@ import { makeReplyStore } from './kami/kamiReplyStore.js';
 import { authorHeadlessGlb } from './character/headlessGlb.js';
 import { generateCharacterGlb } from './character/meshyClient.js';
 import { createLightningInvoice } from './character/lightningInvoice.js';
+import { makeGenerationStore, GEN_STATES } from './character/generationStore.js';
 import { MAX_PROMPT_LENGTH } from '../src/engine/character/meshGeneration.js';
 import { parseSince, shapeReplyResponse } from './kami/kamiReplyRoute.js';
 import { createAutoCapStore, AUTOCAP_KEEP_DEFAULT } from './kami/kamiAutoStore.js';
@@ -81,9 +82,12 @@ const MESH_GEN_PRICE_SATS = Math.max(0, Number.parseInt(process.env.MESH_GEN_PRI
 const MESH_GEN_LUD16 = (process.env.MESH_GEN_LUD16 || '').trim();
 // TTL for an unclaimed generation invoice before it is swept (15 min).
 const MESH_GEN_PENDING_TTL_MS = 15 * 60 * 1000;
+// Durable paid-generation snapshot (audit F02). Same data-root family as KAMI_DIR;
+// overridable for tests. See server/character/generationStore.js.
+const MESH_GEN_STORE_PATH = process.env.MESH_GEN_STORE_PATH || '/var/lib/torii-quest/mesh-gen-store.json';
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.819-alpha';
+const SERVER_VERSION = 'v0.2.820-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
@@ -117,7 +121,7 @@ const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
 const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
 const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
 
-// Bot milestone chunk 2 (v0.2.819-alpha): server-authoritative bots.
+// Bot milestone chunk 2 (v0.2.820-alpha): server-authoritative bots.
 //   BOT_SIM_ENABLED — master switch (default on).
 //   BOT_TICK_MS     — fixed AI tick period (~20Hz).
 //   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
@@ -125,7 +129,7 @@ const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCas
 const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
 const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
 
-// v0.2.819-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// v0.2.820-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
 // `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
 // unparseable) the admin gate denies everything and capability.selfUpdate is false.
 // arena-ws only ever WRITES an atomic request file — the root systemd runner (built
@@ -134,7 +138,7 @@ const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || ''
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
-// ADR-0094 (v0.2.819-alpha): server-side always-on presence beacon. The server
+// ADR-0094 (v0.2.820-alpha): server-side always-on presence beacon. The server
 // holds an instance-bound key (never the admin's nsec) and, while enabled,
 // republishes the world-presence event on a 10-min cadence so the world stays
 // listed on the gateway with no browser open. Relays default to the same curated
@@ -144,7 +148,7 @@ const BEACON_WEBSITE    = (process.env.QUEST_PUBLIC_URL || '').trim();
 const BEACON_RELAYS_ENV = (process.env.QUEST_NODE_RELAYS || '')
   .split(/[,\s\n]+/).map((s) => s.trim()).filter(Boolean);
 
-// ADR-0032 (v0.2.819-alpha): server-side truth for "is this session the owner,
+// ADR-0032 (v0.2.820-alpha): server-side truth for "is this session the owner,
 // currently in Kami Mode". The client's KAMI_STATE message only ever SETS
 // sess.kamiActive; whether it's honoured is decided here by re-checking the
 // session's own authenticated pubkey (set once at AUTH, not client-suppliable
@@ -171,7 +175,7 @@ const RATE = Object.freeze({
 // several heartbeats without the peer ever vanishing from the other screen.
 // A genuinely dead socket is still reaped here; the wider window only costs a
 // little extra lingering for a hard-dropped connection.
-// v0.2.819-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
+// v0.2.820-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
 // carve-out in handleMessage) before a session is swept. A real player leaving
 // the world is disconnected immediately by the client (leaveToTitle → stop), so
 // this is a backstop for crashed/hung tabs, not the primary exit path.
@@ -213,17 +217,17 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
-// v0.2.819-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// v0.2.820-alpha: live in-arena leaderboard. In addition to the on-close SCORE
 // emit, broadcast the running tally on every kill and on this periodic tick so
 // clients see real-time standings. Additive on PROTOCOL_VERSION=1.
 const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
-// Session-token authority (v0.2.819-alpha). Login signs a NIP-98 event ONCE
+// Session-token authority (v0.2.820-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
 
-// v0.2.819-alpha (UPD-2): admin-update request authority. Writes atomic request
+// v0.2.820-alpha (UPD-2): admin-update request authority. Writes atomic request
 // files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
 const adminUpdate = createAdminUpdate({
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
@@ -232,7 +236,7 @@ const adminUpdate = createAdminUpdate({
   installedVersion: SERVER_VERSION,
 });
 
-// ADR-0094 (v0.2.819-alpha): server-side always-on presence beacon authority.
+// ADR-0094 (v0.2.820-alpha): server-side always-on presence beacon authority.
 // Holds an instance-bound key + enabled flag, persisted to disk so a restart
 // resumes the pulse with no admin re-login.
 const beacon = createBeacon({
@@ -253,7 +257,7 @@ const respawnTimers = new Map();
 const arenaBotSim = createArenaBotSim({
   onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
 });
-// ADR-0018 (v0.2.819-alpha): let arenaBotSim.spawn() use its env-driven default
+// ADR-0018 (v0.2.820-alpha): let arenaBotSim.spawn() use its env-driven default
 // (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE). Passing BOT_COUNT here would defeat
 // the override.
 if (BOT_SIM_ENABLED) arenaBotSim.spawn();
@@ -334,7 +338,7 @@ function closeSession(sess, reason) {
     sessions.delete(sess.id);
     snapshotRings.delete(sess.id);
     hpUnregister(hpLedger, sess.id);
-    // v0.2.819-alpha: RETIRE (not drop) so a disconnected player stays on the
+    // v0.2.820-alpha: RETIRE (not drop) so a disconnected player stays on the
     // LOCAL leaderboard for this arena instance until the server restarts.
     if (SCORE_ENABLED) scoreLedger.retire(sess.id);
     const timer = respawnTimers.get(sess.id);
@@ -377,8 +381,8 @@ function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  // v0.2.819-alpha: accept a client-sent character key (validated against the
-  // known set) OR a 64-hex Character Forge mesh hash. v0.2.819-alpha: an absent/
+  // v0.2.820-alpha: accept a client-sent character key (validated against the
+  // known set) OR a 64-hex Character Forge mesh hash. v0.2.820-alpha: an absent/
   // invalid key now downgrades to `guest` (never `chiefmonkey`) so a bad client
   // can't surface as the owner's identity. Whitelist in server/auth/characterKeys.js.
   sess.character = isValidCharacterKey(character) ? character : 'guest';
@@ -427,7 +431,7 @@ async function handleMessage(sess, raw) {
   }
   const msg = sanitize(parsed.msg);
 
-  // v0.2.819-alpha (Bug C): only gameplay messages count as "activity" for the
+  // v0.2.820-alpha (Bug C): only gameplay messages count as "activity" for the
   // idle sweep. Keepalive PING/PONG are transport noise — the client pings every
   // 15s, so counting them kept a parked/backgrounded session alive forever and
   // it rendered as a static phantom peer. Now a session that sends nothing but
@@ -436,7 +440,7 @@ async function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
-    // v0.2.819-alpha: bearer-token auth (login signed once via NIP-98). No
+    // v0.2.820-alpha: bearer-token auth (login signed once via NIP-98). No
     // NIP-07 signature needed on arena entry / reconnect.
     if (msg.t === MSG.AUTH_TOKEN) {
       const pubkey = sessionTokens.verifyToken(msg.token);
@@ -568,7 +572,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const dy = oy - diag.footY;
     yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
   }
-  // v0.2.819-alpha: surface the SERVER-time rewind inputs — the client-reported
+  // v0.2.820-alpha: surface the SERVER-time rewind inputs — the client-reported
   // viewLag, the server-computed rewindTs, the shot age (server_now-rewindTs),
   // and whether rewindTs fell outside the [now-LAG_COMP_MS, now] window (clamp).
   // These are what the fix actually depends on; a live capture confirms the
@@ -579,7 +583,7 @@ function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decis
     const clamped = rewindTs < srvNow - LAG_COMP_MS || rewindTs > srvNow;
     rw = ` viewLag=${vl} rewindAge=${srvNow - rewindTs} rwClamp=${clamped} clientTs=${shotMsg.ts}`;
   }
-  // v0.2.819-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
+  // v0.2.820-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
   // the crux of the fix. If dxz is large the bot moved between render and now, and
   // the rewind is what makes the ray land on where the player actually aimed.
   let bd = '';
@@ -652,7 +656,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
   // Bot milestone chunk 2: also resolve against server-authoritative bots and
   // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
   // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
-  // v0.2.819-alpha: bots rewind to the SAME server-time rewindTs the peer
+  // v0.2.820-alpha: bots rewind to the SAME server-time rewindTs the peer
   // resolver uses, so moving bots stop eating shots.
   const botResult = BOT_SIM_ENABLED
     ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, rewindTs, now, LAG_COMP_MS)
@@ -703,7 +707,7 @@ function resolveAndBroadcast(shooter, shotMsg) {
     });
     // MP-3: attribute kill → shooter, death → victim.
     if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
-    // v0.2.819-alpha: push the updated standings immediately on a kill so the
+    // v0.2.820-alpha: push the updated standings immediately on a kill so the
     // live in-arena leaderboard reflects frags without waiting for the tick.
     broadcastScoreFrame();
     scheduleRespawn(result.targetId, shooter.pos);
@@ -855,7 +859,7 @@ if (BOT_SIM_ENABLED) {
     const { players, authedCount } = buildBotTickRoster(sessions, { isKamiActive, pointInCoastline });
     arenaBotSim.tick(dt, players);
     const now = Date.now();
-    // v0.2.819-alpha: record post-tick bot positions for lag-compensated
+    // v0.2.820-alpha: record post-tick bot positions for lag-compensated
     // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
     arenaBotSim.recordSnapshot(now);
     if (shouldBroadcastBotState({ authedCount, now, lastAt: _lastBotStateAt, botStateMs: BOT_STATE_MS })) {
@@ -865,7 +869,7 @@ if (BOT_SIM_ENABLED) {
   }, BOT_TICK_MS);
 }
 
-// v0.2.819-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// v0.2.820-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
 // no-op when SCORE is disabled or no tallies exist, so this only emits once
 // combat has produced standings. The on-kill + on-close emits stay in place;
 // this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
@@ -879,13 +883,15 @@ if (SCORE_ENABLED) {
 // WebSocket upgrades are handled explicitly for WS_PATH only.
 const MAX_LOGIN_BODY = 8 * 1024; // NIP-98 event is small; cap to avoid abuse.
 const MESH_GEN_BODY_CAP = 4 * 1024; // a text-to-3d prompt is tiny; cap to avoid abuse.
-// In-flight paid generations keyed by generationId. Each holds the prompt the
-// caller already submitted (so the confirm step cannot substitute a different
-// prompt), the minted invoice for correlation, and an expiry. Bounded + swept on
-// the idle interval so a malicious caller cannot fill memory with unbilled
-// invoices.
-const pendingGenerations = new Map();
-const MAX_PENDING_GENERATIONS = 512;
+// Paid generations are held in a DURABLE job store (audit F02) — a bounded state
+// machine (pending → claimed → completed|retryable) persisted to a JSON snapshot
+// so a restart never strands a payer, an atomic claim never double-spends the
+// operator's Meshy credits on one invoice, and a failed generation is retryable
+// without re-charge. Only unclaimed `pending` entries are volume-capped/swept.
+const generationStore = makeGenerationStore({
+  filePath: MESH_GEN_STORE_PATH,
+  pendingTtlMs: MESH_GEN_PENDING_TTL_MS,
+});
 const lightning = createLightningInvoice();
 // Headless-body authoring accepts a full player GLB. Master meshes ship around
 // 3-4 MiB; leave headroom for uploads/AI-generated meshes with denser textures.
@@ -1007,7 +1013,7 @@ const httpServer = createServer((req, res) => {
     });
   }
 
-  // v0.2.819-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  // v0.2.820-alpha session-token endpoints (plain HTTP, same origin as /mp).
   //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
   //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
   if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
@@ -1039,7 +1045,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.819-alpha (UPD-2) admin-update endpoints.
+  // v0.2.820-alpha (UPD-2) admin-update endpoints.
   //   GET  /mp/admin/update-capability → { selfUpdate, adminPubkey }   (PUBLIC)
   //   GET  /mp/admin/update-status     → status JSON                    (PUBLIC read)
   //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
@@ -1047,7 +1053,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.819-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.820-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.
@@ -1066,7 +1072,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // ADR-0094 (v0.2.819-alpha): server-side always-on presence beacon.
+  // ADR-0094 (v0.2.820-alpha): server-side always-on presence beacon.
   //   GET  /mp/admin/beacon → { enabled, activatedAt, pubkey, adminPubkey, … } (public)
   //   POST /mp/admin/beacon { action: 'on' | 'off' } → admin-gated toggle
   if (req.method === 'GET' && path.endsWith('/mp/admin/beacon')) {
@@ -1094,11 +1100,11 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.819-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.820-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
-  // v0.2.819-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // v0.2.820-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
   // owner (bearer session token) sees the AI's replies in their emagake rack.
   // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
   // are a separate plaintext feed the rack polls and renders (text, not HTML).
@@ -1119,7 +1125,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.819-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.820-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
@@ -1161,14 +1167,14 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.819-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
+  // v0.2.820-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
   // character GLB from a text prompt via Meshy (text-to-3d → refine → auto-rig),
   // returning the rigged GLB download URL. Session-gated (any logged-in npub) and
   // paid from the OPERATOR's Meshy account (MESHY_API_KEY server-side; the key never
   // reaches the browser). The client then downloads the GLB and uploads to Blossom
   // under its OWN NIP-98 key, exactly like the .glb upload path. See
   // server/character/meshyClient.js and src/engine/character/liveMeshGeneration.js.
-  // Paid character-creation (LNURL-pay + NIP-57, v0.2.819-alpha): two-phase.
+  // Paid character-creation (LNURL-pay + NIP-57, v0.2.820-alpha): two-phase.
   //   POST /mp/mesh/generate         {prompt} → {requirePayment, generationId, invoice, amountSats}
   //                                              when price>0, else {ok, glbUrl} (operator-paid).
   //   POST /mp/mesh/generate/confirm {generationId} → verify settlement → {ok, glbUrl}.
@@ -1182,28 +1188,59 @@ const httpServer = createServer((req, res) => {
     readJsonBodyCapped(req, res, MESH_GEN_BODY_CAP, async (parsed) => {
       try {
         const generationId = (parsed && typeof parsed.generationId === 'string') ? parsed.generationId : '';
-        const pending = generationId ? pendingGenerations.get(generationId) : null;
+        const rec = generationId ? generationStore.get(generationId) : null;
         // 404 for unknown, 403 for another session's generation (never leak its existence).
-        if (!pending || pending.pubkey !== pubkey) {
+        if (!rec || rec.pubkey !== pubkey) {
           return sendJson(res, 404, { ok: false, error: 'unknown generation' });
         }
-        if (Date.now() > pending.expiresAt) {
-          pendingGenerations.delete(generationId);
+
+        // Idempotent re-confirm after success: return the cached GLB, no re-run.
+        if (rec.state === GEN_STATES.COMPLETED) {
+          return sendJson(res, 200, { ok: true, glbUrl: rec.glbUrl });
+        }
+
+        // Another confirm already holds the atomic claim (generation running): never
+        // double-spend the operator's Meshy credits on one settled invoice.
+        if (rec.state === GEN_STATES.CLAIMED) {
+          return sendJson(res, 409, { ok: false, error: 'generation in progress' });
+        }
+
+        // First confirm must still be inside the unclaimed invoice window.
+        if (rec.state === GEN_STATES.PENDING && Date.now() > rec.expiresAt) {
           return sendJson(res, 408, { ok: false, error: 'generation expired' });
         }
+
+        // Verify settlement. For a retryable re-confirm this is idempotent — the
+        // invoice was already settled, so a failed generation is retried with no
+        // re-charge (audit F02 / R8 no-double-charge).
         const verified = await lightning.verifySettled({
           lud16: MESH_GEN_LUD16,
-          pr: pending.invoice,
-          verifyUrl: pending.verifyUrl || undefined,
+          pr: rec.invoice,
+          verifyUrl: rec.verifyUrl || undefined,
         });
         if (!verified.settled) {
           return sendJson(res, 402, { ok: false, error: 'payment required', detail: verified.error || null });
         }
-        pendingGenerations.delete(generationId);
-        const glbUrl = await generateCharacterGlb({ apiKey: MESHY_API_KEY }, pending.prompt, {
-          onStage: (s) => log.info('mesh-generate stage:', s),
-        });
-        return sendJson(res, 200, { ok: true, glbUrl });
+
+        // Atomic claim (pending|retryable → claimed). A concurrent confirm that wins
+        // first makes this one return null → "in progress" instead of double-running.
+        if (!generationStore.claim(generationId)) {
+          return sendJson(res, 409, { ok: false, error: 'generation in progress' });
+        }
+
+        try {
+          const glbUrl = await generateCharacterGlb({ apiKey: MESHY_API_KEY }, rec.prompt, {
+            onStage: (s) => log.info('mesh-generate stage:', s),
+          });
+          generationStore.complete(generationId, glbUrl);
+          return sendJson(res, 200, { ok: true, glbUrl });
+        } catch (err) {
+          // Payment succeeded but Meshy failed: mark retryable (keep the settled
+          // invoice) so the payer can re-confirm without paying again.
+          generationStore.fail(generationId, err && err.message);
+          log.error('mesh-generate failed (retryable)', err && err.message);
+          return sendJson(res, 502, { ok: false, error: 'generation failed', retryable: true, detail: (err && err.message) || null });
+        }
       } catch (err) {
         log.error('mesh-generate-confirm failed', err && err.message);
         try { sendJson(res, 502, { ok: false, error: 'generation failed', detail: (err && err.message) || null }); } catch { /* noop */ }
@@ -1238,18 +1275,16 @@ const httpServer = createServer((req, res) => {
           return sendJson(res, 502, { ok: false, error: 'invoice failed', detail: minted.error || null });
         }
 
-        // Bound the pending map under abuse (drop the oldest unclaimed entry).
-        if (pendingGenerations.size >= MAX_PENDING_GENERATIONS) {
-          const oldest = pendingGenerations.keys().next().value;
-          if (oldest) pendingGenerations.delete(oldest);
-        }
+        // Durable, bounded store: create the pending job. create() volume-caps by
+        // evicting ONLY unclaimed pending entries (never a paid one) and persists to
+        // the JSON snapshot, so a restart cannot strand the payer (audit F02).
         const generationId = randomBytes(16).toString('hex');
-        pendingGenerations.set(generationId, {
+        generationStore.create({
+          generationId,
           prompt,
           invoice: minted.pr,
           verifyUrl: minted.verifyUrl || null,
           pubkey,
-          expiresAt: Date.now() + MESH_GEN_PENDING_TTL_MS,
         });
 
         return sendJson(res, 200, {
@@ -1267,7 +1302,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.819-alpha (headless-fp-bodies for custom meshes): author a headless FP
+  // v0.2.820-alpha (headless-fp-bodies for custom meshes): author a headless FP
   // body variant from an uploaded/AI-generated player GLB. Session-gated (any
   // logged-in npub — headless authoring is a per-user tool). The server never
   // writes the file to disk and never signs anything: it returns the authored
@@ -1372,10 +1407,11 @@ setInterval(() => {
   }
   // Purge expired login challenges + session tokens.
   sessionTokens.cleanup();
-  // Sweep expired, unclaimed generation invoices (paid character-creation).
-  for (const [gid, pending] of pendingGenerations) {
-    if (now > pending.expiresAt) pendingGenerations.delete(gid);
-  }
+  // Sweep the durable generation store: unclaimed pending invoices past their TTL,
+  // and paid completed/retryable entries past their generous settled window. A
+  // settled generation is retained long enough to re-confirm/retry without re-charge;
+  // only never-claimed pending entries are ever dropped (audit F02).
+  generationStore.sweep(now);
   log.info(`peers=${sessions.size}/${MAX_PEERS}`);
 }, 60_000);
 

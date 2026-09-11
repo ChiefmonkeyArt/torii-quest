@@ -181,3 +181,36 @@ describe('createSessionTokens — cleanup', () => {
     expect(st.verifyToken(liveToken)).toBe(PUBKEY);
   });
 });
+
+describe('createSessionTokens — F08 issuance count caps', () => {
+  it('issueChallenge returns null once outstanding challenges hit the cap', () => {
+    const st = createSessionTokens({ maxChallenges: 3 });
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st.issueChallenge()).toBeNull(); // at cap → 429, no unbounded growth
+    expect(st._challengeStore.size).toBe(3);
+  });
+
+  it('challenge capacity is freed on one-time-use verification', () => {
+    const st = createSessionTokens({ maxChallenges: 2, verifyEventSig: () => true });
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st.issueChallenge()).toBeNull();
+    // Consuming one challenge (successful or failed verify both delete) frees a slot.
+    const pending = Array.from(st._challengeStore.keys());
+    st.verifyLoginEvent({ event: signLoginEvent({ challenge: pending[0] }), challenge: pending[0] });
+    expect(st.issueChallenge()).toBeTruthy();
+    expect(st._challengeStore.size).toBe(2);
+  });
+
+  it('issueToken returns null once outstanding tokens hit the cap', () => {
+    const st = createSessionTokens({ maxTokens: 2 });
+    const a = st.issueToken(PUBKEY);
+    const b = st.issueToken(PUBKEY);
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+    expect(st.issueToken(PUBKEY)).toBeNull();
+    expect(st._tokenStore.size).toBe(2);
+  });
+});

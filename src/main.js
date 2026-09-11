@@ -176,7 +176,22 @@ import { renderProfilePanel } from './engine/settings/profilePanel.js';
 import { renderCharacterForgePanel } from './engine/settings/characterForgePanel.js';
 import { renderStickerPanel } from './engine/settings/stickerPanel.js';
 import { resolveCharacterMeshUrl, resolveCharacterPortraitUrl, blossomMeshUrl } from './engine/character/characterMesh.js';
-import { renderCharacterPortrait } from './engine/character/characterPortraitRenderer.js';
+// F06: the portrait renderer pulls in Three.js + GLTF/Draco, so it is loaded
+// lazily (dynamic import) rather than statically — only when a portrait is
+// actually rendered (character picker / forge preview). This keeps the
+// pre-ENTER shell free of the renderer. The module promise is cached and reset
+// on a load failure so a transient chunk error can be retried.
+let _portraitModule = null;
+async function _renderCharacterPortrait(meshUrl) {
+  if (!_portraitModule) {
+    _portraitModule = import('./engine/character/characterPortraitRenderer.js').catch((err) => {
+      _portraitModule = null; // allow retry after a transient load failure
+      throw err;
+    });
+  }
+  const { renderCharacterPortrait } = await _portraitModule;
+  return renderCharacterPortrait(meshUrl);
+}
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
 import { addSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
@@ -1754,7 +1769,7 @@ async function _generateOwnPortrait() {
   renderActiveSettingsTab();
 
   let portrait = null;
-  try { portrait = await renderCharacterPortrait(meshUrl); } catch { portrait = null; }
+  try { portrait = await _renderCharacterPortrait(meshUrl); } catch { portrait = null; }
   if (!portrait || !portrait.ok || !portrait.blob) {
     _characterForgeState.status = 'failed';
     _characterForgeState.error = 'Could not render a portrait from this mesh.';
@@ -1922,7 +1937,7 @@ async function _uploadCustomMesh(file) {
     try {
       const blobUrl = URL.createObjectURL(file);
       let portrait;
-      try { portrait = await renderCharacterPortrait(blobUrl); }
+      try { portrait = await _renderCharacterPortrait(blobUrl); }
       finally { URL.revokeObjectURL(blobUrl); }
       if (portrait && portrait.ok && portrait.blob) {
         const pu = await uploadBlossom(portrait.blob);
@@ -3303,12 +3318,17 @@ if (typeof window !== 'undefined') {
   //   ToriiDebug.stickers.forcePlaneMode(true)  → next fires use plane path
   //   ToriiDebug.stickers.forcePlaneMode(false) → next fires use baked-when-eligible
   // Only the RENDER path flips; targeting always stays any-surface.
-  import('./stickerNpc.js').then(({ setStickerForcePlaneMode, getStickerRenderState }) => {
-    window.ToriiDebug.stickers = {
-      state: () => getStickerRenderState(),
-      forcePlaneMode: (on) => setStickerForcePlaneMode(on),
-    };
-  }).catch(() => { /* stickerNpc not loaded in this build */ });
+  // F06: installed only behind an explicit development gate — stickerNpc pulls
+  // scene.js (which builds a WebGL renderer + composer on import), so shipping
+  // it to production defeats the lazy entry shell.
+  if (import.meta.env.DEV) {
+    import('./stickerNpc.js').then(({ setStickerForcePlaneMode, getStickerRenderState }) => {
+      window.ToriiDebug.stickers = {
+        state: () => getStickerRenderState(),
+        forcePlaneMode: (on) => setStickerForcePlaneMode(on),
+      };
+    }).catch(() => { /* stickerNpc not loaded in this build */ });
+  }
 
   // ADR-0100 (v0.2.744-alpha) — recording-ring toggle console mirror. Same flag
   // as the Kami dev-menu row (single source of truth: recordingRingGate.js).

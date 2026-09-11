@@ -142,13 +142,16 @@ describe('sweep bounds memory but never strands a payer', () => {
   });
 
   it('drops a completed entry only after the settled TTL', () => {
-    const s = makeGenerationStore({ filePath, settledTtlMs: 50 });
+    // settledTtlMs is large and the sweep `now` offsets are explicit + generous,
+    // so the test never flips on a slow CI machine (the store stamps settledAt
+    // from the real clock, so a 50 ms window was timing-fragile here).
+    const s = makeGenerationStore({ filePath, settledTtlMs: 60_000 });
     createPending(s);
     s.claim('a');
     s.complete('a', 'url');
-    s.sweep(Date.now() + 10); // within settled window
+    s.sweep(Date.now() + 10_000); // within settled window (10s < 60s)
     expect(s.get('a')).toBeTruthy();
-    s.sweep(Date.now() + 1000); // past settled window
+    s.sweep(Date.now() + 120_000); // past settled window (120s > 60s)
     expect(s.get('a')).toBeNull();
   });
 

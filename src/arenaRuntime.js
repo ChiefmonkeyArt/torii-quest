@@ -74,7 +74,6 @@ import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
 import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL } from './terrain/seaConfig.js';
-import { initPlayerStats } from './playerStats.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner } from './engine/kami/kamiMode.js';
 import { installDevMenu, registerDevToggle, pumpDevMenu } from './engine/dev/devMenu.js';
@@ -1287,7 +1286,6 @@ export function createArenaRuntime(hooks = {}) {
     }
 
     initHUD();
-    initPlayerStats();
     initPlayer();
     mark('boot-player-done');
     onBootPct(60, 'Preparing world…', 'HUD · player · entities');

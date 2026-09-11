@@ -148,6 +148,7 @@ import {
 } from './engine/gateway/gatewaySections.js';
 // v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
+import { createSerializedPoller, POLL_MS } from './engine/polling/serializedPoll.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
 import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
 // Phase 0 (open-world): the OPEN-VISIT travel path — a pure leaf that turns a
@@ -344,10 +345,12 @@ let _worldsScan = 'idle';
 // failure — arenas still renders, friends just degrades to empty.
 let _userContacts = new Set();
 let _ownerContacts = new Map();
-let _handshakeFrame = 0;  // frame-throttled tick (shell rAF — no setTimeout in main.js)
-let _presenceFrame = 0;   // frame-throttled presence re-scan (shell rAF)
-let _heartbeatFrame = 0;  // frame-throttled heartbeat republish check (Phase 0d, shell rAF)
-let _beaconSyncFrame = 0; // frame-throttled server beacon state re-sync (v0.2.781, shell rAF)
+// F11: the four title-screen poll cadences below were frame-throttled (rAF)
+// with no in-flight guard. They now ride a single serialized, elapsed-time
+// poller (createSerializedPoller) so slow network requests serialise instead
+// of overlapping/settling out of order, and their cadence is wall-clock rather
+// than refresh-rate dependent. No window timers added (still rAF-driven).
+const _shellPoller = createSerializedPoller();
 
 function renderGatewayCard() {
   const body = document.getElementById('gateway-preview-body');
@@ -3209,35 +3212,25 @@ window.__toriiEnterReady = true;
 // The n2n handshake + presence polling used to ride the game loop, which ran from
 // page load. With the loop now deferred behind ENTER (R2), the shell owns its own
 // lightweight rAF ticker so the title-screen gateway card keeps polling BEFORE the
-// arena is ever booted (and again after returning Home). Frame-throttled, guarded
-// to NOT poll while playing (the in-arena loop owns those frames). rAF only — no
-// window timers here (regression check [3] confines those to nostr.js + hud.js).
+// arena is ever booted (and again after returning Home). Guarded to NOT poll while
+// playing (the in-arena loop owns those frames). rAF only — no window timers here
+// (regression check [3] confines those to nostr.js + hud.js).
+// F11: cadences are now wall-clock and serialized via _shellPoller, so a slow
+// request is skipped (never overlapped) instead of stacking on the next frame.
 function _shellTick() {
   if (!isPlaying() && state.nostrPubkey) {
-    if (++_handshakeFrame >= 120) {
-      _handshakeFrame = 0;
-      _handshake.tick().then(renderGatewayCard).catch(() => {});
-    }
-    if (++_presenceFrame >= 600) {
-      _presenceFrame = 0;
-      refreshOnlineWorlds().catch(() => {});
-    }
+    _shellPoller.poll('handshake', POLL_MS.handshake, () =>
+      _handshake.tick().then(renderGatewayCard),
+    );
+    _shellPoller.poll('presence', POLL_MS.presence, () => refreshOnlineWorlds());
     // Phase 0d: heartbeat republish rides the same rAF tick (no new timers).
-    // Throttled to ~once per 120 frames like the handshake tick — the actual
-    // interval check (10 min default) lives in isHeartbeatDue, so this just
-    // pokes that pure helper often enough.
-    if (++_heartbeatFrame >= 120) {
-      _heartbeatFrame = 0;
-      _heartbeatTick(Date.now());
-    }
-    // v0.2.781: re-sync the server beacon state every ~600 frames (~10 s at 60
-    // fps) so the Settings > Heartbeat tab's ON/OFF pill + the client-heartbeat
-    // gate never lag behind server-side changes (external toggle, restart,
-    // lastPublishedAt drift). No window timer — rides the existing rAF loop.
-    if (++_beaconSyncFrame >= 600) {
-      _beaconSyncFrame = 0;
-      _syncServerBeacon().catch(() => {});
-    }
+    // The actual interval gate (10 min default) lives in isHeartbeatDue, so this
+    // just pokes that pure helper on a serialized wall-clock cadence.
+    _shellPoller.poll('heartbeat', POLL_MS.heartbeat, () => _heartbeatTick(Date.now()));
+    // v0.2.781: re-sync the server beacon state so the Settings > Heartbeat tab's
+    // ON/OFF pill + the client-heartbeat gate never lag behind server-side changes
+    // (external toggle, restart, lastPublishedAt drift). No window timer.
+    _shellPoller.poll('beaconSync', POLL_MS.beaconSync, () => _syncServerBeacon());
     // Create-with-AI is now a real async fetch (see _generateAICharacter); no
     // rAF-driven mock resolution here.
   }

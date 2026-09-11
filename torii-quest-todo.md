@@ -1,6 +1,7 @@
 # Torii Quest ToDo
 
-Current version: v0.2.828-alpha - DEP CONTRACT + TITLE-SCREEN STRUCTURE (AUDIT F14+F16, SHIPPED): @noble/hashes + esbuild declared directly, undici -> devDeps; index.html divs rebalanced + CSS comment terminator removed. +7 tests. F14/F16 closed.
+Current version: v0.2.829-alpha - SERIALIZED POLLING (AUDIT F11, SHIPPED): _shellTick polls handshake/presence/heartbeat/beaconSync via a serialized elapsed-time poller (no overlap, wall-clock cadence). +6 tests. F11 closed.
+Prior: Current version: v0.2.828-alpha - DEP CONTRACT + TITLE-SCREEN STRUCTURE (AUDIT F14+F16, SHIPPED): @noble/hashes + esbuild declared directly, undici -> devDeps; index.html divs rebalanced + CSS comment terminator removed. +7 tests. F14/F16 closed.
 Prior: Current version: v0.2.827-alpha - SHOT EFFECTS + WORLD-SPACE RETICLE (AUDIT F02+F03, SHIPPED): arenaRuntime SHOOT handler plays recoil+SFX once; targetReticle uses camera.getWorldDirection. +2 tests. F02/F03 closed; F06 (lazy entry shell) next.
 Prior: Current version: v0.2.826-alpha - SW CACHE BOUNDARIES + SCOPED RECOVERY (AUDIT F05+F07, SHIPPED): SW bypasses /mp + credentialed GETs and never stores no-store/private/Vary responses; self-heal is scoped to Quest's scope + torii-quest- cache namespace, with the ?nuked=1 loop + __toriiEntered guards. +6 tests. F05/F07 closed; F02/F03 (double shot effects + world-space reticle) next.
 Prior: Current version: v0.2.825-alpha - PROFILE PUBLISH + RELAY TIMEOUT (AUDIT F01+F04, SHIPPED): publishProfileMetadata signs + publishes only the signed.event (reports published only on relay accept); relayReq/publishEvent close in every readyState and guard callbacks on a `done` flag. +7 tests. F01+F04 closed; F05/F07 (SW cache + stale-shell recovery) next.

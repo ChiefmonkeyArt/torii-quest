@@ -34,9 +34,11 @@ import { readFileSync } from 'node:fs';
 const SRC = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
 
 describe('v0.2.781 — server beacon is the honest source of truth for heartbeat UI', () => {
-  it('declares a _beaconSyncFrame throttle var beside the other rAF throttles', () => {
-    // Keeps the tick throttled to ~10s so we don't hammer the server every frame.
-    expect(SRC).toContain('let _beaconSyncFrame = 0;');
+  it('re-syncs the beacon on the serialized shell poller (F11 replaced frame counters)', () => {
+    // F11: the ~10s re-sync moved off a refresh-rate-dependent frame counter and
+    // onto createSerializedPoller — elapsed-time cadence + an in-flight guard so a
+    // slow sync can't overlap. Still the same rAF _shellTick loop, no window timers.
+    expect(SRC).toMatch(/poll\('beaconSync',\s*POLL_MS\.beaconSync,\s*\(\)\s*=>\s*_syncServerBeacon\(\)\)/);
   });
 
   it('kicks a boot-time sync so non-owners see the truth without needing login', () => {
@@ -45,10 +47,11 @@ describe('v0.2.781 — server beacon is the honest source of truth for heartbeat
     expect(SRC).toMatch(/_syncServerBeacon\(\)\.catch\(\(\)\s*=>\s*\{[^}]*\}\);/);
   });
 
-  it('re-syncs the beacon from the rAF _shellTick every ~600 frames', () => {
+  it('re-syncs the beacon from the rAF _shellTick loop (~10s, no window timers)', () => {
     // The tick lives in the same block as _heartbeatTick, so it inherits the
-    // "no window timers in main.js" rule.
-    expect(SRC).toMatch(/if\s*\(\+\+_beaconSyncFrame\s*>=\s*600\)\s*\{[\s\S]{0,200}_syncServerBeacon\(\)\.catch\(\(\)\s*=>\s*\{\}\);/);
+    // "no window timers in main.js" rule (F11: elapsed-time + serialized, not the
+    // old `++_beaconSyncFrame >= 600` frame counter).
+    expect(SRC).toMatch(/_shellPoller\.poll\('beaconSync',\s*POLL_MS\.beaconSync,\s*\(\)\s*=>\s*_syncServerBeacon\(\)\)/);
   });
 
   it('keeps the NOSTR_LOGIN call site (still valuable for immediate-post-login refresh)', () => {

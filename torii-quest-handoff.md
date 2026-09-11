@@ -1,6 +1,7 @@
 # Torii Quest — Contributor / Agent Handoff
 
-Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10): isValidKamiId (strict `/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/`) enforced in validateKamiBatch + both stores (writeShot/writeFrame fail closed). +7 tests. Suite 4618 / 373. F10 closed.
+Current version: v0.2.833-alpha - BEACON PERSISTENCE FAIL-CLOSED (AUDIT F11): enable()/disable() now fail closed (persist-failed) when the atomic write fails; HTTP off route propagates. +3 tests. Suite 4621 / 373. F11 closed.
+Prior: Current version: v0.2.832-alpha - KAMI ID GRAMMAR (AUDIT F10): isValidKamiId (strict `/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/`) enforced in validateKamiBatch + both stores (writeShot/writeFrame fail closed). +7 tests. Suite 4618 / 373. F10 closed.
 Prior: Current version: v0.2.831-alpha - DEAD CODE REMOVAL (AUDIT F09+F10): playerStats.js + portalGlow.js deleted (proven dead; SCORE persistence retained in main.js). +5 tests. Suite 4611 / 372. F09(portalGlow)+F10 closed.
 Prior: Current version: v0.2.830-alpha - LAZY ENTRY SHELL (AUDIT F06): portrait renderer -> cached dynamic import; stickerNpc debug hook gated behind import.meta.env.DEV; three-vendor now a lazy chunk (no eager edge). +5 tests. Suite 4606 / 371. F06 closed.
 Prior: Current version: v0.2.829-alpha - SERIALIZED POLLING (AUDIT F11): _shellTick poll cadences moved off frame counters onto createSerializedPoller (elapsed-time + in-flight serialization); cadences preserved (2s/10s), still rAF-only. +6 tests (new serialized-poll.test.js). Suite 4601 / 370. F11 closed.

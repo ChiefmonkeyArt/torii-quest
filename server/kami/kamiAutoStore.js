@@ -15,6 +15,7 @@
 // into here after adminFromRequest succeeds, exactly like storeKamiBatch.
 
 import path from 'path';
+import { isValidKamiId } from './kamiId.js';
 
 export const AUTOCAP_KEEP_DEFAULT = 120;
 
@@ -40,6 +41,9 @@ export function createAutoCapStore({ dir, fs, keep = AUTOCAP_KEEP_DEFAULT }) {
 
   /** Write one frame record ({ema, shot}) as a single JSON file. Returns the path. */
   async function writeFrame(id, recordJson) {
+    // F10: fail closed on an unsafe record id — it becomes a filename, so it
+    // must never contain a path separator / dot / traversal sequence.
+    if (!isValidKamiId(id)) throw new Error('kamiAutoStore: invalid record id');
     await ensure();
     const p = path.join(ringDir, `${id}.json`);
     await f.writeFile(p, recordJson);

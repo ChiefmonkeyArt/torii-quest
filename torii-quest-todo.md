@@ -1,6 +1,7 @@
 # Torii Quest ToDo
 
-Current version: v0.2.830-alpha - LAZY ENTRY SHELL (AUDIT F06, SHIPPED): portrait renderer + stickerNpc debug hook now load lazily (dynamic import + DEV gate); build shows three-vendor split out of the entry chunk. +5 tests. F06 closed.
+Current version: v0.2.831-alpha - DEAD CODE REMOVAL (AUDIT F09+F10, SHIPPED): playerStats.js + portalGlow.js deleted (both proven-dead); authoritative SCORE persistence stays in main.js. +5 tests. F09 (portalGlow) + F10 closed.
+Prior: Current version: v0.2.830-alpha - LAZY ENTRY SHELL (AUDIT F06, SHIPPED): portrait renderer + stickerNpc debug hook now load lazily (dynamic import + DEV gate); build shows three-vendor split out of the entry chunk. +5 tests. F06 closed.
 Prior: Current version: v0.2.829-alpha - SERIALIZED POLLING (AUDIT F11, SHIPPED): _shellTick polls handshake/presence/heartbeat/beaconSync via a serialized elapsed-time poller (no overlap, wall-clock cadence). +6 tests. F11 closed.
 Prior: Current version: v0.2.828-alpha - DEP CONTRACT + TITLE-SCREEN STRUCTURE (AUDIT F14+F16, SHIPPED): @noble/hashes + esbuild declared directly, undici -> devDeps; index.html divs rebalanced + CSS comment terminator removed. +7 tests. F14/F16 closed.
 Prior: Current version: v0.2.827-alpha - SHOT EFFECTS + WORLD-SPACE RETICLE (AUDIT F02+F03, SHIPPED): arenaRuntime SHOOT handler plays recoil+SFX once; targetReticle uses camera.getWorldDirection. +2 tests. F02/F03 closed; F06 (lazy entry shell) next.

@@ -67,3 +67,36 @@ describe('ADR-0028: floating panels must not nest inside #screen-title', () => {
     expect(auctionPos).toBeLessThan(hudPos);
   });
 });
+
+describe('F16 — #update-preview stays inside #screen-title, outside #title-centre', () => {
+  const screenTitleEnd = closingDivOf(HTML, 'id="screen-title"');
+  const titleCentreEnd = closingDivOf(HTML, 'id="title-centre"');
+  const updatePos = HTML.indexOf('id="update-preview"');
+
+  it('#update-preview is a descendant of #screen-title (hidden with the title screen)', () => {
+    expect(updatePos).toBeGreaterThan(-1);
+    expect(updatePos).toBeLessThan(screenTitleEnd);
+  });
+
+  it('#update-preview is NOT nested inside #title-centre (avoids the backdrop-filter containing block)', () => {
+    expect(updatePos).toBeGreaterThan(titleCentreEnd);
+  });
+});
+
+describe('F16 — the in-arena leaderboard CSS comment has no stray terminator', () => {
+  it('the v0.3 cleanup comment carries no literal */ that would end it early', () => {
+    // A CSS comment ends at the first "*​/". The v0.3 cleanup note listed deleted
+    // selector names with trailing "*​/" glyphs, which silently ended the comment
+    // and leaked the rest into the rule prelude before .tq-arena-lb.
+    const m = HTML.match(/\/\* v0\.3 cleanup:[\s\S]*?\*\//);
+    expect(m).toBeTruthy();
+    expect(m[0]).not.toMatch(/elementless #mvp-loop\*\//);
+  });
+
+  it('.tq-arena-lb rule still opens immediately after the comment closes', () => {
+    const idx = HTML.indexOf('/* v0.3 cleanup:');
+    const end = HTML.indexOf('*/', idx) + 2;
+    const after = HTML.slice(end, end + 60);
+    expect(after).toMatch(/\.tq-arena-lb\s*\{/);
+  });
+});

@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.827-alpha",
+  "version": "0.2.828-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -43,7 +43,9 @@
     "build:server": "node tools/write-server-runtime-manifest.mjs && esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --external:draco3d --alias:sharp=./tools/server-stubs/native-stub.js --alias:ndarray-pixels=./tools/server-stubs/native-stub.js --outfile=dist/server/arena-ws.cjs --log-level=warning"
   },
   "devDependencies": {
+    "esbuild": "^0.27.7",
     "jsdom": "^29.1.1",
+    "undici": "^7.29.0",
     "vite": "^8.0.16",
     "vitest": "^3.2.4"
   },
@@ -53,10 +55,10 @@
     "@gltf-transform/extensions": "^4.4.2",
     "@gltf-transform/functions": "^4.4.2",
     "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
     "draco3d": "^1.5.7",
     "nostr-tools": "^2.24.3",
     "three": "^0.184.0",
-    "undici": "^7.29.0",
     "ws": "^8.21.0"
   }
 }

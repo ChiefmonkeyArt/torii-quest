@@ -1334,8 +1334,8 @@ export function createArenaRuntime(hooks = {}) {
         if (aimOrigin && aimDir) {
           recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
         }
-        triggerRecoil();
-        playShoot();
+        // F02: recoil + shoot SFX already fired once above for both branches —
+        // do NOT fire them again here or a combat shot plays double.
         // MP-2 peer combat (outbound): every arena shot reports to the authoritative
         // server, which ray-resolves it against lag-compensated peer snapshots and
         // no-ops when it hits no peer. Gate + payload live in the pure peerCombat

@@ -38,6 +38,9 @@ export function parseCharacterEvent(event) {
     const rest = t.slice(1);
     if (name === 'mesh') {
       manifest.mesh = { hash: rest[0] || '', name: rest[1] || '' };
+      // audit F9: the optional headless FP-body hash is the third slot of the
+      // mesh tag (backward-compatible — old events carry only hash + name).
+      if (typeof rest[2] === 'string' && rest[2]) manifest.mesh.headlessHash = rest[2];
     } else if (name === 'portrait') {
       manifest.portrait = { hash: rest[0] || '', name: rest[1] || '' };
     } else if (name === 'clip') {
@@ -86,7 +89,11 @@ export function buildCharacterEvent(manifest, opts = {}) {
   const tags = [['d', CHARACTER_D_TAG]];
 
   if (m.mesh && typeof m.mesh === 'object' && m.mesh.hash) {
-    tags.push(['mesh', m.mesh.hash, m.mesh.name || '']);
+    const meshTag = ['mesh', m.mesh.hash, m.mesh.name || ''];
+    // audit F9: preserve the optional headless FP-body hash as the third slot;
+    // omitted when absent so legacy 2-slot mesh tags stay unchanged.
+    if (typeof m.mesh.headlessHash === 'string' && m.mesh.headlessHash) meshTag.push(m.mesh.headlessHash);
+    tags.push(meshTag);
   }
   if (m.portrait && typeof m.portrait === 'object' && m.portrait.hash) {
     tags.push(['portrait', m.portrait.hash, m.portrait.name || '']);

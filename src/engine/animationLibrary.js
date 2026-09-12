@@ -47,6 +47,14 @@ export async function loadAnimationLibrary(loader) {
     const standShoot = synthStandShoot(_clips);
     if (standShoot) _clips.set(STAND_SHOOT_NAME, standShoot);
     return _clips;
+  }).catch((err) => {
+    // audit F7: a rejected load must not poison later retries. Reset only the
+    // failed in-flight promise (and any partial derived state) so the next call
+    // re-attempts the download instead of re-rejecting with the stale error.
+    _libraryPromise = null;
+    _clips = null;
+    _bones = null;
+    throw err;
   });
 
   return _libraryPromise;

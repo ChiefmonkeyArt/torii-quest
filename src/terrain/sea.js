@@ -12,7 +12,7 @@
 
 import * as THREE from 'three';
 import {
-  SEA_LEVEL, SEA_SIZE, SEA_SEGMENTS, SEA_WAVES, SEA_WAVE_MAX_AMP,
+  SEA_LEVEL, SEA_SIZE, SEA_WAVES, SEA_WAVE_MAX_AMP, resolveSeaSegments,
 } from './seaConfig.js';
 
 const TAU = Math.PI * 2;
@@ -59,9 +59,12 @@ function buildWaveGLSL() {
 let _seaMat = null;
 
 // Build the sea plane, apply the water shader, add it to `scene`. Returns the mesh.
-export function buildSeaMesh(scene) {
+// opts.quality ('low' | 'high') selects the grid density (audit F12); omitted →
+// the default (high) keeps the original 400×400 geometry.
+export function buildSeaMesh(scene, opts = {}) {
+  const segments = resolveSeaSegments(opts && opts.quality);
   // Plane authored in XY then rotated flat so positions are (x, 0, z), normal +Y.
-  const geo = new THREE.PlaneGeometry(SEA_SIZE, SEA_SIZE, SEA_SEGMENTS, SEA_SEGMENTS);
+  const geo = new THREE.PlaneGeometry(SEA_SIZE, SEA_SIZE, segments, segments);
   geo.rotateX(-Math.PI / 2);
   // Big flat sheet — never frustum-cull it out from under the camera.
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), SEA_SIZE);

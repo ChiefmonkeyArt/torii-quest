@@ -27,7 +27,37 @@ export const SEA_SIZE = 1000;
 // Subdivisions per axis. 160 → ~6.25m cells across a 1000m sheet: enough vertices
 // for visible crest displacement near the camera, cheap enough for one mesh
 // (161×161 = 25,921 verts). Distance motion is carried by the fragment shader + fog.
+// The production grid is a fixed 400×400 (320k triangles); see SEA_QUALITY_TIERS
+// below for the opt-in low tier used by the measured low/high comparison (audit F12).
 export const SEA_SEGMENTS = 400;
+
+// audit F12 — quality-tiered sea grid. `high` is the existing 400×400 (320,000
+// triangles, resolves the 5 m crest wavelength); `low` is 160×160 (51,200
+// triangles, resolves the 18/12/7 m layers and lets the 5 m layer flatten), a
+// ~6.3× triangle reduction for weaker GPUs. The tier is selected ONCE at build
+// (a query param `seaQuality=low|high`) — the grid is never rebuilt mid-session
+// because a live geometry swap would stall frames (same reasoning as the shadow
+// toggle in engine/render/qualityTier.js).
+export const SEA_QUALITY_TIERS = Object.freeze({
+  low: 160,
+  high: SEA_SEGMENTS,
+});
+export const SEA_QUALITY_DEFAULT = 'high';
+
+// Resolve the per-axis segment count for a quality name, falling back to the
+// default (high) on anything unknown/absent.
+export function resolveSeaSegments(quality) {
+  const q = (quality && SEA_QUALITY_TIERS[quality]) ? quality : SEA_QUALITY_DEFAULT;
+  return SEA_QUALITY_TIERS[q];
+}
+
+// Extract a valid sea-quality tier from a URL search string ('?seaQuality=low').
+// Returns 'low' | 'high' | null (null when absent/invalid → caller uses the default).
+export function seaQualityFromSearch(search) {
+  if (typeof search !== 'string' || !search) return null;
+  const q = new URLSearchParams(search).get('seaQuality');
+  return (q === 'low' || q === 'high') ? q : null;
+}
 
 // Traveling wave layers. Each is a directional (Gerstner-style vertical) sine
 // wave: crest travels along `dir` (a UNIT vector in the XZ plane) at `speed` m/s,

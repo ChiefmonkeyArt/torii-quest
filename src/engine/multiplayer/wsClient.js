@@ -83,6 +83,13 @@ export function createWsClient(opts) {
     throw new TypeError('wsClient: signAuth must be a function');
   }
 
+  // Connection epoch (audit F4): a monotonic generation bumped each time a new
+  // socket is created or the client is disconnected. In-flight async completions
+  // (notably `await signAuth`) capture the epoch before the await and bail out
+  // after it, so a stale signing result can never authenticate or disconnect a
+  // replacement socket.
+  let connEpoch = 0;
+
   const api = {
     state: WS_STATE.IDLE,
     selfId: null,
@@ -128,6 +135,7 @@ export function createWsClient(opts) {
     if (api.state === WS_STATE.CONNECTING || api.state === WS_STATE.AUTHENTICATING || api.state === WS_STATE.CONNECTED) {
       return;
     }
+    connEpoch += 1; // new socket generation — invalidates any in-flight signAuth
     setState(WS_STATE.CONNECTING);
     emit('socket_connect', {});
     try {
@@ -153,6 +161,7 @@ export function createWsClient(opts) {
 
   function disconnect(reason = 'client_disconnect') {
     api._disconnected = true;
+    connEpoch += 1; // invalidate in-flight async completions (e.g. signAuth)
     _stopKeepalive();
     if (api.reconnectTimer) {
       clearTimeoutFn(api.reconnectTimer);
@@ -204,11 +213,13 @@ export function createWsClient(opts) {
           return;
         }
         api._usedToken = false;
+        const epoch = connEpoch; // audit F4: bind the completion to this socket generation
         try {
           const auth = await signAuth({ challenge: msg.challenge });
-          if (!api.ws) return;
+          if (epoch !== connEpoch || !api.ws) return; // stale: socket changed/gone while signing
           api.ws.send(encode({ t: MSG.AUTH, npub: auth.npub, sig: auth.sig, event: auth.event, character: getCharacter() }));
         } catch (err) {
+          if (epoch !== connEpoch) return; // stale rejection on an old socket — ignore it
           api.lastError = err;
           emit('auth_error', { error: String(err && err.message || err) });
           disconnect('auth_error');

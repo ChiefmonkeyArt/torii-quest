@@ -219,9 +219,18 @@ export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
     const urls = (relays && relays.length) ? [...new Set(relays)] : [];
     if (!list.length || !urls.length) { resolve(out); return; }
     let pending = urls.length;
+    const sockets = new Set(); // audit F6: every socket we own
+    let finished = false;
+    // Idempotent finish owning all sockets, handlers and the timer (audit F6):
+    // close/cancel everything on completion, timeout and cancellation so a
+    // never-opening socket cannot outlive the returned promise or keep mutating
+    // the result after it resolves.
     const finish = () => {
-      if (pending < 0) return;
-      pending = -1;
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      for (const s of sockets) { try { s.close(); } catch { /* noop */ } }
+      sockets.clear();
       resolve(out);
     };
     const timer = setTimeout(finish, timeoutMs);
@@ -229,16 +238,19 @@ export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
       let ws;
       const connectStart = Date.now();
       let openRecorded = false;
-      try { ws = new WebSocket(url); } catch {
+      try { ws = new WebSocket(url); sockets.add(ws); } catch {
         try { recordOpenFail(url); } catch { /* telemetry no-op */ }
-        if (--pending <= 0) { clearTimeout(timer); finish(); } return;
+        if (--pending <= 0) finish();
+        return;
       }
       let done = false;
       const settle = () => {
-        if (done) return; done = true;
+        if (done) return;
+        done = true;
+        sockets.delete(ws);
         if (openRecorded) { try { recordClose(url); } catch { /* telemetry no-op */ } }
         else { try { recordOpenFail(url); } catch { /* telemetry no-op */ } }
-        if (--pending <= 0) { clearTimeout(timer); finish(); }
+        if (--pending <= 0) finish();
       };
       ws.onopen = () => {
         openRecorded = true;
@@ -248,6 +260,7 @@ export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
         setTimeout(() => { try { ws.close(); } catch { /* noop */ } settle(); }, 6000);
       };
       ws.onmessage = (msg) => {
+        if (finished) return; // audit F6: no mutation after finish
         try { recordMessage(url); } catch { /* telemetry no-op */ }
         let frame;
         try { frame = JSON.parse(msg.data); } catch { return; }

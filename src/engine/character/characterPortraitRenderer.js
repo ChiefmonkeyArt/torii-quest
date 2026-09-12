@@ -68,6 +68,7 @@ export async function renderCharacterPortrait(sourceUrl, opts = {}) {
 
   let canvas = null;
   let renderer = null;
+  let draco = null;
   try {
     canvas = document.createElement('canvas');
     canvas.width = size; canvas.height = size;
@@ -77,89 +78,100 @@ export async function renderCharacterPortrait(sourceUrl, opts = {}) {
   } catch {
     return { ok: false, blob: null, error: 'no-webgl' };
   }
-  renderer.setSize(size, size, false);
-  renderer.setClearColor(0x000000, 0); // transparent background
 
-  const scene = new THREE.Scene();
-  // Neutral studio lighting: soft ambient + a key + a cool fill, no harsh rim.
-  scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-  const key = new THREE.DirectionalLight(0xffffff, 1.6);
-  key.position.set(3, 5, 4);
-  scene.add(key);
-  const fill = new THREE.DirectionalLight(0xbfd4ff, 0.7);
-  fill.position.set(-4, 2, 2);
-  scene.add(fill);
-
-  const draco = new DRACOLoader();
-  draco.setDecoderPath(assetUrl('/draco/'));
-  const loader = new GLTFLoader();
-  loader.setDRACOLoader(draco);
-
-  let gltf;
+  // Everything after the renderer is constructed is owned by this call and
+  // released on every path (audit F5): an oversized HEAD, GLB/decode failure,
+  // geometry/traversal failure or render failure must not leak the DRACO loader
+  // or the WebGL renderer/context.
   try {
-    // Enforce the size cap by pre-fetching headers where possible; the loader
-    // itself then proceeds. A resource that reports no length still loads, but
-    // the cap is a best-effort guard against a pathological response.
-    if (!/^(blob:|data:)/i.test(url) && typeof fetch === 'function') {
-      const head = await fetch(url, { method: 'HEAD' }).catch(() => null);
-      const len = head && Number(head.headers.get('content-length'));
-      if (Number.isFinite(len) && len > limit) {
-        return { ok: false, blob: null, error: 'mesh-too-large' };
+    renderer.setSize(size, size, false);
+    renderer.setClearColor(0x000000, 0); // transparent background
+
+    const scene = new THREE.Scene();
+    // Neutral studio lighting: soft ambient + a key + a cool fill, no harsh rim.
+    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(3, 5, 4);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xbfd4ff, 0.7);
+    fill.position.set(-4, 2, 2);
+    scene.add(fill);
+
+    draco = new DRACOLoader();
+    draco.setDecoderPath(assetUrl('/draco/'));
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+
+    let gltf;
+    try {
+      // Enforce the size cap by pre-fetching headers where possible; the loader
+      // itself then proceeds. A resource that reports no length still loads, but
+      // the cap is a best-effort guard against a pathological response.
+      if (!/^(blob:|data:)/i.test(url) && typeof fetch === 'function') {
+        const head = await fetch(url, { method: 'HEAD' }).catch(() => null);
+        const len = head && Number(head.headers.get('content-length'));
+        if (Number.isFinite(len) && len > limit) {
+          return { ok: false, blob: null, error: 'mesh-too-large' };
+        }
       }
+      gltf = await loader.loadAsync(url);
+    } catch (err) {
+      return { ok: false, blob: null, error: 'load-failed: ' + ((err && err.message) || err) };
     }
-    gltf = await loader.loadAsync(url);
+    const root = gltf.scene;
+    scene.add(root);
+
+    // Patch materials for a clean opaque render (GLB exports with alphaMode BLEND
+    // otherwise split apart / show through), then orient upright.
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      o.frustumCulled = false;
+      if (o.geometry && !o.geometry.getAttribute('normal')) o.geometry.computeVertexNormals();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          m.transparent = false;
+          m.depthWrite = true;
+          m.alphaTest = 0;
+          if (m.flatShading) m.flatShading = false;
+          m.needsUpdate = true;
+        }
+      }
+    });
+    _standUpright(root);
+    root.updateMatrixWorld(true);
+
+    // Frame the geometry (post-orient) with breathing room.
+    const box = new THREE.Box3().setFromObject(root);
+    const center = box.getCenter(new THREE.Vector3());
+    const dims = box.getSize(new THREE.Vector3());
+    const radius = Math.max(dims.x, dims.y, dims.z) / 2 || 1;
+    const fov = THREE.MathUtils.degToRad(35);
+    const dist = (radius / Math.tan(fov / 2)) * 1.35; // padding so it never clips edges
+    const camera = new THREE.PerspectiveCamera(35, 1, Math.max(0.01, dist / 100), dist * 4);
+    // The model's forward is -Z after _standUpright (same convention as
+    // playerModel), so place the lens on the -Z side to photograph the face, not
+    // the back.
+    camera.position.set(center.x, center.y, center.z - dist);
+    camera.lookAt(center);
+
+    renderer.render(scene, camera);
+
+    const blob = await new Promise((resolve) => {
+      try { canvas.toBlob((b) => resolve(b || null), 'image/png'); }
+      catch { resolve(null); }
+    });
+
+    if (!blob) return { ok: false, blob: null, error: 'encode-failed' };
+    return { ok: true, blob, error: null };
   } catch (err) {
-    return { ok: false, blob: null, error: 'load-failed: ' + ((err && err.message) || err) };
+    // Normalize any render/traversal/geometry failure to the documented result
+    // instead of letting the "never throws" contract break.
+    return { ok: false, blob: null, error: 'render-failed: ' + ((err && err.message) || err) };
+  } finally {
+    // Release the WebGL context + decode resources on every path (audit F5).
+    try { if (draco) draco.dispose(); } catch { /* no-op */ }
+    try { if (renderer) renderer.dispose(); } catch { /* no-op */ }
+    try { if (renderer && renderer.forceContextLoss) renderer.forceContextLoss(); } catch { /* no-op */ }
   }
-  const root = gltf.scene;
-  scene.add(root);
-
-  // Patch materials for a clean opaque render (GLB exports with alphaMode BLEND
-  // otherwise split apart / show through), then orient upright.
-  root.traverse((o) => {
-    if (!o.isMesh) return;
-    o.frustumCulled = false;
-    if (o.geometry && !o.geometry.getAttribute('normal')) o.geometry.computeVertexNormals();
-    if (o.material) {
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      for (const m of mats) {
-        m.transparent = false;
-        m.depthWrite = true;
-        m.alphaTest = 0;
-        if (m.flatShading) m.flatShading = false;
-        m.needsUpdate = true;
-      }
-    }
-  });
-  _standUpright(root);
-  root.updateMatrixWorld(true);
-
-  // Frame the geometry (post-orient) with breathing room.
-  const box = new THREE.Box3().setFromObject(root);
-  const center = box.getCenter(new THREE.Vector3());
-  const dims = box.getSize(new THREE.Vector3());
-  const radius = Math.max(dims.x, dims.y, dims.z) / 2 || 1;
-  const fov = THREE.MathUtils.degToRad(35);
-  const dist = (radius / Math.tan(fov / 2)) * 1.35; // padding so it never clips edges
-  const camera = new THREE.PerspectiveCamera(35, 1, Math.max(0.01, dist / 100), dist * 4);
-  // The model's forward is -Z after _standUpright (same convention as
-  // playerModel), so place the lens on the -Z side to photograph the face, not
-  // the back.
-  camera.position.set(center.x, center.y, center.z - dist);
-  camera.lookAt(center);
-
-  renderer.render(scene, camera);
-
-  const blob = await new Promise((resolve) => {
-    try { canvas.toBlob((b) => resolve(b || null), 'image/png'); }
-    catch { resolve(null); }
-  });
-
-  // Release the WebGL context + decode resources promptly.
-  try { draco.dispose(); } catch { /* no-op */ }
-  try { renderer.dispose(); } catch { /* no-op */ }
-  try { if (renderer.forceContextLoss) renderer.forceContextLoss(); } catch { /* no-op */ }
-
-  if (!blob) return { ok: false, blob: null, error: 'encode-failed' };
-  return { ok: true, blob, error: null };
 }

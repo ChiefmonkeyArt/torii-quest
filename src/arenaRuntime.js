@@ -73,7 +73,7 @@ import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
 import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
-import { SEA_LEVEL } from './terrain/seaConfig.js';
+import { SEA_LEVEL, seaQualityFromSearch } from './terrain/seaConfig.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner } from './engine/kami/kamiMode.js';
 import { installDevMenu, registerDevToggle, pumpDevMenu } from './engine/dev/devMenu.js';
@@ -402,9 +402,18 @@ async function _buildPeerAvatarObject(character, peer) {
   }
   let _oneShotReturn = 'idle';
 
+  // audit F08: per-instance (deep-cloned) assets this peer privately owns. The
+  // shared template geometry/material are deliberately NOT tracked here —
+  // _mpTemplateCache owns those for the page lifetime and sibling peers still
+  // reference them, so disposing them on peer leave would invalidate the cache
+  // and every other peer sharing the character (and provoke re-uploads).
+  const _privateMeshes = [];
+  let _disposed = false;
+
   // Find RightHand bone and attach a gun clone (same logic as playerModel.js
   // + weapons.js _attachWorldGun, but self-contained for remote avatars).
   _loadGunTemplate().then(() => {
+    if (_disposed) return; // peer already left — do not attach or retain a gun
     let rhBone = null;
     model.traverse(o => {
       if (rhBone || !o.isBone) return;
@@ -426,6 +435,7 @@ async function _buildPeerAvatarObject(character, peer) {
     gun.rotateX(Math.PI);
     gun.traverse(o => {
       if (o.isMesh) {
+        _privateMeshes.push(o); // audit F8: deep-cloned, privately owned
         o.castShadow = true;
         o.frustumCulled = false;
         const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -480,15 +490,21 @@ async function _buildPeerAvatarObject(character, peer) {
     else if (type === 'death') _playOneShot(deathAction, 'idle');
   };
   obj.dispose = () => {
+    _disposed = true;
     obj.update = null;
     obj.triggerAnim = null;
-    model.traverse((n) => {
-      if (n.geometry) n.geometry.dispose();
-      if (n.material) {
-        const mats = Array.isArray(n.material) ? n.material : [n.material];
-        for (const m of mats) m.dispose?.();
+    // Stop the per-instance mixer first (uncache animation roots — audit F08).
+    try { if (mixer) mixer.stopAllAction(); } catch { /* noop */ }
+    // Dispose ONLY this peer's privately-owned (deep-cloned) assets — the gun.
+    // The model's geometry/material are SHARED references owned by the template
+    // cache and still used by sibling peers; they are left untouched here.
+    for (const m of _privateMeshes) {
+      try { if (m.geometry) m.geometry.dispose(); } catch { /* noop */ }
+      if (m.material) {
+        const mats = Array.isArray(m.material) ? m.material : [m.material];
+        for (const mat of mats) { try { if (mat && mat.dispose) mat.dispose(); } catch { /* noop */ } }
       }
-    });
+    }
   };
   return obj;
 }
@@ -1218,7 +1234,12 @@ export function createArenaRuntime(hooks = {}) {
       // set. Visual-only — the wave shader animates via the shared tickSea(dt)
       // already in the render loop (no per-world tick wiring needed).
       if (_minimalWorld && _minimalWorld.sea) {
-        try { buildSeaMesh(scene); } catch (e) {
+        try {
+          // audit F12: opt-in sea quality tier via ?seaQuality=low|high for the
+          // measured GPU-time comparison; absent → defaults to the original 400×400 grid.
+          const sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
+          buildSeaMesh(scene, { quality: sq || undefined });
+        } catch (e) {
           console.warn('[world] sea mesh failed:', e && e.message ? e.message : e);
         }
       }

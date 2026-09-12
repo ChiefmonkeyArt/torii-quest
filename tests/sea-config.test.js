@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   SEA_LEVEL, SEA_SIZE, SEA_SEGMENTS, SEA_WAVES, SEA_WAVE_MAX_AMP,
+  SEA_QUALITY_TIERS, SEA_QUALITY_DEFAULT, resolveSeaSegments, seaQualityFromSearch,
   seaWaveHeight, seaSurfaceY,
 } from '../src/terrain/seaConfig.js';
 
@@ -12,7 +13,6 @@ describe('sea constants', () => {
   it('SEA_LEVEL is exactly -0.3 (raised to cover beach slope)', () => {
     expect(SEA_LEVEL).toBe(-0.3);
   });
-
   it('SEA_SIZE is a positive extent that reaches past the fog horizon (~300m)', () => {
     expect(SEA_SIZE).toBeGreaterThan(0);
     // Half-extent must clear the fog horizon so the plane edge is hidden.
@@ -101,5 +101,33 @@ describe('seaSurfaceY', () => {
       expect(y).toBeGreaterThanOrEqual(SEA_LEVEL - SEA_WAVE_MAX_AMP - 1e-9);
       expect(y).toBeLessThanOrEqual(SEA_LEVEL + SEA_WAVE_MAX_AMP + 1e-9);
     }
+  });
+});
+
+describe('sea quality tiers (audit F12)', () => {
+  it('high keeps the original 400×400 grid; low is a meaningful reduction', () => {
+    expect(SEA_QUALITY_TIERS.high).toBe(SEA_SEGMENTS);
+    expect(SEA_QUALITY_TIERS.low).toBeLessThan(SEA_SEGMENTS);
+    // high/low triangle counts scale with segments²: low is a clear cut, not a no-op.
+    const highTri = SEA_QUALITY_TIERS.high * SEA_QUALITY_TIERS.high * 2;
+    const lowTri = SEA_QUALITY_TIERS.low * SEA_QUALITY_TIERS.low * 2;
+    expect(lowTri).toBeLessThan(highTri / 4);
+  });
+
+  it('resolveSeaSegments maps low/high and falls back to default on unknown/absent', () => {
+    expect(resolveSeaSegments('low')).toBe(SEA_QUALITY_TIERS.low);
+    expect(resolveSeaSegments('high')).toBe(SEA_QUALITY_TIERS.high);
+    expect(resolveSeaSegments(undefined)).toBe(SEA_QUALITY_TIERS[SEA_QUALITY_DEFAULT]);
+    expect(resolveSeaSegments('bogus')).toBe(SEA_QUALITY_TIERS[SEA_QUALITY_DEFAULT]);
+  });
+
+  it('seaQualityFromSearch reads ?seaQuality=low|high and rejects anything else', () => {
+    expect(seaQualityFromSearch('?seaQuality=low')).toBe('low');
+    expect(seaQualityFromSearch('?seaQuality=high')).toBe('high');
+    expect(seaQualityFromSearch('?seaQuality=low&other=1')).toBe('low');
+    expect(seaQualityFromSearch('?seaQuality=bogus')).toBeNull();
+    expect(seaQualityFromSearch('?foo=bar')).toBeNull();
+    expect(seaQualityFromSearch('')).toBeNull();
+    expect(seaQualityFromSearch(undefined)).toBeNull();
   });
 });

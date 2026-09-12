@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import { validateWorld } from '../src/engine/world/worldSchema.js';
 import { buildSeaMesh } from '../src/terrain/sea.js';
+import { resolveSeaSegments } from '../src/terrain/seaConfig.js';
 
 const WORLD_PATH = new URL('../worlds/chiefmonkey-template/world.json', import.meta.url);
 const world = JSON.parse(readFileSync(WORLD_PATH, 'utf8'));
@@ -36,6 +37,21 @@ describe('buildSeaMesh (node-safe)', () => {
     expect(sea).toBeTruthy();
     expect(sea.geometry).toBeTruthy();
     expect(sea.material).toBeTruthy();
+  });
+
+  it('grid density follows resolveSeaSegments (audit F12): low is 6.25× fewer tris', () => {
+    const triCount = (quality) => {
+      const s = new THREE.Scene();
+      buildSeaMesh(s, { quality });
+      const sea = s.children.find((c) => c.isMesh);
+      return sea.geometry.index.count / 3; // segments² × 2 triangles
+    };
+    const high = resolveSeaSegments('high');
+    const low = resolveSeaSegments('low');
+    expect(triCount('high')).toBe(high * high * 2);
+    expect(triCount('low')).toBe(low * low * 2);
+    expect(triCount(undefined)).toBe(high * high * 2); // default = high, unchanged
+    expect(triCount('high') / triCount('low')).toBeCloseTo((high / low) ** 2, 3);
   });
 });
 

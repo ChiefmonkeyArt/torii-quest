@@ -11,6 +11,7 @@ import { sampleNapHeight, sampleArenaHeight, ISLAND_BASE_Y } from './terrain/hei
 import { arenaGlowLoops, isArenaPlayArea } from './terrain/tomoeShape.js';
 import { fenceRing } from './terrain/coastline.js';
 import { buildSeaMesh } from './terrain/sea.js';
+import { seaQualityFromSearch } from './terrain/seaConfig.js';
 import { buildBridge } from './bridge.js';
 import { assetUrl } from './assetUrl.js';
 
@@ -46,7 +47,11 @@ export function buildArena() {
   _buildToriiGate();
   _buildTravelGateway(); // far-side metaverse travel portal model (v0.2.239)
   _buildNapZone();     // floor extension + tree past the torii gate
-  buildSeaMesh(scene); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
+  // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js).
+  // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default
+  // (high = original 400×400, unchanged).
+  const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
+  buildSeaMesh(scene, { quality: _sq || undefined }); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   // buildFoliage() now called from arenaRuntime.js boot() as async with
   // paint yields for smooth progress bar animation (v0.2.545).
 }

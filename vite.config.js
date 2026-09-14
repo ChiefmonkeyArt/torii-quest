@@ -201,13 +201,13 @@ export default defineConfig({
   // suite covers pure logic seams (state machine, event bus, headshot classifier)
   // only, so no jsdom/Three/Rapier/browser is needed. `npm test` runs `vitest run`.
   //
-  // pool: 'threads' + isolate: false — the suite is 108 files / 1834 tests but
-  // every test imports only PURE helpers (no THREE, no Rapier, no DOM, no module-
-  // scope mutation). Per-file isolation was costing ~26 s of collect/prepare overhead
-  // for ~1.5 s of actual test execution. Sharing the worker module graph drops the
-  // full suite from ~28.7 s to ~2.7 s with all 1834 tests still green. If a future
-  // test ever needs a fresh module graph (rare for pure-logic seams), move it to a
-  // dedicated vitest project with isolate:true rather than reverting this default.
+  // pool: 'threads' + isolate: false — the suite is ~4700 tests across 379 files
+  // but every test imports only PURE helpers (no THREE, no Rapier, no DOM, no
+  // module-scope mutation). Sharing the worker module graph keeps a pure-logic suite
+  // this size fast (per-file isolation already cost ~26 s of collect/prepare overhead
+  // even back when the suite was 108 files). If a future test ever needs a fresh
+  // module graph (rare for pure-logic seams), move it to a dedicated vitest project
+  // with isolate:true rather than reverting this default.
   test: {
     environment: 'node',
     // Colocated engine tests (src/engine/**) were previously excluded from

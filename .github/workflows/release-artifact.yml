@@ -1,13 +1,16 @@
 name: Release artifact
 
 # SB-10 Quest artifact path — builds and publishes the deployable release
-# artifact for a pushed release tag. This is the only place the SPA and the
-# arena-ws multiplayer server are built for a shipped release; a Suite host
-# downloads, verifies, and promotes the published tarball (the source-build
-# path in installers/install-quest.sh remains as an opt-in fallback).
+# artifact for a release tag. This is the only place the SPA and the arena-ws
+# multiplayer server are built for a shipped release; a Suite host downloads,
+# verifies, and promotes the published tarball (the source-build path in
+# installers/install-quest.sh remains as an opt-in fallback).
 #
-# Trigger: a tag matching v<semver>[-prerelease] pushed to the repo. Runs on a
-# clean checkout of exactly that tag — never a branch.
+# Trigger is manual (workflow_dispatch with a tag) — consistent with ADR-0106
+# and deploy-manual.yml. The tag is normally created by tag-release.yml on the
+# main push; that GITHUB_TOKEN push is deliberately not echoed into a tag
+# listener (GitHub never re-fires workflows from a GITHUB_TOKEN event), so the
+# build is dispatched explicitly after the tag exists.
 #
 # Publishes to a GitHub Release for the tag:
 #   torii-quest-<tag>.tar.gz            the artifact
@@ -15,10 +18,12 @@ name: Release artifact
 #   torii-quest-<tag>.manifest.json     non-secret build provenance
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-      - 'v*.*.*-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v0.2.844-alpha; must match package.json version)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -32,12 +37,12 @@ jobs:
       - name: Checkout exact tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.event.inputs.tag }}
           fetch-depth: 0
 
       - name: Resolve tag name
         id: tag
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+        run: echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@v4

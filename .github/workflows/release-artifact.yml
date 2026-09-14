@@ -1,0 +1,94 @@
+name: Release artifact
+
+# SB-10 Quest artifact path — builds and publishes the deployable release
+# artifact for a pushed release tag. This is the only place the SPA and the
+# arena-ws multiplayer server are built for a shipped release; a Suite host
+# downloads, verifies, and promotes the published tarball (the source-build
+# path in installers/install-quest.sh remains as an opt-in fallback).
+#
+# Trigger: a tag matching v<semver>[-prerelease] pushed to the repo. Runs on a
+# clean checkout of exactly that tag — never a branch.
+#
+# Publishes to a GitHub Release for the tag:
+#   torii-quest-<tag>.tar.gz            the artifact
+#   torii-quest-<tag>.tar.gz.sha256     its checksum
+#   torii-quest-<tag>.manifest.json     non-secret build provenance
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    name: Build + publish release artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve tag name
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Defence in depth: run the unit test gate before packaging. (The
+      # `npm run check` version/doc-drift gate needs a freshly built dist/,
+      # which is gitignored and only the builder below produces with the
+      # /quest/ base injected — so check is deliberately left to the main
+      # test-release.yml path, not repeated here.)
+      - name: Test gate
+        run: |
+          set -euo pipefail
+          npm test
+
+      - name: Build the release artifact
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/artifact-out
+          bash ops/lib/build-release-artifact.sh "$PWD" "${{ steps.tag.outputs.tag }}" /tmp/artifact-out
+
+      - name: Validate the built artifact (checksum, members, manifest, digests, secrets)
+        run: |
+          set -euo pipefail
+          ARTIFACT_DIR=/tmp/artifact-out ARTIFACT_TAG="${{ steps.tag.outputs.tag }}" \
+            bash ops/test/quest-release-artifact.test.sh
+
+      - name: Publish GitHub Release with artifact assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: torii-quest ${{ steps.tag.outputs.tag }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.tag, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz.sha256
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.manifest.json
+
+      - name: Upload artifact as a workflow artifact too (debugging / air-gapped mirror)
+        uses: actions/upload-artifact@v4
+        with:
+          name: torii-quest-${{ steps.tag.outputs.tag }}
+          path: |
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz.sha256
+            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.manifest.json
+          retention-days: 90

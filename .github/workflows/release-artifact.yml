@@ -75,18 +75,29 @@ jobs:
           ARTIFACT_DIR=/tmp/artifact-out ARTIFACT_TAG="${{ steps.tag.outputs.tag }}" \
             bash ops/test/quest-release-artifact.test.sh
 
-      - name: Publish GitHub Release with artifact assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: torii-quest ${{ steps.tag.outputs.tag }}
-          draft: false
-          prerelease: ${{ contains(steps.tag.outputs.tag, '-') }}
-          fail_on_unmatched_files: true
-          files: |
-            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz
-            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.tar.gz.sha256
-            /tmp/artifact-out/torii-quest-${{ steps.tag.outputs.tag }}.manifest.json
+      - name: Publish GitHub Release with artifact assets (idempotent)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          cd /tmp/artifact-out
+          FILES=(
+            "torii-quest-${TAG}.tar.gz"
+            "torii-quest-${TAG}.tar.gz.sha256"
+            "torii-quest-${TAG}.manifest.json"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Re-run/drift fix: replace assets on the existing release.
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+          else
+            PRERELEASE_FLAG=""
+            [[ "$TAG" == *-* ]] && PRERELEASE_FLAG="--prerelease"
+            gh release create "$TAG" "${FILES[@]}" \
+              --title "torii-quest $TAG" \
+              --generate-notes \
+              $PRERELEASE_FLAG
+          fi
 
       - name: Upload artifact as a workflow artifact too (debugging / air-gapped mirror)
         uses: actions/upload-artifact@v4

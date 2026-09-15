@@ -147,7 +147,9 @@ function _close() {
 }
 
 function _worldLabel(w) {
-  return w.title || w.shortPubkey || w.zoneId || 'world';
+  // GATEWAY-DISPLAY: prefer the operator's kind:0 display name (self-attested),
+  // then the world title, then a hex truncation, then the zone id.
+  return w.displayName || w.title || w.shortPubkey || w.zoneId || 'world';
 }
 
 // _sectionHeader(list, title) — a labelled section header inside the menu list.
@@ -169,37 +171,53 @@ function _emptyRow(list, text) {
   list.append(row);
 }
 
-// _rowDom(w, canTravel, onTravel) — one world row: label + npub + zoneType tag +
-// a "Visit" button (→ onTravel) and a separate "Website" link when the world has
-// a safe https website. Mirrors gatewayScreen's row DOM (no innerHTML for data).
+// _rowDom(w, canTravel, onTravel) — one world row: avatar + display name + a
+// "Visit" button (→ onTravel). GATEWAY-DISPLAY (v0.2.845): "less is more" — the
+// row now shows the OPERATOR's picture + displayName (self-attested in the
+// heartbeat) and drops the hex-npub serial, the zoneType tag, the cyan dot, and
+// the "Website ↗" link. No innerHTML for data.
 function _rowDom(w, canTravel, onTravel) {
   const row = document.createElement('div');
   Object.assign(row.style, {
-    display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: '0 10px',
+    display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '0 12px',
     alignItems: 'center',
-    padding: '9px 12px', borderRadius: '8px',
+    padding: '8px 12px', borderRadius: '10px',
     background: 'rgba(139,92,246,0.08)',
     border: '1px solid rgba(139,92,246,0.28)',
   });
 
-  // Dot
-  const dot = document.createElement('div');
-  Object.assign(dot.style, { width: '8px', height: '8px', borderRadius: '50%', background: '#4cc9f0', boxShadow: '0 0 8px rgba(76,201,240,0.8)' });
+  const name = _worldLabel(w);
 
-  // Label + npub
-  const lab = document.createElement('div');
-  const name = document.createElement('div');
-  name.textContent = _worldLabel(w);
-  Object.assign(name.style, { fontSize: '13px', color: '#e9d5ff', letterSpacing: '0.5px' });
-  const npub = document.createElement('div');
-  npub.textContent = w.shortPubkey || (w.pubkey ? w.pubkey.slice(0, 16) + '…' : '—');
-  Object.assign(npub.style, { fontSize: '10px', color: '#6b7280', marginTop: '1px', wordBreak: 'break-all' });
-  lab.append(name, npub);
+  // Avatar — the operator's profile picture (https-only, already sanitised by
+  // gatewayRead). Falls back to a coloured initial disc so the row never renders a
+  // blank or broken-image void. `no-referrer` so viewing the directory doesn't leak
+  // the traveller's identity to the avatar host.
+  const avatarEl = document.createElement('div');
+  Object.assign(avatarEl.style, {
+    width: '28px', height: '28px', flexShrink: '0',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
+  if (typeof w.avatar === 'string' && /^https:\/\//i.test(w.avatar)) {
+    const img = document.createElement('img');
+    img.src = w.avatar;
+    img.alt = name;
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    Object.assign(img.style, { width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', display: 'block' });
+    img.addEventListener('error', () => { _drawAvatarInitial(avatarEl, name); });
+    avatarEl.append(img);
+  } else {
+    _drawAvatarInitial(avatarEl, name);
+  }
 
-  // Type tag
-  const tag = document.createElement('div');
-  tag.textContent = w.zoneType || 'world';
-  Object.assign(tag.style, { fontSize: '10px', letterSpacing: '1px', color: '#c4b5fd', textTransform: 'uppercase', justifySelf: 'end' });
+  // Display name — the single text column.
+  const nameEl = document.createElement('div');
+  nameEl.textContent = name;
+  nameEl.title = name;
+  Object.assign(nameEl.style, {
+    fontSize: '13px', color: '#e9d5ff', letterSpacing: '0.5px',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  });
 
   // Visit button (only when canTravel + onTravel present)
   const visitBtn = document.createElement('button');
@@ -219,28 +237,22 @@ function _rowDom(w, canTravel, onTravel) {
     visitBtn.addEventListener('click', () => { try { onTravel(w); } finally { _close(); } });
   }
 
-  row.append(dot, lab, tag, visitBtn);
-
-  // Website link — only when the world carries a safe https website (already
-  // validated by gatewayRead.extractGatewayFromEvent via safeProfileUrl, so a
-  // hostile value can never smuggle in a javascript:/data: scheme). Opens in a
-  // new tab with rel="noopener noreferrer". Rendered on its own line under the row.
-  if (typeof w.website === 'string' && /^https:\/\//i.test(w.website)) {
-    const linkRow = document.createElement('div');
-    Object.assign(linkRow.style, { gridColumn: '1 / -1', marginTop: '4px' });
-    const link = document.createElement('a');
-    link.href = w.website;
-    link.textContent = 'Website ↗';
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    Object.assign(link.style, { fontSize: '10px', letterSpacing: '1px', color: '#4cc9f0', textDecoration: 'none' });
-    link.addEventListener('mouseenter', () => { link.style.textDecoration = 'underline'; });
-    link.addEventListener('mouseleave', () => { link.style.textDecoration = 'none'; });
-    linkRow.append(link);
-    row.append(linkRow);
-  }
-
+  row.append(avatarEl, nameEl, visitBtn);
   return row;
+}
+
+// _drawAvatarInitial(el, name) — paint a simple initial disc when no avatar URL is
+// available (or the img errored), so the row never shows an empty circle.
+function _drawAvatarInitial(el, name) {
+  const initial = (name && name.trim() ? name.trim()[0] : '?').toUpperCase();
+  const disc = document.createElement('span');
+  disc.textContent = initial;
+  Object.assign(disc.style, {
+    width: '28px', height: '28px', borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '12px', fontWeight: '600', color: '#1f2937', background: '#c4b5fd',
+  });
+  el.replaceChildren(disc);
 }
 
 // _renderSection(list, title, worlds, canTravel, onTravel, scanStatus, emptyHint)

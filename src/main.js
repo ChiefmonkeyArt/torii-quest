@@ -1134,6 +1134,12 @@ async function _publishPresenceOnce() {
   // every rAF frame (a ~60fps spin). The cheap preconditions above (pubkey/
   // signer/relays) are NOT publish attempts — the tick already gates on them.
   _heartbeat.lastAttemptedAt = Date.now();
+  // GATEWAY-DISPLAY: self-attest the operator's own display name + picture into
+  // the heartbeat so other worlds' directories show the PERSON, not a hex pubkey.
+  const draft = getProfileDraft();
+  const opDisplayName = (typeof draft.displayName === 'string' && draft.displayName.trim())
+    ? draft.displayName.trim()
+    : (typeof draft.name === 'string' ? draft.name.trim() : '');
   const built = buildPresenceEvent({
     pubkey,
     zoneId: 'quest-torii',
@@ -1141,6 +1147,8 @@ async function _publishPresenceOnce() {
     zoneType: 'arena',
     website: (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : ''),
     relays,
+    displayName: opDisplayName,
+    avatar: (typeof draft.picture === 'string') ? draft.picture : '',
     // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
   if (!built.ok) { _heartbeat.lastError = 'build-failed'; return { ok: false, error: 'build-failed' }; }

@@ -95,3 +95,34 @@ describe('buildPresenceEvent — back-compat shape', () => {
     expect(r.errors.length).toBeGreaterThan(0);
   });
 });
+
+describe('buildPresenceEvent — operator display identity (GATEWAY-DISPLAY)', () => {
+  it('embeds displayName + https avatar into content when provided', () => {
+    const r = buildPresenceEvent({
+      pubkey: GOOD_HEX, zoneId: 'quest-torii',
+      displayName: 'Bekka', avatar: 'https://img.example/av.png',
+    });
+    expect(r.ok).toBe(true);
+    const c = JSON.parse(r.event.content);
+    expect(c.displayName).toBe('Bekka');
+    expect(c.avatar).toBe('https://img.example/av.png');
+  });
+
+  it('omits displayName/avatar keys when absent', () => {
+    const r = buildPresenceEvent({ pubkey: GOOD_HEX, zoneId: 'z1' });
+    const c = JSON.parse(r.event.content);
+    expect('displayName' in c).toBe(false);
+    expect('avatar' in c).toBe(false);
+  });
+
+  it('drops a non-https avatar (hostile scheme never reaches content)', () => {
+    const r = buildPresenceEvent({
+      pubkey: GOOD_HEX, zoneId: 'z1',
+      displayName: 'Bekka', avatar: 'javascript:alert(1)',
+    });
+    expect(r.ok).toBe(true);
+    const c = JSON.parse(r.event.content);
+    expect(c.displayName).toBe('Bekka');
+    expect('avatar' in c).toBe(false);
+  });
+});

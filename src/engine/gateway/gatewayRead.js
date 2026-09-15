@@ -34,6 +34,7 @@ export const GATEWAY_TOPIC = 'torii-gateway';
 export const GATEWAY_FIELDS = Object.freeze([
   'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'owner', 'website',
   'banner', 'relays', 'topics', 'wsEndpoint', 'created_at', 'trust',
+  'displayName', 'avatar',
 ]);
 
 // _safeWssRead(raw) → a wss URL string or null. Read-side counterpart to the
@@ -210,6 +211,11 @@ export function extractGatewayFromEvent(event) {
     shortPubkey: pubkey ? shortPubkey(pubkey) : '',
     website: safeProfileUrl(content.website),
     banner: safeProfileUrl(content.banner != null ? content.banner : content.picture),
+    // Operator display identity (GATEWAY-DISPLAY): the operator's own kind:0
+    // displayName (control/markup-stripped) + https-only avatar. Absent on legacy
+    // records → null, so the card falls back to title/shortPubkey.
+    displayName: _safeText(content.displayName, 128),
+    avatar: safeProfileUrl(content.avatar),
     relays,
     topics,
     // MP-1: optional multiplayer WebSocket endpoint. Reader picks from tag first,

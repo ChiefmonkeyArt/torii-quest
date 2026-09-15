@@ -99,6 +99,13 @@ export function buildPresenceEvent(input = {}) {
 
   const title = typeof i.title === 'string' ? i.title.trim().slice(0, 128) : '';
   const description = typeof i.description === 'string' ? i.description.trim().slice(0, 512) : '';
+  // Operator display identity (GATEWAY-DISPLAY, v0.2.845): the operator's own
+  // kind:0 display name + https avatar, self-attested into the signed heartbeat so
+  // a traveller's directory shows the PERSON (name + picture) rather than a hex
+  // pubkey truncation or a relay hint. Distinct from `title` (the WORLD label) and
+  // from `banner`/`picture` (world imagery) — avatar is the operator's picture.
+  const displayName = typeof i.displayName === 'string' ? i.displayName.trim().slice(0, 128) : '';
+  const avatar = _safeHttps(i.avatar);
   const zoneType = typeof i.zoneType === 'string' && ['nap', 'arena', 'shop', 'gallery'].includes(i.zoneType)
     ? i.zoneType : 'arena';
   const website = _safeHttps(i.website);
@@ -118,6 +125,8 @@ export function buildPresenceEvent(input = {}) {
   };
   if (npub) content.npub = npub;
   if (wsEndpoint) content.wsEndpoint = wsEndpoint;
+  if (displayName) content.displayName = displayName;
+  if (avatar) content.avatar = avatar;
 
   const tags = [
     ['d', zoneId],

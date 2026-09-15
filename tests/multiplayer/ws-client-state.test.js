@@ -274,3 +274,32 @@ describe('wsClient keepalive', () => {
     expect(client.keepaliveTimer).toBeNull();
   });
 });
+
+describe('wsClient single-instance (REPLACED)', () => {
+  async function toConnected(client) {
+    client.connect();
+    const ws = FakeWS.instances[0];
+    ws._open();
+    ws._message({ t: MSG.HELLO, challenge: 'a'.repeat(44), serverVersion: 'v0.2.375-alpha', protocolVersion: PROTOCOL_VERSION });
+    await Promise.resolve(); await Promise.resolve();
+    ws._message({ t: MSG.WELCOME, selfId: 'me1', roster: [] });
+    return ws;
+  }
+
+  it('emits replaced and hard-stops (no reconnect) when our npub is superseded', async () => {
+    const { client, emitted, timers } = makeClient();
+    const ws = await toConnected(client);
+    expect(client.state).toBe(WS_STATE.CONNECTED);
+
+    // A second machine authenticated our npub → the server sends REPLACED.
+    ws._message({ t: MSG.REPLACED, reason: 'logged_in_elsewhere' });
+
+    // The event reaches the host so it can surface "logged in elsewhere".
+    expect(emitted.some((e) => e.name === 'replaced' && e.payload && e.payload.reason === 'logged_in_elsewhere')).toBe(true);
+    // The client permanently disconnects — and crucially schedules NO reconnect
+    // backoff, so it cannot ping-pong the single-session slot with the new session.
+    expect(client.state).toBe(WS_STATE.CLOSED);
+    expect(ws.closed).toBe(true);
+    expect(timers.some((t) => t.ms === BACKOFF_MS_INITIAL)).toBe(false);
+  });
+});

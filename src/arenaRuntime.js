@@ -1761,6 +1761,15 @@ export function createArenaRuntime(hooks = {}) {
         }
         if (_peerCombat(name, payload)) return;
         const p = payload || {};
+        // Single-instance (v0.2.846-alpha): our npub authenticated from another
+        // machine, so the server superseded this session. Tell the player why and
+        // return to the title screen instead of leaving them silently disconnected
+        // (and their now-stale remote avatars frozen on other screens).
+        if (name === 'mp_replaced') {
+          try { showEntryStatus('You logged in on another device — this session ended.'); } catch { /* noop */ }
+          try { leaveToTitle(); } catch { /* noop */ }
+          return;
+        }
 
         // Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots. In MP
         // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop

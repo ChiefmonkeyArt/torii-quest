@@ -95,6 +95,11 @@ jobs:
               --generate-notes \
               $PRERELEASE_FLAG
           fi
+          # Guarantee the release is published, never left as a draft: `upload
+          # --clobber` preserves an existing draft's state, and a draft's assets
+          # are NOT served at releases/download/<tag>/..., which 404s the Suite
+          # artifact download. No-op when the release is already published.
+          gh release edit "$TAG" --draft=false
 
       - name: Upload artifact as a workflow artifact too (debugging / air-gapped mirror)
         uses: actions/upload-artifact@v4

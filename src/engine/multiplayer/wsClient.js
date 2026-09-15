@@ -258,6 +258,11 @@ export function createWsClient(opts) {
       }
       case MSG.JOIN:  emit('peerJoin', msg); return;
       case MSG.LEFT:  emit('peerLeft', msg); return;
+      // Single-instance (v0.2.846-alpha): our npub logged in from another machine,
+      // so this session is superseded. Emit the event for the host to surface, then
+      // permanently stop — disconnect() sets _disconnected so the reconnect scheduler
+      // and the subsequent close do NOT re-dial (no ping-pong with the new session).
+      case MSG.REPLACED: emit('replaced', msg); disconnect('replaced'); return;
       case MSG.MOVE:  emit('move', msg);    return;
       case MSG.SHOT:  emit('shot', msg);    return;
       case MSG.HIT:   emit('hit', msg);     return;

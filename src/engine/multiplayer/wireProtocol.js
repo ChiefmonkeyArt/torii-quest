@@ -63,6 +63,13 @@ export const MSG = Object.freeze({
   // authenticated pubkey against the configured admin pubkey before acting on
   // it (see arena-ws.js). A non-admin session sending this is a no-op.
   KAMI_STATE: 'KAMI_STATE',
+  // Single-instance (v0.2.846-alpha): server→client. Sent to a session whose npub
+  // authenticated again from another machine; the server then closes that older
+  // session. The client MUST treat this as a permanent stop — emit 'replaced' and
+  // never auto-reconnect — so two machines sharing one npub cannot ping-pong the
+  // single-session slot and render a duplicate character. Additive on
+  // PROTOCOL_VERSION=1 (older clients drop it via the UNKNOWN_TYPE guard).
+  REPLACED:   'REPLACED',
 });
 
 // Animation hint labels a bot state may carry (mirrors botSim _animHint).
@@ -269,6 +276,10 @@ const validators = {
     if (typeof m.active !== 'boolean') return fail('BAD_FIELD', 'active');
     return ok(m);
   },
+  [MSG.REPLACED](m) {
+    if (m.reason !== undefined && !isStr(m.reason, 120)) return fail('BAD_FIELD', 'reason');
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -337,6 +348,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.BOT_HIT]:   ['botId', 'dmg', 'zone', 'hp', 'shooterId'],
   [MSG.BOT_KILL]:  ['botId', 'shooterId'],
   [MSG.KAMI_STATE]: ['active'],
+  [MSG.REPLACED]:  ['reason'],
 });
 
 /** Is this a known message type? */

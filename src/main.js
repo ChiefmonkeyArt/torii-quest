@@ -614,7 +614,10 @@ function _getToriiMenuState() {
         _openHomepageStub();
       },
     },
-    onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+    // v0.2.866: the menu's Visit no longer travels immediately — it hands off to the
+    // browse loop (the game's gateway screen), which peeks the world and lets the
+    // player walk through with 入 or step away with ✕. One travel flow everywhere.
+    onTravel: (w) => _gwBrowseWorld(w),
   };
 }
 
@@ -872,6 +875,24 @@ async function _gwPeek(world) {
 function _gwCommit() {
   if (_arena && typeof _arena.commitPeek === 'function') {
     _arena.commitPeek().catch((e) => console.warn('commit failed:', e && e.message ? e.message : e));
+  }
+}
+
+// _gwBrowseWorld(world) — the unified title-screen/menu HAND-OFF (v0.2.866). A world
+// picked outside the in-game gateway screen routes into the SAME browse loop: the
+// arena opens its gateway screen, pre-peeked at that world, so the player looks at it
+// and walks through with 入 (or steps away with ✕). No immediate travel.
+function _gwBrowseWorld(world) {
+  if (!world || (!world.pubkey && !world.npub)) {
+    console.warn('browse rejected: directory record has no identity');
+    return;
+  }
+  if (_arena && typeof _arena.openGatewayBrowse === 'function') {
+    _arena.openGatewayBrowse(world);
+  } else {
+    // Arena not booted (defensive): fall back to direct travel so a stray click can
+    // never strand a logged-in player. This path is reachable only pre-boot.
+    _gwOpenVisit(world, { zoneSlug: isValidZoneSlug(world.zoneId) ? world.zoneId : null });
   }
 }
 

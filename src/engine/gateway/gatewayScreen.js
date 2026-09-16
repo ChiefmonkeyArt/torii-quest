@@ -202,6 +202,20 @@ function _clearPeek() {
   _markActiveRow(null);
 }
 
+// _armPeek(w) — the shared peek body: highlight the row, arm the 入 commit bar, and
+// delegate the mirror build to the host's onPeek. Used BOTH by a live row click and
+// by peekGateWorld() (the title-screen / menu hand-off, which pre-peeks a world the
+// player already picked before opening the browse screen).
+function _armPeek(w) {
+  if (typeof _onPeek !== 'function') return;
+  _peeking = w;
+  _markActiveRow(w && w.pubkey ? w.pubkey : '');
+  if (_commitLabel) _commitLabel.textContent = `looking at ${_worldLabel(w)}`;
+  if (_commitBtn) { _commitBtn.textContent = '入 · ENTER'; _commitBtn.disabled = false; }
+  if (_commitBar) _commitBar.style.display = 'block';
+  try { _onPeek(w); } catch { /* host peek is best-effort */ }
+}
+
 function _markActiveRow(pubkey) {
   if (!_el) return;
   _el.querySelectorAll('[data-gw-pubkey]').forEach((row) => {
@@ -243,15 +257,7 @@ function _rowDom(w, canTravel, onPeek) {
     row.addEventListener('focus', hover); row.addEventListener('blur', unhover);
     const peek = () => {
       if (typeof onPeek !== 'function') return;
-      _peeking = w;
-      _markActiveRow(w.pubkey || '');
-      if (_commitLabel) _commitLabel.textContent = `looking at ${_worldLabel(w)}`;
-      if (_commitBtn) {
-        _commitBtn.textContent = '入 · ENTER';
-        _commitBtn.disabled = false;
-      }
-      if (_commitBar) _commitBar.style.display = 'block';
-      try { onPeek(w); } catch { /* host peek is best-effort */ }
+      _armPeek(w);
     };
     row.addEventListener('click', peek);
     row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); peek(); } });
@@ -347,3 +353,12 @@ export function closeGatewayScreen() { _close(); }
 export function isGatewayScreenOpen() { return _open; }
 export function getGatewayPreviewCanvas() { return _previewCanvas; }
 export function isGatewayCommitting() { return !!_peeking; }
+
+// peekGateWorld(world) — pre-peek a world from OUTSIDE (title-screen/menu hand-off).
+// Same body as a row click (highlight + arm 入 + host onPeek) so the player who
+// picked a world in the Torii menu lands here ALREADY looking at it, then walks
+// through with 入 or steps away with ✕. No-op when the screen is closed.
+export function peekGateWorld(world) {
+  if (!_open || !world) return;
+  _armPeek(world);
+}

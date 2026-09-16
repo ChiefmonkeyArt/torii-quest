@@ -122,7 +122,7 @@ function _build() {
 
   // Footer hint
   const hint = document.createElement('div');
-  hint.textContent = 'ESC to close · M to toggle · click Visit to travel';
+  hint.textContent = 'ESC to close · M to toggle · click to look · 入 to enter';
   Object.assign(hint.style, { fontSize: '10px', letterSpacing: '1px', color: '#6b7280', marginTop: '16px', textAlign: 'center', textTransform: 'uppercase' });
 
   card.append(head, subtitle, badge, list, hint);
@@ -222,7 +222,7 @@ function _rowDom(w, canTravel, onTravel) {
   // Visit button (only when canTravel + onTravel present)
   const visitBtn = document.createElement('button');
   visitBtn.type = 'button';
-  visitBtn.textContent = 'Visit';
+  visitBtn.textContent = 'Look';
   visitBtn.disabled = !(canTravel && typeof onTravel === 'function');
   Object.assign(visitBtn.style, {
     fontSize: '11px', letterSpacing: '1px', padding: '4px 10px', borderRadius: '6px',
@@ -234,7 +234,11 @@ function _rowDom(w, canTravel, onTravel) {
   if (!visitBtn.disabled) {
     visitBtn.addEventListener('mouseenter', () => { visitBtn.style.background = 'rgba(139,92,246,0.4)'; });
     visitBtn.addEventListener('mouseleave', () => { visitBtn.style.background = 'rgba(139,92,246,0.25)'; });
-    visitBtn.addEventListener('click', () => { try { onTravel(w); } finally { _close(); } });
+    // v0.2.866: close FIRST (which resumes play via onClose), THEN invoke the
+    // host's travel callback. The host now hands off to the browse loop (peek → 入),
+    // which needs the game back in PLAYING so it can PAUSE again cleanly. Closing
+    // after the callback left the game resumed underneath an open browse screen.
+    visitBtn.addEventListener('click', () => { _close(); try { onTravel(w); } catch { /* host travel is best-effort */ } });
   }
 
   row.append(avatarEl, nameEl, visitBtn);

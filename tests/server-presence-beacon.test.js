@@ -362,3 +362,119 @@ describe('F11 — persistence failure fails closed (no false success)', () => {
     expect(r.error).not.toContain(statePath);
   });
 });
+
+const LEGACY_WORLD = {
+  name: 'Test Arena',
+  mode: 'arena-shooter',
+  spawns: { player: { x: -14, y: 3.1, z: -14, yaw: -2.356194490192345 } },
+  lights: [{ type: 'ambient', color: '#fff', intensity: 1 }],
+  objects: [{ type: 'torii-gate', pos: [20, 0, 0], rot: 0 }],
+  combat: { botCount: 5 },
+  bounds: { arenaHalf: 20 },
+};
+const WORLD_ZONES = [
+  { rows: 2, cols: 2, scale: [40, 1, 40], offset: [0, 0, 0], heights: [1, 1, 1, 1] },
+  { rows: 2, cols: 2, scale: [25, 1, 40], offset: [32.5, 0, 0], heights: [1, 1, 1, 1] },
+];
+
+function makeWithWorld(overrides = {}) {
+  return createBeacon({
+    statePath,
+    adminPubkeyHex: ADMIN_HEX,
+    relays: ['wss://relay.example.com'],
+    fs,
+    now: () => clock.t,
+    generateKey: generateSecretKey,
+    getPubkey: getPublicKey,
+    finalize: finalizeEvent,
+    npubEncode: nip19.npubEncode,
+    publishToRelay: fakePublisher([{ ok: true }]),
+    legacyWorldConfig: LEGACY_WORLD,
+    worldZones: WORLD_ZONES,
+    worldId: 'torii-quest',
+    worldVersion: 'v0.2.860-alpha',
+    blossomServer: 'https://blossom.primal.net',
+    ...overrides,
+  });
+}
+
+describe('createBeacon world-reference publish (ADR-0119 slice 4)', () => {
+  it('serializes, uploads, signs + publishes the torii-world reference', async () => {
+    const uploaded = [];
+    const signedEvents = [];
+    const pubEvents = [];
+    const b = makeWithWorld({
+      signEventForBlossom: null, // not used by this path (internal finalize)
+      blossomFetch: async (url, opts) => {
+        uploaded.push({ url, hasAuth: /^Nostr /.test(opts.headers.Authorization) });
+        // echo the caller's claimed hash via the uploadBlossomText return path —
+        // but the beacon re-derives it, so a fake hash still exercises sign+publish.
+        return { ok: true, status: 200, json: async () => ({ sha256: opts.headers['X-SHA-256'] }) };
+      },
+      publishToRelay: async (url, event) => {
+        pubEvents.push(event);
+        return { ok: true, relay: url, accepted: true };
+      },
+    });
+    b.enable();
+    const r = await b.publishWorldOnce();
+    expect(r.ok).toBe(true);
+    expect(uploaded).toHaveLength(1);
+    expect(uploaded[0].url).toBe('https://blossom.primal.net/upload');
+    expect(uploaded[0].hasAuth).toBe(true);
+    expect(pubEvents).toHaveLength(1);
+    expect(pubEvents[0].kind).toBe(30078);
+    expect(pubEvents[0].tags.find((t) => t[0] === 'manifest')[1]).toBe(b.capability().manifestHash);
+    expect(pubEvents[0].sig).toMatch(/^[0-9a-f]{128}$/);
+    expect(b.capability().worldError).toBeNull();
+    expect(b.capability().worldPublishedAt).toBe(clock.t);
+  });
+
+  it('skips re-upload on a re-pulse (manifest cache), but re-signs + re-publishes', async () => {
+    let uploadCount = 0;
+    const b = makeWithWorld({
+      blossomFetch: async (url, opts) => {
+        uploadCount += 1;
+        return { ok: true, status: 200, json: async () => ({ sha256: opts.headers['X-SHA-256'] }) };
+      },
+      publishToRelay: async () => ({ ok: true, relay: 'wss://relay.example.com', accepted: true }),
+    });
+    b.enable();
+    await b.publishWorldOnce();
+    const firstHash = b.capability().manifestHash;
+    await b.publishWorldOnce();
+    expect(uploadCount).toBe(1); // second pulse reuses the cached manifest
+    expect(b.capability().manifestHash).toBe(firstHash);
+  });
+
+  it('records worldError (not a throw) when the Blossom upload fails', async () => {
+    const b = makeWithWorld({
+      blossomFetch: async () => ({ ok: false, status: 500, json: async () => ({}) }),
+      publishToRelay: async () => ({ ok: true, relay: 'wss://relay.example.com', accepted: true }),
+    });
+    b.enable();
+    const r = await b.publishWorldOnce();
+    expect(r.ok).toBe(false);
+    expect(b.capability().worldError).toBe('upload-http-500');
+  });
+
+  it('records worldError when no legacy config or zones are configured', async () => {
+    const bare = createBeacon({
+      statePath, adminPubkeyHex: ADMIN_HEX, relays: [], fs,
+      now: () => clock.t, generateKey: generateSecretKey, getPubkey: getPublicKey,
+      finalize: finalizeEvent, npubEncode: nip19.npubEncode,
+      publishToRelay: fakePublisher([]),
+    });
+    bare.enable();
+    const r = await bare.publishWorldOnce();
+    expect(r.ok).toBe(false);
+    expect(bare.capability().worldError).toBe('no-legacy-config');
+  });
+
+  it('is a no-op while disabled', async () => {
+    const b = makeWithWorld();
+    const r = await b.publishWorldOnce();
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('disabled');
+  });
+});

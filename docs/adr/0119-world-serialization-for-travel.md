@@ -62,12 +62,16 @@ Specifically:
    resolver (`_gwOpenVisit` → `resolveWorldByNpub`) looks the reference up by the
    presence SIGNER's pubkey (`world.pubkey` = the beacon's persistent instance key when
    the server beacon is enabled), so the beacon CAN sign the reference with its own key
-   and it will be found. On enable/pulse the node (a) serializes its active world, (b)
-   uploads the manifest to Blossom, (c) signs + publishes `publishWorldReference`, and
-   (d) stamps `displayName` + `avatar` + `wsEndpoint` into the presence event (the
-   directory label + the live-mirror dial). The admin's kind:0 name/avatar and the
-   node's `wss://host/mp` endpoint complete the record; owner attribution (the `p` tag,
-   used for the directory's human label) is distinct from the reference author.
+   and it will be found. On enable/pulse the node (a) serializes its active world
+   (`worlds/default/world.json` + the sampled tomoe heightfields via
+   `buildArenaHeightfieldArray`/`buildNapHeightfieldArray`), (b) uploads the manifest to
+   Blossom via a node-safe BUD-11 auth upload (`server/world/blossomUpload.js`), (c)
+   signs + publishes the `torii-world` reference (`server/world/worldPublish.js`,
+   `beacon.publishWorldOnce`), and (d) stamps `displayName` + `avatar` + `wsEndpoint`
+   into the presence event (the directory label + the live-mirror dial). The admin's
+   kind:0 name/avatar and the node's `wss://host/mp` endpoint complete the record;
+   owner attribution (the `p` tag, used for the directory's human label) is distinct
+   from the reference author. Slice 4 SHIPPED in v0.2.861-alpha.
 
 ## Consequences
 

@@ -24,6 +24,9 @@ import * as nodePath from 'path';
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import { buildPresenceEvent } from '../../src/engine/gateway/worldPresence.js';
 import { publishEventToRelay } from '../kami/kamiNostr.js';
+import { buildWorldManifest, worldReferenceForManifest } from '../world/worldPublish.js';
+import { uploadBlossomText } from '../world/blossomUpload.js';
+import { DEFAULT_BLOSSOM_SERVER } from '../../src/engine/world/worldReference.js';
 
 // Reuse the client's republish cadence so server and client semantics agree.
 export const BEACON_INTERVAL_MS = 600000; // 10 min
@@ -77,6 +80,15 @@ export function createBeacon(opts = {}) {
     displayName = '',
     avatar = '',
     wsEndpoint = '',
+    // ADR-0119 slice 4: world-reference publish half. legacyWorldConfig (parsed
+    // worlds/default/world.json) + worldZones (sampled heightfields) serialize the
+    // active world; uploadBlob is the injected node-safe Blossom upload.
+    legacyWorldConfig = null,
+    worldZones = [],
+    worldId = 'torii-quest',
+    worldVersion = '',
+    blossomServer = DEFAULT_BLOSSOM_SERVER,
+    blossomFetch = null,  // fetchImpl for the Blossom PUT (default: global fetch)
     fs = nodeFs,
     now = () => Date.now(),
     generateKey = generateSecretKey,
@@ -100,6 +112,9 @@ export function createBeacon(opts = {}) {
     adminPubkey: configured ? admin : null,
     lastPublishedAt: null, // ms, last successful publish
     lastError: null,       // string | null, last publish failure reason
+    worldPublishedAt: null, // ms, last successful world-reference publish (ADR-0119)
+    worldError: null,       // string | null, last world-reference publish failure
+    manifestHash: null,     // hex64, last published world manifest content address
   };
 
   function _validPath() {
@@ -162,6 +177,9 @@ export function createBeacon(opts = {}) {
       adminPubkey: configured ? admin : (adminStored || null),
       lastPublishedAt: typeof s.lastPublishedAt === 'number' ? s.lastPublishedAt : null,
       lastError: typeof s.lastError === 'string' ? s.lastError : null,
+      worldPublishedAt: typeof s.worldPublishedAt === 'number' ? s.worldPublishedAt : null,
+      worldError: typeof s.worldError === 'string' ? s.worldError : null,
+      manifestHash: typeof s.manifestHash === 'string' && HEX64.test(s.manifestHash) ? s.manifestHash.toLowerCase() : null,
     };
     return state.enabled;
   }
@@ -175,6 +193,9 @@ export function createBeacon(opts = {}) {
       adminPubkey: state.adminPubkey,
       lastPublishedAt: state.lastPublishedAt,
       lastError: state.lastError,
+      worldPublishedAt: state.worldPublishedAt || null,
+      worldError: state.worldError || null,
+      manifestHash: state.manifestHash || null,
     };
   }
 
@@ -324,6 +345,97 @@ export function createBeacon(opts = {}) {
     return { ok: false, accepted: 0, attempted: relayList.length, failures, error: state.lastError };
   }
 
+  // ── ADR-0119 slice 4: world-reference publish ───────────────────────────────
+  // Serializes the active world into a content-addressed manifest, uploads it to
+  // Blossom once (cached by hash), signs a torii-world reference with the beacon's
+  // OWN key (the resolver discovers it by the presence signer = this pubkey), and
+  // fans it out to relays. Independent of presence: presence always succeeds even
+  // when world publish fails (the directory stays listed; travel just can't resolve).
+  // The manifest is cached in-memory (deterministic) so re-pulses skip re-serialize.
+  let _worldManifestCache = null;
+
+  function _serializeWorldManifest() {
+    if (_worldManifestCache) return _worldManifestCache;
+    if (!legacyWorldConfig || typeof legacyWorldConfig !== 'object' || Array.isArray(legacyWorldConfig)) {
+      return { ok: false, error: 'no-legacy-config' };
+    }
+    if (!Array.isArray(worldZones) || worldZones.length === 0) return { ok: false, error: 'no-world-zones' };
+    const built = buildWorldManifest({ worldId, legacy: legacyWorldConfig, zones: worldZones });
+    if (!built.ok) return built;
+    _worldManifestCache = built;
+    return built;
+  }
+
+  async function publishWorldOnce() {
+    if (!state.enabled) return { ok: false, error: 'disabled' };
+    if (!state.pubkey || !state.secretKeyHex) return { ok: false, error: 'no-key' };
+
+    const built = _serializeWorldManifest();
+    if (!built.ok) { state.worldError = built.error; _persist(); return { ok: false, error: built.error }; }
+
+    // Mint the unsigned torii-world reference (world-as-data address).
+    const minted = worldReferenceForManifest({
+      manifestJson: built.manifestJson,
+      worldId,
+      relays: relayList,
+      blossomServer,
+      version: worldVersion || undefined,
+    });
+    if (!minted.ok) { state.worldError = minted.error; _persist(); return { ok: false, error: minted.error }; }
+    if (minted.manifestHash !== state.manifestHash) {
+      // Content changed (or first publish): upload the new manifest to Blossom.
+      const fetchImpl = typeof blossomFetch === 'function' ? blossomFetch : ((typeof fetch === 'function') ? fetch : null);
+      if (!fetchImpl) { state.worldError = 'no-fetch'; _persist(); return { ok: false, error: state.worldError }; }
+      const up = await uploadBlossomText({
+        text: built.manifestJson,
+        server: blossomServer,
+        expectedHex: minted.manifestHash,
+        signEvent: async (unsigned) => {
+          let signed;
+          try { signed = finalize(unsigned, hexToU8(state.secretKeyHex)); } catch { signed = null; }
+          return signed;
+        },
+        fetchImpl,
+        nowMs: now(),
+      });
+      if (!up.ok || up.sha256 !== minted.manifestHash) {
+        state.worldError = (up && up.error) || 'upload-failed';
+        _persist();
+        return { ok: false, error: state.worldError };
+      }
+      state.manifestHash = minted.manifestHash;
+    }
+
+    // Sign the reference with the beacon's own key.
+    let signed;
+    try { signed = finalize(minted.unsigned, hexToU8(state.secretKeyHex)); } catch { signed = null; }
+    if (!signed || !HEX128.test(signed.sig || '') || !HEX64.test(signed.id || '')) {
+      state.worldError = 'world-sign-failed';
+      _persist();
+      return { ok: false, error: state.worldError };
+    }
+
+    let accepted = 0;
+    const failures = [];
+    for (const relay of relayList) {
+      let res;
+      try { res = await publishToRelay(relay, signed, { timeoutMs: 8000 }); }
+      catch { res = { ok: false, reason: 'threw' }; }
+      if (res && res.ok) accepted += 1;
+      else failures.push((res && (res.reason || res.relay)) || relay);
+    }
+
+    if (accepted > 0) {
+      state.worldPublishedAt = now();
+      state.worldError = null;
+      _persist();
+      return { ok: true, accepted, attempted: relayList.length, failures, manifestHash: state.manifestHash };
+    }
+    state.worldError = failures.length ? `world-all-rejected:${failures[0]}` : 'world-no-acceptance';
+    _persist();
+    return { ok: false, accepted: 0, attempted: relayList.length, failures, error: state.worldError };
+  }
+
   return {
     load,
     capability,
@@ -331,6 +443,7 @@ export function createBeacon(opts = {}) {
     disable,
     autoEnable,
     publishOnce,
+    publishWorldOnce,
     getState: () => ({ ...state }),
     configured,
     adminPubkeyHex: admin,

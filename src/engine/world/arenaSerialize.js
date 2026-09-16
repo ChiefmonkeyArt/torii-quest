@@ -68,8 +68,12 @@ function _zone(z) {
   const scale = _legacyVec(z.scale);
   if (!Number.isInteger(rows) || rows < 2 || !Number.isInteger(cols) || cols < 2) return null;
   if (!scale || !scale.every((n) => n > 0)) return null;
+  // Round heights to 3 decimals (millimetre) — deterministic + dramatically
+  // compacts the manifest (a float32 like 0.3857123463153839 → 0.386) while
+  // keeping sub-mm terrain fidelity for both the collider AND the mesh (they read
+  // the SAME rounded values, so they stay consistent).
   const heights = (z.heights && typeof z.heights.length === 'number')
-    ? Array.from(z.heights, (n) => _num(n)).map((n) => n)
+    ? Array.from(z.heights, (n) => _num(n)).map((n) => Math.round(n * 1000) / 1000)
     : null;
   if (!heights || heights.length !== rows * cols || !heights.every((n) => n !== undefined)) return null;
   const out = { rows, cols, scale, heights };

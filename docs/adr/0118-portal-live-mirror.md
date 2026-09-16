@@ -51,6 +51,21 @@ destination's **live** state without joining it.
    portal: `to · inv(from) · viewer`) + a `worldMirror.js` orchestration (peek →
    live → drop) are node-pure and unit-testable; the Three.js renderer and the
    `arena-ws` `SPECTATE` wire protocol are the subsequent, browser/server slices.
+6. **The reveal is HYBRID: live aperture on approach, fullscreen iris on cross. (2026-09-16)**
+   Two visual states on one seam:
+   - **Approach** — the gate is a LIVE APERTURE window: the destination world renders
+     only within the gate's opening (mask centred on the projected gate), and the
+     ORIGIN sky holds outside it. You look through the threshold without entering.
+   - **Cross** — the aperture IRIS EXPANDS past its own frame to fullscreen while the
+     DESTINATION sky resolves in (the established iris/sky-resolve arc), settling on
+     world B filling the screen.
+   The mask is expressed in **aperture units**: a radius of 1 = the gate opening, and
+   `fullFactor = cornerDistance / apertureRadius` is the radius that reaches the
+   furthest screen corner. `portalReveal.js` encodes the arc (approach pins radius at 1,
+   cross eases 1 → fullFactor, settled pins at fullFactor; the sky resolves only during
+   cross). The shader takes `uCenter`/`uAperture` (the gate's projected centre + opening
+   radius) and `uIris`/`uSkyBlend` from that arc — the renderer projects the gate to
+   screen space, everything else is the tested pure math.
 
 ## First slice (adoption)
 

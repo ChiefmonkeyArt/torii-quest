@@ -1,8 +1,8 @@
 // spectator-gate.test.js — locks the read-only SPECTATE tier (ADR-0118 Decision 4):
 // a spectator may only SEND keepalive, world listeners gate the broadcast, and the
-// registry fans out read-only while terminating slow readers. Pure; wws are mocks.
+// registry fans out read-only while terminating slow readers. Pure; `ws` are mocks.
 import { describe, it, expect } from 'vitest';
-import { MSG } from '../../src/engine/multiplayer/wireProtocol.js';
+import { MSG, encode, decode, sanitize } from '../../src/engine/multiplayer/wireProtocol.js';
 import {
   canSpectatorSend, hasWorldListeners, createSpectatorRegistry, SPECTATOR_SEND_ALLOWED,
 } from '../../src/engine/multiplayer/spectatorGate.js';
@@ -17,6 +17,17 @@ function mockWs() {
     terminated: false,
   };
 }
+
+// SPECTATE wire round-trip: the subscribe is a field-less client→server message.
+// encode/decode/sanitize must round-trip it with no payload leakage.
+describe('SPECTATE wire round-trip', () => {
+  it('encodes, decodes, and sanitizes a bare subscribe', () => {
+    const p = decode(encode({ t: MSG.SPECTATE }));
+    expect(p.ok).toBe(true);
+    expect(p.msg.t).toBe(MSG.SPECTATE);
+    expect(sanitize(p.msg)).toEqual({ t: MSG.SPECTATE });
+  });
+});
 
 describe('canSpectatorSend (inbound hardening)', () => {
   it('allows only keepalive', () => {

@@ -149,6 +149,9 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   /** The destination world render-target texture (feed bindPortalTexture). */
   function texture() { return _target ? _target.texture : null; }
 
+  /** The raw render target (readRenderTargetPixels for an in-panel preview blit). */
+  function target() { return _target; }
+
   function isBuilt() { return _built; }
 
   function dispose() {
@@ -167,5 +170,5 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     _built = false;
   }
 
-  return { build, setRoster, render, texture, isBuilt, dispose };
+  return { build, setRoster, render, texture, target, isBuilt, dispose };
 }

@@ -792,6 +792,33 @@ function _openHomepageStub() {
 // _gwOpenVisit(world, opts?) — the OPEN-VISIT travel path. Resolves the world by
 // the owner's npub and renders it IN PLACE (no navigation). This replaces the old
 // cross-host `window.location.href` hop entirely: the player's URL never changes.
+// _resolveWorldDirRecord(world) → { ok, world } | { ok:false, reason } — resolve a
+// directory row (npub/publish) into a validated destination world. Shared by the
+// browse-loop peek and the (title-screen) open-visit travel so both run the SAME
+// content-addressed resolve. Fail-closed: never fabricates a world.
+async function _resolveWorldDirRecord(world) {
+  // Resolve by the owner's npub: discover their signed kind-30078 world reference
+  // across relays, hash-verify the manifest, fetch + validate it. relayReqFn maps the
+  // per-url resolver seam onto the existing fanoutReq transport.
+  const reqRelay = (url, filter) => fanoutReq(
+    (typeof url === 'string' && url) ? [url] : _effectiveRelays(),
+    [filter],
+    { timeoutMs: 5000, graceMs: 250, retries: 1 },
+  );
+  const relays = (Array.isArray(world.relays) && world.relays.length) ? world.relays : _effectiveRelays();
+  try {
+    return await resolveWorldByNpub({
+      pubkeyHex: world.pubkey,
+      npub: world.npub,
+      relays,
+      relayReqFn: reqRelay,
+      fetchBlob: (url) => fetch(url).then((r) => (r && r.ok) ? r.text() : null).catch(() => null),
+    });
+  } catch (e) {
+    return { ok: false, reason: e && e.message ? e.message : 'resolve-error' };
+  }
+}
+
 async function _gwOpenVisit(world, opts) {
   // IN-PLACE travel (world-as-data). Resolve the destination world by npub and swap
   // it into THIS shell. NO navigation, period: the player's browser URL never changes
@@ -802,29 +829,7 @@ async function _gwOpenVisit(world, opts) {
     renderGatewayCard();
     return;
   }
-  // Resolve by the owner's npub: discover their signed kind-30078 world reference
-  // across relays, hash-verify the manifest, fetch + validate it. relayReqFn maps the
-  // per-url resolver seam onto the existing fanoutReq transport.
-  const reqRelay = (url, filter) => fanoutReq(
-    (typeof url === 'string' && url) ? [url] : _effectiveRelays(),
-    [filter],
-    { timeoutMs: 5000, graceMs: 250, retries: 1 },
-  );
-  const relays = (Array.isArray(world.relays) && world.relays.length) ? world.relays : _effectiveRelays();
-
-  let resolved;
-  try {
-    resolved = await resolveWorldByNpub({
-      pubkeyHex: world.pubkey,
-      npub: world.npub,
-      relays,
-      relayReqFn: reqRelay,
-      fetchBlob: (url) => fetch(url).then((r) => (r && r.ok) ? r.text() : null).catch(() => null),
-    });
-  } catch (e) {
-    resolved = { ok: false, reason: e && e.message ? e.message : 'resolve-error' };
-  }
-
+  const resolved = await _resolveWorldDirRecord(world);
   if (!resolved || !resolved.ok || !resolved.world) {
     // FAIL CLOSED: stay in the current world. Never navigate.
     console.warn('in-place travel resolve failed:', resolved && resolved.reason);
@@ -841,6 +846,33 @@ async function _gwOpenVisit(world, opts) {
     console.warn('in-place travel failed: arena unavailable');
   }
   renderGatewayCard();
+}
+
+// _gwPeek(world) — the browse-loop PEEK (v0.2.865). Resolves + builds the destination
+// into the LIVE MIRROR only (no swap). The arena's peekWorld is a state-machine-guarded
+// peek; a failed resolve leaves the player put (the directory panel simply doesn't
+// light up a preview).
+async function _gwPeek(world) {
+  if (!world || (!world.pubkey && !world.npub)) {
+    console.warn('peek rejected: directory record has no identity');
+    return;
+  }
+  const resolved = await _resolveWorldDirRecord(world);
+  if (!resolved || !resolved.ok || !resolved.world) {
+    console.warn('peek resolve failed (world stays put):', resolved && resolved.reason);
+    return;
+  }
+  if (_arena && typeof _arena.peekWorld === 'function') {
+    await _arena.peekWorld(resolved.world, { wsEndpoint: world.wsEndpoint });
+  }
+}
+
+// _gwCommit() — the 入 (enter) walk-through. Delegates to the arena's commitPeek, which
+// asks the browse state machine whether this action may swap (only from an open peek).
+function _gwCommit() {
+  if (_arena && typeof _arena.commitPeek === 'function') {
+    _arena.commitPeek().catch((e) => console.warn('commit failed:', e && e.message ? e.message : e));
+  }
 }
 
 // _gwTravel(world) — the SIGNED handshake hop. KEPT for an optional future
@@ -3159,7 +3191,11 @@ async function ensureArenaReady(loadingLabel) {
             games,
             scanStatus: _worldsScan,
             canTravel,
-            onTravel: (w) => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w && w.zoneId) ? w.zoneId : null }),
+            // BROWSE LOOP (v0.2.865): a row click PEEKS; only the 入 button walks
+            // through. onPeek resolves + opens the live mirror (no swap); onCommit
+            // asks the arena's state machine to swap into the currently-peered world.
+            onPeek: (w) => _gwPeek(w),
+            onCommit: () => _gwCommit(),
           };
         },
         // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the

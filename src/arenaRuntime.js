@@ -40,7 +40,8 @@ import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
-import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
+import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, getGatewayPreviewCanvas } from './engine/gateway/gatewayScreen.js';
+import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
   MP_ENABLED, PLAYER_HP, SCORE_PUBLISH_ENABLED,
@@ -632,6 +633,11 @@ export function createArenaRuntime(hooks = {}) {
   // Portal live-mirror (ADR-0118): the destination world rendered through the gate.
   let _mirror = null;        // createPortalMirror instance (offscreen world-B)
   let _mirrorClient = null;  // createSpectatorClient (read-only live stream)
+  // Browser-loop gate (v0.2.865): click-to-peek / 入-to-enter / ✕-to-leave. Pure
+  // state machine — decides whether a given action SWAPS the world (only commit does).
+  const _browse = createPortalBrowse();
+  let _pendingTravel = null;   // { world, wsEndpoint } the currently-peered destination (commit target)
+  let _lastPreviewBlit = 0;    // throttle for the in-panel preview read-back
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
@@ -773,14 +779,17 @@ export function createArenaRuntime(hooks = {}) {
     if (!transition(GAME_EVENT.PAUSE)) return; // PLAYING → PAUSED
     document.exitPointerLock?.();
     const gw = getGatewayScreenState();
+    _browse.reset();
+    cancelBrowsePeek();
     openGatewayScreen({
       friends: gw.friends,
       following: gw.following,
       games: gw.games,
       scanStatus: gw.scanStatus,
       canTravel: gw.canTravel,
-      onTravel: (w) => gw.onTravel(w),
-      onClose: () => _resume(),
+      onPeek: (w) => (typeof gw.onPeek === 'function' ? gw.onPeek(w) : undefined),
+      onCommit: () => (typeof gw.onCommit === 'function' ? gw.onCommit() : undefined),
+      onClose: () => { cancelBrowsePeek(); _resume(); },
     });
   }
   function _closeGatewayScreen() {
@@ -1048,6 +1057,7 @@ export function createArenaRuntime(hooks = {}) {
         _mirror.setRoster(_mirrorClient.readBots(), _mirrorClient.readPeers());
       }
       _mirror.render(renderer);
+      _blitPreview();
     }
     // Iris/sky-resolve overlay draws OVER the frame (no-op unless a reveal is armed).
     renderPortalSurface({ camera, viewWidth: innerWidth, viewHeight: innerHeight });
@@ -2308,13 +2318,14 @@ export function createArenaRuntime(hooks = {}) {
   // travelToWorld(world, opts) — IN-PLACE world swap (world-as-data). Replaces the
   // current scene contents with a different resolved world WITHOUT any browser
   // navigation: the player's URL never changes — we enter the metaverse through THIS
-  // domain and only the world inside changes. Wired from the gateway directory click via
-  // the host's resolveWorldByNpub. The iris cross now reveals the LIVE mirror (world B
-  // rendered + streamed through the aperture) before the real swap lands beneath it. A
-  // failed build leaves the player on their current world (fail-closed, no navigation).
+  // domain and only the world inside changes. This is the COMMIT half of the browse
+  // loop: the browse state machine is the ONLY caller allowed to reach the swap (a
+  // directory click now only PEEKS — see peekWorld). A failed build leaves the player
+  // on their current world (fail-closed, no navigation).
   async function travelToWorld(world, opts = {}) {
     if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
-    // Iris cross over the swap.
+    // The iris cross now reveals the LIVE mirror (world B rendered + streamed
+    // through the aperture) before the real swap lands beneath it.
     try {
       if (!isPortalRevealing()) {
         beginPortalReveal({
@@ -2413,9 +2424,101 @@ export function createArenaRuntime(hooks = {}) {
     }
   }
 
+  // _blitPreview() — copy the mirror's latest frame into the gateway panel's preview
+  // <canvas> (read-back throttled to ~5 Hz so the panel shows a live-ish peek without
+  // a readPixels stall every frame). No-op when the gateway screen isn't showing a
+  // preview canvas (not open / not peeking).
+  function _blitPreview() {
+    const canvas = getGatewayPreviewCanvas();
+    if (!canvas || !_mirror || !_mirror.isBuilt()) return;
+    const now = performance.now();
+    if (now - _lastPreviewBlit < 200) return;
+    _lastPreviewBlit = now;
+    const target = _mirror.target();
+    if (!target) return;
+    try {
+      const w = target.width, h = target.height;
+      if (canvas.width !== w) { canvas.width = w; }
+      if (canvas.height !== h) { canvas.height = h; }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const buf = new Uint8Array(w * h * 4);
+      renderer.readRenderTargetPixels(target, 0, 0, w, h, buf);
+      const img = ctx.createImageData(w, h);
+      img.data.set(buf);
+      // GL reads bottom-up; flip so the panel preview isn't upside down.
+      const flipped = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y++) {
+        const src = (h - 1 - y) * w * 4;
+        const dst = y * w * 4;
+        flipped.data.set(buf.subarray(src, src + w * 4), dst);
+      }
+      ctx.putImageData(flipped, 0, 0);
+    } catch (e) {
+      // Read-back is best-effort: a failed blit leaves the preview dark/stale, never
+      // breaks travel.
+      console.warn('[peek] preview blit failed:', e && e.message ? e.message : e);
+    }
+  }
+
+  // peekWorld(world, { wsEndpoint }) — the BROWSE-LOOP peek (v0.2.865). Builds the
+  // destination world ONLY into the offscreen mirror + a read-only spectator stream
+  // (the iris/panel look into world B). It never touches the live scene: no swap, no
+  // teardown, no respawn. Returns { tier } so the host can reflect 'peek' | 'live' |
+  // 'none'. Clicking the next name just calls this again (the mirror disposes + rebuilds).
+  function peekWorld(world, { wsEndpoint } = {}) {
+    if (!world || typeof world !== 'object') return { tier: 'none' };
+    // Arm the iris reveal so the gate aperture shows the mirror (the player is still
+    // standing in their own world BEHIND the cross when it settles).
+    try {
+      if (!isPortalRevealing()) {
+        beginPortalReveal({
+          gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
+          apertureRadius: 1.6,
+          skyAHex: '#cfe3f7',
+          skyBHex: '#0e1a2e',
+          durationMs: 1400,
+        });
+      }
+    } catch (e) { console.warn('[peek] iris failed:', e && e.message ? e.message : e); }
+    let tier = 'none';
+    try { tier = (openLiveMirror(world, { wsEndpoint }) || {}).tier || 'none'; }
+    catch (e) { tier = 'none'; console.warn('[peek] mirror failed:', e && e.message ? e.message : e); }
+    return { tier };
+  }
+
+  // commitPeek() — the 入 (enter) action. The ONLY transition that may swap the world.
+  // The state machine answers swap=true ONLY from an open peek; anything else is refused
+  // (no swap) so a stray second click or a click before a peek is inert.
+  async function commitPeek() {
+    const r = _browse.step(BROWSE_ACTION.COMMIT);
+    if (!r.swap || !_pendingTravel || !_pendingTravel.world) return { ok: false, reason: 'no-peek' };
+    const { world, wsEndpoint } = _pendingTravel;
+    _pendingTravel = null;
+    try { closeGatewayScreen(); } catch { /* noop */ }
+    return await travelToWorld(world, { wsEndpoint });
+  }
+
+  // cancelBrowsePeek() — the ✕ / Esc back-away. Tears the mirror down (no swap) and
+  // returns the machine to the directory so the next click can peek fresh.
+  function cancelBrowsePeek() {
+    _browse.step(BROWSE_ACTION.CANCEL);
+    _pendingTravel = null;
+    closeLiveMirror();
+    try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
+  }
+
+  async function _handlePeek(world, { wsEndpoint } = {}) {
+    const r = _browse.step(BROWSE_ACTION.PEEK);
+    if (!r.changed) return { tier: 'none', refused: true };
+    _pendingTravel = { world, wsEndpoint };
+    return peekWorld(world, { wsEndpoint });
+  }
+
   return {
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
     setCustomMeshHash, setSpawnOverride, stopMultiplayer, travelToWorld,
+    peekWorld: _handlePeek, commitPeek, cancelBrowsePeek,
     // v0.2.768-alpha — re-seat + reload player/FP meshes on re-entry (Bug A).
     reloadCharacterAssets,
     // v0.2.767-alpha — headless FP-body seam for custom characters.

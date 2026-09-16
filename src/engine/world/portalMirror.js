@@ -18,6 +18,8 @@
 
 import * as THREE from 'three';
 import { buildMinimalWorld } from './worldRenderer.js';
+import { buildTerrainVisual } from './terrainVisual.js';
+import { resolveSkyColor } from './skyColor.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
 
@@ -28,6 +30,7 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   let _camera = null;
   let _target = null;
   let _built = false;
+  let _terrainMeshes = [];  // world.terrain visual-only meshes ({mesh,dispose})
 
   // Avatar pool: capsules, split into bot (green) vs peer (cyan) materials.
   const _avatars = [];
@@ -66,6 +69,9 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       _target = new T.WebGLRenderTarget(targetWidth, targetHeight);
     }
     if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
+    // Drop any terrain meshes a prior build added (rebuild is idempotent).
+    for (const m of _terrainMeshes) { try { m.dispose && m.dispose(); } catch { /* noop */ } }
+    _terrainMeshes.length = 0;
 
     _world = buildMinimalWorld(world, {
       scene: _scene, sun: _sun, THREE: T, assetUrl, loadGltf,
@@ -76,6 +82,21 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     const py = _world.platformY || 0;
     _camera.position.set(spawn.x + 10, py + 7, spawn.z + 12);
     _camera.lookAt(spawn.x, py + 1, spawn.z);
+
+    // Sky: paint the destination world's colour (the mirror scene has no Sky.js, so
+    // an unpainted background reads as a black iris).
+    try { _scene.background = new T.Color(resolveSkyColor(world)); } catch { /* noop */ }
+
+    // Terrain: build the destination's REAL island (visual-only) so the peek shows
+    // the world the traveller would walk into, not a flat platform. Inline heights
+    // build synchronously; add the meshes straight into the mirror scene.
+    try {
+      const tv = buildTerrainVisual(world, { THREE: T });
+      if (tv && tv.ok) {
+        for (const m of tv.meshes) { if (m && m.mesh) { _scene.add(m.mesh); _terrainMeshes.push(m); } }
+      }
+    } catch { /* noop */ }
+
     _built = true;
     return true;
   }
@@ -132,6 +153,8 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
 
   function dispose() {
     if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
+    for (const m of _terrainMeshes) { try { m.dispose && m.dispose(); } catch { /* noop */ } }
+    _terrainMeshes.length = 0;
     if (_botMat) { try { _botMat.dispose(); } catch { /* noop */ } _botMat = null; }
     if (_peerMat) { try { _peerMat.dispose(); } catch { /* noop */ } _peerMat = null; }
     if (_avatars.length) {

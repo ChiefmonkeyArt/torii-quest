@@ -74,6 +74,9 @@ export function createBeacon(opts = {}) {
     website = '',
     title = 'Torii Quest',
     zoneId = 'quest-torii',
+    displayName = '',
+    avatar = '',
+    wsEndpoint = '',
     fs = nodeFs,
     now = () => Date.now(),
     generateKey = generateSecretKey,
@@ -259,6 +262,12 @@ export function createBeacon(opts = {}) {
       website,
       relays: relayList,
       npub: npub || undefined,
+      // ADR-0119: enrich presence with the owner's display identity + the node's
+      // arena WebSocket endpoint so the directory shows the PERSON (not 'Torii
+      // Quest') and the live-mirror tier has a stream to dial.
+      displayName: (typeof displayName === 'string' && displayName.trim()) ? displayName.trim() : undefined,
+      avatar: (typeof avatar === 'string' && avatar.trim()) ? avatar : undefined,
+      wsEndpoint: (typeof wsEndpoint === 'string' && wsEndpoint.trim()) ? wsEndpoint : undefined,
     });
     if (!built || !built.ok || !built.event) return { ok: false, error: 'build-failed' };
 

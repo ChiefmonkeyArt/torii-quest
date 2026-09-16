@@ -324,3 +324,74 @@ describe('buildWorldTerrain — mesh integration', () => {
     expect(THREE._disposed.mat).toBe(1);
   });
 });
+
+describe('loadWorldTerrainData — inline heights (ADR-0119)', () => {
+  it('loads inline heights without a source module (no loader needed)', async () => {
+    const terrain = { rows: 2, cols: 3, scale: [10, 1, 8], offset: [5, 0, 4], heights: [0, 1, 2, 3, 4, 5] };
+    // No loadTerrainSource injected at all — inline heights must not need it.
+    const r = await loadWorldTerrainData(terrain, {});
+    expect(r.ok).toBe(true);
+    expect(r.data.heights).toBeInstanceOf(Float32Array);
+    expect(Array.from(r.data.heights)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(r.data.source).toBeUndefined();
+  });
+
+  it('accepts a Float32Array inline heights directly', async () => {
+    const terrain = { rows: 2, cols: 3, scale: [10, 1, 8], heights: new Float32Array([0, 1, 2, 3, 4, 5]) };
+    const r = await loadWorldTerrainData(terrain, {});
+    expect(r.ok).toBe(true);
+    expect(r.data.heights).toBeInstanceOf(Float32Array);
+  });
+
+  it('fails inline heights when the length does not equal rows*cols', async () => {
+    const terrain = { rows: 2, cols: 3, scale: [10, 1, 8], heights: [1, 2] };
+    const r = await loadWorldTerrainData(terrain, {});
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe('buildWorldTerrain — zones (ADR-0119)', () => {
+  it('builds one collider + mesh per zone and aggregates a single dispose', async () => {
+    const deps = mockDeps({});
+    const T = mockThree();
+    const world = {
+      terrain: {
+        zones: [
+          { rows: 2, cols: 2, scale: [40, 1, 40], offset: [0, 0, 0], heights: [1, 1, 1, 1] },
+          { rows: 2, cols: 2, scale: [25, 1, 40], offset: [32.5, 0, 0], heights: [0.5, 0.5, 0.5, 0.5] },
+        ],
+      },
+    };
+    const r = await buildWorldTerrain(world, { physicsWorld: deps.physicsWorld, Rapier: deps.Rapier, THREE: T });
+    expect(r.ok).toBe(true);
+    expect(r.terrain.colliders).toHaveLength(2);
+    expect(r.terrain.meshes).toHaveLength(2);
+    expect(deps.rapier._heightfieldCalls).toHaveLength(2);
+    // First zone collider gets rows-1=1, cols-1=1 (cell counts).
+    expect(deps.rapier._heightfieldCalls[0]).toMatchObject({ nrows: 1, ncols: 1 });
+    // dispose removes both colliders.
+    r.terrain.dispose();
+    expect(deps.physicsWorld._removed).toHaveLength(2);
+  });
+
+  it('fails the whole terrain when ANY zone fails (no half-built island)', async () => {
+    const deps = mockDeps({});
+    const world = {
+      terrain: {
+        zones: [
+          { rows: 2, cols: 2, scale: [40, 1, 40], heights: [1, 1, 1, 1] },
+          { rows: 3, cols: 3, scale: [25, 1, 40], heights: [1, 2] }, // length 2 != 9
+        ],
+      },
+    };
+    const r = await buildWorldTerrain(world, { physicsWorld: deps.physicsWorld, Rapier: deps.Rapier });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/zone\[1\]/);
+  });
+
+  it('returns ok + null terrain when zones is empty (no ground declared)', async () => {
+    const r = await buildWorldTerrain({ terrain: { zones: [] } }, {});
+    expect(r.ok).toBe(true);
+    expect(r.terrain).toBeNull();
+  });
+});

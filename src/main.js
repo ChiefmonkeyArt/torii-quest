@@ -217,6 +217,7 @@ import {
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
+import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // v0.3: the Instance Settings tab (arrival-mode / write-policy admin
@@ -974,6 +975,59 @@ async function _admitInboundTraveller() {
 }
 _admitInboundTraveller();
 
+// _ownerProfileCache — kind:0 profile enrichment for directory rows whose presence
+// carries no operator identity. Keyed by pubkey hex; TTL so a profile edit surfaces
+// on the next scan without a hard reload.
+const _ownerProfileCache = new Map();
+const _OWNER_PROFILE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+// _enrichWorldOwners(worlds) — populate displayName/avatar for rows without an
+// operator identity by resolving each owner's kind:0 profile (the name the owner
+// SELF-published, not attacker-controlled presence content). Best-effort: a failed
+// lookup leaves the row unchanged and worldDirectoryLabel falls back to
+// title/shortPubkey. ADR-0119 slice-5 (directory shows the person, not 'Torii Quest').
+async function _enrichWorldOwners(worlds) {
+  if (!Array.isArray(worlds)) return worlds;
+  const nowMs = Date.now();
+  const missing = [];
+  const seen = new Set();
+  for (const w of worlds) {
+    if (!w || w.displayName) continue;
+    const owner = (typeof w.owner === 'string' ? w.owner : '') || (typeof w.pubkey === 'string' ? w.pubkey : '');
+    const ok = /^[0-9a-f]{64}$/.test(owner) ? owner.toLowerCase() : '';
+    if (!ok || seen.has(ok)) continue;
+    const c = _ownerProfileCache.get(ok);
+    if (c && c.expiresAt > nowMs) continue;
+    seen.add(ok);
+    missing.push(ok);
+  }
+  if (!missing.length) return worlds;
+  await Promise.all(missing.map(async (owner) => {
+    try {
+      const profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
+      _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
+    } catch {
+      _ownerProfileCache.set(owner, { profile: null, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
+    }
+  }));
+  for (const w of worlds) {
+    if (!w || w.displayName) continue;
+    const owner = (typeof w.owner === 'string' && w.owner) || (typeof w.pubkey === 'string' ? w.pubkey : '');
+    if (!/^[0-9a-f]{64}$/.test(owner)) continue;
+    const c = _ownerProfileCache.get(owner.toLowerCase());
+    const p = c && c.profile;
+    if (!p) continue;
+    if (!w.displayName && typeof p.displayName === 'string' && p.displayName && p.displayName !== p.shortPubkey) {
+      w.displayName = p.displayName;
+    }
+    if (!w.avatar && typeof p.picture === 'string' && p.picture) {
+      const safe = safeProfileUrl(p.picture);
+      if (safe) w.avatar = safe;
+    }
+  }
+  return worlds;
+}
+
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
   if (!_worldsCache.length) renderGatewayCard();
@@ -998,6 +1052,11 @@ async function refreshOnlineWorlds() {
   _worldsCache = r.worlds || [];
   _worldsScan = 'idle';
   renderGatewayCard();
+  // ADR-0119 slice-5: enrich owner identity (kind:0 displayName/avatar) for rows
+  // whose presence omitted it, then re-render so the directory shows the person.
+  const before = _worldsCache.length;
+  await _enrichWorldOwners(_worldsCache);
+  if (_worldsCache.length !== before || _worldsCache.some((w) => w && w.displayName)) renderGatewayCard();
   // Friend detection rides the same scan cadence. Fail-soft: any relay error
   // leaves the friend caches empty so arenas still renders every world.
   await _refreshFriendData();
@@ -1165,6 +1224,11 @@ async function _publishPresenceOnce() {
     relays,
     displayName: opDisplayName,
     avatar: (typeof draft.picture === 'string') ? draft.picture : '',
+    // ADR-0119: the arena WebSocket endpoint (wss://host/mp) so travellers can dial
+    // the live-mirror spectator stream. Absent when there is no browser origin.
+    wsEndpoint: (typeof window !== 'undefined' && window.location && window.location.host)
+      ? `wss://${window.location.host}/mp`
+      : '',
     // NIP-40 default-on (1200s / 20 min) — stale nodes auto-drop from the directory.
   });
   if (!built.ok) { _heartbeat.lastError = 'build-failed'; return { ok: false, error: 'build-failed' }; }

@@ -2355,8 +2355,41 @@ export function createArenaRuntime(hooks = {}) {
       _platformY = _worldRt.platformY || 0;
       if (_worldRt.ready) { _worldRt.ready.catch(() => {}); }
 
-      // Rebuild physics: a standable platform + per-object colliders.
-      try { _addPlatformCollider(_platformY); } catch (e) { console.warn('[travel] platform collider failed:', e && e.message ? e.message : e); }
+      // Build the destination's TERRAIN (ADR-0119) so the traveller lands on real
+      // island ground, not the cloud-platform fallback. Inline heights (content-
+      // addressed) need no source loader; a source path reuses the boot loader.
+      if (_minimalWorld && _minimalWorld.terrain) {
+        try {
+          const rter = await buildWorldTerrain(_minimalWorld, {
+            physicsWorld: getWorld(),
+            Rapier: getRapier(),
+            THREE,
+            loadTerrainSource: makeTerrainLoader({
+              worldId: _minimalWorld.id || _worldId,
+              fetchImpl: fetch,
+              importModule: (url) => import(/* @vite-ignore */ url),
+              resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+            }),
+          });
+          if (!rter.ok) {
+            console.warn('[travel] terrain build failed; using platform collider:', rter.error);
+          } else if (rter.terrain) {
+            _worldTerrain = rter.terrain;
+            for (let i = 0; i < rter.terrain.meshes.length; i++) scene.add(rter.terrain.meshes[i]);
+            if (_worldRt && Array.isArray(_worldRt.fallbackGround)) {
+              for (let i = 0; i < _worldRt.fallbackGround.length; i++) _worldRt.fallbackGround[i].visible = false;
+            }
+          }
+        } catch (e) {
+          console.warn('[travel] terrain build threw; using platform collider:', e && e.message ? e.message : e);
+        }
+      }
+
+      // Rebuild physics: a standable platform fallback + per-object colliders.
+      // The platform collider is skipped when terrain was built (terrain IS the ground).
+      if (!_worldTerrain) {
+        try { _addPlatformCollider(_platformY); } catch (e) { console.warn('[travel] platform collider failed:', e && e.message ? e.message : e); }
+      }
       try {
         _worldColliders = buildWorldObjectColliders(_minimalWorld, { physicsWorld: getWorld(), Rapier: getRapier() });
       } catch (e) { console.warn('[travel] object colliders failed:', e && e.message ? e.message : e); }

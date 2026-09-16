@@ -40,40 +40,50 @@
 // null/absent. Returns {ok:false, error} on any failure.
 export async function loadWorldTerrainData(terrain, { loadTerrainSource } = {}) {
   if (!terrain) return { ok: true, data: null };
-  if (typeof loadTerrainSource !== 'function') {
-    return { ok: false, error: 'loadWorldTerrainData: loadTerrainSource dep missing' };
-  }
   const { source, rows, cols } = terrain;
 
-  let mod;
-  try {
-    mod = await loadTerrainSource(source);
-  } catch (err) {
-    return { ok: false, error: `terrain source "${source}" load failed: ${_errMsg(err)}` };
-  }
-  if (mod == null || typeof mod !== 'object') {
-    return { ok: false, error: `terrain source "${source}" did not export a module object` };
+  let heights;
+  if (terrain.heights) {
+    // Inline heights (content-addressed travel, ADR-0119): the manifest carries
+    // the heightfield directly, so no module load / network is needed. Normalise
+    // a plain array (or Float32Array) to a Float32Array.
+    heights = (terrain.heights instanceof Float32Array)
+      ? terrain.heights
+      : ((typeof terrain.heights.length === 'number') ? new Float32Array(terrain.heights) : null);
+    if (!heights) return { ok: false, error: 'terrain inline heights must be an array' };
+  } else {
+    if (typeof loadTerrainSource !== 'function') {
+      return { ok: false, error: 'loadWorldTerrainData: loadTerrainSource dep missing' };
+    }
+    let mod;
+    try {
+      mod = await loadTerrainSource(source);
+    } catch (err) {
+      return { ok: false, error: `terrain source "${source}" load failed: ${_errMsg(err)}` };
+    }
+    if (mod == null || typeof mod !== 'object') {
+      return { ok: false, error: `terrain source "${source}" did not export a module object` };
+    }
+    // heights: prefer buildHeightfieldArray() (lazy), fall back to `heights` (eager).
+    if (typeof mod.buildHeightfieldArray === 'function') {
+      try {
+        heights = mod.buildHeightfieldArray();
+      } catch (err) {
+        return { ok: false, error: `buildHeightfieldArray() threw: ${_errMsg(err)}` };
+      }
+    } else {
+      heights = mod.heights;
+    }
+    // Normalise a plain array (from .json modules) to a Float32Array.
+    if (Array.isArray(heights)) heights = new Float32Array(heights);
+    if (!(heights instanceof Float32Array)) {
+      return {
+        ok: false,
+        error: `terrain source "${source}" must export heights (Float32Array) or buildHeightfieldArray()`,
+      };
+    }
   }
 
-  // heights: prefer buildHeightfieldArray() (lazy), fall back to `heights` (eager).
-  let heights;
-  if (typeof mod.buildHeightfieldArray === 'function') {
-    try {
-      heights = mod.buildHeightfieldArray();
-    } catch (err) {
-      return { ok: false, error: `buildHeightfieldArray() threw: ${_errMsg(err)}` };
-    }
-  } else {
-    heights = mod.heights;
-  }
-  // Normalise a plain array (from .json modules) to a Float32Array.
-  if (Array.isArray(heights)) heights = new Float32Array(heights);
-  if (!(heights instanceof Float32Array)) {
-    return {
-      ok: false,
-      error: `terrain source "${source}" must export heights (Float32Array) or buildHeightfieldArray()`,
-    };
-  }
   if (heights.length !== rows * cols) {
     return {
       ok: false,
@@ -223,6 +233,14 @@ export function buildWorldTerrainMesh(data, { THREE } = {}) {
 //                            own terrain).
 export async function buildWorldTerrain(world, deps = {}) {
   if (!world || !world.terrain) return { ok: true, terrain: null };
+  // ADR-0119: a multi-zone terrain (world.terrain.zones) delegates to the zones
+  // builder so content-addressed travel lands on the full island layout, not a
+  // single heightfield. An EMPTY zones list means no ground was declared → no-op
+  // (the caller's platform collider fallback takes over), never a source load.
+  if (Array.isArray(world.terrain.zones)) {
+    if (world.terrain.zones.length === 0) return { ok: true, terrain: null };
+    return buildWorldTerrainZones(world, deps);
+  }
   const loaded = await loadWorldTerrainData(world.terrain, deps);
   if (!loaded.ok) return { ok: false, error: loaded.error };
   if (!loaded.data) return { ok: true, terrain: null };
@@ -257,4 +275,38 @@ export async function buildWorldTerrain(world, deps = {}) {
 
 function _errMsg(err) {
   return err && err.message ? String(err.message) : String(err);
+}
+
+// buildWorldTerrainZones(world, deps) → async { ok, error?, terrain }
+//   The MULTI-ZONE counterpart to buildWorldTerrain (ADR-0119): `world.terrain.zones`
+//   is a list of heightfields (arena + nap in the Mitsudomoe layout). Each zone is
+//   loaded (inline heights or a source module) + built into a collider + mesh. A
+//   failure on ANY zone fails the WHOLE terrain (→ legacy fallback) so a half-built
+//   island layout can't leave players walking on missing ground. Zones carry no `name`
+//   in the schema, so they are built positionally (first = arena, second = nap); the
+//   caller (arenaRuntime) merges their meshes into the scene and exposes a single
+//   dispose. Pure; never throws.
+export async function buildWorldTerrainZones(world, deps = {}) {
+  if (!world || !world.terrain || !Array.isArray(world.terrain.zones) || world.terrain.zones.length === 0) {
+    return { ok: true, terrain: null };
+  }
+  const zones = world.terrain.zones;
+  const colliders = [];
+  const meshes = [];
+  const disposes = [];
+  for (let i = 0; i < zones.length; i++) {
+    const zone = zones[i];
+    const loaded = await loadWorldTerrainData(zone, deps);
+    if (!loaded.ok || !loaded.data) return { ok: false, error: `zone[${i}]: ${loaded.error || 'no-data'}` };
+    const colliderResult = buildWorldTerrainCollider(loaded.data, deps);
+    if (!colliderResult.ok) return { ok: false, error: `zone[${i}]: ${colliderResult.error}` };
+    if (colliderResult.collider) { colliders.push(colliderResult.collider); disposes.push(colliderResult.dispose); }
+    if (deps.THREE) {
+      const meshResult = buildWorldTerrainMesh(loaded.data, deps);
+      if (!meshResult.ok) return { ok: false, error: `zone[${i}]: ${meshResult.error}` };
+      if (meshResult.mesh) { meshes.push(meshResult.mesh); disposes.push(meshResult.dispose); }
+    }
+  }
+  const dispose = () => { for (const d of disposes) { try { d(); } catch { /* best-effort */ } } };
+  return { ok: true, terrain: { colliders, bodies: [], meshes, dispose } };
 }

@@ -793,6 +793,37 @@ The name is stamped into the presence record and takes effect on the next
 pulse (≤10 min), or immediately after the restart. Verified live on
 v0.2.862-alpha.
 
+### 16.2c Handing to another operator (Bekka-style)
+
+Every operator sets their OWN name on their OWN node — the app never ships a
+hardcoded name. Give a fellow operator this exact block (they run it on
+THEIR VPS, not yours):
+
+```bash
+sudo systemctl edit torii-arena-ws.service
+```
+
+Paste, then save and exit:
+
+```ini
+[Service]
+Environment=QUEST_ADMIN_NAME=BitcoinBekka
+Environment=QUEST_ADMIN_AVATAR=https://example.com/avatar.png
+```
+
+Then restart so the beacon re-stamps on the next pulse:
+
+```bash
+sudo systemctl restart torii-arena-ws.service && sudo journalctl -u torii-arena-ws.service -n 20 --no-pager
+```
+
+What to check before a two-node playtest:
+- The directory row shows the operator's name (not "Torii Quest"). If it still
+  shows the title, their env did not land — check the unit with `systemctl cat`.
+- Their beacon is publishing a `torii-world` reference, not presence alone: query
+  the relays for kind 30078 + `#t` = `torii-world`. Without it, travel cannot
+  resolve a destination manifest.
+
 ### 16.3 Verify end-to-end
 
 From the VPS itself (loopback, bypasses Caddy):

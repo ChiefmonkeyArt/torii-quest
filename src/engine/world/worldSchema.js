@@ -46,6 +46,20 @@ const COLLIDER_SHAPES = Object.freeze(['box', 'cylinder']);
 // strict style) so a malformed manifest is never silently truncated.
 const OBJECT_CAP = 64;
 
+// Arena-shooter gameplay config (ADR-0119). A closed whitelist of numeric fields;
+// unknown keys are dropped so a manifest can ship a subset without failing. The
+// bots/boss sim is server-authoritative, but the config travels so an operator's
+// world reproduces its combat when rebuilt elsewhere.
+const COMBAT_FIELDS = Object.freeze([
+  'botCount', 'botHp', 'botSpeed', 'botShootCd', 'botSight', 'botDamage',
+  'botSpread', 'botBodyRadius', 'botHeadRadius', 'bossCount', 'bossHp',
+  'bossSpeed', 'bossDamage', 'bossShootCd', 'bossRadius', 'bossTargetHeight',
+  'bodyDamage', 'headshotDamage', 'lagCompMs',
+]);
+
+// Arena/NAP geometry (ADR-0119). Numeric-only, copied verbatim when present.
+const BOUNDS_FIELDS = Object.freeze(['arenaHalf', 'napX', 'napFarX', 'wallH', 'wallWallH']);
+
 function _isBlank(v) { return v == null || v === ''; }
 
 function _isInt(v) { return typeof v === 'number' && Number.isFinite(v) && Number.isInteger(v); }
@@ -88,6 +102,46 @@ function _toStrArray(v) {
     .map((r) => (_isStr(r) ? r.trim() : ''))
     .filter((r) => r !== '');
   return out.length ? out : undefined;
+}
+
+// Coerce a flat array of finite numbers (accepts numeric strings, since a
+// JSON-serialised heightfield is read back as numbers anyway). `len` is optional;
+// when given the length must match exactly (rows*cols) or the array is rejected.
+// Returns a copied plain number[] (never the caller's array) or null.
+function _toFiniteArray(v, len) {
+  if (!Array.isArray(v)) return null;
+  if (len != null && v.length !== len) return null;
+  const out = new Array(v.length);
+  for (let i = 0; i < v.length; i += 1) {
+    const n = _toNum(v[i]);
+    if (n === undefined) return null;
+    out[i] = n;
+  }
+  return out;
+}
+
+// Validate a single terrain ZONE (ADR-0119): rows/cols >= 2, scale = [x,y,z] all
+// positive, and EITHER inline `heights` (length rows*cols) OR a `source` module
+// path (the existing ship-with-the-build form). Returns a normalised zone object
+// or null. Pure; a bad zone is dropped, never raises.
+function _validateTerrainZone(z) {
+  if (!z || typeof z !== 'object' || Array.isArray(z)) return null;
+  const rows = _toNum(z.rows);
+  const cols = _toNum(z.cols);
+  if (!_isInt(rows) || rows < 2 || !_isInt(cols) || cols < 2) return null;
+  const scale = _toVec3(z.scale);
+  if (!scale || !scale.every((n) => n > 0)) return null;
+  const source = _safeDataSourcePath(z.source);
+  const heights = _toFiniteArray(z.heights, rows * cols);
+  if (!source && !heights) return null;
+  const out = { rows, cols, scale };
+  if (source) out.source = source;
+  if (heights) out.heights = heights;
+  const offset = _toVec3(z.offset);
+  if (offset) out.offset = offset;
+  const seaLevel = _toNum(z.seaLevel);
+  if (seaLevel !== undefined) out.seaLevel = seaLevel;
+  return out;
 }
 
 // validateWorld(data) → { ok, errors, world }. Pure; never throws. Required
@@ -192,6 +246,42 @@ export function validateWorld(data) {
       if (tSea !== undefined) terrain.seaLevel = tSea;
       world.terrain = terrain;
     }
+  }
+
+  // terrain.zones (ADR-0119) — MULTI-ZONE ground: a list of named heightfields
+  // (arena + nap, matching the legacy Mitsudomoe layout). Each zone carries EITHER
+  // inline `heights` (content-addressed travel) OR a `source` module path, plus
+  // rows/cols/scale[/offset/seaLevel]. A bad zone is dropped (never fails the
+  // world); a valid zones list REPLACES the singular `terrain` field.
+  if (Array.isArray(data.terrain && data.terrain.zones)) {
+    const zones = [];
+    for (const z of data.terrain.zones) {
+      const zone = _validateTerrainZone(z);
+      if (zone) zones.push(zone);
+    }
+    if (zones.length) {
+      world.terrain = { zones };
+    }
+  }
+
+  // combat (ADR-0119) — arena-shooter config (whitelisted numeric fields).
+  if (data.combat != null && typeof data.combat === 'object' && !Array.isArray(data.combat)) {
+    const combat = {};
+    for (const key of COMBAT_FIELDS) {
+      const n = _toNum(data.combat[key]);
+      if (n !== undefined && n >= 0) combat[key] = n;
+    }
+    if (Object.keys(combat).length) world.combat = combat;
+  }
+
+  // bounds (ADR-0119) — arena/NAP geometry constants (whitelisted numeric fields).
+  if (data.bounds != null && typeof data.bounds === 'object' && !Array.isArray(data.bounds)) {
+    const bounds = {};
+    for (const key of BOUNDS_FIELDS) {
+      const n = _toNum(data.bounds[key]);
+      if (n !== undefined && n >= 0) bounds[key] = n;
+    }
+    if (Object.keys(bounds).length) world.bounds = bounds;
   }
 
   // sea (boolean) — when true, the runtime builds the procedural ocean mesh

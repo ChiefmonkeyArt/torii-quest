@@ -516,3 +516,75 @@ describe('validateWorld — objects collider validation (Phase 0i)', () => {
     expect(r.errors).toEqual([]); // no errors from the bad collider
   });
 });
+
+describe('validateWorld — terrain zones + combat + bounds (ADR-0119)', () => {
+  const base = { version: 1, id: 'arena-travel', name: 'Arena' };
+
+  it('accepts a multi-zone terrain with inline heights and replaces singular terrain', () => {
+    const r = validateWorld({
+      ...base,
+      terrain: {
+        zones: [
+          { name: 'arena', rows: 2, cols: 2, scale: [40, 1, 40], offset: [0, 0, 0], heights: [1, 1, 1, 1] },
+          { name: 'nap', rows: 2, cols: 2, scale: [25, 1, 40], heights: [0.5, 0.5, 0.5, 0.5], seaLevel: -0.26 },
+        ],
+      },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.terrain.zones).toHaveLength(2);
+    expect(r.world.terrain.zones[0].heights).toEqual([1, 1, 1, 1]);
+    expect(r.world.terrain.zones[0].name).toBeUndefined(); // name is not a schema field (dropped)
+    expect(r.world.terrain.zones[1].seaLevel).toBe(-0.26);
+    expect(r.world.terrain.source).toBeUndefined();
+  });
+
+  it('drops a zone whose heights length does not equal rows*cols', () => {
+    const r = validateWorld({
+      ...base,
+      terrain: {
+        zones: [
+          { rows: 3, cols: 3, scale: [10, 1, 10], heights: [1, 2] }, // 2 != 9
+          { rows: 2, cols: 2, scale: [10, 1, 10], heights: [1, 1, 1, 1] },
+        ],
+      },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.terrain.zones).toHaveLength(1);
+  });
+
+  it('accepts a zone carrying only a source module path (ship-with-build form)', () => {
+    const r = validateWorld({
+      ...base,
+      terrain: { zones: [{ name: 'arena', rows: 240, cols: 228, scale: [72, 1, 76], source: './terrain.json' }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.terrain.zones[0].source).toBe('./terrain.json');
+    expect(r.world.terrain.zones[0].heights).toBeUndefined();
+  });
+
+  it('whitelists combat fields and drops unknown keys', () => {
+    const r = validateWorld({
+      ...base,
+      combat: { botCount: 5, bossHp: 60, evil: 999, lagCompMs: 300 },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.combat).toEqual({ botCount: 5, bossHp: 60, lagCompMs: 300 });
+    expect(r.world.combat.evil).toBeUndefined();
+  });
+
+  it('whitelists bounds fields and coerces numeric strings', () => {
+    const r = validateWorld({
+      ...base,
+      bounds: { arenaHalf: 20, napX: 20, napFarX: '45', wallH: 2.6, bogus: true },
+    });
+    expect(r.ok).toBe(true);
+    expect(r.world.bounds).toEqual({ arenaHalf: 20, napX: 20, napFarX: 45, wallH: 2.6 });
+  });
+
+  it('omits combat/bounds when empty or invalid', () => {
+    const r = validateWorld({ ...base, combat: { botCount: -1 }, bounds: {} });
+    expect(r.ok).toBe(true);
+    expect(r.world.combat).toBeUndefined();
+    expect(r.world.bounds).toBeUndefined();
+  });
+});

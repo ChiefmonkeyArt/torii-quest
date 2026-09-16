@@ -70,6 +70,13 @@ export const MSG = Object.freeze({
   // single-session slot and render a duplicate character. Additive on
   // PROTOCOL_VERSION=1 (older clients drop it via the UNKNOWN_TYPE guard).
   REPLACED:   'REPLACED',
+  // World-as-data live mirror (v0.2.855-alpha, ADR-0118 Decision 4): client→server.
+  // A read-only SPECTATOR subscribes to the world-state broadcast with NO identity —
+  // it can never join, mutate, publish, or be seated. The server fans the same
+  // broadcast frames it sends authed peers, but a spectator can only ever SEND
+  // keepalive (PING/PONG); everything else is refused (spectatorGate.canSpectatorSend).
+  // Additive on PROTOCOL_VERSION=1 (older clients/servers drop it via UNKNOWN_TYPE).
+  SPECTATE:   'SPECTATE',
 });
 
 // Animation hint labels a bot state may carry (mirrors botSim _animHint).
@@ -280,6 +287,10 @@ const validators = {
     if (m.reason !== undefined && !isStr(m.reason, 120)) return fail('BAD_FIELD', 'reason');
     return ok(m);
   },
+  // No fields: subscribe is the whole message. (See SPECTATE in MSG.)
+  [MSG.SPECTATE](m) {
+    return ok(m);
+  },
 };
 
 // ---------- public API ----------
@@ -349,6 +360,7 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.BOT_KILL]:  ['botId', 'shooterId'],
   [MSG.KAMI_STATE]: ['active'],
   [MSG.REPLACED]:  ['reason'],
+  [MSG.SPECTATE]:  [],
 });
 
 /** Is this a known message type? */

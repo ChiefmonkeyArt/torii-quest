@@ -764,6 +764,35 @@ by) any other instance, including the reference install at torii.quest.
    the only place admin identity is decided, and it is checked server-side on
    every session so a client can never grant itself the role.
 
+### 16.2b Set your display name for the live node directory
+
+Your node's presence beacon publishes the world into the live directory; the
+row label is your **display name**, not the app title. Set it (both optional;
+the badge/name simply falls back to an avatar letter + 'Torii Quest' if left
+blank). Add these alongside the `QUEST_ADMIN_NPUB` line in the *same* service
+unit:
+
+```ini
+Environment=QUEST_ADMIN_NAME=Your Name Here
+Environment=QUEST_ADMIN_AVATAR=https://example.com/your-avatar.png
+```
+
+- `QUEST_ADMIN_NAME` — the human label shown next to your node in the in-game
+  Torii menu and the gateway directory (e.g. `chiefmonkey`).
+- `QUEST_ADMIN_AVATAR` — optional; a public image URL. Leave it unset for the
+alphabet-letter badge fallback.
+
+Then reload and restart (same as §16.2a):
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart torii-arena-ws.service
+```
+
+The name is stamped into the presence record and takes effect on the next
+pulse (≤10 min), or immediately after the restart. Verified live on
+v0.2.862-alpha.
+
 ### 16.3 Verify end-to-end
 
 From the VPS itself (loopback, bypasses Caddy):

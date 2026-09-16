@@ -32,6 +32,10 @@ const _u = {
   uSkyBlend: { value: 0 },
   uSoft: { value: 0.02 },
   uActive: { value: 0 },
+  // Live-mirror (ADR-0118): the destination world render-to-target, sampled through
+  // the aperture when bound. 0 = sky-only reveal (degraded), 1 = portal texture.
+  uPortalTex: { value: null },
+  uPortalActive: { value: 0 },
 };
 
 // ── Reveal controller state (driven by the host) ────────────────────────────────
@@ -62,6 +66,8 @@ uniform vec3 uSkyB;       // destination sky (linear)
 uniform float uSkyBlend;  // 0 = origin, 1 = destination
 uniform float uSoft;      // iris edge softness (aperture units)
 uniform float uActive;    // 0 = fully off
+uniform sampler2D uPortalTex;    // destination world render-target (live mirror)
+uniform float uPortalActive;      // 0 = sky-only reveal, 1 = sample uPortalTex
 varying vec2 vUv;
 
 void main() {
@@ -69,10 +75,13 @@ void main() {
   float d = length(vUv - uCenter) / max(uAperture, 1e-4);
   float mask = smoothstep(uIris + uSoft, uIris - uSoft, d);  // 1 inside the iris
   vec3 sky = mix(uSkyA, uSkyB, uSkyBlend);
+  // Destination body: the live world-B texture when bound, else the destination sky.
+  vec3 body = uSkyB;
+  if (uPortalActive > 0.001) { body = texture2D(uPortalTex, vUv).rgb; }
   // A soft warm ring at the aperture edge sells the gate opening as a real physical iris.
   float ring = 1.0 - smoothstep(0.0, uSoft * 1.6, abs(d - uIris));
-  vec3 col = mix(sky, uSkyB, mask * 0.86);        // destination body through the iris
-  col += vec3(1.0, 0.66, 0.34) * ring * 0.55;     // aperture edge glow
+  vec3 col = mix(sky, body, mask * 0.86);        // destination body through the iris
+  col += vec3(1.0, 0.66, 0.34) * ring * 0.55;    // aperture edge glow
   gl_FragColor = vec4(col, uActive * mask);
 }
 `;
@@ -124,6 +133,18 @@ export function endPortalReveal() {
 }
 
 export function isPortalRevealing() { return _revealing; }
+
+/**
+ * Bind the destination world's render-target texture into the iris, so the aperture
+ * reveals the LIVE world-B render (the mirror) rather than a flat sky. Pass null to
+ * drop back to the sky-only reveal. The texture is sampled inside the iris aperture;
+ * outside it the resolving sky is unchanged — so a missing/failed mirror degrades
+ * gracefully to the existing sky behaviour.
+ */
+export function bindPortalTexture(texture) {
+  _u.uPortalTex.value = (texture && typeof texture === 'object') ? texture : null;
+  _u.uPortalActive.value = _u.uPortalTex.value ? 1 : 0;
+}
 
 /**
  * Drive + draw one reveal frame OVER the already-rendered arena. No-op unless a reveal

@@ -66,6 +66,7 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
+import { initPortalSurface, setPortalSurfaceRenderer, beginPortalReveal, endPortalReveal, renderPortalSurface, isPortalRevealing } from './engine/world/portalSurface.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash, suspendAudioContext, resumeAudioContext } from './audio.js';
@@ -754,6 +755,10 @@ export function createArenaRuntime(hooks = {}) {
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
   const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
   const _portalRange = 3;
+  // IRIS / SKY RESOLVE (ADR-0118): bind the shared renderer + build the overlay once.
+  // The reveal is OFF by default — it only draws when beginPortalReveal is armed (KeyG demo).
+  setPortalSurfaceRenderer(renderer);
+  initPortalSurface();
 
   // ── In-world gateway screen (KeyF) ───────────────────────────────────────────
   function _openGatewayScreen() {
@@ -1028,6 +1033,8 @@ export function createArenaRuntime(hooks = {}) {
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
     }
+    // Iris/sky-resolve overlay draws OVER the frame (no-op unless a reveal is armed).
+    renderPortalSurface({ camera, viewWidth: innerWidth, viewHeight: innerHeight });
     if (_firstFrameMarked && !_firstFrameEnded) {
       _firstFrameEnded = true;
       endPhase('first-render');
@@ -1686,6 +1693,21 @@ export function createArenaRuntime(hooks = {}) {
       if (!isPlaying() && !isPaused()) return;
       if (isToriiMenuOpenHook()) { _closeToriiMenu(); return; }
       _openToriiMenu();
+    });
+
+    // KeyG — IRIS/SKY-RESOLVE DEMO (ADR-0118): fire the fullscreen iris from the travel
+    // gate over the live arena. Toggles: press again to clear. Off by default; the real
+    // cross-on-travel wiring replaces this demo trigger once world-B streaming lands.
+    onKeyDown(code => {
+      if (code !== 'KeyG' || !isPlaying()) return;
+      if (isPortalRevealing()) { endPortalReveal(); return; }
+      beginPortalReveal({
+        gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
+        apertureRadius: 1.6,
+        skyAHex: '#cfe3f7',  // origin (dawn) sky
+        skyBHex: '#0e1a2e',  // destination dusk
+        durationMs: 1400,
+      });
     });
 
     const elResumeBtn = document.getElementById('btn-resume');

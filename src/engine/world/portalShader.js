@@ -6,17 +6,20 @@
 // The uniforms (`uIris`, `uSkyBlend`, `uSkyA`, `uSkyB`, `uSoft`) are driven each frame
 // from irisReveal.mirrorTimeline, so the GL stays a dumb sink for the tested math.
 
-// Radial iris aperture: returns 0..1 coverage. uv ∈ [0,1]; distance 0 (centre) → 1
-// (corner). `uIris` 0 = closed, 1 = open; `uSoft` softens the edge so the blades read
-// like a physical iris rather than a hard cookie-cut.
+// Radial iris aperture centred on the GATE, in aperture units (ADR-0118 Decision 6):
+// d = 1 is exactly the gate opening, and `uIris` 1 = aperture window, > 1 = expanded
+// toward fullscreen. `uCenter`/`uAperture` are the gate's screen-space centre + opening
+// radius (from the projected gate); `uSoft` softens the edge like a physical iris.
+//   approach (uIris = 1)  → world B only within the gate opening
+//   cross    (uIris → full) → iris expands past the frame to fullscreen
 export const IRIS_MASK_GLSL = /* glsl */ `
-uniform float uIris;   // 0..1 aperture
-uniform float uSoft;   // edge softness, world units of distance
+uniform vec2 uCenter;    // gate aperture centre (UV)
+uniform float uAperture; // aperture radius (UV)
+uniform float uIris;     // radius in aperture units (1 = gate opening, >1 = fullscreen)
+uniform float uSoft;     // edge softness, aperture units
 float irisMask(vec2 uv) {
-  vec2 c = uv - 0.5;
-  float d = length(c) * 2.0;          // 0 centre → 1 corner
-  float edge = uIris;
-  return smoothstep(edge + uSoft, edge - uSoft, d);
+  float d = length(uv - uCenter) / max(uAperture, 1e-4);
+  return smoothstep(uIris + uSoft, uIris - uSoft, d);
 }
 `;
 
@@ -38,6 +41,8 @@ vec3 skyResolve(vec2 uv, float mask) {
 // render-target of world B; `uPortalUV` maps the screen UV through the portal camera.
 export const PORTAL_REVEAL_GLSL = /* glsl */ `
 uniform sampler2D uPortalTex;
+uniform vec2 uCenter;
+uniform float uAperture;
 uniform vec3 uSkyA;
 uniform vec3 uSkyB;
 uniform float uIris;
@@ -46,8 +51,7 @@ uniform float uSoft;
 varying vec2 vUv;
 
 float _iris(vec2 uv) {
-  vec2 c = uv - 0.5;
-  float d = length(c) * 2.0;
+  float d = length(uv - uCenter) / max(uAperture, 1e-4);
   return smoothstep(uIris + uSoft, uIris - uSoft, d);
 }
 
@@ -55,7 +59,8 @@ void main() {
   float mask = _iris(vUv);
   vec4 portal = texture2D(uPortalTex, vUv);
   vec3 sky = mix(uSkyA, uSkyB, uSkyBlend);
-  // resolve: sky shows first (outside/behind), portal world B fills the opening hole
+  // approach: origin sky outside, world B in the aperture; cross: iris expands while
+  // the destination sky resolves, until world B fills the screen.
   vec3 col = mix(sky, portal.rgb, mask);
   gl_FragColor = vec4(col, 1.0);
 }

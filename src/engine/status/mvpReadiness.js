@@ -54,8 +54,8 @@ const SAFETY_FLAGS = Object.freeze([
 // (toriiQuestData.js) — a unit test (tests/torii-quest-dashboard.render.test.js, v0.2.200) asserts
 // the two captures agree, so this count can't quietly drift from the dashboard's.
 export const DEFAULT_TEST_STATUS = Object.freeze({
-  passing: 4778,
-  files: 391,
+  passing: 4781,
+  files: 392,
   profile: 'full',
   ok: true,
 });

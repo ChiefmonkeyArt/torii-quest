@@ -56,10 +56,14 @@ describe('v0.2.790 — sovereign-host purge (no pplx/perplexity reference)', () 
     expect(offenders).toEqual([]);
   });
 
-  it('src/main.js private-visit allowlist is localhost-only (no subdomain allowlist)', () => {
+  it('open-visit travel renders IN PLACE — it never browser-navigates to another host', () => {
+    // v0.2.858: cross-host travel (window.location.href = visit.url) is removed. The
+    // default open-visit path resolves the world by npub and swaps it into this shell.
     const main = read('src/main.js');
-    expect(main).toContain("return h === 'localhost';");
-    expect(main).not.toContain('.pplx.app');
+    expect(main).toContain('resolveWorldByNpub');
+    expect(main).toContain('travelToWorld');
+    expect(main).not.toContain('window.location.href = visit.url');
+    expect(main).toContain('_arena.travelToWorld');
   });
 
   it('live-host fixtures resolve to chiefmonkey.art, never the retired subdomain', () => {

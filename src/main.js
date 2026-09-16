@@ -832,8 +832,9 @@ async function _gwOpenVisit(world, opts) {
   }
 
   if (_arena && typeof _arena.travelToWorld === 'function') {
-    // An iris cross hides the swap; the method rebuilds physics + respawns.
-    const result = await _arena.travelToWorld(resolved.world);
+    // The iris cross now reveals the LIVE mirror (world-B render + read-only spectator
+    // stream of the destination's wsEndpoint) before the real swap lands beneath it.
+    const result = await _arena.travelToWorld(resolved.world, { wsEndpoint: world.wsEndpoint });
     if (!result || !result.ok) console.warn('in-place travel failed:', result && result.reason);
   } else {
     console.warn('in-place travel failed: arena unavailable');

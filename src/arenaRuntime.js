@@ -66,7 +66,9 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
-import { initPortalSurface, setPortalSurfaceRenderer, beginPortalReveal, endPortalReveal, renderPortalSurface, isPortalRevealing } from './engine/world/portalSurface.js';
+import { initPortalSurface, setPortalSurfaceRenderer, beginPortalReveal, endPortalReveal, renderPortalSurface, isPortalRevealing, bindPortalTexture } from './engine/world/portalSurface.js';
+import { createPortalMirror } from './engine/world/portalMirror.js';
+import { createSpectatorClient, SPECTATOR_STATE } from './engine/multiplayer/spectatorClient.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
 import { playShoot, playFootstep, playJumpLand, playSplash, suspendAudioContext, resumeAudioContext } from './audio.js';
@@ -626,6 +628,9 @@ export function createArenaRuntime(hooks = {}) {
   let _platformY = 0;
   let _platformBody = null;
   let _worldColliders = null;
+  // Portal live-mirror (ADR-0118): the destination world rendered through the gate.
+  let _mirror = null;        // createPortalMirror instance (offscreen world-B)
+  let _mirrorClient = null;  // createSpectatorClient (read-only live stream)
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
@@ -1033,6 +1038,15 @@ export function createArenaRuntime(hooks = {}) {
       renderFrame(isLive() && !isStickerPlacementActive()); // hide the gun viewmodel while placing a sticker
     } catch (e) {
       console.warn('[render] frame skipped:', e.message);
+    }
+    // Portal live-mirror: render the destination world-B into its offscreen target and
+    // (when live) project the spectator stream onto the avatar pool BEFORE the overlay,
+    // so the iris reveals the LIVE destination, not a sky. No-op unless the mirror is open.
+    if (_mirror && _mirror.isBuilt()) {
+      if (_mirrorClient && _mirrorClient.state === SPECTATOR_STATE.LIVE) {
+        _mirror.setRoster(_mirrorClient.readBots(), _mirrorClient.readPeers());
+      }
+      _mirror.render(renderer);
     }
     // Iris/sky-resolve overlay draws OVER the frame (no-op unless a reveal is armed).
     renderPortalSurface({ camera, viewWidth: innerWidth, viewHeight: innerHeight });
@@ -2244,13 +2258,60 @@ export function createArenaRuntime(hooks = {}) {
     if (_mp) { try { _mp.start(); } catch { /* noop */ } }
   }
 
-  // travelToWorld(world) — IN-PLACE world swap (world-as-data). Replaces the current
-  // scene contents with a different resolved world WITHOUT any browser navigation: the
-  // player's URL never changes — we enter the metaverse through THIS domain and only the
-  // world inside changes. Wired from the gateway directory click via the host's
-  // resolveWorldByNpub. The iris cross marks the swap; a failed build leaves the player
-  // on their current world (fail-closed, no navigation).
-  async function travelToWorld(world) {
+  // openLiveMirror(world, { wsEndpoint }) — the portal LIVE MIRROR (ADR-0118). Builds
+  // the destination world into an offscreen mirror scene, renders it to a target, and
+  // binds that target into the iris so the aperture reveals world B (peek). When a
+  // wsEndpoint is present it additionally opens a read-only spectator stream that moves
+  // the mirror's avatars (live). Graceful degradation: a failed socket keeps a working
+  // peek; a failed build returns tier 'none' and leaves the reveal on the sky fallback.
+  function openLiveMirror(world, { wsEndpoint } = {}) {
+    closeLiveMirror();
+    let mirror = null;
+    try {
+      mirror = createPortalMirror({ THREE, targetWidth: 1024, targetHeight: 1024 });
+      if (!mirror.build(world, { assetUrl, loadGltf: _loadGltf })) {
+        mirror.dispose(); mirror = null;
+        return { tier: 'none', close: closeLiveMirror };
+      }
+    } catch (e) {
+      if (mirror) { try { mirror.dispose(); } catch { /* noop */ } }
+      console.warn('[mirror] peek build failed:', e && e.message ? e.message : e);
+      return { tier: 'none', close: closeLiveMirror };
+    }
+    _mirror = mirror;
+    try { bindPortalTexture(mirror.texture()); } catch { /* noop */ }
+    try { mirror.render(renderer); } catch { /* noop */ }
+
+    // live — read-only spectator stream of the destination's actual state.
+    if (typeof wsEndpoint === 'string' && wsEndpoint.startsWith('ws') && typeof WebSocket === 'function') {
+      try {
+        const client = createSpectatorClient({ url: wsEndpoint, WebSocketCtor: WebSocket });
+        client.open();
+        _mirrorClient = client;
+      } catch (e) {
+        console.warn('[mirror] spectator open failed:', e && e.message ? e.message : e);
+        _mirrorClient = null;
+      }
+    }
+    return { tier: _mirrorClient ? 'live' : 'peek', close: closeLiveMirror };
+  }
+
+  // closeLiveMirror() — tear the mirror down (idempotent): stop the spectator stream,
+  // dispose the offscreen world + render target, and unbind the texture from the iris.
+  function closeLiveMirror() {
+    if (_mirrorClient) { try { _mirrorClient.close(); } catch { /* noop */ } _mirrorClient = null; }
+    if (_mirror) { try { _mirror.dispose(); } catch { /* noop */ } _mirror = null; }
+    try { bindPortalTexture(null); } catch { /* noop */ }
+  }
+
+  // travelToWorld(world, opts) — IN-PLACE world swap (world-as-data). Replaces the
+  // current scene contents with a different resolved world WITHOUT any browser
+  // navigation: the player's URL never changes — we enter the metaverse through THIS
+  // domain and only the world inside changes. Wired from the gateway directory click via
+  // the host's resolveWorldByNpub. The iris cross now reveals the LIVE mirror (world B
+  // rendered + streamed through the aperture) before the real swap lands beneath it. A
+  // failed build leaves the player on their current world (fail-closed, no navigation).
+  async function travelToWorld(world, opts = {}) {
     if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
     // Iris cross over the swap.
     try {
@@ -2265,7 +2326,19 @@ export function createArenaRuntime(hooks = {}) {
       }
     } catch (e) { console.warn('[travel] iris failed:', e && e.message ? e.message : e); }
 
+    let tier = 'none';
     try {
+      // LIVE MIRROR: reveal the destination world through the aperture while the iris
+      // crosses; hold it open long enough for the peek + spectator stream to read.
+      try { tier = (openLiveMirror(world, { wsEndpoint: opts && opts.wsEndpoint }) || {}).tier || 'none'; }
+      catch (e) { tier = 'none'; console.warn('[travel] mirror failed:', e && e.message ? e.message : e); }
+
+      await new Promise((res) => {
+        const t0 = performance.now();
+        const step = () => (performance.now() - t0 >= 720) ? res() : requestAnimationFrame(step);
+        requestAnimationFrame(step);
+      });
+
       // Teardown the current world's assets (visuals + physics) — mirrors
       // stopMultiplayer's teardown but keeps the render loop + MP socket alive.
       if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
@@ -2292,15 +2365,13 @@ export function createArenaRuntime(hooks = {}) {
       const sp = _worldRt.spawn || { x: 0, z: 0, yaw: 0 };
       try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[travel] respawn failed:', e && e.message ? e.message : e); }
 
-      // Hold the iris closed long enough to read as a hop, then open onto the world.
-      await new Promise((res) => {
-        const t0 = performance.now();
-        const step = () => (performance.now() - t0 >= 680) ? res() : requestAnimationFrame(step);
-        requestAnimationFrame(step);
-      });
+      // Drop the mirror (unbind its texture) right as the reveal opens onto the real
+      // world, so the iris cross → live mirror → landed world reads as one motion.
+      closeLiveMirror();
       try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
-      return { ok: true };
+      return { ok: true, tier };
     } catch (e) {
+      closeLiveMirror();
       try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
       console.warn('[travel] in-place travel failed:', e && e.message ? e.message : e);
       return { ok: false, reason: e && e.message ? e.message : e };

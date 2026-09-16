@@ -100,6 +100,7 @@ import { mountWorldComponents } from './engine/world/worldComponentHost.js';
 import { createBuiltinRegistry } from './engine/components/registry.js';
 import { loadCoastlineWallData, buildCoastlineWallColliders } from './engine/world/worldCoastline.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
+import { resolveArrival } from './engine/world/worldArrival.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -2394,8 +2395,9 @@ export function createArenaRuntime(hooks = {}) {
         _worldColliders = buildWorldObjectColliders(_minimalWorld, { physicsWorld: getWorld(), Rapier: getRapier() });
       } catch (e) { console.warn('[travel] object colliders failed:', e && e.message ? e.message : e); }
 
-      // Respawn at the destination spawn point.
-      const sp = _worldRt.spawn || { x: 0, z: 0, yaw: 0 };
+      // Arrive at the destination's torii gate, facing into the world — not at the
+      // owner's login spawn (which reads as "middle of the arena").
+      const sp = resolveArrival(_minimalWorld);
       try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[travel] respawn failed:', e && e.message ? e.message : e); }
 
       // Drop the mirror (unbind its texture) right as the reveal opens onto the real

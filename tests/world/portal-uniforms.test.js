@@ -61,10 +61,14 @@ describe('portalFrameState', () => {
     near(s.uSkyB.r, 1); near(s.uSkyB.g, 1); near(s.uSkyB.b, 1);   // white destination
   });
 
-  it('falls back to black skies and clamps out-of-range uniform values', () => {
+  it('passes the aperture-unit radius through unclamped (>1 expands to fullscreen)', () => {
+    // ADR-0118 Decision 6: uIris is in APERTURE units — 1 = the gate opening, >1 = the iris
+    // expanding toward fullscreen (fullFactor). It must NOT be clamped to [0,1] (that was the
+    // v0.2.853 bug: the iris froze at the gate). A negative value is still floored to 0.
     const s = portalFrameState({ timeline: { iris: 2, skyBlend: -1 } });
-    near(s.uIris, 1);
+    near(s.uIris, 2);
     near(s.uSkyBlend, 0);
+    near(portalFrameState({ timeline: { iris: -3 } }).uIris, 0);
     near(s.uSkyA.r, 0); near(s.uSkyA.b, 0);
     near(s.uSkyB.g, 0);
     near(s.uSoft, 0.02); // default soft

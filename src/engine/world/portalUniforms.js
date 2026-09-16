@@ -52,7 +52,10 @@ export function portalFrameState({ timeline, skyA, skyB, soft = 0.02 } = {}) {
   const t = timeline || {};
   const black = () => ({ r: 0, g: 0, b: 0 });
   return {
-    uIris: clamp01(typeof t.iris === 'number' ? t.iris : 0),
+    // uIris is the mask radius in APERTURE units (1 = gate opening, >1 = expanding
+    // toward fullscreen via fullFactor) — it must NOT be clamped to [0,1]. Only the
+    // lower bound is enforced so a bad negative value cannot invert the mask.
+    uIris: Math.max(0, typeof t.iris === 'number' ? t.iris : 0),
     uSkyBlend: clamp01(typeof t.skyBlend === 'number' ? t.skyBlend : 0),
     uSkyA: skyToLinearVec3(skyA) || black(),
     uSkyB: skyToLinearVec3(skyB) || black(),

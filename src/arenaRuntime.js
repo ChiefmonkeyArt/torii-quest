@@ -40,7 +40,7 @@ import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
-import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, getGatewayPreviewCanvas } from './engine/gateway/gatewayScreen.js';
+import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
 import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -774,9 +774,17 @@ export function createArenaRuntime(hooks = {}) {
   initPortalSurface();
 
   // ── In-world gateway screen (KeyF) ───────────────────────────────────────────
-  function _openGatewayScreen() {
+  // _openGatewayScreen(prePeek) — open the browse loop. Pass a world to pre-peek it
+  // immediately (the Torii-menu hand-off: the player picked a world there, so the
+  // screen opens ALREADY looking at it, armed for 入).
+  function _openGatewayScreen(prePeek) {
     if (isGatewayScreenOpen()) return;
-    if (!transition(GAME_EVENT.PAUSE)) return; // PLAYING → PAUSED
+    // KeyF: PLAYING → PAUSED. The menu hand-off (v0.2.866) closed + resumed first, so
+    // we're back to PLAYING here too — but tolerate an already-PAUSED state (open
+    // directly) so the browse loop can't wedge from a path that paused without resuming.
+    // Refuse TITLE / DEAD / GAMEOVER: the browse loop is in-world only.
+    if (isPlaying()) { if (!transition(GAME_EVENT.PAUSE)) return; }
+    else if (!isPaused()) return;
     document.exitPointerLock?.();
     const gw = getGatewayScreenState();
     _browse.reset();
@@ -791,6 +799,9 @@ export function createArenaRuntime(hooks = {}) {
       onCommit: () => (typeof gw.onCommit === 'function' ? gw.onCommit() : undefined),
       onClose: () => { cancelBrowsePeek(); _resume(); },
     });
+    if (prePeek && typeof gw.onPeek === 'function') {
+      try { peekGateWorld(prePeek); } catch { /* pre-peek is best-effort */ }
+    }
   }
   function _closeGatewayScreen() {
     closeGatewayScreen(); // triggers its onClose → _resume
@@ -2415,6 +2426,22 @@ export function createArenaRuntime(hooks = {}) {
       // world, so the iris cross → live mirror → landed world reads as one motion.
       closeLiveMirror();
       try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
+
+      // MP rejoin (v0.2.866): after landing, re-dial the multiplayer socket to the
+      // DESTINATION world's ws endpoint so the traveller enters ITS shared gameplay,
+      // not the origin's. A single-player destination (no ws endpoint) clears the
+      // override so the next same-origin dial is the traveller's own world. Best-
+      // effort: a failed retarget leaves the previous socket, never breaks travel.
+      try {
+        if (_mp && typeof _mp.setWsEndpoint === 'function') {
+          const dest = opts && opts.wsEndpoint;
+          _mp.setWsEndpoint((typeof dest === 'string' && dest.startsWith('wss://')) ? dest : null);
+          if (_mp.stop) { try { _mp.stop('travel'); } catch { /* noop */ } }
+          if (_mp.start) { try { _mp.start(); } catch { /* noop */ } }
+        }
+      } catch (e) {
+        console.warn('[travel] MP rejoin failed (staying on origin socket):', e && e.message ? e.message : e);
+      }
       return { ok: true, tier };
     } catch (e) {
       closeLiveMirror();
@@ -2519,6 +2546,8 @@ export function createArenaRuntime(hooks = {}) {
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
     setCustomMeshHash, setSpawnOverride, stopMultiplayer, travelToWorld,
     peekWorld: _handlePeek, commitPeek, cancelBrowsePeek,
+    // v0.2.866: open the browse loop pre-peeked at a world (Torii-menu hand-off).
+    openGatewayBrowse: (world) => _openGatewayScreen(world),
     // v0.2.768-alpha — re-seat + reload player/FP meshes on re-entry (Bug A).
     reloadCharacterAssets,
     // v0.2.767-alpha — headless FP-body seam for custom characters.

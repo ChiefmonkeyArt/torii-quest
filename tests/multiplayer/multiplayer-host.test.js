@@ -139,6 +139,42 @@ describe('multiplayerHost — lifecycle', () => {
   });
 });
 
+// ---------- cross-world rejoin (v0.2.866) ----------
+
+describe('multiplayerHost — cross-world rejoin', () => {
+  it('setWsEndpoint retargets the NEXT dial to the destination endpoint', () => {
+    const { host } = makeHost();
+    host.start();
+    expect(FakeWS.instances[0].url).toBe('wss://example.test/mp');
+
+    host.setWsEndpoint('wss://other.world/mp');
+    host.stop('travel');
+    host.start();
+
+    expect(FakeWS.instances.length).toBe(2);
+    expect(FakeWS.instances[1].url).toBe('wss://other.world/mp');
+  });
+
+  it('a non-wss endpoint is rejected (stays on same-origin)', () => {
+    const { host } = makeHost();
+    host.setWsEndpoint('http://evil.example/mp');
+    host.start();
+    expect(FakeWS.instances[0].url).toBe('wss://example.test/mp');
+  });
+
+  it('clearWsEndpoint (or a null endpoint) returns to the same-origin dial', () => {
+    const { host } = makeHost();
+    host.setWsEndpoint('wss://other.world/mp');
+    host.start();
+    expect(FakeWS.instances[0].url).toBe('wss://other.world/mp');
+
+    host.clearWsEndpoint();
+    host.stop('travel');
+    host.start();
+    expect(FakeWS.instances[1].url).toBe('wss://example.test/mp');
+  });
+});
+
 // ---------- WS event fan-in ----------
 
 describe('multiplayerHost — inbound wire', () => {

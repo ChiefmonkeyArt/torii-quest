@@ -77,17 +77,27 @@ export function createMultiplayerHost(deps) {
 
   const roster = createRemoteAvatarRoster({ avatarLoader, scene, emit });
   let ws = null;
+  // MP rejoin (v0.2.866): a mutable cross-world endpoint override. When set, the
+  // NEXT `start()` dials that URL instead of the same-origin `/mp` — used after an
+  // in-place travel to rejoin the DESTINATION world's shared gameplay. Cleared back
+  // to same-origin when travelling home (or to a single-player world).
+  let _wsEndpoint = null;
   const host = {
     state: WS_STATE.IDLE,
     selfId: null,
     roster,
     _enabled: !!mpEnabled,
+    setWsEndpoint, clearWsEndpoint,
     start, stop,
     sendMove, sendShot, sendHit, sendKill, sendChat, sendKamiState,
     tick, viewLagMs,
   };
 
   function resolveUrl() {
+    // MP rejoin (v0.2.866): an explicit cross-world endpoint wins over the
+    // same-origin shape; the arena sets it after in-place travel. Validation is
+    // the same wss-only rule the gateway presence parser already applies.
+    if (typeof _wsEndpoint === 'string' && _wsEndpoint.startsWith('wss://')) return _wsEndpoint;
     // MP-1.5: hosted-sandbox port-forward sentinel. The deploy tool rewrites
     // __PORT_5000__ → 'port/5000' at upload time; local dev keeps the literal
     // sentinel and we fall through to same-origin (VPS/dev shape wss://host/mp).
@@ -103,6 +113,14 @@ export function createMultiplayerHost(deps) {
     // Fallback (should not happen in prod) — refuse rather than dial a bad URL.
     return null;
   }
+
+  // setWsEndpoint(url|null) — retarget the next dial. null clears back to the
+  // same-origin shape. Applied only on the NEXT start(); an active socket keeps
+  // its current URL until it is stopped (the arena stops it before travelling).
+  function setWsEndpoint(url) {
+    _wsEndpoint = (typeof url === 'string' && url.startsWith('wss://')) ? url : null;
+  }
+  function clearWsEndpoint() { _wsEndpoint = null; }
 
   function start() {
     if (!host._enabled) { emit('mp_disabled', {}); return false; }

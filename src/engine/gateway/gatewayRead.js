@@ -228,6 +228,15 @@ export function extractGatewayFromEvent(event) {
   return { ok: true, gateway };
 }
 
+// worldDirectoryLabel(w) → the human label for a world row. The OWNER'S display name
+// (kind:0 displayName, self-attested into the heartbeat) is the primary label — NOT the
+// world's `title`, which is the app name ("Torii Quest") and identical across every
+// resident, so every listing would read the same. Falls back for legacy records.
+export function worldDirectoryLabel(w) {
+  const g = (w && typeof w === 'object') ? w : {};
+  return g.displayName || g.title || g.shortPubkey || g.zoneId || 'world';
+}
+
 // _addressKey(gateway) → the dedup key for an addressable gateway record: the signing
 // pubkey + zone id. Newest created_at wins per key (NIP-01 parameterised-replaceable
 // semantics). Pure.

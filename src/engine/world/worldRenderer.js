@@ -325,7 +325,31 @@ export function buildMinimalWorld(world, opts = {}) {
 
   // `ready` is optional: omitted when there are no GLB objects (buildWorldObjects
   // returns null). The caller may `await result.ready` best-effort (non-blocking).
-  const result = { tick, platformY, spawn };
+
+  // dispose() — tear this world's meshes/lights/geometries/materials out of the
+  // scene so a NEW world can be built in place (in-place travel). NOT part of the
+  // boot path; only called by the hot world swap. Idempotent.
+  let _disposed = false;
+  function dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    if (_objRt && typeof _objRt.dispose === 'function') { try { _objRt.dispose(); } catch { /* noop */ } }
+    // Remove Object3D nodes from the scene, then dispose geometries + materials.
+    for (const o of created) {
+      if (!o) continue;
+      try { if (o.isObject3D) scene.remove(o); } catch { /* noop */ }
+    }
+    for (const o of created) {
+      if (!o) continue;
+      try { if (!o.isObject3D && typeof o.dispose === 'function') o.dispose(); } catch { /* noop */ }
+    }
+    // Restore a neutral space sky so a subsequent createWorldRenderer call controls
+    // scene.background/fog fresh (the shared `sun` is left alone — scene-level).
+    try { if (scene.fog) scene.fog = null; } catch { /* noop */ }
+    try { if (scene.background) scene.background = null; } catch { /* noop */ }
+  }
+
+  const result = { tick, dispose, platformY, spawn };
   if (fallbackGround) result.fallbackGround = fallbackGround;
   if (_objRt && _objRt.ready) result.ready = _objRt.ready;
   return result;

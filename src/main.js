@@ -151,12 +151,6 @@ import { createHandshakeController } from './engine/gateway/handshakeController.
 import { createSerializedPoller, POLL_MS } from './engine/polling/serializedPoll.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
 import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
-// Phase 0 (open-world): the OPEN-VISIT travel path — a pure leaf that turns a
-// world's https `website` into a hardened, traveller-tagged visit URL. This is
-// the DEFAULT n2n hop now (direct navigate, no signed handshake). The signed
-// handshake code below stays in place but UNUSED — reserved for an optional
-// future private/invite-only travel mode.
-import { buildVisitUrl } from './engine/gateway/openVisit.js';
 // Phase 0c: the canonical NAP-zone slug validator (used to forward zoneSlug on
 // travel so visiting lands in the destination NAP zone).
 import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
@@ -222,7 +216,8 @@ import {
   ARRIVAL_MODE_PUBLIC,
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
-import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
+import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
+import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // v0.3: the Instance Settings tab (arrival-mode / write-policy admin
 // controls) is REMOVED from the settings menu per design direction — not
@@ -431,7 +426,7 @@ function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
   _renderGatewaySectionHeader(body, title, emptyHint || `${worlds.length}`);
   const shown = worlds.slice(0, SECTION_ROW_CAP);
   for (const w of shown) {
-    const label = w.title || w.shortPubkey || w.zoneId || 'world';
+    const label = worldDirectoryLabel(w);
     const row = document.createElement('div');
     row.className = canTravel ? 'gw-world-row gw-world-clickable' : 'gw-world-row';
     if (w.pubkey) row.setAttribute('data-pubkey', w.pubkey);
@@ -793,37 +788,57 @@ function _openHomepageStub() {
 // handling are no longer needed; settingsPanel.js's own backdrop-click/×/ESC
 // handling covers it.
 
-// _gwOpenVisit(world, opts?) — the OPEN-VISIT n2n hop (Phase 0, the DEFAULT travel
-// mode). Direct-navigate to the world's hardened https `website`, tagging the
-// traveller's pubkey as ?torii-traveller=. No signed handshake — that code is
-// reserved below (_gwTravel/_executeJump/_handshake) but is NOT called by the
-// default path. allowPrivate is gated on localhost only, so any real host stays
-// private-host-rejecting.
-//
-// Phase 0c: opts.zoneSlug (a valid NAP-zone slug) is forwarded to buildVisitUrl so
-// the canonical hash route `#/zone/<slug>` is appended — visiting lands in the
-// destination NAP zone. The in-world gateway gate + the menu's Visit button both
-// pass the destination world's zoneId here.
-function _gwOpenVisit(world, opts) {
-  const allowPrivate = (() => {
-    try {
-      const h = (typeof location !== 'undefined' && location.hostname) || '';
-      return h === 'localhost';
-    } catch { return false; }
-  })();
-  const zoneSlug = opts && typeof opts.zoneSlug === 'string' ? opts.zoneSlug : null;
-  const visit = buildVisitUrl(world, { ourHex: state.nostrPubkey || '', allowPrivate, zoneSlug });
-  if (!visit.ok) {
-    // Surface the error the same way _executeJump does — log + re-render the
-    // gateway card so the player sees the screen return to its live state.
-    console.warn('open-visit rejected:', visit.errors.join(', '));
+// _gwOpenVisit(world, opts?) — the OPEN-VISIT travel path. Resolves the world by
+// the owner's npub and renders it IN PLACE (no navigation). This replaces the old
+// cross-host `window.location.href` hop entirely: the player's URL never changes.
+async function _gwOpenVisit(world, opts) {
+  // IN-PLACE travel (world-as-data). Resolve the destination world by npub and swap
+  // it into THIS shell. NO navigation, period: the player's browser URL never changes
+  // — we enter the metaverse through this domain and only the world inside changes.
+  // The old cross-host visit-URL hop is removed.
+  if (!world || (!world.pubkey && !world.npub)) {
+    console.warn('open-visit rejected: directory record has no identity');
     renderGatewayCard();
     return;
   }
-  // MP-1: gracefully close the multiplayer WebSocket before we navigate, so the
-  // server logs a proper LEFT rather than a ping-timeout when we hop instances.
-  try { _arena?.stopMultiplayer?.('travel'); } catch (e) { /* best-effort */ }
-  try { window.location.href = visit.url; } catch (e) { renderGatewayCard(); }
+  // Resolve by the owner's npub: discover their signed kind-30078 world reference
+  // across relays, hash-verify the manifest, fetch + validate it. relayReqFn maps the
+  // per-url resolver seam onto the existing fanoutReq transport.
+  const reqRelay = (url, filter) => fanoutReq(
+    (typeof url === 'string' && url) ? [url] : _effectiveRelays(),
+    [filter],
+    { timeoutMs: 5000, graceMs: 250, retries: 1 },
+  );
+  const relays = (Array.isArray(world.relays) && world.relays.length) ? world.relays : _effectiveRelays();
+
+  let resolved;
+  try {
+    resolved = await resolveWorldByNpub({
+      pubkeyHex: world.pubkey,
+      npub: world.npub,
+      relays,
+      relayReqFn: reqRelay,
+      fetchBlob: (url) => fetch(url).then((r) => (r && r.ok) ? r.text() : null).catch(() => null),
+    });
+  } catch (e) {
+    resolved = { ok: false, reason: e && e.message ? e.message : 'resolve-error' };
+  }
+
+  if (!resolved || !resolved.ok || !resolved.world) {
+    // FAIL CLOSED: stay in the current world. Never navigate.
+    console.warn('in-place travel resolve failed:', resolved && resolved.reason);
+    renderGatewayCard();
+    return;
+  }
+
+  if (_arena && typeof _arena.travelToWorld === 'function') {
+    // An iris cross hides the swap; the method rebuilds physics + respawns.
+    const result = await _arena.travelToWorld(resolved.world);
+    if (!result || !result.ok) console.warn('in-place travel failed:', result && result.reason);
+  } else {
+    console.warn('in-place travel failed: arena unavailable');
+  }
+  renderGatewayCard();
 }
 
 // _gwTravel(world) — the SIGNED handshake hop. KEPT for an optional future

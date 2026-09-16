@@ -31,6 +31,8 @@
 //   closeGatewayScreen()  — programmatic close (calls onClose once)
 //   isGatewayScreenOpen() — boolean
 
+import { worldDirectoryLabel } from './gatewayRead.js';
+
 export const GATEWAY_SCREEN_VERSION = 2;
 
 let _el = null;
@@ -124,7 +126,9 @@ function _close() {
 }
 
 function _worldLabel(w) {
-  return w.title || w.shortPubkey || w.zoneId || 'world';
+  // Owner display name first (NOT the world `title` which is the app name and identical
+  // across every resident — see worldDirectoryLabel in gatewayRead.js).
+  return worldDirectoryLabel(w);
 }
 
 function _rowDom(w, canTravel, onTravel) {

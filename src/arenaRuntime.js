@@ -624,6 +624,7 @@ export function createArenaRuntime(hooks = {}) {
   let _worldCoastlineColliders = null;
   let _worldRt = null;
   let _platformY = 0;
+  let _platformBody = null;
   let _worldColliders = null;
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
@@ -2105,6 +2106,9 @@ export function createArenaRuntime(hooks = {}) {
       console.warn('[world] platform collider skipped — Rapier world not ready');
       return;
     }
+    // Remove any previous platform body (in-place travel rebuild) so a swap to a
+    // world at a different platform Y doesn't leave a phantom collider floating.
+    if (_platformBody) { try { world.removeRigidBody(_platformBody); } catch { /* noop */ } _platformBody = null; }
     const HALF = 12; // 24m square platform — generous, matches the worldRenderer default radius
     const THICK = 1.0;
     const cy = (platformY || 0) - THICK / 2;
@@ -2115,6 +2119,7 @@ export function createArenaRuntime(hooks = {}) {
       RAPIER.ColliderDesc.cuboid(HALF, THICK / 2, HALF),
       rb,
     );
+    _platformBody = rb;
   }
 
   // enter() — start a fresh run: reset HP/ammo/score (resetRun), move the player to
@@ -2239,9 +2244,72 @@ export function createArenaRuntime(hooks = {}) {
     if (_mp) { try { _mp.start(); } catch { /* noop */ } }
   }
 
+  // travelToWorld(world) — IN-PLACE world swap (world-as-data). Replaces the current
+  // scene contents with a different resolved world WITHOUT any browser navigation: the
+  // player's URL never changes — we enter the metaverse through THIS domain and only the
+  // world inside changes. Wired from the gateway directory click via the host's
+  // resolveWorldByNpub. The iris cross marks the swap; a failed build leaves the player
+  // on their current world (fail-closed, no navigation).
+  async function travelToWorld(world) {
+    if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
+    // Iris cross over the swap.
+    try {
+      if (!isPortalRevealing()) {
+        beginPortalReveal({
+          gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
+          apertureRadius: 1.6,
+          skyAHex: '#cfe3f7',
+          skyBHex: '#0e1a2e',
+          durationMs: 900,
+        });
+      }
+    } catch (e) { console.warn('[travel] iris failed:', e && e.message ? e.message : e); }
+
+    try {
+      // Teardown the current world's assets (visuals + physics) — mirrors
+      // stopMultiplayer's teardown but keeps the render loop + MP socket alive.
+      if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
+      if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
+      if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
+      if (_worldComponentMounts) { try { _worldComponentMounts.unmount(); } catch { /* noop */ } _worldComponentMounts = null; }
+      if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
+      _worldCoastlineData = null;
+
+      // Adopt the destination world and rebuild the visual scene in place.
+      _minimal = true;
+      _minimalWorld = world;
+      _worldRt = buildMinimalWorld(_minimalWorld, { scene, sun, THREE, assetUrl, loadGltf: _loadGltf });
+      _platformY = _worldRt.platformY || 0;
+      if (_worldRt.ready) { _worldRt.ready.catch(() => {}); }
+
+      // Rebuild physics: a standable platform + per-object colliders.
+      try { _addPlatformCollider(_platformY); } catch (e) { console.warn('[travel] platform collider failed:', e && e.message ? e.message : e); }
+      try {
+        _worldColliders = buildWorldObjectColliders(_minimalWorld, { physicsWorld: getWorld(), Rapier: getRapier() });
+      } catch (e) { console.warn('[travel] object colliders failed:', e && e.message ? e.message : e); }
+
+      // Respawn at the destination spawn point.
+      const sp = _worldRt.spawn || { x: 0, z: 0, yaw: 0 };
+      try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[travel] respawn failed:', e && e.message ? e.message : e); }
+
+      // Hold the iris closed long enough to read as a hop, then open onto the world.
+      await new Promise((res) => {
+        const t0 = performance.now();
+        const step = () => (performance.now() - t0 >= 680) ? res() : requestAnimationFrame(step);
+        requestAnimationFrame(step);
+      });
+      try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
+      return { ok: true };
+    } catch (e) {
+      try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
+      console.warn('[travel] in-place travel failed:', e && e.message ? e.message : e);
+      return { ok: false, reason: e && e.message ? e.message : e };
+    }
+  }
+
   return {
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
-    setCustomMeshHash, setSpawnOverride, stopMultiplayer,
+    setCustomMeshHash, setSpawnOverride, stopMultiplayer, travelToWorld,
     // v0.2.768-alpha — re-seat + reload player/FP meshes on re-entry (Bug A).
     reloadCharacterAssets,
     // v0.2.767-alpha — headless FP-body seam for custom characters.

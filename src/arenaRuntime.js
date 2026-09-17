@@ -630,6 +630,14 @@ export function createArenaRuntime(hooks = {}) {
   let _platformY = 0;
   let _platformBody = null;
   let _worldColliders = null;
+  // Exit-restores-home (v0.2.868): the HOME world is captured at boot so a
+  // traveller who leaves a visited world returns to THEIR OWN world on re-entry,
+  // not the destination. _homeWorld is the resolved manifest (never mutated by the
+  // scene builders); _homeWorldId keys the terrain loader; _homeSpawn is the world's
+  // own login spawn so a homecoming lands exactly where a fresh boot would.
+  let _homeWorld = null;
+  let _homeWorldId = '';
+  let _homeSpawn = null;
   // Portal live-mirror (ADR-0118): the destination world rendered through the gate.
   let _mirror = null;        // createPortalMirror instance (offscreen world-B)
   let _mirrorClient = null;  // createSpectatorClient (read-only live stream)
@@ -1259,6 +1267,15 @@ export function createArenaRuntime(hooks = {}) {
       });
       _platformY = _worldRt.platformY || 0;
       endPhase('buildMinimalWorld');
+      // v0.2.868 (exit-restores-home): capture the HOME world now that it is built,
+      // so a traveller who leaves a visited world returns to THIS world (their own)
+      // on re-entry, not the destination. _homeSpawn is a shallow copy so later scene
+      // teardown (dispose → null) can't clobber the homecoming spawn.
+      _homeWorld = _minimalWorld;
+      _homeWorldId = _worldId;
+      _homeSpawn = (_worldRt && _worldRt.spawn)
+        ? { x: _worldRt.spawn.x, z: _worldRt.spawn.z, yaw: _worldRt.spawn.yaw }
+        : null;
       // Phase 0l.2: mount RUNTIME component instances (world.components) now that
       // the scene exists. Best-effort: a bad/unknown/throwing component is warned
       // + skipped — it never fails the world. THREE is forwarded so visual
@@ -2165,7 +2182,27 @@ export function createArenaRuntime(hooks = {}) {
   // zone far-left corner instead of the SW arena corner. One-shot: consumed on use.
   let _spawnOverride = null;
   function setSpawnOverride(x, z, yaw) { _spawnOverride = { x, z, yaw }; }
-  function enter() {
+
+  // _restoreHomeWorld() — exit-restores-home (v0.2.868). When the player pressed
+  // Home from a VISITED world (travelToWorld swapped _minimalWorld to a foreign
+  // manifest), rebuild the HOME world captured at boot before the next ENTER so the
+  // player re-enters THEIR OWN world, not the destination they were visiting. The
+  // guard (object identity) makes this a no-op on a fresh boot and when the player
+  // never left home. Legacy arenas (no minimal world) and a missing home capture
+  // are also no-ops. The homecoming lands at the home world's OWN login spawn
+  // (_homeSpawn), not a gate arrival.
+  async function _restoreHomeWorld() {
+    if (!_minimal || !_homeWorld) return;
+    if (_minimalWorld === _homeWorld) return;
+    await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });
+  }
+
+  async function enter() {
+    // v0.2.868 (exit-restores-home): if the player travelled away to a visited
+    // world, rebuild their HOME world first so leaving a visited world and pressing
+    // ENTER lands back home, not on the destination. No-op on a fresh boot or when
+    // still home (guard checks _minimalWorld !== _homeWorld inside).
+    await _restoreHomeWorld();
     // v0.2.742-alpha (ADR-0098): if the player is coming back from Home (client
     // was suspended), wake the client BEFORE anything else — restart rAF, resume
     // audio, clear the suspended flag — so this enter() runs on a live client.
@@ -2333,6 +2370,79 @@ export function createArenaRuntime(hooks = {}) {
   // loop: the browse state machine is the ONLY caller allowed to reach the swap (a
   // directory click now only PEEKS — see peekWorld). A failed build leaves the player
   // on their current world (fail-closed, no navigation).
+  // _rebuildWorldInPlace(world, { worldId, arrival }) — the shared IN-PLACE world
+  // swap (extracted from travelToWorld, reused by exit-restores-home). Tears down the
+  // current world's assets (visuals + physics) and rebuilds the scene for `world`,
+  // keeping the render loop + MP socket alive. `worldId` keys the terrain loader;
+  // `arrival` (default resolveArrival) sets the landing pose. A failed build leaves the
+  // player on their current world (fail-closed); terrain/collider/respawn failures are
+  // individually best-effort and never throw out of the swap.
+  async function _rebuildWorldInPlace(world, { worldId = '', arrival = null } = {}) {
+    if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
+
+    // Teardown the current world's assets (visuals + physics) — mirrors
+    // stopMultiplayer's teardown but keeps the render loop + MP socket alive.
+    if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
+    if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
+    if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
+    if (_worldComponentMounts) { try { _worldComponentMounts.unmount(); } catch { /* noop */ } _worldComponentMounts = null; }
+    if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
+    _worldCoastlineData = null;
+
+    // Adopt the destination world and rebuild the visual scene in place.
+    _minimal = true;
+    _minimalWorld = world;
+    _worldId = worldId || world.id || _worldId;
+    _worldRt = buildMinimalWorld(_minimalWorld, { scene, sun, THREE, assetUrl, loadGltf: _loadGltf });
+    _platformY = _worldRt.platformY || 0;
+    if (_worldRt.ready) { _worldRt.ready.catch(() => {}); }
+
+    // Build the world's TERRAIN (ADR-0119) so the player lands on real island
+    // ground, not the cloud-platform fallback. Inline heights (content-addressed)
+    // need no source loader; a source path reuses the boot loader.
+    if (_minimalWorld && _minimalWorld.terrain) {
+      try {
+        const rter = await buildWorldTerrain(_minimalWorld, {
+          physicsWorld: getWorld(),
+          Rapier: getRapier(),
+          THREE,
+          loadTerrainSource: makeTerrainLoader({
+            worldId: _worldId,
+            fetchImpl: fetch,
+            importModule: (url) => import(/* @vite-ignore */ url),
+            resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
+          }),
+        });
+        if (!rter.ok) {
+          console.warn('[world] terrain build failed; using platform collider:', rter.error);
+        } else if (rter.terrain) {
+          _worldTerrain = rter.terrain;
+          for (let i = 0; i < rter.terrain.meshes.length; i++) scene.add(rter.terrain.meshes[i]);
+          if (_worldRt && Array.isArray(_worldRt.fallbackGround)) {
+            for (let i = 0; i < _worldRt.fallbackGround.length; i++) _worldRt.fallbackGround[i].visible = false;
+          }
+        }
+      } catch (e) {
+        console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);
+      }
+    }
+
+    // Rebuild physics: a standable platform fallback + per-object colliders.
+    // The platform collider is skipped when terrain was built (terrain IS the ground).
+    if (!_worldTerrain) {
+      try { _addPlatformCollider(_platformY); } catch (e) { console.warn('[world] platform collider failed:', e && e.message ? e.message : e); }
+    }
+    try {
+      _worldColliders = buildWorldObjectColliders(_minimalWorld, { physicsWorld: getWorld(), Rapier: getRapier() });
+    } catch (e) { console.warn('[world] object colliders failed:', e && e.message ? e.message : e); }
+
+    // Land: gate arrival for a traveller, or the world's OWN spawn for a homecoming.
+    const sp = arrival || resolveArrival(_minimalWorld);
+    try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[world] respawn failed:', e && e.message ? e.message : e); }
+
+    return { ok: true };
+  }
+
   async function travelToWorld(world, opts = {}) {
     if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
     // The iris cross now reveals the LIVE mirror (world B rendered + streamed
@@ -2362,65 +2472,8 @@ export function createArenaRuntime(hooks = {}) {
         requestAnimationFrame(step);
       });
 
-      // Teardown the current world's assets (visuals + physics) — mirrors
-      // stopMultiplayer's teardown but keeps the render loop + MP socket alive.
-      if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
-      if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
-      if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
-      if (_worldComponentMounts) { try { _worldComponentMounts.unmount(); } catch { /* noop */ } _worldComponentMounts = null; }
-      if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
-      _worldCoastlineData = null;
-
-      // Adopt the destination world and rebuild the visual scene in place.
-      _minimal = true;
-      _minimalWorld = world;
-      _worldRt = buildMinimalWorld(_minimalWorld, { scene, sun, THREE, assetUrl, loadGltf: _loadGltf });
-      _platformY = _worldRt.platformY || 0;
-      if (_worldRt.ready) { _worldRt.ready.catch(() => {}); }
-
-      // Build the destination's TERRAIN (ADR-0119) so the traveller lands on real
-      // island ground, not the cloud-platform fallback. Inline heights (content-
-      // addressed) need no source loader; a source path reuses the boot loader.
-      if (_minimalWorld && _minimalWorld.terrain) {
-        try {
-          const rter = await buildWorldTerrain(_minimalWorld, {
-            physicsWorld: getWorld(),
-            Rapier: getRapier(),
-            THREE,
-            loadTerrainSource: makeTerrainLoader({
-              worldId: _minimalWorld.id || _worldId,
-              fetchImpl: fetch,
-              importModule: (url) => import(/* @vite-ignore */ url),
-              resolveUrl: (source, wid) => assetUrl(`worlds/${wid}/${source}`),
-            }),
-          });
-          if (!rter.ok) {
-            console.warn('[travel] terrain build failed; using platform collider:', rter.error);
-          } else if (rter.terrain) {
-            _worldTerrain = rter.terrain;
-            for (let i = 0; i < rter.terrain.meshes.length; i++) scene.add(rter.terrain.meshes[i]);
-            if (_worldRt && Array.isArray(_worldRt.fallbackGround)) {
-              for (let i = 0; i < _worldRt.fallbackGround.length; i++) _worldRt.fallbackGround[i].visible = false;
-            }
-          }
-        } catch (e) {
-          console.warn('[travel] terrain build threw; using platform collider:', e && e.message ? e.message : e);
-        }
-      }
-
-      // Rebuild physics: a standable platform fallback + per-object colliders.
-      // The platform collider is skipped when terrain was built (terrain IS the ground).
-      if (!_worldTerrain) {
-        try { _addPlatformCollider(_platformY); } catch (e) { console.warn('[travel] platform collider failed:', e && e.message ? e.message : e); }
-      }
-      try {
-        _worldColliders = buildWorldObjectColliders(_minimalWorld, { physicsWorld: getWorld(), Rapier: getRapier() });
-      } catch (e) { console.warn('[travel] object colliders failed:', e && e.message ? e.message : e); }
-
-      // Arrive at the destination's torii gate, facing into the world — not at the
-      // owner's login spawn (which reads as "middle of the arena").
-      const sp = resolveArrival(_minimalWorld);
-      try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[travel] respawn failed:', e && e.message ? e.message : e); }
+      // Shared in-place world swap (teardown + rebuild + terrain + colliders + land).
+      await _rebuildWorldInPlace(world, { worldId: world.id || '' });
 
       // Drop the mirror (unbind its texture) right as the reveal opens onto the real
       // world, so the iris cross → live mirror → landed world reads as one motion.

@@ -26,6 +26,7 @@
 // (returned as { ok:false, error }) rather than shipping an unrenderable world.
 
 import { validateWorld } from './worldSchema.js';
+import { DEFAULT_GRASS_COLOR } from './grassColor.js';
 
 // Legacy light.type → portable light.kind. The portable closed set is
 // ambient/directional/point/hemisphere, which matches the legacy set 1:1.
@@ -38,6 +39,27 @@ const OBJECT_HINT = {
   'torii-gate': 'torii-gate',
   'travel-gate': 'torii-gate', // no dedicated travel-gate portable type yet; the gate alias still reads as a portal
 };
+
+// _grassColorFromFoliage(foliage) → the canonical { napBase, napTip, arenaBase,
+// arenaTip } palette. Reads an optional legacy `foliage.grassColor` override;
+// otherwise returns the shipped DEFAULT_GRASS_COLOR (the values the shader used
+// before extraction, so serialization is byte-stable for the default arena).
+function _grassColorFromFoliage(foliage) {
+  if (foliage && typeof foliage === 'object' && !Array.isArray(foliage) && foliage.grassColor) {
+    const gc = foliage.grassColor;
+    const v = (k) => (Array.isArray(gc[k]) && gc[k].length === 3) ? gc[k].map(Number) : null;
+    const out = {};
+    let ok = true;
+    for (const k of ['napBase', 'napTip', 'arenaBase', 'arenaTip']) {
+      const a = v(k);
+      if (!a || !a.every((n) => Number.isFinite(n) && n >= 0 && n <= 1)) { ok = false; break; }
+      out[k] = a;
+    }
+    if (ok) return out;
+  }
+  // Clone so the caller can't mutate the shared default.
+  return { ...DEFAULT_GRASS_COLOR };
+}
 
 // _num(x) → finite number or undefined.
 function _num(v) {
@@ -170,6 +192,12 @@ export function serializeArenaWorld({ worldId, legacy, zones, name } = {}) {
   // sea + foliage — the arena always has both (procedural ocean + instanced grass).
   world.sea = true;
   world.foliage = true;
+  // grassColor — pin the arena's blade palette into the manifest so a traveller
+  // rebuilds the ORIGIN's grass colours (was hardcoded in the shader, so a
+  // swapped-in world showed the traveller's own node green). Serialization is
+  // deterministic: the shipped default palette, or one overridden on the legacy
+  // config (foliage.grassColor) without touching shader code.
+  world.grassColor = _grassColorFromFoliage(legacy.foliage);
 
   // sky — a bright clear day matches the arena's warm read (legacy Sky.js is code,
   // not config, so we pin a sensible portable equivalent).

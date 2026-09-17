@@ -24,6 +24,8 @@
 // Extraction of the chiefmonkey world to true data is Phase 1; this flag keeps
 // the template path live today without a renderer for manifest objects.
 
+import { normalizeGrassColor } from './grassColor.js';
+
 // Allowed sky.type / platform.type / light.kind values (closed sets).
 const SKY_TYPES = Object.freeze(['space', 'clear', 'dusk']);
 const PLATFORM_TYPES = Object.freeze(['cloud', 'solid']);
@@ -292,7 +294,16 @@ export function validateWorld(data) {
   // foliage (boolean) — when true, the runtime builds the instanced grass +
   // wildflowers (arena-foliage.js buildFoliage). Async (~7s, paint-yielded);
   // tickFoliage(dt) animates the wind from the shared render loop.
-  if (data.foliage === true) world.foliage = true;
+  if (data.foliage === true) {
+    world.foliage = true;
+    // foliage.grassColor — optional blade palette (world-as-data, P2). A world
+    // owner can publish their own NAP/arena blade gradients; missing/malformed
+    // fails closed to the shipped default (no crash, default colours).
+    if (data.grassColor != null) {
+      const gc = normalizeGrassColor(data.grassColor);
+      if (gc) world.grassColor = gc;
+    }
+  }
 
   // components [{ id, config? }] — droppable component instances whose
   // expand(config) contributes static world.objects at manifest-load time (the

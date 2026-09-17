@@ -7,6 +7,7 @@ import { CRATES, NAP_TREE_X, NAP_TREE_Z } from './config.js';
 import { sampleNapHeight, sampleArenaHeight } from './terrain/heightmap.js';
 import { NAP_BBOX, ARENA_BBOX } from './terrain/tomoeShape.js'; // v0.2.547: isNapLand/isArenaLand removed — heightmap replaces polygon tests
 import { SEA_LEVEL } from './terrain/seaConfig.js';
+import { DEFAULT_GRASS_COLOR, normalizeGrassColor } from './engine/world/grassColor.js';
 
 // NAP-zone footprint: bounded by the NAP polygon bbox, filtered by isNapLand().
 // v0.2.511: polygon-based — grass follows the comma-shaped island outline.
@@ -41,6 +42,8 @@ const _m4   = new THREE.Matrix4();
 let _grassMat  = null;
 let _flowerMat = null;
 let _tulipMat  = null; // v0.2.263: 2nd flower archetype (tulip cup)
+// P2 — the live grass palette (applied to uniforms at build + on world swap).
+let _grassColor = { ...DEFAULT_GRASS_COLOR };
 
 // v0.2.311: JS smoothstep (GLSL has it built in, JS does not). Used by the
 // procedural blade/noise texture generators in _buildGrass. The earlier green
@@ -72,6 +75,24 @@ export function tickFoliage(dt) {
 // Debug accessors — injected into ToriiDebug so the namespace can surface the
 // live materials without reaching through a global.
 export function getGrassMat()  { return _grassMat; }
+
+// P2 — recolour the live grass in place (world-as-data). Accepts a normalized
+// { napBase, napTip, arenaBase, arenaTip } palette (normalizeGrassColor output)
+// or a raw override; malformed input falls back to the shipped default. Safe to
+// call BEFORE the grass builds (palette is remembered and applied to the first
+// material) and repeatedly (idempotent uniform write, no rebuild, no allocation
+// in the render loop). Never throws. Used by arenaRuntime on world swap so the
+// destination's grass colours land without rebuilding 75k blades.
+export function setGrassColor(color) {
+  const c = normalizeGrassColor(color) || { ...DEFAULT_GRASS_COLOR };
+  _grassColor = c;
+  if (_grassMat && _grassMat.uniforms) {
+    _grassMat.uniforms.uNapBase.value.set(c.napBase[0], c.napBase[1], c.napBase[2]);
+    _grassMat.uniforms.uNapTip.value.set(c.napTip[0], c.napTip[1], c.napTip[2]);
+    _grassMat.uniforms.uArenaBase.value.set(c.arenaBase[0], c.arenaBase[1], c.arenaBase[2]);
+    _grassMat.uniforms.uArenaTip.value.set(c.arenaTip[0], c.arenaTip[1], c.arenaTip[2]);
+  }
+}
 export function getFlowerMat() { return _flowerMat; }
 export function getTulipMat()  { return _tulipMat; } // v0.2.263
 
@@ -366,6 +387,14 @@ async function _buildGrass(onProgress) {
       uFogColor:      { value: new THREE.Color(0xc8dde8) },
       uFogDensity:    { value: 0.008 },    // matches scene FogExp2
       uGrassFadeFar:   { value: 60.0 },
+      // P2 — blade colours as uniforms (world-as-data). Was hardcoded in the
+      // vertex shader, so a swapped-in world always showed the traveller's OWN
+      // node palette. The host sets these via setGrassColor(); the material
+      // defaults to the shipped palette (identical to the pre-extraction GLSL).
+      uNapBase:       { value: new THREE.Color(..._grassColor.napBase) },
+      uNapTip:        { value: new THREE.Color(..._grassColor.napTip) },
+      uArenaBase:     { value: new THREE.Color(..._grassColor.arenaBase) },
+      uArenaTip:      { value: new THREE.Color(..._grassColor.arenaTip) },
     },
     vertexShader: /* glsl */`
       precision highp float;
@@ -380,6 +409,10 @@ async function _buildGrass(onProgress) {
       uniform sampler2D uNoise;
       uniform float uNoiseScale;
       uniform float uWindIntensity;
+      uniform vec3 uNapBase;
+      uniform vec3 uNapTip;
+      uniform vec3 uArenaBase;
+      uniform vec3 uArenaTip;
 
       uniform mat4 modelViewMatrix;
       uniform mat4 projectionMatrix;
@@ -493,10 +526,11 @@ async function _buildGrass(onProgress) {
         // Per-blade vertical gradient base→tip, using the blade's LOCAL vertical
         // (hpct = di/BLADE_SEGS), NOT world Y — so every blade shows the full
         // gradient regardless of terrain height. NAP zone stays green (v0.2.303);
-        // arena zone goes PURPLE base → ORANGE tip (v0.2.329).
+        // arena zone goes PURPLE base → ORANGE tip (v0.2.329). P2: colours are now
+        // uniforms (setGrassColor) so a destination world's palette travels.
         vec3 bladeCol = aZone > 0.5
-          ? mix(vec3(0.45, 0.20, 0.65), vec3(0.95, 0.55, 0.15), hpct)
-          : mix(vec3(0.27, 0.60, 0.15), vec3(0.18, 0.43, 0.12), hpct);
+          ? mix(uArenaBase, uArenaTip, hpct)
+          : mix(uNapBase, uNapTip, hpct);
         vColor = vec4(
           light * 0.75 + cos(offset.x * 80.0) * 0.1,
           light * 0.95 + sin(offset.y * 140.0) * 0.05,

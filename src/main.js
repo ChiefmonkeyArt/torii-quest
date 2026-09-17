@@ -212,7 +212,7 @@ import {
   ARRIVAL_MODE_PUBLIC,
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
-import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
+import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -697,7 +697,12 @@ async function _gwPeek(world) {
     return;
   }
   if (_arena && typeof _arena.peekWorld === 'function') {
-    await _arena.peekWorld(resolved.world, { wsEndpoint: world.wsEndpoint });
+    // P2 — carry the destination world's owner label into the peek so the landed
+    // NAP-zone NPC nameplate shows the OWNER's name over THEIR mesh, not the
+    // traveller's. Best-effort label from the directory row (displayName/
+    // shortPubkey); never fails the peek if it's absent.
+    const ownerLabel = worldDirectoryLabel(world);
+    await _arena.peekWorld(resolved.world, { wsEndpoint: world.wsEndpoint, ownerLabel });
   }
 }
 
@@ -3010,6 +3015,9 @@ async function ensureArenaReady(loadingLabel) {
         // so an anonymous playthrough can't re-auth as a prior identity (phantom
         // chiefmonkey clone next to the resident NPC).
         isLoggedIn: () => /^[0-9a-f]{64}$/.test(state.nostrPubkey || ''),
+        // P2 — homecoming from a visited world re-applies the LOCAL owner's
+        // nameplate (the Nakama greeter is the caller-away traveller's own NPC).
+        onHomeRestored: () => _refreshOwnerLabel(),
       });
       _seatCharacterIntoArena(_arena);
       startPhase('boot');

@@ -231,10 +231,14 @@ export function extractGatewayFromEvent(event) {
 // worldDirectoryLabel(w) → the human label for a world row. The OWNER'S display name
 // (kind:0 displayName, self-attested into the heartbeat) is the primary label — NOT the
 // world's `title`, which is the app name ("Torii Quest") and identical across every
-// resident, so every listing would read the same. Falls back for legacy records.
+// resident, so every listing would read the same. When no name is present we fall back
+// to the owner's UNIQUE identity (shortPubkey), never the generic app title — a fresh
+// operator who has not yet set a display name (or whose kind:0 enrichment is still
+// in-flight) must not render as "Torii Quest". `title` stays only as a last resort for
+// legacy records that carry a meaningful zone title and no identity.
 export function worldDirectoryLabel(w) {
   const g = (w && typeof w === 'object') ? w : {};
-  return g.displayName || g.title || g.shortPubkey || g.zoneId || 'world';
+  return g.displayName || g.shortPubkey || g.title || g.zoneId || 'world';
 }
 
 // _addressKey(gateway) → the dedup key for an addressable gateway record: the signing

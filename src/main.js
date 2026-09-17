@@ -143,17 +143,13 @@ import { isHeartbeatDue, isFirstPublishDue, nextHeartbeatInMs, heartbeatStatus, 
 // follows) + "arenas" (everything else, created_at DESC). main.js fetches the
 // kind:3 contact lists; this classifies + sorts.
 import {
-  partitionGatewaySections, candidateFriendOwners, contactSetFromEvent,
-  newestContactEvent, SECTION_ROW_CAP,
+  candidateFriendOwners, contactSetFromEvent, newestContactEvent,
 } from './engine/gateway/gatewaySections.js';
 // v0.2.252 (P1): signed n2n travel-request handshake — stateful controller + SEC-2 verify gate.
 import { createHandshakeController } from './engine/gateway/handshakeController.js';
 import { createSerializedPoller, POLL_MS } from './engine/polling/serializedPoll.js';
 // v0.2.253 (P2): SEC-3 product URL hardening — the gate before any armed spawn URL becomes navigable.
-import { hardenSpawnUrl, appendTraveller } from './engine/gateway/urlHarden.js';
-// Phase 0c: the canonical NAP-zone slug validator (used to forward zoneSlug on
-// travel so visiting lands in the destination NAP zone).
-import { isValidZoneSlug } from './engine/gateway/zoneRoute.js';
+import { hardenSpawnUrl } from './engine/gateway/urlHarden.js';
 // Phase 0c: the persistent Torii menu — DOM presentation layer + pure
 // sub-partitioner + owner-admin localStorage prefs. The menu renders from a
 // getState() snapshot main.js owns; it never fetches/signs/navigates on its own.
@@ -216,7 +212,7 @@ import {
   ARRIVAL_MODE_PUBLIC,
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
-import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
+import { buildGatewayFilter } from './engine/gateway/gatewayRead.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -320,29 +316,6 @@ function renderMvpLoop() {
 // function + mvpLoopSummary() are kept for tests / potential reuse).
 // renderMvpLoop();
 
-// ── Gateway / n2n world-presence LIVE card (v0.2.251, P0) ───────────────────────
-// Live read of other Torii worlds advertising presence on shared relays. Read-only
-// + safe: fanoutReq over wss relays → fetchOnlineWorlds → readGateways sanitisation.
-// Never navigates, never signs (the write half runs only on explicit NIP-07 login).
-function _setGatewayBadge(text) {
-  const el = document.getElementById('gateway-preview-badge');
-  if (el) el.textContent = text;
-}
-
-function _gatewayRows(...pairs) {
-  const out = [];
-  for (const [label, value] of pairs) {
-    const l = document.createElement('div');
-    l.className = 'gw-row-label';
-    l.textContent = label;
-    const v = document.createElement('div');
-    v.className = 'gw-row-value';
-    v.textContent = value;
-    out.push(l, v);
-  }
-  return out;
-}
-
 // The live n2n handshake controller. Stateful but DOM-free; transports are the
 // injected nostr.js fns; ourPubkey is empty until login.
 const _handshake = createHandshakeController({
@@ -362,115 +335,6 @@ let _ownerContacts = new Map();
 // of overlapping/settling out of order, and their cadence is wall-clock rather
 // than refresh-rate dependent. No window timers added (still rAF-driven).
 const _shellPoller = createSerializedPoller();
-
-function renderGatewayCard() {
-  const body = document.getElementById('gateway-preview-body');
-  if (!body) return;
-  const v = _handshake.view();
-  _setGatewayBadge(v.badge);
-  if (v.mode !== 'scan') {
-    body.replaceChildren(..._gatewayRows(...v.rows));
-    _renderGatewayActions(body, v.actions);
-    return;
-  }
-  if (_worldsScan === 'offline') {
-    body.replaceChildren(..._gatewayRows(['SCAN', 'relays unreachable']));
-    _renderGatewayActions(body, []);
-    return;
-  }
-  if (_worldsScan === 'scanning' && !_worldsCache.length) {
-    body.replaceChildren(..._gatewayRows(['SCAN', 'querying relays…']));
-    _renderGatewayActions(body, []);
-    return;
-  }
-  if (!_worldsCache.length) {
-    const msg = state.nostrPubkey ? 'no other worlds online' : 'login to travel';
-    body.replaceChildren(..._gatewayRows(['SCAN', msg]));
-    _renderGatewayActions(body, []);
-    return;
-  }
-  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
-  body.replaceChildren();
-  const { friends, arenas } = partitionGatewaySections({
-    worlds: _worldsCache,
-    userPubkey: canTravel ? state.nostrPubkey : '',
-    userContacts: _userContacts,
-    ownerContacts: _ownerContacts,
-  });
-  // "your friends" — mutual-follow worlds. Logged out: a safe login hint instead.
-  if (canTravel) {
-    _renderGatewaySection(body, 'your friends', friends, canTravel,
-      friends.length ? '' : 'no mutual friends online');
-  } else {
-    _renderGatewaySectionHeader(body, 'your friends', 'login to see friends');
-  }
-  // "arenas" — everything else, latest signal first.
-  _renderGatewaySection(body, 'arenas', arenas, canTravel,
-    arenas.length ? '' : 'no arenas online');
-  _renderGatewayActions(body, []);
-}
-
-// Section header row (label + value), full pair in the 2-col grid. Pure DOM.
-function _renderGatewaySectionHeader(body, title, hint) {
-  const head = document.createElement('div');
-  head.className = 'gw-section-title';
-  head.textContent = title;
-  const headV = document.createElement('div');
-  headV.className = 'gw-row-value';
-  headV.textContent = hint;
-  body.append(head, headV);
-}
-
-// Render one section: a header, up to SECTION_ROW_CAP travel rows, and a "+N more"
-// overflow summary line when the section has more worlds than the cap.
-function _renderGatewaySection(body, title, worlds, canTravel, emptyHint) {
-  _renderGatewaySectionHeader(body, title, emptyHint || `${worlds.length}`);
-  const shown = worlds.slice(0, SECTION_ROW_CAP);
-  for (const w of shown) {
-    const label = worldDirectoryLabel(w);
-    const row = document.createElement('div');
-    row.className = canTravel ? 'gw-world-row gw-world-clickable' : 'gw-world-row';
-    if (w.pubkey) row.setAttribute('data-pubkey', w.pubkey);
-    row.textContent = (canTravel ? '→ ' : '  ') + label;
-    if (canTravel) {
-      row.setAttribute('role', 'button');
-      row.setAttribute('tabindex', '0');
-      row.setAttribute('aria-label', `travel to ${label}`);
-      row.addEventListener('click', () => _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }));
-      row.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _gwOpenVisit(w, { zoneSlug: isValidZoneSlug(w.zoneId) ? w.zoneId : null }); }
-      });
-    }
-    const type = document.createElement('div');
-    type.className = 'gw-row-value';
-    type.textContent = w.zoneType || 'world';
-    body.append(row, type);
-  }
-  const overflow = worlds.length - shown.length;
-  if (overflow > 0) {
-    const more = document.createElement('div');
-    more.className = 'gw-more';
-    more.textContent = `+${overflow} more`;
-    body.append(more);
-  }
-}
-
-function _renderGatewayActions(body, actions) {
-  if (!actions || !actions.length) return;
-  const wrap = document.createElement('div');
-  wrap.className = 'gw-actions';
-  for (const a of actions) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'gw-btn';
-    if (a === 'accept') { btn.classList.add('gw-btn-accept'); btn.textContent = 'ACCEPT'; btn.addEventListener('click', () => _gwAccept()); }
-    else if (a === 'deny') { btn.classList.add('gw-btn-deny'); btn.textContent = 'DENY'; btn.addEventListener('click', () => _gwDeny()); }
-    else if (a === 'jump') { btn.classList.add('gw-btn-jump'); btn.textContent = 'JUMP'; btn.addEventListener('click', () => _gwJump()); }
-    else continue;
-    wrap.append(btn);
-  }
-  body.append(wrap);
-}
 
 // ── Phase 0c: persistent Torii menu state ─────────────────────────────────────
 // _getToriiMenuState() builds the snapshot the menu renders from. main.js owns ALL
@@ -792,13 +656,9 @@ function _openHomepageStub() {
 // handling are no longer needed; settingsPanel.js's own backdrop-click/×/ESC
 // handling covers it.
 
-// _gwOpenVisit(world, opts?) — the OPEN-VISIT travel path. Resolves the world by
-// the owner's npub and renders it IN PLACE (no navigation). This replaces the old
-// cross-host `window.location.href` hop entirely: the player's URL never changes.
 // _resolveWorldDirRecord(world) → { ok, world } | { ok:false, reason } — resolve a
-// directory row (npub/publish) into a validated destination world. Shared by the
-// browse-loop peek and the (title-screen) open-visit travel so both run the SAME
-// content-addressed resolve. Fail-closed: never fabricates a world.
+// directory row (npub/publish) into a validated destination world. Used by the
+// browse-loop PEEK (the gate-only travel path). Fail-closed: never fabricates a world.
 async function _resolveWorldDirRecord(world) {
   // Resolve by the owner's npub: discover their signed kind-30078 world reference
   // across relays, hash-verify the manifest, fetch + validate it. relayReqFn maps the
@@ -820,35 +680,6 @@ async function _resolveWorldDirRecord(world) {
   } catch (e) {
     return { ok: false, reason: e && e.message ? e.message : 'resolve-error' };
   }
-}
-
-async function _gwOpenVisit(world, opts) {
-  // IN-PLACE travel (world-as-data). Resolve the destination world by npub and swap
-  // it into THIS shell. NO navigation, period: the player's browser URL never changes
-  // — we enter the metaverse through this domain and only the world inside changes.
-  // The old cross-host visit-URL hop is removed.
-  if (!world || (!world.pubkey && !world.npub)) {
-    console.warn('open-visit rejected: directory record has no identity');
-    renderGatewayCard();
-    return;
-  }
-  const resolved = await _resolveWorldDirRecord(world);
-  if (!resolved || !resolved.ok || !resolved.world) {
-    // FAIL CLOSED: stay in the current world. Never navigate.
-    console.warn('in-place travel resolve failed:', resolved && resolved.reason);
-    renderGatewayCard();
-    return;
-  }
-
-  if (_arena && typeof _arena.travelToWorld === 'function') {
-    // The iris cross now reveals the LIVE mirror (world-B render + read-only spectator
-    // stream of the destination's wsEndpoint) before the real swap lands beneath it.
-    const result = await _arena.travelToWorld(resolved.world, { wsEndpoint: world.wsEndpoint });
-    if (!result || !result.ok) console.warn('in-place travel failed:', result && result.reason);
-  } else {
-    console.warn('in-place travel failed: arena unavailable');
-  }
-  renderGatewayCard();
 }
 
 // _gwPeek(world) — the browse-loop PEEK (v0.2.865). Resolves + builds the destination
@@ -890,52 +721,10 @@ function _gwBrowseWorld(world) {
   if (_arena && typeof _arena.openGatewayBrowse === 'function') {
     _arena.openGatewayBrowse(world);
   } else {
-    // Arena not booted (defensive): fall back to direct travel so a stray click can
-    // never strand a logged-in player. This path is reachable only pre-boot.
-    _gwOpenVisit(world, { zoneSlug: isValidZoneSlug(world.zoneId) ? world.zoneId : null });
+    // Arena not booted — travel is gate-only after login, so a pre-boot pick is a
+    // no-op (defensive; unreachable once the in-game menu is open).
+    console.warn('gateway browse skipped: arena not booted');
   }
-}
-
-// _gwTravel(world) — the SIGNED handshake hop. KEPT for an optional future
-// "private/invite-only travel mode" but is NOT the default path in Phase 0: the
-// in-world onTravel + the title-screen row click route to _gwOpenVisit above.
-// Left intact (not deleted) so re-enabling signed travel is a one-line routing
-// change, not a rebuild.
-async function _gwTravel(world) {
-  await _handshake.requestTravel(world);
-  renderGatewayCard();
-}
-async function _gwAccept() {
-  await _handshake.respondIncoming(true, { spawn: window.location.origin + window.location.pathname });
-  renderGatewayCard();
-}
-async function _gwDeny() {
-  await _handshake.respondIncoming(false);
-  renderGatewayCard();
-}
-function _gwJump() { _executeJump(); }
-
-// _executeJump() — the n2n hop. Reachable ONLY after SEC-2 (signed accept) armed
-// the spawn. SEC-3 then hardens the spawn URL before the ONE navigation site in
-// the whole gateway flow touches window.location. Fails closed.
-function _executeJump() {
-  const snap = _handshake.snapshot();
-  const armed = snap && snap.armed;
-  if (!armed) { renderGatewayCard(); return; }
-  const spawn = armed.spawn || (window.location.origin + window.location.pathname);
-  const hardened = hardenSpawnUrl(spawn);
-  if (!hardened.ok) {
-    _handshake.clearArmed();
-    renderGatewayCard();
-    return;
-  }
-  const withTraveller = appendTraveller(hardened.url, state.nostrPubkey || '');
-  const target = withTraveller.ok ? withTraveller.url : hardened.url;
-  _handshake.clearArmed();
-  // MP-1: gracefully close the multiplayer WebSocket before we navigate, so the
-  // server logs a proper LEFT rather than a ping-timeout when we hop instances.
-  try { _arena?.stopMultiplayer?.('travel'); } catch (e) { /* best-effort */ }
-  try { window.location.href = target; } catch (e) { renderGatewayCard(); }
 }
 
 // ── P2 cross-host arrival: seat a crypto-verified inbound traveller ──────────────
@@ -1022,7 +811,6 @@ async function _admitInboundTraveller() {
     state.nostrName = admit.npub.slice(0, 8).toUpperCase();
     _handshake.setOurPubkey(admit.npub);
     emit(EV.NOSTR_LOGIN, { pubkey: admit.npub });
-    renderGatewayCard();
   }
   _inboundTraveller = null;
 }
@@ -1083,7 +871,6 @@ async function _enrichWorldOwners(worlds) {
 
 async function refreshOnlineWorlds() {
   _worldsScan = 'scanning';
-  if (!_worldsCache.length) renderGatewayCard();
   // Read-side discovery (Phase 0d follow-up): query the single relay list (the
   // same list presence publishes to, ADR-0081). This is read-only — a failed
   // relay just lands in `failed` and never fails the scan (fanoutReq returns the
@@ -1099,28 +886,23 @@ async function refreshOnlineWorlds() {
   if (!r.ok) {
     _worldsScan = 'offline';
     _worldsCache = [];
-    renderGatewayCard();
     return;
   }
   _worldsCache = r.worlds || [];
   _worldsScan = 'idle';
-  renderGatewayCard();
   // ADR-0119 slice-5: enrich owner identity (kind:0 displayName/avatar) for rows
   // whose presence omitted it, then re-render so the directory shows the person.
-  const before = _worldsCache.length;
   await _enrichWorldOwners(_worldsCache);
-  if (_worldsCache.length !== before || _worldsCache.some((w) => w && w.displayName)) renderGatewayCard();
   // Friend detection rides the same scan cadence. Fail-soft: any relay error
   // leaves the friend caches empty so arenas still renders every world.
   await _refreshFriendData();
-  renderGatewayCard();
 }
 
 // _refreshFriendData() — the cheapest correct mutual-follow detection (v0.2.403):
 //   (1) fetch the user's newest kind:3 contact list;
 //   (2) intersect its follows with online-world owners → candidate owners;
 //   (3) fetch the newest kind:3 for ONLY those candidates;
-//   (4) partitionGatewaySections marks a world a "friend" iff the user follows the
+//   (4) classifySections marks a world a "friend" iff the user follows the
 //       owner AND the owner follows the user back.
 // No broad {#p:[user]} follower fanout. Never throws; relay errors → empty caches.
 async function _refreshFriendData() {
@@ -1372,11 +1154,7 @@ async function publishOurWorldPresence() {
   }
 }
 
-function renderGatewayPreview() {
-  renderGatewayCard();
-  refreshOnlineWorlds();
-}
-renderGatewayPreview();
+refreshOnlineWorlds();
 
 // The player's own character mesh URL (Blossom), resolved at login from their
 // signed kind-35100 character event. Set before arena boot so loadPlayerModel()
@@ -1415,7 +1193,6 @@ on(EV.NOSTR_LOGIN, () => {
     }
   }
   _handshake.setOurPubkey(state.nostrPubkey || '');
-  renderGatewayCard();
   _applyOwnCharacterMesh();
   // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
   // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
@@ -3380,7 +3157,7 @@ window.__toriiEnterReady = true;
 function _shellTick() {
   if (!isPlaying() && state.nostrPubkey) {
     _shellPoller.poll('handshake', POLL_MS.handshake, () =>
-      _handshake.tick().then(renderGatewayCard),
+      _handshake.tick(),
     );
     _shellPoller.poll('presence', POLL_MS.presence, () => refreshOnlineWorlds());
     // Phase 0d: heartbeat republish rides the same rAF tick (no new timers).

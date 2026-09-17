@@ -58,12 +58,16 @@ describe('v0.2.790 — sovereign-host purge (no pplx/perplexity reference)', () 
 
   it('open-visit travel renders IN PLACE — it never browser-navigates to another host', () => {
     // v0.2.858: cross-host travel (window.location.href = visit.url) is removed. The
-    // default open-visit path resolves the world by npub and swaps it into this shell.
+    // title-screen gateway card (and its direct _gwOpenVisit/_arena.travelToWorld
+    // wiring) was retired in v0.2.867: travel is now GATE-ONLY after login. The
+    // shell hands a picked world into the arena's browse loop (peek → 入 commit),
+    // which performs the in-place swap; main.js never navigates away.
     const main = read('src/main.js');
     expect(main).toContain('resolveWorldByNpub');
-    expect(main).toContain('travelToWorld');
+    expect(main).toContain('openGatewayBrowse');
+    expect(main).toContain('commitPeek');
     expect(main).not.toContain('window.location.href = visit.url');
-    expect(main).toContain('_arena.travelToWorld');
+    expect(main).not.toContain('_arena.travelToWorld');
   });
 
   it('live-host fixtures resolve to chiefmonkey.art, never the retired subdomain', () => {

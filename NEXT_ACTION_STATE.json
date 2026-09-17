@@ -1,17 +1,19 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-09-17T00:11:28.978Z",
+  "generatedAt": "2026-09-17T00:40:14.998Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.867-alpha",
-  "packageVersion": "0.2.867-alpha",
-  "gitCommit": "58c4bd71",
+  "version": "v0.2.868-alpha",
+  "packageVersion": "0.2.868-alpha",
+  "gitCommit": "ffa0c37b",
   "liveUrl": "https://chiefmonkey.art",
   "release": {
-    "ready": true,
-    "gateStatus": "READY",
+    "ready": false,
+    "gateStatus": "NOT READY",
     "gateCommand": "npm run test:release",
-    "blockers": [],
+    "blockers": [
+      "docs"
+    ],
     "regression": {
       "count": 21,
       "expected": 21
@@ -22,12 +24,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 4861,
-    "files": 401
+    "passing": 4867,
+    "files": 402
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
+    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -35,7 +37,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.867-alpha"
+    "version": "v0.2.868-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -102,7 +104,7 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.867-alpha",
+    "version": "v0.2.868-alpha",
     "liveUrl": "https://chiefmonkey.art",
     "dashboardUrl": "https://chiefmonkey.art/dashboard.html",
     "entrySmoke": {
@@ -126,9 +128,9 @@
   "mvpGate": {
     "verdict": "approved",
     "approved": true,
-    "confidenceGreen": true,
+    "confidenceGreen": false,
     "confidenceSignals": {
-      "releaseReady": true,
+      "releaseReady": false,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true

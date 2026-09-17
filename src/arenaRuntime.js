@@ -21,7 +21,7 @@ import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
-import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat } from './arena-foliage.js';
+import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor } from './arena-foliage.js';
 import { buildSeaMesh, tickSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
@@ -35,7 +35,7 @@ import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBo
 import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
 import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions, clearActiveBullets } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
-import { buildNapNpc, tickNapNpc } from './napNpc.js';
+import { buildNapNpc, tickNapNpc, setNapNpcName } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
@@ -582,6 +582,10 @@ export function createArenaRuntime(hooks = {}) {
   // spawn a phantom clone of the owner/self. Defaults to true only for shells
   // that predate the hook (they have no notion of "not logged in").
   const isLoggedInHook = typeof hooks.isLoggedIn === 'function' ? hooks.isLoggedIn : () => true;
+  // P2 — homecoming reopened the caller's own world; re-apply the LOCAL owner's
+  // nameplate (the Nakama greeter is the traveller's own NPC, not the visited
+  // world's). No-op default keeps a shell-without-hooks working.
+  const onHomeRestoredHook = typeof hooks.onHomeRestored === 'function' ? hooks.onHomeRestored : null;
 
   let _booted = false;
 
@@ -644,7 +648,7 @@ export function createArenaRuntime(hooks = {}) {
   // Browser-loop gate (v0.2.865): click-to-peek / 入-to-enter / ✕-to-leave. Pure
   // state machine — decides whether a given action SWAPS the world (only commit does).
   const _browse = createPortalBrowse();
-  let _pendingTravel = null;   // { world, wsEndpoint } the currently-peered destination (commit target)
+  let _pendingTravel = null;   // { world, wsEndpoint, ownerLabel } the currently-peered destination (commit target)
   let _lastPreviewBlit = 0;    // throttle for the in-panel preview read-back
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
@@ -1361,6 +1365,9 @@ export function createArenaRuntime(hooks = {}) {
       // only when the manifest asks. Same async paint-yielded build + shared
       // tickFoliage(dt) from the render loop.
       if (_minimalWorld && _minimalWorld.foliage) {
+        // P2 — apply the manifest's grass palette (if any) BEFORE build so the
+        // first material is created with the destination colours.
+        try { setGrassColor(_minimalWorld.grassColor); } catch { /* noop */ }
         onBootProgress(3); // 'Growing grass…'
         await buildFoliage((p) => {
           onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
@@ -2199,6 +2206,9 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal || !_homeWorld) return;
     if (_minimalWorld === _homeWorld) return;
     await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });
+    // P2 — home again: re-apply the LOCAL owner's nameplate (the visited world's
+    // owner name was applied on travel; the greeter is now the caller's own NPC).
+    try { if (onHomeRestoredHook) onHomeRestoredHook(); } catch { /* noop */ }
   }
 
   async function enter() {
@@ -2409,6 +2419,11 @@ export function createArenaRuntime(hooks = {}) {
     _worldRt = buildMinimalWorld(_minimalWorld, { scene, sun, THREE, assetUrl, loadGltf: _loadGltf });
     _platformY = _worldRt.platformY || 0;
     if (_worldRt.ready) { _worldRt.ready.catch(() => {}); }
+    // P2 — recolour the LIVE grass to the destination world's palette (no rebuild:
+    // the 75k blades stay resident, only the blade-gradient uniforms swap). Homecoming
+    // to our own world carries its own grassColor; a world without one falls back to
+    // the shipped default.
+    try { setGrassColor(_minimalWorld && _minimalWorld.grassColor); } catch { /* noop */ }
 
     // Build the world's TERRAIN (ADR-0119) so the player lands on real island
     // ground, not the cloud-platform fallback. Inline heights (content-addressed)
@@ -2487,6 +2502,12 @@ export function createArenaRuntime(hooks = {}) {
 
       // Shared in-place world swap (teardown + rebuild + terrain + colliders + land).
       await _rebuildWorldInPlace(world, { worldId: world.id || '' });
+
+      // P2 — the landed world's NPC greeter shows the DESTINATION owner's name over
+      // THEIR mesh, not the traveller's (was resolving local identity). Best-effort:
+      // no label (a world without an owner in the directory) leaves the existing
+      // label, never breaks travel.
+      try { if (opts && opts.ownerLabel) setNapNpcName(opts.ownerLabel); } catch { /* noop */ }
 
       // Drop the mirror (unbind its texture) right as the reveal opens onto the real
       // world, so the iris cross → live mirror → landed world reads as one motion.
@@ -2586,10 +2607,10 @@ export function createArenaRuntime(hooks = {}) {
   async function commitPeek() {
     const r = _browse.step(BROWSE_ACTION.COMMIT);
     if (!r.swap || !_pendingTravel || !_pendingTravel.world) return { ok: false, reason: 'no-peek' };
-    const { world, wsEndpoint } = _pendingTravel;
+    const { world, wsEndpoint, ownerLabel } = _pendingTravel;
     _pendingTravel = null;
     try { closeGatewayScreen(); } catch { /* noop */ }
-    return await travelToWorld(world, { wsEndpoint });
+    return await travelToWorld(world, { wsEndpoint, ownerLabel });
   }
 
   // cancelBrowsePeek() — the ✕ / Esc back-away. Tears the mirror down (no swap) and
@@ -2601,10 +2622,10 @@ export function createArenaRuntime(hooks = {}) {
     try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
   }
 
-  async function _handlePeek(world, { wsEndpoint } = {}) {
+  async function _handlePeek(world, { wsEndpoint, ownerLabel } = {}) {
     const r = _browse.step(BROWSE_ACTION.PEEK);
     if (!r.changed) return { tier: 'none', refused: true };
-    _pendingTravel = { world, wsEndpoint };
+    _pendingTravel = { world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' ? ownerLabel : '' };
     return peekWorld(world, { wsEndpoint });
   }
 

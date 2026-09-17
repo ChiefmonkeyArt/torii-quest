@@ -460,6 +460,23 @@ export function tickWeapons(dt, playerPos) {
   _tickGun(dt);
 }
 
+// clearActiveBullets() — retract every in-flight projectile/tracer into the pool
+// and remove it from the scene. Used on the IN-PLACE world swap (_rebuildWorldInPlace)
+// so a traveller never carries world A's frozen bullets/tracers into world B (the
+// combat subsystems survive the swap, but their trajectory + collider references
+// belong to the OLD world — leaving them is a half-disposed, frozen-mesh glitch).
+export function clearActiveBullets() {
+  for (let i = _active.length - 1; i >= 0; i--) {
+    const b = _active[i];
+    if (b.isPlayer && b._diag && !b._diag.resolved) _finalizeShot(b, 'none', false, null, Infinity);
+    b._diag = null;
+    scene.remove(b.mesh);
+    b.mesh.visible = false;
+    _pool.push(b);
+    _active[i] = _active[_active.length - 1]; _active.pop();
+  }
+}
+
 // ── FP gun viewmodel (gunScene — always rendered on top) ─────────────────────
 const _barrelWorld = new THREE.Vector3();
 let _gunMesh   = null;

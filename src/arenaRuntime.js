@@ -33,7 +33,7 @@ import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
 import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions } from './weapons.js';
+import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions, clearActiveBullets } from './weapons.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
@@ -2382,6 +2382,10 @@ export function createArenaRuntime(hooks = {}) {
 
     // Teardown the current world's assets (visuals + physics) — mirrors
     // stopMultiplayer's teardown but keeps the render loop + MP socket alive.
+    // P2 glitch sweep (v0.2.869): also retract in-flight projectiles/tracers,
+    // which belong to the OLD world's colliders + trajectories — leaving them is
+    // the frozen-bullet/tracer glitch (a half-disposed combat subsystem).
+    try { clearActiveBullets(); } catch { /* noop */ }
     if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
     if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
     if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }

@@ -148,8 +148,10 @@ function _close() {
 
 function _worldLabel(w) {
   // GATEWAY-DISPLAY: prefer the operator's kind:0 display name (self-attested),
-  // then the world title, then a hex truncation, then the zone id.
-  return w.displayName || w.title || w.shortPubkey || w.zoneId || 'world';
+  // then a hex truncation, then the world title, then the zone id. The owner's
+  // UNIQUE identity (shortPubkey) beats the generic app `title`, so a fresh
+  // operator never renders as "Torii Quest".
+  return w.displayName || w.shortPubkey || w.title || w.zoneId || 'world';
 }
 
 // _sectionHeader(list, title) — a labelled section header inside the menu list.

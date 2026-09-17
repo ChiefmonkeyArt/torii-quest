@@ -30,11 +30,19 @@ export function resolveArrival(world, { gateInset = 2.6 } = {}) {
   // object (the entry gate). `travel-gate` is also type-mapped to 'torii-gate' by
   // the serializer, but the entry gate is always emitted first in the legacy order.
   let gate = null;
+  let gateYaw = null; // the gate's through-axis yaw, read from a torii-gate rotation
+  let aim = null;     // explicit point the gate faces toward (gateway.target vec3)
   if (world && world.gateway && Array.isArray(world.gateway.position)) {
     gate = { x: _num(world.gateway.position[0]), z: _num(world.gateway.position[2]) };
+    if (Array.isArray(world.gateway.target) && world.gateway.target.length >= 3) {
+      aim = { x: _num(world.gateway.target[0]), z: _num(world.gateway.target[2]) };
+    }
   } else if (world && Array.isArray(world.objects)) {
     const g = world.objects.find((o) => o && o.type === 'torii-gate' && Array.isArray(o.position));
-    if (g) gate = { x: _num(g.position[0]), z: _num(g.position[2]) };
+    if (g) {
+      gate = { x: _num(g.position[0]), z: _num(g.position[2]) };
+      if (Array.isArray(g.rotation)) gateYaw = _num(g.rotation[1]);
+    }
   }
 
   // No gate: fall back to the owner spawn only if we have one.
@@ -49,18 +57,44 @@ export function resolveArrival(world, { gateInset = 2.6 } = {}) {
     return { x: 0, z: 0, yaw: 0 };
   }
 
-  // Face into the world: aim from the gate toward the interior (owner spawn, or a
-  // sensible default when the manifest has no spawn), and stand just past the gate
-  // on that side. Forward convention matches the client: (sin yaw, cos yaw).
-  let dx = spawn ? (spawn.x - gate.x) : 0;
-  let dz = spawn ? (spawn.z - gate.z) : -1;
-  const len = Math.hypot(dx, dz);
-  if (len < 1e-6) { dx = 0; dz = -1; } else { dx /= len; dz /= len; }
+  // Face out of the gate into the world. Priority (most → least authoritative):
+  //   1. the gate's OWN through-axis (its rotation yaw) — a rotated gate faces the
+  //      world the way it is actually built, not along a spawn-point vector that can
+  //      sit off-axis. Sign the axis toward the interior (owner spawn) when one is
+  //      known, so "walking out" always points into the world, never back at the
+  //      gateway. (ADR-0119 spawn-at-gate nuance.)
+  //   2. gateway.target — the explicit point the gate looks toward.
+  //   3. the owner spawn — the interior of the world.
+  //   4. -z — a sensible default with no other signal.
+  // Forward convention matches the client: (sin yaw, cos yaw).
+  let dx;
+  let dz;
+  if (gateYaw !== null && Number.isFinite(gateYaw)) {
+    dx = Math.sin(gateYaw);
+    dz = Math.cos(gateYaw);
+    if (spawn) {
+      const toward = (spawn.x - gate.x) * dx + (spawn.z - gate.z) * dz;
+      if (toward < 0) { dx = -dx; dz = -dz; }
+    }
+  } else {
+    let tx = 0;
+    let tz = -1;
+    if (aim && (Math.abs(aim.x - gate.x) + Math.abs(aim.z - gate.z)) > 1e-6) {
+      tx = aim.x - gate.x;
+      tz = aim.z - gate.z;
+    } else if (spawn) {
+      tx = spawn.x - gate.x;
+      tz = spawn.z - gate.z;
+    }
+    const len = Math.hypot(tx, tz);
+    if (len < 1e-6) { dx = 0; dz = -1; } else { dx = tx / len; dz = tz / len; }
+  }
   const yaw = Math.atan2(dx, dz);
 
+  const ins = _num(gateInset);
   return {
-    x: gate.x + dx * _num(gateInset),
-    z: gate.z + dz * _num(gateInset),
+    x: gate.x + dx * ins,
+    z: gate.z + dz * ins,
     yaw,
   };
 }

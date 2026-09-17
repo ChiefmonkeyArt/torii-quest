@@ -1075,6 +1075,10 @@ export function createArenaRuntime(hooks = {}) {
       if (_mirrorClient && _mirrorClient.state === SPECTATOR_STATE.LIVE) {
         _mirror.setRoster(_mirrorClient.readBots(), _mirrorClient.readPeers());
       }
+      // Feed the live viewer pose so the iris parallax tracks the player's movement
+      // (computePortalCamera in the mirror's render()). camera is the active THREE
+      // camera in SOURCE space; its position/quaternion are read by value each frame.
+      try { _mirror.setViewer({ position: camera.position, quaternion: camera.quaternion }); } catch { /* noop */ }
       _mirror.render(renderer);
       _blitPreview();
     }
@@ -2338,6 +2342,11 @@ export function createArenaRuntime(hooks = {}) {
       return { tier: 'none', close: closeLiveMirror };
     }
     _mirror = mirror;
+    // Parallax-correct peek (ADR-0118): tell the mirror where OUR gate sits (the far
+    // side is read from the destination manifest inside build()). Yaw 0 — the source
+    // gate's through-axis is its built orientation; the mapping only needs the position
+    // to shift the iris like a real window as the viewer moves.
+    try { mirror.setPortalFrom({ position: _portalPos, quaternion: { x: 0, y: 0, z: 0, w: 1 } }); } catch { /* noop */ }
     try { bindPortalTexture(mirror.texture()); } catch { /* noop */ }
     try { mirror.render(renderer); } catch { /* noop */ }
 

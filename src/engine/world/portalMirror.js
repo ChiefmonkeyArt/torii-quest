@@ -20,6 +20,8 @@ import * as THREE from 'three';
 import { buildMinimalWorld } from './worldRenderer.js';
 import { buildTerrainVisual } from './terrainVisual.js';
 import { resolveSkyColor } from './skyColor.js';
+import { computePortalCamera } from './portalCamera.js';
+import { gateTransform } from './gateTransform.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
 
@@ -31,6 +33,15 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   let _target = null;
   let _built = false;
   let _terrainMeshes = [];  // world.terrain visual-only meshes ({mesh,dispose})
+
+  // Portal transforms (ADR-0118): the gate in SOURCE space is a fixed offset the host
+  // feeds once (the viewer's own gate, which does not move), and the gate in
+  // DESTINATION space is read from the destination manifest. With both set, the peek
+  // camera is parallax-correct (computePortalCamera); otherwise it stays the fixed
+  // 3/4 fallback view.
+  let _portalFrom = null; // { position, quaternion } in the SOURCE (viewer) world
+  let _portalTo = null;   // { position, quaternion } in the DESTINATION world
+  let _viewer = null;     // { position, quaternion } of the viewer camera (per frame)
 
   // Avatar pool: capsules, split into bot (green) vs peer (cyan) materials.
   const _avatars = [];
@@ -77,11 +88,16 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       scene: _scene, sun: _sun, THREE: T, assetUrl, loadGltf,
     });
     // Aim the mirror camera at the destination platform from the gateway side: a
-    // fixed 3/4 "peek" view (parallax-correct portalCamera is the polish slice).
+    // fixed 3/4 "peek" view. When both portal transforms are known this is upgraded
+    // to a parallax-correct camera (computePortalCamera) in render().
     const spawn = _world.spawn || { x: 0, z: 0 };
     const py = _world.platformY || 0;
     _camera.position.set(spawn.x + 10, py + 7, spawn.z + 12);
     _camera.lookAt(spawn.x, py + 1, spawn.z);
+
+    // Destination gate: if the manifest has one, remember it as the portal's far side
+    // (yaw-only). No gate → keep the fixed 3/4 view (parallax is undefined).
+    _portalTo = gateTransform(world);
 
     // Sky: paint the destination world's colour (the mirror scene has no Sky.js, so
     // an unpainted background reads as a black iris).
@@ -140,6 +156,19 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   /** Render the mirror scene into the target. No-op before build(). */
   function render(renderer) {
     if (!_built || !renderer || !_target) return;
+    // Parallax-correct camera: when both portal transforms are known, derive the
+    // DESTINATION camera from the current viewer through the gate so the iris shifts
+    // like a real window as the viewer moves. Fall back to the fixed 3/4 pose
+    // otherwise (missing gate, or no viewer fed yet).
+    if (_portalFrom && _portalTo && _viewer) {
+      const cam = computePortalCamera({
+        viewer: _viewer,
+        portalFrom: _portalFrom,
+        portalTo: _portalTo,
+      });
+      _camera.position.set(cam.position.x, cam.position.y, cam.position.z);
+      _camera.quaternion.set(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w);
+    }
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(_target);
     renderer.render(_scene, _camera);
@@ -153,6 +182,22 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   function target() { return _target; }
 
   function isBuilt() { return _built; }
+
+  /**
+   * Feed the SOURCE-side gate transform (the viewer's own gate) once it is known.
+   * Null clears it (falls back to the fixed 3/4 view). Idempotent.
+   */
+  function setPortalFrom(transform) { _portalFrom = transform || null; }
+
+  /**
+   * Feed the current viewer camera pose (position + quaternion in SOURCE space),
+   * read every frame by the host. Null clears it (the fixed 3/4 view is kept).
+   */
+  function setViewer(viewer) { _viewer = viewer || null; }
+
+  /** The destination gate transform read from the manifest (null when the world has
+   *  no gate — parallax is undefined and the fixed 3/4 view is used). */
+  function portalTo() { return _portalTo; }
 
   function dispose() {
     if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
@@ -168,7 +213,8 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     if (_target) { try { _target.dispose(); } catch { /* noop */ } _target = null; }
     _scene = null; _sun = null; _camera = null;
     _built = false;
+    _portalFrom = null; _portalTo = null; _viewer = null;
   }
 
-  return { build, setRoster, render, texture, target, isBuilt, dispose };
+  return { build, setRoster, render, texture, target, isBuilt, setPortalFrom, setViewer, portalTo, dispose };
 }

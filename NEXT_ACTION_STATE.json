@@ -1,19 +1,17 @@
 {
   "schema": "torii.next-action-state",
   "schemaVersion": 1,
-  "generatedAt": "2026-09-17T07:25:13.298Z",
+  "generatedAt": "2026-09-17T12:01:21.758Z",
   "badge": "NEXT-ACTION STATE · LOCAL · READ-ONLY",
-  "version": "v0.2.869-alpha",
-  "packageVersion": "0.2.869-alpha",
-  "gitCommit": "24269c9a",
+  "version": "v0.2.870-alpha",
+  "packageVersion": "0.2.870-alpha",
+  "gitCommit": "66bd94c4",
   "liveUrl": "https://chiefmonkey.art",
   "release": {
-    "ready": false,
-    "gateStatus": "NOT READY",
+    "ready": true,
+    "gateStatus": "READY",
     "gateCommand": "npm run test:release",
-    "blockers": [
-      "docs"
-    ],
+    "blockers": [],
     "regression": {
       "count": 21,
       "expected": 21
@@ -24,12 +22,12 @@
     "status": "READY"
   },
   "tests": {
-    "passing": 4875,
-    "files": 403
+    "passing": 4883,
+    "files": 404
   },
   "manualBlocker": {
     "pending": true,
-    "statusLabel": "MANUAL VALIDATION OUTSTANDING",
+    "statusLabel": "LOCAL GATES GREEN · MANUAL PLAYTEST + APPROVAL PENDING",
     "pill": "manual"
   },
   "mvpApproval": {
@@ -37,7 +35,7 @@
     "approved": true,
     "approvedBy": "npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6",
     "approvedAt": "2026-07-27T13:05:00Z",
-    "version": "v0.2.869-alpha"
+    "version": "v0.2.870-alpha"
   },
   "playtestResults": {
     "schema": "torii.playtest-results-state",
@@ -83,7 +81,7 @@
   "liveSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.230-alpha",
+    "version": "v0.2.870-alpha",
     "smokedAt": "2026-06-26",
     "checks": 3,
     "passed": 3,
@@ -93,7 +91,7 @@
   "dashboardSmoke": {
     "result": "pass",
     "pass": true,
-    "version": "v0.2.231-alpha",
+    "version": "v0.2.870-alpha",
     "surface": "dashboard.html",
     "smokedAt": "2026-06-26",
     "checks": 4,
@@ -104,18 +102,18 @@
   },
   "controlPanel": {
     "green": true,
-    "version": "v0.2.869-alpha",
+    "version": "v0.2.870-alpha",
     "liveUrl": "https://chiefmonkey.art",
     "dashboardUrl": "https://chiefmonkey.art/dashboard.html",
     "entrySmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.230-alpha"
+      "version": "v0.2.870-alpha"
     },
     "dashboardSmoke": {
       "result": "pass",
       "pass": true,
-      "version": "v0.2.231-alpha"
+      "version": "v0.2.870-alpha"
     },
     "manualBlockerPending": true,
     "nextSafeTask": "Continue the read-only oversight loop — next safe infra/dashboard slice",
@@ -128,9 +126,9 @@
   "mvpGate": {
     "verdict": "approved",
     "approved": true,
-    "confidenceGreen": false,
+    "confidenceGreen": true,
     "confidenceSignals": {
-      "releaseReady": false,
+      "releaseReady": true,
       "entrySmokePass": true,
       "dashboardSmokePass": true,
       "suiteGreen": true

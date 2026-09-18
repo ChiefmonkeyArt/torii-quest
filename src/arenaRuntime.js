@@ -14,7 +14,7 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab, setArenaAtmosphere } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
 import { createRecIndicator } from './engine/render/recIndicator.js';
@@ -94,6 +94,7 @@ import { createToriiGateway } from './engine/components/toriiGateway.js';
 import { mark, startPhase, endPhase } from './engine/debug/bootTiming.js';
 import { readWorldIdFromDom, resolveWorldManifest } from './engine/world/worldLoader.js';
 import { buildMinimalWorld } from './engine/world/worldRenderer.js';
+import { resolveAtmosphereMode, ATMOSPHERE_ARENA } from './engine/world/atmosphereMode.js';
 import { buildWorldObjectColliders } from './engine/world/worldObjectColliders.js';
 import { buildWorldTerrain, loadWorldTerrainData } from './engine/world/worldTerrain.js';
 import { expandWorldComponents } from './engine/world/worldComponents.js';
@@ -1274,6 +1275,12 @@ export function createArenaRuntime(hooks = {}) {
         scene, sun, THREE, assetUrl, loadGltf: _loadGltf,
       });
       _platformY = _worldRt.platformY || 0;
+      // P2 — sky/atmosphere restore: the same scene-layer sync the travel swap
+      // does. A minimal world whose own sky is `space` must hide the arena's warm
+      // sunrise layer on FIRST load too (the home arena is `clear` → no-op).
+      try {
+        setArenaAtmosphere(resolveAtmosphereMode(_minimalWorld) === ATMOSPHERE_ARENA);
+      } catch { /* noop */ }
       endPhase('buildMinimalWorld');
       // v0.2.868 (exit-restores-home): capture the HOME world now that it is built,
       // so a traveller who leaves a visited world returns to THIS world (their own)
@@ -2424,6 +2431,14 @@ export function createArenaRuntime(hooks = {}) {
     // to our own world carries its own grassColor; a world without one falls back to
     // the shipped default.
     try { setGrassColor(_minimalWorld && _minimalWorld.grassColor); } catch { /* noop */ }
+    // P2 — sky/atmosphere restore (the two-node "sky V artifact"): a foreign `space`
+    // world paints its own background + starfield, so hide the arena's warm sunrise
+    // sky layer; a non-space world (or homecoming) re-shows it + restores the arena
+    // fog. buildMinimalWorld already painted the space background/null fog; this
+    // call only syncs the shared scene meshes + fog for the arena side.
+    try {
+      setArenaAtmosphere(resolveAtmosphereMode(_minimalWorld) === ATMOSPHERE_ARENA);
+    } catch { /* noop */ }
 
     // Build the world's TERRAIN (ADR-0119) so the player lands on real island
     // ground, not the cloud-platform fallback. Inline heights (content-addressed)

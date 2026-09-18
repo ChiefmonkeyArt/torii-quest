@@ -38,7 +38,11 @@ export const scene  = new THREE.Scene();
 // direction. Peach at density 0.008 was lit by the amber sun and pushed past
 // bloom threshold (0.86) at the horizon, producing a huge white blob to the
 // right of the actual sun.
-scene.fog = new THREE.FogExp2(0xc8a878, 0.002); // v0.2.476: very light warm haze, Sky.js handles atmosphere
+// v0.2.476+P2: fog constants are shared with setArenaAtmosphere() so the in-place
+// travel swap can restore the EXACT arena haze after a space world nulled it.
+const ARENA_FOG_COLOR = 0xc8a878;
+const ARENA_FOG_DENSITY = 0.002;
+scene.fog = new THREE.FogExp2(ARENA_FOG_COLOR, ARENA_FOG_DENSITY); // v0.2.476: very light warm haze, Sky.js handles atmosphere
 
 export const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
 // Layer 2 = the first-person headless body (firstPersonBody.js). Main camera
@@ -529,6 +533,44 @@ export function tickAurora(dt) {
   // v0.2.478: inner shell rotates very slowly for parallax depth cue.
   _starFieldInner.rotation.y += dt * 0.005;
   // v0.2.510: Sun is at fixed world position facing arena center — no per-frame updates needed.
+}
+
+// ── Arena atmosphere visibility (P2 glitch sweep — sky V artifact) ───────────
+// The warm sunrise SKY layer (Sky.js dome + sun sprite + god rays + both star
+// shells) is the HOME arena's atmosphere. buildMinimalWorld paints a `space`
+// world's OWN flat background + starfield, but never hid these shared meshes — so
+// they leaked over the destination sky as the two-node "sky V artifact".
+//
+// setArenaAtmosphere(show) is the SINGLE scene mutation for that layer. `show`
+// is decided by the pure resolveAtmosphereMode(world) (engine/world/atmosphereMode.js)
+// — this file stays dumb (no world-manifest parsing). The arena fog is restored
+// exactly on show, and left untouched on hide (buildMinimalWorld nulls it for
+// space worlds; dispose() nulls it as a neutral teardown).
+//
+// The shared `sun` DirectionalLight is deliberately NOT touched: it lights both
+// the home arena and every foreign world, and buildMinimalWorld repositions it.
+// The custom sun DISC sprite + god rays are pure atmosphere (hidden with the layer).
+let _arenaAtmosphereVisible = true; // matches module-load state (all meshes added visible)
+
+/**
+ * Show/hide the arena's atmospheric sky layer.
+ * @param {boolean} show true → show (home arena / non-space world); false → hide
+ *   (space world paints its own background + starfield). Idempotent.
+ */
+export function setArenaAtmosphere(show) {
+  const on = !!show;
+  if (_arenaAtmosphereVisible === on) return; // idempotent — no per-frame churn
+  _arenaAtmosphereVisible = on;
+  _sky.visible = on;
+  _sunSprite.visible = on;
+  _godRays.visible = on;
+  _starField.visible = on;
+  _starFieldInner.visible = on;
+  if (on) {
+    // Restore the arena's warm haze. (Space worlds nulled it via buildMinimalWorld
+    // / dispose(); hiding the layer leaves fog alone so a space sky stays fogless.)
+    if (!scene.fog) scene.fog = new THREE.FogExp2(ARENA_FOG_COLOR, ARENA_FOG_DENSITY);
+  }
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────────

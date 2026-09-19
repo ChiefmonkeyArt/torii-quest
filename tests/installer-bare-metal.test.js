@@ -58,10 +58,10 @@ describe('install.sh — bare-metal default, Docker as an optional flag', () => 
   it('records QUEST_PUBLIC_URL + QUEST_NODE_RELAYS in .env (ADR-0094 beacon website/relays)', () => {
     expect(installSh).toMatch(/echo "QUEST_PUBLIC_URL=https:\/\/\$DOMAIN_IN"/);
     expect(installSh).toMatch(/echo "LOGIN_AUDIENCE_URL=https:\/\/\$DOMAIN_IN\/mp\/session"/);
-    expect(installSh).toMatch(/echo "QUEST_NODE_RELAYS=wss:\/\/main\.relay\.gamestr\.io/);
+    expect(installSh).toMatch(/echo "QUEST_NODE_RELAYS=wss:\/\/relay\.plebeian\.market/);
     expect(dockerCompose).toMatch(/QUEST_PUBLIC_URL: \$\{QUEST_PUBLIC_URL:-\}/);
     expect(dockerCompose).toMatch(/LOGIN_AUDIENCE_URL: \$\{LOGIN_AUDIENCE_URL:-\}/);
-    expect(dockerCompose).toMatch(/QUEST_NODE_RELAYS: \$\{QUEST_NODE_RELAYS:-wss:\/\/main\.relay\.gamestr\.io/);
+    expect(dockerCompose).toMatch(/QUEST_NODE_RELAYS: \$\{QUEST_NODE_RELAYS:-wss:\/\/relay\.plebeian\.market/);
   });
 
   it('never calls run_bare_metal_install or run_docker_install during --dry-run', () => {
@@ -107,7 +107,7 @@ describe('bare-metal install path — matches VPS_INSTALL.md conventions', () =>
     // presence events point at the right world URL and publish to the node relays.
     expect(bareMetalSh).toMatch(/Environment=QUEST_PUBLIC_URL=https:\/\/\$DOMAIN_IN/);
     expect(bareMetalSh).toMatch(/Environment=LOGIN_AUDIENCE_URL=https:\/\/\$DOMAIN_IN\/mp\/session/);
-    expect(bareMetalSh).toMatch(/Environment=QUEST_NODE_RELAYS=wss:\/\/main\.relay\.gamestr\.io/);
+    expect(bareMetalSh).toMatch(/Environment=QUEST_NODE_RELAYS=wss:\/\/relay\.plebeian\.market/);
     expect(bareMetalSh).toMatch(/ProtectSystem=strict/);
   });
 

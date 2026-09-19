@@ -12,7 +12,7 @@ import {
   WRITE_POLICY_FOLLOWS_WRITE,
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
-import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
+import { readEffectiveNodeRelays, ownRelayFromOrigin } from './engine/presence/nodeRelays.js';
 import { recordOpen, recordOpenFail, recordClose, recordMessage } from './engine/telemetry/relayHealth.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -34,7 +34,13 @@ function _effectiveRelays() {
       };
     }
   } catch { /* no document — meta source unavailable */ }
-  return readEffectiveNodeRelays({ metaGetter });
+  // ADR-0120: the node's OWN strfry relay (wss://<this-origin>/relay) is the
+  // primary home — placed FIRST so profiles/presence resolve even when every
+  // public default is stale or down, and so presence is always published at
+  // home first. The origin-only derivation is safe when `document` is absent.
+  let ownRelay = '';
+  try { ownRelay = ownRelayFromOrigin(typeof location !== 'undefined' ? location.origin : ''); } catch { /* noop */ }
+  return readEffectiveNodeRelays({ metaGetter, ownRelay });
 }
 
 const PROFILE_TIMEOUT_MS = 5000;

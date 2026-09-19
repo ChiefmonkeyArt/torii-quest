@@ -135,18 +135,49 @@ export const DEFAULT_NODE_RELAYS = Object.freeze([
   'wss://nostr.mom',               // small independent, load-spread — writable, verified 2026-09-05
 ]);
 
+// ownRelayFromOrigin(origin) → 'wss://<host>/relay' for an https/http origin,
+// else ''. A Torii node's own strfry relay (Docker kit `docker-compose.yml` +
+// `Caddyfile`) is served at /relay on the node's domain, so this is the node's
+// PRIMARY home relay (ADR-0120). Pure; never throws; no network. Anything other
+// than an http(s) origin with a clean hostname (no credentials) yields ''.
+export function ownRelayFromOrigin(origin) {
+  if (typeof origin !== 'string' || origin.trim() === '') return '';
+  let u;
+  try { u = new URL(origin.trim()); } catch { return ''; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+  if (!u.hostname || u.username || u.password) return '';
+  return `wss://${u.host}/relay`;
+}
+
+// prependOwnRelay(relays, ownRelay) → the relay list with the node's own relay
+// placed FIRST (primary home, ADR-0120). `ownRelay` must be a clean wss:// URL;
+// anything else is ignored. Deduped + capped at NODE_RELAYS_CAP. A new array is
+// always returned (never the frozen defaults). Pure; never throws.
+export function prependOwnRelay(relays, ownRelay) {
+  const list = Array.isArray(relays) ? relays : [];
+  const own = _safeWssUrl(ownRelay);
+  if (!own) return [...list];
+  // Already present (exact, or a URL whose normalised href matches) → no duplicate.
+  if (list.includes(own) || list.some((r) => _safeWssUrl(r) === own)) return [...list];
+  const out = [own, ...list];
+  return out.length > NODE_RELAYS_CAP ? out.slice(0, NODE_RELAYS_CAP) : out;
+}
+
 // readEffectiveNodeRelays(opts) → the validated wss:// relay set the whole game
 // uses (reads AND publish): the operator's configured node relays if any, else
-// the curated DEFAULT_NODE_RELAYS (ADR-0081). This is the single relay-list
-// source of truth. readNodeRelays() stays configured-only (it still returns []
-// when none configured — the Relay tab uses it to detect the usingDefaults
-// banner state); the effective-defaults fallback is an EXPLICIT, separate seam
-// so the behaviour change is auditable + reversible. Returns a fresh array
-// (never the frozen constant) so callers cannot mutate the defaults. Pure;
-// never throws.
+// the curated DEFAULT_NODE_RELAYS (ADR-0081) — with the node's own relay (when
+// `opts.ownRelay` is supplied) placed FIRST as the primary home (ADR-0120). This
+// is the single relay-list source of truth. readNodeRelays() stays
+// configured-only (it still returns [] when none configured — the Relay tab uses
+// it to detect the usingDefaults banner state); the effective-defaults fallback
+// is an EXPLICIT, separate seam so the behaviour change is auditable +
+// reversible. Returns a fresh array (never the frozen constant) so callers cannot
+// mutate the defaults. Pure; never throws.
 export function readEffectiveNodeRelays(opts = {}) {
+  const o = (opts && typeof opts === 'object' && !Array.isArray(opts)) ? opts : {};
   const configured = readNodeRelays(opts);
-  return configured.length ? configured : [...DEFAULT_NODE_RELAYS];
+  const base = configured.length ? configured : [...DEFAULT_NODE_RELAYS];
+  return prependOwnRelay(base, o.ownRelay);
 }
 
 // setNodeRelays(str, storage) → void. Validates + writes localStorage

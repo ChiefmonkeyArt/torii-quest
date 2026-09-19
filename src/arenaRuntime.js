@@ -54,7 +54,7 @@ import { getStoredToken, clearStoredToken, resolveMpHttpBase } from './engine/mu
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
 import { fanoutReq } from './nostr.js';
-import { readEffectiveNodeRelays } from './engine/presence/nodeRelays.js';
+import { readEffectiveNodeRelays, ownRelayFromOrigin } from './engine/presence/nodeRelays.js';
 import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
 import { spawnSpark, spawnRicochet } from './fx.js';
@@ -726,7 +726,11 @@ export function createArenaRuntime(hooks = {}) {
     fetchGlobal: async () => {
       try {
         const filter = buildScoreFilter({ limit: 50 });
-        const { events, used } = await fanoutReq(readEffectiveNodeRelays(), filter, { timeoutMs: 4000, graceMs: 300 });
+        // ADR-0120: read the node's OWN relay (wss://<origin>/relay) first so local
+        // leaderboard events resolve even when every public relay is stale.
+        let ownRelay = '';
+        try { ownRelay = ownRelayFromOrigin(typeof location !== 'undefined' ? location.origin : ''); } catch { /* noop */ }
+        const { events, used } = await fanoutReq(readEffectiveNodeRelays({ ownRelay }), filter, { timeoutMs: 4000, graceMs: 300 });
         const report = readLeaderboardEvents({ events });
         return { ok: used.length > 0 || report.rows.length > 0, rows: report.rows, count: report.count };
       } catch {

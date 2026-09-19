@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-YXUaSIU+UN9qXvQOFDFhX07S5LDgVCCwmLMi4aJgBiE=";
+export const INLINE_SCRIPT_SHA256 = "sha256-+VC0cLNyLB9m7mgZojWpfnfCfeYkXxlt3BPfa3QCSN8=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -68,8 +68,16 @@ export const CSP_DIRECTIVES = [
   // game actually opens a WebSocket to. Adds main.relay.gamestr.io (leaderboard
   // reads/writes — was MISSING before, a latent CSP bug) and the plebeian
   // marketplace relays (marketStall.js uses both staging and prod). Drops
-  // relay.nostr.band (down) and relay.primal.net (rejects #game tag, not used).
-  ["connect-src", "'self' blob: https://api.github.com wss://main.relay.gamestr.io wss://relay.routstr.com wss://nos.lol wss://relay.vertexlab.io wss://relay.staging.plebeian.market wss://relay.plebeian.market"],
+  // relay.nostr.band (down).
+  // v0.2.873-alpha (ADR-0120): bring this list back in lockstep with
+  // DEFAULT_NODE_RELAYS (A test below/CI asserts every default relay host shows
+  // up here). Adds relay.damus.io + relay.primal.net + relay.snort.social +
+  // nostr.mom (re-added to the default set by ADR-0076/ADR-0104); DROPS
+  // relay.vertexlab.io (DVM-only, removed from the presence path by ADR-0104).
+  // The node's OWN relay is wss://$DOMAIN/relay — same origin as the page — and is
+  // appended at image build time (Dockerfile) / Caddy (bare-metal) as wss://$DOMAIN,
+  // so it is intentionally NOT hardcoded here (the domain is deploy-specific).
+  ["connect-src", "'self' blob: https://api.github.com wss://main.relay.gamestr.io wss://relay.routstr.com wss://nos.lol wss://relay.damus.io wss://relay.primal.net wss://relay.snort.social wss://nostr.mom wss://relay.staging.plebeian.market wss://relay.plebeian.market"],
 ];
 
 export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");

@@ -205,7 +205,7 @@ import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
 // with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
-import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readEffectiveNodeRelays, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
+import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readEffectiveNodeRelays, ownRelayFromOrigin, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
   readArrivingTraveller,
@@ -1008,6 +1008,10 @@ _syncServerBeacon().catch(() => { /* boot-time best-effort */ });
 // reader (readEffectiveNodeRelays). Built once so the Relay tab's list and the
 // heartbeat's publish set stay in lockstep with a single source.
 function _nodeRelaysOpts() {
+  // ADR-0120: the node's OWN strfry relay is primary — prepend wss://<origin>/relay
+  // so both the Relay tab list and the heartbeat publish set carry it first.
+  let ownRelay = '';
+  try { ownRelay = ownRelayFromOrigin(typeof location !== 'undefined' ? location.origin : ''); } catch { /* noop */ }
   return {
     storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
     metaGetter: typeof document !== 'undefined'
@@ -1016,6 +1020,7 @@ function _nodeRelaysOpts() {
           return el && el.content ? el.content : '';
         }
       : null,
+    ownRelay,
   };
 }
 

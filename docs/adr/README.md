@@ -142,6 +142,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0104](./0104-beacon-relay-coverage-refresh.md) | Refresh `DEFAULT_NODE_RELAYS` to only relays that accept + round-trip `kind:30078`; commit `tools/relay-probe.mjs` for repeatability | Accepted |
 | [0105](./0105-deploy-trigger-and-verify-fix.md) | Fix silent auto-deploy gap: tag-release's GITHUB_TOKEN tags never fired deploy-on-tag; also fix a false-negative live-version-poll grep | Accepted |
 | [0106](./0106-never-force-update.md) | Never force-update — deploys are manual-only; renames `autoUpdate` capability to `selfUpdate` and re-triggers deploy via `workflow_dispatch` | Accepted |
+| [0120](./0120-node-owned-relay-as-primary-event-home.md) | Node-owned relay (strfry sidecar) as primary event home — publish/read/advertise own relay first, demote `DEFAULT_NODE_RELAYS` to bootstrap | Accepted |
 
 ## Workflow for a new decision
 

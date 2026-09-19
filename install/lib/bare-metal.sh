@@ -168,7 +168,7 @@ Environment=LOG_LEVEL=${LOG_LEVEL:-info}
 Environment=QUEST_ADMIN_NPUB=$NPUB_IN
 Environment=QUEST_PUBLIC_URL=https://$DOMAIN_IN
 Environment=LOGIN_AUDIENCE_URL=https://$DOMAIN_IN/mp/session
-Environment=QUEST_NODE_RELAYS=wss://main.relay.gamestr.io,wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.vertexlab.io
+Environment=QUEST_NODE_RELAYS=wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.damus.io,wss://relay.primal.net,wss://relay.snort.social,wss://nostr.mom
 
 NoNewPrivileges=true
 PrivateTmp=true

@@ -5,7 +5,7 @@
 // reads the raw stored string. Fake Storage + fake metaGetter injected.
 import { describe, it, expect } from 'vitest';
 import {
-  readNodeRelays, readEffectiveNodeRelays, setNodeRelays, getNodeRelays, NODE_RELAYS_KEY, NODE_RELAYS_CAP, DEFAULT_NODE_RELAYS,
+  readNodeRelays, readEffectiveNodeRelays, setNodeRelays, getNodeRelays, NODE_RELAYS_KEY, NODE_RELAYS_CAP, DEFAULT_NODE_RELAYS, ownRelayFromOrigin, prependOwnRelay,
 } from './nodeRelays.js';
 
 function fakeStorage(initial = {}) {
@@ -166,5 +166,65 @@ describe('getNodeRelays', () => {
   it('returns "" when absent or no storage', () => {
     expect(getNodeRelays(fakeStorage())).toBe('');
     expect(getNodeRelays(null)).toBe('');
+  });
+});
+
+describe('ownRelayFromOrigin — ADR-0120', () => {
+  it('derives wss://<host>/relay from an https origin', () => {
+    expect(ownRelayFromOrigin('https://chiefmonkey.art')).toBe('wss://chiefmonkey.art/relay');
+    expect(ownRelayFromOrigin('https://quest.example.com/')).toBe('wss://quest.example.com/relay');
+  });
+  it('derives from an http origin (dev)', () => {
+    expect(ownRelayFromOrigin('http://localhost:5173')).toBe('wss://localhost:5173/relay');
+  });
+  it('returns "" for non-http(s), empty, credentials, or garbage', () => {
+    expect(ownRelayFromOrigin('')).toBe('');
+    expect(ownRelayFromOrigin(null)).toBe('');
+    expect(ownRelayFromOrigin(123)).toBe('');
+    expect(ownRelayFromOrigin('ftp://example.com')).toBe('');
+    expect(ownRelayFromOrigin('https://user@example.com')).toBe('');
+    expect(ownRelayFromOrigin('not a url')).toBe('');
+  });
+});
+
+describe('prependOwnRelay — ADR-0120', () => {
+  it('places the own relay first and de-dupes the rest', () => {
+    const out = prependOwnRelay([...DEFAULT_NODE_RELAYS], 'wss://my.node/relay');
+    expect(out[0]).toBe('wss://my.node/relay');
+    expect(out.length).toBe(DEFAULT_NODE_RELAYS.length + 1);
+    expect(out).not.toBe(DEFAULT_NODE_RELAYS); // never mutate the frozen defaults
+  });
+  it('does nothing when the own relay is already present', () => {
+    const withOwn = ['wss://my.node/relay', ...DEFAULT_NODE_RELAYS];
+    expect(prependOwnRelay(withOwn, 'wss://my.node/relay')).toEqual(withOwn);
+  });
+  it('ignores a non-wss/invalid own relay and returns a copy', () => {
+    expect(prependOwnRelay([...DEFAULT_NODE_RELAYS], 'ws://bad')).toEqual([...DEFAULT_NODE_RELAYS]);
+    expect(prependOwnRelay([...DEFAULT_NODE_RELAYS], '')).toEqual([...DEFAULT_NODE_RELAYS]);
+  });
+  it('caps the prepended list at NODE_RELAYS_CAP', () => {
+    const many = Array.from({ length: NODE_RELAYS_CAP }, (_, i) => `wss://r${i}.relay`);
+    const out = prependOwnRelay(many, 'wss://own.relay');
+    expect(out.length).toBe(NODE_RELAYS_CAP);
+    expect(out[0]).toBe('wss://own.relay/');
+  });
+});
+
+describe('readEffectiveNodeRelays — own-relay first (ADR-0120)', () => {
+  it('prepends the own relay to configured relays', () => {
+    const s = fakeStorage({ [NODE_RELAYS_KEY]: 'wss://a.relay,wss://b.relay' });
+    const out = readEffectiveNodeRelays({ storage: s, metaGetter: () => '', ownRelay: 'wss://own.node/relay' });
+    expect(out[0]).toBe('wss://own.node/relay');
+    expect(out).toContain('wss://a.relay/');
+    expect(out).toContain('wss://b.relay/');
+  });
+  it('prepends the own relay to the defaults when none configured', () => {
+    const out = readEffectiveNodeRelays({ storage: fakeStorage(), metaGetter: () => '', ownRelay: 'wss://own.node/relay' });
+    expect(out[0]).toBe('wss://own.node/relay');
+    expect(out.length).toBe(DEFAULT_NODE_RELAYS.length + 1);
+  });
+  it('leaves the list unchanged when no own relay is supplied', () => {
+    const out = readEffectiveNodeRelays({ storage: fakeStorage(), metaGetter: () => '' });
+    expect(out).toEqual([...DEFAULT_NODE_RELAYS]);
   });
 });

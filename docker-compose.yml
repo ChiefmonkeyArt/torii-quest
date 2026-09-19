@@ -52,7 +52,7 @@ services:
       QUEST_ADMIN_NPUB: ${QUEST_ADMIN_NPUB:-}
       QUEST_PUBLIC_URL: ${QUEST_PUBLIC_URL:-}
       LOGIN_AUDIENCE_URL: ${LOGIN_AUDIENCE_URL:-}
-      QUEST_NODE_RELAYS: ${QUEST_NODE_RELAYS:-wss://main.relay.gamestr.io,wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.vertexlab.io}
+      QUEST_NODE_RELAYS: ${QUEST_NODE_RELAYS:-wss://relay.plebeian.market,wss://relay.routstr.com,wss://nos.lol,wss://relay.damus.io,wss://relay.primal.net,wss://relay.snort.social,wss://nostr.mom}
       MP_MODE: ${MP_MODE:-authoritative}
       LAG_COMP_MS: ${LAG_COMP_MS:-}
       HP_MAX: ${HP_MAX:-}

@@ -15,7 +15,9 @@
 //     ['relay', <wss url>],        // arena-ws relay to join (repeatable)
 //     ['blossomServer', <https>],  // optional Blossom host (default primal)
 //     ['v', <world version>],      // optional version string
-//   ] }  -- signed → adds pubkey (owner npub hex), id, sig
+//     ['p', <owner npub hex>],     // canonical owner marker when the reference is
+//                                   // signed by a node beacon, not the owner (ADR-0122)
+//   ] }  -- signed → adds pubkey (signer hex), id, sig
 
 export const WORLD_REF_KIND   = 30078;  // NIP-78 application data
 export const WORLD_REF_TOPIC  = 'torii-world';
@@ -90,11 +92,20 @@ export function parseWorldReference(event) {
   const blossomServer = _safeHttps(_tagValue(event.tags, 'blossomServer'));
   const version = _tagValue(event.tags, 'v');
 
+  // ADR-0122: owner attribution — a beacon-signed reference carries a canonical
+  // `p` tag naming the owner; a client-signed reference is its own owner (the
+  // signer pubkey). Either way, `owner` is the hex64 npub a directory row keys on.
+  const pTag = _tagValue(event.tags, 'p');
+  const owner = isSha256(pTag) && String(pTag).toLowerCase() !== String(event.pubkey).toLowerCase()
+    ? String(pTag).toLowerCase()
+    : String(event.pubkey).toLowerCase();
+
   // A reference without either a relay OR a Blossom server is unusable.
   if (relays.length === 0 && !blossomServer) return null;
 
   return {
     pubkey: event.pubkey,
+    owner,
     worldId: typeof worldId === 'string' && worldId.trim() !== '' ? worldId.trim() : 'world',
     manifestHash: manifestHash.toLowerCase(),
     relays,
@@ -116,6 +127,7 @@ export function buildWorldReferenceUnsigned({
   relays,
   blossomServer,
   version,
+  owner,
   nowMs = Date.now(),
 } = {}) {
   if (!isSha256(manifestHash)) return null;
@@ -130,5 +142,10 @@ export function buildWorldReferenceUnsigned({
   const bs = _safeHttps(blossomServer);
   if (bs) tags.push(['blossomServer', bs]);
   if (typeof version === 'string' && version.trim() !== '') tags.push(['v', version.trim()]);
+  // ADR-0122: a reference may be signed by a node beacon rather than the owner,
+  // so stamp the canonical owner marker (mirrors presence's `["p", <admin>]`) so
+  // npub-based discovery can still attribute it. Omitted when absent/unparseable.
+  const ownerHex = isSha256(owner) ? String(owner).toLowerCase() : null;
+  if (ownerHex) tags.push(['p', ownerHex]);
   return { kind: WORLD_REF_KIND, created_at: Math.floor(nowMs / 1000), content: '', tags };
 }

@@ -374,12 +374,17 @@ export function createBeacon(opts = {}) {
     if (!built.ok) { state.worldError = built.error; _persist(); return { ok: false, error: built.error }; }
 
     // Mint the unsigned torii-world reference (world-as-data address).
+    // ADR-0122: stamp the admin as the canonical owner `p` tag (mirroring the
+    // presence event) so npub-based discovery attributes this beacon-signed
+    // reference to the owner, not the beacon key. Node-identity mode omits it
+    // (the beacon's own key IS the world identity).
     const minted = worldReferenceForManifest({
       manifestJson: built.manifestJson,
       worldId,
       relays: relayList,
       blossomServer,
       version: worldVersion || undefined,
+      owner: configured ? admin : undefined,
     });
     if (!minted.ok) { state.worldError = minted.error; _persist(); return { ok: false, error: minted.error }; }
     if (minted.manifestHash !== state.manifestHash) {

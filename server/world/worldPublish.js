@@ -67,7 +67,7 @@ export function buildWorldManifest({ worldId, legacy, zones, name } = {}) {
  * sign + publish the world-reference event. Never rejects.
  */
 export async function publishWorld({
-  manifestJson, worldId, relays = [], blossomServer = DEFAULT_BLOSSOM_SERVER, version,
+  manifestJson, worldId, relays = [], blossomServer = DEFAULT_BLOSSOM_SERVER, version, owner,
   signEvent, relayPub, fetchImpl, nowMs,
 } = {}) {
   const fail = (error) => ({ ok: false, error });
@@ -97,6 +97,7 @@ export async function publishWorld({
     relays,
     blossomServer: server,
     version,
+    owner,
     uploadBlob: async () => ({ ok: true, sha256: manifestHash }),
     signEvent,
     relayPub,
@@ -107,13 +108,16 @@ export async function publishWorld({
 }
 
 /**
- * worldReferenceForManifest({ manifestJson, worldId, relays, blossomServer, version }) →
+ * worldReferenceForManifest({ manifestJson, worldId, relays, blossomServer, version, owner }) →
  *   { ok, manifestHash, unsigned }. Pure mint of the reference (for the beacon to
  * sign + publish with its own key via its injected finalize/publishToRelay).
+ *
+ * `owner` (optional hex64) is stamped as the canonical `p` tag so a beacon-signed
+ * reference still attributes to its owner npub for discovery (ADR-0122).
  */
-export function worldReferenceForManifest({ manifestJson, worldId, relays, blossomServer, version } = {}) {
+export function worldReferenceForManifest({ manifestJson, worldId, relays, blossomServer, version, owner } = {}) {
   if (typeof manifestJson !== 'string' || !manifestJson) return { ok: false, error: 'bad-manifest' };
-  const prep = prepareWorldReference({ worldJson: manifestJson, worldId, relays, blossomServer, version });
+  const prep = prepareWorldReference({ worldJson: manifestJson, worldId, relays, blossomServer, version, owner });
   if (!prep) return { ok: false, error: 'bad-manifest' };
   return { ok: true, manifestHash: prep.manifestHash, unsigned: prep.unsigned };
 }

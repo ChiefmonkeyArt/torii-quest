@@ -426,6 +426,10 @@ describe('createBeacon world-reference publish (ADR-0119 slice 4)', () => {
     expect(pubEvents[0].kind).toBe(30078);
     expect(pubEvents[0].tags.find((t) => t[0] === 'manifest')[1]).toBe(b.capability().manifestHash);
     expect(pubEvents[0].sig).toMatch(/^[0-9a-f]{128}$/);
+    // ADR-0122: the beacon-signed reference carries the admin as the canonical
+    // owner p tag (and is signed by the beacon, NOT the admin).
+    expect(pubEvents[0].pubkey).not.toBe(ADMIN_HEX);
+    expect(pubEvents[0].tags.find((t) => t[0] === 'p')).toEqual(['p', ADMIN_HEX]);
     expect(b.capability().worldError).toBeNull();
     expect(b.capability().worldPublishedAt).toBe(clock.t);
   });

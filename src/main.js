@@ -880,26 +880,33 @@ async function _enrichWorldOwners(worlds) {
     seen.add(ok);
     missing.push(ok);
   }
-  if (!missing.length) return worlds;
-  await Promise.all(missing.map(async (owner) => {
-    let profile = null;
-    try {
-      profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
-    } catch (e) {
-      console.warn('[ownerProfile]', owner.slice(0, 8), '→ lookup failed:', (e && e.message) || e);
-    }
-    // A hit with a usable displayName caches long; a miss/failure caches short so
-    // the next presence scan retries rather than serving a stale serial for 10 min.
-    const hasName = !!(profile && typeof profile.displayName === 'string' && profile.displayName && profile.displayName !== profile.shortPubkey);
-    _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + (hasName ? _OWNER_PROFILE_CACHE_TTL_MS : _OWNER_PROFILE_NEGATIVE_TTL_MS) });
-    // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
-    // directory row can be traced to a failed lookup vs. a missing profile name.
-    if (hasName) {
-      console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
-    } else {
-      console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
-    }
-  }));
+  if (missing.length) {
+    await Promise.all(missing.map(async (owner) => {
+      let profile = null;
+      try {
+        profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
+      } catch (e) {
+        console.warn('[ownerProfile]', owner.slice(0, 8), '→ lookup failed:', (e && e.message) || e);
+      }
+      // A hit with a usable displayName caches long; a miss/failure caches short so
+      // the next presence scan retries rather than serving a stale serial for 10 min.
+      const hasName = !!(profile && typeof profile.displayName === 'string' && profile.displayName && profile.displayName !== profile.shortPubkey);
+      _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + (hasName ? _OWNER_PROFILE_CACHE_TTL_MS : _OWNER_PROFILE_NEGATIVE_TTL_MS) });
+      // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
+      // directory row can be traced to a failed lookup vs. a missing profile name.
+      if (hasName) {
+        console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
+      } else {
+        console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
+      }
+    }));
+  }
+  // ALWAYS re-apply cached profiles to the world objects in this scan. The world
+  // list is re-fetched fresh on every presence scan (no displayName/avatar), so a
+  // profile already cached from a PRIOR scan MUST be re-attached here — otherwise a
+  // cache hit skips the fetch (missing is empty) and the row flips back to its
+  // serial a scan after it first resolved. v0.2.876 fix: the apply loop runs
+  // whether or not this scan fetched anything.
   for (const w of worlds) {
     if (!w || w.displayName) continue;
     const owner = (typeof w.owner === 'string' && w.owner) || (typeof w.pubkey === 'string' ? w.pubkey : '');

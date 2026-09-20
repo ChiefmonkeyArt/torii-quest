@@ -13,7 +13,7 @@ import {
   normaliseWritePolicy,
 } from './engine/gateway/writeAuthority.js';
 import { readEffectiveNodeRelays, ownRelayFromOrigin } from './engine/presence/nodeRelays.js';
-import { recordOpen, recordOpenFail, recordClose, recordMessage } from './engine/telemetry/relayHealth.js';
+import { recordOpen, recordOpenFail, recordClose, recordMessage, isRelayCoolingDown } from './engine/telemetry/relayHealth.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 
@@ -440,6 +440,13 @@ export function relayReq(url, filters, opts = {}) {
       resolve({ ok: false, events: [], relay: url, error: 'no-websocket' });
       return;
     }
+    // v0.2.875: skipping a relay that is cooling down avoids opening a doomed
+    // WebSocket on every call — the browser would log a fresh "connection failed"
+    // line per attempt (the damus.io console spam). Self-heals on next success.
+    if (isRelayCoolingDown(url)) {
+      resolve({ ok: false, events: [], relay: url, error: 'cooling-down' });
+      return;
+    }
     let ws;
     // v0.2.774: relay health tracking. connectStart is captured just before
     // WS construction so the latency measurement includes DNS + TLS + upgrade.
@@ -575,6 +582,12 @@ export function publishEvent(url, event, opts = {}) {
   return new Promise((resolve) => {
     if (typeof WebSocket === 'undefined') {
       resolve({ ok: false, relay: url, accepted: false, error: 'no-websocket' });
+      return;
+    }
+    // v0.2.875: back-off (same contract as relayReq) — skip a cooling-down relay
+    // rather than opening a WebSocket that will just fail and spam the console.
+    if (isRelayCoolingDown(url)) {
+      resolve({ ok: false, relay: url, accepted: false, error: 'cooling-down' });
       return;
     }
     let ws;

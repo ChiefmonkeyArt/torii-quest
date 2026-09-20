@@ -143,6 +143,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0105](./0105-deploy-trigger-and-verify-fix.md) | Fix silent auto-deploy gap: tag-release's GITHUB_TOKEN tags never fired deploy-on-tag; also fix a false-negative live-version-poll grep | Accepted |
 | [0106](./0106-never-force-update.md) | Never force-update — deploys are manual-only; renames `autoUpdate` capability to `selfUpdate` and re-triggers deploy via `workflow_dispatch` | Accepted |
 | [0120](./0120-node-owned-relay-as-primary-event-home.md) | Node-owned relay (strfry sidecar) as primary event home — publish/read/advertise own relay first, demote `DEFAULT_NODE_RELAYS` to bootstrap | Accepted |
+| [0121](./0121-relay-connection-backoff.md) | Relay connection back-off — fail-streak cool-down to silence doomed-WebSocket console spam (keeps blocked-for-one-client relays in the set) | Accepted |
 
 ## Workflow for a new decision
 

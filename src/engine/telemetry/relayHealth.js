@@ -145,6 +145,36 @@ function _ensureRelay(root, url) {
 // _now() — indirection so tests can stub globalThis.Date.
 function _now() { return Date.now(); }
 
+// Connection back-off (v0.2.875): a relay that fails to open `RELAY_BACKOFF_FAIL_STREAK`
+// times in a row is "cooling down" for RELAY_BACKOFF_COOLDOWN_MS. While it is cooling
+// down, relayReq/publishEvent skip it WITHOUT opening a WebSocket — this kills the
+// browser's repeated "WebSocket connection to 'wss://relay.damus.io/' failed" console spam
+// for a relay that is down or blocked for THIS client, while leaving it in the default set
+// for everyone else. A successful open (recordOpen) resets failStreak to 0, so a recovered
+// relay stops cooling down automatically (self-healing).
+export const RELAY_BACKOFF_FAIL_STREAK = 3;   // consecutive failed opens before cooling down
+export const RELAY_BACKOFF_COOLDOWN_MS = 60 * 1000; // skip a cooling relay for this long (ms)
+
+// isRelayCoolingDown(url, opts) → boolean. True when the relay has failed to open at least
+// `failStreak` times consecutively AND its most-recent failure was within `cooldownMs`.
+// Pure; never throws. `nowMs`/`failStreak`/`cooldownMs` are injectable for tests.
+function isRelayCoolingDown(url, opts = {}) {
+  if (!_isValidRelayUrl(url)) return false;
+  const storage = opts.storage !== undefined ? opts.storage : _defaultStorage();
+  const rec = readRelayHealth(url, { storage });
+  if (!rec) return false;
+  const streak = Number.isFinite(rec.failStreak) ? rec.failStreak : 0;
+  const threshold = Number.isFinite(opts.failStreak) && opts.failStreak > 0
+    ? Math.floor(opts.failStreak) : RELAY_BACKOFF_FAIL_STREAK;
+  if (streak < threshold) return false;
+  const lastFail = Number.isFinite(rec.lastFail) ? rec.lastFail : 0;
+  if (lastFail <= 0) return false;
+  const nowMs = Number.isFinite(opts.nowMs) ? opts.nowMs : _now();
+  const cooldownMs = Number.isFinite(opts.cooldownMs) && opts.cooldownMs > 0
+    ? opts.cooldownMs : RELAY_BACKOFF_COOLDOWN_MS;
+  return (nowMs - lastFail) < cooldownMs;
+}
+
 function recordOpen(url, connectMs, opts = {}) {
   if (!_isValidRelayUrl(url)) return;
   const storage = opts.storage !== undefined ? opts.storage : _defaultStorage();
@@ -247,5 +277,6 @@ export {
   rotateSession,
   readHealth,
   readRelayHealth,
+  isRelayCoolingDown,
   resetHealth,
 };

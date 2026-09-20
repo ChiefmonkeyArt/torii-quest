@@ -50,6 +50,7 @@ let _open = false;
 let _onClose = null;
 let _onPeek = null;
 let _onCommit = null;
+let _canTravel = false;
 let _peeking = null;      // the world record currently peered at (or null)
 let _previewCanvas = null;
 let _commitBar = null;
@@ -307,13 +308,8 @@ function _columnDom(title, worlds, canTravel, onPeek, emptyHint) {
   return col;
 }
 
-export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null } = {}) {
+function _renderColumns({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false } = {}) {
   const el = _build();
-  _onClose = onClose;
-  _onPeek = onPeek;
-  _onCommit = onCommit;
-  _clearPeek();
-
   const cols = el.querySelector('#gateway-screen-cols');
   cols.replaceChildren();
 
@@ -328,8 +324,8 @@ export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanSt
     Object.assign(row.style, { fontSize: '12px', color: '#9ca3af', padding: '10px 4px', gridColumn: '1 / -1' });
     cols.append(row);
   } else {
-    cols.append(_columnDom('mutual friends', friends, canTravel, onPeek, 'no mutual friends online'));
-    cols.append(_columnDom('all other worlds', others, canTravel, onPeek, scanStatus === 'offline' ? 'login to see worlds' : 'no other worlds online'));
+    cols.append(_columnDom('mutual friends', friends, canTravel, _onPeek, 'no mutual friends online'));
+    cols.append(_columnDom('all other worlds', others, canTravel, _onPeek, scanStatus === 'offline' ? 'login to see worlds' : 'no other worlds online'));
   }
 
   if (!canTravel && (friends.length || others.length)) {
@@ -338,11 +334,39 @@ export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanSt
     Object.assign(note.style, { fontSize: '10px', color: '#f7931a', marginTop: '10px', textAlign: 'center', letterSpacing: '1px' });
     cols.append(note);
   }
+}
+
+export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null } = {}) {
+  const el = _build();
+  _onClose = onClose;
+  _onPeek = onPeek;
+  _onCommit = onCommit;
+  _canTravel = !!canTravel;
+  _clearPeek();
+
+  _renderColumns({ mutualFriends, otherWorlds, scanStatus, canTravel });
 
   _open = true;
   el.style.display = 'flex';
   // Focus the card for ESC key handling accessibility.
   el.querySelector('button')?.focus?.();
+}
+
+// refreshGatewayScreen(...) — re-render the two directory columns IN PLACE while the
+// screen is open. v0.2.875: owner-profile enrichment (kind:0) completes AFTER the
+// screen is opened (it rides the async presence scan), so the rows the player is
+// looking at must be re-rendered once names resolve — otherwise the serial shown at
+// open time never updates. Preserves the current peek (the re-render only rebuilds
+// rows; the peek highlight is re-applied to the matching pubkey). No-op when closed.
+export function refreshGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = null } = {}) {
+  if (!_open) return;
+  const useCanTravel = typeof canTravel === 'boolean' ? canTravel : _canTravel;
+  _canTravel = useCanTravel;
+  _renderColumns({ mutualFriends, otherWorlds, scanStatus, canTravel: useCanTravel });
+  // Re-apply the active-peek highlight (and any preview caption) to the fresh rows.
+  if (_peeking) {
+    _markActiveRow(_peeking.pubkey || '');
+  }
 }
 
 export function closeGatewayScreen() { _close(); }

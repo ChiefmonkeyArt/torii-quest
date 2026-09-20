@@ -7,6 +7,8 @@ import {
   LS_KEY,
   MAX_SESSIONS,
   SCHEMA_VERSION,
+  RELAY_BACKOFF_FAIL_STREAK,
+  RELAY_BACKOFF_COOLDOWN_MS,
   recordOpen,
   recordOpenFail,
   recordClose,
@@ -14,6 +16,7 @@ import {
   rotateSession,
   readHealth,
   readRelayHealth,
+  isRelayCoolingDown,
   resetHealth,
 } from '../src/engine/telemetry/relayHealth.js';
 
@@ -255,5 +258,60 @@ describe('relayHealth: resetHealth', () => {
     recordOpenFail('wss://b', { storage });
     resetHealth({ storage });
     expect(readHealth({ storage }).relays).toEqual({});
+  });
+});
+
+// v0.2.875 — isRelayCoolingDown: the connection back-off predicate. A relay that
+// fails to open RELAY_BACKOFF_FAIL_STREAK times in a row is "cooling down" for
+// RELAY_BACKOFF_COOLDOWN_MS, during which relayReq/publishEvent skip it (no doomed
+// WebSocket = no per-attempt console spam). self-heals via recordOpen (failStreak→0).
+describe('relayHealth: isRelayCoolingDown', () => {
+  const URL = 'wss://relay.damus.io';
+
+  it('returns false for an unknown relay (never recorded)', () => {
+    expect(isRelayCoolingDown(URL, { storage })).toBe(false);
+  });
+
+  it('returns false below the fail-streak threshold', () => {
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage }); // 2 fails < 3
+    expect(isRelayCoolingDown(URL, { storage })).toBe(false);
+  });
+
+  it('returns true once the streak is reached and still within cooldown', () => {
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage }); // 3 fails === threshold
+    expect(isRelayCoolingDown(URL, { storage })).toBe(true);
+  });
+
+  it('returns false again after the cooldown window elapses (self-heals by time)', () => {
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage });
+    const lastFail = readRelayHealth(URL, { storage }).lastFail;
+    const nowMs = lastFail + RELAY_BACKOFF_COOLDOWN_MS + 1;
+    expect(isRelayCoolingDown(URL, { storage, nowMs })).toBe(false);
+  });
+
+  it('a successful open resets the streak and clears cooling-down', () => {
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage });
+    expect(isRelayCoolingDown(URL, { storage })).toBe(true);
+    recordOpen(URL, 120, { storage }); // recovered
+    expect(isRelayCoolingDown(URL, { storage })).toBe(false);
+  });
+
+  it('rejects non-wss URLs', () => {
+    expect(isRelayCoolingDown('http://x', { storage })).toBe(false);
+  });
+
+  it('respects the custom failStreak/cooldown overrides (for tuning without re-record)', () => {
+    recordOpenFail(URL, { storage });
+    recordOpenFail(URL, { storage }); // only 2 fails
+    // With a lowered threshold of 2, it is cooling down; with the default 3 it is not.
+    expect(isRelayCoolingDown(URL, { storage, failStreak: 2 })).toBe(true);
+    expect(isRelayCoolingDown(URL, { storage })).toBe(false);
   });
 });

@@ -10,7 +10,7 @@
 // the whole file shares one fake document + one open/peek/close lifecycle.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
-  openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, peekGateWorld,
+  openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, peekGateWorld, refreshGatewayScreen,
 } from '../src/engine/gateway/gatewayScreen.js';
 
 // ---------- fake DOM ----------
@@ -109,5 +109,91 @@ describe('gatewayScreen — peekGateWorld pre-peek hand-off', () => {
   it('closeGatewayScreen after a peek returns to a closed, non-committing state', () => {
     closeGatewayScreen();
     expect(isGatewayScreenOpen()).toBe(false);
+  });
+});
+
+// v0.2.875 — refreshGatewayScreen: the owner-profile (kind:0) enrichment is async and
+// can resolve AFTER the directory is open; the open screen snapshots once, so without
+// an in-place re-render the row stays frozen on the pre-enrichment serial. This locks
+// that re-render seam: it rebuilds the rows from fresh arrays while preserving an
+// active peek highlight.
+describe('gatewayScreen — refreshGatewayScreen in-place re-render', () => {
+  it('is a no-op while closed', () => {
+    expect(isGatewayScreenOpen()).toBe(false);
+    expect(() => refreshGatewayScreen({ mutualFriends: [{ pubkey: 'x', displayName: 'X' }] })).not.toThrow();
+    expect(isGatewayScreenOpen()).toBe(false);
+  });
+
+  it('re-renders rows from fresh arrays (serial resolved to a name) in place', () => {
+    openGatewayScreen({
+      mutualFriends: [{ pubkey: 'friend_1', displayName: 'FRIENDSERIAL' }],
+      otherWorlds: [],
+      canTravel: true,
+      onPeek: () => {},
+      onCommit: () => {},
+      onClose: () => {},
+    });
+
+    // Fresh data: the SAME pubkey now has a resolved display name.
+    refreshGatewayScreen({
+      mutualFriends: [{ pubkey: 'friend_1', displayName: 'BitcoinBekka' }],
+      otherWorlds: [],
+      canTravel: true,
+    });
+
+    const rows = _backdrop().querySelectorAll('[data-gw-pubkey]');
+    // Exactly one row survives the re-render (no duplicate/ghost rows).
+    expect(rows.length).toBe(1);
+    // The name node now shows the resolved display name, not the serial.
+    const nameEl = rows[0].children[1].children[0]; // dot, then lab{name,npub}
+    expect(nameEl.textContent).toBe('BitcoinBekka');
+  });
+
+  it('preserves an active peek highlight across the re-render', () => {
+    const world = { pubkey: 'peeked_1', displayName: 'Alice' };
+    openGatewayScreen({
+      mutualFriends: [{ pubkey: 'peeked_1', displayName: 'AliceSERIAL' }],
+      otherWorlds: [],
+      canTravel: true,
+      onPeek: () => {},
+      onCommit: () => {},
+      onClose: () => {},
+    });
+    peekGateWorld(world);
+
+    // Re-render with updated data for the SAME pubkey.
+    refreshGatewayScreen({
+      mutualFriends: [{ pubkey: 'peeked_1', displayName: 'Alice' }],
+      otherWorlds: [],
+      canTravel: true,
+    });
+
+    const rows = _backdrop().querySelectorAll('[data-gw-pubkey]');
+    const active = rows.filter((r) => r.getAttribute('data-gw-pubkey') === 'peeked_1');
+    expect(active.length).toBe(1);
+    // The highlight is the "active" purple, not the idle purple.
+    expect(active[0].style.background).toBe('rgba(139,92,246,0.28)');
+    expect(active[0].style.borderColor).toBe('rgba(196,181,253,0.7)');
+  });
+
+  it('keeps canTravel from the last open when not re-supplied', () => {
+    openGatewayScreen({
+      mutualFriends: [{ pubkey: 'w', displayName: 'W' }],
+      otherWorlds: [],
+      canTravel: true,
+      onPeek: () => {},
+      onCommit: () => {},
+      onClose: () => {},
+    });
+    refreshGatewayScreen({
+      mutualFriends: [{ pubkey: 'w', displayName: 'W' }],
+      otherWorlds: [],
+      // canTravel omitted → preserved from open
+    });
+    // Rows remain clickable (role button) because canTravel stayed true.
+    const rows = _backdrop().querySelectorAll('[data-gw-pubkey]');
+    expect(rows.length).toBe(1);
+    expect(rows[0].getAttribute('role')).toBe('button');
+    closeGatewayScreen();
   });
 });

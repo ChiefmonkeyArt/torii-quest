@@ -214,6 +214,7 @@ import {
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
+import { refreshGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -715,6 +716,32 @@ function _gwCommit() {
   }
 }
 
+// _gatewayScreenState() — the two-column directory snapshot the gateway card renders.
+// Gateway screen shows two columns — mutual friends and every other live world.
+// partitionGatewaySections already splits online worlds into exactly { friends (mutual
+// follows), arenas (everything else) }, which is the two-column shape the card wants;
+// the finer four-way classifySections is reserved for the richer KeyM Torii menu.
+function _gatewayScreenState() {
+  const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
+  const { friends, arenas } = partitionGatewaySections({
+    worlds: _worldsCache,
+    userPubkey: canTravel ? state.nostrPubkey : '',
+    userContacts: _userContacts,
+    ownerContacts: _ownerContacts,
+  });
+  return {
+    mutualFriends: friends,
+    otherWorlds: arenas,
+    scanStatus: _worldsScan,
+    canTravel,
+    // BROWSE LOOP (v0.2.865): a row click PEEKS; only the 入 button walks
+    // through. onPeek resolves + opens the live mirror (no swap); onCommit
+    // asks the arena's state machine to swap into the currently-peered world.
+    onPeek: (w) => _gwPeek(w),
+    onCommit: () => _gwCommit(),
+  };
+}
+
 // _gwBrowseWorld(world) — the unified title-screen/menu HAND-OFF (v0.2.866). A world
 // picked outside the in-game gateway screen routes into the SAME browse loop: the
 // arena opens its gateway screen, pre-peeked at that world, so the player looks at it
@@ -827,6 +854,11 @@ _admitInboundTraveller();
 // on the next scan without a hard reload.
 const _ownerProfileCache = new Map();
 const _OWNER_PROFILE_CACHE_TTL_MS = 10 * 60 * 1000;
+// v0.2.875: a MISS (null / failed lookup) must not be cached for the full TTL —
+// the first cold-relay scan would otherwise pin the row at the serial for 10 min
+// even though the very next 10s presence scan would resolve the name. Short
+// negative-cache: retry soon, still avoid hammering a genuinely profile-less key.
+const _OWNER_PROFILE_NEGATIVE_TTL_MS = 30 * 1000;
 
 // _enrichWorldOwners(worlds) — populate displayName/avatar for rows without an
 // operator identity by resolving each owner's kind:0 profile (the name the owner
@@ -850,19 +882,22 @@ async function _enrichWorldOwners(worlds) {
   }
   if (!missing.length) return worlds;
   await Promise.all(missing.map(async (owner) => {
+    let profile = null;
     try {
-      const profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
-      _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
-      // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
-      // directory row can be traced to a failed lookup vs. a missing profile name.
-      if (profile && profile.displayName) {
-        console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
-      } else {
-        console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
-      }
+      profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
     } catch (e) {
-      _ownerProfileCache.set(owner, { profile: null, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
       console.warn('[ownerProfile]', owner.slice(0, 8), '→ lookup failed:', (e && e.message) || e);
+    }
+    // A hit with a usable displayName caches long; a miss/failure caches short so
+    // the next presence scan retries rather than serving a stale serial for 10 min.
+    const hasName = !!(profile && typeof profile.displayName === 'string' && profile.displayName && profile.displayName !== profile.shortPubkey);
+    _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + (hasName ? _OWNER_PROFILE_CACHE_TTL_MS : _OWNER_PROFILE_NEGATIVE_TTL_MS) });
+    // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
+    // directory row can be traced to a failed lookup vs. a missing profile name.
+    if (hasName) {
+      console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
+    } else {
+      console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
     }
   }));
   for (const w of worlds) {
@@ -910,6 +945,16 @@ async function refreshOnlineWorlds() {
   // Friend detection rides the same scan cadence. Fail-soft: any relay error
   // leaves the friend caches empty so arenas still renders every world.
   await _refreshFriendData();
+  // v0.2.875: enrichment is async (rides this presence scan) and can land AFTER the
+  // gateway directory is already open. If it's open, re-render so a row that just
+  // resolved its owner name (serial → "BitcoinBekka") updates in place instead of
+  // staying frozen on the pre-enrichment snapshot. No-op when no arena/screen.
+  try {
+    if (isGatewayScreenOpen()) {
+      const gw = _gatewayScreenState();
+      refreshGatewayScreen({ mutualFriends: gw.mutualFriends, otherWorlds: gw.otherWorlds, scanStatus: gw.scanStatus, canTravel: gw.canTravel });
+    }
+  } catch { /* re-render is best-effort; never fail the scan */ }
 }
 
 // _refreshFriendData() — the cheapest correct mutual-follow detection (v0.2.403):
@@ -2991,31 +3036,7 @@ async function ensureArenaReady(loadingLabel) {
         resetEnterButton,
         onBootProgress: _setBootProgress,
         onBootPct: _setBootPct,
-        getGatewayScreenState: () => {
-          const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
-          // Gateway screen shows two columns — mutual friends and every other live
-          // world. partitionGatewaySections already splits online worlds into exactly
-          // { friends (mutual follows), arenas (everything else) }, which is the
-          // two-column shape the card wants; the finer four-way classifySections is
-          // reserved for the richer KeyM Torii menu.
-          const { friends, arenas } = partitionGatewaySections({
-            worlds: _worldsCache,
-            userPubkey: canTravel ? state.nostrPubkey : '',
-            userContacts: _userContacts,
-            ownerContacts: _ownerContacts,
-          });
-          return {
-            mutualFriends: friends,
-            otherWorlds: arenas,
-            scanStatus: _worldsScan,
-            canTravel,
-            // BROWSE LOOP (v0.2.865): a row click PEEKS; only the 入 button walks
-            // through. onPeek resolves + opens the live mirror (no swap); onCommit
-            // asks the arena's state machine to swap into the currently-peered world.
-            onPeek: (w) => _gwPeek(w),
-            onCommit: () => _gwCommit(),
-          };
-        },
+        getGatewayScreenState: () => _gatewayScreenState(),
         // Phase 0c: the in-game (KeyM) Torii menu hook. arenaRuntime opens the
         // SAME menu element the title-screen burger button opens — it calls this
         // hook, which supplies getState + onClose (resume-on-close). arenaRuntime

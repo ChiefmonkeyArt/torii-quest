@@ -807,9 +807,8 @@ export function createArenaRuntime(hooks = {}) {
     _browse.reset();
     cancelBrowsePeek();
     openGatewayScreen({
-      friends: gw.friends,
-      following: gw.following,
-      games: gw.games,
+      mutualFriends: gw.mutualFriends,
+      otherWorlds: gw.otherWorlds,
       scanStatus: gw.scanStatus,
       canTravel: gw.canTravel,
       onPeek: (w) => (typeof gw.onPeek === 'function' ? gw.onPeek(w) : undefined),

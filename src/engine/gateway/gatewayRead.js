@@ -208,7 +208,12 @@ export function extractGatewayFromEvent(event) {
     npub,
     pubkey,
     owner,
-    shortPubkey: pubkey ? shortPubkey(pubkey) : '',
+    // Directory identity (SIGNER-vs-OWNER): the short label tracks the resolved OWNER
+    // (admin from the ADR-0094 p-tag, or the signer on legacy client-signed events),
+    // NEVER the beacon signer key. A beacon-signed presence carries no displayName, so
+    // worldDirectoryLabel falls back here — it must show the person's key, not the
+    // server beacon's instance key, or every resident renders as an anonymous serial.
+    shortPubkey: owner ? shortPubkey(owner) : '',
     website: safeProfileUrl(content.website),
     banner: safeProfileUrl(content.banner != null ? content.banner : content.picture),
     // Operator display identity (GATEWAY-DISPLAY): the operator's own kind:0

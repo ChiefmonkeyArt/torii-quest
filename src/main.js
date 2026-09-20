@@ -205,6 +205,7 @@ import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
 // auto-open flag helpers (hasShownThisSession/setShownThisSession) were removed
 // with the auto-open itself in ADR-0063.
 import { classifySections } from './engine/menu/menuSections.js';
+import { partitionGatewaySections } from './engine/gateway/gatewaySections.js';
 import { getHeartbeatIntent, setHeartbeatIntent, getActiveWorld, setActiveWorld, getNodeRelays, setNodeRelays, readEffectiveNodeRelays, ownRelayFromOrigin, getGamestrEnabled, setGamestrEnabled } from './engine/menu/adminPrefs.js';
 // v0.2.274 (P2 cross-host hop): read + crypto-verify an arriving traveller's npub and seat them.
 import {
@@ -2984,19 +2985,20 @@ async function ensureArenaReady(loadingLabel) {
         onBootPct: _setBootPct,
         getGatewayScreenState: () => {
           const canTravel = /^[0-9a-f]{64}$/.test(state.nostrPubkey || '');
-          // ADR-0054: the gateway screen now shows three columns (Friends /
-          // Follows / Games) — reuse the same classifySections partition the
-          // Torii menu (KeyM) already uses.
-          const { friends, following, games } = classifySections({
+          // Gateway screen shows two columns — mutual friends and every other live
+          // world. partitionGatewaySections already splits online worlds into exactly
+          // { friends (mutual follows), arenas (everything else) }, which is the
+          // two-column shape the card wants; the finer four-way classifySections is
+          // reserved for the richer KeyM Torii menu.
+          const { friends, arenas } = partitionGatewaySections({
             worlds: _worldsCache,
             userPubkey: canTravel ? state.nostrPubkey : '',
             userContacts: _userContacts,
             ownerContacts: _ownerContacts,
           });
           return {
-            friends,
-            following,
-            games,
+            mutualFriends: friends,
+            otherWorlds: arenas,
             scanStatus: _worldsScan,
             canTravel,
             // BROWSE LOOP (v0.2.865): a row click PEEKS; only the 入 button walks

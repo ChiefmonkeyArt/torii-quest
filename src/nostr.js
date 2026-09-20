@@ -332,10 +332,15 @@ export async function fetchOwnProfile(pubkey, opts = {}) {
   const relays = Array.isArray(o.relays) ? o.relays : _effectiveRelays();
   const request = typeof o.request === 'function' ? o.request : fanoutReq;
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : PROFILE_TIMEOUT_MS;
+  // v0.2.876: forward the SAME resilience the live world fetch uses (graceMs + a
+  // retry) so a single transient cold-start relay miss doesn't turn a whole scan's
+  // owner enrichment into a null (which then pins the directory row to the serial).
+  const graceMs = Number.isFinite(o.graceMs) && o.graceMs > 0 ? Math.floor(o.graceMs) : 250;
+  const retries = Number.isFinite(o.retries) && o.retries > 0 ? Math.floor(o.retries) : 1;
 
   let raw;
   try {
-    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs });
+    raw = await request(relays, [{ kinds: [0], authors: [pk], limit: 1 }], { timeoutMs, graceMs, retries });
   } catch {
     return null;
   }

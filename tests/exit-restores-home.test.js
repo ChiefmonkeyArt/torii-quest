@@ -51,6 +51,25 @@ describe('v0.2.868 — exit-restores-home (source contract)', () => {
     expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });');
   });
 
+  it('captures _homeWasLegacy in the legacy boot branch (v0.2.879 P0.2)', () => {
+    // A legacy home has no manifest; _homeWasLegacy records it so homecoming can
+    // reload instead of silently no-op'ing.
+    expect(RUNTIME_SRC).toContain('_homeWasLegacy = true;');
+    expect(RUNTIME_SRC).toContain('let _homeWasLegacy = false;');
+  });
+
+  it('reloads (same URL) when a legacy home travelled into a minimal foreign world', () => {
+    const src = RUNTIME_SRC;
+    // The legacy-home guard must run BEFORE the minimal/no-home guard, and it must
+    // reload the page (never rebuild in place — there is no manifest to rebuild).
+    const idxReload = src.indexOf('_homeWasLegacy && _minimal');
+    const idxNoop = src.indexOf('if (!_minimal || !_homeWorld) return;');
+    expect(idxReload).toBeGreaterThan(-1);
+    expect(idxNoop).toBeGreaterThan(-1);
+    expect(idxReload).toBeLessThan(idxNoop);
+    expect(src).toContain('window.location.reload()');
+  });
+
   it('enter() is async and restores home before waking the client', () => {
     expect(RUNTIME_SRC).toMatch(/async function enter\(\)/);
     const body = RUNTIME_SRC.match(/async function enter\s*\(\s*\)\s*\{([\s\S]*?)\n\s{2}\}/);

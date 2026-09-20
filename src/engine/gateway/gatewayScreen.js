@@ -3,13 +3,12 @@
 // Shown when a player presses F at an armed torii gateway (the explicit confirm
 // step). It is the "what a user experiences when using a torii gateway" surface:
 // an in-place, smoked-glass panel listing who is live in their instance of Torii
-// Quest, split into three columns — Friends (mutual follows), Follows (people you
-// follow), and Games (instances that have published a game).
+// Quest, split into two columns — Mutual friends and All other worlds.
 //
 // ADR-0054 (v0.2.676): the screen no longer opens on a blacked-out full-screen
 // backdrop. It opens IN PLACE — the world stays fully visible behind a
 // translucent smoked-glass card, so the player never loses sight of where they
-// are. The single flat "worlds online" list is replaced by the three columns.
+// are. The single flat "worlds online" list is replaced by the two columns.
 //
 // BROWSE LOOP (v0.2.865): a directory row no longer travels on click. Clicking a row
 // PEEKS at that world — the host opens the destination world's live mirror into the
@@ -29,10 +28,9 @@
 //     click closes. The host is told via onClose so it can resume play.
 //
 // Shape:
-//   openGatewayScreen({ friends, following, games, scanStatus, canTravel, onPeek, onCommit, onClose })
-//     friends:    [{ pubkey?, shortPubkey?, title?, zoneType?, zoneId? }]  (mutual follows)
-//     following:  [{ ... }]  (people you follow, not mutual)
-//     games:      [{ ... }]  (instances that have published a game)
+//   openGatewayScreen({ mutualFriends, otherWorlds, scanStatus, canTravel, onPeek, onCommit, onClose })
+//     mutualFriends:  [{ pubkey?, shortPubkey?, title?, zoneType?, zoneId? }]  (mutual follows)
+//     otherWorlds:    [{ ... }]  (every other live world — followed, games, strangers)
 //     scanStatus: 'idle' | 'scanning' | 'offline'
 //     canTravel:  boolean (host says the player is logged in / travel-capable)
 //     onPeek(world):   host peer callback for a REAL world row click (NO travel)
@@ -156,10 +154,10 @@ function _build() {
   _commitBtn = commitBtn;
   _previewCanvas = canvas;
 
-  // Columns container — three equal columns: Friends | Follows | Games.
+  // Columns container — two columns: Mutual friends | All other worlds.
   const cols = document.createElement('div');
   cols.id = 'gateway-screen-cols';
-  Object.assign(cols.style, { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' });
+  Object.assign(cols.style, { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' });
 
   // Footer hint
   const hint = document.createElement('div');
@@ -309,7 +307,7 @@ function _columnDom(title, worlds, canTravel, onPeek, emptyHint) {
   return col;
 }
 
-export function openGatewayScreen({ friends = [], following = [], games = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null } = {}) {
+export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null } = {}) {
   const el = _build();
   _onClose = onClose;
   _onPeek = onPeek;
@@ -319,24 +317,22 @@ export function openGatewayScreen({ friends = [], following = [], games = [], sc
   const cols = el.querySelector('#gateway-screen-cols');
   cols.replaceChildren();
 
-  const f = Array.isArray(friends) ? friends.filter((w) => w && typeof w === 'object') : [];
-  const fo = Array.isArray(following) ? following.filter((w) => w && typeof w === 'object') : [];
-  const g = Array.isArray(games) ? games.filter((w) => w && typeof w === 'object') : [];
+  const friends = Array.isArray(mutualFriends) ? mutualFriends.filter((w) => w && typeof w === 'object') : [];
+  const others = Array.isArray(otherWorlds) ? otherWorlds.filter((w) => w && typeof w === 'object') : [];
 
   // While scanning with nothing discovered yet, show a single honest "searching"
   // row across the columns (never fake worlds).
-  if (scanStatus === 'scanning' && !f.length && !fo.length && !g.length) {
+  if (scanStatus === 'scanning' && !friends.length && !others.length) {
     const row = document.createElement('div');
     row.textContent = 'Searching for live worlds…';
     Object.assign(row.style, { fontSize: '12px', color: '#9ca3af', padding: '10px 4px', gridColumn: '1 / -1' });
     cols.append(row);
   } else {
-    cols.append(_columnDom('Friends', f, canTravel, onPeek, 'no mutual friends online'));
-    cols.append(_columnDom('Follows', fo, canTravel, onPeek, scanStatus === 'offline' ? 'login to see follows' : 'no followed worlds online'));
-    cols.append(_columnDom('Games', g, canTravel, onPeek, 'no games online'));
+    cols.append(_columnDom('mutual friends', friends, canTravel, onPeek, 'no mutual friends online'));
+    cols.append(_columnDom('all other worlds', others, canTravel, onPeek, scanStatus === 'offline' ? 'login to see worlds' : 'no other worlds online'));
   }
 
-  if (!canTravel && (f.length || fo.length || g.length)) {
+  if (!canTravel && (friends.length || others.length)) {
     const note = document.createElement('div');
     note.textContent = 'login with nostr to travel';
     Object.assign(note.style, { fontSize: '10px', color: '#f7931a', marginTop: '10px', textAlign: 'center', letterSpacing: '1px' });

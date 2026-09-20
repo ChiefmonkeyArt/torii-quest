@@ -82,9 +82,8 @@ describe('gatewayScreen — peekGateWorld pre-peek hand-off', () => {
     const commits = [];
     const world = { pubkey: 'pub_key_1', displayName: 'Alice' };
     openGatewayScreen({
-      friends: [{ pubkey: 'pub_key_0', displayName: 'Bob' }, world],
-      following: [],
-      games: [],
+      mutualFriends: [{ pubkey: 'pub_key_0', displayName: 'Bob' }, world],
+      otherWorlds: [],
       canTravel: true,
       onPeek: (w) => peeks.push(w),
       onCommit: () => commits.push(true),

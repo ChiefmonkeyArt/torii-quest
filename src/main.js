@@ -853,8 +853,16 @@ async function _enrichWorldOwners(worlds) {
     try {
       const profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
       _ownerProfileCache.set(owner, { profile, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
-    } catch {
+      // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
+      // directory row can be traced to a failed lookup vs. a missing profile name.
+      if (profile && profile.displayName) {
+        console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
+      } else {
+        console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
+      }
+    } catch (e) {
       _ownerProfileCache.set(owner, { profile: null, expiresAt: Date.now() + _OWNER_PROFILE_CACHE_TTL_MS });
+      console.warn('[ownerProfile]', owner.slice(0, 8), '→ lookup failed:', (e && e.message) || e);
     }
   }));
   for (const w of worlds) {

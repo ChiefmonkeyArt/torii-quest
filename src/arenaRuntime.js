@@ -643,6 +643,11 @@ export function createArenaRuntime(hooks = {}) {
   let _homeWorld = null;
   let _homeWorldId = '';
   let _homeSpawn = null;
+  // v0.2.879 (P0.2): the home arena may be LEGACY (buildArena, no manifest). A legacy
+  // home has no _homeWorld manifest to swap back into, so the homecoming is a full
+  // reload (same URL) instead of the in-place _rebuildWorldInPlace path. Set at boot
+  // (true only in the legacy branch) and read by _restoreHomeWorld().
+  let _homeWasLegacy = false;
   // Portal live-mirror (ADR-0118): the destination world rendered through the gate.
   let _mirror = null;        // createPortalMirror instance (offscreen world-B)
   let _mirrorClient = null;  // createSpectatorClient (read-only live stream)
@@ -1334,6 +1339,9 @@ export function createArenaRuntime(hooks = {}) {
       buildArena();
       endPhase('buildArena');
       mark('boot-arena-done');
+      // v0.2.879 (P0.2): a legacy home has no manifest to rebuild on homecoming.
+      // Record it so _restoreHomeWorld() reloads instead of silently no-oping.
+      _homeWasLegacy = true;
     }
     onBootProgress(2); // 'Sculpting terrain…'
     await _yieldPaint();
@@ -2213,6 +2221,14 @@ export function createArenaRuntime(hooks = {}) {
   // are also no-ops. The homecoming lands at the home world's OWN login spawn
   // (_homeSpawn), not a gate arrival.
   async function _restoreHomeWorld() {
+    // v0.2.879 (P0.2): a legacy home (buildArena, no manifest) travelled into a
+    // minimal foreign world has no _homeWorld to swap back to. The only faithful
+    // homecoming is a full reload — same URL, never a redirect to a foreign host —
+    // which re-runs boot() and rebuilds the legacy arena from scratch.
+    if (_homeWasLegacy && _minimal) {
+      try { if (typeof window !== 'undefined' && window.location) window.location.reload(); } catch { /* noop */ }
+      return;
+    }
     if (!_minimal || !_homeWorld) return;
     if (_minimalWorld === _homeWorld) return;
     await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });

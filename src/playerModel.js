@@ -11,6 +11,7 @@ import { GAME_STATE_TO_CLIP, loadAnimationLibrary, getAnimationLibraryBones } fr
 import { buildBoneRebind, collectTrackBoneNames } from './engine/character/animationRetarget.js';
 import { buildRigBind, retargetClipWorldDelta } from './engine/character/retargetWorldDelta.js';
 import { synthStandShoot, STAND_SHOOT_NAME } from './engine/character/standShootBlend.js';
+import { orientQuaternion } from './engine/mirror/rigOrientation.js';
 
 // ── Character definitions ─────────────────────────────────────────────────────
 // Each entry maps logical animation slots → actual clip names in that GLB.
@@ -132,6 +133,7 @@ export function getCustomHeadlessUrl() { return _customHeadlessUrl; }
 
 // ── Module state ──────────────────────────────────────────────────────────────
 let _root    = null;
+let _isZUp   = false;  // the loaded rig's authored-up axis (Z-up vs Y-up)
 let _mixer   = null;
 let _clips   = {};
 let _actions = {};
@@ -235,6 +237,7 @@ export async function loadPlayerModel(parentObj) {
     });
     // Z-up detection: Z range significantly exceeds Y range.
     const isZUp = (gMaxZ - gMinZ) > (gMaxY - gMinY) * 1.2;
+    _isZUp = isZUp;
     if (isZUp) {
       // After +90 deg X rotation the old Z range becomes the new Y range (negated).
       gMinY = -gMaxZ;
@@ -252,17 +255,14 @@ export async function loadPlayerModel(parentObj) {
     const EYE_OFFSET = 1.7;
     _root.position.y = (-gMinY * s) - EYE_OFFSET;
 
-    // Face -Z (camera forward direction).
-    // When the Z-up fix is active we MUST use quaternions, not Euler angles,
-    // because Euler XYZ applies the Y rotation in the local (post-X) frame,
-    // which rotates around the wrong axis and flips the character back down.
-    if (isZUp) {
-      const standUp  = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0), Math.PI/2);
-      const turnAround = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), Math.PI);
-      _root.quaternion.copy(turnAround).multiply(standUp);
-    } else {
-      _root.rotation.y = Math.PI;
-    }
+    // Face -Z (camera forward direction) and stand the rig upright. The
+    // orientation is the single source of truth in engine/mirror/rigOrientation.js
+    // (node-safe + unit-tested against THREE): a Z-up GLB gets turnAround ⊗ standUp
+    // (must be a quaternion, not Euler — Euler XYZ applies the Y rotation in the
+    // local post-X frame and flips the character back down); a Y-up GLB gets the
+    // 180° yaw that leaves the head on +Y.
+    const _orient = orientQuaternion(isZUp);
+    _root.quaternion.set(_orient[0], _orient[1], _orient[2], _orient[3]);
 
     // Layer 1 — hidden from player's own FPS camera, visible in mirror.
     // Also force transparent=false, depthWrite=true, frustumCulled=false on every
@@ -518,4 +518,24 @@ function _setMirror(on) {
   if (!_root || _mirrored === on) return;
   _mirrored = on;
   _root.scale.x = Math.abs(_root.scale.x) * (on ? -1 : 1);
+}
+
+// ── Live orientation diagnostics ─────────────────────────────────────────────
+// Read-only snapshot for the mirror-crab investigation. Exposes the exact
+// run-time state that distinguishes "wrong up-quaternion" from "stale bind
+// pose": if `quat` matches the stand-up quaternion produced by orientQuaternion
+// yet the reflection still renders flat, the crab is a skinned-skeleton render
+// state issue, NOT a bone-orientation bug. Console-invocable on the live build
+// via `import("…")` or a dev bridge; harmless when the rig is not yet loaded.
+export function getRigOrientation() {
+  if (!_root) return null;
+  const q = _root.quaternion;
+  return {
+    loaded: true,
+    isZUp: _isZUp,
+    quat: [q.x, q.y, q.z, q.w],
+    scaleX: _root.scale.x,
+    mixerTime: _mixer ? _mixer.time : null,
+    activeAction: _current || null,
+  };
 }

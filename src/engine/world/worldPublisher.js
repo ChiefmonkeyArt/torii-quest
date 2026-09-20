@@ -14,11 +14,15 @@ import { buildWorldReferenceUnsigned } from './worldReference.js';
  * prepareWorldReference — the pure "mint" step. Hash the world.json and build its
  * UNSIGNED reference event. The host then signs (NIP-07) + publishes. Returns
  * { manifestHash, unsigned } or null on a non-string/empty manifest.
+ *
+ * `owner` (optional hex64) is the canonical owner npub: when the signer is a node
+ * beacon rather than the owner, it is stamped as a `p` tag so discovery can still
+ * attribute the reference to the owner (ADR-0122).
  */
-export function prepareWorldReference({ worldJson, worldId, relays, blossomServer, version } = {}) {
+export function prepareWorldReference({ worldJson, worldId, relays, blossomServer, version, owner } = {}) {
   if (typeof worldJson !== 'string' || worldJson.length === 0) return null;
   const manifestHash = sha256Hex(worldJson);
-  const unsigned = buildWorldReferenceUnsigned({ worldId, manifestHash, relays, blossomServer, version });
+  const unsigned = buildWorldReferenceUnsigned({ worldId, manifestHash, relays, blossomServer, version, owner });
   if (!unsigned) return null;
   return { manifestHash, unsigned };
 }
@@ -38,12 +42,12 @@ export function prepareWorldReference({ worldJson, worldId, relays, blossomServe
  *           relayPub?:(signed,relays?:string[])=>Promise<{ok:boolean}> }} args
  */
 export async function publishWorldReference({
-  worldJson, worldId, relays, blossomServer, version,
+  worldJson, worldId, relays, blossomServer, version, owner,
   uploadBlob, signEvent, relayPub,
 } = {}) {
   const fail = (reason) => ({ ok: false, reason });
 
-  const prep = prepareWorldReference({ worldJson, worldId, relays, blossomServer, version });
+  const prep = prepareWorldReference({ worldJson, worldId, relays, blossomServer, version, owner });
   if (!prep) return fail('bad-manifest');
 
   if (typeof uploadBlob !== 'function' || typeof signEvent !== 'function' || typeof relayPub !== 'function') {

@@ -38,6 +38,18 @@ describe('prepareWorldReference', () => {
     expect(prepareWorldReference({ worldJson: '' })).toBeNull();
     expect(prepareWorldReference({ worldJson: 42 })).toBeNull();
   });
+
+  it('stamps the owner p tag when the signer is a beacon, not the owner', () => {
+    const ownerHex = 'ef'.repeat(32);
+    const p = prepareWorldReference({
+      worldJson: WORLD_JSON, worldId: 'bekka-world', relays: [RELAY], version: '1.2.3', owner: ownerHex,
+    });
+    const pTags = p.unsigned.tags.filter((t) => t[0] === 'p');
+    expect(pTags).toEqual([['p', ownerHex]]);
+    // No owner → no p tag (client-signed path keeps the author as owner).
+    const p2 = prepareWorldReference({ worldJson: WORLD_JSON, worldId: 'bekka-world', relays: [RELAY] });
+    expect(p2.unsigned.tags.filter((t) => t[0] === 'p')).toHaveLength(0);
+  });
 });
 
 describe('publishWorldReference', () => {

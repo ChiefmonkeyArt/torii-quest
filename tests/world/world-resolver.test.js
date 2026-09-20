@@ -81,6 +81,41 @@ describe('worldReference — parse/build/filter', () => {
       kinds: [WORLD_REF_KIND], '#t': [WORLD_REF_TOPIC], authors: [PUBKEY], limit: 24,
     });
   });
+
+  // ADR-0122: a beacon-signed reference stamps the owner as a `p` tag, and parse
+  // surfaces it as `owner` so npub-based discovery can attribute it to the owner.
+  it('stamps an owner p tag and omits it when the owner is absent/malformed', () => {
+    const stamped = buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY, owner: PUBKEY,
+    });
+    const pTags = stamped.tags.filter((t) => t[0] === 'p');
+    expect(pTags).toEqual([['p', PUBKEY.toLowerCase()]]);
+    // owner omitted when absent or not valid hex64.
+    expect(buildWorldReferenceUnsigned({ manifestHash: MANIFEST_HASH, relay: RELAY }).tags
+      .filter((t) => t[0] === 'p')).toHaveLength(0);
+    expect(buildWorldReferenceUnsigned({ manifestHash: MANIFEST_HASH, relay: RELAY, owner: 'not-hex' }).tags
+      .filter((t) => t[0] === 'p')).toHaveLength(0);
+  });
+
+  it('parseWorldReference attributes owner from the p tag, else the signer', () => {
+    // Beacon-signed: p-tag names a different owner than the signer.
+    const ownerHex = 'ab'.repeat(32);
+    const beaconEvt = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY, owner: ownerHex,
+    }));
+    const parsedBeacon = parseWorldReference(beaconEvt);
+    expect(parsedBeacon.owner).toBe(ownerHex);
+    expect(parsedBeacon.pubkey).toBe(PUBKEY); // signer (beacon), not owner
+
+    // Client-signed: no p-tag → owner is the signer.
+    const clientEvt = signedWorldRef();
+    expect(parseWorldReference(clientEvt).owner).toBe(PUBKEY);
+    // A p-tag equal to the signer collapses to the signer.
+    const selfTagged = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY, owner: PUBKEY,
+    }));
+    expect(parseWorldReference(selfTagged).owner).toBe(PUBKEY);
+  });
 });
 
 describe('resolveWorldReference', () => {
@@ -150,5 +185,60 @@ describe('discoverWorldReference + resolveWorldByNpub', () => {
     const r = await resolveWorldByNpub({ npub: 'not-a-real-npub' });
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('bad-npub');
+  });
+
+  // ADR-0122: the reference may be signed by a node beacon (not the owner), so
+  // discovery must attribute it via the p tag. This is the exact blank-peek bug.
+  it('discovers a beacon-signed reference via its owner p tag', async () => {
+    const beaconSk = hexToBytes('c3'.repeat(32));
+    const beaconPubkey = bytesToHex(schnorr.getPublicKey(beaconSk));
+    const beaconRef = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY,
+      owner: PUBKEY, nowMs: 1_700_000_000_000,
+    }), beaconSk);
+    expect(beaconRef.pubkey).toBe(beaconPubkey);          // signed by beacon, not owner
+    expect(beaconRef.pubkey).not.toBe(PUBKEY);
+
+    const relayReqFn = async () => ({ ok: true, events: [beaconRef] });
+    const found = await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn });
+    expect(found).toBeTruthy();
+    expect(found.id).toBe(beaconRef.id);
+  });
+
+  it('still discovers a client-signed reference (owner == author)', async () => {
+    const ref = signedWorldRef();
+    const relayReqFn = async () => ({ ok: true, events: [ref] });
+    const found = await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn });
+    expect(found).toBeTruthy();
+    expect(found.id).toBe(ref.id);
+  });
+
+  it('ignores references whose owner p tag and author are both different', async () => {
+    const otherSk = hexToBytes('d4'.repeat(32));
+    const other = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'other-world', manifestHash: MANIFEST_HASH, relay: RELAY,
+      owner: 'ef'.repeat(32),
+    }), otherSk);
+    const relayReqFn = async () => ({ ok: true, events: [other] });
+    const found = await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn });
+    expect(found).toBeNull();
+  });
+
+  it('newest valid attributed reference wins; bad-sig/malformed still skipped', async () => {
+    const beaconSk = hexToBytes('c3'.repeat(32));
+    const oldRef = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY,
+      owner: PUBKEY, nowMs: 100_000,
+    }), beaconSk);
+    const newRef = signEvent(buildWorldReferenceUnsigned({
+      worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY,
+      owner: PUBKEY, nowMs: 200_000,
+    }), beaconSk);
+    // A forged newer event (tampered content breaks the sig) must NOT win.
+    const forged = { ...newRef, created_at: 300_000, content: 'forged' };
+    const malformed = { kind: WORLD_REF_KIND, pubkey: '00'.repeat(32), created_at: 400_000, tags: [], content: '' };
+    const relayReqFn = async () => ({ ok: true, events: [malformed, forged, oldRef, newRef] });
+    const found = await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn });
+    expect(found.id).toBe(newRef.id);
   });
 });

@@ -22,6 +22,7 @@ import { buildTerrainVisual } from './terrainVisual.js';
 import { resolveSkyColor } from './skyColor.js';
 import { computePortalCamera } from './portalCamera.js';
 import { gateTransform } from './gateTransform.js';
+import { liftTransformToTerrain, groundFloorFor } from './terrainSample.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
 
@@ -33,6 +34,7 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   let _target = null;
   let _built = false;
   let _terrainMeshes = [];  // world.terrain visual-only meshes ({mesh,dispose})
+  let _manifest = null;       // validated world (for per-frame camera-y ground clamp)
 
   // Portal transforms (ADR-0118): the gate in SOURCE space is a fixed offset the host
   // feeds once (the viewer's own gate, which does not move), and the gate in
@@ -79,10 +81,11 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       _camera = new T.PerspectiveCamera(60, targetWidth / targetHeight, 0.1, 1000);
       _target = new T.WebGLRenderTarget(targetWidth, targetHeight);
     }
-    if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
     // Drop any terrain meshes a prior build added (rebuild is idempotent).
     for (const m of _terrainMeshes) { try { m.dispose && m.dispose(); } catch { /* noop */ } }
     _terrainMeshes.length = 0;
+    if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
+    _manifest = world || null;
 
     _world = buildMinimalWorld(world, {
       scene: _scene, sun: _sun, THREE: T, assetUrl, loadGltf,
@@ -92,12 +95,24 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     // to a parallax-correct camera (computePortalCamera) in render().
     const spawn = _world.spawn || { x: 0, z: 0 };
     const py = _world.platformY || 0;
-    _camera.position.set(spawn.x + 10, py + 7, spawn.z + 12);
+    // Anchor the FIXED fallback camera above the real terrain when the world has
+    // one (a platform-only manifest returns platformY = 0 and terrain groundFloor
+    // stays null). v0.2.877: the old fixed pose (spawn + 7) sat the camera below a
+    // heightfield island's surface when the terrain's top was lower than the
+    // platformY-zero baseline — the eye was underground, so the frame was sky.
+    const camGnd = groundFloorFor(world, spawn.x, spawn.z);
+    const camBaseY = camGnd != null ? camGnd : (py + 7);
+    _camera.position.set(spawn.x + 10, camBaseY, spawn.z + 12);
     _camera.lookAt(spawn.x, py + 1, spawn.z);
 
     // Destination gate: if the manifest has one, remember it as the portal's far side
     // (yaw-only). No gate → keep the fixed 3/4 view (parallax is undefined).
     _portalTo = gateTransform(world);
+    // Lift the far-side gate to EYE height above the destination terrain. Manifests
+    // (e.g. Bekka's torii-gate objects) carry `y = 0` at world origin; the raw value
+    // maps the parallax camera underground, so the iris showed sky instead of the
+    // island. Pure no-op when the world has no terrain or no gate.
+    _portalTo = liftTransformToTerrain(world, _portalTo);
 
     // Sky: paint the destination world's colour (the mirror scene has no Sky.js, so
     // an unpainted background reads as a black iris).
@@ -169,6 +184,16 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       _camera.position.set(cam.position.x, cam.position.y, cam.position.z);
       _camera.quaternion.set(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w);
     }
+    // Safety net: never let the mirror camera sit below the destination surface.
+    // A lifted far-side gate fixes the common case; this clamp also covers a viewer
+    // pose that maps through the portal to a low point (parallax is positional — a
+    // low source eye could still dip below a raised island). Pure no-op without terrain.
+    if (_manifest) {
+      const floor = groundFloorFor(_manifest, _camera.position.x, _camera.position.z);
+      if (floor != null && _camera.position.y < floor) {
+        _camera.position.y = floor;
+      }
+    }
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(_target);
     renderer.render(_scene, _camera);
@@ -211,6 +236,7 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     }
     _freeRiders.length = 0;
     if (_target) { try { _target.dispose(); } catch { /* noop */ } _target = null; }
+    _manifest = null;
     _scene = null; _sun = null; _camera = null;
     _built = false;
     _portalFrom = null; _portalTo = null; _viewer = null;

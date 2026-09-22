@@ -165,6 +165,19 @@ const MP_PEER_CHARACTERS = Object.freeze({
 const _mpShotOrigin = new THREE.Vector3();
 const _mpShotDir    = new THREE.Vector3();
 
+// Linear → sRGB look-up table for the peek preview blit (readRenderTargetPixels
+// returns linear bytes; the 2D canvas treats putImageData as sRGB). Precomputed
+// once — no per-pixel pow() in the throttled readback.
+const _srgbLut = (() => {
+  const t = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    const c = i / 255;
+    const s = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    t[i] = Math.round(Math.max(0, Math.min(1, s)) * 255);
+  }
+  return t;
+})();
+
 // Cache: character key → { scene, clips, gMinY, promise }
 const _mpTemplateCache = new Map();
 
@@ -656,6 +669,13 @@ export function createArenaRuntime(hooks = {}) {
   const _browse = createPortalBrowse();
   let _pendingTravel = null;   // { world, wsEndpoint, ownerLabel } the currently-peered destination (commit target)
   let _lastPreviewBlit = 0;    // throttle for the in-panel preview read-back
+  // Scratch vectors for the mirror viewer pose. The main camera is a CHILD of
+  // playerObj (player.js), so camera.position / camera.quaternion are LOCAL
+  // (eye-offset near the origin + pitch-only). The mirror needs the WORLD pose,
+  // so it must be resolved through the parent before setViewer — otherwise the
+  // peek camera maps far from the destination island and the iris shows only sky.
+  const _viewerWorldPos = new THREE.Vector3();
+  const _viewerWorldQuat = new THREE.Quaternion();
 
   // MP-1 multiplayer host — null unless MP_ENABLED is true at boot() time.
   // Ships false by default (see MP_1_SPEC.md §6): zero side effects, no ws dial,
@@ -1090,8 +1110,19 @@ export function createArenaRuntime(hooks = {}) {
       }
       // Feed the live viewer pose so the iris parallax tracks the player's movement
       // (computePortalCamera in the mirror's render()). camera is the active THREE
-      // camera in SOURCE space; its position/quaternion are read by value each frame.
-      try { _mirror.setViewer({ position: camera.position, quaternion: camera.quaternion }); } catch { /* noop */ }
+      // camera in SOURCE space, but it is a CHILD of playerObj — so its local
+      // position/quaternion are pitch-only and near the origin. Resolve the WORLD
+      // pose through the parent here; the local pose maps the peek camera to a
+      // point far from the destination island (sky-only iris).
+      try {
+        // Ensure the parent (playerObj) transform is composed into the camera's
+        // world matrix before reading it (renderFrame already refreshed it, but
+        // this is cheap and keeps the read correct if the loop order changes).
+        camera.updateWorldMatrix(true, false);
+        camera.getWorldPosition(_viewerWorldPos);
+        camera.getWorldQuaternion(_viewerWorldQuat);
+        _mirror.setViewer({ position: _viewerWorldPos, quaternion: _viewerWorldQuat });
+      } catch { /* noop */ }
       _mirror.render(renderer);
       _blitPreview();
     }
@@ -2592,14 +2623,24 @@ export function createArenaRuntime(hooks = {}) {
       if (!ctx) return;
       const buf = new Uint8Array(w * h * 4);
       renderer.readRenderTargetPixels(target, 0, 0, w, h, buf);
-      const img = ctx.createImageData(w, h);
-      img.data.set(buf);
-      // GL reads bottom-up; flip so the panel preview isn't upside down.
+      // readRenderTargetPixels returns LINEAR values (the mirror target is linear);
+      // the 2D canvas compositor treats putImageData bytes as sRGB. Convert on the fly
+      // via a LUT so the panel preview shows the true sky/terrain colour (without this,
+      // linear #87ceeb displays as the darker #3E9DD4).
+      // GL reads bottom-up; flip so the panel preview isn't upside down, and apply
+      // the linear→sRGB conversion on the way.
       const flipped = ctx.createImageData(w, h);
+      const fd = flipped.data;
       for (let y = 0; y < h; y++) {
         const src = (h - 1 - y) * w * 4;
         const dst = y * w * 4;
-        flipped.data.set(buf.subarray(src, src + w * 4), dst);
+        const row = buf.subarray(src, src + w * 4);
+        for (let i = 0; i < row.length; i += 4) {
+          fd[dst + i]     = _srgbLut[row[i]];
+          fd[dst + i + 1] = _srgbLut[row[i + 1]];
+          fd[dst + i + 2] = _srgbLut[row[i + 2]];
+          fd[dst + i + 3] = row[i + 3];
+        }
       }
       ctx.putImageData(flipped, 0, 0);
     } catch (e) {

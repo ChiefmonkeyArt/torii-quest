@@ -183,6 +183,7 @@ async function _renderCharacterPortrait(meshUrl) {
   return renderCharacterPortrait(meshUrl);
 }
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
+import { authorOwnHeadless, revokeHeadlessUrl } from './engine/character/authorOwnHeadless.js';
 import { addSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
 import { inspectGlb } from './engine/character/glbInspect.js';
@@ -1247,16 +1248,15 @@ on(EV.NOSTR_LOGIN, () => {
   // seats instead. The explicit-pick-wins rule still holds AFTER login: tapping a
   // card once logged in re-arms the flag and the card wins again.
   _guestCharChosen = false;
-  // v0.2.803-alpha: also reset the character KEY away from the guest picker's
-  // last value. The FP body loader (src/firstPersonBody.js) falls back to
-  // FP_BODIES[getCharacter()] whenever the manifest carries no headlessHash —
-  // an npub whose kind-35100 mesh predates the headless field would inherit the
-  // stale guest key ('guest' = the yellow poo-poo-head torso) and load THAT as
-  // the first-person body while the world mesh correctly rendered the player's
-  // own character. Seat the full-height built-in ('chiefmonkey') as the default
-  // headless class for logged-in players so a manifest without a headlessHash
-  // still shows a full-height first-person body, matching the world mesh.
-  _pendingGuestChar = 'chiefmonkey';
+  // v0.2.882-alpha: reset the character KEY back to the neutral 'guest' default.
+  // v0.2.803-alpha set 'chiefmonkey' here so a legacy manifest (no headlessHash)
+  // would get a full-height FP body — but that assumed the logged-in player IS
+  // chiefmonkey, so a SECOND real player saw chiefmonkey's feet instead of their
+  // own. The real fix is on-demand authoring in _applyOwnCharacterMesh(): when a
+  // logged-in player has their own mesh but no headlessHash, we author a headless
+  // variant of THEIR mesh (no new signer prompt). 'guest' is the neutral fallback
+  // that is never shown to a logged-in player with a resolvable mesh.
+  _pendingGuestChar = 'guest';
   if (_charCards && _charCards.length) {
     for (const card of _charCards) {
       card.classList.remove('selected');
@@ -1280,8 +1280,11 @@ on(EV.NOSTR_LOGIN, () => {
 // _applyOwnCharacterMesh() — the player path of the automatic mesh-loading slice.
 // After login, fetch the player's own kind-35100 character event, resolve its mesh
 // hash to a Blossom URL, and stash it so ensureArenaReady() seats it before boot.
-// Read-only + no prompt (reuses fetchOwnCharacter); a missing/invalid character
-// leaves the built-in default avatar in place.
+// When the manifest has a mesh but no headlessHash (a legacy character predating
+// v0.2.767), we author the player's OWN headless FP-body variant on demand so a
+// second real player never inherits chiefmonkey's feet (v0.2.882-alpha). Read-only
+// on the relay; the only network work beyond the read is the session-gated
+// headless authoring of the player's own mesh (no new NIP-07 signer prompt).
 async function _applyOwnCharacterMesh() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(pk)) {
@@ -1292,11 +1295,47 @@ async function _applyOwnCharacterMesh() {
     _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
     _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
     const hh = manifest && manifest.mesh && manifest.mesh.headlessHash;
-    _ownCharacterHeadlessUrl = (typeof hh === 'string' && /^[0-9a-f]{64}$/.test(hh)) ? blossomMeshUrl(hh) : null;
+    const hasHeadless = (typeof hh === 'string' && /^[0-9a-f]{64}$/.test(hh));
+    // v0.2.882-alpha — on-demand headless authoring: a mesh without a headlessHash
+    // nose-dived into FP_BODIES['chiefmonkey'] for a second real player. Author the
+    // player's OWN headless variant instead (session-local object URL), so they see
+    // their own feet. Fails soft to null on any error (authoring down, no session
+    // token, etc.) — the FP body then falls back to FP_BODIES['guest'], never
+    // chiefmonkey's.
+    let authoredUrl = null;
+    if (!hasHeadless && _ownCharacterMeshUrl) {
+      try {
+        const authored = await authorOwnHeadless({ meshUrl: _ownCharacterMeshUrl });
+        if (authored && authored.ok && authored.url) authoredUrl = authored.url;
+      } catch { /* fails soft → fall back to 'guest' FP body */ }
+    }
+    _applyOwnHeadlessUrl(hasHeadless ? blossomMeshUrl(hh) : authoredUrl);
   } catch {
     _ownCharacterMeshUrl = null;
     _ownCharacterMeshHash = null;
-    _ownCharacterHeadlessUrl = null;
+    _applyOwnHeadlessUrl(null);
+  }
+}
+
+// _applyOwnHeadlessUrl(url) — commit the resolved headless FP-body URL, revoking
+// any prior session-local object URL first (so repeated logins / hot-swaps don't
+// leak object URLs), then seat it into an already-bootstrapped arena if present.
+// A null URL clears the seat (legacy fallback → firstPersonBody hides the body).
+function _applyOwnHeadlessUrl(url) {
+  if (_ownCharacterHeadlessUrl && _ownCharacterHeadlessUrl.indexOf('blob:') === 0) {
+    revokeHeadlessUrl(_ownCharacterHeadlessUrl);
+  }
+  _ownCharacterHeadlessUrl = (typeof url === 'string' && url) ? url : null;
+  if (_arena && typeof _arena.setCustomHeadlessUrl === 'function') {
+    _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
+  }
+  // v0.2.882-alpha: if the arena already bootstrapped and the FP body loaded with
+  // a stale URL (the on-demand headless authoring resolved AFTER the player hit
+  // ENTER), hot-swap the headless body now. Only fires on that rare race — in the
+  // normal login→ENTER gap the authoring completes before boot and _arenaBootstrapped
+  // is still false.
+  if (_arenaBootstrapped && _arena && typeof _arena.reloadCharacterAssets === 'function') {
+    _arena.reloadCharacterAssets().catch(() => {});
   }
 }
 
@@ -3169,7 +3208,10 @@ if (typeof window !== 'undefined') {
     // not yet armed / no login), so the guest boot path is unchanged.
     if (/^[0-9a-f]{64}$/.test(state?.nostrPubkey || '')) {
       _guestCharChosen = false;
-      _pendingGuestChar = 'chiefmonkey';
+      // v0.2.882-alpha: neutral 'guest' fallback — 'chiefmonkey' here forced every
+      // second logged-in player onto chiefmonkey's FP body. The player's own mesh
+      // (and its on-demand headless variant) is seated via _ownCharacterMeshUrl.
+      _pendingGuestChar = 'guest';
       if (_charCards && _charCards.length) {
         for (const card of _charCards) {
           card.classList.remove('selected');

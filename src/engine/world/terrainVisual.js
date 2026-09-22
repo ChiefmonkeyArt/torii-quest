@@ -11,6 +11,8 @@
 // beyond the injected THREE namespace, so the mirror renders the destination's
 // real island silhouette through the gate. Pure data path; THREE is injected.
 
+import { zoneVary, ZONE_NAP, ZONE_ARENA, ZONE_SEA_LEVEL } from './zoneColor.js';
+
 /**
  * Build the visual-only terrain meshes for a world's inline terrain zones.
  * Reads world.terrain.zones[i] { rows, cols, heights, scale, offset }; heights
@@ -28,7 +30,8 @@ export function buildTerrainVisual(world, { THREE } = {}) {
   if (!THREE) return { ok: false, error: 'buildTerrainVisual: THREE dep required' };
 
   const meshes = [];
-  for (const zone of world.terrain.zones) {
+  for (let i = 0; i < world.terrain.zones.length; i++) {
+    const zone = world.terrain.zones[i];
     if (!zone || typeof zone !== 'object') continue;
     const rows = Number(zone.rows);
     const cols = Number(zone.cols);
@@ -41,7 +44,7 @@ export function buildTerrainVisual(world, { THREE } = {}) {
 
     let mesh;
     try {
-      mesh = _zoneMesh({ rows: rows | 0, cols: cols | 0, heights, scale, offset }, THREE);
+      mesh = _zoneMesh({ rows: rows | 0, cols: cols | 0, heights, scale, offset }, THREE, i);
     } catch { mesh = null; }
     if (mesh) meshes.push(mesh);
   }
@@ -50,7 +53,7 @@ export function buildTerrainVisual(world, { THREE } = {}) {
 
 // _zoneMesh — one displaced heightfield mesh. Column-major, same winding as
 // worldTerrain.buildWorldTerrainMesh (see that module for the convention notes).
-function _zoneMesh(z, THREE) {
+function _zoneMesh(z, THREE, zoneIndex) {
   const { rows, cols, heights, scale, offset } = z;
   const cellW = scale[0] / (cols - 1);
   const cellD = scale[2] / (rows - 1);
@@ -85,12 +88,49 @@ function _zoneMesh(z, THREE) {
       indices[p++] = b; indices[p++] = d; indices[p++] = c;
     }
   }
+  const vary = (typeof zoneIndex === 'number') ? zoneVary(zoneIndex === 1 ? ZONE_NAP : ZONE_ARENA) : null;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (vary) {
+    const colors = new Float32Array(vertCount * 3);
+    for (let col = 0; col < cols; col++) {
+      const x = gMinX + col * cellW;
+      for (let row = 0; row < rows; row++) {
+        const h = heights[col * rows + row] * scale[1] + offset[1];
+        const c = vary(x, gMinZ + row * cellD, h);
+        const ci = (col * rows + row) * 3;
+        colors[ci] = c.r; colors[ci + 1] = c.g; colors[ci + 2] = c.b;
+      }
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  }
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xb9a06b, roughness: 0.95, metalness: 0 });
+  const mat = new THREE.MeshStandardMaterial({
+    color: vary ? 0xffffff : 0xb9a06b,
+    roughness: 0.95,
+    metalness: 0,
+    vertexColors: !!vary,
+  });
+  if (vary) {
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        'varying vec3 vWorldPos;\nvoid main() {',
+      ).replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;',
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        'varying vec3 vWorldPos;\nvoid main() {',
+      ).replace(
+        '#include <dithering_fragment>',
+        '#include <dithering_fragment>\n  if (vWorldPos.y <= ' + ZONE_SEA_LEVEL + ' + 0.01) discard;',
+      );
+    };
+  }
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = 'world-terrain-visual';

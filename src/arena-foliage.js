@@ -40,6 +40,7 @@ const _m4   = new THREE.Matrix4();
 // (console/tester convenience) but internal code must not read them
 // (regression check 10).
 let _grassMat  = null;
+let _grassMesh = null; // the instanced grass mesh — tracked for legacy teardown
 let _flowerMat = null;
 let _tulipMat  = null; // v0.2.263: 2nd flower archetype (tulip cup)
 // P2 — the live grass palette (applied to uniforms at build + on world swap).
@@ -95,6 +96,22 @@ export function setGrassColor(color) {
 }
 export function getFlowerMat() { return _flowerMat; }
 export function getTulipMat()  { return _tulipMat; } // v0.2.263
+
+// disposeFoliage() — tear the instanced grass out of the scene for the in-place
+// travel swap (a legacy home's grass must not layer over the destination world's).
+// Removes + disposes the mesh/geometry/material and resets the module handles so a
+// later buildFoliage() starts clean. Idempotent + never throws (teardown path).
+export function disposeFoliage() {
+  if (_grassMesh) {
+    try { if (_grassMesh.parent) _grassMesh.parent.remove(_grassMesh); else scene.remove(_grassMesh); } catch { /* noop */ }
+    try { if (_grassMesh.geometry) _grassMesh.geometry.dispose(); } catch { /* noop */ }
+    try { if (_grassMesh.material) _grassMesh.material.dispose(); } catch { /* noop */ }
+    _grassMesh = null;
+  }
+  _grassMat = null;
+  _flowerMat = null;
+  _tulipMat = null;
+}
 
 // ── Instanced grass (terra port, v0.2.310 — GREEN PASS) ──────────────────────
 // spacejack/terra flat-ribbon instanced grass (MIT, © 2016-2017 Mike Linkovich).
@@ -607,6 +624,7 @@ async function _buildGrass(onProgress) {
 
   scene.add(mesh);
   _grassMat = mat;
+  _grassMesh = mesh; // tracked for legacy teardown (in-place travel)
   window._grassMat = mat; // DEPRECATED debug alias (v0.2.118) — internal code uses tickFoliage()/getGrassMat()
 
   // v0.2.274: diagnostic stamp. Open the browser console (F12) and look for the

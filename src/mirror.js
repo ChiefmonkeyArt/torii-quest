@@ -60,6 +60,7 @@ export function buildMirror() {
 
     mirror.rotation.y = Math.PI + Math.PI / 4;  // v0.2.528: follow NAP edge curve
     mirror.position.set(MX, sampleNapHeight(MX, MZ) + MH / 2 + 0.05, MZ);
+    mirror.name = 'arena-mirror'; // named for legacy teardown (in-place travel)
     scene.add(mirror);
     _mirrorRef = mirror; // module handle — see getMirror() / tickMirror()
     window._mirrorMesh = mirror; // DEPRECATED debug alias (v0.2.119) — internal code uses getMirror()
@@ -106,6 +107,7 @@ export function buildMirror() {
     // ── Soft cool fill light in front of mirror ───────────────────────────────
     const mLight = new THREE.PointLight(0xc8e8ff, 1.2, 18);
     mLight.position.set(MX, sampleNapHeight(MX, MZ) + MH + 1, MZ + 2);
+    mLight.name = 'arena-mirror-light'; // named for legacy teardown (in-place travel)
     scene.add(mLight);
 
     // ── "MIRROR" label above frame (parented to mirror) ───────────────────────

@@ -40,6 +40,9 @@ describe('buildWorldZones', () => {
 });
 
 describe('buildWorldManifest', () => {
+  // buildWorldZones() samples the full arena + NAP heightfields twice here, which
+  // is CPU-bound enough to exceed vitest's 5s default on slow CI runners — give it
+  // a generous explicit timeout so a slow box doesn't flake an unrelated PR.
   it('serializes the legacy config + zones into a valid, hash-stable manifesto', () => {
     const zones = buildWorldZones();
     const a = buildWorldManifest({ worldId: 'torii-quest', legacy: LEGACY, zones });
@@ -55,7 +58,7 @@ describe('buildWorldManifest', () => {
     expect(world.foliage).toBe(true);
     expect(world.combat).toEqual({ botCount: 5 });
     expect(world.bounds).toEqual({ arenaHalf: 20 });
-  });
+  }, 30000);
 
   it('fails loudly on a bad worldId or missing zones', () => {
     expect(buildWorldManifest({ worldId: 'BAD ID!', legacy: LEGACY, zones: buildWorldZones() }).ok).toBe(false);

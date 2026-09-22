@@ -57,6 +57,7 @@ function buildWaveGLSL() {
 }
 
 let _seaMat = null;
+let _seaMesh = null; // tracked for legacy teardown (in-place travel)
 
 // Build the sea plane, apply the water shader, add it to `scene`. Returns the mesh.
 // opts.quality ('low' | 'high') selects the grid density (audit F12); omitted →
@@ -180,6 +181,7 @@ export function buildSeaMesh(scene, opts = {}) {
   const mesh = new THREE.Mesh(geo, _seaMat);
   mesh.name = 'sea';
   mesh.position.y = SEA_LEVEL;   // sheet sits 0.3m below the land datum
+  _seaMesh = mesh; // tracked for legacy teardown (in-place travel)
   mesh.frustumCulled = false;
   // Draw after the opaque terrain (which writes depth and thus occludes the sea
   // behind land) but the transparent sea itself does not write depth.
@@ -197,3 +199,16 @@ export function tickSea(dt) {
 
 // Debug accessor (parity with getGrassMat()).
 export function getSeaMat() { return _seaMat; }
+
+// disposeSea() — tear the sea plane out of the scene for the in-place travel swap
+// (a legacy home's sea must not layer under the destination world's). Idempotent +
+// never throws (teardown path).
+export function disposeSea() {
+  if (_seaMesh) {
+    try { if (_seaMesh.parent) _seaMesh.parent.remove(_seaMesh); else scene.remove(_seaMesh); } catch { /* noop */ }
+    try { if (_seaMesh.geometry) _seaMesh.geometry.dispose(); } catch { /* noop */ }
+    try { if (_seaMesh.material) _seaMesh.material.dispose(); } catch { /* noop */ }
+    _seaMesh = null;
+  }
+  _seaMat = null;
+}

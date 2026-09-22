@@ -21,8 +21,8 @@ import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
-import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor } from './arena-foliage.js';
-import { buildSeaMesh, tickSea } from './terrain/sea.js';
+import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
+import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
 import { setClientSuspended } from './engine/state/clientSuspended.js';
@@ -103,6 +103,7 @@ import { createBuiltinRegistry } from './engine/components/registry.js';
 import { loadCoastlineWallData, buildCoastlineWallColliders } from './engine/world/worldCoastline.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 import { resolveArrival } from './engine/world/worldArrival.js';
+import { sweepLegacyArena } from './engine/world/legacyArenaTeardown.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
 // pick the player model WITHOUT statically importing playerModel.js (→ three).
@@ -2446,6 +2447,17 @@ export function createArenaRuntime(hooks = {}) {
   // loop: the browse state machine is the ONLY caller allowed to reach the swap (a
   // directory click now only PEEKS — see peekWorld). A failed build leaves the player
   // on their current world (fail-closed, no navigation).
+  // _teardownLegacyArena() — remove the LEGACY home's scene objects (buildArena +
+  // initAtmosphere + buildMirror + buildFoliage) when travelling into a data-driven
+  // world. The legacy path never registers a _worldRt/_worldTerrain, so the swap
+  // above would leave every legacy mesh (arena-floor, nap-zone-floor, sea, torii
+  // gates, coastline, grass, mountains, mirror) layered under/over the destination —
+  // the "still all yellow" landing. The sweep itself is the pure, tested
+  // sweepLegacyArena() in engine/world/legacyArenaTeardown.js. Never throws.
+  function _teardownLegacyArena() {
+    sweepLegacyArena(scene);
+  }
+
   // _rebuildWorldInPlace(world, { worldId, arrival }) — the shared IN-PLACE world
   // swap (extracted from travelToWorld, reused by exit-restores-home). Tears down the
   // current world's assets (visuals + physics) and rebuilds the scene for `world`,
@@ -2462,6 +2474,16 @@ export function createArenaRuntime(hooks = {}) {
     // which belong to the OLD world's colliders + trajectories — leaving them is
     // the frozen-bullet/tracer glitch (a half-disposed combat subsystem).
     try { clearActiveBullets(); } catch { /* noop */ }
+    // v0.2.881: tear down the LEGACY home's scene objects when the swap is leaving
+    // a legacy arena (buildArena never registered a _worldRt, so the teardown above
+    // would no-op and leave the crazy-quilt of leftover meshes). Idempotent — a
+    // minimal→minimal swap has no matching names, so this is a cheap no-op there.
+    if (!_minimal) { try { _teardownLegacyArena(); } catch { /* noop */ } }
+    // Sea + foliage are built directly on the shared scene in BOTH modes (never as
+    // part of _worldRt), so they leak across every swap unless explicitly disposed
+    // here — a destination that rebuilds them would otherwise stack a second copy.
+    try { disposeSea(); } catch { /* noop */ }
+    try { disposeFoliage(); } catch { /* noop */ }
     if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
     if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
     if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }
@@ -2517,6 +2539,30 @@ export function createArenaRuntime(hooks = {}) {
         }
       } catch (e) {
         console.warn('[world] terrain build threw; using platform collider:', e && e.message ? e.message : e);
+      }
+    }
+
+    // v0.2.881: rebuild the destination's sea + foliage. The legacy home always
+    // builds these in buildArena()/buildFoliage(), but a minimal world only grows
+    // them at boot — the travel swap never re-ran the boot branch, so a world with
+    // sea:true / foliage:true (Bekka's) landed with neither after the teardown
+    // above removed the legacy copies. Mirror the boot `_minimal` branch exactly:
+    // set the palette first, then build, so the first material carries the
+    // destination's grassColor.
+    if (_minimalWorld && _minimalWorld.sea) {
+      try {
+        const sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
+        buildSeaMesh(scene, { quality: sq || undefined });
+      } catch (e) {
+        console.warn('[world] sea mesh failed:', e && e.message ? e.message : e);
+      }
+    }
+    if (_minimalWorld && _minimalWorld.foliage) {
+      try { setGrassColor(_minimalWorld.grassColor); } catch { /* noop */ }
+      try {
+        await buildFoliage();
+      } catch (e) {
+        console.warn('[world] foliage rebuild failed:', e && e.message ? e.message : e);
       }
     }
 

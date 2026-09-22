@@ -72,6 +72,7 @@ function _buildFloor() {
   // the "stray light" hotspot the point light created over the removed boundary.
   const fill = new THREE.HemisphereLight(C_TURQ, 0xb9a06b, 0.5);
   fill.position.set(0, WALL_H + 6 + ISLAND_BASE_Y, 0);
+  fill.name = 'arena-fill-light'; // named for legacy teardown (in-place travel)
   scene.add(fill);
 }
 
@@ -147,6 +148,7 @@ function _buildCrates() {
       return;
     }
     const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, ch, hd * 2), crateMat);
+    m.name = 'arena-crate'; // named for legacy teardown (in-place travel)
     // Crate sits ON the undulating arena surface: its base is the terrain height
     // sampled at the crate centre, so it rides the hills instead of floating over
     // a dip or sinking into a rise (v0.2.330). Must match the collider in
@@ -179,7 +181,7 @@ function _buildToriiGate() {
 
   // Accent light — stays regardless of GLB. Raised onto the island plateau.
   const gl = new THREE.PointLight(C_PURPLE, 3, 10);
-  gl.position.set(BRIDGE_X - 1, 4 + BRIDGE_DECK_Y, BRIDGE_Z); scene.add(gl);
+  gl.position.set(BRIDGE_X - 1, 4 + BRIDGE_DECK_Y, BRIDGE_Z); gl.name = 'torii-gate-light'; scene.add(gl);
 
   // Load GLB asynchronously — replaces fallback when ready
   const draco = new DRACOLoader();
@@ -248,7 +250,7 @@ function _buildTravelGateway() {
 
   // Accent light — turquoise, marks the travel portal regardless of GLB.
   const gl = new THREE.PointLight(C_TURQ, 3, 12);
-  gl.position.set(TRAVEL_GATE_X - 1, 4 + gwY, TRAVEL_GATE_Z); scene.add(gl);
+  gl.position.set(TRAVEL_GATE_X - 1, 4 + gwY, TRAVEL_GATE_Z); gl.name = 'travel-gateway-light'; scene.add(gl);
 
   // nostrich: the travel gateway GLB is DECORATIVE and OPTIONAL. It loads async,
   // long after boot, and must NEVER block arena entry. The turquoise procedural
@@ -324,6 +326,7 @@ function _buildNapZone() {
   // Soft teal accent light to mark the peace zone — centered on the NAP island
   const napLight = new THREE.PointLight(0x6ad9d0, 2.0, 22);
   napLight.position.set(NAP_TREE_X, 5 + ISLAND_BASE_Y, NAP_TREE_Z);
+  napLight.name = 'nap-light'; // named for legacy teardown (in-place travel)
   scene.add(napLight);
 
   _buildNapTree(NAP_TREE_X, NAP_TREE_Z); // moved off the bridge axis, closer to the east beach (v0.2.339)
@@ -340,6 +343,7 @@ function _buildNapZone() {
 // asymmetrically for the bonsai silhouette.
 function _buildNapTree(x, z) {
   const group = new THREE.Group();
+  group.name = 'nap-tree'; // named for legacy teardown (in-place travel)
 
   // Wood material - dark warm brown, shared by trunk + branches
   const woodMat = new THREE.MeshStandardMaterial({

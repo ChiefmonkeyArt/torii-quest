@@ -11,10 +11,9 @@
 // `loadTerrainSource` so this module stays pure + testable with a mock loader
 // (the schema in worldSchema.js must never do I/O).
 //
-// THREE-FREE for now (the collider is physics-only). The visual mesh (a
-// heightmap-displaced PlaneGeometry mirroring terrain/terrainMesh.js) is a LATER
-// sub-step — read terrainMesh.js before writing it (PlaneGeometry is XY, the
-// collider is XZ; column-major heights are easy to transpose).
+// THREE-dependent only for the visual mesh (buildWorldTerrainMesh), which mirrors
+// terrain/terrainMesh.js and is built with an injected THREE namespace. The collider
+// below stays pure + testable (no static Rapier import, mock loader).
 //
 // CRITICAL CONTRACT — the ground must never vanish. A terrain present but
 // unbuildable (source load failure, heights length mismatch, non-finite values,
@@ -30,6 +29,8 @@
 // Passing vertex counts panics the WASM ("unreachable"). Heights are column-major
 // (heights[col*rows + row]). scale = total extents {x,y,z} (scaleY typically 1 →
 // heights are absolute world-Y metres). offset = the CENTRE translation.
+
+import { zoneVary, ZONE_NAP, ZONE_ARENA, ZONE_SEA_LEVEL } from './zoneColor.js';
 
 // loadWorldTerrainData(terrain, { loadTerrainSource }) → async { ok, error?, data }
 // Resolves the heights Float32Array from the source module + re-validates against
@@ -154,9 +155,14 @@ export function buildWorldTerrainCollider(data, { physicsWorld, Rapier } = {}) {
 // matches the Rapier heightfield's local→world: heights * scale.y + translation.y).
 // XZ span is centred at the offset: gMinX = offset[0]-scale[0]/2, cellW = scale[0]/(cols-1).
 // Index winding a,d,b,b,d,c per cell matches the legacy (no back-face culling gap).
-// Simple MeshStandardMaterial (no vertex-colour vary / sea-discard shader — those are
-// zone-specific + need a sample() function; the world template can layer water itself).
-export function buildWorldTerrainMesh(data, { THREE } = {}) {
+//
+// `zoneIndex` (optional) selects the LEGACY per-zone ground colour: index 0 = the
+// sandy arena, index 1 = the green NAP island (zones are positional per ADR-0119 —
+// the legacy emits arena first, nap second). When supplied, per-vertex colours + the
+// sea-discard shader are applied so a serialized arena world lands on GREEN NAP +
+// sandy arena with waterline shading, not one flat 0xb9a06b yellow sheet. When
+// omitted (a foreign/blank world), the flat colour is kept unchanged for safety.
+export function buildWorldTerrainMesh(data, { THREE } = {}, zoneIndex) {
   if (!data) return { ok: true, mesh: null, dispose: () => {} };
   if (!THREE) return { ok: false, error: 'buildWorldTerrainMesh: THREE dep required' };
   const { rows, cols, heights, scale, offset } = data;
@@ -195,12 +201,54 @@ export function buildWorldTerrainMesh(data, { THREE } = {}) {
       indices[p++] = b; indices[p++] = d; indices[p++] = c;
     }
   }
+  // Per-zone ground colour (legacy parity): arena = sandy variation, nap = green
+  // variation. Only when a zone index is known; a foreign zone stays flat.
+  const vary = (typeof zoneIndex === 'number') ? zoneVary(zoneIndex === 1 ? ZONE_NAP : ZONE_ARENA) : null;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  if (vary) {
+    const colors = new Float32Array(vertCount * 3);
+    for (let col = 0; col < cols; col++) {
+      const x = gMinX + col * cellW;
+      for (let row = 0; row < rows; row++) {
+        const h = heights[col * rows + row] * scale[1] + offset[1];
+        const c = vary(x, gMinZ + row * cellD, h);
+        const ci = (col * rows + row) * 3;
+        colors[ci] = c.r; colors[ci + 1] = c.g; colors[ci + 2] = c.b;
+      }
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  }
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ color: 0xb9a06b, roughness: 0.95, metalness: 0 });
+  const mat = new THREE.MeshStandardMaterial({
+    color: vary ? 0xffffff : 0xb9a06b,
+    roughness: 0.95,
+    metalness: 0,
+    vertexColors: !!vary,
+  });
+  if (vary) {
+    // Sea-discard shader (legacy parity): fragments at/below the waterline are cut
+    // so the transparent sea plane — not an underwater terrain slab — is the visual
+    // coastline. Mirrors terrainMesh.buildZoneMesh's onBeforeCompile.
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        'varying vec3 vWorldPos;\nvoid main() {',
+      ).replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n  vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;',
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        'varying vec3 vWorldPos;\nvoid main() {',
+      ).replace(
+        '#include <dithering_fragment>',
+        '#include <dithering_fragment>\n  if (vWorldPos.y <= ' + ZONE_SEA_LEVEL + ' + 0.01) discard;',
+      );
+    };
+  }
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = 'world-terrain';
@@ -302,7 +350,7 @@ export async function buildWorldTerrainZones(world, deps = {}) {
     if (!colliderResult.ok) return { ok: false, error: `zone[${i}]: ${colliderResult.error}` };
     if (colliderResult.collider) { colliders.push(colliderResult.collider); disposes.push(colliderResult.dispose); }
     if (deps.THREE) {
-      const meshResult = buildWorldTerrainMesh(loaded.data, deps);
+      const meshResult = buildWorldTerrainMesh(loaded.data, deps, i);
       if (!meshResult.ok) return { ok: false, error: `zone[${i}]: ${meshResult.error}` };
       if (meshResult.mesh) { meshes.push(meshResult.mesh); disposes.push(meshResult.dispose); }
     }

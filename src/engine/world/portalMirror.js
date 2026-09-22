@@ -20,8 +20,8 @@ import * as THREE from 'three';
 import { buildMinimalWorld } from './worldRenderer.js';
 import { buildTerrainVisual } from './terrainVisual.js';
 import { resolveSkyColor } from './skyColor.js';
-import { computePortalCamera } from './portalCamera.js';
 import { gateTransform } from './gateTransform.js';
+import { resolveArrivalCamera } from './arrivalCamera.js';
 import { liftTransformToTerrain, groundFloorFor } from './terrainSample.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
@@ -35,6 +35,7 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   let _built = false;
   let _terrainMeshes = [];  // world.terrain visual-only meshes ({mesh,dispose})
   let _manifest = null;       // validated world (for per-frame camera-y ground clamp)
+  let _arrival = null;        // resolveArrivalCamera(world) — the "stepped out" preview pose
 
   // Portal transforms (ADR-0118): the gate in SOURCE space is a fixed offset the host
   // feeds once (the viewer's own gate, which does not move), and the gate in
@@ -90,20 +91,18 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     _world = buildMinimalWorld(world, {
       scene: _scene, sun: _sun, THREE: T, assetUrl, loadGltf,
     });
-    // Aim the mirror camera at the destination platform from the gateway side: a
-    // fixed 3/4 "peek" view. When both portal transforms are known this is upgraded
-    // to a parallax-correct camera (computePortalCamera) in render().
-    const spawn = _world.spawn || { x: 0, z: 0 };
-    const py = _world.platformY || 0;
-    // Anchor the FIXED fallback camera above the real terrain when the world has
-    // one (a platform-only manifest returns platformY = 0 and terrain groundFloor
-    // stays null). v0.2.877: the old fixed pose (spawn + 7) sat the camera below a
-    // heightfield island's surface when the terrain's top was lower than the
-    // platformY-zero baseline — the eye was underground, so the frame was sky.
-    const camGnd = groundFloorFor(world, spawn.x, spawn.z);
-    const camBaseY = camGnd != null ? camGnd : (py + 7);
-    _camera.position.set(spawn.x + 10, camBaseY, spawn.z + 12);
-    _camera.lookAt(spawn.x, py + 1, spawn.z);
+    // Aim the mirror camera at the arrival pose (ADR-0122): the traveller standing
+    // just inside the destination gate, back to the doorway, eye-height above the
+    // terrain, facing INTO the world — the same place travel lands the player, so
+    // the peek and the landed view agree. A platform-only manifest (no terrain)
+    // resolves eye height to PORTAL_EYE_HEIGHT above the platform baseline.
+    _arrival = resolveArrivalCamera(world || null);
+    _camera.position.set(_arrival.position.x, _arrival.position.y, _arrival.position.z);
+    _camera.lookAt(
+      _arrival.position.x + _arrival.forward.x,
+      _arrival.position.y,
+      _arrival.position.z + _arrival.forward.z,
+    );
 
     // Destination gate: if the manifest has one, remember it as the portal's far side
     // (yaw-only). No gate → keep the fixed 3/4 view (parallax is undefined).
@@ -171,18 +170,18 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   /** Render the mirror scene into the target. No-op before build(). */
   function render(renderer) {
     if (!_built || !renderer || !_target) return;
-    // Parallax-correct camera: when both portal transforms are known, derive the
-    // DESTINATION camera from the current viewer through the gate so the iris shifts
-    // like a real window as the viewer moves. Fall back to the fixed 3/4 pose
-    // otherwise (missing gate, or no viewer fed yet).
-    if (_portalFrom && _portalTo && _viewer) {
-      const cam = computePortalCamera({
-        viewer: _viewer,
-        portalFrom: _portalFrom,
-        portalTo: _portalTo,
-      });
-      _camera.position.set(cam.position.x, cam.position.y, cam.position.z);
-      _camera.quaternion.set(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w);
+    // "Looking around": the eye stays at the arrival point but pans its head gently
+    // left/right around the arrival forward, so the iris reads as a person turning
+    // their head rather than a frozen frame. The pose is a pure function of time, so
+    // the preview is deterministic per frame and never drifts below the surface.
+    if (_arrival) {
+      const t = performance.now() * 0.0004;
+      const pan = Math.sin(t) * 0.14; // ±8°
+      const yaw = _arrival.yaw + pan;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      _camera.position.set(_arrival.position.x, _arrival.position.y, _arrival.position.z);
+      _camera.lookAt(_arrival.position.x + fx, _arrival.position.y, _arrival.position.z + fz);
     }
     // Safety net: never let the mirror camera sit below the destination surface.
     // A lifted far-side gate fixes the common case; this clamp also covers a viewer

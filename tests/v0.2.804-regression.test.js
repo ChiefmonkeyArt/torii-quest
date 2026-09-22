@@ -51,13 +51,16 @@ describe('v0.2.804 — LOGIN-NOSTR/ENTER surface enforces the logged-in npub cha
     expect(body).toMatch(/\/\^\[0-9a-f\]\{64\}\$\/\.test\(state\?\.nostrPubkey\s*\|\|\s*''\)/);
   });
 
-  it('resets _guestCharChosen + _pendingGuestChar to a full-height built-in inside the guard', () => {
+  it('resets _guestCharChosen + _pendingGuestChar to the neutral guest key inside the guard', () => {
     const body = enterArenaFromTitleBody();
     // Both resets must live inside the guarded block, otherwise the guest ENTER
-    // path would lose the guest pick too.
+    // path would lose the guest pick too. v0.2.882-alpha reset the key to the
+    // neutral 'guest' (was 'chiefmonkey', which forced every second logged-in
+    // player onto chiefmonkey's FP body); the player's own mesh + on-demand
+    // headless variant is seated via _ownCharacterMeshUrl instead.
     const guardIdx = body.indexOf("state?.nostrPubkey");
     const guestFalseIdx = body.indexOf("_guestCharChosen = false");
-    const pendingIdx = body.indexOf("_pendingGuestChar = 'chiefmonkey'");
+    const pendingIdx = body.indexOf("_pendingGuestChar = 'guest'");
     expect(guardIdx).toBeGreaterThanOrEqual(0);
     expect(guestFalseIdx).toBeGreaterThan(guardIdx);
     expect(pendingIdx).toBeGreaterThan(guardIdx);

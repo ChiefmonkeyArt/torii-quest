@@ -40,7 +40,7 @@ import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
 import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
-import { openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
+import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
 import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -69,6 +69,7 @@ import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { initPortalSurface, setPortalSurfaceRenderer, beginPortalReveal, endPortalReveal, renderPortalSurface, isPortalRevealing, bindPortalTexture } from './engine/world/portalSurface.js';
 import { createPortalMirror } from './engine/world/portalMirror.js';
+import { REVEAL_MODE } from './engine/world/portalReveal.js';
 import { createSpectatorClient, SPECTATOR_STATE } from './engine/multiplayer/spectatorClient.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
@@ -670,6 +671,8 @@ export function createArenaRuntime(hooks = {}) {
   const _browse = createPortalBrowse();
   let _pendingTravel = null;   // { world, wsEndpoint, ownerLabel } the currently-peered destination (commit target)
   let _lastPreviewBlit = 0;    // throttle for the in-panel preview read-back
+  let _gateBrowseOpen = false; // true while the gateway browse panel is open (keeps
+                               // shooting suppressed; guards the render-loop mirror feed)
   // Scratch vectors for the mirror viewer pose. The main camera is a CHILD of
   // playerObj (player.js), so camera.position / camera.quaternion are LOCAL
   // (eye-offset near the origin + pitch-only). The mirror needs the WORLD pose,
@@ -822,16 +825,20 @@ export function createArenaRuntime(hooks = {}) {
   // screen opens ALREADY looking at it, armed for 入).
   function _openGatewayScreen(prePeek) {
     if (isGatewayScreenOpen()) return;
-    // KeyF: PLAYING → PAUSED. The menu hand-off (v0.2.866) closed + resumed first, so
-    // we're back to PLAYING here too — but tolerate an already-PAUSED state (open
-    // directly) so the browse loop can't wedge from a path that paused without resuming.
-    // Refuse TITLE / DEAD / GAMEOVER: the browse loop is in-world only.
-    if (isPlaying()) { if (!transition(GAME_EVENT.PAUSE)) return; }
-    else if (!isPaused()) return;
-    document.exitPointerLock?.();
+    // Gate browse (v0.2.883): the player STAYS PLAYING with pointer lock + full WASD
+    // and mouse-look (the same control scheme as normal gameplay). Only SHOOTING is
+    // suppressed — the destination world is seen through the gate aperture while the
+    // player walks and looks around their own world behind it. Refuse non-play states
+    // (TITLE / DEAD / GAMEOVER / a paused menu) as before: the browse loop is in-world
+    // only.
+    if (!isPlaying()) return;
     const gw = getGatewayScreenState();
     _browse.reset();
     cancelBrowsePeek();
+    _gateBrowseOpen = true;
+    // Kill the shoot path (movement + mouse-look stay live). Restored when the panel
+    // closes so ordinary play resumes exactly as before.
+    setShootingSuppressed(true);
     openGatewayScreen({
       mutualFriends: gw.mutualFriends,
       otherWorlds: gw.otherWorlds,
@@ -839,14 +846,15 @@ export function createArenaRuntime(hooks = {}) {
       canTravel: gw.canTravel,
       onPeek: (w) => (typeof gw.onPeek === 'function' ? gw.onPeek(w) : undefined),
       onCommit: () => (typeof gw.onCommit === 'function' ? gw.onCommit() : undefined),
-      onClose: () => { cancelBrowsePeek(); _resume(); },
+      onClose: () => { cancelBrowsePeek(); _gateBrowseOpen = false; setShootingSuppressed(false); },
     });
     if (prePeek && typeof gw.onPeek === 'function') {
       try { peekGateWorld(prePeek); } catch { /* pre-peek is best-effort */ }
     }
   }
   function _closeGatewayScreen() {
-    closeGatewayScreen(); // triggers its onClose → _resume
+    // closeGatewayScreen triggers its onClose, which clears the shooting suppression.
+    closeGatewayScreen();
   }
 
   // ── In-world Torii menu (KeyM, Phase 0c) ────────────────────────────────────
@@ -1760,6 +1768,15 @@ export function createArenaRuntime(hooks = {}) {
       if (e.code !== 'Escape') return;
       const handled = _escapeHandledOnKeyDown;
       _escapeHandledOnKeyDown = false;
+      // While the gateway browse is open the player stays PLAYING with pointer
+      // locked; the browser may consume the keydown to release the lock and expose
+      // only this keyup. Close the gateway (step away) rather than opening pause.
+      if (!handled && isGatewayScreenOpen()) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        _closeGatewayScreen();
+        return;
+      }
       if (!handled && isPlaying() && !document.pointerLockElement) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -1787,6 +1804,15 @@ export function createArenaRuntime(hooks = {}) {
       // v2: the ground/air-aware fly orchestration lives in player.js (hop from
       // ground, stop-mid-air / glide handoff in the air).
       flyToggleFromInput();
+    });
+
+    // Enter — while the gateway browse is open, walk through (入) into the peered
+    // world. The player keeps pointer lock + movement live, so Enter is the
+    // keyboard counterpart to the commit bar's 入 button. No-op when no peek is
+    // armed or the gateway is closed.
+    onKeyDown(code => {
+      if ((code !== 'Enter' && code !== 'NumpadEnter') || !isPlaying()) return;
+      if (isGatewayScreenOpen() && isGatewayCommitting()) { commitGatewayScreen(); return; }
     });
 
     // KeyQ (ADR-0036 / ADR-0063) — in range of the in-world PRODUCT sign: TOGGLE
@@ -2707,12 +2733,17 @@ export function createArenaRuntime(hooks = {}) {
     // standing in their own world BEHIND the cross when it settles).
     try {
       if (!isPortalRevealing()) {
+        // APPROACH: the destination shows ONLY through the gate aperture (a live
+        // window), the origin world stays visible + interactive around it. The reveal
+        // now HOLDS open (no auto-end) so the player keeps gazing through the gate
+        // with parallax while they walk and look around freely.
         beginPortalReveal({
           gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
           apertureRadius: 1.6,
           skyAHex: '#cfe3f7',
           skyBHex: '#0e1a2e',
           durationMs: 1400,
+          mode: REVEAL_MODE.APPROACH,
         });
       }
     } catch (e) { console.warn('[peek] iris failed:', e && e.message ? e.message : e); }

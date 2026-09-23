@@ -70,25 +70,30 @@ function _build() {
   Object.assign(backdrop.style, {
     position: 'fixed', inset: '0', zIndex: '70',
     display: 'none',
-    alignItems: 'center', justifyContent: 'center',
+    // Gate browse redesign (v0.2.883): the directory is a BOTTOM strip — the torii
+    // gate and the world behind it stay unobstructed up the screen, so the player
+    // keeps looking through the aperture (the destination on the far side) while the
+    // selector sits low and out of the way.
+    alignItems: 'flex-end', justifyContent: 'center',
+    padding: '0 0 22px',
     background: 'transparent',
     fontFamily: 'monospace',
   });
 
-  // Smoked-glass card — translucent + blurred, so the world reads through it.
+  // Directory card — a slim, near-transparent strip. The heavy smoked-glass + blur
+  // + drop-shadow are GONE so the world reads through it; only a faint tint + edge
+  // keep the text legible over bright terrain.
   const card = document.createElement('div');
   Object.assign(card.style, {
     position: 'relative',
     width: 'min(780px, 94vw)',
-    maxHeight: '86vh', overflow: 'auto',
-    background: 'rgba(14, 16, 28, 0.58)',
-    backdropFilter: 'blur(16px) saturate(1.15)',
-    WebkitBackdropFilter: 'blur(16px) saturate(1.15)',
-    border: '1px solid rgba(196,181,253,0.28)',
-    borderRadius: '16px',
-    boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+    maxHeight: '46vh', overflow: 'auto',
+    background: 'rgba(10, 12, 20, 0.32)',
+    border: '1px solid rgba(196,181,253,0.22)',
+    borderRadius: '12px',
     color: '#f4f9ff',
-    padding: '18px 20px 16px',
+    padding: '12px 16px 12px',
+    textShadow: '0 1px 3px rgba(0,0,0,0.6)',
   });
 
   // Header
@@ -143,10 +148,9 @@ function _build() {
   const canvas = document.createElement('canvas');
   canvas.setAttribute('aria-hidden', 'true');
   Object.assign(canvas.style, {
-    display: 'block', width: '100%', height: '180px',
-    borderRadius: '12px', background: '#0b0e18',
-    border: '1px solid rgba(76,201,240,0.35)',
-    boxShadow: '0 0 18px rgba(76,201,240,0.25) inset',
+    display: 'block', width: '100%', height: '110px',
+    borderRadius: '10px', background: 'rgba(10,13,22,0.4)',
+    border: '1px solid rgba(76,201,240,0.3)',
     objectFit: 'cover',
   });
   preview.append(cap, canvas);
@@ -370,6 +374,7 @@ export function refreshGatewayScreen({ mutualFriends = [], otherWorlds = [], sca
 }
 
 export function closeGatewayScreen() { _close(); }
+export function commitGatewayScreen() { _commit(); }
 export function isGatewayScreenOpen() { return _open; }
 export function getGatewayPreviewCanvas() { return _previewCanvas; }
 export function isGatewayCommitting() { return !!_peeking; }

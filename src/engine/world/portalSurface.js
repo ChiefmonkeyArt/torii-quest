@@ -175,10 +175,10 @@ export function renderPortalSurface({ camera, viewWidth, viewHeight } = {}) {
 
   _renderer.render(_scene, _camera);
 
-  if (t >= 1 && _durationMs > 0) {
-    // Cross/settled reached the end: hold fullscreen until the host ends the reveal.
-    if (_mode === REVEAL_MODE.APPROACH) endPortalReveal();
-  }
+  // Every mode holds until the host explicitly ends the reveal (endPortalReveal).
+  // APPROACH pins the aperture at the gate opening once `t` settles — the player
+  // keeps looking through the window (parallax live) for as long as the browse loop
+  // stays open, rather than the iris snapping shut at t>=1.
 }
 
 export function disposePortalSurface() {

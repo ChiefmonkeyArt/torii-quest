@@ -22,6 +22,7 @@ import { buildTerrainVisual } from './terrainVisual.js';
 import { resolveSkyColor } from './skyColor.js';
 import { gateTransform } from './gateTransform.js';
 import { resolveArrivalCamera } from './arrivalCamera.js';
+import { computePortalCamera } from './portalCamera.js';
 import { liftTransformToTerrain, groundFloorFor } from './terrainSample.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
@@ -170,11 +171,22 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   /** Render the mirror scene into the target. No-op before build(). */
   function render(renderer) {
     if (!_built || !renderer || !_target) return;
-    // "Looking around": the eye stays at the arrival point but pans its head gently
-    // left/right around the arrival forward, so the iris reads as a person turning
-    // their head rather than a frozen frame. The pose is a pure function of time, so
-    // the preview is deterministic per frame and never drifts below the surface.
-    if (_arrival) {
+    // Parallax-correct frame (ADR-0118): with the viewer pose + BOTH gate transforms
+    // known, map the viewer's own camera through the portal (M_to · M_from⁻¹ · M_viewer)
+    // so the view through the aperture shifts like a real window as the player walks
+    // and looks — the destination is another dimension on the far side of the gate.
+    if (_viewer && _portalFrom && _portalTo) {
+      let cam = null;
+      try { cam = computePortalCamera({ viewer: _viewer, portalFrom: _portalFrom, portalTo: _portalTo }); } catch { cam = null; }
+      if (cam) {
+        _camera.position.set(cam.position.x, cam.position.y, cam.position.z);
+        _camera.quaternion.set(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w);
+      }
+    } else if (_arrival) {
+      // Fallback when the parallax transform is incomplete (no viewer pose fed, or the
+      // destination has no gate): the eye stays at the arrival point but pans its head
+      // gently left/right so the iris reads as a person turning their head rather than
+      // a frozen frame. The pose is a pure function of time (deterministic per frame).
       const t = performance.now() * 0.0004;
       const pan = Math.sin(t) * 0.14; // ±8°
       const yaw = _arrival.yaw + pan;

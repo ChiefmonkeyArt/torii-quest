@@ -22,7 +22,6 @@ import { buildFoliage } from '../../arena-foliage.js';
 import { scene as defaultScene } from '../../scene.js';
 import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
 import { sampleNapHeight } from '../../terrain/heightmap.js';
-import { quatFromYaw } from './gateTransform.js';
 import { computePortalCamera } from './portalCamera.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
@@ -78,9 +77,16 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   function build(world, { assetUrl, loadGltf } = {}) {
     if (!_scene) {
       _scene = new T.Scene();
-      _sun = new T.DirectionalLight(0xffffff, 1.0);
-      _sun.position.set(8, 12, 6);
+      // Match the HOME arena's lighting (scene.js) so the destination renders with the
+      // same warm sunrise look. The arena's MeshStandardMaterial terrain/crates/glass/neon
+      // need the ambient + directional pair — a lone directional leaves unlit faces black.
+      _scene.add(new T.AmbientLight(0xffc080, 0.55));
+      _sun = new T.DirectionalLight(0xffa830, 1.15);
+      _sun.position.set(40.66, 12.78, -26.14); // normalize(0.70,0.22,-0.45) * 50 (scene.js _sunDir)
       _scene.add(_sun);
+      const _fill = new T.PointLight(0xffa060, 0.7, 60);
+      _fill.position.set(-10, 8, 10);
+      _scene.add(_fill);
       _camera = new T.PerspectiveCamera(60, targetWidth / targetHeight, 0.1, 1000);
       _target = new T.WebGLRenderTarget(targetWidth, targetHeight);
     }
@@ -108,9 +114,11 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     _camera.lookAt(_arrival.position.x, _arrival.position.y, _arrival.position.z - 10);
 
     // Portal transforms: source gate == destination gate (identical worlds), so the
-    // through-gate parallax mapping is ~identity — looking through the gate shows the
-    // same world from the corresponding vantage.
-    _portalTo = { position: { x: TRAVEL_GATE_X, y: gwY, z: TRAVEL_GATE_Z }, quaternion: quatFromYaw(Math.PI / 2) };
+    // through-gate parallax mapping is identity — the destination gate carries the SAME
+    // transform as the source gate (arenaRuntime feeds portalFrom with identity yaw), so
+    // M_to · M_from⁻¹ = I and the mirror camera = the viewer's own pose in the identical
+    // destination world. A non-identity yaw here would rotate the view 90° and split it.
+    _portalTo = { position: { x: TRAVEL_GATE_X, y: gwY, z: TRAVEL_GATE_Z }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
 
     _built = true;
     return true;

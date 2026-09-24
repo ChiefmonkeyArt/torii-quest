@@ -1,5 +1,9 @@
 # Torii Quest ToDo
 
+## MIRROR RENDERS THE HOME SCENE: v0.2.890-alpha
+
+The v0.2.888 mirror finally pointed the right way but was still slow and low-fidelity — it rebuilt a SECOND arena (buildArena + buildFoliage + GLB) every peek, which took ages, and never matched the home scene's Sky.js atmosphere or animated sea/grass, so it read as a flat, static reconstruction. The destination is a copy of home, so the mirror now renders the HOME scene itself from a portal camera on the far side of the gate — instant (no rebuild), full Sky.js + lighting + animated sea/grass, with the NPC + the viewer's own first-person body hidden for the pass. Rewrote the mirror source-contract tests (7 now). Suite 5041 / 422.
+
 ## FIPS first implementation slice: v0.2.889-alpha
 
 - [x] Add one-peer, signature-verified, RAM-only background heartbeat adapter with WSS fallback.

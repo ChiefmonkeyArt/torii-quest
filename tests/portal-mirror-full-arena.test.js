@@ -1,14 +1,14 @@
-// tests/portal-mirror-full-arena.test.js — locks the v0.2.886 fix: the portal LIVE
+// tests/portal-mirror-full-arena.test.js — locks the v0.2.888 fix: the portal LIVE
 // MIRROR (the wardrobe-door view through the travel gate) must render the DESTINATION
-// world with the FULL legacy arena builder (buildArena + buildFoliage), NOT the
-// simplified buildMinimalWorld cloud-platform reconstruction.
+// world as the HOME scene itself, NOT a second procedural rebuild.
 //
-// Root cause (playtester): the home world renders via buildArena (sea, terrain, crates,
-// bridge, torii gates, NAP zone, coastline, grass), but the peek/travel mirror used
-// buildMinimalWorld — a generic heightmap platform that read as "missing all her
-// details". Bekka's world is a copy of the home world, so the mirror must build the
-// same recognisable arena. This is a SOURCE contract (portalMirror.js is browser-only,
-// imports THREE + WebGL, so it cannot be imported in a node test).
+// Root cause (playtester): rebuilding a second arena for the mirror was slow (a full
+// buildArena + buildFoliage + GLB pass every peek) and never matched the home scene's
+// Sky.js atmosphere or animated sea/grass — it read as "rubbish, not even fake live".
+// Bekka's world is a copy of the home world, so the mirror renders the HOME scene from
+// a portal camera on the far side of the gate, hiding the NPC + the viewer's own body
+// for the pass. This is a SOURCE contract (portalMirror.js is browser-only, imports
+// THREE + WebGL, so it cannot be imported in a node test).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -20,16 +20,19 @@ import { quatFromYaw } from '../src/engine/world/gateTransform.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIRROR = readFileSync(join(ROOT, 'src/engine/world/portalMirror.js'), 'utf8');
 
-describe('v0.2.886 — portal mirror builds the FULL arena', () => {
-  it('imports the full arena builder, not the minimal world renderer', () => {
-    expect(MIRROR).toContain("import { buildArena } from '../../arena.js';");
-    expect(MIRROR).toContain("import { buildFoliage } from '../../arena-foliage.js';");
+describe('v0.2.888 — portal mirror renders the HOME scene (no rebuild)', () => {
+  it('renders the home scene, not a second arena rebuild', () => {
+    expect(MIRROR).toContain("import { scene as defaultScene } from '../../scene.js';");
+    expect(MIRROR).toContain('renderer.render(defaultScene, _camera)');
+    expect(MIRROR).not.toContain('buildArena(_scene)');
     expect(MIRROR).not.toContain('buildMinimalWorld');
   });
 
-  it('calls buildArena + buildFoliage into the mirror scene', () => {
-    expect(MIRROR).toContain('buildArena(_scene)');
-    expect(MIRROR).toContain('buildFoliage(undefined, _scene)');
+  it('hides the NPC + first-person body for the pass', () => {
+    expect(MIRROR).toContain("import { setNapNpcVisible } from '../../napNpc.js';");
+    expect(MIRROR).toContain("import { setPortalMirrorHidden } from '../../firstPersonBody.js';");
+    expect(MIRROR).toContain('setNapNpcVisible(false)');
+    expect(MIRROR).toContain('setPortalMirrorHidden(true)');
   });
 
   it('maps the destination gate with yaw π (180° flip into the arena)', () => {
@@ -38,11 +41,6 @@ describe('v0.2.886 — portal mirror builds the FULL arena', () => {
     // view 180° (M_to · M_from⁻¹ rotates north → south, into the arena). Identity yaw
     // would show the sea behind the gate; π/2 would split the view sideways.
     expect(MIRROR).toContain('quatFromYaw(Math.PI)');
-  });
-
-  it('lights the mirror scene like the home arena (ambient + directional)', () => {
-    expect(MIRROR).toContain("new T.AmbientLight(0xffc080, 0.55)");
-    expect(MIRROR).toContain("new T.DirectionalLight(0xffa830, 1.15)");
   });
 });
 
@@ -87,10 +85,10 @@ describe('v0.2.886 — arena builders accept a target scene', () => {
     expect(FOLIAGE).toContain('buildFoliage(onProgress, targetScene');
   });
 
-  it('the mirror sea + grass are untracked (track:false / non-home scene)', () => {
+  it('the home sea is tracked; a non-home scene is not', () => {
     const ARENA = readFileSync(join(ROOT, 'src/arena.js'), 'utf8');
     const SEA = readFileSync(join(ROOT, 'src/terrain/sea.js'), 'utf8');
-    // The HOME scene's sea is tracked (tick/dispose/getSeaMat); a mirror scene's is not.
+    // The HOME scene's sea is tracked (tick/dispose/getSeaMat); a non-home scene's is not.
     expect(ARENA).toContain('track: scene === defaultScene');
     expect(SEA).toContain('if (opts.track !== false)');
   });

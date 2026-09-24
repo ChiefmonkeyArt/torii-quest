@@ -205,12 +205,22 @@ function _play(name) {
 // into `_root.visible` so they compose instead of fighting over the same bit.
 let _flyHidden = false;
 let _mirrorHidden = false;
+let _portalMirrorHidden = false;
 function _applyVisibility() {
-  if (_root) _root.visible = !_flyHidden && !_mirrorHidden;
+  if (_root) _root.visible = !_flyHidden && !_mirrorHidden && !_portalMirrorHidden;
 }
 
 export function setFlyHidden(hidden) {
   _flyHidden = !!hidden;
+  _applyVisibility();
+}
+
+// Hide/show the first-person body during the portal live-mirror pass (ADR-0118).
+// The mirror renders the HOME scene into its offscreen target, but the viewer's
+// own body stands between the mirror camera (far side of the gate) and the arena,
+// so it must be hidden for the duration of the pass and restored after.
+export function setPortalMirrorHidden(hidden) {
+  _portalMirrorHidden = !!hidden;
   _applyVisibility();
 }
 

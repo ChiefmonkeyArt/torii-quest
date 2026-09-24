@@ -1,5 +1,9 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## MIRROR RENDERS THE HOME SCENE: v0.2.890-alpha
+
+The v0.2.888 mirror finally pointed the right way but was still slow and low-fidelity — it rebuilt a SECOND arena (buildArena + buildFoliage + GLB) every peek, which took ages, and never matched the home scene's Sky.js atmosphere or animated sea/grass, so it read as a flat, static reconstruction. The destination is a copy of home, so the mirror now renders the HOME scene itself from a portal camera on the far side of the gate — instant (no rebuild), full Sky.js + lighting + animated sea/grass, with the NPC + the viewer's own first-person body hidden for the pass. Rewrote the mirror source-contract tests (7 now). Suite 5041 / 422. Handoff: the next live cross-node pass should confirm the gate window now shows Bekka's island with the full home-scene atmosphere (Sky.js sunrise, animated sea + grass), not a flat static reconstruction, and that the NPC + the viewer's own body are absent from the far side. Bekka's node is still v0.2.872-alpha and must self-approve (ADR-0106) for HER side.
+
 ## FIPS release: v0.2.889-alpha
 
 The concurrent v0.2.888 portal-camera release is preserved below. This paired release moves to the next free tag, v0.2.889. Its combined local release gate passes 5,042 tests in 435 files, all 21 regression checks, build, bundle report and handoff check; matching final CI must pass before merge.

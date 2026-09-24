@@ -28,6 +28,19 @@ describe('v0.2.886 — portal mirror builds the FULL arena', () => {
     expect(MIRROR).toContain('buildArena(_scene)');
     expect(MIRROR).toContain('buildFoliage(undefined, _scene)');
   });
+
+  it('maps the destination gate with IDENTITY yaw (identical worlds, no 90° split)', () => {
+    // The source gate is fed with identity yaw (arenaRuntime setPortalFrom), so the
+    // destination gate must also be identity — a rotated yaw (quatFromYaw(π/2)) would
+    // rotate the portal mapping 90° and split the view. Lock the identity quaternion.
+    expect(MIRROR).toContain('quaternion: { x: 0, y: 0, z: 0, w: 1 }');
+    expect(MIRROR).not.toContain('quatFromYaw');
+  });
+
+  it('lights the mirror scene like the home arena (ambient + directional)', () => {
+    expect(MIRROR).toContain("new T.AmbientLight(0xffc080, 0.55)");
+    expect(MIRROR).toContain("new T.DirectionalLight(0xffa830, 1.15)");
+  });
 });
 
 describe('v0.2.886 — arena builders accept a target scene', () => {

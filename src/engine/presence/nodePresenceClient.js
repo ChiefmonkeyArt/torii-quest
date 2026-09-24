@@ -11,11 +11,9 @@ export function createNodePresenceCache({
     if (inFlight || !httpBase) return;
     try { if (!origin || new URL(httpBase, origin).origin !== origin) return; } catch { return; }
     inFlight = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1500);
     try {
       const response = await fetchImpl(`${httpBase}/node-presence`, {
-        signal: controller.signal, cache: 'no-store', credentials: 'same-origin',
+        signal: AbortSignal.timeout(1500), cache: 'no-store', credentials: 'same-origin',
       });
       if (!response.ok) return;
       // Our server guarantees a <9 KiB body. Bound the streamed response too.
@@ -36,7 +34,7 @@ export function createNodePresenceCache({
       if (!Array.isArray(body.events) || body.events.length > 1) return;
       events = body.events.filter(event => verifyNostrEventSig(event));
     } catch { /* absence/failure is invisible to players */ }
-    finally { clearTimeout(timeout); inFlight = false; }
+    finally { inFlight = false; }
   }
   function worlds(ourPubkey = '') {
     const sec = Math.floor(now() / 1000);

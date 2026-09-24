@@ -5,7 +5,7 @@
 - [x] Add one-peer, signature-verified, RAM-only background heartbeat adapter with WSS fallback.
 - [x] Feed the normal directory through a non-blocking same-origin snapshot; leave travel, multiplayer and asset storage unchanged.
 - [x] Add security tests and reproducible isolated-network proof harness.
-- [ ] Pass real FIPS/TUN and firewall proof on the isolated CI runner.
+- [x] Pass real FIPS/TUN and firewall proof on the isolated CI runner: bidirectional receipt, outage/recovery, stable identity, forged rejection and admin isolation. Production strfry is still a separate acceptance step.
 - [ ] Coordinate Suite v0.9.24-alpha and approved root provisioning; do not merge/tag a partial release.
 - [ ] Enroll the second operator's independently approved node, verify real strfry exchange, storage soak and player responsiveness.
 

@@ -65,7 +65,7 @@ try {
       content: JSON.stringify({ zoneId: 'quest-torii', website: `https://node${i}.example/quest/`, zoneType: 'arena' }),
     }, key);
     writeFileSync(`${nodeDir}/event.json`, JSON.stringify(event));
-    nodes.push({ ns, dir: nodeDir, npub, mesh, event, owner, ip: `10.231.0.${i + 1}` });
+    nodes.push({ ns, dir: nodeDir, npub, mesh, event, key, owner, ip: `10.231.0.${i + 1}` });
   }
   run('ip', ['link', 'add', 'tfproof-a', 'type', 'veth', 'peer', 'name', 'tfproof-b']);
   for (let i = 0; i < 2; i++) {
@@ -116,10 +116,18 @@ try {
   // A forged original and an expired original are rejected over real FIPS.
   writeFileSync(`${nodes[1].dir}/event.json`, JSON.stringify({ ...nodes[1].event, sig: '0'.repeat(128) }));
   assert.equal((await read(nodes[0])).id, null);
+  const oldCreated = Math.floor(Date.now() / 1000) - 1300;
+  const expired = finalizeEvent({
+    ...nodes[1].event, created_at: oldCreated,
+    tags: nodes[1].event.tags.map(t => t[0] === 'expiration' ? ['expiration', String(oldCreated + 1200)] : t),
+  }, nodes[1].key);
+  writeFileSync(`${nodes[1].dir}/event.json`, JSON.stringify(expired));
+  assert.equal((await read(nodes[0])).id, null);
   console.log(JSON.stringify({
     proof: 'PASS', transport: 'FIPS v0.5.1 UDP/TUN, two network namespaces',
     bidirectional: true, outageRejected: true, recovery: true, persistentIdentity: true,
-    forgedRejected: true, wildcardAdminBlocked: applyFirewall ? true : 'not-run-kernel-lacks-nftables',
+    forgedRejected: true, expiredRejected: true,
+    wildcardAdminBlocked: applyFirewall ? true : 'not-run-kernel-lacks-nftables',
     firstExchangeMs, daemonRssKiB: rssKiB,
     limitations: 'Fixture relays, not production strfry. No VPS rollout, player frame-time or long soak claim.',
   }, null, 2));

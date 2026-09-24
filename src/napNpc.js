@@ -109,6 +109,15 @@ let _currentAction = null;
 export function getNpcRoot() { return _root; }
 export function getNpcSkinnedMesh() { return _skinnedMesh; }
 
+// Hide/show the NPC + nameplate. The portal live-mirror (ADR-0118) renders the
+// HOME scene into its offscreen target, and the destination is a copy of home
+// WITHOUT the NPC — so the NPC (and its nameplate) must be hidden during the
+// mirror pass and restored after.
+export function setNapNpcVisible(visible) {
+  if (_root) _root.visible = !!visible;
+  if (_nameplate) _nameplate.visible = !!visible;
+}
+
 // v0.2.813: internal — make a canvas-textured sprite for the Nakama label.
 // Mirrors botModel.js:_makeNameplate but sized larger + no HP bar (NPC is
 // friendly, no combat). Returns null in non-DOM environments so unit tests

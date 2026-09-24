@@ -131,6 +131,7 @@ import {
 } from './engine/update/adminUpdateClient.js';
 import { resolveMpHttpBase, getStoredToken } from './engine/multiplayer/sessionAuth.js';
 import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
+import { createNodePresenceCache, mergeNodeWorlds } from './engine/presence/nodePresenceClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
@@ -926,7 +927,10 @@ async function _enrichWorldOwners(worlds) {
   return worlds;
 }
 
+const _nodePresence = createNodePresenceCache();
 async function refreshOnlineWorlds() {
+  // Never await mesh discovery here: use its bounded same-origin RAM snapshot.
+  void _nodePresence.refresh(resolveMpHttpBase());
   _worldsScan = 'scanning';
   // Read-side discovery (Phase 0d follow-up): query the single relay list (the
   // same list presence publishes to, ADR-0081). This is read-only — a failed
@@ -941,11 +945,11 @@ async function refreshOnlineWorlds() {
     retries: 1,
   });
   if (!r.ok) {
-    _worldsScan = 'offline';
-    _worldsCache = [];
+    _worldsCache = _nodePresence.worlds(state.nostrPubkey || '');
+    _worldsScan = _worldsCache.length ? 'idle' : 'offline';
     return;
   }
-  _worldsCache = r.worlds || [];
+  _worldsCache = mergeNodeWorlds(r.worlds || [], _nodePresence.worlds(state.nostrPubkey || ''));
   _worldsScan = 'idle';
   // ADR-0119 slice-5: enrich owner identity (kind:0 displayName/avatar) for rows
   // whose presence omitted it, then re-render so the directory shows the person.

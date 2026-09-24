@@ -13,12 +13,15 @@ import { camera } from './scene.js';
 import { getMirror } from './mirror.js';
 import { assetUrl } from './assetUrl.js';
 import { getCharacter, getCustomHeadlessUrl } from './playerModel.js';
+import { maskFirstPersonArms, firstPersonLocomotion } from './engine/character/firstPersonBodyMask.js';
 
 let _root  = null;
 let _mixer = null;
 let _actions = {};
 let _current = null;
 let _cfg = null; // FP_BODIES entry for the loaded character
+let _lastX = null;
+let _lastZ = null;
 
 // Per-character headless first-person body: asset path + the idle/walk/run clip
 // names inside that GLB. chiefmonkey keeps its own reduced set (Idle_11 /
@@ -86,6 +89,7 @@ export function loadFirstPersonBody(parentObj) {
   // switching from a shorter character (poo poo head) back to a full-height one
   // returns to the canonical eye immediately, even before the new GLB streams in.
   _characterEyeOffset = 0;
+  _lastX = _lastZ = null;
 
   // v0.2.767-alpha — for custom / Create-with-AI meshes the server authors a
   // headless variant at publish-time and the client stores that URL via
@@ -147,6 +151,9 @@ export function loadFirstPersonBody(parentObj) {
 
     _root.traverse(o => {
       if (o.isMesh) {
+        // gunScene owns the FP weapon silhouette. The headless body's unarmed
+        // clips must not draw unrelated hands through/alongside that gun.
+        maskFirstPersonArms(o);
         o.castShadow = false;
         o.receiveShadow = false;
         o.frustumCulled = false;
@@ -267,14 +274,10 @@ export function tickFirstPersonBody(dt) {
   }
   _updateMirrorProximity();
 
-  const fwd   = keys['KeyW'] || keys['ArrowUp'];
-  const back  = keys['KeyS'] || keys['ArrowDown'];
-  const left  = keys['KeyA'] || keys['ArrowLeft'];
-  const right = keys['KeyD'] || keys['ArrowRight'];
-  const run   = keys['ShiftLeft'] || keys['ShiftRight'];
-  const moving = fwd || back || left || right;
-
-  if (!moving)            _play(_cfg.idle);
-  else if (run && moving) _play(_cfg.run);
-  else                    _play(_cfg.walk);
+  const distance = _root?.parent && _lastX !== null
+    ? Math.hypot(_pp.x - _lastX, _pp.z - _lastZ) : 0;
+  _lastX = _root?.parent ? _pp.x : null;
+  _lastZ = _root?.parent ? _pp.z : null;
+  const locomotion = firstPersonLocomotion(distance, dt, keys['ShiftLeft'] || keys['ShiftRight']);
+  _play(_cfg[locomotion]);
 }

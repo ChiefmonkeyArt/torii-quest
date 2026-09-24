@@ -1,5 +1,19 @@
 # Torii Quest ToDo
 
+## v0.2.891-alpha: first-person armed-view consistency
+
+- [x] Isolate the empty swinging FP hand from the correct mirror gun rig.
+- [x] Make the FP gun viewmodel the sole weapon silhouette; retain torso/feet.
+- [x] Select FP locomotion from actual movement rather than held/stale keys.
+- [x] Add behavioural and real-asset tests; record ownership in ADR-0127.
+- [x] Full release gate: 5,059 tests in 437 discovered files; 21 regression checks, build, bundle and handoff checks.
+- [x] Isolated browser checks of the shipped chiefmonkey body and gun: idle/walk/run samples and retained feet on look-down.
+
+Release completion requires the accompanying PR merged to main, the tag on that
+merge, and canonical VPS verification. The Project delivery receipt records those
+external outcomes. Full-island software-renderer QA stalled; do not describe the
+isolated character checks as an authenticated live gameplay test.
+
 ## MIRROR RENDERS THE HOME SCENE: v0.2.890-alpha
 
 The v0.2.888 mirror finally pointed the right way but was still slow and low-fidelity — it rebuilt a SECOND arena (buildArena + buildFoliage + GLB) every peek, which took ages, and never matched the home scene's Sky.js atmosphere or animated sea/grass, so it read as a flat, static reconstruction. The destination is a copy of home, so the mirror now renders the HOME scene itself from a portal camera on the far side of the gate — instant (no rebuild), full Sky.js + lighting + animated sea/grass, with the NPC + the viewer's own first-person body hidden for the pass. Rewrote the mirror source-contract tests (7 now). Suite 5041 / 422.

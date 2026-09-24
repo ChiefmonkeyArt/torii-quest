@@ -1,5 +1,22 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.891-alpha: first-person empty-hand regression
+
+Root cause: independent unarmed headless-body clips draw empty hands alongside
+the camera-space gun; the correctly gun-bearing mirror uses a different rig.
+ADR-0127 and a one-time private geometry mask retain the FP torso/feet but remove
+the conflicting arm silhouette. Actual displacement, not raw keys, selects
+FP locomotion. No full-body/mirror/peer, weapon, combat, network or asset change.
+Behavioural tests cover geometry ownership/materials/skin weights, all three
+shipped headless assets, stationary gate idle, walking, sprinting and teleports.
+
+Validation: full release gate green (5,059 tests / 437 discovered files, of which
+424 are under tests/; all 21 regression checks). Isolated browser rendering checks
+cover chiefmonkey idle/walk/run and look-down feet with the existing gun unchanged.
+The full island overloaded the sandbox software renderer; authenticated operator
+gameplay was not observed. No Kami code changed: an initial suite-order failure
+passed in isolation and on the final complete release-gate run.
+
 ## MIRROR RENDERS THE HOME SCENE: v0.2.890-alpha
 
 The v0.2.888 mirror finally pointed the right way but was still slow and low-fidelity — it rebuilt a SECOND arena (buildArena + buildFoliage + GLB) every peek, which took ages, and never matched the home scene's Sky.js atmosphere or animated sea/grass, so it read as a flat, static reconstruction. The destination is a copy of home, so the mirror now renders the HOME scene itself from a portal camera on the far side of the gate — instant (no rebuild), full Sky.js + lighting + animated sea/grass, with the NPC + the viewer's own first-person body hidden for the pass. Rewrote the mirror source-contract tests (7 now). Suite 5041 / 422.

@@ -145,6 +145,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0120](./0120-node-owned-relay-as-primary-event-home.md) | Node-owned relay (strfry sidecar) as primary event home — publish/read/advertise own relay first, demote `DEFAULT_NODE_RELAYS` to bootstrap | Accepted |
 | [0121](./0121-relay-connection-backoff.md) | Relay connection back-off — fail-streak cool-down to silence doomed-WebSocket console spam (keeps blocked-for-one-client relays in the set) | Accepted |
 | [0123](./0123-live-gaze-through-browse.md) | Live gaze-through gate browse — keep PLAYING + pointer lock while browsing, APPROACH aperture reveal that holds open, parallax portal camera | Accepted |
+| [0124](./0124-world-space-gate-window.md) | World-space gate window — replace the fullscreen circular iris with a plane inside the torii opening showing the live mirror | Accepted |
 
 ## Workflow for a new decision
 

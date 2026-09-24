@@ -67,9 +67,10 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
-import { initPortalSurface, setPortalSurfaceRenderer, beginPortalReveal, endPortalReveal, renderPortalSurface, isPortalRevealing, bindPortalTexture } from './engine/world/portalSurface.js';
+import { initPortalWindow, setPortalWindow, hidePortalWindow } from './engine/world/portalWindow.js';
+import { portalWindowSpec } from './engine/world/portalWindowSpec.js';
 import { createPortalMirror } from './engine/world/portalMirror.js';
-import { REVEAL_MODE } from './engine/world/portalReveal.js';
+
 import { createSpectatorClient, SPECTATOR_STATE } from './engine/multiplayer/spectatorClient.js';
 import { portalApproachState } from './engine/gateway/portalApproach.js';
 import { portalPromptLabel } from './engine/gateway/zoneLabel.js';
@@ -814,10 +815,9 @@ export function createArenaRuntime(hooks = {}) {
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
   const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
   const _portalRange = 3;
-  // IRIS / SKY RESOLVE (ADR-0118): bind the shared renderer + build the overlay once.
-  // The reveal is OFF by default — it only draws when beginPortalReveal is armed (KeyG demo).
-  setPortalSurfaceRenderer(renderer);
-  initPortalSurface();
+  // PORTAL WINDOW (ADR-0124): build the world-space gate window once; it stays hidden
+  // until a browse peek binds the destination mirror texture into it.
+  initPortalWindow(scene);
 
   // ── In-world gateway screen (KeyF) ───────────────────────────────────────────
   // _openGatewayScreen(prePeek) — open the browse loop. Pass a world to pre-peek it
@@ -1149,8 +1149,8 @@ export function createArenaRuntime(hooks = {}) {
       _mirror.render(renderer);
       _blitPreview();
     }
-    // Iris/sky-resolve overlay draws OVER the frame (no-op unless a reveal is armed).
-    renderPortalSurface({ camera, viewWidth: innerWidth, viewHeight: innerHeight });
+    // The world-space portal window (ADR-0124) is part of the arena scene, so it renders
+    // with the frame and needs no separate post-pass here.
     if (_firstFrameMarked && !_firstFrameEnded) {
       _firstFrameEnded = true;
       endPhase('first-render');
@@ -1853,21 +1853,6 @@ export function createArenaRuntime(hooks = {}) {
       _openToriiMenu();
     });
 
-    // KeyG — IRIS/SKY-RESOLVE DEMO (ADR-0118): fire the fullscreen iris from the travel
-    // gate over the live arena. Toggles: press again to clear. Off by default; the real
-    // cross-on-travel wiring replaces this demo trigger once world-B streaming lands.
-    onKeyDown(code => {
-      if (code !== 'KeyG' || !isPlaying()) return;
-      if (isPortalRevealing()) { endPortalReveal(); return; }
-      beginPortalReveal({
-        gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
-        apertureRadius: 1.6,
-        skyAHex: '#cfe3f7',  // origin (dawn) sky
-        skyBHex: '#0e1a2e',  // destination dusk
-        durationMs: 1400,
-      });
-    });
-
     const elResumeBtn = document.getElementById('btn-resume');
     const elHomeBtn   = document.getElementById('btn-home');
     const elKamiBtn   = document.getElementById('btn-kami');
@@ -2442,7 +2427,9 @@ export function createArenaRuntime(hooks = {}) {
     closeLiveMirror();
     let mirror = null;
     try {
-      mirror = createPortalMirror({ THREE, targetWidth: 1024, targetHeight: 1024 });
+      // The mirror target aspect matches the gate window (3.0 wide × 3.6 tall) so the
+      // destination is sampled undistorted onto the world-space window.
+      mirror = createPortalMirror({ THREE, targetWidth: 900, targetHeight: 1080 });
       if (!mirror.build(world, { assetUrl, loadGltf: _loadGltf })) {
         mirror.dispose(); mirror = null;
         return { tier: 'none', close: closeLiveMirror };
@@ -2456,9 +2443,19 @@ export function createArenaRuntime(hooks = {}) {
     // Parallax-correct peek (ADR-0118): tell the mirror where OUR gate sits (the far
     // side is read from the destination manifest inside build()). Yaw 0 — the source
     // gate's through-axis is its built orientation; the mapping only needs the position
-    // to shift the iris like a real window as the viewer moves.
+    // to shift the window like a real portal as the viewer moves.
     try { mirror.setPortalFrom({ position: _portalPos, quaternion: { x: 0, y: 0, z: 0, w: 1 } }); } catch { /* noop */ }
-    try { bindPortalTexture(mirror.texture()); } catch { /* noop */ }
+    // Bind the destination world into the WORLD-SPACE gate window (ADR-0124). The
+    // window stands inside the travel gate and shows the mirror frame — the wardrobe
+    // door opening onto another dimension.
+    try {
+      // yaw is left to the spec default (π) so the plane's front faces the player
+      // approaching from the arena; DoubleSide keeps it visible regardless.
+      const spec = portalWindowSpec({
+        gateX: _portalPos.x, gateY: _portalPos.y, gateZ: _portalPos.z,
+      });
+      setPortalWindow({ ...spec, texture: mirror.texture() });
+    } catch { /* noop */ }
     try { mirror.render(renderer); } catch { /* noop */ }
 
     // live — read-only spectator stream of the destination's actual state.
@@ -2476,11 +2473,11 @@ export function createArenaRuntime(hooks = {}) {
   }
 
   // closeLiveMirror() — tear the mirror down (idempotent): stop the spectator stream,
-  // dispose the offscreen world + render target, and unbind the texture from the iris.
+  // dispose the offscreen world + render target, and hide the gate window.
   function closeLiveMirror() {
     if (_mirrorClient) { try { _mirrorClient.close(); } catch { /* noop */ } _mirrorClient = null; }
     if (_mirror) { try { _mirror.dispose(); } catch { /* noop */ } _mirror = null; }
-    try { bindPortalTexture(null); } catch { /* noop */ }
+    try { hidePortalWindow(); } catch { /* noop */ }
   }
 
   // travelToWorld(world, opts) — IN-PLACE world swap (world-as-data). Replaces the
@@ -2627,24 +2624,12 @@ export function createArenaRuntime(hooks = {}) {
 
   async function travelToWorld(world, opts = {}) {
     if (!world || typeof world !== 'object') return { ok: false, reason: 'no-world' };
-    // The iris cross now reveals the LIVE mirror (world B rendered + streamed
-    // through the aperture) before the real swap lands beneath it.
-    try {
-      if (!isPortalRevealing()) {
-        beginPortalReveal({
-          gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
-          apertureRadius: 1.6,
-          skyAHex: '#cfe3f7',
-          skyBHex: '#0e1a2e',
-          durationMs: 900,
-        });
-      }
-    } catch (e) { console.warn('[travel] iris failed:', e && e.message ? e.message : e); }
 
     let tier = 'none';
     try {
-      // LIVE MIRROR: reveal the destination world through the aperture while the iris
-      // crosses; hold it open long enough for the peek + spectator stream to read.
+      // LIVE MIRROR: show the destination world through the gate window while the
+      // swap lands beneath it (no fullscreen iris — the window is already showing the
+      // destination from the peek). Hold it open briefly for the spectator stream.
       try { tier = (openLiveMirror(world, { wsEndpoint: opts && opts.wsEndpoint }) || {}).tier || 'none'; }
       catch (e) { tier = 'none'; console.warn('[travel] mirror failed:', e && e.message ? e.message : e); }
 
@@ -2663,10 +2648,9 @@ export function createArenaRuntime(hooks = {}) {
       // label, never breaks travel.
       try { if (opts && opts.ownerLabel) setNapNpcName(opts.ownerLabel); } catch { /* noop */ }
 
-      // Drop the mirror (unbind its texture) right as the reveal opens onto the real
-      // world, so the iris cross → live mirror → landed world reads as one motion.
+      // Drop the mirror (hide the gate window) right as the real world lands, so the
+      // window → landed world reads as one motion.
       closeLiveMirror();
-      try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
 
       // MP rejoin (v0.2.866): after landing, re-dial the multiplayer socket to the
       // DESTINATION world's ws endpoint so the traveller enters ITS shared gameplay,
@@ -2686,7 +2670,6 @@ export function createArenaRuntime(hooks = {}) {
       return { ok: true, tier };
     } catch (e) {
       closeLiveMirror();
-      try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
       console.warn('[travel] in-place travel failed:', e && e.message ? e.message : e);
       return { ok: false, reason: e && e.message ? e.message : e };
     }
@@ -2746,24 +2729,9 @@ export function createArenaRuntime(hooks = {}) {
   // 'none'. Clicking the next name just calls this again (the mirror disposes + rebuilds).
   function peekWorld(world, { wsEndpoint } = {}) {
     if (!world || typeof world !== 'object') return { tier: 'none' };
-    // Arm the iris reveal so the gate aperture shows the mirror (the player is still
-    // standing in their own world BEHIND the cross when it settles).
-    try {
-      if (!isPortalRevealing()) {
-        // APPROACH: the destination shows ONLY through the gate aperture (a live
-        // window), the origin world stays visible + interactive around it. The reveal
-        // now HOLDS open (no auto-end) so the player keeps gazing through the gate
-        // with parallax while they walk and look around freely.
-        beginPortalReveal({
-          gateCenter: { x: _portalPos.x, y: _portalPos.y + 1.6, z: _portalPos.z },
-          apertureRadius: 1.6,
-          skyAHex: '#cfe3f7',
-          skyBHex: '#0e1a2e',
-          durationMs: 1400,
-          mode: REVEAL_MODE.APPROACH,
-        });
-      }
-    } catch (e) { console.warn('[peek] iris failed:', e && e.message ? e.message : e); }
+    // The gaze window (ADR-0124) shows the destination only through the gate opening —
+    // the origin world stays visible + interactive around it. openLiveMirror binds the
+    // mirror into the window and holds it open so the player keeps gazing with parallax.
     let tier = 'none';
     try { tier = (openLiveMirror(world, { wsEndpoint }) || {}).tier || 'none'; }
     catch (e) { tier = 'none'; console.warn('[peek] mirror failed:', e && e.message ? e.message : e); }
@@ -2792,8 +2760,7 @@ export function createArenaRuntime(hooks = {}) {
   function cancelBrowsePeek() {
     _browse.step(BROWSE_ACTION.CANCEL);
     _pendingTravel = null;
-    closeLiveMirror();
-    try { if (isPortalRevealing()) endPortalReveal(); } catch { /* noop */ }
+    closeLiveMirror(); // also hides the gate window
   }
 
   async function _handlePeek(world, { wsEndpoint, ownerLabel } = {}) {

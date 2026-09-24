@@ -109,7 +109,7 @@ const headlessGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_HEADLESS,
 const generationGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_GENERATIONS, maxPerKey: MAX_GENERATIONS_PER_PUBKEY });
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.888-alpha';
+const SERVER_VERSION = 'v0.2.889-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.

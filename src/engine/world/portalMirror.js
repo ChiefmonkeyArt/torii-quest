@@ -22,6 +22,7 @@ import { buildFoliage } from '../../arena-foliage.js';
 import { scene as defaultScene } from '../../scene.js';
 import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
 import { sampleNapHeight } from '../../terrain/heightmap.js';
+import { quatFromYaw } from './gateTransform.js';
 import { computePortalCamera } from './portalCamera.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
@@ -113,12 +114,12 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     _camera.position.set(_arrival.position.x, _arrival.position.y, _arrival.position.z);
     _camera.lookAt(_arrival.position.x, _arrival.position.y, _arrival.position.z - 10);
 
-    // Portal transforms: source gate == destination gate (identical worlds), so the
-    // through-gate parallax mapping is identity — the destination gate carries the SAME
-    // transform as the source gate (arenaRuntime feeds portalFrom with identity yaw), so
-    // M_to · M_from⁻¹ = I and the mirror camera = the viewer's own pose in the identical
-    // destination world. A non-identity yaw here would rotate the view 90° and split it.
-    _portalTo = { position: { x: TRAVEL_GATE_X, y: gwY, z: TRAVEL_GATE_Z }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
+    // Portal transforms: the viewer stands SOUTH of the gate looking NORTH at it, but the
+    // destination arena lies SOUTH of the destination gate — so "through the gate" must
+    // flip the view 180°. The source gate is fed with identity yaw (arenaRuntime), so the
+    // destination gate carries yaw π: M_to · M_from⁻¹ rotates the viewer's north-facing
+    // look into a south-facing look INTO the arena (the wardrobe: you see the far side).
+    _portalTo = { position: { x: TRAVEL_GATE_X, y: gwY, z: TRAVEL_GATE_Z }, quaternion: quatFromYaw(Math.PI) };
 
     _built = true;
     return true;

@@ -13,6 +13,9 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import * as THREE from 'three';
+import { computePortalCamera } from '../src/engine/world/portalCamera.js';
+import { quatFromYaw } from '../src/engine/world/gateTransform.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIRROR = readFileSync(join(ROOT, 'src/engine/world/portalMirror.js'), 'utf8');
@@ -29,17 +32,45 @@ describe('v0.2.886 — portal mirror builds the FULL arena', () => {
     expect(MIRROR).toContain('buildFoliage(undefined, _scene)');
   });
 
-  it('maps the destination gate with IDENTITY yaw (identical worlds, no 90° split)', () => {
-    // The source gate is fed with identity yaw (arenaRuntime setPortalFrom), so the
-    // destination gate must also be identity — a rotated yaw (quatFromYaw(π/2)) would
-    // rotate the portal mapping 90° and split the view. Lock the identity quaternion.
-    expect(MIRROR).toContain('quaternion: { x: 0, y: 0, z: 0, w: 1 }');
-    expect(MIRROR).not.toContain('quatFromYaw');
+  it('maps the destination gate with yaw π (180° flip into the arena)', () => {
+    // The viewer stands SOUTH of the gate looking NORTH, but the destination arena lies
+    // SOUTH of the destination gate — so the destination gate carries yaw π to flip the
+    // view 180° (M_to · M_from⁻¹ rotates north → south, into the arena). Identity yaw
+    // would show the sea behind the gate; π/2 would split the view sideways.
+    expect(MIRROR).toContain('quatFromYaw(Math.PI)');
   });
 
   it('lights the mirror scene like the home arena (ambient + directional)', () => {
     expect(MIRROR).toContain("new T.AmbientLight(0xffc080, 0.55)");
     expect(MIRROR).toContain("new T.DirectionalLight(0xffa830, 1.15)");
+  });
+});
+
+describe('v0.2.887 — portal camera looks INTO the arena (not the sea)', () => {
+  // The viewer stands south of the gate (z=30) looking north (yaw π). The source gate
+  // is fed with identity yaw at (0, 32); the destination gate carries yaw π. The portal
+  // camera must end up looking SOUTH (toward the arena at the origin), not north (sea).
+  const viewer = { position: { x: 0, y: 1.7, z: 30 }, quaternion: quatFromYaw(Math.PI) };
+  const portalFrom = { position: { x: 0, y: 0, z: 32 }, quaternion: { x: 0, y: 0, z: 0, w: 1 } };
+  const portalTo = { position: { x: 0, y: 0, z: 32 }, quaternion: quatFromYaw(Math.PI) };
+
+  it('maps the north-facing viewer to a south-facing camera (into the arena)', () => {
+    const cam = computePortalCamera({ viewer, portalFrom, portalTo });
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      new THREE.Quaternion(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w),
+    );
+    // Forward must point south (−Z), toward the arena at the origin.
+    expect(fwd.z).toBeLessThan(-0.9);
+    expect(Math.abs(fwd.x)).toBeLessThan(0.1);
+  });
+
+  it('identity destination yaw would look AWAY from the arena (regression guard)', () => {
+    const cam = computePortalCamera({ viewer, portalFrom, portalTo: { ...portalTo, quaternion: { x: 0, y: 0, z: 0, w: 1 } } });
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(
+      new THREE.Quaternion(cam.quaternion.x, cam.quaternion.y, cam.quaternion.z, cam.quaternion.w),
+    );
+    // Identity yaw leaves the camera facing north (+Z) — the sea, not the arena.
+    expect(fwd.z).toBeGreaterThan(0.9);
   });
 });
 

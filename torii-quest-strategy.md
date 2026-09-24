@@ -4,7 +4,7 @@ Living document. This will change as we learn.
 
 ## Current implementation focus: background FIPS presence
 
-The user requested actual FIPS integration on 24 September 2026. Candidate v0.2.886-alpha implements ADR-0125 with Suite v0.9.24-alpha: one known remote heartbeat, bounded RAM cache, mesh-first reads and WSS fallback. No player setup, world-asset cache, collector or multiplayer transport change. Production acceptance remains gated on two approved nodes, storage/resource observations and matched player-performance measurements.
+The user requested actual FIPS integration on 24 September 2026. Candidate v0.2.887-alpha implements ADR-0126 with Suite v0.9.24-alpha: one known remote heartbeat, bounded RAM cache, mesh-first reads and WSS fallback. No player setup, world-asset cache, collector or multiplayer transport change. Production acceptance remains gated on two approved nodes, storage/resource observations and matched player-performance measurements.
 
 Source-of-truth split: this file (`torii-quest-strategy.md`) owns vision, core principles, decision rules, and architecture direction. `torii-quest-todo.md` owns the active task queue. `torii-quest-progress.md` is the visual execution dashboard — track bars, sprint status, completed-last-24h, and archive.
 
@@ -292,7 +292,7 @@ and *feels right*, circle back for shooter feel, mesh/material polish, and UX.
 
 ### Future Transports
 
-FIPS moved from the radar list into the narrow ADR-0125 implementation on 24 September 2026. Adoption starts with a node-layer service and existing HTTPS/WebSocket fallback. The browser does not own a TUN device; wider transport migration remains future work.
+FIPS moved from the radar list into the narrow ADR-0126 implementation on 24 September 2026. Adoption starts with a node-layer service and existing HTTPS/WebSocket fallback. The browser does not own a TUN device; wider transport migration remains future work.
 
 - **FIPS:** use a separate node transport key and an explicitly pinned application introduction. The first slice is UDP/TUN presence only; automatic rendezvous, NAT traversal and other transports are not claimed by this proof. Follow the [upstream configuration](https://github.com/jmcorgan/fips/blob/v0.5.1/docs/reference/configuration.md).
 

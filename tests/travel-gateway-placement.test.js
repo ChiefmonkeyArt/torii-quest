@@ -56,7 +56,7 @@ describe('v0.2.239 — arena loads the travel gateway on the far side', () => {
   });
 
   it('builds the travel gateway and names it distinctly from the entrance', () => {
-    expect(ARENA).toContain('_buildTravelGateway()');
+    expect(ARENA).toContain('_buildTravelGateway(scene)');
     expect(ARENA).toContain("name = 'travel-gateway'");
     // Entrance gate is still built and still named 'torii-gate' (the NAP marker).
     expect(ARENA).toContain("loader.load(assetUrl('/torii-gate.glb')");

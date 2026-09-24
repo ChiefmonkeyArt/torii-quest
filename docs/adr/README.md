@@ -149,7 +149,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 
 ## Workflow for a new decision
 
-ADR-0125: [FIPS two-node background presence](./0125-fips-two-node-background-presence.md).
+ADR-0126: [FIPS two-node background presence](./0126-fips-two-node-background-presence.md).
 Accepted for narrow implementation; production validation and rollout remain gated.
 
 1. Copy `TEMPLATE.md` to `docs/adr/NNNN-short-slug.md` (next unused number — taken from the highest merged file on `main`, per rule 7).

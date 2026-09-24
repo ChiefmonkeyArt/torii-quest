@@ -2,7 +2,7 @@
 // Confined to the NAP Zone only (east of the torii gate) so the main arena
 // reads as a clean turquoise underlit floor with mist swirls.
 import * as THREE from 'three';
-import { scene } from './scene.js';
+import { scene as defaultScene } from './scene.js';
 import { CRATES, NAP_TREE_X, NAP_TREE_Z } from './config.js';
 import { sampleNapHeight, sampleArenaHeight } from './terrain/heightmap.js';
 import { NAP_BBOX, ARENA_BBOX } from './terrain/tomoeShape.js'; // v0.2.547: isNapLand/isArenaLand removed — heightmap replaces polygon tests
@@ -57,8 +57,8 @@ function smoothstep(edge0, edge1, x) {
 
 // Accepts an optional onProgress callback (0..1) so the boot progress bar
 // can animate smoothly during the ~7s of CPU work.
-export async function buildFoliage(onProgress) {
-  await _buildGrass(onProgress);
+export async function buildFoliage(onProgress, targetScene = defaultScene) {
+  await _buildGrass(onProgress, targetScene);
   // v0.2.312: wildflowers + tulips removed at user request (grass-only NAP zone).
   // _buildWildflowers();
   // _buildTulips();
@@ -136,7 +136,7 @@ export function disposeFoliage() {
 // vec4 instanced attributes: `offset` (x, z, _, rot) and `shape` (width, height,
 // lean, curve). Y-up: blade grows +Y, ground is XZ, bend plane is Y/Z, blade
 // yaw rotates X/Z. (Z-up→Y-up conversion applied to terra's original GLSL.)
-async function _buildGrass(onProgress) {
+async function _buildGrass(onProgress, targetScene) {
   const _yieldPaint = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   // Yield every N candidates to let the progress bar paint (~16ms of work).
   const YIELD_EVERY = 8000;
@@ -622,9 +622,13 @@ async function _buildGrass(onProgress) {
   // v0.2.326: the flat ground-cover plane was removed — the NAP terrain mesh
   // (terrainMesh.js) now provides the ground surface between blades.
 
-  scene.add(mesh);
-  _grassMat = mat;
-  _grassMesh = mesh; // tracked for legacy teardown (in-place travel)
+  targetScene.add(mesh);
+  // Only the HOME scene's grass is tracked for tick/teardown; a mirror scene's grass
+  // is a separate instance (static — no wind tick) so it never clobbers the home's.
+  if (targetScene === defaultScene) {
+    _grassMat = mat;
+    _grassMesh = mesh; // tracked for legacy teardown (in-place travel)
+  }
   window._grassMat = mat; // DEPRECATED debug alias (v0.2.118) — internal code uses tickFoliage()/getGrassMat()
 
   // v0.2.274: diagnostic stamp. Open the browser console (F12) and look for the

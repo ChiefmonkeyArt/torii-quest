@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { scene } from './scene.js';
+import { scene as defaultScene } from './scene.js';
 import { ARENA_HALF, WALL_H, CRATES, NAP_TREE_X, NAP_TREE_Z, TRAVEL_GATE_X, TRAVEL_GATE_Z, TRAVEL_GATE_YAW_DELTA, BRIDGE_DECK_Y, BRIDGE_X, BRIDGE_Z } from './config.js';
 // buildFoliage moved to arenaRuntime.js (deferred, v0.2.545)
 import { buildProofSurfaceMeshes } from './engine/world/proofSurfaceMeshes.js';
@@ -40,18 +40,20 @@ const _quat = new THREE.Quaternion();
 const _scl  = new THREE.Vector3();
 const _m4   = new THREE.Matrix4();
 
-export function buildArena() {
-  _buildFloor();
-  _buildCrates();
-  buildBridge();       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
-  _buildToriiGate();
-  _buildTravelGateway(); // far-side metaverse travel portal model (v0.2.239)
-  _buildNapZone();     // floor extension + tree past the torii gate
+export function buildArena(scene = defaultScene) {
+  _buildFloor(scene);
+  _buildCrates(scene);
+  buildBridge(scene);       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
+  _buildToriiGate(scene);
+  _buildTravelGateway(scene); // far-side metaverse travel portal model (v0.2.239)
+  _buildNapZone(scene);     // floor extension + tree past the torii gate
   // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js).
   // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default
   // (high = original 400×400, unchanged).
   const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
-  buildSeaMesh(scene, { quality: _sq || undefined }); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
+  // track:true only for the HOME scene — a mirror scene's sea must not clobber the
+  // module singletons that tickSea/disposeSea/getSeaMat drive (ADR-0124).
+  buildSeaMesh(scene, { quality: _sq || undefined, track: scene === defaultScene }); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   // buildFoliage() now called from arenaRuntime.js boot() as async with
   // paint yields for smooth progress bar animation (v0.2.545).
 }
@@ -62,10 +64,10 @@ export function buildArena() {
 // raised to ISLAND_BASE_Y, matching the NAP island and rising from the Stage-2
 // sea. Grass + physics heightfield read the same sampleArenaHeight(), so all three
 // agree exactly. Overhead turquoise accent light kept for the arena's cool read.
-function _buildFloor() {
+function _buildFloor(scene) {
   buildArenaTerrainMesh(scene); // name 'arena-floor'
 
-  _buildCoastlineWall(); // v0.2.488: reinstated — neon coastline ring
+  _buildCoastlineWall(scene); // v0.2.488: reinstated — neon coastline ring
 
   // Soft top-down fill replacing the old single turquoise PointLight — a
   // HemisphereLight gives the arena its cool read for near-zero cost and without
@@ -91,7 +93,7 @@ const _neonMat = new THREE.MeshStandardMaterial({
 });
 // Ground wash removed (v0.2.540) — additive ribbon was rendering as
 // translucent light-blue planes on the water, mistaken for extra water.
-function _buildCoastlineWall() {
+function _buildCoastlineWall(scene) {
   // v0.2.511: Two separate neon loops for the two arena islands.
   // fenceRing() returns an array of rings; iterate each independently.
   const rings = fenceRing();
@@ -140,7 +142,7 @@ function _buildCoastlineWall() {
 }
 
 // ── Crates ────────────────────────────────────────────────────────────────────
-function _buildCrates() {
+function _buildCrates(scene) {
   CRATES.forEach(([cx, cz, hw, hd, ch]) => {
     // v0.2.540: Skip crates outside the play zone (water, bridge, NAP).
     if (!isArenaPlayArea(cx, cz)) {
@@ -161,7 +163,7 @@ function _buildCrates() {
 }
 
 // ── Torii gate — GLB model ───────────────────────────────────────────────────
-function _buildToriiGate() {
+function _buildToriiGate(scene) {
   // Fallback procedural gate shown immediately; GLB replaces it on load
   const mat = new THREE.MeshStandardMaterial({
     color: C_PURPLE, emissive: 0x4a1d96, emissiveIntensity: 0.6, roughness: 0.4
@@ -229,7 +231,7 @@ function _buildToriiGate() {
 // placed on the FAR side of the NAP zone (TRAVEL_GATE_X). The portal trigger,
 // rings, spinning diamond, detection zone and "Press F to travel" prompt all sit
 // here (wired in main.js) — the entrance gate stays a pure marker, no travel.
-function _buildTravelGateway() {
+function _buildTravelGateway(scene) {
   // Ground height at the far-side portal: it sits in the NAP island interior, so
   // its feet ride the undulating NAP surface, not y=0.
   const gwY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
@@ -316,7 +318,7 @@ function _buildTravelGateway() {
 }
 
 // ── NAP Zone — peaceful area past the torii gate ─────────────────────────
-function _buildNapZone() {
+function _buildNapZone(scene) {
   // Ground: undulating terrain mesh (Stage 1, v0.2.326). Replaces the flat
   // green floor plane — vertices are baked from the same sampleHeight() the
   // grass + physics heightfield use, so all three agree exactly. Named
@@ -329,7 +331,7 @@ function _buildNapZone() {
   napLight.name = 'nap-light'; // named for legacy teardown (in-place travel)
   scene.add(napLight);
 
-  _buildNapTree(NAP_TREE_X, NAP_TREE_Z); // moved off the bridge axis, closer to the east beach (v0.2.339)
+  _buildNapTree(NAP_TREE_X, NAP_TREE_Z, scene); // moved off the bridge axis, closer to the east beach (v0.2.339)
 
   // Display-only proof-surface panels (v0.2.150). One-time setup; inert visual
   // markers gated behind the pure render plan. No interaction/hot-path work.
@@ -341,7 +343,7 @@ function _buildNapZone() {
 // group of squashed icospheres so it reads as a soft puff rather than a hard
 // blob. Trunk is intentionally short and gnarled, branches splay outward
 // asymmetrically for the bonsai silhouette.
-function _buildNapTree(x, z) {
+function _buildNapTree(x, z, scene) {
   const group = new THREE.Group();
   group.name = 'nap-tree'; // named for legacy teardown (in-place travel)
 

@@ -56,12 +56,15 @@ function buildWaveGLSL() {
   `;
 }
 
-let _seaMat = null;
-let _seaMesh = null; // tracked for legacy teardown (in-place travel)
+let _seaMat = null;   // the HOME scene's sea material (tickSea / getSeaMat)
+let _seaMesh = null;  // the HOME scene's sea mesh (disposeSea / legacy teardown)
 
 // Build the sea plane, apply the water shader, add it to `scene`. Returns the mesh.
 // opts.quality ('low' | 'high') selects the grid density (audit F12); omitted →
-// the default (high) keeps the original 400×400 geometry.
+// the default (high) keeps the original 400×400 geometry. opts.track (default true)
+// controls whether the module singletons (_seaMat/_seaMesh) point at this sea — the
+// HOME scene passes track:true (tick/dispose/getSeaMat), a mirror scene passes
+// track:false so it never clobbers the home's tick/dispose state.
 export function buildSeaMesh(scene, opts = {}) {
   const segments = resolveSeaSegments(opts && opts.quality);
   // Plane authored in XY then rotated flat so positions are (x, 0, z), normal +Y.
@@ -72,7 +75,7 @@ export function buildSeaMesh(scene, opts = {}) {
 
   const waveGLSL = buildWaveGLSL();
 
-  _seaMat = new THREE.RawShaderMaterial({
+  const mat = new THREE.RawShaderMaterial({
     transparent: false,  // v0.2.488: opaque — nothing underneath shows through
     depthWrite: true,
     depthTest: true,
@@ -178,16 +181,19 @@ export function buildSeaMesh(scene, opts = {}) {
     `,
   });
 
-  const mesh = new THREE.Mesh(geo, _seaMat);
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'sea';
   mesh.position.y = SEA_LEVEL;   // sheet sits 0.3m below the land datum
-  _seaMesh = mesh; // tracked for legacy teardown (in-place travel)
   mesh.frustumCulled = false;
   // Draw after the opaque terrain (which writes depth and thus occludes the sea
   // behind land) but the transparent sea itself does not write depth.
   mesh.renderOrder = 1;
 
   if (scene) scene.add(mesh);
+  if (opts.track !== false) {
+    _seaMat = mat;
+    _seaMesh = mesh; // tracked for legacy teardown (in-place travel)
+  }
   return mesh;
 }
 
@@ -205,7 +211,7 @@ export function getSeaMat() { return _seaMat; }
 // never throws (teardown path).
 export function disposeSea() {
   if (_seaMesh) {
-    try { if (_seaMesh.parent) _seaMesh.parent.remove(_seaMesh); else scene.remove(_seaMesh); } catch { /* noop */ }
+    try { if (_seaMesh.parent) _seaMesh.parent.remove(_seaMesh); } catch { /* noop */ }
     try { if (_seaMesh.geometry) _seaMesh.geometry.dispose(); } catch { /* noop */ }
     try { if (_seaMesh.material) _seaMesh.material.dispose(); } catch { /* noop */ }
     _seaMesh = null;

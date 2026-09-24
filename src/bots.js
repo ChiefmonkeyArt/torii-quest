@@ -139,6 +139,18 @@ function _clearAllBots() {
 }
 export function isBotNetMode() { return _netMode; }
 
+// Hide/show every bot nameplate (ADR-0118 portal live-mirror). The mirror renders the
+// HOME scene into its offscreen target, and the floating bot nameplates must not bleed
+// into the far side. The per-frame tick re-asserts the correct per-bot visibility next
+// frame, so a blanket restore-to-visible here is safe.
+export function setAllNameplatesVisible(visible) {
+  for (const bot of bots) {
+    if (bot && bot.model && typeof bot.model.setNameplateVisible === 'function') {
+      bot.model.setNameplateVisible(visible);
+    }
+  }
+}
+
 // Foot ground height for a bot at arena (x,z). Stage 3 (v0.2.329): the arena is a
 // raised undulating island, so a bot's feet ride sampleArenaHeight() (which already
 // includes ISLAND_BASE_Y). Kinematic bots don't gravity-settle, so we plant them

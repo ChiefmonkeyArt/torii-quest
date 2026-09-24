@@ -191,7 +191,7 @@ _sky.scale.setScalar(450000);
 //   mieDirectionalG 0.85 — forward scatter, sun glow concentrated toward disc
 _sky.material.uniforms.turbidity.value = 8;
 _sky.material.uniforms.rayleigh.value = 2.5;
-_sky.material.uniforms.mieCoefficient.value = 0.01;
+_sky.material.uniforms.mieCoefficient.value = 0.006;
 _sky.material.uniforms.mieDirectionalG.value = 0.85;
 // Sun position matches the existing DirectionalLight direction (0.85, 0.18,
 // -0.45) — low eastern sunrise, disc just above the ridgeline.
@@ -213,7 +213,7 @@ _sky.frustumCulled = false;
 const _skyFrag = _sky.material.fragmentShader;
 _sky.material.fragmentShader = _skyFrag.replace(
   'gl_FragColor = vec4( texColor, 1.0 );',
-  'float _luma = dot(texColor, vec3(0.299, 0.587, 0.114)); float _cap = smoothstep(0.68, 0.82, _luma); texColor = mix(texColor, texColor * 0.75 / max(_luma, 0.001), _cap); gl_FragColor = vec4( texColor, 1.0 );'
+  'float _luma = dot(texColor, vec3(0.299, 0.587, 0.114)); float _cap = smoothstep(0.45, 0.65, _luma); texColor = mix(texColor, texColor * 0.5 / max(_luma, 0.001), _cap); gl_FragColor = vec4( texColor, 1.0 );'
 );
 _sky.material.needsUpdate = true;
 scene.add(_sky);

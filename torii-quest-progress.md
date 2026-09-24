@@ -1,5 +1,16 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.892-alpha: mirror overexposure + window clipping fix
+
+The v0.2.890 mirror rendered the HOME scene correctly but shipped with a blown-out
+white sky inside the gate window. Root cause: the renderer runs with autoClear=false,
+so the mirror's offscreen target was never cleared — the Sky.js dome (depthWrite=false)
+read stale depth and the sun sprite's semi-transparent corona accumulated frame-over-frame
+into a white horizon. Fix: an explicit renderer.clear() before the mirror pass. Also
+strengthened the Sky.js luma cap (0.75→0.5) and lowered mieCoefficient (0.01→0.006) to
+tame the horizon glow, inset the gate window (3.0×3.6 → 2.6×3.12) so it no longer clips
+past the right pillar, and hid bot nameplates during the pass. +2 source-contract tests.
+
 ## v0.2.891-alpha: first-person empty-hand regression
 
 Root cause: independent unarmed headless-body clips draw empty hands alongside

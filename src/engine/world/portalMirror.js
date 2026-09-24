@@ -28,6 +28,7 @@ import { quatFromYaw } from './gateTransform.js';
 import { computePortalCamera } from './portalCamera.js';
 import { setNapNpcVisible } from '../../napNpc.js';
 import { setPortalMirrorHidden } from '../../firstPersonBody.js';
+import { setAllNameplatesVisible } from '../../bots.js';
 
 export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targetHeight = 1024 } = {}) {
   let _camera = null;
@@ -116,14 +117,21 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     // of you and the NPC"; restore them in finally so a render fault can't strand them.
     setNapNpcVisible(false);
     setPortalMirrorHidden(true);
+    setAllNameplatesVisible(false);
     try {
       const prev = renderer.getRenderTarget();
       renderer.setRenderTarget(_target);
+      // The renderer runs with autoClear=false (scene.js), so clear the RT's color +
+      // depth explicitly — otherwise the Sky.js dome (depthWrite=false, drawn at the far
+      // plane) reads stale depth and the sun sprite's semi-transparent corona blends into
+      // the previous frame, accumulating to a blown-out white horizon.
+      renderer.clear();
       renderer.render(defaultScene, _camera);
       renderer.setRenderTarget(prev);
     } finally {
       setNapNpcVisible(true);
       setPortalMirrorHidden(false);
+      setAllNameplatesVisible(true);
     }
   }
 

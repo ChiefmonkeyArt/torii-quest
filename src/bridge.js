@@ -13,9 +13,17 @@ import {
 const RAIL_H = 0.5;
 const RAIL_T = 0.12;
 
-const _groups = [];
+// Groups tracked PER SCENE so a rebuild only tears down that scene's bridges (the
+// home arena and the offscreen portal mirror each build into their own scene).
+const _groupsByScene = new WeakMap();
 
-function _buildOne(x, z, deckY, len, width, thick, name) {
+function _groupsFor(targetScene) {
+  let g = _groupsByScene.get(targetScene);
+  if (!g) { g = []; _groupsByScene.set(targetScene, g); }
+  return g;
+}
+
+function _buildOne(x, z, deckY, len, width, thick, name, targetScene) {
   const group = new THREE.Group();
   group.name = name;
   group.position.set(x, 0, z); // position the GROUP so rotation pivots at (x,z)
@@ -42,19 +50,20 @@ function _buildOne(x, z, deckY, len, width, thick, name) {
     group.add(rail);
   }
 
-  scene.add(group);
-  _groups.push(group);
+  targetScene.add(group);
+  _groupsFor(targetScene).push(group);
   return group;
 }
 
-export function buildBridge() {
-  // Rebuild-safe: drop any prior bridges before re-adding.
-  while (_groups.length) { scene.remove(_groups.pop()); }
+export function buildBridge(targetScene = scene) {
+  // Rebuild-safe: drop any prior bridges in THIS scene before re-adding.
+  const groups = _groupsFor(targetScene);
+  while (groups.length) { targetScene.remove(groups.pop()); }
 
   // Bridge 1: NAP ↔ Arena BL (with torii gate) — rotated 45°
-  const b1 = _buildOne(BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK, 'bridge-nap-bl');
+  const b1 = _buildOne(BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK, 'bridge-nap-bl', targetScene);
   b1.rotation.y = BRIDGE_YAW;
 
   // Bridge 2: Arena BL ↔ Arena BR (no gate)
-  _buildOne(BRIDGE2_X, BRIDGE2_Z, BRIDGE_DECK_Y, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK, 'bridge-bl-br');
+  _buildOne(BRIDGE2_X, BRIDGE2_Z, BRIDGE_DECK_Y, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK, 'bridge-bl-br', targetScene);
 }

@@ -17,26 +17,23 @@
 // (the lazy ENTER ARENA chunk). `node --check`-ed for syntax only.
 
 import * as THREE from 'three';
-import { buildMinimalWorld } from './worldRenderer.js';
-import { buildTerrainVisual } from './terrainVisual.js';
-import { resolveSkyColor } from './skyColor.js';
-import { gateTransform } from './gateTransform.js';
-import { resolveArrivalCamera } from './arrivalCamera.js';
+import { buildArena } from '../../arena.js';
+import { buildFoliage } from '../../arena-foliage.js';
+import { scene as defaultScene } from '../../scene.js';
+import { TRAVEL_GATE_X, TRAVEL_GATE_Z } from '../../config.js';
+import { sampleNapHeight } from '../../terrain/heightmap.js';
+import { quatFromYaw } from './gateTransform.js';
 import { computePortalCamera } from './portalCamera.js';
-import { liftTransformToTerrain, groundFloorFor } from './terrainSample.js';
 
 const MAX_AVATARS = 96; // generous: bots (<=64) + peers
 
 export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targetHeight = 1024 } = {}) {
   let _scene = null;
   let _sun = null;
-  let _world = null;        // buildMinimalWorld result (tick/dispose/spawn/platformY)
   let _camera = null;
   let _target = null;
   let _built = false;
-  let _terrainMeshes = [];  // world.terrain visual-only meshes ({mesh,dispose})
-  let _manifest = null;       // validated world (for per-frame camera-y ground clamp)
-  let _arrival = null;        // resolveArrivalCamera(world) — the "stepped out" preview pose
+  let _arrival = null;        // the "stepped out" preview pose (legacy travel-gate arrival)
 
   // Portal transforms (ADR-0118): the gate in SOURCE space is a fixed offset the host
   // feeds once (the viewer's own gate, which does not move), and the gate in
@@ -73,7 +70,11 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     return 0;
   }
 
-  /** Build the destination world into the mirror scene (peek tier). Idempotent. */
+  /** Build the destination world into the mirror scene (peek tier). Idempotent.
+   *  ADR-0124: the destination is a copy of the HOME world, so it is built with the
+   *  FULL legacy arena builder (buildArena + buildFoliage) — the recognisable world
+   *  with sea, terrain, crates, bridge, torii gates, NAP zone and grass — NOT the
+   *  minimal cloud-platform reconstruction. */
   function build(world, { assetUrl, loadGltf } = {}) {
     if (!_scene) {
       _scene = new T.Scene();
@@ -83,50 +84,33 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       _camera = new T.PerspectiveCamera(60, targetWidth / targetHeight, 0.1, 1000);
       _target = new T.WebGLRenderTarget(targetWidth, targetHeight);
     }
-    // Drop any terrain meshes a prior build added (rebuild is idempotent).
-    for (const m of _terrainMeshes) { try { m.dispose && m.dispose(); } catch { /* noop */ } }
-    _terrainMeshes.length = 0;
-    if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
-    _manifest = world || null;
+    // Rebuild-safe: clear any prior build from the scene before re-adding.
+    _disposeSceneContents();
 
-    _world = buildMinimalWorld(world, {
-      scene: _scene, sun: _sun, THREE: T, assetUrl, loadGltf,
-    });
-    // Aim the mirror camera at the arrival pose (ADR-0122): the traveller standing
-    // just inside the destination gate, back to the doorway, eye-height above the
-    // terrain, facing INTO the world — the same place travel lands the player, so
-    // the peek and the landed view agree. A platform-only manifest (no terrain)
-    // resolves eye height to PORTAL_EYE_HEIGHT above the platform baseline.
-    _arrival = resolveArrivalCamera(world || null);
+    // The FULL arena (floor, crates, bridge, torii gates, NAP zone, sea, coastline).
+    try { buildArena(_scene); } catch (e) { console.warn('[mirror] buildArena failed:', e && e.message ? e.message : e); }
+    // Grass (async, best-effort — pops in like the home world's own grass).
+    try { buildFoliage(undefined, _scene).catch(() => {}); } catch (e) { console.warn('[mirror] foliage failed:', e && e.message ? e.message : e); }
+
+    // Sky: the arena's clear-day blue (the mirror scene has no Sky.js, so an unpainted
+    // background would read black).
+    try { _scene.background = new T.Color(0xcfe3f7); } catch { /* noop */ }
+
+    // Arrival pose: standing just inside the travel gate, eye-height above the NAP
+    // terrain, facing INTO the arena (south) — the same view a traveller lands on.
+    const gwY = sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z);
+    _arrival = {
+      position: { x: TRAVEL_GATE_X, y: gwY + 1.6, z: TRAVEL_GATE_Z - 2.6 },
+      yaw: Math.PI,
+      forward: { x: 0, z: -1 },
+    };
     _camera.position.set(_arrival.position.x, _arrival.position.y, _arrival.position.z);
-    _camera.lookAt(
-      _arrival.position.x + _arrival.forward.x,
-      _arrival.position.y,
-      _arrival.position.z + _arrival.forward.z,
-    );
+    _camera.lookAt(_arrival.position.x, _arrival.position.y, _arrival.position.z - 10);
 
-    // Destination gate: if the manifest has one, remember it as the portal's far side
-    // (yaw-only). No gate → keep the fixed 3/4 view (parallax is undefined).
-    _portalTo = gateTransform(world);
-    // Lift the far-side gate to EYE height above the destination terrain. Manifests
-    // (e.g. Bekka's torii-gate objects) carry `y = 0` at world origin; the raw value
-    // maps the parallax camera underground, so the iris showed sky instead of the
-    // island. Pure no-op when the world has no terrain or no gate.
-    _portalTo = liftTransformToTerrain(world, _portalTo);
-
-    // Sky: paint the destination world's colour (the mirror scene has no Sky.js, so
-    // an unpainted background reads as a black iris).
-    try { _scene.background = new T.Color(resolveSkyColor(world)); } catch { /* noop */ }
-
-    // Terrain: build the destination's REAL island (visual-only) so the peek shows
-    // the world the traveller would walk into, not a flat platform. Inline heights
-    // build synchronously; add the meshes straight into the mirror scene.
-    try {
-      const tv = buildTerrainVisual(world, { THREE: T });
-      if (tv && tv.ok) {
-        for (const m of tv.meshes) { if (m && m.mesh) { _scene.add(m.mesh); _terrainMeshes.push(m); } }
-      }
-    } catch { /* noop */ }
+    // Portal transforms: source gate == destination gate (identical worlds), so the
+    // through-gate parallax mapping is ~identity — looking through the gate shows the
+    // same world from the corresponding vantage.
+    _portalTo = { position: { x: TRAVEL_GATE_X, y: gwY, z: TRAVEL_GATE_Z }, quaternion: quatFromYaw(Math.PI / 2) };
 
     _built = true;
     return true;
@@ -195,15 +179,11 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
       _camera.position.set(_arrival.position.x, _arrival.position.y, _arrival.position.z);
       _camera.lookAt(_arrival.position.x + fx, _arrival.position.y, _arrival.position.z + fz);
     }
-    // Safety net: never let the mirror camera sit below the destination surface.
-    // A lifted far-side gate fixes the common case; this clamp also covers a viewer
-    // pose that maps through the portal to a low point (parallax is positional — a
-    // low source eye could still dip below a raised island). Pure no-op without terrain.
-    if (_manifest) {
-      const floor = groundFloorFor(_manifest, _camera.position.x, _camera.position.z);
-      if (floor != null && _camera.position.y < floor) {
-        _camera.position.y = floor;
-      }
+    // Safety net: never let the mirror camera sit below the NAP surface (the legacy
+    // arena's terrain is the procedural heightmap, not a manifest).
+    const floor = sampleNapHeight(_camera.position.x, _camera.position.z);
+    if (Number.isFinite(floor) && _camera.position.y < floor) {
+      _camera.position.y = floor;
     }
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(_target);
@@ -236,9 +216,7 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
   function portalTo() { return _portalTo; }
 
   function dispose() {
-    if (_world) { try { _world.dispose(); } catch { /* noop */ } _world = null; }
-    for (const m of _terrainMeshes) { try { m.dispose && m.dispose(); } catch { /* noop */ } }
-    _terrainMeshes.length = 0;
+    _disposeSceneContents();
     if (_botMat) { try { _botMat.dispose(); } catch { /* noop */ } _botMat = null; }
     if (_peerMat) { try { _peerMat.dispose(); } catch { /* noop */ } _peerMat = null; }
     if (_avatars.length) {
@@ -247,10 +225,39 @@ export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targe
     }
     _freeRiders.length = 0;
     if (_target) { try { _target.dispose(); } catch { /* noop */ } _target = null; }
-    _manifest = null;
     _scene = null; _sun = null; _camera = null;
     _built = false;
     _portalFrom = null; _portalTo = null; _viewer = null;
+  }
+
+  // _disposeSceneContents() — tear down the full-arena build (ADR-0124): traverse the
+  // mirror scene and dispose every geometry + material, then clear it. The arena builder
+  // adds meshes directly (no returned handle), so this is the teardown path. Materials
+  // shared with the HOME scene (module-level in arena.js: crateMat/_glassMat/_neonMat)
+  // are skipped — they are still live in the home world and must not be disposed.
+  function _disposeSceneContents() {
+    if (!_scene) return;
+    const shared = new Set();
+    if (defaultScene) {
+      defaultScene.traverse((o) => {
+        if (o && o.material) {
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          for (const m of mats) if (m) shared.add(m);
+        }
+      });
+    }
+    _scene.traverse((o) => {
+      if (o && o.geometry) { try { o.geometry.dispose(); } catch { /* noop */ } }
+      if (o && o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of mats) {
+          if (!m || shared.has(m)) continue;
+          try { m.dispose && m.dispose(); } catch { /* noop */ }
+        }
+      }
+    });
+    // Detach every direct child (lights, meshes, groups) so the next build starts clean.
+    while (_scene.children.length) { _scene.remove(_scene.children[0]); }
   }
 
   return { build, setRoster, render, texture, target, isBuilt, setPortalFrom, setViewer, portalTo, dispose };

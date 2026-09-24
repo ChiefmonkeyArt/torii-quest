@@ -11,9 +11,14 @@
 // `WALL_H * 1.6` ≈ 4.16. Its natural bounds are width 0.937 × height 0.9995, so at that
 // scale the post-to-post span is ~3.90 and the height ~4.16. The window is sized to sit
 // between the pillars and below the crossbeam, leaving the wooden frame visible around it.
-export const PORTAL_WINDOW_WIDTH = 3.0;   // between the two pillars (~3.9 span)
-export const PORTAL_WINDOW_HEIGHT = 3.6;  // ground up to just under the crossbeam (~4.16)
-export const PORTAL_WINDOW_CENTER_Y = 1.8; // window centre above the gate's ground line
+// v0.2.892: the gateway's post-to-post clear span is narrower than the full 0.937
+// natural width (which includes the crossbeam overhang). The window was clipping past
+// the right pillar, so it is inset to sit cleanly between the posts with a visible
+// wooden frame around it. Aspect is kept 5:6 to match the 900×1080 mirror target.
+export const PORTAL_WINDOW_WIDTH = 2.6;   // inset between the two pillars
+// v0.2.892: height scaled with width to keep the 5:6 aspect (2.6 × 6/5 = 3.12).
+export const PORTAL_WINDOW_HEIGHT = 3.12; // ground up to just under the crossbeam
+export const PORTAL_WINDOW_CENTER_Y = 1.56; // window centre above the gate's ground line
 
 function _num(v) {
   const n = Number(v);

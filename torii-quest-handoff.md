@@ -1,5 +1,18 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## MIRROR OVEREXPOSURE + WINDOW CLIPPING: v0.2.892-alpha
+
+The v0.2.890 mirror rendered the HOME scene but shipped with a blown-out white sky.
+Root cause: the renderer runs with autoClear=false, so the mirror's offscreen target
+was never cleared — the Sky.js dome (depthWrite=false) read stale depth and the sun
+sprite's semi-transparent corona accumulated frame-over-frame into a white horizon.
+Fix: an explicit renderer.clear() before the mirror pass, plus a stronger Sky.js luma
+cap (0.75→0.5) and lower mieCoefficient (0.01→0.006) to tame the horizon glow. The gate
+window is inset (3.0×3.6 → 2.6×3.12) so it no longer clips past the right pillar, and
+bot nameplates are hidden during the pass. Handoff: the next live cross-node pass should
+confirm the gate window shows Bekka's island with a warm (not blown-out) sunrise sky, no
+floating nameplates, and the window framed cleanly between the gate posts.
+
 ## FIRST-PERSON EMPTY-HAND FIX: v0.2.891-alpha
 
 The user reported an empty hand swinging beside the gun while idle at the gate,

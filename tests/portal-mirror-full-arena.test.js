@@ -44,6 +44,22 @@ describe('v0.2.888 — portal mirror renders the HOME scene (no rebuild)', () =>
   });
 });
 
+describe('v0.2.891 — mirror clears the RT + hides bot nameplates (overexposure fix)', () => {
+  it('clears the render target before rendering (stale-buffer whiteout fix)', () => {
+    // The renderer runs with autoClear=false, so the mirror RT is never cleared — the
+    // Sky.js dome (depthWrite=false) reads stale depth and the sun sprite's semi-transparent
+    // corona accumulates frame-over-frame into a blown-out white horizon. An explicit clear
+    // before the pass fixes it.
+    expect(MIRROR).toContain('renderer.clear()');
+  });
+
+  it('hides bot nameplates for the pass', () => {
+    expect(MIRROR).toContain("import { setAllNameplatesVisible } from '../../bots.js';");
+    expect(MIRROR).toContain('setAllNameplatesVisible(false)');
+    expect(MIRROR).toContain('setAllNameplatesVisible(true)');
+  });
+});
+
 describe('v0.2.887 — portal camera looks INTO the arena (not the sea)', () => {
   // The viewer stands south of the gate (z=30) looking north (yaw π). The source gate
   // is fed with identity yaw at (0, 32); the destination gate carries yaw π. The portal

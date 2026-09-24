@@ -1,5 +1,13 @@
 # Torii Quest ToDo
 
+## v0.2.892-alpha: mirror overexposure + window clipping fix
+
+- [x] Clear the mirror render target before the pass (stale-buffer whiteout).
+- [x] Strengthen the Sky.js luma cap + lower mieCoefficient (horizon glow).
+- [x] Inset the gate window to stop clipping past the right pillar.
+- [x] Hide bot nameplates during the mirror pass.
+- [x] Source-contract tests for the clear + nameplate hiding.
+
 ## v0.2.891-alpha: first-person armed-view consistency
 
 - [x] Isolate the empty swinging FP hand from the correct mirror gun rig.

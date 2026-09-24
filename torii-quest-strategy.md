@@ -1,5 +1,13 @@
 # Torii Quest Strategy & Next Steps
 
+## First-person weapon/body ownership
+
+ADR-0127 keeps the existing camera-space gun as the sole first-person weapon
+silhouette. The headless body supplies torso and legs, not independently
+animated empty arms. Full-body mirror/peer weapon attachment remains unchanged.
+Any future visible FP gripping arms must share the gun's transform and
+recoil/reload timing rather than play an unrelated unarmed animation.
+
 Living document. This will change as we learn.
 
 ## Current implementation focus: background FIPS presence

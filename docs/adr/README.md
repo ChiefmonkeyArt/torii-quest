@@ -149,6 +149,9 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 
 ## Workflow for a new decision
 
+ADR-0127: [First-person weapon/body rendering ownership](./0127-first-person-weapon-body-ownership.md).
+Accepted for the operator-requested empty-hand regression fix; mirror and peer rigs are unchanged.
+
 ADR-0126: [FIPS two-node background presence](./0126-fips-two-node-background-presence.md).
 Accepted for narrow implementation; production validation and rollout remain gated.
 

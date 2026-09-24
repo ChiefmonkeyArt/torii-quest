@@ -1,5 +1,27 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## FIRST-PERSON EMPTY-HAND FIX: v0.2.891-alpha
+
+The user reported an empty hand swinging beside the gun while idle at the gate,
+but a correct gun-bearing avatar in the NAP mirror. These are separate rigs:
+the headless FP body plays unarmed clips (chiefmonkey `Idle_11`) while the
+camera-space gun remains independently visible. ADR-0127 assigns the FP weapon
+silhouette to the existing gun viewmodel. `firstPersonBodyMask.js` removes only
+arm-weighted triangles from a private FP geometry copy, once on load, retaining
+torso/feet, material groups, and the untouched mirror/peer source. This is
+deliberately not a new gun-gripping arm/IK system. Actual displacement now owns
+FP idle/walk/run selection, preventing stale WASD at a paused gate from walking.
+
+Coverage: behavioural geometry/locomotion tests and decoded shipped GLBs for
+chiefmonkey, guest and nostrich. Existing neck clipping, mirror proximity,
+portal hiding, weapon recoil/reload and third-person gun attachment are preserved.
+The local full gate passes 5,059 tests / 437 discovered files and all 21 regression
+checks. Isolated browser renders sampled chiefmonkey idle/walk/run and look-down
+feet with the gun unchanged; full-island software rendering stalled, so this is
+not an authenticated live-session observation.
+Ship only after the full release gate, PR merge/tag, and canonical VPS version
+verification; other operators remain manual opt-in.
+
 ## MIRROR RENDERS THE HOME SCENE: v0.2.890-alpha
 
 The v0.2.888 mirror finally pointed the right way but was still slow and low-fidelity — it rebuilt a SECOND arena (buildArena + buildFoliage + GLB) every peek, which took ages, and never matched the home scene's Sky.js atmosphere or animated sea/grass, so it read as a flat, static reconstruction. The destination is a copy of home, so the mirror now renders the HOME scene itself from a portal camera on the far side of the gate — instant (no rebuild), full Sky.js + lighting + animated sea/grass, with the NPC + the viewer's own first-person body hidden for the pass. Rewrote the mirror source-contract tests (7 now). Suite 5041 / 422. Handoff: the next live cross-node pass should confirm the gate window now shows Bekka's island with the full home-scene atmosphere (Sky.js sunrise, animated sea + grass), not a flat static reconstruction, and that the NPC + the viewer's own body are absent from the far side. Bekka's node is still v0.2.872-alpha and must self-approve (ADR-0106) for HER side.

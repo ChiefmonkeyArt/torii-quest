@@ -825,19 +825,20 @@ export function createArenaRuntime(hooks = {}) {
   // screen opens ALREADY looking at it, armed for 入).
   function _openGatewayScreen(prePeek) {
     if (isGatewayScreenOpen()) return;
-    // Gate browse (v0.2.883): the player STAYS PLAYING with pointer lock + full WASD
-    // and mouse-look (the same control scheme as normal gameplay). Only SHOOTING is
-    // suppressed — the destination world is seen through the gate aperture while the
-    // player walks and looks around their own world behind it. Refuse non-play states
-    // (TITLE / DEAD / GAMEOVER / a paused menu) as before: the browse loop is in-world
-    // only.
+    // Gate browse (v0.2.884): the player STAYS PLAYING; only SHOOTING is suppressed.
+    // On open the cursor is FREE so the directory strip is clickable (select a world,
+    // switch, compare — as many as they like); F toggles between the free cursor and
+    // pointer-locked gaze (full WASD + mouse-look through the gate aperture). Refuse
+    // non-play states (TITLE / DEAD / GAMEOVER / paused menu) as before — in-world only.
     if (!isPlaying()) return;
     const gw = getGatewayScreenState();
     _browse.reset();
     cancelBrowsePeek();
     _gateBrowseOpen = true;
-    // Kill the shoot path (movement + mouse-look stay live). Restored when the panel
-    // closes so ordinary play resumes exactly as before.
+    // Free the cursor so the directory is interactable on open (the HUD crosshair
+    // hides automatically via the pointerlockchange listener). WASD still moves.
+    try { document.exitPointerLock?.(); } catch { /* noop */ }
+    // Kill the shoot path (movement stays live). Restored when the panel closes.
     setShootingSuppressed(true);
     openGatewayScreen({
       mutualFriends: gw.mutualFriends,
@@ -855,6 +856,19 @@ export function createArenaRuntime(hooks = {}) {
   function _closeGatewayScreen() {
     // closeGatewayScreen triggers its onClose, which clears the shooting suppression.
     closeGatewayScreen();
+  }
+  // _toggleGatewayGaze() — F while the browse panel is open flips between the FREE
+  // CURSOR (select/switch worlds in the directory) and pointer-locked GAZE (full
+  // WASD + mouse-look through the gate). This is the switch the playtester asked for:
+  // pick a world, look through the gate, F back, pick another, as many times as they
+  // like. Pointer lock releases when the panel opens, so this only ever re-locks.
+  function _toggleGatewayGaze() {
+    if (!isGatewayScreenOpen() || !isPlaying()) return;
+    if (document.pointerLockElement) {
+      try { document.exitPointerLock?.(); } catch { /* noop */ }
+    } else {
+      requestLock(renderer.domElement);
+    }
   }
 
   // ── In-world Torii menu (KeyM, Phase 0c) ────────────────────────────────────
@@ -1795,11 +1809,14 @@ export function createArenaRuntime(hooks = {}) {
       _arenaLb.toggle();
     }, false);
 
-    // KeyF — dual role, mutually exclusive so one press never does both:
-    //  • in range of the gateway (armed): open the in-world gateway screen;
+    // KeyF — triple role, mutually exclusive so one press never does two things:
+    //  • while the gateway browse panel is open: toggle cursor ↔ gaze (select a world,
+    //    then look through the gate, then back — the switch the playtester asked for);
+    //  • in range of the gateway (armed) and not browsing: open the gateway screen;
     //  • otherwise, while playing: toggle the dev free-fly camera.
     onKeyDown(code => {
       if (code !== 'KeyF' || !isPlaying()) return;
+      if (isGatewayScreenOpen()) { _toggleGatewayGaze(); return; }
       if (_portalTrigger.isArmed()) { _openGatewayScreen(); return; }
       // v2: the ground/air-aware fly orchestration lives in player.js (hop from
       // ground, stop-mid-air / glide handoff in the air).
@@ -2762,7 +2779,12 @@ export function createArenaRuntime(hooks = {}) {
     const { world, wsEndpoint, ownerLabel } = _pendingTravel;
     _pendingTravel = null;
     try { closeGatewayScreen(); } catch { /* noop */ }
-    return await travelToWorld(world, { wsEndpoint, ownerLabel });
+    const result = await travelToWorld(world, { wsEndpoint, ownerLabel });
+    // The player may have walked through from the FREE-CURSOR state (v0.2.884);
+    // re-engage pointer lock so the landed world plays exactly like normal entry
+    // (crosshair on, mouse-look live). A no-op if already locked.
+    try { if (!document.pointerLockElement) requestLock(renderer.domElement); } catch { /* noop */ }
+    return result;
   }
 
   // cancelBrowsePeek() — the ✕ / Esc back-away. Tears the mirror down (no swap) and

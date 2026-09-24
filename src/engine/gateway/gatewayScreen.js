@@ -166,7 +166,7 @@ function _build() {
 
   // Footer hint
   const hint = document.createElement('div');
-  hint.textContent = 'click a world to look · 入 to enter · ✕ to step away';
+  hint.textContent = 'click a world to look · F to gaze around · Enter to enter · ✕ to step away';
   Object.assign(hint.style, { fontSize: '10px', letterSpacing: '1px', color: '#6b7280', marginTop: '14px', textAlign: 'center', textTransform: 'uppercase' });
 
   card.append(head, preview, cols, hint);
@@ -352,8 +352,10 @@ export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanSt
 
   _open = true;
   el.style.display = 'flex';
-  // Focus the card for ESC key handling accessibility.
-  el.querySelector('button')?.focus?.();
+  // No auto-focus: the browse loop keeps the player PLAYING with a free cursor
+  // (v0.2.884). Focusing the × button would make Enter close the panel instead of
+  // walking through 入 — Enter is handled globally by the host. ESC is handled at the
+  // document level regardless of focus.
 }
 
 // refreshGatewayScreen(...) — re-render the two directory columns IN PLACE while the

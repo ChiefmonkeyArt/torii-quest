@@ -73,3 +73,13 @@ lock.
 The mirror render target remains linear; the in-panel preview canvas already applies a
 linear→sRGB LUT on read-back, and the aperture shader samples the texture directly.
 Colour-space unification of the aperture path is a follow-up, not part of this decision.
+
+### v0.2.884 refinement (cursor ↔ gaze toggle)
+
+Keeping pointer lock engaged for the whole browse left the directory unclickable — the
+cursor stayed on the crosshair and the panel was unreachable. Refined: the browse opens
+with the cursor FREE (directory is clickable, WASD still moves), and **F toggles** between
+the free cursor and pointer-locked gaze. The two states are the explicit "select a world,
+look through the gate, select another" loop the playtester described. Shooting stays
+suppressed throughout; Enter walks through; Esc/✕ steps away, and a commit from the
+free-cursor state re-engages pointer lock so the landed world plays like normal entry.

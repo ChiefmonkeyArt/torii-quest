@@ -1,5 +1,14 @@
 # Torii Quest ToDo
 
+## FIPS first implementation slice: v0.2.889-alpha
+
+- [x] Add one-peer, signature-verified, RAM-only background heartbeat adapter with WSS fallback.
+- [x] Feed the normal directory through a non-blocking same-origin snapshot; leave travel, multiplayer and asset storage unchanged.
+- [x] Add security tests and reproducible isolated-network proof harness.
+- [x] Pass real FIPS/TUN and firewall proof on the isolated CI runner: bidirectional receipt, outage/recovery, stable identity, forged rejection and admin isolation. Production strfry is still a separate acceptance step.
+- [x] Operator approval received for coordinated Suite v0.9.24-alpha merge/tag/primary-VPS rollout through the existing fixed updater. Record and verify the live outcome in the deployment receipt.
+- [ ] Enroll the second operator's independently approved node, verify real strfry exchange, storage soak and player responsiveness.
+
 ## TWO-NODE PLAYTEST TRIAGE (2026-09-16, chiefmonkey ↔ Bekka — v0.2.862-alpha)
 
 First real cross-node test. Travel resolves AND renders, but the experience is broken in N ways. Root causes traced (confidence marked):

@@ -4,11 +4,10 @@
 // host binds Enter to `commitGatewayScreen()`, which must fire onCommit ONLY when a
 // world is actually peeked (armed) and stay inert otherwise — never a stray swap.
 // Node-pure: the same hand-rolled fake DOM used by gateway-screen-peek.test.js.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+let
   openGatewayScreen, closeGatewayScreen, peekGateWorld,
-  commitGatewayScreen, isGatewayCommitting, isGatewayScreenOpen,
-} from '../src/engine/gateway/gatewayScreen.js';
+  commitGatewayScreen, isGatewayCommitting, isGatewayScreenOpen;
 
 function fakeEl(tag) {
   return {
@@ -22,6 +21,19 @@ function fakeEl(tag) {
     getAttribute(k) { return this.attrs[k] ?? null; },
     focus() { this._focused = true; },
     querySelector(sel) {
+      // The current directory has nested columns addressed by ID. Mirror that
+      // existing DOM contract rather than making a valid render look broken.
+      if (sel.startsWith('#')) {
+        const walk = n => {
+          for (const c of n.children || []) {
+            if (c.id === sel.slice(1)) return c;
+            const found = walk(c);
+            if (found) return found;
+          }
+          return null;
+        };
+        return walk(this);
+      }
       if (sel === 'button') { const walk = (n) => { for (const c of n.children || []) { if (c.tagName === 'BUTTON') return c; const r = walk(c); if (r) return r; } return null; }; return walk(this); }
       return null;
     },
@@ -29,12 +41,23 @@ function fakeEl(tag) {
   };
 }
 
-let doc;
-beforeAll(() => {
+let doc, previousDocument;
+beforeAll(async () => {
+  previousDocument = globalThis.document;
   doc = { createElement: (t) => fakeEl(t), body: fakeEl('body'), addEventListener: () => {}, getElementById: () => null };
   globalThis.document = doc;
+  // This suite uses isolate:false. Never reuse another file's DOM singleton.
+  vi.resetModules();
+  ({ openGatewayScreen, closeGatewayScreen, peekGateWorld,
+    commitGatewayScreen, isGatewayCommitting, isGatewayScreenOpen } =
+    await import('../src/engine/gateway/gatewayScreen.js'));
 });
-afterAll(() => { delete globalThis.document; });
+afterAll(() => {
+  closeGatewayScreen();
+  vi.resetModules();
+  if (previousDocument === undefined) delete globalThis.document;
+  else globalThis.document = previousDocument;
+});
 
 describe('gatewayScreen — commitGatewayScreen keyboard seam', () => {
   it('is not committing while closed', () => {

@@ -2,6 +2,10 @@
 
 Living document. This will change as we learn.
 
+## Current implementation focus: background FIPS presence
+
+The user requested actual FIPS integration and approved primary-node rollout on 24 September 2026. Release v0.2.889-alpha implements ADR-0126 with Suite v0.9.24-alpha: one known remote heartbeat, bounded RAM cache, mesh-first reads and WSS fallback. No player setup, world-asset cache, collector or multiplayer transport change. Cross-operator acceptance remains gated on verified peer enrollment, storage/resource observations and matched player-performance measurements; other operators run their own installation.
+
 Source-of-truth split: this file (`torii-quest-strategy.md`) owns vision, core principles, decision rules, and architecture direction. `torii-quest-todo.md` owns the active task queue. `torii-quest-progress.md` is the visual execution dashboard — track bars, sprint status, completed-last-24h, and archive.
 
 Current live game: `https://chiefmonkey.art/quest/`  
@@ -288,9 +292,9 @@ and *feels right*, circle back for shooter feel, mesh/material polish, and UX.
 
 ### Future Transports
 
-Radar list of networking substrates we may adopt for world-to-world traffic once Torii has real multi-node workload. Not on the todo — recorded here so the option is visible when a real trigger appears (a second world operator behind NAT, an offline-resilience playtester demand, or a security/censorship-resistance requirement). Any adoption is a **node-layer sidecar** first, with existing HTTPS/WebSocket kept as fallback; the browser client is out of scope for these because a WebGL page cannot own a TUN device or raw sockets.
+FIPS moved from the radar list into the narrow ADR-0126 implementation on 24 September 2026. Adoption starts with a node-layer service and existing HTTPS/WebSocket fallback. The browser does not own a TUN device; wider transport migration remains future work.
 
-- **FIPS (Free Internetworking Peering System)** — self-organizing encrypted mesh where node addresses **are** secp256k1/schnorr keypairs, the same primitive as our npubs. Would let a world be reached purely by npub even behind NAT / on a home box / with no public DNS, with E2E encryption, NAT traversal, and multi-transport (UDP/TCP/Tor/Nym/BLE) built in. Alignment is unusually clean: a Torii world node's npub is directly its FIPS address, no mapping layer. Trigger to reassess: a second operator wanting to run a node behind NAT, or an offline-worlds initiative (which also needs a content-addressing layer — e.g. Blossom / NIP-94 — that FIPS does not provide). Both projects are alpha today; adoption path is a weekend two-VPS spike, not a roadmap commitment. Upstream: https://github.com/jmcorgan/fips.
+- **FIPS:** use a separate node transport key and an explicitly pinned application introduction. The first slice is UDP/TUN presence only; automatic rendezvous, NAT traversal and other transports are not claimed by this proof. Follow the [upstream configuration](https://github.com/jmcorgan/fips/blob/v0.5.1/docs/reference/configuration.md).
 
 ## Engineering Plan
 

@@ -41,6 +41,7 @@ import { createTravelTokens } from './auth/travelToken.js';
 import { createAdminUpdate } from './auth/adminUpdate.js';
 import { isValidCharacterKey } from './auth/characterKeys.js';
 import { createBeacon, BEACON_INTERVAL_MS } from './presence/beacon.js';
+import { createFipsPresence, loadPeerConfig } from './presence/fipsPresence.js';
 import { buildWorldZones } from './world/worldPublish.js';
 import { resolveLegacyWorldConfigPaths } from './world/worldConfigPath.js';
 import { DEFAULT_NODE_RELAYS, prependOwnRelay, ownRelayFromOrigin } from '../src/engine/presence/nodeRelays.js';
@@ -108,7 +109,7 @@ const headlessGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_HEADLESS,
 const generationGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_GENERATIONS, maxPerKey: MAX_GENERATIONS_PER_PUBKEY });
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.888-alpha';
+const SERVER_VERSION = 'v0.2.889-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
@@ -308,6 +309,7 @@ const adminUpdate = createAdminUpdate({
 // ADR-0094 (v0.2.888-alpha): server-side always-on presence beacon authority.
 // Holds an instance-bound key + enabled flag, persisted to disk so a restart
 // resumes the pulse with no admin re-login.
+const fipsPresence = createFipsPresence(loadPeerConfig(process.env.QUEST_FIPS_PEERS_PATH));
 const beacon = createBeacon({
   statePath: BEACON_STATE_PATH,
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
@@ -1142,6 +1144,12 @@ const httpServer = createServer((req, res) => {
   // sandbox /port/5000), so match by suffix — same tolerance as the WS upgrade.
   const path = (req.url || '').split('?')[0];
 
+  // Public signed presence only. No request-triggered network I/O or secrets.
+  if (req.method === 'GET' && path.endsWith('/mp/node-presence')) {
+    res.setHeader('Cache-Control', 'no-store');
+    return sendJson(res, 200, fipsPresence.snapshot());
+  }
+
   if (path === '/healthz' || path === '/health') {
     return sendJson(res, 200, {
       ok: true,
@@ -1615,6 +1623,7 @@ setInterval(() => {
 }, 60_000);
 
 httpServer.listen(PORT, HOST, () => {
+  fipsPresence.start(); // never awaited by gameplay or beacon publication
   log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
   // Admin identity is decided ENTIRELY by QUEST_ADMIN_NPUB (see VPS_INSTALL.md
   // §16.2a) - log whether it's configured (never the full npub/hex; a short

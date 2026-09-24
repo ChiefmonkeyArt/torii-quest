@@ -8,10 +8,8 @@
 // approach as tests/homepageStub.test.js) so the three-free DOM module can be
 // exercised without a browser. gatewayScreen is a module SINGLETON (cached _el), so
 // the whole file shares one fake document + one open/peek/close lifecycle.
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-  openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, peekGateWorld, refreshGatewayScreen,
-} from '../src/engine/gateway/gatewayScreen.js';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+let openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, peekGateWorld, refreshGatewayScreen;
 
 // ---------- fake DOM ----------
 
@@ -58,12 +56,21 @@ function fakeEl(tag) {
   };
 }
 
-let doc;
-beforeAll(() => {
+let doc, previousDocument;
+beforeAll(async () => {
+  previousDocument = globalThis.document;
   doc = { createElement: (tag) => fakeEl(tag), body: fakeEl('body'), addEventListener: () => {}, getElementById: () => null };
   globalThis.document = doc;
+  vi.resetModules();
+  ({ openGatewayScreen, closeGatewayScreen, isGatewayScreenOpen, peekGateWorld, refreshGatewayScreen } =
+    await import('../src/engine/gateway/gatewayScreen.js'));
 });
-afterAll(() => { delete globalThis.document; });
+afterAll(() => {
+  closeGatewayScreen();
+  vi.resetModules();
+  if (previousDocument === undefined) delete globalThis.document;
+  else globalThis.document = previousDocument;
+});
 
 // The gateway backdrop is the single top-level child the module appends to body.
 function _backdrop() { return doc.body.children[0]; }

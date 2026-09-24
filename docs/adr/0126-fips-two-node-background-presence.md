@@ -1,6 +1,6 @@
 # ADR-0126: FIPS two-node background presence
 
-Status: Accepted for the narrow implementation requested on 24 September 2026. Implementation candidate; not a production acceptance or deployment claim.
+Status: Accepted. Implementation and primary-node rollout approved on 24 September 2026. Two-operator production acceptance remains separate from installing this first slice.
 
 ## Decision
 

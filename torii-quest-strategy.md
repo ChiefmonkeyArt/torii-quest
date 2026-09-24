@@ -4,7 +4,7 @@ Living document. This will change as we learn.
 
 ## Current implementation focus: background FIPS presence
 
-The user requested actual FIPS integration on 24 September 2026. Candidate v0.2.888-alpha implements ADR-0126 with Suite v0.9.24-alpha: one known remote heartbeat, bounded RAM cache, mesh-first reads and WSS fallback. No player setup, world-asset cache, collector or multiplayer transport change. Production acceptance remains gated on two approved nodes, storage/resource observations and matched player-performance measurements.
+The user requested actual FIPS integration and approved primary-node rollout on 24 September 2026. Release v0.2.888-alpha implements ADR-0126 with Suite v0.9.24-alpha: one known remote heartbeat, bounded RAM cache, mesh-first reads and WSS fallback. No player setup, world-asset cache, collector or multiplayer transport change. Cross-operator acceptance remains gated on verified peer enrollment, storage/resource observations and matched player-performance measurements; other operators run their own installation.
 
 Source-of-truth split: this file (`torii-quest-strategy.md`) owns vision, core principles, decision rules, and architecture direction. `torii-quest-todo.md` owns the active task queue. `torii-quest-progress.md` is the visual execution dashboard — track bars, sprint status, completed-last-24h, and archive.
 

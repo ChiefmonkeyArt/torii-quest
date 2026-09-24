@@ -1,12 +1,12 @@
 # Torii Quest — Contributor / Agent Handoff
 
-## In-flight FIPS candidate: v0.2.888-alpha
+## FIPS release: v0.2.888-alpha
 
-Implementing ADR-0126 on `feat/fips-two-node-presence`, paired with Suite `feat/fips-node-build` v0.9.24-alpha. Not merged, tagged or deployed. Existing public heartbeats and home strfry remain canonical; the new reader stores one verified remote event in RAM only.
+ADR-0126 pairs with Suite v0.9.24-alpha. The operator approved merging both PRs, tagging and primary-VPS rollout on 24 September 2026. Use the existing fixed deployment workflow and verify main/tag/live equality; see the Project deployment receipt for the actual outcome. Existing public heartbeats and home strfry remain canonical; the new reader stores one verified remote event in RAM only.
 
 The server reads root-owned `/etc/torii/fips/peers.json` through `QUEST_FIPS_PEERS_PATH`; it never exposes private keys or accepts peer destinations from HTTP requests. Browser refresh is unawaited and same-origin only. Tests must distinguish real FIPS delivery from WSS fallback.
 
-Actual TUN/firewall proof passed in [CI run 36027163690](https://github.com/ChiefmonkeyArt/torii-quest/actions/runs/36027163690); Suite install/rerun also passed. The initial full gate exposed a pre-existing fake-DOM selector omission in the gateway keyboard test; the test fixture now supports its existing ID-selector contract, without a gameplay change. All 5,040 tests pass locally. Next: finish the release gate, then coordinated operator-approved install, peer enrollment, real strfry exchange and matched UX/storage/resource checks. Do not claim the feature live from a build alone. Docker and standalone Quest installers are unchanged; this first provisioning path is Suite Ubuntu/Debian. Do not update another operator's VPS.
+Actual TUN/firewall proof passed in [CI](https://github.com/ChiefmonkeyArt/torii-quest/actions/runs/36028619874); Suite install/rerun also passed. The initial full gate exposed a pre-existing fake-DOM selector omission in the gateway keyboard test; the test fixture now supports its existing ID-selector contract, without a gameplay change. All 5,040 tests and the full gate pass locally and in CI. After primary installation, peer enrollment requires a verified transport/signer introduction; no such live peer is silently assumed. Real strfry exchange and matched UX/storage/resource acceptance remain pending. Docker and standalone Quest installers are unchanged; this first provisioning path is Suite Ubuntu/Debian. Never update another operator's VPS.
 
 Final local `npm run test:release` is green: 5,040 tests / 435 test files, 21 regression checks, bundle report and handoff gate. Dashboard's 422 count intentionally counts only `tests/`, excluding colocated source tests. Gateway fake-DOM suites now isolate their module singleton and restore the prior document, fixing order-dependent contamination under the existing `isolate:false` runner. Native `AbortSignal.timeout` keeps the optional client request within the no-new-browser-timers rule. Neither test-fixture fix changes player behavior.
 

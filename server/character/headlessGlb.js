@@ -52,6 +52,7 @@ import {
 } from '@gltf-transform/extensions';
 import { prune, draco } from '@gltf-transform/functions';
 import draco3d from 'draco3d';
+import { createHash } from 'node:crypto';
 
 export const HEADLESS_GLB_VERSION = 1;
 
@@ -119,6 +120,10 @@ export async function authorHeadlessGlb(buffer, opts = {}) {
     return _fail('invalid-glb', (err && err.message) || 'read failed');
   }
   const root = doc.getRoot();
+  root.setExtras({
+    ...root.getExtras(),
+    toriiHeadless: { sourceSha256: createHash('sha256').update(bytes).digest('hex') },
+  });
 
   // F08b — reject a GLB whose DECODED buffers/images blow past the budget before
   // any vertex processing or Draco re-encode runs against them.

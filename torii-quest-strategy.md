@@ -1,5 +1,13 @@
 # Torii Quest Strategy & Next Steps
 
+## Character identity and paired views
+
+ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative
+before its character manifest publishes. Full model = mirror/self-view/peers;
+derived headless model = local first-person view only. Both views must keep the
+same character identity; no silent guest substitution. Resolve and seat the
+pair atomically before entry. Known shipped mesh hashes resolve locally.
+
 ## First-person weapon/body ownership
 
 ADR-0127 keeps the existing camera-space gun as the sole first-person weapon

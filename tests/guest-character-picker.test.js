@@ -48,7 +48,7 @@ describe('guest character picker — three-option login panel', () => {
     // body looks up the current character in a map declaring all three paths, so
     // a guest/nostrich sees their own body, not chiefmonkey's teal one.
     expect(FPB).toMatch(/getCharacter/);
-    expect(FPB).toMatch(/chiefmonkey-headless\.glb/);
+    expect(FPB).toMatch(/animation-library-headless\.glb/);
     expect(FPB).toMatch(/guest-headless\.glb/);
     expect(FPB).toMatch(/nostrich-headless\.glb/);
     // The authored assets must actually be on disk too — a missing GLB would

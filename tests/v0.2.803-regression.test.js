@@ -41,7 +41,7 @@ describe('v0.2.882 — logged-in player gets their OWN headless body, never chie
     expect(FPBODY).toMatch(/FP_BODIES\[getCharacter\(\)\]/);
     // The built-in map still has all three authored headless variants (guest is the
     // neutral fallback; chiefmonkey/nostrich remain for those explicit cards.)
-    expect(FPBODY).toMatch(/chiefmonkey:\s*\{\s*file:\s*'\/chiefmonkey-headless\.glb'/);
+    expect(FPBODY).toMatch(/chiefmonkey:\s*\{\s*file:\s*'\/animation-library-headless\.glb'/);
     expect(FPBODY).toMatch(/guest:\s*\{\s*file:\s*'\/guest-headless\.glb'/);
   });
 
@@ -57,7 +57,7 @@ describe('v0.2.882 — logged-in player gets their OWN headless body, never chie
     // The on-demand authoring is imported and the apply path calls it. The import
     // itself is outside the handler body, so assert on the full module text.
     expect(MAIN).toMatch(/import\s*\{[^}]*authorOwnHeadless[^}]*\}\s*from\s*'\.\/engine\/character\/authorOwnHeadless\.js'/);
-    expect(MAIN).toMatch(/authorOwnHeadless\(\{\s*meshUrl:\s*_ownCharacterMeshUrl\s*\}\)/);
+    expect(MAIN).toContain('resolveOwnCharacterPair(await fetchOwnCharacter(pk), { authorHeadless: authorOwnHeadless })');
   });
 
   it('the reset co-locates the guest reset with the mesh apply (guardrail)', () => {
@@ -67,6 +67,6 @@ describe('v0.2.882 — logged-in player gets their OWN headless body, never chie
     expect(guestIdx).toBeGreaterThanOrEqual(0);
     expect(pendingIdx).toBeGreaterThan(guestIdx);
     // _applyOwnCharacterMesh is still invoked so the player's own mesh seats.
-    expect(body).toMatch(/_applyOwnCharacterMesh\(\);/);
+    expect(body).toMatch(/_applyOwnCharacterMesh\(\)/);
   });
 });

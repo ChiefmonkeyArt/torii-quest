@@ -184,6 +184,7 @@ async function _renderCharacterPortrait(meshUrl) {
   return renderCharacterPortrait(meshUrl);
 }
 import { requestHeadlessVariant } from './engine/character/authorHeadless.js';
+import { resolveOwnCharacterPair, uploadCharacterPair } from './engine/character/characterPair.js';
 import { authorOwnHeadless, revokeHeadlessUrl } from './engine/character/authorOwnHeadless.js';
 import { addSticker, STICKER_LIBRARY } from './engine/character/stickerPlacement.js';
 import { requestMeshGeneration, confirmMeshGeneration } from './engine/character/liveMeshGeneration.js';
@@ -1242,6 +1243,8 @@ let _ownCharacterMeshHash = null;
 // null for legacy manifests, in which case firstPersonBody.js hides the FP
 // body (pre-v0.2.767 behaviour).
 let _ownCharacterHeadlessUrl = null;
+let _ownCharacterLoad = null;
+let _ownCharacterRevision = 0;
 
 on(EV.NOSTR_LOGIN, () => {
   // v0.2.800-alpha: a real npub login OVERRIDES any earlier guest-card pick. The
@@ -1252,14 +1255,8 @@ on(EV.NOSTR_LOGIN, () => {
   // seats instead. The explicit-pick-wins rule still holds AFTER login: tapping a
   // card once logged in re-arms the flag and the card wins again.
   _guestCharChosen = false;
-  // v0.2.882-alpha: reset the character KEY back to the neutral 'guest' default.
-  // v0.2.803-alpha set 'chiefmonkey' here so a legacy manifest (no headlessHash)
-  // would get a full-height FP body — but that assumed the logged-in player IS
-  // chiefmonkey, so a SECOND real player saw chiefmonkey's feet instead of their
-  // own. The real fix is on-demand authoring in _applyOwnCharacterMesh(): when a
-  // logged-in player has their own mesh but no headlessHash, we author a headless
-  // variant of THEIR mesh (no new signer prompt). 'guest' is the neutral fallback
-  // that is never shown to a logged-in player with a resolvable mesh.
+  // A login is not automatically chiefmonkey. Resolve the signed identity's
+  // full/headless pair before entry instead of using this neutral guest key.
   _pendingGuestChar = 'guest';
   if (_charCards && _charCards.length) {
     for (const card of _charCards) {
@@ -1268,7 +1265,7 @@ on(EV.NOSTR_LOGIN, () => {
     }
   }
   _handshake.setOurPubkey(state.nostrPubkey || '');
-  _applyOwnCharacterMesh();
+  _applyOwnCharacterMesh().catch(() => showEntryStatus('Your character could not be loaded. Please retry.'));
   // v0.2.375-alpha — "1 sign at login, 0 signs in-game": the login-time presence
   // publish signed a kind:31111 event on every NOSTR_LOGIN (a 2nd signer prompt
   // beyond the arena auth). Presence is now the WS roster only; the n2n gateway
@@ -1289,58 +1286,49 @@ on(EV.NOSTR_LOGIN, () => {
 // second real player never inherits chiefmonkey's feet (v0.2.882-alpha). Read-only
 // on the relay; the only network work beyond the read is the session-gated
 // headless authoring of the player's own mesh (no new NIP-07 signer prompt).
-async function _applyOwnCharacterMesh() {
+function _applyOwnCharacterMesh() {
   const pk = (state.nostrPubkey || '').trim().toLowerCase();
+  const revision = ++_ownCharacterRevision;
   if (!/^[0-9a-f]{64}$/.test(pk)) {
-    _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null; _ownCharacterHeadlessUrl = null; return;
-  }
-  try {
-    const manifest = await fetchOwnCharacter(pk);
-    _ownCharacterMeshUrl = resolveCharacterMeshUrl(manifest) || null;
-    _ownCharacterMeshHash = (manifest && manifest.mesh && manifest.mesh.hash) || null;
-    const hh = manifest && manifest.mesh && manifest.mesh.headlessHash;
-    const hasHeadless = (typeof hh === 'string' && /^[0-9a-f]{64}$/.test(hh));
-    // v0.2.882-alpha — on-demand headless authoring: a mesh without a headlessHash
-    // nose-dived into FP_BODIES['chiefmonkey'] for a second real player. Author the
-    // player's OWN headless variant instead (session-local object URL), so they see
-    // their own feet. Fails soft to null on any error (authoring down, no session
-    // token, etc.) — the FP body then falls back to FP_BODIES['guest'], never
-    // chiefmonkey's.
-    let authoredUrl = null;
-    if (!hasHeadless && _ownCharacterMeshUrl) {
-      try {
-        const authored = await authorOwnHeadless({ meshUrl: _ownCharacterMeshUrl });
-        if (authored && authored.ok && authored.url) authoredUrl = authored.url;
-      } catch { /* fails soft → fall back to 'guest' FP body */ }
-    }
-    _applyOwnHeadlessUrl(hasHeadless ? blossomMeshUrl(hh) : authoredUrl);
-  } catch {
-    _ownCharacterMeshUrl = null;
-    _ownCharacterMeshHash = null;
+    _ownCharacterMeshUrl = null; _ownCharacterMeshHash = null;
     _applyOwnHeadlessUrl(null);
+    _ownCharacterLoad = null;
+    return Promise.resolve();
   }
+  _ownCharacterLoad = (async () => {
+    let pair;
+    try {
+      pair = await resolveOwnCharacterPair(await fetchOwnCharacter(pk), { authorHeadless: authorOwnHeadless });
+    } catch {
+      pair = { meshUrl: null, meshHash: null, headlessUrl: null };
+    }
+    // A prior login must not overwrite a new identity or leak its blob URL.
+    if (revision !== _ownCharacterRevision || pk !== (state.nostrPubkey || '').toLowerCase()) {
+      revokeHeadlessUrl(pair.headlessUrl);
+      return;
+    }
+    _ownCharacterMeshUrl = pair.meshUrl;
+    _ownCharacterMeshHash = pair.meshHash;
+    _applyOwnHeadlessUrl(pair.headlessUrl);
+    if (_arena && !_guestCharChosen) _seatCharacterIntoArena(_arena);
+    if (_arenaBootstrapped && !_guestCharChosen) await _arena.reloadCharacterAssets();
+  })().catch(err => {
+    if (revision === _ownCharacterRevision) _ownCharacterLoad = null;
+    throw err;
+  });
+  return _ownCharacterLoad;
 }
 
 // _applyOwnHeadlessUrl(url) — commit the resolved headless FP-body URL, revoking
 // any prior session-local object URL first (so repeated logins / hot-swaps don't
-// leak object URLs), then seat it into an already-bootstrapped arena if present.
-// A null URL clears the seat (legacy fallback → firstPersonBody hides the body).
+// leak object URLs). The caller seats the complete pair, never just one view.
+// A null URL means firstPersonBody hides an unavailable custom derivative.
 function _applyOwnHeadlessUrl(url) {
-  if (_ownCharacterHeadlessUrl && _ownCharacterHeadlessUrl.indexOf('blob:') === 0) {
+  if (_ownCharacterHeadlessUrl !== url && _ownCharacterHeadlessUrl && _ownCharacterHeadlessUrl.indexOf('blob:') === 0) {
     revokeHeadlessUrl(_ownCharacterHeadlessUrl);
   }
   _ownCharacterHeadlessUrl = (typeof url === 'string' && url) ? url : null;
-  if (_arena && typeof _arena.setCustomHeadlessUrl === 'function') {
-    _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
-  }
-  // v0.2.882-alpha: if the arena already bootstrapped and the FP body loaded with
-  // a stale URL (the on-demand headless authoring resolved AFTER the player hit
-  // ENTER), hot-swap the headless body now. Only fires on that rare race — in the
-  // normal login→ENTER gap the authoring completes before boot and _arenaBootstrapped
-  // is still false.
-  if (_arenaBootstrapped && _arena && typeof _arena.reloadCharacterAssets === 'function') {
-    _arena.reloadCharacterAssets().catch(() => {});
-  }
+  // Seating/reloading belongs to the caller, after BOTH URLs and hash commit.
 }
 
 // ── Access tab (ADR-0078, v0.2.712) ─────────────────────────────────────────
@@ -1926,7 +1914,9 @@ async function _uploadCustomMesh(file) {
       toastInfo(`Rig check: ${rig.verdict}${detail}`);
     }
 
-    const up = await uploadBlossom(file);
+    const up = await uploadCharacterPair(file, {
+      authorHeadless: requestHeadlessVariant, upload: uploadBlossom,
+    });
     if (!up.ok) {
       _characterForgeState.status = 'failed';
       _characterForgeState.error = up.error === 'nip-07-unavailable'
@@ -1935,7 +1925,6 @@ async function _uploadCustomMesh(file) {
       renderActiveSettingsTab();
       return;
     }
-    const fileName = (file && file.name) || 'custom.glb';
     // v0.2.793-alpha: default the character's display name to the player's own
     // Nostr display name (kind:0 `name`/`display_name`, already sanitised into
     // state.nostrName at login by nostr.js). Falls back to the npub's short
@@ -1945,22 +1934,7 @@ async function _uploadCustomMesh(file) {
     const characterName = (state.nostrName && String(state.nostrName).trim())
       || (state.nostrPubkey && String(state.nostrPubkey).slice(0, 8).toUpperCase())
       || 'Custom';
-    const meshEntry = { hash: up.sha256, name: fileName };
-
-    // v0.2.767-alpha: author + publish a headless FP-body variant BEFORE the
-    // character event is signed, so `manifest.mesh.headlessHash` is present in
-    // the very first published manifest. On any failure we still publish the
-    // character (uploading a mesh should not fail because head-removal did) —
-    // the FP renderer just falls back to a hidden body for that character.
-    try {
-      const headless = await requestHeadlessVariant(file);
-      if (headless.ok && headless.blob) {
-        const headlessUpload = await uploadBlossom(headless.blob);
-        if (headlessUpload.ok && headlessUpload.sha256 === headless.sha256) {
-          meshEntry.headlessHash = headless.sha256;
-        }
-      }
-    } catch { /* non-fatal — publish without headlessHash */ }
+    const meshEntry = up.mesh;
 
     // v0.2.796-alpha: render + upload a portrait snapshot so the character has
     // an avatar image everywhere (fails soft — a character without one still
@@ -2003,8 +1977,11 @@ async function _uploadCustomMesh(file) {
       // renderer so it uses the head-stripped variant instead of hiding the
       // body entirely. Legacy manifests (no headlessHash) still fall back.
       const headlessHash = meshEntry.headlessHash || null;
-      _ownCharacterHeadlessUrl = headlessHash ? blossomMeshUrl(headlessHash) : null;
-      if (_arena && typeof _arena.setCustomHeadlessUrl === 'function') _arena.setCustomHeadlessUrl(_ownCharacterHeadlessUrl);
+      _ownCharacterRevision++;
+      _applyOwnHeadlessUrl(headlessHash ? blossomMeshUrl(headlessHash) : null);
+      _ownCharacterLoad = Promise.resolve();
+      if (_arena && !_guestCharChosen) _seatCharacterIntoArena(_arena);
+      if (_arenaBootstrapped && !_guestCharChosen) await _arena.reloadCharacterAssets();
     } else {
       _characterForgeState.status = 'failed';
       _characterForgeState.error = res.error === 'nip-07-unavailable'
@@ -3063,6 +3040,9 @@ function _seatCharacterIntoArena(arena) {
 // v0.2.275: shared bootstrap for entering the game. Lazy-loads the
 // three-vendor chunk + Rapier ONCE, then returns the ready arena API.
 async function ensureArenaReady(loadingLabel) {
+  if (!_guestCharChosen && /^[0-9a-f]{64}$/.test(state.nostrPubkey || '')) {
+    await (_ownCharacterLoad || _applyOwnCharacterMesh());
+  }
   // Re-entry: the arena is already bootstrapped. Re-seat the (possibly changed)
   // character choice and reload the player + first-person-body meshes so the
   // second entry reflects the latest pick. v0.2.768-alpha.

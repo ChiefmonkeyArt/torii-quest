@@ -1,5 +1,18 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.893-alpha: chiefmonkey full/headless identity restoration
+
+Fixed the asynchronous character-seat mismatch and removed silent custom-to-guest
+substitution. chiefmonkey7's exact shipped full asset resolves locally with a
+freshly derived headless asset carrying source-hash provenance. The built-in
+template has its own matching derivative. Full-body mirror/peer and FP layers
+remain distinct; new uploads/AI must publish complete pairs. ADR-0128 records
+the invariant. Behavioural tests execute the late-login seating path and verify
+asset provenance, derivation failure handling and upload hash agreement.
+FP locomotion clones the full model's rig-correct clips, avoiding the raw
+chiefmonkey7 embedded animation frame mismatch. Browser QA uses the real loaders
+and checks separate full/FP render layers; it is not an authenticated live login.
+
 ## v0.2.892-alpha: mirror overexposure + window clipping fix
 
 The v0.2.890 mirror rendered the HOME scene correctly but shipped with a blown-out

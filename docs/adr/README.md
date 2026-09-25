@@ -149,6 +149,9 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 
 ## Workflow for a new decision
 
+ADR-0128: [One character identity, paired full and first-person models](./0128-character-full-headless-pair.md).
+Accepted for the operator-requested chiefmonkey restoration and full/headless contract.
+
 ADR-0127: [First-person weapon/body rendering ownership](./0127-first-person-weapon-body-ownership.md).
 Accepted for the operator-requested empty-hand regression fix; mirror and peer rigs are unchanged.
 

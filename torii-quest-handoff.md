@@ -1,5 +1,32 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## CHIEFMONKEY RESTORED AS A MATCHING PAIR: v0.2.893-alpha
+
+The operator's signed character references chiefmonkey7.glb (SHA-256
+7aecefff9ded689a1fce5afeb8b85fd954885ad422708e2d62f51c41a14d8cc3).
+The prior login path did not await character discovery, and late completion
+only seated the headless URL before reloading both models; the full renderer
+could remain seated as guest. Custom loading failures also silently swapped
+the mirror to guest, while missing derivatives borrowed a guest FP body.
+
+ADR-0128 fixes pair ownership: await discovery, atomically seat full URL/hash/
+headless URL, guard stale logins, serialise reloads and never substitute a
+guest for a failed custom load. The exact shipped chiefmonkey7 full GLB now
+resolves locally by hash, alongside a newly derived chiefmonkey-headless.glb.
+The animation-library template has its own separate matching derivative.
+Full assets remain byte-identical; new derivative GLBs record source SHA-256.
+
+The full model stays on mirror/peer layer 1; the derived FP model stays on
+layer 2. FP handles source idle-clip names and Y/Z-up orientation. Uploads and
+AI results share a strict complete-pair path; legacy derivative failures hide
+only the FP body, never show another character's feet. The previous FP-only
+arm filter remains, without touching full-model geometry.
+
+Tests cover real asset provenance, complete-pair publishing and execution of
+the actual shell seating functions (late login, stale response, explicit guest,
+entry order). Deploy only via the merged PR/tag and existing manual VPS workflow;
+the Project release receipt records live equality and visual QA.
+
 ## MIRROR OVEREXPOSURE + WINDOW CLIPPING: v0.2.892-alpha
 
 The v0.2.890 mirror rendered the HOME scene but shipped with a blown-out white sky.

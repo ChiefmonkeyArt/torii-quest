@@ -1,5 +1,17 @@
 # Torii Quest ToDo
 
+## v0.2.893-alpha: restore matching character identity across views
+
+- [x] Restore signed chiefmonkey7 content via exact shipped full/headless pair.
+- [x] Derive headless GLBs from their actual full source and embed provenance.
+- [x] Await and atomically seat both views; guard late/stale identity responses.
+- [x] Never render a guest substitute for an unavailable custom full/FP model.
+- [x] Require complete pairs for new upload/AI character manifests.
+- [x] Add behavioural resolver/upload/seating tests and ADR-0128.
+
+Release gate, real-loader visual QA, PR merge/tag and canonical VPS outcome are
+recorded in the Project delivery receipt. Other operators remain opt-in.
+
 ## v0.2.892-alpha: mirror overexposure + window clipping fix
 
 - [x] Clear the mirror render target before the pass (stale-buffer whiteout).

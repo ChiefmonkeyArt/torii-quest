@@ -26,14 +26,14 @@ import { readFileSync } from 'node:fs';
 
 const SRC = readFileSync(new URL('../src/playerModel.js', import.meta.url), 'utf8');
 
-describe('v0.2.789 — loadPlayerModel falls back to the default on custom-mesh failure', () => {
+describe('custom mesh loading preserves character identity', () => {
   it('declares a usedCustomMesh flag to track which source actually loaded', () => {
     expect(SRC).toContain('let usedCustomMesh = false;');
   });
 
-  it('wraps the custom mesh load in try/catch instead of letting it throw', () => {
-    // The custom URL load must never abort boot — a catch logs and falls through.
+  it('wraps custom load failures with a visible retry error rather than a different identity', () => {
     expect(SRC).toMatch(/try\s*\{\s*gltf\s*=\s*await\s*_loader\.loadAsync\(_customMeshUrl\);[^}]+usedCustomMesh\s*=\s*true;[^}]*\}\s*catch\s*\(err\)\s*\{/);
+    expect(SRC).toContain("throw new Error('Your character could not be loaded. Please retry.'");
   });
 
   it('falls back to the built-in default (assetUrl(char.file)) when custom did not load', () => {

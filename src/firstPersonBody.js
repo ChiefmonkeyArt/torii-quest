@@ -4,7 +4,7 @@
 // main camera, hidden from the mirror reflection camera), parented to the
 // player so it tracks the eye. Its own mixer plays a small idle/walk/run set.
 // Each supported character has its own authored headless GLB (see FP_BODIES);
-// custom/Create-with-AI meshes have none yet, so the FP body is hidden for them.
+// custom/Create-with-AI meshes use the derivative of their own full GLB.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -12,7 +12,8 @@ import { keys } from './input.js';
 import { camera } from './scene.js';
 import { getMirror } from './mirror.js';
 import { assetUrl } from './assetUrl.js';
-import { getCharacter, getCustomHeadlessUrl } from './playerModel.js';
+import { getCharacter, getCustomMeshUrl, getCustomHeadlessUrl, getFirstPersonClips } from './playerModel.js';
+import { orientQuaternion } from './engine/mirror/rigOrientation.js';
 import { maskFirstPersonArms, firstPersonLocomotion } from './engine/character/firstPersonBodyMask.js';
 
 let _root  = null;
@@ -22,15 +23,14 @@ let _current = null;
 let _cfg = null; // FP_BODIES entry for the loaded character
 let _lastX = null;
 let _lastZ = null;
+let _loadRevision = 0;
 
 // Per-character headless first-person body: asset path + the idle/walk/run clip
-// names inside that GLB. chiefmonkey keeps its own reduced set (Idle_11 /
-// Walking / Running); guest and nostrich play the master-library clips (Idle_02
-// / Stylish_Walk_inplace / Running) baked into their headless variants, which
-// tools/headless-glb.mjs authors from the full master GLBs (head removed, three
-// clips kept). Custom/Create-with-AI meshes are absent here → FP body hidden.
+// names inside that GLB. Each file is derived from its matching full model.
+// The chiefmonkey7 signed custom identity uses /chiefmonkey-headless.glb;
+// the built-in animation-library template uses its separate matching derivative.
 const FP_BODIES = {
-  chiefmonkey: { file: '/chiefmonkey-headless.glb', idle: 'Idle_11', walk: 'Walking',           run: 'Running' },
+  chiefmonkey: { file: '/animation-library-headless.glb', idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running' },
   guest:       { file: '/guest-headless.glb',       idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running' },
   nostrich:    { file: '/nostrich-headless.glb',    idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running' },
 };
@@ -84,6 +84,7 @@ const _wp = new THREE.Vector3();
 const _pp = new THREE.Vector3();
 
 export function loadFirstPersonBody(parentObj) {
+  const revision = ++_loadRevision;
   if (_root) { parentObj.remove(_root); _root = null; _mixer = null; _actions = {}; _current = null; _cfg = null; }
   // v0.2.772-alpha (Bug E): reset the per-character POV offset on hot-swap so
   // switching from a shorter character (poo poo head) back to a full-height one
@@ -93,16 +94,13 @@ export function loadFirstPersonBody(parentObj) {
 
   // v0.2.767-alpha — for custom / Create-with-AI meshes the server authors a
   // headless variant at publish-time and the client stores that URL via
-  // setCustomHeadlessUrl. Prefer it whenever present. Custom meshes always ship
-  // with the master clip set (Idle_02 / Stylish_Walk_inplace / Running) baked in
-  // by tools/headless-glb.mjs, so we hard-code those clip names here.
-  // If the headless variant is absent (legacy manifest, or server authoring
-  // failed at publish) we fall back to the built-in FP_BODIES entry, and if that
-  // is also absent we hide the FP body — the pre-v0.2.767 behaviour.
+  // setCustomHeadlessUrl. A custom full model without a derivative must NEVER
+  // borrow a guest/other character's body. Hide only its FP view while leaving
+  // its correct full model in the mirror/peer path.
   const customUrl = getCustomHeadlessUrl();
   const cfg = customUrl
     ? { file: customUrl, idle: 'Idle_02', walk: 'Stylish_Walk_inplace', run: 'Running', external: true }
-    : FP_BODIES[getCharacter()];
+    : (getCustomMeshUrl() ? null : FP_BODIES[getCharacter()]);
   if (!cfg) return;
   _cfg = cfg;
 
@@ -113,11 +111,17 @@ export function loadFirstPersonBody(parentObj) {
   // v0.2.767-alpha: `cfg.external === true` means cfg.file is a full URL (a
   // Blossom URL) rather than a repo-relative asset path, so we bypass assetUrl.
   const meshUrl = cfg.external ? cfg.file : assetUrl(cfg.file);
-  loader.load(meshUrl, gltf => {
+  // Arena loads the full model first. Snapshot its rig-correct clips for this
+  // paired derivative before any asynchronous asset work.
+  const pairedClips = getFirstPersonClips();
+  return new Promise(resolve => loader.load(meshUrl, gltf => {
+    if (revision !== _loadRevision) { draco.dispose(); resolve(); return; }
     _root = gltf.scene;
 
     let minY = Infinity;
     let maxY = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
     _root.traverse(o => {
       if (o.isMesh && o.geometry) {
         o.geometry.computeBoundingBox();
@@ -125,11 +129,15 @@ export function loadFirstPersonBody(parentObj) {
         if (b) {
           minY = Math.min(minY, b.min.y);
           maxY = Math.max(maxY, b.max.y);
+          minZ = Math.min(minZ, b.min.z);
+          maxZ = Math.max(maxZ, b.max.z);
         }
       }
     });
     if (!Number.isFinite(minY)) minY = 0;
     if (!Number.isFinite(maxY)) maxY = EYE;
+    const isZUp = Number.isFinite(minZ) && maxZ - minZ > (maxY - minY) * 1.2;
+    if (isZUp) { minY = -maxZ; maxY = -minZ; }
 
     // v0.2.772-alpha (Bug E): compute per-character POV eye height. characterEye
     // = character's total mesh height minus a small drop from head cap to eye.
@@ -147,7 +155,7 @@ export function loadFirstPersonBody(parentObj) {
     // clip plane (below) removes the stump so we read the chest, not its inside.
     // Model faces local -Z; rotate PI to face fwd.
     _root.position.set(0, -minY - EYE, 0.42);
-    _root.rotation.y = Math.PI;
+    _root.quaternion.fromArray(orientQuaternion(isZUp));
 
     _root.traverse(o => {
       if (o.isMesh) {
@@ -184,15 +192,27 @@ export function loadFirstPersonBody(parentObj) {
     window._fpBody = _root; // smoke-test + live-tuning handle
 
     _mixer = new THREE.AnimationMixer(_root);
-    gltf.animations.forEach(c => {
+    const bodyClips = pairedClips.length ? pairedClips : gltf.animations;
+    bodyClips.forEach(c => {
       const a = _mixer.clipAction(c);
       a.setLoop(THREE.LoopRepeat, Infinity);
       _actions[c.name] = a;
     });
+    // Derived GLBs retain their source clips, not an assumed master set.
+    const names = new Set(bodyClips.map(c => c.name));
+    _cfg = { ...cfg,
+      idle: [cfg.idle, 'Idle_02', 'Idle_10', 'Idle_11'].find(n => names.has(n)),
+      walk: [cfg.walk, 'Stylish_Walk_inplace', 'Walking'].find(n => names.has(n)),
+    };
     _play(_cfg.idle);
+    _applyVisibility();
+    draco.dispose();
+    resolve();
   }, undefined, err => {
-    console.warn('[firstPersonBody] load failed:', err);
-  });
+    if (revision === _loadRevision) console.warn('[firstPersonBody] load failed:', err);
+    draco.dispose();
+    resolve(); // no wrong-body fallback; full model still renders for others
+  }));
 }
 
 function _play(name) {

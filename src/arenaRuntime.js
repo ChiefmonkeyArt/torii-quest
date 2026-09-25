@@ -30,6 +30,7 @@ import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed,
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setCustomHeadlessUrl, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
+import { bundledCharacterPair } from './engine/character/characterPair.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
 import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
@@ -208,7 +209,7 @@ function _loadGunTemplate() {
 function _peerMeshUrl(character) {
   if (!character) return null;
   if (MP_PEER_CHARACTERS[character]) return assetUrl(MP_PEER_CHARACTERS[character].file);
-  return blossomMeshUrl(character); // 64-hex sha256 → Blossom URL; else null
+  return bundledCharacterPair(character)?.meshUrl || blossomMeshUrl(character);
 }
 
 // v0.2.768-alpha (Bug C): never silently render an unknown peer as chiefmonkey.
@@ -2342,9 +2343,13 @@ export function createArenaRuntime(hooks = {}) {
   // mesh instead of leaving the first character's models parented to the player.
   // Both loaders already remove their prior root before loading (see
   // loadPlayerModel / loadFirstPersonBody), so re-invocation is safe.
+  let _characterReload = Promise.resolve();
   async function reloadCharacterAssets() {
-    await loadPlayerModel(playerObj);
-    await loadFirstPersonBody(playerObj);
+    _characterReload = _characterReload.catch(() => {}).then(async () => {
+      await loadPlayerModel(playerObj);
+      await loadFirstPersonBody(playerObj);
+    });
+    return _characterReload;
   }
 
   // MP-1 cross-instance travel seam: the shell calls this in _executeJump before

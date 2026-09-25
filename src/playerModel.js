@@ -199,11 +199,8 @@ export async function loadPlayerModel(parentObj) {
   const _loader = new GLTFLoader();
   _loader.setDRACOLoader(_draco);
   try {
-    // v0.2.789: a custom (kind-35100) mesh URL can 404 — e.g. a character whose
-    // Blossom blob was never uploaded (the 'nostrich' preset shipped the hash but
-    // the operator never pushed the GLB). Fall back to the built-in default
-    // character instead of throwing, so a logged-in user with an unruly character
-    // still enters the world (and sees the avatar they always had).
+    // A custom (kind-35100) mesh can be temporarily unavailable. Never replace
+    // that identity with the guest body: keep the failure explicit and retryable.
     let gltf = null;
     let usedCustomMesh = false;
     if (_customMeshUrl) {
@@ -211,7 +208,9 @@ export async function loadPlayerModel(parentObj) {
         gltf = await _loader.loadAsync(_customMeshUrl);
         usedCustomMesh = true;
       } catch (err) {
-        console.warn('[playerModel] custom mesh failed to load — falling back to the built-in default:', (err && err.message) || err);
+        // A guest is a different identity, not a substitute for a failed custom
+        // character. Surface the load error instead of swapping the mirror body.
+        throw new Error('Your character could not be loaded. Please retry.', { cause: err });
       }
     }
     if (!usedCustomMesh) {
@@ -440,6 +439,14 @@ export function triggerReload() { if (_loaded && _anims.RELOAD) _playOnce(_anims
 export function triggerDance()  { if (_loaded) _play(_anims.DANCE, true); }
 export function triggerIdle()   { if (_loaded) _play(_anims.IDLE, true); }
 export function isModelLoaded() { return _loaded; }
+// The derivative has the SAME skeleton as this full model. Reuse its already
+// retargeted locomotion, not raw embedded clips with a different bind frame.
+export function getFirstPersonClips() {
+  if (!_loaded) return [];
+  return [...new Set(['IDLE', 'WALK', 'RUN'].map(slot => _anims[slot]))]
+    .filter(name => name && _clips[name])
+    .map(name => _clips[name].clone());
+}
 
 // getPlayerModelRoot() → the loaded character scene root (THREE.Object3D | null).
 // The sticker studio (stickerStudio.js) raycasts the player's OWN character here

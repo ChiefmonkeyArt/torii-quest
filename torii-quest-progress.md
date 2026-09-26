@@ -1,5 +1,16 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.894-alpha: gateway directory clock-skew rescue + solidity
+
+The live gateway directory showed 0 worlds despite both nodes publishing fresh,
+valid presence. Root cause: the reader judged liveness against its own wall clock,
+so a visitor whose clock runs ahead of the publisher's saw a fresh node's NIP-40
+expiration as "past" and dropped every world. `_presenceLive` now rescues by
+`created_at` recency within the grace window when the expiration tag reads
+just-elapsed, so a recently-published node stays listed; a long-dead node still
+drops. The directory card's background alpha was raised 0.32 → 0.39 (~23% more
+solid, per operator request) for white-on-transparent readability.
+
 ## v0.2.893-alpha: chiefmonkey full/headless identity restoration
 
 Fixed the asynchronous character-seat mismatch and removed silent custom-to-guest

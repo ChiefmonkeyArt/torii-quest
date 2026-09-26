@@ -288,6 +288,14 @@ function _toEventArray(input) {
 // means the record is stale. Records with NO expiration tag (pre-NIP-40) fall back
 // to a grace window so ancient records don't linger forever.
 const PRESENCE_GRACE_SEC = 3600; // 1 hour fallback for records without expiration
+// A live node republishes presence every ~10 min with a 20-min NIP-40 TTL, so a
+// healthy node's `expiration` is always in the future. BUT the reader judges
+// liveness against its OWN wall clock, which can run AHEAD of the publisher's — in
+// that case a FRESH node's `expiration` reads as "past" and every world is dropped,
+// emptying the directory with no recovery short of fixing the machine clock. Rescue
+// by `created_at` recency within the grace window: a node that published within the
+// last hour is still LIVE even when its expiration tag reads as just-elapsed on this
+// machine. A long-dead node (created_at older than the grace) still drops.
 function _presenceLive(event, nowSec) {
   if (!event || !Array.isArray(event.tags)) return false;
   let expiration = null;
@@ -300,7 +308,10 @@ function _presenceLive(event, nowSec) {
     }
   }
   const created = Number.isFinite(event.created_at) ? event.created_at : 0;
-  if (expiration !== null) return expiration >= nowSec;
+  if (expiration !== null) {
+    if (expiration >= nowSec) return true;
+    return created >= nowSec - PRESENCE_GRACE_SEC; // skew rescue: recent publisher is still live
+  }
   return created >= nowSec - PRESENCE_GRACE_SEC;
 }
 

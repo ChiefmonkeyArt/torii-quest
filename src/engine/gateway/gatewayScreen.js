@@ -88,7 +88,7 @@ function _build() {
     position: 'relative',
     width: 'min(780px, 94vw)',
     maxHeight: '46vh', overflow: 'auto',
-    background: 'rgba(10, 12, 20, 0.32)',
+    background: 'rgba(10, 12, 20, 0.39)',
     border: '1px solid rgba(196,181,253,0.22)',
     borderRadius: '12px',
     color: '#f4f9ff',

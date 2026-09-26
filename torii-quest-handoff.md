@@ -1,5 +1,17 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## GATEWAY DIRECTORY CLOCK-SKEW RESCUE + SOLIDITY: v0.2.894-alpha
+
+A visitor whose machine clock runs ahead of the publishing node saw the gateway
+directory render "0 worlds online" even though presence was fresh and valid: the
+liveness check compared the publisher's NIP-40 `expiration` tag directly against
+the reader's `Date.now()`, so a fresh node's expiration read as already-past and
+every world was dropped. `_presenceLive` now rescues by `created_at` recency within
+the 1-hour grace window when `expiration` reads just-elapsed, so a recently-
+published node stays listed regardless of local clock drift; a long-dead node
+still drops. The gateway directory card's backdrop solidity was raised 23%
+(0.32 → 0.39 alpha). Tests cover the skew-rescue and long-dead drop paths.
+
 ## CHIEFMONKEY RESTORED AS A MATCHING PAIR: v0.2.893-alpha
 
 The operator's signed character references chiefmonkey7.glb (SHA-256

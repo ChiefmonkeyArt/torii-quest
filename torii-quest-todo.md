@@ -1,5 +1,12 @@
 # Torii Quest ToDo
 
+## v0.2.894-alpha: gateway directory clock-skew rescue + solidity
+
+- [x] Rescue presence liveness from reader clock skew (created_at grace fallback).
+- [x] Keep a fresh node listed when its expiration reads just-elapsed locally.
+- [x] Raise the gateway directory card solidity by 23% (0.32 → 0.39 alpha).
+- [x] Add liveness tests for the skew-rescue and long-dead drop paths.
+
 ## v0.2.893-alpha: restore matching character identity across views
 
 - [x] Restore signed chiefmonkey7 content via exact shipped full/headless pair.

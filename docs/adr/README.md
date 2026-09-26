@@ -149,6 +149,9 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 
 ## Workflow for a new decision
 
+ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).
+Accepted for the empty-directory fix; liveness rescues by created_at recency within the grace window.
+
 ADR-0128: [One character identity, paired full and first-person models](./0128-character-full-headless-pair.md).
 Accepted for the operator-requested chiefmonkey restoration and full/headless contract.
 

@@ -1,6 +1,6 @@
 # ADR-0017 — Plumb `zone` from BOT_HIT into client `applyBotHit`
 
-Status: **Accepted** (v0.2.626)
+Status: **Accepted** (v0.2.626) — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 Deciders: chiefmonkey
 Date: 2026-08-22
 

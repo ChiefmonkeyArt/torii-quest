@@ -883,6 +883,12 @@ keeps an HP ledger, and issues `HIT` / `KILL` / `RESPAWN` on its own authority.
 Clients under MP-2 stop emitting `HIT`; a legacy client still sending them is
 ignored (or, under the fallback below, relayed as before).
 
+> **Since v0.2.895-alpha (Game Zone v2, ADR-0130)** the knobs and the advisory
+> rollback below are RETIRED and ignored: combat is resolved by the shared game
+> zone sim (`GZ_FIRE` → `GZ_EVENT`), which owns lag compensation, HP and respawn.
+> `GAMEZONE_ENABLED=false` disables combat on a node; `BOT_COUNT_OVERRIDE`,
+> `BOSS_COUNT_OVERRIDE` and `TEST_MODE` still shape the roster. Historical text:
+
 Tuning knobs (all optional — defaults match MP_2_SPEC.md):
 
 ```ini

@@ -1,6 +1,6 @@
 # ADR-0011: Combat classifier, bot tactics, and LOD hysteresis baseline (v0.2.608 forward-port)
 
-- **Status:** Accepted
+- **Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 - **Date:** 2026-08-22
 - **Deciders:** chiefmonkey
 - **Related:** `src/engine/combat/classifier.js`, `src/engine/entities/bot-tactics.js`,

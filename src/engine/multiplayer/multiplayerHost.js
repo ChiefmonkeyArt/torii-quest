@@ -20,7 +20,7 @@
 //   mp.start();                 // resolve config + open ws
 //   mp.stop('reason');          // clean disconnect + dispose avatars
 //   mp.sendMove({pos, rot, vel})
-//   mp.sendShot({origin, dir, ts})
+//   mp.sendGzFire({seq, origin, dir, rt, claim})   (Game Zone v2, ADR-0130)
 //   mp.sendHit({targetId, dmg, zone, shotTs})
 //   mp.sendKill({shooterId, victimId, weapon})
 //   mp.sendChat(msg)
@@ -33,7 +33,6 @@ import { MP_ENABLED, MP_WS_PATH } from '../../config.js';
 import { createWsClient, WS_STATE } from './wsClient.js';
 import { createRemoteAvatarRoster } from './remoteAvatars.js';
 import { MSG } from './wireProtocol.js';
-import { DEFAULT_INTERP_DELAY_MS } from '../entities/botNetState.js';
 import { recordConnect, recordOpen, recordClose, recordReconnect, recordState } from '../diagnostics/connectionDiagnostics.js';
 
 /**
@@ -89,8 +88,8 @@ export function createMultiplayerHost(deps) {
     _enabled: !!mpEnabled,
     setWsEndpoint, clearWsEndpoint,
     start, stop,
-    sendMove, sendShot, sendHit, sendKill, sendChat, sendKamiState,
-    tick, viewLagMs,
+    sendMove, sendGzFire, sendChat, sendKamiState,
+    tick,
   };
 
   function resolveUrl() {
@@ -207,13 +206,11 @@ export function createMultiplayerHost(deps) {
     return ws.send(msg);
   }
   function sendMove(m) { return _send({ t: MSG.MOVE, pos: m.pos, rot: m.rot, vel: m.vel, anim: m.anim }); }
-  function sendShot(m) { return _send({ t: MSG.SHOT, origin: m.origin, dir: m.dir, ts: m.ts, viewLag: m.viewLag }); }
-  // MP-2 (v0.2.366-alpha): server is authoritative on hits. This is now a
-  // no-op export kept for regression compat with callers that were wired in
-  // MP-1. Under MP_MODE=advisory the server still relays if a client sends
-  // one, but the shipped client never should. See MP_2_SPEC.md §10.
-  function sendHit(_m) { return false; }
-  function sendKill(m) { return _send({ t: MSG.KILL, shooterId: m.shooterId, victimId: m.victimId, weapon: m.weapon }); }
+  // Game Zone v2 (ADR-0130): the only combat message a client sends. The server
+  // resolves it at render tick `rt` against the same history the client drew.
+  function sendGzFire(m) {
+    return _send({ t: MSG.GZ_FIRE, seq: m.seq, origin: m.origin, dir: m.dir, rt: m.rt, claim: m.claim || undefined });
+  }
   function sendChat(msg) { return _send({ t: MSG.CHAT, msg }); }
   // ADR-0032 (v0.2.650-alpha): tell the server this session just entered/
   // exited Kami Mode, so it can exclude the admin from bot targeting and
@@ -225,37 +222,6 @@ export function createMultiplayerHost(deps) {
   function sendKamiState(active) { return _send({ t: MSG.KAMI_STATE, active: !!active }); }
 
   function tick(renderTime) { roster.tick(renderTime); }
-
-  // v0.2.392 hit-reg: how far BEHIND live the local player's view of the bots
-  // is, in ms. Sent on the SHOT as `viewLag`; the SERVER rewinds its bot/peer
-  // rings to (server_now - viewLag) in its own clock frame, testing the collider
-  // where the player actually SAW the bot, not where it currently is.
-  //
-  // v0.2.633 (ADR-0024) hit-reg: this is TWO one-way trips, not one.
-  // botNetState.ingest() stamps each sample with the CLIENT RECEIVE time, and
-  // sample() renders at (receive_now - DEFAULT_INTERP_DELAY_MS). So the pose on
-  // screen was generated on the SERVER interpDelay + one-way ago: the downlink
-  // trip is already baked into the receive stamps. The server then applies
-  // viewLag to the shot's ARRIVAL time, which is a further uplink trip after the
-  // player clicked. Deriving it in one aligned frame (fire = click instant):
-  //   seen on screen    : server content at fire - interpDelay - ow   (downlink)
-  //   server tests at   : (fire + ow) - viewLag                       (uplink)
-  // Those are only equal when viewLag = interpDelay + 2*ow. With a single ow the
-  // server rewound to a state one one-way trip TOO RECENT, so a moving bot was
-  // tested ~ow of travel ahead of where the player saw it — measured as 0.10-0.35m
-  // of lateral error at observed bot speeds (1.5-5.5 m/s, ow~64ms), which is the
-  // width of the 0.35m head collider and matched the tight head misses in the
-  // v0.2.632 capture (headHorz 0.350/0.383/0.531 just outside the radius).
-  //
-  // Still clamped to 250ms so it stays inside the server's 300ms lag-comp window
-  // (LAG_COMP_MS); the server clamps again independently. ow is itself already
-  // capped at 250 by wsClient, so the worst case here saturates the clamp rather
-  // than overflowing the window.
-  function viewLagMs() {
-    const ow = ws && Number.isFinite(ws.oneWayMs) ? ws.oneWayMs : 0;
-    const v = DEFAULT_INTERP_DELAY_MS + 2 * ow;
-    return v > 250 ? 250 : v;
-  }
 
   return host;
 }

@@ -1,6 +1,6 @@
 # ADR-0015 — Fix MP hit-reg alive-window (accept rewound-alive shots)
 
-**Status:** Accepted (2026-08-22)
+**Status:** Accepted (2026-08-22) — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 **Ships in:** v0.2.625-alpha
 **Author:** Torii Agent (proposal); Chiefmonkey (approval pending)
 **Related:** ADR-0013 (bot identity + [SHOT]/[KILL]/[RESPAWN] logs),

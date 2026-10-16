@@ -1,0 +1,95 @@
+{
+  "generatedAt": "2026-10-16T16:30:31.411Z",
+  "rays": 300,
+  "poses": 8,
+  "hit": {
+    "regular": {
+      "parts": 38,
+      "legacy": {
+        "rays": 9600,
+        "truthHits": 6254,
+        "hitAgreePct": 67.14,
+        "falsePosPct": 10.43,
+        "falseNegPct": 22.44,
+        "zoneAgreePct": 98.85,
+        "headRecallPct": 61.82,
+        "falseHeadPct": 0.13
+      },
+      "coarse": {
+        "rays": 9600,
+        "truthHits": 6133,
+        "hitAgreePct": 71.34,
+        "falsePosPct": 8.96,
+        "falseNegPct": 19.7,
+        "zoneAgreePct": 98.68,
+        "headRecallPct": 55.17,
+        "falseHeadPct": 0.1
+      },
+      "skeletal": {
+        "rays": 9600,
+        "truthHits": 6133,
+        "hitAgreePct": 99.99,
+        "falsePosPct": 0,
+        "falseNegPct": 0.01,
+        "zoneAgreePct": 100,
+        "headRecallPct": 100,
+        "falseHeadPct": 0
+      },
+      "validator": {
+        "claims": 6132,
+        "rejectedOrDowngraded": 0,
+        "rejectPct": 0,
+        "reasons": {}
+      },
+      "exactRaycastMsAvg": 0.228
+    },
+    "boss": {
+      "parts": 48,
+      "legacy": {
+        "rays": 4800,
+        "truthHits": 3385,
+        "hitAgreePct": 79.38,
+        "falsePosPct": 13.4,
+        "falseNegPct": 7.23,
+        "zoneAgreePct": 85.39,
+        "headRecallPct": 0,
+        "falseHeadPct": 0
+      },
+      "coarse": {
+        "rays": 4800,
+        "truthHits": 3367,
+        "hitAgreePct": 79.35,
+        "falsePosPct": 13.44,
+        "falseNegPct": 7.21,
+        "zoneAgreePct": 92.92,
+        "headRecallPct": 51.47,
+        "falseHeadPct": 0
+      },
+      "skeletal": {
+        "rays": 4800,
+        "truthHits": 3367,
+        "hitAgreePct": 100,
+        "falsePosPct": 0,
+        "falseNegPct": 0,
+        "zoneAgreePct": 100,
+        "headRecallPct": 100,
+        "falseHeadPct": 0
+      },
+      "validator": {
+        "claims": 3367,
+        "rejectedOrDowngraded": 0,
+        "rejectPct": 0,
+        "reasons": {}
+      },
+      "exactRaycastMsAvg": 0.036
+    }
+  },
+  "sim": {
+    "worldBuildMs": 1038,
+    "ticks": 6000,
+    "p50": 0.004,
+    "p99": 0.069,
+    "max": 1.493,
+    "over5ms": 0
+  }
+}

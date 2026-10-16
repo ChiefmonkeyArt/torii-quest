@@ -37,7 +37,8 @@ if (!isKnownProfile(name)) {
 // must fail loudly here rather than silently shrinking a profile.
 let existing = [];
 try {
-  existing = readdirSync(join(ROOT, 'tests'))
+  existing = readdirSync(join(ROOT, 'tests'), { recursive: true })
+    .map((f) => String(f).split('\\').join('/'))
     .filter((f) => f.endsWith('.test.js'))
     .map((f) => `tests/${f}`);
 } catch {

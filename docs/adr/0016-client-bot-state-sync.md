@@ -1,6 +1,6 @@
 # ADR-0016 — Client Bot State Sync: Nameplate Lifecycle + Dead-Bot LOD
 
-Status: **Accepted** (v0.2.626)
+Status: **Accepted** (v0.2.626) — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 Deciders: chiefmonkey
 Date: 2026-08-22
 

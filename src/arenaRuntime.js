@@ -12,7 +12,7 @@
 // Shell-owned concerns (gateway-card worlds/handshake state, the ENTER button,
 // the entry-status line) are injected as `hooks` so this runtime never reaches
 // back into the shell's module scope.
-import { state, isPlaying, isPaused, isLive, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
+import { state, isPlaying, isPaused, isLive, isDead, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
 import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab, setArenaAtmosphere } from './scene.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
@@ -32,15 +32,18 @@ import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerRelo
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { bundledCharacterPair } from './engine/character/characterPair.js';
 import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
-import { bots, initBots, tickBots, hitBot, setBotNetMode, isBotNetMode, ingestBotState, applyBotShot, applyBotHit, applyBotKill, getBotNetDiagnostic } from './bots.js';
-import { getConnectionDiagnostic } from './engine/diagnostics/connectionDiagnostics.js';
-import { initWeapons, spawnBullet, tickWeapons, triggerRecoil, getLastHit, recordPlayerShot, getLastShot, getLastMiss, setLastShotSent, getLastSentShot, setLastSentShot, snapshotBotPositions, clearActiveBullets } from './weapons.js';
+// Game Zone v2 (ADR-0130): the arena combat layer — bots, hit detection, damage,
+// lifecycle, net sync — lives entirely under src/gamezone/. This runtime only
+// creates it, forwards arena shots and pumps it once per frame.
+import { createGameZone } from './gamezone/client/gameZone.js';
+import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/weapons/gunViewmodel.js';
+import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
+import { playBotShoot } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc, setNapNpcName } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
-import { initTargetReticle, tickTargetReticle } from './targetReticle.js';
-import { initHUD, tickHUD, flashCross, flashHit, addKill, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, flashHit, addKill, setReticleState, setBossBar, hideBossBar, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
 import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
@@ -50,7 +53,6 @@ import {
 import { createMultiplayerHost } from './engine/multiplayer/multiplayerHost.js';
 import { WS_STATE } from './engine/multiplayer/wsClient.js';
 import { computeMoveVelocity } from './engine/multiplayer/moveVelocity.js';
-import { shouldSendShot, buildShotPayload, createPeerCombat } from './engine/multiplayer/peerCombat.js';
 import { getStoredToken, clearStoredToken, resolveMpHttpBase } from './engine/multiplayer/sessionAuth.js';
 import { createArenaLeaderboard } from './engine/multiplayer/arenaLeaderboard.js';
 import { readLeaderboardEvents, buildScoreFilter } from './engine/nostr/leaderboardRelayRead.js';
@@ -58,7 +60,6 @@ import { fanoutReq } from './nostr.js';
 import { readEffectiveNodeRelays, ownRelayFromOrigin } from './engine/presence/nodeRelays.js';
 import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP } from './engine/animationLibrary.js';
-import { spawnSpark, spawnRicochet } from './fx.js';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -164,10 +165,9 @@ const MP_PEER_CHARACTERS = Object.freeze({
   },
 });
 
-// Scratch vectors for the relayed-peer-shot VISUAL cue (mp_shot). Reused each
-// event so the inbound bridge stays allocation-free.
-const _mpShotOrigin = new THREE.Vector3();
-const _mpShotDir    = new THREE.Vector3();
+// Reused scratch for the crate nudge (allocation-free hot path).
+const _crateImp = { x: 0, y: 0, z: 0 };
+const _cratePt  = { x: 0, y: 0, z: 0 };
 
 // Linear → sRGB look-up table for the peek preview blit (readRenderTargetPixels
 // returns linear bytes; the 2D canvas treats putImageData as sRGB). Precomputed
@@ -719,10 +719,11 @@ export function createArenaRuntime(hooks = {}) {
     },
   });
   let _muzzleFlashes = null;
+  let _gz = null; // Game Zone v2 (ADR-0130) — null in the minimal world until first arena boot
   const _perfHud = createPerfHud({
     window,
     getMetrics: () => _quality.metrics(),
-    getCounts: () => ({ bots: bots.length, peers: _mp ? _mp.roster.size : 0 }),
+    getCounts: () => ({ bots: _gz ? _gz.count : 0, peers: _mp ? _mp.roster.size : 0 }),
   });
 
   // ADR-0056: live amber "RECORDING" HUD indicator for the ADR-0055 auto-capture
@@ -946,8 +947,6 @@ export function createArenaRuntime(hooks = {}) {
   const FOOT_MIN_SPEED = 1.5;
 
   function update(dt, frame) {
-    // v0.2.112: step AFTER tickPlayer/tickBots set their kinematic targets but
-    // BEFORE tickWeapons raycasts, so the bullet raycast hits THIS frame's poses.
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
     // ADR-0099: 1Hz-throttled refresh of the Kami-mode dev menu. Cheap:
@@ -962,10 +961,9 @@ export function createArenaRuntime(hooks = {}) {
     // is shared (the player still needs Rapier in minimal mode); only
     // tickDynamicCrates is arena-only. Legacy behaviour is UNCHANGED.
     if (!_minimal) {
-      tickBots(dt);
       if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
-      tickWeapons(dt, playerObj.position);
-      tickTargetReticle();
+      if (_gz) _gz.frame(dt, { playing: isPlaying() });
+      tickGunViewmodel(dt);
     } else {
       // Minimal: keep physics stepping so the player body lands on the platform
       // collider; skip the dynamic-crate sync (no crates in the minimal world).
@@ -1461,23 +1459,27 @@ export function createArenaRuntime(hooks = {}) {
     // EV.SHOOT bullet/sticker dispatch). The minimal world has no combat, so skip
     // the whole block — legacy behaviour is UNCHANGED.
     if (!_minimal) {
-      initBots(playerObj, spawnBullet);
-      mark('boot-bots-done');
       _muzzleFlashes = createMuzzleFlashPool(scene, {
         getQualityTier: () => _quality.currentTier(),
       });
-      initWeapons(
-        bots,
-        takeDamage,
+      buildGunViewmodel();
+      _gz = createGameZone({
+        scene, camera, playerObj,
+        castWorld: castRay,
         getPlayerCollider,
-        isBotNetMode,
-        (impactPos) => _muzzleFlashes.trigger('impact', impactPos),
-      );
-      initTargetReticle({ bots, playerObj, getPlayerCollider });
+        nudgeCrate: (crate, d, p) => applyNudge(crate, d.x, d.y, d.z, p.x, p.y, p.z, CRATE_IMPULSE, CRATE_LIFT, _crateImp, _cratePt),
+        flash: (kind, pos) => _muzzleFlashes.trigger(kind, pos),
+        getMp: () => _mp,
+        isKami: () => kamiActive(),
+        hud: { flashCross, flashHit, addKill, setReticleState, setBossBar, hideBossBar },
+        player: { takeDamage, killPlayer, setNextSpawn, isDead },
+        state, emit, EV, playBotShoot,
+        peerAvatar: (id) => { const e = _mp && _mp.roster._peek(id); return e ? e.obj : null; },
+      });
+      mark('boot-gamezone-done');
 
-      // Shoot wire: player emits EV.SHOOT → spawn bullet + recoil + SFX.
-      // Stickers fire ONLY in the NAP zone (stick to NPC/bot/tree surfaces).
-      // Bullets fire ONLY in the arena (combat). They are mutually exclusive.
+      // Shoot wire: player emits EV.SHOOT → recoil + SFX, then EITHER a sticker
+      // (NAP zone) OR a Game Zone shot (arena). They are mutually exclusive.
       on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
         const aim = aimOrigin || origin;
         const ad = aimDir || dir;
@@ -1485,69 +1487,13 @@ export function createArenaRuntime(hooks = {}) {
         playShoot();
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
         if (inNap) {
-          // NAP zone: stickers only, no bullets. The sticker TARGETS along the
-          // aim ray (camera/crosshair) but must visibly leave the GUN muzzle, so
-          // pass the gun `origin` as the spawn origin — otherwise it fires from
-          // the player's face (the camera origin).
+          // NAP zone: stickers only. The sticker TARGETS along the aim ray
+          // (camera/crosshair) but visibly leaves the GUN muzzle.
           fireStickerAtNpc(aim, ad, origin);
           return;
         }
-        // Arena: bullets only, no stickers
-        const b = spawnBullet(origin, dir, true);
         _muzzleFlashes.trigger('muzzle', origin);
-        if (aimOrigin && aimDir) {
-          recordPlayerShot(b, aimOrigin.x, aimOrigin.y, aimOrigin.z, aimDir.x, aimDir.y, aimDir.z);
-        }
-        // F02: recoil + shoot SFX already fired once above for both branches —
-        // do NOT fire them again here or a combat shot plays double.
-        // MP-2 peer combat (outbound): every arena shot reports to the authoritative
-        // server, which ray-resolves it against lag-compensated peer snapshots and
-        // no-ops when it hits no peer. Gate + payload live in the pure peerCombat
-        // module (prefers the AIM ray so server hit-detection matches what the
-        // shooter saw). Bot hits stay a separate client-side path — a shot may both
-        // hit a bot locally AND resolve a peer hit server-side; that is expected.
-        if (_mp && shouldSendShot({ playerX: playerObj.position.x, playerZ: playerObj.position.z, isNapLandFn: isNapLand, selfId: _mp.selfId })) {
-          // v0.2.392 hit-reg: send RAW Date.now() as ts (logging only) PLUS the
-          // client's measured viewLag. The server rewinds in its OWN clock frame
-          // (server_now - viewLag) — the client clock is not synced to the server,
-          // so a client timestamp can never index the server's snapshot rings.
-          // viewLag = render interp delay + network one-way; rewinding by it tests
-          // the collider where the shooter SAW the target, not where it now is.
-          const viewLag = _mp.viewLagMs ? _mp.viewLagMs() : 0;
-          const shot = buildShotPayload({ origin, dir, aimOrigin, aimDir }, Date.now(), viewLag);
-          if (shot) {
-            // ADR-0046 v0.2.667: capture the ACTUAL payload + full muzzle/aim vectors,
-            // independent of _lastShot (which only exists when aimOrigin/aimDir are
-            // present) so this is NEVER stale in the usedAimRay=false failure case.
-            // This is the source of truth for proving camera-vs-muzzle on a miss.
-            const sentDiag = {
-              ts: shot.ts, viewLag,
-              usedAimRay: !!(aimOrigin && aimDir),
-              sentOrigin: shot.origin, sentDir: shot.dir,
-              muzzleOrigin: [origin.x, origin.y, origin.z],
-              muzzleDir: [dir.x, dir.y, dir.z],
-              aimOrigin: aimOrigin ? [aimOrigin.x, aimOrigin.y, aimOrigin.z] : null,
-              aimDir: aimDir ? [aimDir.x, aimDir.y, aimDir.z] : null,
-              // ADR-0047 v0.2.668: the client's RENDERED bot positions at shot
-              // time, so a miss ema can be diffed against the server SHOT-RESOLVE
-              // cur=/rew= to expose the client/server bot-position desync.
-              bots: snapshotBotPositions(bots),
-              // ADR-0048 v0.2.669: ingest-rate + per-bot sample-age diagnostic,
-              // so a miss ema proves whether the client is RECEIVING BOT_STATE
-              // (lastIngestAge ~66ms) or the stream stalled (>>1s) — the cause of
-              // the ~12m desync.
-              botNet: getBotNetDiagnostic(),
-              // ADR-0049 v0.2.671: WebSocket lifecycle + main-thread heartbeat,
-              // so a miss ema splits the BOT_STATE stall into "socket dropped"
-              // (ws.lastCloseAge small) vs "main thread froze" (heartbeat.maxGap
-              // large) — the WHY behind ADR-0048's stream stall.
-              conn: getConnectionDiagnostic(),
-            };
-            setLastSentShot(sentDiag);
-            setLastShotSent(sentDiag);
-            _mp.sendShot(shot);
-          }
-        }
+        _gz.fire({ origin, dir, aimOrigin, aimDir });
       });
       on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
     } else {
@@ -1558,16 +1504,6 @@ export function createArenaRuntime(hooks = {}) {
       });
     }
 
-    on(EV.BOT_HIT_BY_PLAYER, ({ bot, dmg }) => {
-      hitBot(bot, dmg);
-      if (bot && bot.pos) _muzzleFlashes.trigger('botHit', bot.pos);
-      flashCross();
-      // ADR-0041: visible hit feedback. flashHit scales dmg/50, so feed a
-      // clearly-visible value — body shots at ~0.55 opacity, headshots at 0.8 —
-      // so the owner sees every confirmed hit instead of a 0.12s crosshair blip.
-      flashHit(dmg >= 9 ? 50 : 25);
-    });
-    window._onBotHit = (bot, dmg) => emit(EV.BOT_HIT_BY_PLAYER, { bot, dmg });
 
     on(EV.PLAYER_HIT,    () => triggerHit());
     on(EV.PLAYER_KILLED, () => {
@@ -1575,16 +1511,15 @@ export function createArenaRuntime(hooks = {}) {
       // Respawn as far from the live bots as possible — decision logic owned by the
       // pure pickRespawnCorner in the player entity boundary (behaviour-identical to
       // the former inline corner scan).
-      const best = pickRespawnCorner(bots.filter(b => b.alive).map(b => b.pos));
+      const best = pickRespawnCorner(_gz ? _gz.alivePositions() : []);
       setNextSpawn(best.x, best.z, best.yaw);
     });
     on(EV.HUD_UPDATE,    () => { if (isReloading()) triggerReload(); });
 
     installToriiDebug({
-      version: VERSION, bots, hitBot, playerObj, resetPlayerPos,
-      camera, setPitch,
-      castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-      getLastShot, getLastMiss, getLastSentShot,
+      version: VERSION, getGameZone: () => _gz, playerObj, resetPlayerPos, setNextSpawn,
+      camera, setPitch, setYaw,
+      castRay, castRayStatic, hasLineOfSight, getWorld,
       getGrassMat, getFlowerMat, getMirror,
       getPhase: () => state.phase,
       getState: () => ({
@@ -1889,43 +1824,12 @@ export function createArenaRuntime(hooks = {}) {
       // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed.
       // Handler warps the local body to the server-picked corner and heals to
       // PLAYER_HP. Non-respawn events are silently ignored — kept as one seam.
-      // MP-2 peer combat (v0.2.374-alpha) — pure dispatcher for the relayed/
-      // broadcast SHOT/HIT/KILL events. Peer SHOT is visual-only; HIT/KILL are
-      // server-authoritative. The visual cue (muzzle burst + short tracer) keeps
-      // three in this seam via spawnPeerShotFx.
-      const _peerCombat = createPeerCombat({
-        getSelfId: () => _mp && _mp.selfId,
-        takeDamage,
-        killPlayer,
-        flashCross,
-        addKill,
-        state,
-        onHudUpdate: () => emit(EV.HUD_UPDATE),
-        spawnPeerShotFx: (origin, dir) => {
-          _mpShotOrigin.set(origin[0], origin[1], origin[2]);
-          _mpShotDir.set(dir[0], dir[1], dir[2]);
-          _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
-          if (_mpShotDir.lengthSq() > 1e-8) _mpShotDir.normalize();
-          spawnSpark(_mpShotOrigin, _mpShotDir);
-          spawnRicochet(_mpShotOrigin, _mpShotDir);
-        },
-      });
+      // Game Zone v2 (ADR-0130): combat arrives as GZ_SNAP (complete bot roster)
+      // and GZ_EVENT (shots/hits/kills/results) and is handed straight to the
+      // game zone. The legacy SHOT/HIT/KILL + BOT_* bridges are gone.
       const _mpEmit = (name, payload) => {
-        // Trigger remote avatar animations for combat events.
-        if (_mp && payload) {
-          const p0 = payload;
-          if (name === 'mp_shot' && p0.id && p0.id !== _mp.selfId) {
-            const entry = _mp.roster._peek(p0.id);
-            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('shoot');
-          } else if (name === 'mp_hit' && p0.targetId && p0.targetId !== _mp.selfId) {
-            const entry = _mp.roster._peek(p0.targetId);
-            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('hit');
-          } else if (name === 'mp_kill' && p0.victimId && p0.victimId !== _mp.selfId) {
-            const entry = _mp.roster._peek(p0.victimId);
-            if (entry && entry.obj && entry.obj.triggerAnim) entry.obj.triggerAnim('death');
-          }
-        }
-        if (_peerCombat(name, payload)) return;
+        if (name === 'mp_gzSnap') { if (_gz) _gz.ingestSnapshot(payload); return; }
+        if (name === 'mp_gzEvent') { if (_gz) _gz.ingestEvents(payload); return; }
         const p = payload || {};
         // Single-instance (v0.2.846-alpha): our npub authenticated from another
         // machine, so the server superseded this session. Tell the player why and
@@ -1937,12 +1841,10 @@ export function createArenaRuntime(hooks = {}) {
           return;
         }
 
-        // Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots. In MP
-        // the client is RENDER-ONLY — flip bots.js into net mode on connect (stop
-        // the local AI + ignore local damage) and drive it from the BOT_* stream.
+        // Connection lifecycle. The game zone picks its authority each frame from
+        // _mp.state (VPS sim once GZ_SNAP flows, the local sim otherwise).
         if (name === 'mp_state') {
           if (p.state === WS_STATE.CONNECTED) {
-            setBotNetMode(true);
             // ADR-0032: a fresh/reconnected server session has no memory of a
             // Kami Mode that was already active client-side (e.g. brief drop
             // + reconnect mid-session) — resync so bots/peers don't suddenly
@@ -1956,51 +1858,13 @@ export function createArenaRuntime(hooks = {}) {
               try { _prewarmPeerTemplates(); } catch (e) { console.warn('[mp] prewarm deferred failed:', e); }
             }));
           }
-          else if (p.state === WS_STATE.CLOSED) setBotNetMode(false);
           return;
         }
-        if (name === 'mp_stopped' || name === 'mp_disabled') { setBotNetMode(false); return; }
+        if (name === 'mp_stopped' || name === 'mp_disabled') return;
         // v0.2.380-alpha: server-authoritative live leaderboard tallies. Feed the
         // SCORE frame straight into the overlay; it re-renders only when open on
         // the LOCAL tab. Read-only — no signer, no prompts.
         if (name === 'mp_score') { _arenaLb.setLiveScore(p); emit(EV.SCORE_FRAME, p); return; }
-        if (name === 'mp_botState') { ingestBotState(p.bots); return; }
-        if (name === 'mp_botShot') {
-          if (Array.isArray(p.origin)) {
-            _mpShotOrigin.set(p.origin[0], p.origin[1], p.origin[2]);
-            _muzzleFlashes.trigger('muzzle', _mpShotOrigin);
-          }
-          applyBotShot(p.origin, p.dir);
-          return;
-        }
-        if (name === 'mp_botHit') {
-          // ADR-0017: pass zone through so [SHOT] diagnostics show head/body
-          // instead of 'unknown'. Zone is server-authoritative.
-          applyBotHit(p.botId, p.hp, p.zone);
-          if (_mp && p.shooterId === _mp.selfId) {
-            for (let i = 0; i < bots.length; i++) {
-              if (bots[i].state?.id === p.botId) {
-                _muzzleFlashes.trigger('botHit', bots[i].pos);
-                break;
-              }
-            }
-            flashCross();
-          }
-          return;
-        }
-        if (name === 'mp_botKill') {
-          applyBotKill(p.botId);
-          // Score a bot frag only when WE landed the killing shot — mirror the
-          // single-player kill side-effects (kills/sats/HUD) the sim doesn't own.
-          if (_mp && p.shooterId === _mp.selfId) {
-            state.kills++;
-            state.sats += 5;
-            emit(EV.BOT_KILLED, { sats: 5 });
-            emit(EV.HUD_UPDATE);
-          }
-          return;
-        }
-
         // MP-2 (v0.2.366-alpha): server issues RESPAWN when this client is killed —
         // warp the local body to the server-picked corner and heal to PLAYER_HP.
         if (name !== 'mp_respawn') return;
@@ -2518,7 +2382,7 @@ export function createArenaRuntime(hooks = {}) {
     // P2 glitch sweep (v0.2.869): also retract in-flight projectiles/tracers,
     // which belong to the OLD world's colliders + trajectories — leaving them is
     // the frozen-bullet/tracer glitch (a half-disposed combat subsystem).
-    try { clearActiveBullets(); } catch { /* noop */ }
+    try { if (_gz) _gz.clear(); } catch { /* noop */ }
     // v0.2.881: tear down the LEGACY home's scene objects when the swap is leaving
     // a legacy arena (buildArena never registered a _worldRt, so the teardown above
     // would no-op and leave the crazy-quilt of leftover meshes). Idempotent — a

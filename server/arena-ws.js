@@ -46,20 +46,8 @@ import { buildWorldZones } from './world/worldPublish.js';
 import { resolveLegacyWorldConfigPaths } from './world/worldConfigPath.js';
 import { DEFAULT_NODE_RELAYS, prependOwnRelay, ownRelayFromOrigin } from '../src/engine/presence/nodeRelays.js';
 import { createSpectatorRegistry, canSpectatorSend } from '../src/engine/multiplayer/spectatorGate.js';
-import { createSnapshotRing, push as pushSnap } from './combat/snapshotRing.js';
-import { resolveShot, DEFAULT_LAG_COMP_MS } from './combat/hitResolver.js';
-import { damageFor } from './combat/damageTable.js';
-import {
-  createHpLedger, register as hpRegister, unregister as hpUnregister,
-  applyDamage, respawn, HP_MAX,
-} from './combat/hpLedger.js';
 import { createScoreLedger, newSessionId as newScoreSessionId } from './combat/scoreLedger.js';
-import { createArenaBotSim } from './bots/arenaBotSim.js';
-import { buildBotTickRoster, shouldBroadcastBotState } from './bots/botStateGate.js';
-import { buildColliders } from './combat/capsuleModel.js';
-import { rayVsPeer } from './combat/rayVsCapsule.js';
-import { pointInCoastline } from '../src/terrain/coastline.js';
-import { BOT_COUNT, BOT_DAMAGE } from '../src/config.js';
+import { createGameZoneServer } from './gamezone/gameZoneServer.js';
 import { promises as fsPromises, readFileSync } from 'fs';
 import { join as pathJoin } from 'path';
 import { createKamiStore, SCREENSHOT_KEEP_DEFAULT } from './kami/kamiStore.js';
@@ -109,7 +97,7 @@ const headlessGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_HEADLESS,
 const generationGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_GENERATIONS, maxPerKey: MAX_GENERATIONS_PER_PUBKEY });
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.894-alpha';
+const SERVER_VERSION = 'v0.2.895-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
@@ -131,27 +119,15 @@ const autoStore = createAutoCapStore({ dir: KAMI_DIR, fs: fsPromises, keep: AUTO
 
 globalThis.WebSocket ??= WebSocket;
 
-// MP-2 tunables.
-//   MP_MODE is FORCED to 'authoritative'. advisory mode was retired in v0.2.374+
-//   (the client no longer sends client-side HIT), so in advisory the server relays
-//   SHOT visuals but never resolves hits — making player→peer AND player→bot damage
-//   impossible. v0.2.378 hard-codes authoritative so a stale VPS .env cannot break
-//   combat; a leftover MP_MODE=advisory is warned about below and ignored.
-const MP_MODE_ENV = (process.env.MP_MODE || 'authoritative').toLowerCase();
-const MP_MODE     = 'authoritative';
-const LAG_COMP_MS = Number(process.env.LAG_COMP_MS || DEFAULT_LAG_COMP_MS);
-const HP_MAX_ENV  = Number(process.env.HP_MAX || HP_MAX);
-const RESPAWN_MS  = Number(process.env.RESPAWN_MS || 3000);
+// Game Zone v2 (ADR-0130): every arena combat outcome is decided by the shared
+// simulation in src/gamezone/core/sim.js, hosted by server/gamezone/gameZoneServer.js.
+//   GAMEZONE_ENABLED — master switch (default on). BOT_COUNT_OVERRIDE /
+//   BOSS_COUNT_OVERRIDE / TEST_MODE (ADR-0018) still shape the roster.
+// Retired knobs (ignored if still set): MP_MODE, LAG_COMP_MS, HP_MAX, RESPAWN_MS,
+// BOT_TICK_MS, BOT_STATE_MS. BOT_SIM_ENABLED is still honoured as an alias of GAMEZONE_ENABLED.
+const GAMEZONE_ENABLED = String(process.env.GAMEZONE_ENABLED || process.env.BOT_SIM_ENABLED || 'true').toLowerCase() !== 'false';
 
-// Bot milestone chunk 2 (v0.2.894-alpha): server-authoritative bots.
-//   BOT_SIM_ENABLED — master switch (default on).
-//   BOT_TICK_MS     — fixed AI tick period (~20Hz).
-//   BOT_STATE_MS    — throttled BOT_STATE broadcast period (~15Hz).
-const BOT_SIM_ENABLED = String(process.env.BOT_SIM_ENABLED || 'true').toLowerCase() !== 'false';
-const BOT_TICK_MS     = Number(process.env.BOT_TICK_MS || 50);
-const BOT_STATE_MS    = Number(process.env.BOT_STATE_MS || 66);
-
-// v0.2.894-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// v0.2.895-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
 // `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
 // unparseable) the admin gate denies everything and capability.selfUpdate is false.
 // arena-ws only ever WRITES an atomic request file — the root systemd runner (built
@@ -160,7 +136,7 @@ const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || ''
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
-// ADR-0094 (v0.2.894-alpha): server-side always-on presence beacon. The server
+// ADR-0094 (v0.2.895-alpha): server-side always-on presence beacon. The server
 // holds an instance-bound key (never the admin's nsec) and, while enabled,
 // republishes the world-presence event on a 10-min cadence so the world stays
 // listed on the gateway with no browser open. Relays default to the same curated
@@ -197,7 +173,7 @@ function _resolveLegacyWorldConfig() {
   return null;
 }
 
-// ADR-0032 (v0.2.894-alpha): server-side truth for "is this session the owner,
+// ADR-0032 (v0.2.895-alpha): server-side truth for "is this session the owner,
 // currently in Kami Mode". The client's KAMI_STATE message only ever SETS
 // sess.kamiActive; whether it's honoured is decided here by re-checking the
 // session's own authenticated pubkey (set once at AUTH, not client-suppliable
@@ -224,7 +200,7 @@ const RATE = Object.freeze({
 // several heartbeats without the peer ever vanishing from the other screen.
 // A genuinely dead socket is still reaped here; the wider window only costs a
 // little extra lingering for a hard-dropped connection.
-// v0.2.894-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
+// v0.2.895-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
 // carve-out in handleMessage) before a session is swept. A real player leaving
 // the world is disconnected immediately by the client (leaveToTitle → stop), so
 // this is a backstop for crashed/hung tabs, not the primary exit path.
@@ -267,12 +243,6 @@ const spectators = createSpectatorRegistry({ maxBuffered: MAX_BUFFERED_BYTES });
 // Per-session snapshot ring for MP-2 lag-compensated hit resolution.
 // Kept OUT of the Session struct so the MP-1 shape stays untouched and
 // snapshot writes remain a single point of concern.
-/** @type {Map<string, ReturnType<typeof createSnapshotRing>>} */
-const snapshotRings = new Map();
-
-// Server-authoritative HP ledger.
-const hpLedger = createHpLedger(HP_MAX_ENV);
-
 // MP-3: authoritative per-peer kill/death/damage ledger for the current
 // arena instance. Client-signed leaderboard events derive from snapshots
 // of this state at match-end / peer-disconnect.
@@ -282,22 +252,22 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
-// v0.2.894-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// v0.2.895-alpha: live in-arena leaderboard. In addition to the on-close SCORE
 // emit, broadcast the running tally on every kill and on this periodic tick so
 // clients see real-time standings. Additive on PROTOCOL_VERSION=1.
 const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
-// Session-token authority (v0.2.894-alpha). Login signs a NIP-98 event ONCE
+// Session-token authority (v0.2.895-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
 
-// Signed travel-token authority (v0.2.894-alpha). A traveller signs ONE NIP-98
+// Signed travel-token authority (v0.2.895-alpha). A traveller signs ONE NIP-98
 // "travel" event in their ORIGIN world; /mp/travel verifies + consumes it (single-use)
 // and issues a session token — no NIP-07 re-sign in this world.
 const travelTokens = createTravelTokens();
 
-// v0.2.894-alpha (UPD-2): admin-update request authority. Writes atomic request
+// v0.2.895-alpha (UPD-2): admin-update request authority. Writes atomic request
 // files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
 const adminUpdate = createAdminUpdate({
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
@@ -306,7 +276,7 @@ const adminUpdate = createAdminUpdate({
   installedVersion: SERVER_VERSION,
 });
 
-// ADR-0094 (v0.2.894-alpha): server-side always-on presence beacon authority.
+// ADR-0094 (v0.2.895-alpha): server-side always-on presence beacon authority.
 // Holds an instance-bound key + enabled flag, persisted to disk so a restart
 // resumes the pulse with no admin re-login.
 const fipsPresence = createFipsPresence(loadPeerConfig(process.env.QUEST_FIPS_PEERS_PATH));
@@ -332,25 +302,6 @@ const beacon = createBeacon({
   blossomServer: BEACON_BLOSSOM_SERVER,
 });
 
-// Pending RESPAWN timers keyed by sid. Only ever holds one timer per session;
-// on reconnect / LEFT we clear pending timers to avoid warping ghosts.
-/** @type {Map<string, ReturnType<typeof setTimeout>>} */
-const respawnTimers = new Map();
-
-// Bot milestone chunk 2: the server-authoritative bot brain. onBotShot fires
-// synchronously from inside the sim's tick when a bot pulls the trigger — we
-// broadcast the tracer to all clients AND resolve the shot against players.
-const arenaBotSim = createArenaBotSim({
-  onBotShot: (origin, dir, dmg) => onBotShot(origin, dir, dmg),
-});
-// ADR-0018 (v0.2.894-alpha): let arenaBotSim.spawn() use its env-driven default
-// (BOT_COUNT_OVERRIDE / BOSS_COUNT_OVERRIDE). Passing BOT_COUNT here would defeat
-// the override.
-if (BOT_SIM_ENABLED) arenaBotSim.spawn();
-// Synthetic shooter id carried on bot→player HIT/KILL so the existing client
-// peerCombat handler applies damage exactly as it does for a peer shot.
-const BOT_SHOOTER_ID = 'bot';
-
 // ---------- logging ----------
 
 const log = {
@@ -359,11 +310,19 @@ const log = {
   error: (...a) => console.error('[arena-ws]', ...a),
 };
 
-// v0.2.378 fix 1: warn (once, at boot) if a retired MP_MODE=advisory is still set
-// in the environment — it is ignored; authoritative is the only supported mode.
-if (MP_MODE_ENV === 'advisory') {
-  log.warn('MP_MODE=advisory is retired (client dropped client-side HIT in v0.2.374); ignoring and forcing authoritative');
-}
+// Game Zone v2 authority. Created after `log` so it can report roster overrides;
+// its 20 Hz loop is started at server bring-up below.
+const gameZone = GAMEZONE_ENABLED ? createGameZoneServer({
+  sessions,
+  isKamiActive,
+  sendTo: (sess, msg) => sendTo(sess, msg),
+  broadcastToOthers: (fromId, msg) => broadcastToOthers(fromId, msg),
+  sendToSpectators: (wire) => spectators.send(wire),
+  spectatorCount: () => spectators.size(),
+  encode,
+  score: { enabled: SCORE_ENABLED, ledger: scoreLedger, broadcast: () => broadcastScoreFrame() },
+  log,
+}) : null;
 
 // ---------- helpers ----------
 
@@ -438,17 +397,10 @@ function closeSession(sess, reason) {
   try { sess.ws.close(1000, reason); } catch { /* noop */ }
   if (sessions.has(sess.id)) {
     sessions.delete(sess.id);
-    snapshotRings.delete(sess.id);
-    // F12: the SHOT-pipeline diagnostic rate-limit is keyed by shooter id — drop
-    // its entry with the session so a long-lived arena instance does not retain
-    // a timestamp per departed shooter (unbounded growth over many identities).
-    _shotLogAt.delete(sess.id);
-    hpUnregister(hpLedger, sess.id);
-    // v0.2.894-alpha: RETIRE (not drop) so a disconnected player stays on the
+    if (gameZone) gameZone.onLeave(sess);
+    // v0.2.895-alpha: RETIRE (not drop) so a disconnected player stays on the
     // LOCAL leaderboard for this arena instance until the server restarts.
     if (SCORE_ENABLED) scoreLedger.retire(sess.id);
-    const timer = respawnTimers.get(sess.id);
-    if (timer) { clearTimeout(timer); respawnTimers.delete(sess.id); }
     if (sess.authed) {
       broadcastToOthers(sess.id, { t: MSG.LEFT, id: sess.id, reason });
       // MP-3: broadcast the post-drop snapshot to remaining peers so their
@@ -487,7 +439,7 @@ function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  // Single-instance (v0.2.894-alpha): one npub = ONE live session per world, so a
+  // Single-instance (v0.2.895-alpha): one npub = ONE live session per world, so a
   // second-machine login with the same pubkey SUPERSEDES the older session (send it
   // REPLACED + close it → its LEFT removes the duplicate avatar for every peer). This
   // enforces "there can only be one of you" and prevents the reconnect ping-pong.
@@ -502,14 +454,11 @@ function finishAuth(sess, { npub, pubkey, character }) {
       }
     }
   }
-  // v0.2.894-alpha: accept a client-sent character key (validated against the
-  // known set) OR a 64-hex Character Forge mesh hash. v0.2.894-alpha: an absent/
+  // v0.2.895-alpha: accept a client-sent character key (validated against the
+  // known set) OR a 64-hex Character Forge mesh hash. v0.2.895-alpha: an absent/
   // invalid key now downgrades to `guest` (never `chiefmonkey`) so a bad client
   // can't surface as the owner's identity. Whitelist in server/auth/characterKeys.js.
   sess.character = isValidCharacterKey(character) ? character : 'guest';
-  // MP-2: bootstrap ledger + ring at auth time.
-  hpRegister(hpLedger, sess.id);
-  snapshotRings.set(sess.id, createSnapshotRing());
   // MP-3: register in score ledger keyed by pubkey (hex).
   if (SCORE_ENABLED && typeof sess.pubkey === 'string' && /^[0-9a-f]{64}$/.test(sess.pubkey)) {
     try { scoreLedger.register(sess.id, sess.pubkey); }
@@ -530,12 +479,9 @@ function finishAuth(sess, { npub, pubkey, character }) {
     t: MSG.JOIN, id: sess.id, npub: sess.npub,
     pos: sess.pos, rot: sess.rot, character: sess.character,
   });
-  // Bot milestone chunk 2: send the FULL bot roster snapshot immediately on
-  // (re)auth so a late-joining / reconnecting client never briefly renders
-  // stale/default bots before the first throttled BOT_STATE arrives.
-  if (BOT_SIM_ENABLED) {
-    sendTo(sess, { t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
-  }
+  // Game Zone v2: seat the player in the authority and send the full roster at
+  // once so a late joiner never renders a stale or partial bot set.
+  if (gameZone) gameZone.onAuth(sess);
   log.info('AUTH OK', sess.id, String(sess.npub).slice(0, 12) + '…');
 }
 
@@ -552,7 +498,7 @@ async function handleMessage(sess, raw) {
   }
   const msg = sanitize(parsed.msg);
 
-  // v0.2.894-alpha (Bug C): only gameplay messages count as "activity" for the
+  // v0.2.895-alpha (Bug C): only gameplay messages count as "activity" for the
   // idle sweep. Keepalive PING/PONG are transport noise — the client pings every
   // 15s, so counting them kept a parked/backgrounded session alive forever and
   // it rendered as a static phantom peer. Now a session that sends nothing but
@@ -570,7 +516,7 @@ async function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
-    // v0.2.894-alpha: bearer-token auth (login signed once via NIP-98). No
+    // v0.2.895-alpha: bearer-token auth (login signed once via NIP-98). No
     // NIP-07 signature needed on arena entry / reconnect.
     // SPECTATE (ADR-0118 D4): subscribe read-only, no identity. Detach from the
     // seated roster into the spectator registry — receive the world-state broadcast,
@@ -614,45 +560,15 @@ async function handleMessage(sess, raw) {
       // controlled instance mutation — access is established at AUTH. It must not
       // be gated by owner write authority, or non-owner peers freeze at spawn.
       sess.pos = msg.pos; sess.rot = msg.rot;
-      // MP-2: record every accepted MOVE for lag-compensated hit resolution.
-      const ring = snapshotRings.get(sess.id);
-      if (ring) {
-        pushSnap(ring, {
-          ts: sess.lastActivity,
-          pos: msg.pos, rot: msg.rot,
-          vel: Array.isArray(msg.vel) ? msg.vel : [0, 0, 0],
-        });
-      }
+      if (gameZone) gameZone.onMove(sess);
       broadcastToOthers(sess.id, { ...msg, id: sess.id, srv: Date.now() });
       return;
     }
-    case MSG.SHOT: {
+    // Game Zone v2: the only combat input. Legacy SHOT/HIT/KILL from stale clients
+    // fall through to `default` and are ignored.
+    case MSG.GZ_FIRE: {
       if (!checkRate(sess, 'SHOT', RATE.SHOT)) return;
-      // Combat (SHOT) is a per-frame peer action, not an owner mutation — see MOVE.
-      broadcastToOthers(sess.id, { ...msg, id: sess.id });
-      // MP-2: after relaying the muzzle/tracer cue, resolve the hit ourselves.
-      // v0.2.378 fix 1: unconditional — advisory is retired, so every SHOT is
-      // resolved authoritatively (player→peer AND player→bot).
-      resolveAndBroadcast(sess, msg);
-      return;
-    }
-    case MSG.HIT: {
-      if (!checkRate(sess, 'HIT', RATE.HIT)) return;
-      if (MP_MODE === 'advisory') {
-        // MP-1 LEGACY: relay untouched. Only reachable with MP_MODE=advisory.
-        broadcastToOthers(sess.id, { ...msg, id: sess.id });
-        return;
-      }
-      // MP-2 AUTHORITATIVE: client HIT is IGNORED. The server-issued HIT is
-      // the only one clients ever apply damage from. Drop silently to avoid
-      // wasting a warning per bugged/legacy client.
-      return;
-    }
-    case MSG.KILL: {
-      if (MP_MODE === 'advisory') {
-        broadcastToOthers(sess.id, msg);
-      }
-      // MP-2: server emits KILL; client-sent KILL is dropped.
+      if (gameZone) gameZone.onFire(sess, msg);
       return;
     }
     case MSG.CHAT: {
@@ -675,182 +591,11 @@ async function handleMessage(sess, raw) {
       // no effect anywhere.
       sess.kamiActive = !!msg.active;
       log.info('KAMI_STATE', sess.id, 'active=' + sess.kamiActive, 'honoured=' + isKamiActive(sess));
+      if (gameZone) gameZone.onKami(sess);
       return;
     }
     // Ignore anything a client shouldn't be sending.
     default: return;
-  }
-}
-
-// ---------- MP-2 authoritative hit resolution ----------
-
-// Rate-limited (≤1/sec per shooter) SHOT-pipeline diagnostic. Tagged
-// [SHOT-RESOLVE] so a stuck combat loop is greppable in the server log.
-const _shotLogAt = new Map();
-function _logShotResolve(shooterId, shotMsg, peerCount, result, botResult, decision, srvNow, rewindTs) {
-  const now = Date.now();
-  // v0.2.392: force a log line for EVERY resolved hit/miss-with-nearby-bot so a
-  // live capture is not starved when shots come faster than 1/sec; otherwise
-  // keep the ≤1/sec floor to bound noise on rapid-fire misses.
-  const throttled = now - (_shotLogAt.get(shooterId) || 0) < 1000;
-  if (throttled && !result && !botResult) return;
-  _shotLogAt.set(shooterId, now);
-  const peer = result ? `${result.targetId}@t=${result.t.toFixed(2)}` : 'miss';
-  const bot  = botResult
-    ? `${botResult.botId}@t=${botResult.t.toFixed(2)}@${botResult.zone || '?'}`
-    : 'null';
-  // v0.2.382 combat hotfix diagnostic: the reported miss (player→bot shots not
-  // registering) could not be reproduced headlessly — server geometry HITS. This
-  // compact Y-frame line lets us confirm the vertical alignment on a LIVE server:
-  // origin.y is the shooter's camera/eye Y; botFootY is the nearest bot's collider
-  // base (sampleArenaHeight); dy is the delta. A large |dy| that isn't ~EYE(1.7)
-  // above the bot foot would explain rays passing over/under the bot capsule.
-  const oy = (BOT_SIM_ENABLED && shotMsg.origin) ? shotMsg.origin[1] : null;
-  const diag = BOT_SIM_ENABLED ? arenaBotSim.nearestBotDiag(shotMsg.origin) : null;
-  let yinfo = '';
-  if (diag && oy != null) {
-    const dy = oy - diag.footY;
-    yinfo = ` originY=${oy.toFixed(2)} nearBot=${diag.botId} botFootY=${diag.footY.toFixed(2)} dy=${dy.toFixed(2)}`;
-  }
-  // v0.2.894-alpha: surface the SERVER-time rewind inputs — the client-reported
-  // viewLag, the server-computed rewindTs, the shot age (server_now-rewindTs),
-  // and whether rewindTs fell outside the [now-LAG_COMP_MS, now] window (clamp).
-  // These are what the fix actually depends on; a live capture confirms the
-  // rewind lands inside history and matches where the shooter saw the target.
-  let rw = '';
-  if (Number.isFinite(srvNow) && Number.isFinite(rewindTs)) {
-    const vl = Number.isFinite(shotMsg.viewLag) ? Math.round(shotMsg.viewLag) : 'none';
-    const clamped = rewindTs < srvNow - LAG_COMP_MS || rewindTs > srvNow;
-    rw = ` viewLag=${vl} rewindAge=${srvNow - rewindTs} rwClamp=${clamped} clientTs=${shotMsg.ts}`;
-  }
-  // v0.2.894-alpha: for the nearest bot, log its CURRENT vs REWOUND XZ position —
-  // the crux of the fix. If dxz is large the bot moved between render and now, and
-  // the rewind is what makes the ray land on where the player actually aimed.
-  let bd = '';
-  if (BOT_SIM_ENABLED && shotMsg.origin && Number.isFinite(rewindTs) &&
-      typeof arenaBotSim.rewoundNearestDiag === 'function') {
-    const rd = arenaBotSim.rewoundNearestDiag(shotMsg.origin, rewindTs, srvNow, LAG_COMP_MS);
-    if (rd) {
-      bd = ` bot=${rd.botId} cur=(${rd.cur.x.toFixed(2)},${rd.cur.z.toFixed(2)})` +
-           ` rew=(${rd.rew.x.toFixed(2)},${rd.rew.z.toFixed(2)}) dxz=${rd.dxz.toFixed(2)}`;
-    }
-  }
-  // ADR-0023: on a MISS, log how far off the ray was. `decision=miss` alone
-  // cannot separate a 4cm graze (lag-comp / aim precision) from a metre-wide
-  // shot (framing or occlusion), and those need different fixes. headGap and
-  // bodyGap are distance-minus-radius, so >0 is the miss margin in metres;
-  // headVert/headHorz split the head miss so "over the hat" is distinguishable
-  // from "beside the head". rng is the range to closest approach.
-  let mg = '';
-  if (!botResult && BOT_SIM_ENABLED && shotMsg.origin && shotMsg.dir &&
-      Number.isFinite(rewindTs) && typeof arenaBotSim.missGeomDiag === 'function') {
-    const g = arenaBotSim.missGeomDiag(shotMsg.origin, shotMsg.dir, rewindTs, srvNow, LAG_COMP_MS);
-    if (g) {
-      mg = ` missBot=${g.botId} headGap=${g.headGap.toFixed(3)}` +
-           ` headVert=${g.headVert.toFixed(3)} headHorz=${g.headHorz.toFixed(3)}` +
-           ` bodyGap=${g.bodyGap.toFixed(3)} rng=${g.rng.toFixed(2)}`;
-    }
-  }
-  // ADR-0046 v0.2.667: rounded origin/dir vectors alongside the existing
-  // clientTs, so the ema's lastSentShot.sentOrigin/sentDir can be matched
-  // numerically against exactly what the server received for this shot.
-  const ov = shotMsg.origin
-    ? ` o=(${shotMsg.origin[0].toFixed(2)},${shotMsg.origin[1].toFixed(2)},${shotMsg.origin[2].toFixed(2)})`
-    : '';
-  const dv = shotMsg.dir
-    ? ` d=(${shotMsg.dir[0].toFixed(2)},${shotMsg.dir[1].toFixed(2)},${shotMsg.dir[2].toFixed(2)})`
-    : '';
-  log.info(`[SHOT-RESOLVE] shooter=${shooterId} origin=${!!shotMsg.origin} dir=${!!shotMsg.dir}${ov}${dv}` +
-    ` peers=${peerCount} peerHit=${peer} botHit=${bot} decision=${decision}${yinfo}${rw}${bd}${mg}`);
-}
-
-function resolveAndBroadcast(shooter, shotMsg) {
-  const peerRings = [];
-  for (const [id, ring] of snapshotRings) {
-    if (id === shooter.id) continue;
-    const other = sessions.get(id);
-    if (!other || !other.authed) continue;
-    peerRings.push({ id, ring });
-  }
-  const now = Date.now();
-  // v0.2.392 hit-reg ROOT-CAUSE FIX: the rewind time is computed in the SERVER
-  // clock frame. The client reports `viewLag` (render-interp delay + network
-  // one-way, ms); server_now − viewLag is the server-time instant the shooter
-  // visually saw the target, which lines up with the snapshot rings (stamped in
-  // server time). The client's Date.now() is NOT clock-synced to the server, so
-  // shotMsg.ts must never drive the rewind. one-way is counted exactly once (it
-  // is already inside viewLag) — do NOT subtract it again here. Legacy clients
-  // that omit viewLag fall back to the old client-ts path. viewLag is clamped to
-  // the lag-comp window so a bad client cannot rewind outside history.
-  const rewindTs = Number.isFinite(shotMsg.viewLag)
-    ? now - Math.max(0, Math.min(shotMsg.viewLag, LAG_COMP_MS))
-    : shotMsg.ts;
-  const result = resolveShot({
-    shooterId: shooter.id,
-    shot: { origin: shotMsg.origin, dir: shotMsg.dir, ts: rewindTs },
-    peerRings,
-    now,
-    lagCompMs: LAG_COMP_MS,
-  });
-
-  // Bot milestone chunk 2: also resolve against server-authoritative bots and
-  // pick the NEAREST hit across peers AND bots — one bullet = one hit (no
-  // piercing). A bot hit that is nearer than any peer hit wins, and vice versa.
-  // v0.2.894-alpha: bots rewind to the SAME server-time rewindTs the peer
-  // resolver uses, so moving bots stop eating shots.
-  const botResult = BOT_SIM_ENABLED
-    ? arenaBotSim.resolvePlayerShot(shotMsg.origin, shotMsg.dir, rewindTs, now, LAG_COMP_MS)
-    : null;
-  const botNearer = botResult && (!result || botResult.t < result.t);
-
-  // v0.2.378 fix 4: low-noise diagnostic (≤1/sec per shooter). v0.2.392: also
-  // logs the server-time rewind inputs so a live capture can confirm the fix.
-  _logShotResolve(shooter.id, shotMsg, peerRings.length, result, botResult,
-    botNearer ? 'bot-hit' : (result ? 'peer-hit' : 'miss'), now, rewindTs);
-
-  if (botNearer) {
-    resolvePlayerBotHit(shooter, botResult);
-    return;
-  }
-  if (!result) return;
-
-  const dmg = damageFor(result.zone);
-  if (dmg <= 0) return;
-
-  // ADR-0032 backstop: a peer's shot resolved as hitting a kami-active admin.
-  // The bot roster exclusion doesn't cover peer-vs-peer fire, so this is the
-  // only guard on that path — drop the shot with no damage applied and no
-  // HIT/KILL broadcast, exactly as if it had missed.
-  const targetSess = sessions.get(result.targetId);
-  if (isKamiActive(targetSess)) return;
-
-  const outcome = applyDamage(hpLedger, result.targetId, dmg);
-  // Server-issued HIT — broadcast to ALL so shooter also sees definitive result.
-  broadcastToAll({
-    t: MSG.HIT,
-    id: shooter.id,           // shooter session id
-    targetId: result.targetId,
-    dmg: outcome.applied,
-    zone: result.zone,
-    shotTs: shotMsg.ts,
-  });
-
-  // MP-3: attribute damage to shooter in score ledger (any zone counts).
-  if (SCORE_ENABLED) scoreLedger.addDamage(shooter.id, outcome.applied);
-
-  if (outcome.killed) {
-    broadcastToAll({
-      t: MSG.KILL,
-      shooterId: shooter.id,
-      victimId: result.targetId,
-      weapon: 'primary',
-    });
-    // MP-3: attribute kill → shooter, death → victim.
-    if (SCORE_ENABLED) scoreLedger.addKill(shooter.id, result.targetId);
-    // v0.2.894-alpha: push the updated standings immediately on a kill so the
-    // live in-arena leaderboard reflects frags without waiting for the tick.
-    broadcastScoreFrame();
-    scheduleRespawn(result.targetId, shooter.pos);
   }
 }
 
@@ -869,149 +614,9 @@ function broadcastScoreFrame() {
   });
 }
 
-function scheduleRespawn(victimId, killerPos) {
-  // Clear any pending timer (e.g. victim was already scheduled).
-  const existing = respawnTimers.get(victimId);
-  if (existing) clearTimeout(existing);
+if (gameZone) gameZone.start();
 
-  const timer = setTimeout(() => {
-    respawnTimers.delete(victimId);
-    const victim = sessions.get(victimId);
-    if (!victim || !victim.authed) return; // peer left before respawn
-
-    const r = respawn(hpLedger, victimId, killerPos);
-    victim.pos = r.pos;
-    // Reset the peer's ring so lag-comp doesn't rewind through a corpse.
-    snapshotRings.set(victimId, createSnapshotRing());
-
-    // RESPAWN → victim only (they warp + heal).
-    sendTo(victim, {
-      t: MSG.RESPAWN,
-      pos: r.pos,
-      rot: victim.rot,
-      hp: r.hp,
-    });
-    // Synthetic MOVE → everyone else so remote avatars pop to the new corner.
-    broadcastToOthers(victimId, {
-      t: MSG.MOVE,
-      id: victimId,
-      pos: r.pos, rot: victim.rot, vel: [0, 0, 0],
-    });
-  }, RESPAWN_MS);
-  respawnTimers.set(victimId, timer);
-}
-
-// ---------- bot milestone chunk 2: server-authoritative bots ----------
-
-// A player's shot hit a bot (nearest across peers+bots). Apply authoritative
-// damage to the bot, broadcast BOT_HIT, and on kill broadcast BOT_KILL. Damage
-// (any zone) is attributed to the shooter's MP-3 score tally.
-function resolvePlayerBotHit(shooter, botResult) {
-  const dmg = damageFor(botResult.zone);
-  if (dmg <= 0) return;
-  const playerPos = { x: shooter.pos[0], z: shooter.pos[2] };
-  const res = arenaBotSim.applyBotDamage(botResult.botId, dmg, playerPos);
-  if (!res.hit) return;
-  broadcastToAll({
-    t: MSG.BOT_HIT,
-    botId: botResult.botId,
-    dmg,
-    zone: botResult.zone,
-    hp: res.hpAfter,
-    shooterId: shooter.id,
-  });
-  if (SCORE_ENABLED) scoreLedger.addDamage(shooter.id, dmg);
-  if (res.killed) {
-    if (SCORE_ENABLED) {
-      scoreLedger.addBotKill(shooter.id);
-      broadcastScoreFrame();
-    }
-    broadcastToAll({ t: MSG.BOT_KILL, botId: botResult.botId, shooterId: shooter.id });
-  }
-}
-
-// A bot pulled the trigger (fired synchronously from arenaBotSim.tick). Emit the
-// tracer cue to every client immediately, then resolve the shot against players
-// authoritatively (bot → player damage reuses the peer HIT/KILL wire path with a
-// synthetic shooter id so the client's existing peerCombat handler applies it).
-function onBotShot(origin, dir, dmg) {
-  const originArr = [origin.x, origin.y, origin.z];
-  const dirArr = [dir.x, dir.y, dir.z];
-  broadcastToAll({ t: MSG.BOT_SHOT, origin: originArr, dir: dirArr });
-  // Per-bot damage (v0.2.381): the boss hits harder. Falls back to the global
-  // BOT_DAMAGE for regular bots / callers that don't pass a per-bot value.
-  const shotDamage = Number.isFinite(dmg) ? dmg : BOT_DAMAGE;
-
-  // Nearest player hit — bots use the CURRENT authoritative player positions
-  // (no lag-comp rewind needed; the bot itself is server-side).
-  let best = null;
-  for (const sess of sessions.values()) {
-    if (!sess.authed) continue;
-    // ADR-0032 backstop: a kami-active admin is already excluded from the bot
-    // brain's target roster, so in steady state no bot ray should ever reach
-    // here for them. Excluded again anyway — a bullet already in flight from
-    // the tick before Kami Mode was confirmed must not land.
-    if (isKamiActive(sess)) continue;
-    const colliders = buildColliders({ pos: sess.pos });
-    const r = rayVsPeer(originArr, dirArr, colliders);
-    if (!r.hit) continue;
-    if (!best || r.t < best.t) best = { id: sess.id, zone: r.zone, t: r.t };
-  }
-  if (!best) return;
-
-  const outcome = applyDamage(hpLedger, best.id, shotDamage);
-  if (outcome.applied <= 0) return; // target already dead — no wire event
-  broadcastToAll({
-    t: MSG.HIT,
-    id: BOT_SHOOTER_ID,
-    targetId: best.id,
-    dmg: outcome.applied,
-    zone: best.zone,
-    shotTs: Date.now(),
-  });
-  if (outcome.killed) {
-    if (SCORE_ENABLED) {
-      scoreLedger.addBotDeath(best.id);
-      broadcastScoreFrame();
-    }
-    broadcastToAll({
-      t: MSG.KILL,
-      shooterId: BOT_SHOOTER_ID,
-      victimId: best.id,
-      weapon: 'bot',
-    });
-    scheduleRespawn(best.id, [origin.x, origin.y, origin.z]);
-  }
-}
-
-// Fixed-rate bot AI loop (~20Hz). Builds the live player roster from authed
-// sessions, ticks the brain (which may fire onBotShot), and broadcasts the
-// throttled (~15Hz) BOT_STATE roster only when there is someone to receive it.
-let _lastBotStateAt = 0;
-if (BOT_SIM_ENABLED) {
-  setInterval(() => {
-    const dt = BOT_TICK_MS / 1000;
-    // ADR-0050 v0.2.672: build the bot-brain roster AND the authed-session count
-    // separately. The roster still excludes Kami Mode sessions (bots ignore the
-    // admin), but the BOT_STATE broadcast gate keys off `authedCount` so a sole
-    // player in Kami Mode no longer silences the stream and freezes every bot on
-    // the client (the ~12m desync).
-    const { players, authedCount } = buildBotTickRoster(sessions, { isKamiActive, pointInCoastline });
-    arenaBotSim.tick(dt, players);
-    const now = Date.now();
-    // v0.2.894-alpha: record post-tick bot positions for lag-compensated
-    // player→bot shot resolution (mirrors the peer MOVE snapshot ring).
-    arenaBotSim.recordSnapshot(now);
-    // Spectators keep the world-state stream alive even with zero authed peers: gate
-    // the periodic broadcast on authedCount OR the spectator registry (throttle intact).
-    if (shouldBroadcastBotState({ authedCount: authedCount + spectators.size(), now, lastAt: _lastBotStateAt, botStateMs: BOT_STATE_MS })) {
-      _lastBotStateAt = now;
-      broadcastToAll({ t: MSG.BOT_STATE, bots: arenaBotSim.snapshot() });
-    }
-  }, BOT_TICK_MS);
-}
-
-// v0.2.894-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// v0.2.895-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
 // no-op when SCORE is disabled or no tallies exist, so this only emits once
 // combat has produced standings. The on-kill + on-close emits stay in place;
 // this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
@@ -1157,11 +762,12 @@ const httpServer = createServer((req, res) => {
       maxPeers: MAX_PEERS,
       version: SERVER_VERSION,
       protocol: PROTOCOL_VERSION,
-      mode: MP_MODE,
+      mode: 'authoritative',
+      gamezone: gameZone ? { tick: gameZone.sim.tick, bots: gameZone.roster.total } : null,
     });
   }
 
-  // v0.2.894-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  // v0.2.895-alpha session-token endpoints (plain HTTP, same origin as /mp).
   //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
   //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
   if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
@@ -1217,7 +823,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.894-alpha (UPD-2) admin-update endpoints.
+  // v0.2.895-alpha (UPD-2) admin-update endpoints.
   //   GET  /mp/admin/update-capability → { selfUpdate, adminPubkey }   (PUBLIC)
   //   GET  /mp/admin/update-status     → status JSON                    (PUBLIC read)
   //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
@@ -1225,7 +831,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.894-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.895-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.
@@ -1244,7 +850,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // ADR-0094 (v0.2.894-alpha): server-side always-on presence beacon.
+  // ADR-0094 (v0.2.895-alpha): server-side always-on presence beacon.
   //   GET  /mp/admin/beacon → { enabled, activatedAt, pubkey, adminPubkey, … } (public)
   //   POST /mp/admin/beacon { action: 'on' | 'off' } → admin-gated toggle
   if (req.method === 'GET' && path.endsWith('/mp/admin/beacon')) {
@@ -1275,11 +881,11 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.894-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.895-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
-  // v0.2.894-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // v0.2.895-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
   // owner (bearer session token) sees the AI's replies in their emagake rack.
   // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
   // are a separate plaintext feed the rack polls and renders (text, not HTML).
@@ -1300,7 +906,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.894-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.895-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
@@ -1342,14 +948,14 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.894-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
+  // v0.2.895-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
   // character GLB from a text prompt via Meshy (text-to-3d → refine → auto-rig),
   // returning the rigged GLB download URL. Session-gated (any logged-in npub) and
   // paid from the OPERATOR's Meshy account (MESHY_API_KEY server-side; the key never
   // reaches the browser). The client then downloads the GLB and uploads to Blossom
   // under its OWN NIP-98 key, exactly like the .glb upload path. See
   // server/character/meshyClient.js and src/engine/character/liveMeshGeneration.js.
-  // Paid character-creation (LNURL-pay + NIP-57, v0.2.894-alpha): two-phase.
+  // Paid character-creation (LNURL-pay + NIP-57, v0.2.895-alpha): two-phase.
   //   POST /mp/mesh/generate         {prompt} → {requirePayment, generationId, invoice, amountSats}
   //                                              when price>0, else {ok, glbUrl} (operator-paid).
   //   POST /mp/mesh/generate/confirm {generationId} → verify settlement → {ok, glbUrl}.
@@ -1496,7 +1102,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.894-alpha (headless-fp-bodies for custom meshes): author a headless FP
+  // v0.2.895-alpha (headless-fp-bodies for custom meshes): author a headless FP
   // body variant from an uploaded/AI-generated player GLB. Session-gated (any
   // logged-in npub — headless authoring is a per-user tool). The server never
   // writes the file to disk and never signs anything: it returns the authored
@@ -1624,7 +1230,7 @@ setInterval(() => {
 
 httpServer.listen(PORT, HOST, () => {
   fipsPresence.start(); // never awaited by gameplay or beacon publication
-  log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, mp_mode=${MP_MODE}, lag_comp_ms=${LAG_COMP_MS})`);
+  log.info(`listening on ${HOST}:${PORT}${WS_PATH} (max_peers=${MAX_PEERS}, protocol=${PROTOCOL_VERSION}, gamezone=${GAMEZONE_ENABLED ? 'v2' : 'off'})`);
   // Admin identity is decided ENTIRELY by QUEST_ADMIN_NPUB (see VPS_INSTALL.md
   // §16.2a) - log whether it's configured (never the full npub/hex; a short
   // prefix is enough to eyeball "did my .env value actually take effect").

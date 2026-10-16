@@ -14,7 +14,8 @@ import {
 } from '../tools/testProfiles.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const realTestFiles = readdirSync(here)
+const realTestFiles = readdirSync(here, { recursive: true })
+  .map((f) => String(f).split('\\').join('/'))
   .filter((f) => f.endsWith('.test.js'))
   .map((f) => `tests/${f}`);
 

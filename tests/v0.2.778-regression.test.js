@@ -14,7 +14,7 @@
 // This suite freezes the fix + the diagnostic:
 //   1. engine/math/angle.js normalizeAngle() is O(1) + non-finite-safe (unit
 //      tests on the pure function).
-//   2. botNetState._lerpAngle and napNpc walk use normalizeAngle — no `while`
+//   2. gamezone lerpAngle (ADR-0130) and napNpc walk use an O(1) wrap — no `while`
 //      angle-normalisation remains anywhere in src (comment-aware sweep).
 //   3. input.wrapAngle guards non-finite input.
 //   4. engine/diagnostics/freezeWatchdog.js ships a blob-worker stall monitor
@@ -29,7 +29,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
 const SRC = {
   angle: read('src/engine/math/angle.js'),
-  bot: read('src/engine/entities/botNetState.js'),
+  bot: read('src/gamezone/core/geom.js'),
   napNpc: read('src/napNpc.js'),
   input: read('src/input.js'),
   loop: read('src/loop.js'),
@@ -93,10 +93,9 @@ describe('v0.2.778 — Bug L: normalizeAngle is O(1) and non-finite-safe', () =>
 });
 
 describe('v0.2.778 — Bug L: every angle-normalisation path uses the safe wrap', () => {
-  it('botNetState._lerpAngle uses normalizeAngle (no while loop)', () => {
-    expect(SRC.bot).toMatch(/import\s*\{\s*normalizeAngle\s*\}\s*from\s*['"]\.\.\/math\/angle\.js['"]/);
-    expect(stripComments(SRC.bot)).toMatch(/const d = normalizeAngle\(b - a\)/);
-    expect(stripComments(SRC.bot)).not.toMatch(/while\s*\(\s*d\s*>\s*Math\.PI/);
+  it('Game Zone lerpAngle uses the O(1) wrapAngle (no while loop) — ADR-0130', () => {
+    expect(stripComments(SRC.bot)).toMatch(/return wrapAngle\(a \+ wrapAngle\(b - a\) \* t\)/);
+    expect(stripComments(SRC.bot)).not.toMatch(/while\s*\(/);
   });
 
   it('napNpc walk uses normalizeAngle (no while loop)', () => {

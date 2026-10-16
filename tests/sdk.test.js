@@ -54,16 +54,16 @@ describe('SDK — surface wiring', () => {
 
   it('surfacesByTier filters correctly', () => {
     const stable = SDK.surfacesByTier(SDK.STABILITY.STABLE);
-    expect(stable).toContain('damage');
+    expect(stable).toContain('interactions');
     expect(stable).toContain('aim');
-    expect(stable).not.toContain('botAgent');
+    expect(stable).not.toContain('gameZone');
     expect(SDK.surfacesByTier(SDK.STABILITY.INTERNAL)).toContain('identity');
   });
 
   it('re-exports resolve to the real module functions', () => {
-    // combat/damage
-    expect(SDK.damage.shotDamage(true)).toBe(SDK.damage.HEADSHOT_DAMAGE);
-    expect(SDK.damage.shotDamage(false)).toBe(SDK.damage.BODY_DAMAGE);
+    // gamezone rules (ADR-0130)
+    expect(SDK.gameZone.damageFor('head')).toBe(SDK.gameZone.HEAD_DAMAGE);
+    expect(SDK.gameZone.damageFor('body')).toBe(SDK.gameZone.BODY_DAMAGE);
     // weapons/reloadPose — rest at the endpoints
     expect(SDK.reloadPose.reloadDip(0)).toBeCloseTo(0, 6);
     expect(SDK.reloadPose.reloadDip(1)).toBeCloseTo(0, 6);

@@ -54,7 +54,7 @@ describe('v0.2.891 — mirror clears the RT + hides bot nameplates (overexposure
   });
 
   it('hides bot nameplates for the pass', () => {
-    expect(MIRROR).toContain("import { setAllNameplatesVisible } from '../../bots.js';");
+    expect(MIRROR).toContain("import { setAllNameplatesVisible } from '../../gamezone/client/gameZone.js';");
     expect(MIRROR).toContain('setAllNameplatesVisible(false)');
     expect(MIRROR).toContain('setAllNameplatesVisible(true)');
   });

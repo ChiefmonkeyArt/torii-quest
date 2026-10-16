@@ -21,12 +21,12 @@ import { VERSION } from '../config.js';
 
 // ---- Live re-exports (curated, node-safe) ---------------------------------
 export * as aim from '../engine/combat/aim.js';
-export * as classifier from '../engine/combat/classifier.js';
-export * as damage from '../engine/combat/damage.js';
 export * as interactions from '../engine/physics/interactions.js';
 export * as reloadPose from '../engine/weapons/reloadPose.js';
 export * as muzzle from '../engine/weapons/muzzle.js';
-export * as botAgent from '../engine/entities/bot-agent.js';
+// Game Zone v2 rules (ADR-0130) — the shared authority sim, hit geometry,
+// pose history and wire validators. Replaces the retired classifier/damage/botAgent.
+export * as gameZone from '../gamezone/core/index.js';
 export * as snapshot from '../engine/debug/snapshot.js';
 export * as phaseScreens from '../engine/ui/phaseScreens.js';
 export * as component from '../engine/components/contract.js';
@@ -119,13 +119,11 @@ const TIERS = Object.freeze(new Set(Object.values(STABILITY)));
 // file (null = forward-declared, not yet exported). `tier` is one of STABILITY.
 export const SDK_SURFACE = Object.freeze({
   aim:             { tier: STABILITY.STABLE,       module: '../engine/combat/aim.js' },
-  classifier:      { tier: STABILITY.STABLE,       module: '../engine/combat/classifier.js' },
-  damage:          { tier: STABILITY.STABLE,       module: '../engine/combat/damage.js' },
   interactions:    { tier: STABILITY.STABLE,       module: '../engine/physics/interactions.js' },
   raycastService:  { tier: STABILITY.STABLE,       module: '../engine/physics/raycastService.js' },
   reloadPose:      { tier: STABILITY.STABLE,       module: '../engine/weapons/reloadPose.js' },
   muzzle:          { tier: STABILITY.STABLE,       module: '../engine/weapons/muzzle.js' },
-  botAgent:        { tier: STABILITY.EXPERIMENTAL, module: '../engine/entities/bot-agent.js' },
+  gameZone:        { tier: STABILITY.EXPERIMENTAL, module: '../gamezone/core/index.js' },
   snapshot:        { tier: STABILITY.EXPERIMENTAL, module: '../engine/debug/snapshot.js' },
   phaseScreens:    { tier: STABILITY.EXPERIMENTAL, module: '../engine/ui/phaseScreens.js' },
   // Component economy contract (CMP-2) — mount/unmount + manifest validation.

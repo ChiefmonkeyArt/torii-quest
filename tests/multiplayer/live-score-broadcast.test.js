@@ -14,14 +14,18 @@ import { MSG, encode, decode } from '../../src/engine/multiplayer/wireProtocol.j
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER_SRC = readFileSync(resolve(HERE, '../../server/arena-ws.js'), 'utf8');
+const GZ_SRC = readFileSync(new URL('../../server/gamezone/gameZoneServer.js', import.meta.url), 'utf8');
 
 const NPUB_A = 'a'.repeat(64);
 const NPUB_B = 'b'.repeat(64);
 
 describe('server live SCORE broadcast — wiring', () => {
-  it('broadcasts on every kill (call sits right after addKill)', () => {
-    // addKill on a player kill is immediately followed by a live broadcast.
-    expect(SERVER_SRC).toMatch(/addKill\(shooter\.id, result\.targetId\);[\s\S]*?broadcastScoreFrame\(\);/);
+  it('broadcasts on every kill (Game Zone v2 score hook marks dirty, flush broadcasts)', () => {
+    // ADR-0130: the shared sim reports kills through onKill → the ledger; the
+    // server flushes that tick's events and then broadcasts the SCORE frame.
+    expect(GZ_SRC).toMatch(/onKill:[\s\S]*?score\.ledger\.addKill\(sid, tid\);[\s\S]*?scoreDirty = true;/);
+    expect(GZ_SRC).toMatch(/if \(scoreDirty\) \{ scoreDirty = false; if \(score\.broadcast\) score\.broadcast\(\); \}/);
+    expect(SERVER_SRC).toMatch(/broadcast: \(\) => broadcastScoreFrame\(\)/);
   });
   it('broadcasts periodically on a SCORE_TICK interval, gated on SCORE_ENABLED', () => {
     expect(SERVER_SRC).toMatch(/const SCORE_TICK_MS = Number\(process\.env\.SCORE_TICK_MS/);

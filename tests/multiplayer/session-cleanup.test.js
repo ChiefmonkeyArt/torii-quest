@@ -28,21 +28,17 @@ function closeSessionBody(src) {
 }
 
 describe('F12 — per-session diagnostic state is cleaned on close', () => {
-  it('the shot diagnostic rate-limit entry is dropped with the session', () => {
+  it('the Game Zone player is removed with the session (ADR-0130)', () => {
     const body = closeSessionBody(ARENA);
-    expect(body).toContain('_shotLogAt.delete(sess.id)');
+    const base = body.indexOf('sessions.delete(sess.id)');
+    const gz = body.indexOf('if (gameZone) gameZone.onLeave(sess);');
+    expect(base).toBeGreaterThan(-1);
+    expect(gz).toBeGreaterThan(base);
   });
 
-  it('the cleanup runs alongside the other per-session teardown', () => {
-    const body = closeSessionBody(ARENA);
-    const del = body.indexOf('_shotLogAt.delete(sess.id)');
-    const base = body.indexOf('sessions.delete(sess.id)');
-    const rings = body.indexOf('snapshotRings.delete(sess.id)');
-    expect(base).toBeGreaterThan(-1);
-    expect(rings).toBeGreaterThan(-1);
-    // Ordered within teardown: sessions → snapshotRings → shotLogAt.
-    expect(base).toBeLessThan(rings);
-    expect(rings).toBeLessThan(del);
+  it('no legacy per-session combat maps survive (snapshot rings / shot log)', () => {
+    expect(ARENA).not.toContain('snapshotRings');
+    expect(ARENA).not.toContain('_shotLogAt');
   });
 
   it('the F12 score-ledger reconnect index and top-k remain in place', () => {

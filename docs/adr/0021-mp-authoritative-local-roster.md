@@ -1,6 +1,6 @@
 # ADR-0021 — MP is authoritative: never render the local bot roster
 
-**Status:** Accepted
+**Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 **Version:** v0.2.630-alpha
 **Date:** 2026-08-22
 **Supersedes the fix intent of:** ADR-0019, ADR-0020 (both correct in isolation, both wired to the wrong branch)

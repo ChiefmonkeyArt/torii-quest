@@ -6,12 +6,8 @@
 //
 // Backwards compatibility: the pre-existing functional globals are LEFT IN
 // PLACE because they are load-bearing wiring, not just debug taps:
-//   • window._onBotHit   — DEPRECATED (v0.2.117). The internal weapons.js → main.js
-//                          bot-hit bridge now runs over the event bus
-//                          (EV.BOT_HIT_BY_PLAYER). This global remains ONLY as a
-//                          documented debug tap that forwards onto the bus, so
-//                          console/tester calls keep working. Internal code must
-//                          not call it (regression check [9]).
+//   • window._onBotHit   — REMOVED (v0.2.895, ADR-0130 Game Zone v2). Use
+//                          ToriiDebug.bots.damage(id, n) / ToriiDebug.gz instead.
 //   • window._grassMat    — DEPRECATED (v0.2.118). arena-foliage.js now owns the
 //                          shader in a module-scope registry, ticked by main.js
 //                          via tickFoliage() and surfaced here through the
@@ -51,10 +47,9 @@ import { enableFly, disableFly, toggleFly, isFlyEnabled, getFlyEyeY } from './fl
 
 export function installToriiDebug(refs) {
   const {
-    version, bots, hitBot, playerObj, resetPlayerPos,
-    camera, setPitch,
-    castRay, castRayStatic, hasLineOfSight, getWorld, getLastHit,
-    getLastShot, getLastMiss, getLastSentShot,
+    version, getGameZone, playerObj, resetPlayerPos, setNextSpawn,
+    camera, setPitch, setYaw,
+    castRay, castRayStatic, hasLineOfSight, getWorld,
     getGrassMat, getFlowerMat, getMirror,
     // v0.2.130 — snapshot/report providers.
     getState, getPhase, getCrateSummary, config,
@@ -69,6 +64,15 @@ export function installToriiDebug(refs) {
   // function the pure snapshot builder reads behind safe(), so the surface never
   // throws even before physics/state are ready. Counts come from the live Rapier
   // world (not serialisable itself) and the bot roster.
+  // Game Zone v2 (ADR-0130) — every combat field is read from the game zone.
+  const _gz = () => (typeof getGameZone === 'function' ? getGameZone() : null);
+  const _gzList = () => { const g = _gz(); return g ? g.list() : []; };
+  const _gzDbg = () => { const g = _gz(); return g ? g.debug() : null; };
+  const getLastShot = () => { const d = _gzDbg(); return d ? d.lastShot : null; };
+  const getLastMiss = () => { const d = _gzDbg(); return d ? d.lastMiss : null; };
+  const getLastHit = () => { const d = _gzDbg(); return d ? d.lastResult : null; };
+  const getLastSentShot = getLastShot;
+
   const snapProviders = {
     version,
     getPhase, getState,
@@ -77,45 +81,10 @@ export function installToriiDebug(refs) {
     isPhysicsReady: () => !!(getWorld && getWorld()),
     getBodyCount:     () => { const w = getWorld && getWorld(); return w ? w.bodies.len() : null; },
     getColliderCount: () => { const w = getWorld && getWorld(); return w ? w.colliders.len() : null; },
-    getBotSummary: () => ({ total: bots.length, alive: bots.filter(b => b.alive).length }),
-    // ADR-0045 v0.2.666: per-bot render state. Read behind safe() so an ema
-    // snapshot never throws even if a bot wrapper is half-attached. Tells us which
-    // branch is broken when bots show as cubes / floating nameplates with no body:
-    //   template load fail? modelLoaded=false
-    //   capsule never upgraded? hasModel=false / hasCapsule=true
-    //   LOD hiding root but not nameplate? rootVisible=false && nameplateVisible=true
-    //   model loaded but tiny? scale far from 1
-    getBotRenderStates: () => {
-      const pp = playerObj && playerObj.position ? playerObj.position : null;
-      return bots.map(b => {
-        const m = b.model;
-        const bp = b.pos;
-        const dist = pp && bp ? Math.round(Math.hypot(pp.x - bp.x, pp.z - bp.z) * 100) / 100 : null;
-        const s = m && m.root ? m.root.scale : null;
-        return {
-          id: b.state && b.state.id != null ? b.state.id : null,
-          label: m ? m._label : null,
-          kind: m ? m.kind : null,
-          hp: b.state && b.state.hp != null ? b.state.hp : null,
-          alive: !!(b.state && b.state.alive),
-          isDying: !!(b.state && b.state._isDying),
-          // ADR-0047 v0.2.668: rendered (interpolated) position, so the ema's
-          // `bots` array can be diffed against the server's authoritative bot
-          // position to expose the client/server desync on a miss.
-          x: bp ? Math.round(bp.x * 100) / 100 : null,
-          z: bp ? Math.round(bp.z * 100) / 100 : null,
-          hasModel: !!b.model,
-          modelLoaded: !!(m && m.loaded),
-          hasRoot: !!(m && m.root),
-          rootVisible: m && m.root ? m.root.visible : null,
-          nameplateVisible: m && m._nameplate ? m._nameplate.visible : null,
-          hasCapsule: !!b._capsuleMesh,
-          capsuleVisible: b._capsuleMesh ? b._capsuleMesh.visible : null,
-          dist,
-          scale: s ? { x: Math.round(s.x * 100) / 100, y: Math.round(s.y * 100) / 100, z: Math.round(s.z * 100) / 100 } : null,
-        };
-      });
-    },
+    getBotSummary: () => { const l = _gzList(); return { total: l.length, alive: l.filter((b) => b.life === 0).length }; },
+    // Per-bot render state (Game Zone views): id/kind/hp/life/model/position.
+    getBotRenderStates: () => _gzList(),
+    getGameZone: () => _gzDbg(),
     getCrateSummary,
     config,
     // ADR-0052: Kami Mode state so an ema hung while "stuck" reveals the exact
@@ -129,21 +98,30 @@ export function installToriiDebug(refs) {
     version,
 
     bots: {
-      get list()  { return bots; },
-      get count() { return bots.filter(b => b.alive).length; },
-      // Damage the i-th bot by n (defaults to a lethal-ish 5). Returns the bot.
-      damage(i = 0, n = 5) {
-        const b = bots[i];
-        if (b) hitBot(b, n);
-        return b || null;
+      get list()  { return _gzList(); },
+      get count() { return _gzList().filter((b) => b.life === 0).length; },
+      // Damage bot `id` by n through the single-player sim (no-op in multiplayer).
+      damage(id = 0, n = 5) {
+        const g = _gz();
+        return g ? g.debugDamage(id, n) : false;
       },
     },
+
+    // Game Zone v2 (ADR-0130): authority, ticks, prediction stats, last shot/result.
+    get gz() { return _gzDbg(); },
 
     player: {
       get position() { return playerObj.position; },
       resetToArena() { resetPlayerPos(); },
       get camera() { return camera || null; },
       setPitch(p) { if (setPitch) setPitch(p); },
+      // Game Zone QA (ADR-0130): aim the crosshair from scripts / headless smoke runs.
+      setYaw(y) { if (setYaw) setYaw(y); },
+      // Teleport (re-seats the spawn point too — debug/QA only).
+      teleport(x, z, yaw = 0) {
+        if (!setNextSpawn || !Number.isFinite(x) || !Number.isFinite(z)) return false;
+        setNextSpawn(x, z, yaw); resetPlayerPos(); return true;
+      },
     },
 
     // v0.2.343 — dev/debug free-fly camera. Detaches the camera from the player

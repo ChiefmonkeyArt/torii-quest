@@ -1,5 +1,37 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## GAME ZONE v2 — COMBAT REBUILT FROM SCRATCH: v0.2.895-alpha (TOP PRIORITY)
+
+Operator directive: game zone combat quality is the top priority; rebuild only
+the game zone; points unchanged. ADR-0130 has the root causes and bench numbers.
+
+Where things live now:
+- `src/gamezone/core/` (node-pure, shared with the VPS): `constants.js` (all
+  tuning + frozen points), `sim.js` (the authority: bots, fire, damage, respawn,
+  events), `history.js` (tick pose history = lag comp + interpolation),
+  `body.js` (coarse bodies + claim validation), `arenaWorld.js` (O(1) grid),
+  `protocol.js` (GZ wire validators), `geom.js`.
+- `src/gamezone/client/`: `gameZone.js` (the arena's one combat entry point:
+  fire/frame/clear + ToriiDebug), `authority.js` (local vs net), `hitbox.js`
+  (exact skinned raycast), `botView.js`, `reconciler.js` (no-ghost rule),
+  `tickClock.js`, `fx.js`, `botTemplates.js`.
+- `server/gamezone/gameZoneServer.js`: hosts the sim in arena-ws.js (20 Hz;
+  results only to the shooter; RESPAWN to the victim; spectators get BOT_STATE).
+- `src/engine/weapons/gunViewmodel.js`: the FP gun (moved verbatim from weapons.js).
+
+Retired: `src/bots.js`, `botModel.js`, `weapons.js`, `targetReticle.js`,
+`fx.js`, `lod.js`, `engine/combat/*` (except `aim.js`), `engine/entities/bot*`,
+`engine/multiplayer/peerCombat.js`, `server/bots/*`, `server/combat/*` (except
+`scoreLedger.js`). Legacy SHOT/HIT/KILL frames from old clients are ignored.
+
+Debug: `ToriiDebug.gz` (authority, ticks, stats: shots/claims/accepted/
+rejected/kills/mispredicts), `ToriiDebug.bots.list` / `.damage(id, n)`,
+`ToriiDebug.player.setYaw/setPitch/teleport(x, z)` for scripted aim QA.
+Definition of done for any hit-model change: `npm run bench:gamezone` gates.
+Env knobs kept: `BOT_COUNT_OVERRIDE`, `BOSS_COUNT_OVERRIDE`, `TEST_MODE`;
+`GAMEZONE_ENABLED=false` disables combat on a node. Retired: `MP_MODE`,
+`LAG_COMP_MS`, `HP_MAX`, `RESPAWN_MS`.
+
 ## GATEWAY DIRECTORY CLOCK-SKEW RESCUE + SOLIDITY: v0.2.894-alpha
 
 A visitor whose machine clock runs ahead of the publishing node saw the gateway

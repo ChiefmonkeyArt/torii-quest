@@ -259,38 +259,34 @@ describe('multiplayerHost — inbound wire', () => {
 // ---------- outbound wire ----------
 
 describe('multiplayerHost — outbound wire', () => {
-  it('sendMove/Shot/Hit/Kill/Chat/KamiState are dropped when not CONNECTED', () => {
+  it('sendMove/GzFire/KamiState are dropped when not CONNECTED', () => {
     const { host } = makeHost();
     host.start();
     // still CONNECTING — no handshake yet
     expect(host.sendMove({ pos: [0, 0, 0], rot: [0, 0], vel: [0, 0, 0] })).toBe(false);
-    expect(host.sendShot({ origin: [0, 0, 0], dir: [1, 0, 0], ts: 1 })).toBe(false);
-    expect(host.sendHit({ targetId: 'x', dmg: 25, zone: 'body', shotTs: 1 })).toBe(false);
+    expect(host.sendGzFire({ seq: 1, origin: [0, 1.7, 0], dir: [1, 0, 0], rt: 0 })).toBe(false);
     // ADR-0032: same drop-when-disconnected contract as the other senders —
     // kamiMode.js relies on this so it never needs to check MP state itself.
     expect(host.sendKamiState(true)).toBe(false);
   });
 
-  it('after CONNECTED, sendMove/Shot/Kill/Chat emit framed messages with the correct type; sendHit is a no-op (MP-2)', async () => {
+  it('after CONNECTED, sendMove/GzFire/Chat/KamiState emit framed messages; legacy combat senders are gone', async () => {
     const { host } = makeHost();
     host.start();
     const ws = FakeWS.instances[0];
     await handshake(ws);
     expect(host.sendMove({ pos: [1, 2, 3], rot: [0.5, 0], vel: [0, 0, 0] })).toBe(true);
-    expect(host.sendShot({ origin: [0, 0, 0], dir: [1, 0, 0], ts: 100 })).toBe(true);
-    // MP-2 (v0.2.366-alpha): client stops emitting HIT. Server is authoritative.
-    // sendHit is a no-op returning false; nothing is written to the socket.
-    // See MP_2_SPEC.md §10 and multiplayerHost.js:sendHit.
-    const sentBeforeHit = ws.sent.length;
-    expect(host.sendHit({ targetId: 'p1', dmg: 25, zone: 'body', shotTs: 99 })).toBe(false);
-    expect(ws.sent.length).toBe(sentBeforeHit);
-    expect(host.sendKill({ shooterId: 'me', victimId: 'p1', weapon: 'pistol' })).toBe(true);
+    // Game Zone v2 (ADR-0130): one combat frame — shot + render tick + optional claim.
+    expect(host.sendGzFire({ seq: 7, origin: [0, 1.7, 0], dir: [1, 0, 0], rt: 12.5, claim: { k: 'bot', id: 2, zone: 'head', dist: 9.1 } })).toBe(true);
     expect(host.sendChat('gg')).toBe(true);
-    // ADR-0032: sendKamiState frames a boolean active flag under MSG.KAMI_STATE.
     expect(host.sendKamiState(true)).toBe(true);
-    // Skip the initial AUTH frame; sanity-check the last 5 sends against expected types.
-    const outbound = ws.sent.slice(-5).map((raw) => JSON.parse(raw).t);
-    expect(outbound).toEqual([MSG.MOVE, MSG.SHOT, MSG.KILL, MSG.CHAT, MSG.KAMI_STATE]);
+    expect(host.sendShot).toBeUndefined();
+    expect(host.sendHit).toBeUndefined();
+    expect(host.sendKill).toBeUndefined();
+    const outbound = ws.sent.slice(-4).map((raw) => JSON.parse(raw).t);
+    expect(outbound).toEqual([MSG.MOVE, MSG.GZ_FIRE, MSG.CHAT, MSG.KAMI_STATE]);
+    const fire = JSON.parse(ws.sent[ws.sent.length - 3]);
+    expect(fire).toMatchObject({ seq: 7, rt: 12.5, claim: { k: 'bot', id: 2, zone: 'head' } });
     const kamiFrame = JSON.parse(ws.sent[ws.sent.length - 1]);
     expect(kamiFrame.active).toBe(true);
   });

@@ -23,12 +23,12 @@ export const ALL_TESTS_GLOB = 'tests/**/*.test.js';
 export const TESTS_DIR = 'tests';
 
 // fast: the smallest core that catches the most regressions when editing engine logic —
-// the state machine, the event bus, the headshot classifier/aim math, and the debug
+// the state machine, the event bus, the Game Zone v2 core rules/aim math, and the debug
 // snapshot. Intended for the innermost edit→test loop (well under a second).
 const FAST = [
   'state.test.js',
   'events.test.js',
-  'classifier.test.js',
+  'gamezone/core.test.js',
   'aim.test.js',
   'snapshot.test.js',
 ];
@@ -41,10 +41,10 @@ const FAST = [
 // whole suite. Must remain a superset of fast (enforced by validateProfiles + the unit test).
 const FOUNDATION = [
   ...FAST,
-  'combat-damage.test.js',
+  'gamezone/protocol.test.js',
   'raycast-service.test.js',
   'player-boundary.test.js',
-  'bot-agent.test.js',
+  'gamezone/reconciler.test.js',
   'sdk.test.js',
   'registry.test.js',
   'component.test.js',

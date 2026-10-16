@@ -264,9 +264,6 @@ export function createWsClient(opts) {
       // and the subsequent close do NOT re-dial (no ping-pong with the new session).
       case MSG.REPLACED: emit('replaced', msg); disconnect('replaced'); return;
       case MSG.MOVE:  emit('move', msg);    return;
-      case MSG.SHOT:  emit('shot', msg);    return;
-      case MSG.HIT:   emit('hit', msg);     return;
-      case MSG.KILL:  emit('kill', msg);    return;
       case MSG.CHAT:  emit('chat', msg);    return;
       // MP-2 additive: server-only warp+heal for the local player.
       case MSG.RESPAWN: emit('respawn', msg); return;
@@ -274,18 +271,16 @@ export function createWsClient(opts) {
       // Additive on PROTOCOL_VERSION=1; older MP-1/1.5 clients silently drop
       // this via decode()'s UNKNOWN_TYPE guard.
       case MSG.SCORE: emit('score', msg); return;
-      // Bot milestone chunk 2 (v0.2.379-alpha): server-authoritative bots.
-      // Additive on PROTOCOL_VERSION=1; the host forwards these as mp_bot*.
-      case MSG.BOT_STATE: emit('botState', msg); return;
-      case MSG.BOT_SHOT:  emit('botShot', msg);  return;
-      case MSG.BOT_HIT:   emit('botHit', msg);   return;
-      case MSG.BOT_KILL:  emit('botKill', msg);  return;
+      // Game Zone v2 (ADR-0130): the only combat traffic. The host forwards
+      // these as mp_gzSnap / mp_gzEvent. Legacy SHOT/HIT/KILL/BOT_* are dropped.
+      case MSG.GZ_SNAP:   emit('gzSnap', msg);   return;
+      case MSG.GZ_EVENT:  emit('gzEvent', msg);  return;
       case MSG.PING:  send({ t: MSG.PONG, ts: msg.ts }); return;
       case MSG.PONG: {
         // The server echoes our PING ts verbatim, so now()-ts is a full RTT in
         // the client clock domain (no clock-sync needed). Smooth it (EMA) and
-        // clamp one-way to 250ms so a spike can't push the shot ts past the
-        // server's 300ms lag-comp window (DEFAULT_LAG_COMP_MS).
+        // clamp one-way to 250ms. (Game Zone v2 lag compensation is tick-based
+        // and does not use this; it remains for peer interpolation / diagnostics.)
         const rtt = now() - msg.ts;
         if (Number.isFinite(rtt) && rtt >= 0 && rtt < 5000) {
           const ow = rtt / 2;

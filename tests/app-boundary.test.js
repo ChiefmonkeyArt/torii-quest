@@ -7,8 +7,8 @@
 //      the runtime SDK barrel (src/sdk/index.js), so their (tree-shake-hostile) string
 //      /HTML weight never rides into the runtime app chunk.
 //   2. No Quest game-runtime entry may import a Continuum-only module.
-//   3. The BotAgent decision seam (engine/entities/bot-agent.js) stays pure — only
-//      numeric tuning constants — so the bot AI layer is cleanly separable.
+//   3. The Game Zone v2 rules (src/gamezone/core/*, ADR-0130) stay node-pure — no
+//      THREE / Rapier / DOM — because the VPS runs the very same modules.
 //
 // These are STRUCTURAL guards (source-text + module-shape), so a future edit that
 // re-leaks a dashboard surface into the runtime barrel — or pulls THREE/Continuum into
@@ -54,7 +54,7 @@ describe('Quest ↔ Continuum SDK barrel split', () => {
 describe('Quest game-runtime does not reach into Continuum', () => {
   // Representative Quest runtime entries: the shell, the lazy arena runtime, and the
   // bot runtime. None may import a Continuum project-oversight module.
-  const RUNTIME_FILES = ['src/main.js', 'src/arenaRuntime.js', 'src/bots.js'];
+  const RUNTIME_FILES = ['src/main.js', 'src/arenaRuntime.js', 'src/gamezone/client/gameZone.js'];
   const FORBIDDEN = [
     /from ['"][^'"]*engine\/dashboard\//,
     /from ['"][^'"]*engine\/host\//,
@@ -84,38 +84,16 @@ describe('Arena bloom stays behind the R2 lazy boundary', () => {
   }
 });
 
-describe('BotAgent decision seam stays pure', () => {
-  it('engine/entities/bot-agent.js imports only the config tuning constants', () => {
-    const src = read('src/engine/entities/bot-agent.js');
-    const importLines = src.split('\n').filter((l) => /^\s*import\b/.test(l));
-    expect(importLines).toHaveLength(1);
-    expect(importLines[0]).toMatch(/from ['"]\.\.\/\.\.\/config\.js['"]/);
-    // No THREE / Rapier / DOM / dashboard reach — the bot AI layer is cleanly separable.
-    expect(src).not.toMatch(/from ['"]three['"]/);
-    expect(src).not.toMatch(/@dimforge\/rapier/);
-    expect(src).not.toMatch(/\b(document|window)\b/);
-    expect(src).not.toMatch(/engine\/(dashboard|status|host)\//);
-  });
-});
-
-describe('bot placeholder hitbox alignment', () => {
-  it('centres every capsule placeholder on its registered Rapier body collider', () => {
-    const src = read('src/bots.js');
-    const makeCapsule = src.slice(
-      src.indexOf('function _makeCapsuleBot'),
-      src.indexOf('function _spawnCapsuleBots'),
-    );
-    const placeholderPositions = [...src.matchAll(
-      /(?:mesh|bot\._capsuleMesh)\.position\.set\([\s\S]*?\);/g,
-    )];
-
-    expect(placeholderPositions).toHaveLength(4);
-    for (const match of placeholderPositions) {
-      expect(match[0]).toContain('BOT_BODY_CENTRE_Y_OFFSET');
-    }
-    expect(makeCapsule).toContain(
-      'if (physicsReady) _ensureBotColliders(bot, st.pos.x, st.pos.z);',
-    );
-    expect(makeCapsule).not.toContain('1.15');
-  });
+describe('Game Zone core stays node-pure (shared with the VPS)', () => {
+  const CORE = ['constants', 'geom', 'body', 'history', 'protocol', 'arenaWorld', 'sim', 'index'];
+  for (const m of CORE) {
+    it(`src/gamezone/core/${m}.js imports no THREE / Rapier / DOM / client code`, () => {
+      const src = read(`src/gamezone/core/${m}.js`);
+      expect(src).not.toMatch(/from ['"]three['"]/);
+      expect(src).not.toMatch(/@dimforge\/rapier/);
+      expect(src).not.toMatch(/\b(document|window)\./);
+      expect(src).not.toMatch(/gamezone\/client\//);
+      expect(src).not.toMatch(/engine\/(dashboard|status|host)\//);
+    });
+  }
 });

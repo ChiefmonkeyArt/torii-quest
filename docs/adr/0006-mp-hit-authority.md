@@ -1,6 +1,6 @@
 # ADR-0006: Server-authoritative HIT resolution — no client-HIT rebroadcast
 
-- **Status:** Accepted
+- **Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 - **Date:** 2026-08-21
 - **Deciders:** chiefmonkey
 - **Related:** `server/arena-ws.js`, `src/engine/multiplayer/peerCombat.js`,

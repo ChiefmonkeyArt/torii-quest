@@ -1,6 +1,6 @@
 # ADR-0019 — Stale-bot cleanup + TEST_MODE instant respawn
 
-**Status:** Accepted
+**Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 **Version:** v0.2.628-alpha
 **Date:** 2026-08-22
 

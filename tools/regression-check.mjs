@@ -79,6 +79,10 @@ const NO_ALLOC_FILES = [
   'src/world/handoff.js',
   'src/identity/presence.js',
   'src/engine/entities/player.js',
+  // Game Zone v2 (ADR-0130) per-frame modules.
+  'src/gamezone/client/reconciler.js',
+  'src/gamezone/client/tickClock.js',
+  'src/gamezone/client/authority.js',
 ];
 
 let fails = 0;
@@ -671,65 +675,42 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
   }
 }
 
-// 17. MP-2 server-authoritative HIT source (v0.2.366-alpha) — the MP_MODE=advisory
-//     branch may relay client HIT untouched, but the authoritative code path MUST
-//     NEVER re-broadcast a client-sent HIT. resolveAndBroadcast() emits its own
-//     HIT via broadcastToAll(). This guard catches accidental regressions where
-//     the HIT case forgets its advisory guard and starts relaying blindly again.
-console.log('[17] MP-2 HIT authoritative source (no client-HIT rebroadcast)');
+// 17. Game Zone v2 authoritative combat (ADR-0130, v0.2.895) — the server never
+//     relays a client-authored SHOT/HIT/KILL; the ONLY combat ingress is GZ_FIRE,
+//     rate-limited and handed to the shared sim (gameZone.onFire).
+console.log('[17] Game Zone v2 authoritative combat ingress (GZ_FIRE only)');
 {
   const p = 'server/arena-ws.js';
-  if (!existsSync(join(ROOT, p))) {
-    fail(`${p} missing (MP-2 server file)`);
-  } else {
+  if (!existsSync(join(ROOT, p))) fail(`${p} missing`);
+  else {
     const src = readFileSync(join(ROOT, p), 'utf8');
-    // The HIT case must contain `MP_MODE === 'advisory'` guard.
-    const hitBlock = src.match(/case\s+MSG\.HIT:[\s\S]*?return;\s*}\s*(?=case)/);
-    if (!hitBlock) fail('server/arena-ws.js: HIT case block not found');
-    else if (!/MP_MODE\s*===\s*['"]advisory['"]/.test(hitBlock[0])) {
-      fail("server/arena-ws.js: HIT case must guard rebroadcast with `MP_MODE === 'advisory'`");
-    } else if (/broadcastToOthers[\s\S]{0,50}case\s+MSG\.KILL/.test(src)) {
-      // Advisory guard exists, but check nothing outside the guard calls broadcastToOthers.
-      // (Structural — the mp1-compat unit test covers this too.)
-      pass('HIT source: advisory-guarded relay + authoritative drop');
-    } else {
-      pass('HIT source: advisory-guarded relay + authoritative drop');
-    }
-    // resolveAndBroadcast must broadcast to ALL, not others.
-    const rab = src.match(/function\s+resolveAndBroadcast[\s\S]*?\n\}/);
-    if (!rab) fail('server/arena-ws.js: resolveAndBroadcast() not found');
-    else if (!/broadcastToAll/.test(rab[0])) fail('resolveAndBroadcast must use broadcastToAll (so shooter sees HIT too)');
-    else if (/broadcastToOthers\s*\(/.test(rab[0])) fail('resolveAndBroadcast must NOT use broadcastToOthers for HIT');
-    else pass('resolveAndBroadcast emits server HIT via broadcastToAll');
+    const legacy = ['SHOT', 'HIT', 'KILL'].filter((t) => new RegExp(`case\\s+MSG\\.${t}\\b`).test(src));
+    const fire = src.match(/case\s+MSG\.GZ_FIRE:\s*\{[\s\S]*?\n {4}\}/);
+    if (legacy.length) fail(`server/arena-ws.js still handles legacy client combat: ${legacy.join(', ')}`);
+    else if (!fire) fail('server/arena-ws.js: GZ_FIRE case not found');
+    else if (!/checkRate\(/.test(fire[0]) || !/gameZone\.onFire\(/.test(fire[0])) fail('GZ_FIRE must be rate-limited and routed to gameZone.onFire');
+    else pass('GZ_FIRE is the only combat ingress (rate-limited → shared sim)');
   }
 }
 
-// 18. MP-2 damage-table parity (v0.2.366-alpha) — server/combat/damageTable.js
-//     copies constants rather than importing from src/, so a static check keeps
-//     them locked to the shipped client values (9/3). The full parity is also
-//     unit-tested (tests/multiplayer/damage-table-parity.test.js).
-console.log('[18] MP-2 damage-table parity (server ↔ client constants)');
+// 18. Game Zone damage single source (ADR-0130) — head/body damage lives ONLY in
+//     src/gamezone/core/constants.js (9/3), which both the browser sim and the
+//     VPS import. No second damage table may reappear anywhere in src/ or server/.
+console.log('[18] Game Zone damage single source (head 9 / body 3)');
 {
-  const sp = 'server/combat/damageTable.js';
-  const cp = 'src/engine/combat/damage.js';
-  if (!existsSync(join(ROOT, sp))) fail(`${sp} missing (MP-2 server damage table)`);
-  else if (!existsSync(join(ROOT, cp))) fail(`${cp} missing (client damage source)`);
+  const cp = 'src/gamezone/core/constants.js';
+  if (!existsSync(join(ROOT, cp))) fail(`${cp} missing`);
   else {
-    const s = readFileSync(join(ROOT, sp), 'utf8');
     const c = readFileSync(join(ROOT, cp), 'utf8');
-    const readConst = (txt, name) => {
-      const m = txt.match(new RegExp(`export\\s+const\\s+${name}\\s*=\\s*(-?\\d+(?:\\.\\d+)?)`));
-      return m ? Number(m[1]) : null;
-    };
-    const sHead = readConst(s, 'HEADSHOT_DAMAGE');
-    const sBody = readConst(s, 'BODY_DAMAGE');
-    const cHead = readConst(c, 'HEADSHOT_DAMAGE');
-    const cBody = readConst(c, 'BODY_DAMAGE');
-    if (sHead == null || sBody == null) fail(`${sp} missing HEADSHOT_DAMAGE or BODY_DAMAGE export`);
-    else if (cHead == null || cBody == null) fail(`${cp} missing HEADSHOT_DAMAGE or BODY_DAMAGE export`);
-    else if (sHead !== cHead) fail(`HEADSHOT_DAMAGE drift: server=${sHead} vs client=${cHead}`);
-    else if (sBody !== cBody) fail(`BODY_DAMAGE drift: server=${sBody} vs client=${cBody}`);
-    else pass(`damage-table parity locked (head=${sHead}, body=${sBody})`);
+    const head = c.match(/export const HEAD_DAMAGE = (\d+);/);
+    const body = c.match(/export const BODY_DAMAGE = (\d+);/);
+    const dupes = [...srcFiles, ...walk(join(ROOT, 'server')).map((f) => f.slice(ROOT.length + 1))]
+      .filter((f) => f !== cp && f.endsWith('.js'))
+      .filter((f) => /export\s+const\s+(HEADSHOT_DAMAGE|HEAD_DAMAGE|BODY_DAMAGE)\s*=/.test(readFileSync(join(ROOT, f), 'utf8')));
+    if (!head || !body) fail(`${cp} must export HEAD_DAMAGE and BODY_DAMAGE`);
+    else if (Number(head[1]) !== 9 || Number(body[1]) !== 3) fail(`damage changed (head=${head[1]}, body=${body[1]}) — points system is frozen at 9/3`);
+    else if (dupes.length) fail(`duplicate damage table(s): ${dupes.join(', ')}`);
+    else pass('damage defined once (head=9, body=3), shared by client + server');
   }
 }
 

@@ -1,22 +1,21 @@
-// tests/multiplayer/server-import-smoke.test.js — advisor-mandated verification:
-// the server bot path must import + run with NO THREE / Rapier / scene leaking.
-// The deployed server has no WebGL and no Rapier WASM, so any transitive import
-// of 'three', '@dimforge/rapier3d', or a scene/DOM module would crash it at boot.
+// tests/multiplayer/server-import-smoke.test.js — the server combat path must
+// import + run with NO THREE / Rapier / scene leaking. The deployed server has no
+// WebGL and no Rapier WASM, so any transitive import of 'three',
+// '@dimforge/rapier3d', or a scene/DOM module would crash it at boot.
 //
-// (1) Static: walk the whole import graph reachable from server/bots/arenaBotSim.js
-//     (the module arena-ws.js pulls in) and assert no forbidden specifier appears.
-// (2) Functional: actually import and drive the sim headlessly (spawn/tick/
-//     snapshot/resolvePlayerShot/applyBotDamage) — if any dep pulled THREE it
-//     would throw on import here.
+// Game Zone v2 (ADR-0130): the entry is server/gamezone/gameZoneServer.js, which
+// runs the SAME src/gamezone/core sim the browser runs in single-player.
+// (1) Static: walk the whole import graph and assert no forbidden specifier.
+// (2) Functional: import and drive the server headlessly (auth/move/fire/tick).
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createArenaBotSim } from '../../server/bots/arenaBotSim.js';
+import { createGameZoneServer } from '../../server/gamezone/gameZoneServer.js';
 import { BOT_COUNT } from '../../src/config.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ENTRY = resolve(HERE, '../../server/bots/arenaBotSim.js');
+const ENTRY = resolve(HERE, '../../server/gamezone/gameZoneServer.js');
 
 const FORBIDDEN = [
   'three',
@@ -66,26 +65,31 @@ describe('server bot path is headless (no THREE/Rapier/scene)', () => {
   });
 });
 
-describe('server bot sim runs headlessly end-to-end', () => {
-  it('spawns, ticks, snapshots, resolves a shot and applies damage without importing THREE', () => {
-    const shots = [];
-    const sim = createArenaBotSim({ onBotShot: (o, d) => shots.push({ o, d }) });
-    sim.spawn(BOT_COUNT);
-    const snap = sim.snapshot();
-    expect(snap).toHaveLength(BOT_COUNT);
-
-    const player = { x: snap[0].x, y: 1.6, z: snap[0].z + 2, outsideFence: false, flyEnabled: false };
-    expect(() => {
-      for (let i = 0; i < 30; i++) sim.tick(1 / 20, [player]);
-    }).not.toThrow();
-
-    const b = sim.snapshot()[0];
-    const res = sim.resolvePlayerShot([b.x + 3, 0, b.z], [-1, 0, 0]);
-    // A shot straight along the bot's row either hits it or cleanly misses —
-    // never throws (the point is headless execution, not the specific outcome).
-    expect(res === null || typeof res.botId === 'number').toBe(true);
-
-    const dmg = sim.applyBotDamage(snap[0].id, 1, { x: 0, z: 0 });
-    expect(dmg.hit).toBe(true);
+describe('server game zone runs headlessly end-to-end', () => {
+  it('seats a player, ticks, snapshots and resolves a shot without importing THREE', () => {
+    const sent = [];
+    const sessions = new Map();
+    const gz = createGameZoneServer({
+      sessions,
+      isKamiActive: () => false,
+      sendTo: (sess, msg) => sent.push({ to: sess.id, msg }),
+      broadcastToOthers: () => {},
+      sendToSpectators: () => {},
+      spectatorCount: () => 0,
+      encode: (m) => JSON.stringify(m),
+      seed: 3,
+    });
+    const sess = { id: 'p1', authed: true, pos: [0, 1.7, 0], rot: [0, 0], ws: { send: (w) => sent.push({ to: 'p1', msg: JSON.parse(w) }) } };
+    sessions.set(sess.id, sess);
+    gz.onAuth(sess);
+    expect(() => { for (let i = 0; i < 30; i++) gz.tick(); }).not.toThrow();
+    const snaps = sent.filter((s) => s.msg.t === 'GZ_SNAP');
+    expect(snaps.length).toBeGreaterThan(0);
+    expect(snaps.at(-1).msg.b).toHaveLength(BOT_COUNT);
+    gz.onFire(sess, { seq: 1, origin: [0, 1.7, 0], dir: [1, 0, 0], rt: gz.sim.tick, claim: null });
+    gz.tick();
+    const results = sent.filter((s) => s.msg.t === 'GZ_EVENT').flatMap((s) => s.msg.ev).filter((e) => e.type === 'result');
+    expect(results.some((r) => r.seq === 1)).toBe(true);
+    gz.stop();
   });
 });

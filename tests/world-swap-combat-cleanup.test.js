@@ -1,37 +1,33 @@
-// tests/world-swap-combat-cleanup.test.js — locks the P2 glitch-sweep fix that
-// retracts in-flight projectiles/tracers on an in-place world swap. Weapons.js and
-// arenaRuntime.js are THREE/scene-bound (not unit-importable), so — consistent with
-// the other arena-bound regressions — this locks the contract at the source level.
+// tests/world-swap-combat-cleanup.test.js — an in-place world swap must leave no
+// combat residue (the old P2 frozen-bullet/tracer glitch). Game Zone v2
+// (ADR-0130) is hitscan — there are no projectiles — so the contract is: the
+// rebuild calls gameZone.clear(), and clear() drops every bot view, prediction,
+// tracer/spark and the boss bar. arenaRuntime is THREE/scene-bound, so the
+// runtime half is a source contract; fx/reconciler behaviour is tested directly
+// in tests/gamezone/*.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 
-const WEAPONS = readFileSync(new URL('../src/weapons.js', import.meta.url), 'utf8');
+const GZ = readFileSync(new URL('../src/gamezone/client/gameZone.js', import.meta.url), 'utf8');
 const RT = readFileSync(new URL('../src/arenaRuntime.js', import.meta.url), 'utf8');
 
-describe('world swap retracts in-flight projectiles/tracers', () => {
-  it('exposes a clearActiveBullets export', () => {
-    expect(WEAPONS).toMatch(/export function clearActiveBullets\(\)/);
-  });
-
-  it('clears every active bullet back into the pool', () => {
-    const fn = WEAPONS.slice(WEAPONS.indexOf('export function clearActiveBullets'));
-    expect(fn).toContain('for (let i = _active.length - 1; i >= 0; i--)');
-    expect(fn).toContain('scene.remove(b.mesh)');
-    expect(fn).toContain('_pool.push(b)');
-    expect(fn).toContain('_active.pop()');
-  });
-
-  it('finalises any pending player-shot diagnostic before clearing', () => {
-    const fn = WEAPONS.slice(WEAPONS.indexOf('export function clearActiveBullets'));
-    expect(fn).toContain('_finalizeShot(b, \'none\', false, null, Infinity)');
-  });
-
-  it('imports clearActiveBullets into the runtime', () => {
-    expect(RT).toContain('clearActiveBullets');
+describe('world swap clears the game zone', () => {
+  it('gameZone.clear() drops views, predictions, fx and HUD combat state', () => {
+    const fn = GZ.slice(GZ.indexOf('function clear()'), GZ.indexOf('function clear()') + 200);
+    expect(fn).toContain('_clearViews()');
+    expect(fn).toContain('pending.clear()');
+    expect(fn).toContain('fx.clear()');
+    expect(fn).toContain('hideBossBar()');
   });
 
   it('calls it during the in-place world teardown', () => {
     const rebuild = RT.slice(RT.indexOf('async function _rebuildWorldInPlace'));
-    expect(rebuild).toContain('try { clearActiveBullets(); } catch { /* noop */ }');
+    expect(rebuild).toContain('try { if (_gz) _gz.clear(); } catch { /* noop */ }');
+  });
+
+  it('the legacy projectile path is gone', () => {
+    expect(RT).not.toContain('clearActiveBullets');
+    expect(RT).not.toContain("from './weapons.js'");
+    expect(RT).not.toContain("from './bots.js'");
   });
 });

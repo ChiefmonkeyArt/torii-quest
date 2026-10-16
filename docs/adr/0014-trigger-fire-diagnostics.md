@@ -1,6 +1,6 @@
 # ADR-0014 — Trigger-fire diagnostics (log every shot, not just resolved hits)
 
-**Status:** Accepted (2026-08-22)
+**Status:** Accepted (2026-08-22) — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 **Ships in:** v0.2.624-alpha
 **Author:** Torii Agent (proposal); Chiefmonkey (approval)
 **Supersedes:** — (extends ADR-0013)

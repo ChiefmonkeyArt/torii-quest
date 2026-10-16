@@ -8,7 +8,7 @@ import { stepPhysics, createKinematic, movePlayer, physicsReady } from './physic
 // v0.2.132 (ARS-3) — crosshair/aim ray goes through the RaycastService facade
 // (same default Rapier impl as before, behaviour-identical).
 import { raycastService } from './engine/physics/raycastService.js';
-import { getGunBarrelWorld } from './weapons.js';
+import { getGunBarrelWorld } from './engine/weapons/gunViewmodel.js';
 import { isFlyEnabled, enableFly, disableFly, getFlyEye } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isInsideFence } from './terrain/coastline.js';

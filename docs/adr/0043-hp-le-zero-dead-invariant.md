@@ -1,6 +1,6 @@
 # ADR-0043: hp ≤ 0 ⇒ dead invariant (bots-wont-die fix)
 
-- **Status:** Accepted
+- **Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 - **Date:** 2026-08-24
 - **Version:** v0.2.663-alpha
 - **Supersedes / relates to:** ADR-0042 (bot hit feedback), ADR-0016 (D-1..D-4 nameplate/death visibility)

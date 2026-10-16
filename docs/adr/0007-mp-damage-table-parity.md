@@ -1,6 +1,6 @@
 # ADR-0007: Server↔client damage-table constants are locked (head=9, body=3)
 
-- **Status:** Accepted
+- **Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 - **Date:** 2026-08-21
 - **Deciders:** chiefmonkey
 - **Related:** `src/engine/combat/damage.js`, `server/combat/damageTable.js`,

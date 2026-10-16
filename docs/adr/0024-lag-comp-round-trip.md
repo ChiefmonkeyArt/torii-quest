@@ -1,6 +1,6 @@
 # ADR-0024 — Lag compensation must count the round trip, not one way
 
-**Status:** Accepted
+**Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 **Version:** v0.2.633-alpha
 **Date:** 2026-08-22
 **Type:** Bug fix (hit registration; changes gameplay behaviour)

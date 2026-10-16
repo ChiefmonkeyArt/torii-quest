@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene } from './scene.js';
 import { keys } from './input.js';
-import { setRightHandBone } from './weapons.js';
+import { setRightHandBone } from './engine/weapons/gunViewmodel.js';
 import { assetUrl } from './assetUrl.js';
 import { GAME_STATE_TO_CLIP, loadAnimationLibrary, getAnimationLibraryBones } from './engine/animationLibrary.js';
 import { buildBoneRebind, collectTrackBoneNames } from './engine/character/animationRetarget.js';

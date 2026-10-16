@@ -41,25 +41,25 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0003](./0003-csp-as-http-header.md) | CSP delivered as HTTP header — nonce-free, strict-dynamic disabled, inline bootstrap sha256 | Accepted |
 | [0004](./0004-draco-vendored.md) | Draco decoder vendored at `/draco/` — never gstatic | Accepted |
 | [0005](./0005-sw-deploy-base-contract.md) | Service worker registration and precache are deploy-base aware | Accepted |
-| [0006](./0006-mp-hit-authority.md) | Server-authoritative HIT resolution — no client-HIT rebroadcast | Accepted |
-| [0007](./0007-mp-damage-table-parity.md) | Server↔client damage-table constants are locked (head=9, body=3) | Accepted |
+| [0006](./0006-mp-hit-authority.md) | Server-authoritative HIT resolution — no client-HIT rebroadcast | Accepted — superseded by 0130 |
+| [0007](./0007-mp-damage-table-parity.md) | Server↔client damage-table constants are locked (head=9, body=3) | Superseded by 0130 |
 | [0008](./0008-leaderboard-read-path.md) | Leaderboard reads only `kind:30078#d=torii-quest` + `kind:1#t=torii-quest-score` | Accepted |
 | [0009](./0009-spa-zone-fallback.md) | `index.html` SPA fallback for `/zone/*` deep-links | Accepted |
 | [0010](./0010-crosshair-esc-pointerlock-baseline.md) | Crosshair, ESC, and pointer-lock baseline is v0.2.605 | Accepted |
-| [0011](./0011-combat-classifier-bot-tactics-lod-hysteresis.md) | Combat classifier, bot tactics, and LOD hysteresis baseline (v0.2.608 forward-port) | Accepted |
+| [0011](./0011-combat-classifier-bot-tactics-lod-hysteresis.md) | Combat classifier, bot tactics, and LOD hysteresis baseline (v0.2.608 forward-port) | Superseded by 0130 |
 | [0012](./0012-stuck-key-guard-and-quality-tier-no-shadow-toggle.md) | Stuck-key guard and quality-tier no-shadow-toggle (v0.2.612 forward-port) | Accepted |
-| [0013](./0013-bot-identity-and-diagnostics.md) | Bot identity (dwarves) + always-on floating labels + shot diagnostics | Accepted |
-| [0014](./0014-trigger-fire-diagnostics.md) | Trigger-fire diagnostics (log every shot, not just resolved hits) | Accepted |
-| [0015](./0015-mp-hit-reg-alive-window.md) | Fix MP hit-reg alive-window (accept rewound-alive shots) | Accepted |
-| [0016](./0016-client-bot-state-sync.md) | Client Bot State Sync: Nameplate Lifecycle + Dead-Bot LOD | Accepted |
-| [0017](./0017-server-zone-in-bot-hit.md) | Plumb `zone` from BOT_HIT into client `applyBotHit` | Accepted |
+| [0013](./0013-bot-identity-and-diagnostics.md) | Bot identity (dwarves) + always-on floating labels + shot diagnostics | Accepted — superseded by 0130 |
+| [0014](./0014-trigger-fire-diagnostics.md) | Trigger-fire diagnostics (log every shot, not just resolved hits) | Superseded by 0130 |
+| [0015](./0015-mp-hit-reg-alive-window.md) | Fix MP hit-reg alive-window (accept rewound-alive shots) | Superseded by 0130 |
+| [0016](./0016-client-bot-state-sync.md) | Client Bot State Sync: Nameplate Lifecycle + Dead-Bot LOD | Accepted — superseded by 0130 |
+| [0017](./0017-server-zone-in-bot-hit.md) | Plumb `zone` from BOT_HIT into client `applyBotHit` | Accepted — superseded by 0130 |
 | [0018](./0018-controlled-test-environment.md) | Controlled test environment (env-driven bot roster override) | Accepted |
-| [0019](./0019-stale-bot-cleanup-test-mode.md) | Stale-bot cleanup + TEST_MODE instant respawn | Accepted |
-| [0020](./0020-complete-stale-bot-cleanup.md) | Complete stale-bot cleanup (clear wrapper array + colliders) | Accepted |
-| [0021](./0021-mp-authoritative-local-roster.md) | MP is authoritative: never render the local bot roster | Accepted |
+| [0019](./0019-stale-bot-cleanup-test-mode.md) | Stale-bot cleanup + TEST_MODE instant respawn | Accepted — superseded by 0130 |
+| [0020](./0020-complete-stale-bot-cleanup.md) | Complete stale-bot cleanup (clear wrapper array + colliders) | Superseded by 0130 |
+| [0021](./0021-mp-authoritative-local-roster.md) | MP is authoritative: never render the local bot roster | Accepted — superseded by 0130 |
 | [0022](./0022-mp-model-attach.md) | MP must attach its own GLB models to authoritative rows | Accepted |
-| [0023](./0023-miss-geometry-diagnostics.md) | Miss-geometry diagnostics for player→bot shots | Accepted |
-| [0024](./0024-lag-comp-round-trip.md) | Lag compensation must count the round trip, not one way | Accepted |
+| [0023](./0023-miss-geometry-diagnostics.md) | Miss-geometry diagnostics for player→bot shots | Accepted — superseded by 0130 |
+| [0024](./0024-lag-comp-round-trip.md) | Lag compensation must count the round trip, not one way | Accepted — superseded by 0130 |
 | [0025](./0025-kami-mode-sealed-ema.md) | Kami Mode: the owner's sealed in-world note-taking surface | Accepted |
 | [0026](./0026-spatial-marketplace-plebeian-client.md) | Spatial Marketplace: Quest as a watch-only Plebeian client | Accepted |
 | [0027](./0027-kami-ema-input-isolation.md) | Kami ema input isolation: the note owns its keystrokes while open | Accepted |
@@ -78,7 +78,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0040](./0040-nostr-native-kami-chat-bridge.md) | Nostr-native Kami chat bridge (staged) | Accepted |
 | [0041](./0041-playtest-kami-exit-and-hit-feedback.md) | Playtest UX: reliable Kami exit + visible hit feedback | Accepted |
 | [0042](./0042-instant-ema-post-and-bot-hit-feedback.md) | Instant Ema Post on Enter + Visible Bot Hit Feedback | Accepted |
-| [0043](./0043-hp-le-zero-dead-invariant.md) | hp ≤ 0 ⇒ dead invariant (bots-wont-die fix) | Accepted |
+| [0043](./0043-hp-le-zero-dead-invariant.md) | hp ≤ 0 ⇒ dead invariant (bots-wont-die fix) | Superseded by 0130 |
 | [0044](./0044-bot-nameplate-dwarf-name.md) | Bot nameplate shows the dwarf name, not "regular" | Accepted |
 | [0045](./0045-bot-render-state-ema-diagnostic.md) | Bot render-state ema diagnostic (v0.2.666-alpha) | Accepted |
 | [0046](./0046-sent-ray-diagnostic.md) | Sent-ray diagnostic — prove camera-vs-muzzle on miss (v0.2.667-alpha) | Accepted |
@@ -146,8 +146,12 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0121](./0121-relay-connection-backoff.md) | Relay connection back-off — fail-streak cool-down to silence doomed-WebSocket console spam (keeps blocked-for-one-client relays in the set) | Accepted |
 | [0123](./0123-live-gaze-through-browse.md) | Live gaze-through gate browse — keep PLAYING + pointer lock while browsing, APPROACH aperture reveal that holds open, parallax portal camera | Accepted |
 | [0124](./0124-world-space-gate-window.md) | World-space gate window — replace the fullscreen circular iris with a plane inside the torii opening showing the live mirror | Accepted |
+| [0130](./0130-game-zone-v2-combat-rebuild.md) | Game Zone v2 — rebuild the arena combat layer from scratch (one shared authority sim, tick-addressed lag comp, exact skinned hitboxes + validated claims, snapshot-is-roster) | Accepted |
 
 ## Workflow for a new decision
+
+ADR-0130: [Game Zone v2 — rebuild the arena combat layer from scratch](./0130-game-zone-v2-combat-rebuild.md).
+Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.
 
 ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).
 Accepted for the empty-directory fix; liveness rescues by created_at recency within the grace window.

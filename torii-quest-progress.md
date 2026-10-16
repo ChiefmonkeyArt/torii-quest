@@ -1,5 +1,19 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.895-alpha: Game Zone v2 — combat rebuild (top priority)
+
+Combat quality is now the top priority. The arena combat layer was rebuilt from
+scratch; nothing outside the game zone changed and the points are frozen.
+Measured on the real animated bot meshes (300 rays × 8 poses): what you hit now
+matches what is drawn 99.99–100 % (was 67 % regular / 79 % boss), head recall
+100 % (was 62 % regular / 0 % boss — boss headshots were impossible). The
+authority rejected 0 honest claims. A single shared sim runs on the VPS and in
+the browser, so a bot can no longer be alive on one side and dead on the other;
+the client's bot views always equal the authority's roster (no ghosts). Sim tick
+p99 0.06 ms; no tick over 5 ms. A headless real-browser run fired five aimed
+shots: three one-shot headshot kills, a 9-damage boss headshot and a 3-damage
+boss body shot — 5/5 accepted, 0 mispredictions. ADR-0130.
+
 ## v0.2.894-alpha: gateway directory clock-skew rescue + solidity
 
 The live gateway directory showed 0 worlds despite both nodes publishing fresh,

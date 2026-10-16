@@ -11,9 +11,9 @@
 //  3. src/audio.js#playBotShoot short-circuits when isClientSuspended() is true \u2014
 //     no AudioContext is even resolved, so a server SHOT relay that races an
 //     in-flight Home teardown plays no sound.
-//  4. src/bots.js#applyBotShot short-circuits when isClientSuspended() is true \u2014
-//     no bullet spawn callback fires either, so the perpetual world keeps ticking
-//     on the server without our client painting anything.
+//  4. Game Zone v2 (ADR-0130): gameZone.js#_onShot short-circuits when
+//     isClientSuspended() is true \u2014 relayed bot/peer shots neither draw a
+//     tracer nor play audio while the world keeps ticking on the server.
 //
 // Each check reads the source text directly so refactors that break the contract
 // (removing the guard, renaming the flag, dropping the export) fail the test.
@@ -26,7 +26,7 @@ import { isClientSuspended, setClientSuspended } from '../src/engine/state/clien
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const AUDIO_SRC = readFileSync(join(ROOT, 'src/audio.js'), 'utf8');
-const BOTS_SRC = readFileSync(join(ROOT, 'src/bots.js'), 'utf8');
+const GZ_SRC = readFileSync(join(ROOT, 'src/gamezone/client/gameZone.js'), 'utf8');
 const RUNTIME_SRC = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 
 // Bounded synchronous rAF stub \u2014 same shape as loop-fail-closed.test.js so a
@@ -126,20 +126,17 @@ describe('ADR-0098 client-suspend on Home \u2014 audio.js source contract', () =
   });
 });
 
-describe('ADR-0098 client-suspend on Home \u2014 bots.js source contract', () => {
+describe('ADR-0098 client-suspend on Home \u2014 gameZone.js source contract', () => {
   it('imports isClientSuspended from the shared state module', () => {
-    expect(BOTS_SRC).toMatch(
-      /import\s*\{\s*isClientSuspended\s*\}\s*from\s*'\.\/engine\/state\/clientSuspended\.js'/,
+    expect(GZ_SRC).toMatch(
+      /import\s*\{\s*isClientSuspended\s*\}\s*from\s*'\.\.\/\.\.\/engine\/state\/clientSuspended\.js'/,
     );
   });
-  it('applyBotShot short-circuits when isClientSuspended() returns true (before the Array checks)', () => {
-    const body = BOTS_SRC.match(
-      /export\s+function\s+applyBotShot\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/,
-    );
+  it('_onShot short-circuits when isClientSuspended() returns true (before any FX/audio)', () => {
+    const body = GZ_SRC.match(/function\s+_onShot\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}/);
     expect(body).not.toBeNull();
-    const [firstStmt] = body[1].trim().split('\n');
-    expect(firstStmt).toContain('isClientSuspended()');
-    expect(firstStmt).toContain('return');
+    const code = body[1].split('\n').filter((l) => !l.trim().startsWith('//')).join('\n').trim();
+    expect(code.split('\n')[0]).toContain('if (isClientSuspended()) return;');
   });
 });
 

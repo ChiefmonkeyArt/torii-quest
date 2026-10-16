@@ -1,6 +1,6 @@
 # ADR-0013: Bot identity (dwarves) + always-on floating labels + shot diagnostics
 
-- **Status:** Accepted
+- **Status:** Accepted — **Superseded by [ADR-0130](./0130-game-zone-v2-combat-rebuild.md)** (combat mechanism retired v0.2.895; goals carried forward)
 - **Date:** 2026-08-22
 - **Deciders:** chiefmonkey
 - **Related:** `src/bots.js`, `src/engine/entities/bot-tactics.js`,

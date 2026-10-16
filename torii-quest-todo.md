@@ -1,5 +1,24 @@
 # Torii Quest ToDo
 
+## v0.2.895-alpha: Game Zone v2 — combat rebuilt from scratch (TOP PRIORITY)
+
+- [x] Strategy: game zone combat quality is the top priority (operator, 2026-10-16).
+- [x] Bench first: skinned-mesh ground truth vs legacy colliders (`npm run bench:gamezone`).
+- [x] One shared authority sim (`src/gamezone/core`) for VPS + single-player.
+- [x] Tick-addressed lag compensation (render tick, 500 ms rewind cap).
+- [x] Exact skinned-triangle client hitboxes; anatomical head zone; root motion stripped.
+- [x] Claim validation on the authority; claimless shots never hit bots.
+- [x] Snapshot-is-roster reconciler (no ghosts); death from authoritative rows.
+- [x] O(1) arena grid (lazy + warm-up); pooled tracers/sparks (2 draw calls).
+- [x] GZ_FIRE / GZ_SNAP / GZ_EVENT wire; legacy SHOT/HIT/KILL ingress removed.
+- [x] Points unchanged (9/3, 5/60/100 HP, +5 sats); score ledger unchanged.
+- [x] Retire legacy combat code + tests; new `tests/gamezone/*`; ADR-0130.
+- [x] Headless real-browser smoke: aimed head/body shots register on bots + boss.
+- [ ] Live multi-client playtest on the VPS (two browsers + bots) — operator.
+- [ ] Feel pass (hit markers, kill confirm, recoil/audio timing) — measured, points frozen.
+- [ ] Remove now-unused bot-collider factories in `physics.js` / `bodies.js`.
+- [ ] Drop legacy wire types once no spectator node needs BOT_STATE/BOT_* frames.
+
 ## v0.2.894-alpha: gateway directory clock-skew rescue + solidity
 
 - [x] Rescue presence liveness from reader clock skew (created_at grace fallback).

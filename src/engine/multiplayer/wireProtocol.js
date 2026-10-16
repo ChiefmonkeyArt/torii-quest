@@ -17,6 +17,8 @@
 //     it — the wire is identical, only server-side interpretation of HIT
 //     changes.
 
+import { GZ_MSG, validateFire, validateSnap, validateEvent } from '../../gamezone/core/protocol.js';
+
 export const PROTOCOL_VERSION = 1;
 
 export const MSG = Object.freeze({
@@ -77,6 +79,11 @@ export const MSG = Object.freeze({
   // keepalive (PING/PONG); everything else is refused (spectatorGate.canSpectatorSend).
   // Additive on PROTOCOL_VERSION=1 (older clients/servers drop it via UNKNOWN_TYPE).
   SPECTATE:   'SPECTATE',
+  // Game Zone v2 (ADR-0130, v0.2.895-alpha): the rebuilt arena combat channel.
+  // Additive on PROTOCOL_VERSION=1. Shapes live in src/gamezone/core/protocol.js.
+  GZ_FIRE:    GZ_MSG.FIRE,
+  GZ_SNAP:    GZ_MSG.SNAP,
+  GZ_EVENT:   GZ_MSG.EVENT,
 });
 
 // Animation hint labels a bot state may carry (mirrors botSim _animHint).
@@ -291,6 +298,9 @@ const validators = {
   [MSG.SPECTATE](m) {
     return ok(m);
   },
+  [MSG.GZ_FIRE](m)  { const e = validateFire(m);  return e ? fail('BAD_FIELD', e) : ok(m); },
+  [MSG.GZ_SNAP](m)  { const e = validateSnap(m);  return e ? fail('BAD_FIELD', e) : ok(m); },
+  [MSG.GZ_EVENT](m) { const e = validateEvent(m); return e ? fail('BAD_FIELD', e) : ok(m); },
 };
 
 // ---------- public API ----------
@@ -361,6 +371,9 @@ const ALLOWED_FIELDS = Object.freeze({
   [MSG.KAMI_STATE]: ['active'],
   [MSG.REPLACED]:  ['reason'],
   [MSG.SPECTATE]:  [],
+  [MSG.GZ_FIRE]:   ['seq', 'origin', 'dir', 'rt', 'claim'],
+  [MSG.GZ_SNAP]:   ['tick', 'b'],
+  [MSG.GZ_EVENT]:  ['tick', 'ev'],
 });
 
 /** Is this a known message type? */

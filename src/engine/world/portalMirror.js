@@ -28,7 +28,7 @@ import { quatFromYaw } from './gateTransform.js';
 import { computePortalCamera } from './portalCamera.js';
 import { setNapNpcVisible } from '../../napNpc.js';
 import { setPortalMirrorHidden } from '../../firstPersonBody.js';
-import { setAllNameplatesVisible } from '../../bots.js';
+import { setAllNameplatesVisible } from '../../gamezone/client/gameZone.js';
 
 export function createPortalMirror({ THREE: T = THREE, targetWidth = 1024, targetHeight = 1024 } = {}) {
   let _camera = null;

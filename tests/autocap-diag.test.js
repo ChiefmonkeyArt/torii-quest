@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DIAG_PUBKEY } from '../src/engine/kami/diagKey.js';
-import { sealJson } from '../src/engine/kami/kamiSeal.js';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const RT = read('src/arenaRuntime.js');
@@ -18,10 +17,11 @@ describe('autocap diagnostics recipient', () => {
     expect(KM).not.toContain(DIAG_PUBKEY);
   });
 
-  it('seals the 1 Hz autocap frames to owner + Kami + diagnostics', async () => {
+  it('seals the 1 Hz autocap frames to owner + Kami + diagnostics', () => {
+    // Source-level: importing kamiSeal here would pre-empt other files' mocks
+    // (vitest isolate:false shares the module cache).
     expect(RT).toMatch(/const recipients = \[ownerPub, KAMI_PUBKEY, DIAG_PUBKEY\]/);
-    const env = await sealJson({ ok: 1 }, ['ea3ff08e8509ee77bf2188e4834ff5a5eb789cd5cfb4927325de10f5488d37a3', DIAG_PUBKEY]);
-    expect(env.keys.map((k) => k.to.slice(-64))).toContain(DIAG_PUBKEY);
+    expect(RT).toMatch(/import \{ DIAG_PUBKEY \} from '\.\/engine\/kami\/diagKey\.js'/);
   });
 
   it('never seals the manual ema notes to the diagnostics key', () => {

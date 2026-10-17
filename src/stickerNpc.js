@@ -30,6 +30,51 @@ let _textureLoading = false;
 let _stickers = [];      // active flying stickers
 let _attached = [];      // stickers stuck on surfaces
 
+// ADR-0132 feel hooks. onFire runs synchronously in the click's input event,
+// onLand when the flight ends. info = { target: 'npc'|'peer'|'bot'|'surface',
+// point, dist }; onFire(null) means the ray hit nothing. Hooks are feedback
+// only: a throwing hook must never break sticker placement.
+let _feelHooks = null;
+export function setStickerFeelHooks(hooks) { _feelHooks = hooks || null; }
+function _feel(name, info) {
+  const f = _feelHooks && _feelHooks[name];
+  if (!f) return;
+  try { f(info); } catch (e) { console.warn('[sticker] feel hook failed:', e); }
+}
+
+// One SpriteMaterial shared by every flying sticker (was a new material per
+// shot, disposed on landing). It switches from the pink fallback to the FTFF
+// texture once that loads.
+let _flyMat = null;
+function _flyMaterial() {
+  if (!_flyMat) {
+    _flyMat = new THREE.SpriteMaterial({
+      map: _texture || null,
+      color: _texture ? 0xffffff : 0xff00ff,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+    });
+  } else if (_texture && _flyMat.map !== _texture) {
+    _flyMat.map = _texture;
+    _flyMat.color.setHex(0xffffff);
+    _flyMat.needsUpdate = true;
+  }
+  return _flyMat;
+}
+
+// NPC gesture on landing: resolve the lazy napNpc import once, not per sticker.
+let _gestureFn = null, _gestureLoading = false;
+function _triggerGesture() {
+  if (_gestureFn) { _gestureFn(); return; }
+  if (_gestureLoading) return;
+  _gestureLoading = true;
+  import('./napNpc.js').then(({ triggerNpcGesture }) => {
+    _gestureLoading = false;
+    if (typeof triggerNpcGesture === 'function') { _gestureFn = triggerNpcGesture; _gestureFn(); }
+  }, () => { _gestureLoading = false; });
+}
+
 // Reusable raycaster + scratch vectors (constraint [4]: no new in hot paths)
 const _raycaster = new THREE.Raycaster();
 const _rayOrigin = new THREE.Vector3();
@@ -579,7 +624,7 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
     }
   }
 
-  if (!hitPoint) return false; // no hit at all
+  if (!hitPoint) { _feel('onFire', null); return false; } // no hit at all
 
   // Bake the hit into the bone's LOCAL space at fire time. The NPC walks
   // ~0.3m during the 0.22s flight; storing a bone-local offset lets the
@@ -594,15 +639,8 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
     boneLocalNormal = hitNormal.clone().transformDirection(_boneWorldInv);
   }
 
-  // Flying sticker: always visible (texture or pink fallback)
-  const mat = new THREE.SpriteMaterial({
-    map: _texture || null,
-    color: _texture ? 0xffffff : 0xff00ff,
-    transparent: true,
-    depthTest: true,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(mat);
+  // Flying sticker: always visible (texture or pink fallback), shared material.
+  const sprite = new THREE.Sprite(_flyMaterial());
   sprite.userData.isSticker = true;
   sprite.scale.set(FLY_SIZE, FLY_SIZE * ATTACHED_RATIO, 1);
   // Spawn at the gun muzzle, not the ray origin (camera aim). Like a bullet, the
@@ -616,6 +654,7 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
   // Mesh hits with a face qualify for baked; everything else falls back to
   // the existing plane path (skinned, instanced grass, no-face fallbacks).
   const renderMode = chooseStickerRenderMode(meshHitAccepted, _renderState);
+  const target = npcRoot ? 'npc' : peerRoot ? 'peer' : bot ? 'bot' : 'surface';
 
   _stickers.push({
     sprite,
@@ -634,7 +673,9 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
     hitInstanceId: meshHitAccepted?.instanceId ?? null,
     t: 0,
     duration: FLIGHT_DURATION,
+    target,
   });
+  _feel('onFire', { target, point: hitPoint, dist: bestDist });
 
   return true;
 }
@@ -645,6 +686,7 @@ export function tickStickerNpc(dt) {
   // fire — otherwise the opening shots show the pink `0xff00ff` fallback while
   // the image is still streaming. The guard makes this idempotent + free.
   _preloadTexture();
+  if (_flyMat && _texture && _flyMat.map !== _texture) _flyMaterial(); // swap in-flight pink → texture
   // Poll for NPC root (for gesture trigger detection)
   if (!_npcRoot) _pollNpcRoot();
   if (!_npcRoot && _getNpcRootFn) {
@@ -677,9 +719,9 @@ export function tickStickerNpc(dt) {
     s.sprite.scale.set(size, size * ATTACHED_RATIO, 1);
 
     if (p >= 1) {
-      scene.remove(s.sprite);
-      if (s.sprite.material) s.sprite.material.dispose();
+      scene.remove(s.sprite); // shared flying material: never disposed here
       _stickers.splice(i, 1);
+      _feel('onLand', { target: s.target, point: s.to });
 
       // ADR-0090 slice 2 — BAKED decal branch. When the fire hit a static,
       // non-instanced Mesh with a face and `forcePlaneMode` was OFF, project a
@@ -888,9 +930,7 @@ export function tickStickerNpc(dt) {
 
       // Trigger NPC gesture if hit the NPC
       if (s.npcRoot) {
-        import('./napNpc.js').then(({ triggerNpcGesture }) => {
-          if (triggerNpcGesture) triggerNpcGesture();
-        });
+        _triggerGesture();
       }
     }
   }

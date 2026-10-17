@@ -227,6 +227,7 @@ const MARKER_STYLE = {
   head:     { color: '#ffd23f',                len: 10, gap: 8,  glow: 'rgba(255,210,63,0.9)' },
   kill:     { color: '#ff3b30',                len: 12, gap: 9,  glow: 'rgba(255,59,48,0.9)' },
   headkill: { color: '#ff3b30',                len: 15, gap: 10, glow: 'rgba(255,210,63,1)' },
+  sticker:  { color: '#ff7ad9',                len: 7,  gap: 8,  glow: 'rgba(255,122,217,0.9)' }, // NAP (ADR-0132)
 };
 let _hm = null, _hmBars = null, _hmT = 0, _hmDur = 0, _hmKind = '', _hmTok = 0;
 function _hmDom() {
@@ -309,8 +310,8 @@ export function popCombatText(text, kind = 'body') {
   p.dx = 16 + ((_popTok * 7) % 13);
   p.rise = kind === 'reward' ? 42 : 30;
   p.el.textContent = text;
-  p.el.style.color = kind === 'head' ? '#ffd23f' : kind === 'reward' ? '#f7931a' : kind === 'kill' ? '#ff6a5a' : '#ffffff';
-  p.el.style.fontSize = kind === 'reward' ? '18px' : kind === 'head' ? '17px' : '15px';
+  p.el.style.color = kind === 'head' ? '#ffd23f' : kind === 'reward' ? '#f7931a' : kind === 'kill' ? '#ff6a5a' : kind === 'sticker' ? '#ff7ad9' : '#ffffff';
+  p.el.style.fontSize = kind === 'reward' ? '18px' : kind === 'head' ? '17px' : kind === 'sticker' ? '14px' : '15px';
   p.el.style.opacity = '1';
   p.el.style.transform = `translate(${p.dx}px, -18px)`;
   return p.tok;

@@ -337,7 +337,7 @@ export function playBotShoot(level = 1, pan = 0) {
 // ── Combat feedback cues (ADR-0131) ──────────────────────────────────────────
 // Short, dry, and pitched above the gunfire so they cut through it. Played on
 // the click's frame (prediction); the shared sim still decides the outcome.
-function _blip(ctx, t, type, f0, f1, peak, dur) {
+function _blip(ctx, t, type, f0, f1, peak, dur, out) {
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.type = type;
   o.frequency.setValueAtTime(f0, t);
@@ -345,7 +345,7 @@ function _blip(ctx, t, type, f0, f1, peak, dur) {
   g.gain.setValueAtTime(1e-4, t);
   g.gain.linearRampToValueAtTime(peak, t + 0.004);
   g.gain.exponentialRampToValueAtTime(1e-4, t + dur);
-  o.connect(g); g.connect(ctx.destination);
+  o.connect(g); g.connect(out || ctx.destination);
   o.start(t); o.stop(t + dur + 0.02);
 }
 
@@ -372,6 +372,47 @@ export function playKillConfirm(head = false) {
   _blip(ctx, t, 'triangle', 660, 660, 0.06, 0.09);
   _blip(ctx, t + 0.07, 'triangle', 990, 990, 0.065, 0.16);
   if (head) _blip(ctx, t + 0.07, 'sine', 1980, 2200, 0.03, 0.2);
+}
+
+// ── NAP sticker cues (ADR-0132) ──────────────────────────────────────────────
+// Playful, not violent: no gunshot in the peaceful zone. Both reuse the shared
+// noise buffer above, so a sticker never allocates an AudioBuffer.
+
+/** Sticker fire: a soft "thwip", band-passed air sweeping up plus a tiny blip. */
+export function playStickerFire() {
+  if (isClientSuspended()) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = _botNoiseBuf(ctx);
+  bp.type = 'bandpass';
+  bp.Q.value = 2.2;
+  bp.frequency.setValueAtTime(700, t);
+  bp.frequency.exponentialRampToValueAtTime(2600, t + 0.04);
+  g.gain.setValueAtTime(0.05, t);
+  g.gain.exponentialRampToValueAtTime(1e-4, t + 0.04);
+  src.connect(bp); bp.connect(g); g.connect(ctx.destination);
+  src.start(t);
+  _blip(ctx, t, 'sine', 880, 1320, 0.03, 0.06);
+}
+
+/**
+ * Sticker landing: a bubbly pop. `level`/`pan` come from feel.shotMix (distance
+ * and bearing); `pitch` (~0.9..1.1) varies it so a burst doesn't machine-gun;
+ * `character` adds a cartoon "boing" when it sticks to someone.
+ */
+export function playStickerStick(level = 1, pan = 0, character = false, pitch = 1) {
+  if (isClientSuspended()) return;
+  if (!(level > 0)) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const out = _out(ctx, pan);
+  const L = Math.min(1, level), p = pitch > 0 ? pitch : 1;
+  _blip(ctx, t, 'sine', 620 * p, 300 * p, 0.07 * L, 0.07, out);
+  _blip(ctx, t, 'triangle', 1800 * p, 1500 * p, 0.012 * L, 0.025, out);
+  if (character) _blip(ctx, t + 0.03, 'sine', 330 * p, 760 * p, 0.045 * L, 0.16, out);
 }
 
 // ── Jump land — deeper, single thump on touchdown ──────────────────────────

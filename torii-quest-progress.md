@@ -1,5 +1,16 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.897-alpha: NAP sticker feel pass (ADR-0132)
+
+Stickers in the NAP zone now feel playful and responsive. The sticker gun has
+its own soft "thwip" sound instead of the arena gunshot and a gentler version
+of the new recoil. A pink marker shows the instant you click when you're
+aiming at a character. When the sticker lands there's a bubbly pop (quieter
+with distance, panned left or right) and a pink sparkle. On a character you
+also get "STUCK!" and a cartoon boing, and the Nakama NPC does a happy squash
+and bounce. Placement and targeting are unchanged. Each sticker also stops
+making its own material.
+
 ## v0.2.896-alpha: combat feel pass (ADR-0131)
 
 Hits now feel like hits. On the click frame you get a hit marker (white body,

@@ -45,6 +45,11 @@ the world (`docs/design/gameplay-lessons-nap-and-world.md`). The proposed order
 is sticker hit-what-you-see and sticker feel, then cached footstep audio, then
 tick-addressed peer interpolation, then no-ghost peers/NPCs.
 
+v0.2.897-alpha ships the approved sticker feel item (ADR-0132): a playful
+version of the same feel pattern in the NAP zone, covering the thwip, gentle
+recoil, pink marker, pop/sparkle/STUCK! and the NPC giggle bounce. Sticker
+hit-what-you-see is the next proposal item and is not yet approved.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

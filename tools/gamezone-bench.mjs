@@ -30,7 +30,7 @@ import { loadGlbNode } from './gamezone/glbNode.mjs';
 import { fitHitboxParts, createHitboxRig, stripRootMotion, isHeadVertex } from '../src/gamezone/client/hitbox.js';
 import { rayVsBody, validateClaim } from '../src/gamezone/core/body.js';
 import { raySphere, rayCapsule, createRng } from '../src/gamezone/core/geom.js';
-import { BOT_KINDS } from '../src/gamezone/core/constants.js';
+import { BOT_KINDS, FLINCH_HEAD_RAD } from '../src/gamezone/core/constants.js';
 import { BOT_TEMPLATES } from '../src/gamezone/client/botTemplates.js';
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -159,6 +159,7 @@ async function hitBench() {
     const PL = new Float32Array(n * 3), PV = new Float32Array(n * 3);
     const acc = { legacy: blank(), coarse: blank(), skeletal: blank() };
     let claims = 0, rejected = 0, rayMs = 0, rayN = 0;
+    let fClaims = 0, fRejected = 0; // ADR-0131: honest claims on a bot at max flinch lean
     const reasons = {};
     const rng = createRng(m.kind === 'boss' ? 0xb055 : 0xbabe);
     for (const clipName of m.clips) {
@@ -200,12 +201,38 @@ async function hitBench() {
             if (!v.ok || v.zone !== sk.zone) { rejected++; const why = v.ok ? 'downgraded' : v.reason; reasons[why] = (reasons[why] || 0) + 1; }
           }
         }
+        // Flinch pass (ADR-0131): the same pose leaned by the strongest hit
+        // reaction, in a random direction. The authority validates against the
+        // UNLEANED body, so this proves a reaction never costs a fair hit.
+        {
+          const la = rng() * Math.PI * 2;
+          v2.holder.rotation.set(Math.cos(la) * FLINCH_HEAD_RAD, yaw, Math.sin(la) * FLINCH_HEAD_RAD);
+          v2.holder.updateMatrixWorld(true);
+          skinAll(v2.sk, PV);
+          rig.update(); rig.raycast(0, 50, 0, 0, -1, 0, 1);
+          for (let r = 0; r < RAYS; r++) {
+            const vi = Math.floor(rng() * n) * 3;
+            const tx = PV[vi] + (rng() - 0.5) * 0.6, ty = PV[vi + 1] + (rng() - 0.5) * 0.6, tz = PV[vi + 2] + (rng() - 0.5) * 0.6;
+            const dist = 4 + rng() * 21, az = rng() * Math.PI * 2;
+            const o = [Math.sin(az) * dist, 1.0 + rng() * 1.4, Math.cos(az) * dist];
+            let d = [tx - o[0], ty - o[1], tz - o[2]];
+            const L = Math.hypot(...d); d = d.map((x) => x / L);
+            const sk = rig.raycast(o[0], o[1], o[2], d[0], d[1], d[2], 200);
+            if (!sk) continue;
+            fClaims++;
+            const v = validateClaim(o[0], o[1], o[2], d[0], d[1], d[2], 200, 0, 0, 0, spec, { zone: sk.zone, dist: sk.t });
+            if (!v.ok || v.zone !== sk.zone) fRejected++;
+          }
+          v2.holder.rotation.set(0, yaw, 0);
+          v2.holder.updateMatrixWorld(true);
+        }
       }
     }
     out[m.kind] = {
       parts: parts.length,
       legacy: summarise(acc.legacy), coarse: summarise(acc.coarse), skeletal: summarise(acc.skeletal),
       validator: { claims, rejectedOrDowngraded: rejected, rejectPct: claims ? +(100 * rejected / claims).toFixed(2) : 0, reasons },
+      validatorFlinch: { leanRad: FLINCH_HEAD_RAD, claims: fClaims, rejectedOrDowngraded: fRejected, rejectPct: fClaims ? +(100 * fRejected / fClaims).toFixed(2) : 0 },
       exactRaycastMsAvg: +(rayMs / Math.max(1, rayN)).toFixed(3),
     };
   }
@@ -265,6 +292,7 @@ for (const k of Object.keys(hit)) {
   if (s.hitAgreePct < 97) fails.push(`${k}: skeletal hit agreement ${s.hitAgreePct}% < 97%`);
   if (s.zoneAgreePct < 97) fails.push(`${k}: skeletal zone agreement ${s.zoneAgreePct}% < 97%`);
   if (hit[k].validator.rejectPct > 0.5) fails.push(`${k}: validator rejects ${hit[k].validator.rejectPct}% of honest claims`);
+  if (hit[k].validatorFlinch.rejectPct > 0.5) fails.push(`${k}: validator rejects ${hit[k].validatorFlinch.rejectPct}% of honest claims on a flinching bot`);
 }
 // Timing gates are machine/load dependent: `--soft-timing` (used by the unit
 // test, which runs alongside the rest of the suite) reports them without failing.

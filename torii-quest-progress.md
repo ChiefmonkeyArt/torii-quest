@@ -1,5 +1,17 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.896-alpha: combat feel pass (ADR-0131)
+
+Hits now feel like hits. On the click frame you get a hit marker (white body,
+gold head, red kill, red-gold headshot kill), a floating damage number, a hit
+sound, a bot flinch and a punchier gun kick. If the authority rejects the shot,
+the marker and number are pulled within 70 ms. The `+5⚡` reward pops only when
+the kill is paid. Getting hit shows a red arc pointing at the shooter, and bot
+gunfire is quieter with distance and panned left or right. A bench gate proves
+the flinch never costs a fair hit: 0 % rejection for both the regular bot and the
+boss. Points are unchanged. A proposal for carrying these lessons into the NAP
+zone and the rest of the world is in `docs/design/gameplay-lessons-nap-and-world.md`.
+
 ## v0.2.895-alpha: Game Zone v2 — combat rebuild (top priority)
 
 Combat quality is now the top priority. The arena combat layer was rebuilt from

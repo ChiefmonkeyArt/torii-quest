@@ -110,12 +110,16 @@ export function setPitch(p) { _pitch = p;   } // DIAG v0.2.294: debug look-down 
 // Mouse click
 const _clickCbs = [];
 export function onShoot(fn) { _clickCbs.push(fn); }
+// performance.now() of the latest shoot click (ADR-0131: click→frame latency meter).
+let _shootInputAt = 0;
+export function lastShootInputAt() { return _shootInputAt; }
 document.addEventListener('mousedown', e => {
   // ADR-0027: clicking the ema modal must not fire a shot.
   // ADR-0029: in Kami Mode the shoot path is suppressed independently of
   // movement (the spirit roams + aims but doesn't fire).
   if (_inputSuppressed || _shootingSuppressed) return;
   if (e.button === 0 && isPlaying()) {
+    _shootInputAt = performance.now();
     _clickCbs.forEach(fn => fn());
   }
 });

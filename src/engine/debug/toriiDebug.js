@@ -109,6 +109,8 @@ export function installToriiDebug(refs) {
 
     // Game Zone v2 (ADR-0130): authority, ticks, prediction stats, last shot/result.
     get gz() { return _gzDbg(); },
+    // ADR-0131: zero the combat-feel meter (latency ring + marker honesty counts).
+    resetFeelStats() { const g = _gz(); if (g && g.resetFeelStats) { g.resetFeelStats(); return true; } return false; },
 
     player: {
       get position() { return playerObj.position; },

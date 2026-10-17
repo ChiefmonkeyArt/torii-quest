@@ -31,8 +31,15 @@ vi.mock('../../src/engine/kami/kamiSeal.js', () => ({
   toB64: () => 'fake',
   KAMI_SEAL_ALG: 'test',
 }));
-import { installKamiMode, kamiActive, kamiExit, kamiNoteOpen, kamiTrayState, kamiDiscard, __resetKamiForTests } from '../../src/engine/kami/kamiMode.js';
-import { state } from '../../src/state.js';
+// isolate:false shares the module cache across files in a worker. If another
+// file loaded kamiMode with the REAL kamiSeal first, the mock above would never
+// apply (order-dependent failure). Load a fresh module graph for this file.
+let installKamiMode, kamiActive, kamiExit, kamiNoteOpen, kamiTrayState, kamiDiscard, __resetKamiForTests, state;
+async function _loadFresh() {
+  vi.resetModules();
+  ({ installKamiMode, kamiActive, kamiExit, kamiNoteOpen, kamiTrayState, kamiDiscard, __resetKamiForTests } = await import('../../src/engine/kami/kamiMode.js'));
+  ({ state } = await import('../../src/state.js'));
+}
 
 const OWNER_PUBKEY = 'a'.repeat(64);
 
@@ -58,7 +65,8 @@ describe('Kami ema instant-post on Enter (ADR-0042)', () => {
   let emaPosts, failNext;
   let prevPointerLocked;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await _loadFresh();
     prevPointerLocked = state.pointerLocked;
     document.body.innerHTML = '<div id="emagake" hidden></div>';
     emaPosts = 0; failNext = false;

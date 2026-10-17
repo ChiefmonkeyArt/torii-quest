@@ -59,6 +59,11 @@ lying down alive. Gameplay glitches can now be reviewed from the in-game
 captures in a session, through a diagnostics key held only as a GitHub secret.
 Next approved item: stickers land exactly where aimed.
 
+v0.2.900-alpha (ADR-0135) ships it: stickers hit the drawn skin exactly, with
+an honest 4 cm assist, and ride the skin through every pose. The next proposal
+items, cached footstep audio then tick-addressed peer interpolation, are not
+yet approved.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

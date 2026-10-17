@@ -1,5 +1,16 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## STICKERS WHERE AIMED: v0.2.900-alpha (ADR-0135)
+
+- `src/engine/character/stickerSkin.js`: `skinRig(sm)` (hitbox fitted once per
+  geometry), `raycastSkin(sm, o, d, maxT, {assist})` → `{point, normal, t,
+  anchor, assisted}`, and `anchorPose(sm, anchor, p, n)`.
+- `stickerNpc.js`: characters use the skin path only. Flight and stuck
+  stickers re-pose from the anchor every frame; stickers of departed characters
+  are dropped. Debug: `ToriiDebug.stickerAim`.
+- `hitbox.js` `raycast` also returns `tri`, `u` and `v`; the Game Zone ignores them.
+- `napNpc.js`: no per-bone sensors. The broad NPC capsule collider is kept.
+
 ## PREDICTION + CAPTURES: v0.2.899-alpha (ADR-0134)
 
 - `gameZone.js`: lethal = `_authHp(v) − _pendingDmg(id) − dmg ≤ 0` (never

@@ -1,9 +1,9 @@
 // stickerNpc.js — FTFF sticker projectile system.
 // Stickers fire from the gun and stick to any surface in the scene.
-// For the NPC: uses two Rapier raycasts — one for per-bone ball sensors
-// (hits individual arms, legs, torso, head) and one for the broad capsule
-// (fallback). When a bone is hit, the sticker is parented to that bone via
-// Object3D.attach() — it follows the bone's animation automatically.
+// For characters (NAP NPC, peers): an exact hit on the DRAWN skin
+// (engine/character/stickerSkin.js, the Game Zone hitbox) — the sticker lands
+// where the crosshair meets the skin and rides that spot through every pose
+// via a triangle + barycentric anchor (ADR-0135).
 // For static objects (trees, crates): uses Three.js raycaster against meshes.
 import * as THREE from 'three';
 import { DecalGeometry } from 'three/examples/jsm/geometries/DecalGeometry.js';
@@ -15,7 +15,7 @@ import {
   STICKER_RENDER_MODE, createStickerRenderState,
   chooseStickerRenderMode, setForcePlaneMode,
 } from './engine/character/stickerRenderMode.js';
-import { castRay, colliderToBone } from './physics.js';
+import { raycastSkin, anchorPose, skinRig } from './engine/character/stickerSkin.js';
 
 // A/B render-mode state (ADR-0090 slice 2). Baked-vs-plane decal choice per
 // fire; the operator can force plane-mode globally via ToriiDebug.stickers.
@@ -31,7 +31,7 @@ let _stickers = [];      // active flying stickers
 let _attached = [];      // stickers stuck on surfaces
 
 // ADR-0132 feel hooks. onFire runs synchronously in the click's input event,
-// onLand when the flight ends. info = { target: 'npc'|'peer'|'bot'|'surface',
+// onLand when the flight ends. info = { target: 'npc'|'peer'|'surface',
 // point, dist }; onFire(null) means the ray hit nothing. Hooks are feedback
 // only: a throwing hook must never break sticker placement.
 let _feelHooks = null;
@@ -83,12 +83,8 @@ const _normal = new THREE.Vector3();
 const _quat = new THREE.Quaternion();
 const _zAxis = new THREE.Vector3(0, 0, 1);
 const _worldQuatInv = new THREE.Quaternion();
-const _boneWorldInv = new THREE.Matrix4();
 const _worldTarget = new THREE.Vector3();
 const _worldNormal = new THREE.Vector3();
-const MAX_SKIN_BONES = 256;
-const _faceBoneTotals = new Float32Array(MAX_SKIN_BONES);
-const _faceBoneUsed = new Uint16Array(12);
 
 // Mesh cache — refreshed periodically to pick up newly loaded objects
 const _meshCache = [];
@@ -185,13 +181,13 @@ export function createBakedDecalMaterial(texture) {
 // Check if a mesh/object should be excluded from sticker placement.
 // ADR-0090 slice 2: this used to carry a curated subset of "non-sticker-able"
 // world meshes; now it only guards mesh types that need a DIFFERENT targeting
-// path (skinned via Rapier bone colliders + surface raycast; instanced grass
+// path (characters via the exact skin test, ADR-0135; instanced grass
 // handled separately as its own bucket) plus the gun viewmodel.
 function _isExcluded(obj) {
   let o = obj;
   while (o) {
     if (o.name && EXCLUDE_NAMES.has(o.name)) return true;
-    // Skip NPC + bot meshes — handled by Rapier colliders, not Three.js raycaster
+    // Skip the NPC + bot meshes — characters use the exact skin path (ADR-0135)
     if (_npcRoot && o === _npcRoot) return true;
     if (o.userData?.isBotMesh) return true;
     // Skip peer avatars — SkinnedMesh needs the surface-authoritative path
@@ -309,44 +305,12 @@ function _raycastScene(origin, dir) {
   };
 }
 
-// Raycast against a specific SkinnedMesh to find the real animated-mesh surface
-// point.  Three.js r184's checkGeometryIntersection calls getVertexPosition()
-// which applies bone transforms — so this returns the posed hit point, not
-// the bind-pose hit point.
-//
-// CRITICAL: The bounding sphere is cached from bind pose and may not fit the
-// animated mesh, especially when the SkinnedMesh has a scale (e.g. 0.01 from
-// an Armature node).  We recompute it each call to ensure the ray actually
-// passes the sphere check.
-// See: https://discourse.threejs.org/t/raycasters-not-working-with-blender-glb/22449
+// ADR-0135: exact hit on the DRAWN skin (Game Zone hitbox, no Rapier sensors,
+// no guessed "graze" points). Returns { point, normal, object, anchor } or null.
 function _raycastSkinnedMesh(skinnedMesh, origin, dir) {
   if (!skinnedMesh) return null;
-  // Update bone world matrices FIRST, then compute bounding sphere.
-  skinnedMesh.updateMatrixWorld(true);
-  if (skinnedMesh.skeleton) skinnedMesh.skeleton.update();
-  skinnedMesh.computeBoundingSphere();
-  _rayOrigin.copy(origin);
-  _rayDir.copy(dir).normalize();
-  _raycaster.set(_rayOrigin, _rayDir);
-  _raycaster.far = 200;
-  const hits = _raycaster.intersectObject(skinnedMesh, false);
-  if (hits.length > 0) {
-    const hit = hits[0];
-    if (hit.face) {
-      _normal.copy(hit.face.normal);
-      _normal.transformDirection(hit.object.matrixWorld);
-    } else {
-      _normal.set(0, 0, 1);
-    }
-    return {
-      point: hit.point.clone(),
-      normal: _normal.clone(),
-      object: hit.object,
-      face: hit.face,
-      faceIndex: hit.faceIndex,
-    };
-  }
-  return null;
+  const h = raycastSkin(skinnedMesh, origin, dir, 200);
+  return h ? { point: h.point, normal: h.normal, object: skinnedMesh, anchor: h.anchor, assisted: h.assisted } : null;
 }
 
 function _findSkinnedMesh(root) {
@@ -368,93 +332,15 @@ function _getNpcSkinnedMesh() {
   return _npcSkinnedMesh;
 }
 
-function _getAttributeComponent(attribute, index, component) {
-  if (component === 0) return attribute.getX(index);
-  if (component === 1) return attribute.getY(index);
-  if (component === 2) return attribute.getZ(index);
-  return attribute.getW(index);
-}
-
-// Derive the attachment bone from the three hit-face vertices. This is only used
-// when the broad bone-ball query missed, so surface placement never depends on it.
-function _getSurfaceHitBone(surfaceHit) {
-  const object = surfaceHit?.object;
-  const face = surfaceHit?.face;
-  const skeleton = object?.skeleton;
-  const geometry = object?.geometry;
-  const skinIndex = geometry?.getAttribute('skinIndex');
-  const skinWeight = geometry?.getAttribute('skinWeight');
-  if (!face || !skeleton || !skinIndex || !skinWeight) return null;
-
-  let usedCount = 0;
-  for (let vertex = 0; vertex < 3; vertex++) {
-    const vertexIndex = vertex === 0 ? face.a : (vertex === 1 ? face.b : face.c);
-    for (let component = 0; component < 4; component++) {
-      const boneIndex = _getAttributeComponent(skinIndex, vertexIndex, component);
-      const weight = _getAttributeComponent(skinWeight, vertexIndex, component);
-      if (weight <= 0 || boneIndex < 0 || boneIndex >= skeleton.bones.length || boneIndex >= MAX_SKIN_BONES) continue;
-      if (_faceBoneTotals[boneIndex] === 0) _faceBoneUsed[usedCount++] = boneIndex;
-      _faceBoneTotals[boneIndex] += weight;
-    }
-  }
-
-  let bestIndex = -1;
-  let bestWeight = -1;
-  for (let i = 0; i < usedCount; i++) {
-    const boneIndex = _faceBoneUsed[i];
-    const weight = _faceBoneTotals[boneIndex];
-    if (weight > bestWeight) {
-      bestWeight = weight;
-      bestIndex = boneIndex;
-    }
-    _faceBoneTotals[boneIndex] = 0;
-  }
-  return bestIndex >= 0 ? skeleton.bones[bestIndex] || null : null;
-}
-
-// Approximate skin radius per bone (world units / meters). Used by the graze
-// fallback to place a sticker on the bone's surface when the generous bone
-// ball sensor is hit but the precise SkinnedMesh raycast misses (thin limbs).
-const _SKIN_RADIUS = {
-  Head: 0.13, headfront: 0.12, head_end: 0.10, neck: 0.08,
-  Hips: 0.15, Spine: 0.14, Spine01: 0.15, Spine02: 0.15,
-  LeftShoulder: 0.07, RightShoulder: 0.07,
-  LeftArm: 0.06, RightArm: 0.06,
-  LeftForeArm: 0.055, RightForeArm: 0.055,
-  LeftHand: 0.05, RightHand: 0.05,
-  LeftUpLeg: 0.09, RightUpLeg: 0.09,
-  LeftLeg: 0.07, RightLeg: 0.07,
-  LeftFoot: 0.06, RightFoot: 0.06,
-  LeftToeBase: 0.045, RightToeBase: 0.045,
-};
-const _SKIN_RADIUS_DEFAULT = 0.08;
-const _grazeBonePos = new THREE.Vector3();
-const _grazeToBone = new THREE.Vector3();
-const _grazeClosest = new THREE.Vector3();
-const _grazeSide = new THREE.Vector3();
-
-// Synthesize a surface hit when the bone-ball sensor was hit but the precise
-// mesh raycast missed. Places the point at the bone's approximate skin
-// radius on the side facing the ray, so the sticker hugs the limb.
-function _boneGrazeFallback(bone, origin, dirN) {
-  bone.getWorldPosition(_grazeBonePos);
-  _grazeToBone.subVectors(_grazeBonePos, origin);
-  const t = _grazeToBone.dot(dirN);
-  if (t < 0) return null; // bone is behind the ray origin
-  _grazeClosest.copy(dirN).multiplyScalar(t).add(origin);
-  _grazeSide.subVectors(_grazeClosest, _grazeBonePos);
-  const dist = _grazeSide.length();
-  if (dist > 1e-5) {
-    _grazeSide.multiplyScalar(1 / dist); // unit: bone center → ray side
-  } else {
-    _grazeSide.copy(dirN).multiplyScalar(-1); // dead-center: face the camera
-  }
-  // 0.85: radii are estimates; bias slightly inward so the sticker hugs the
-  // skin rather than floating proud of it.
-  const skinR = (_SKIN_RADIUS[bone.name] || _SKIN_RADIUS_DEFAULT) * 0.85;
-  const point = new THREE.Vector3().copy(_grazeBonePos).addScaledVector(_grazeSide, skinR);
-  const normal = new THREE.Vector3().copy(_grazeSide);
-  return { point, normal, bone };
+// Peers are only skin-tested when the aim line passes within this distance of
+// their root (cheap reject before the first-time hitbox fit / exact test).
+const PEER_NEAR_M = 2.5;
+const _peerPos = new THREE.Vector3();
+function _nearAimLine(root, origin, dirN) {
+  root.getWorldPosition(_peerPos).sub(origin);
+  const t = _peerPos.dot(dirN);
+  if (t < -PEER_NEAR_M) return false;
+  return _peerPos.addScaledVector(dirN, -t).lengthSq() < PEER_NEAR_M * PEER_NEAR_M;
 }
 
 // Spawn a sticker projectile from `spawnOrigin` (the gun muzzle) toward the
@@ -464,133 +350,33 @@ function _boneGrazeFallback(bone, origin, dirN) {
 // respectively, so the sticker must not spawn from the player's face.
 export function fireStickerAtNpc(origin, dir, spawnOrigin) {
   _preloadTexture();
+  const _t0 = performance.now();
 
   const dirN = dir.clone().normalize();
 
-  // ── Step 1a: Rapier raycast for NPC BONE colliders only (v0.2.574) ──
-  // Small ball sensors on each bone.  Must be a separate raycast because the
-  // broad NPC capsule would shadow them (it's closer to the ray origin).
-  // Copy point/normal IMMEDIATELY — castRay reuses internal scratch objects.
-  const rawBoneHit = castRay(
-    origin.x, origin.y, origin.z,
-    dirN.x, dirN.y, dirN.z,
-    200, null, c => colliderToBone.has(c.handle)
-  );
-
-  const boneInfo = rawBoneHit?.bone || null;
-  if (boneInfo?.npcRoot) {
-    _npcRoot = boneInfo.npcRoot;
-    if (boneInfo.skinnedMesh) _npcSkinnedMesh = boneInfo.skinnedMesh;
-  }
-  const npcSkinnedMesh = _getNpcSkinnedMesh();
-  // The surface ray is authoritative and runs on every fire, even if the
-  // generous per-bone ball query misses.
-  const npcSurface = _raycastSkinnedMesh(npcSkinnedMesh, origin, dirN);
-
-  // Bot bone sensors still need a surface point, but never fall back to their
-  // collider point. NPC sensors reuse the independently resolved NPC surface.
-  const boneSurface = boneInfo?.skinnedMesh === npcSkinnedMesh
-    ? npcSurface
-    : _raycastSkinnedMesh(boneInfo?.skinnedMesh, origin, dirN);
-
-  // ── Step 1b: Rapier raycast for broad NPC capsule + bots + crates ──
-  // Excludes bone colliders so we get the broad capsule hit independently.
-  const rapierHit = castRay(
-    origin.x, origin.y, origin.z,
-    dirN.x, dirN.y, dirN.z,
-    200, null, c => !colliderToBone.has(c.handle)
-  );
-
-  // ── Step 2: Three.js raycast for static meshes (trees, crates, terrain) ──
-  const meshHit = _raycastScene(origin, dirN);
-
-  // ── Step 3: Pick the closest hit ──
-  // Surface hits only: collider hits identify an entity/bone but never supply
-  // a placement point. A closer static mesh can still win over an NPC surface.
+  // ── Characters: the drawn skin is the only truth (ADR-0135) ──
+  if (!_npcRoot && _getNpcRootFn) { const r = _getNpcRootFn(); if (r) { if (_npcRoot !== r) _npcSkinnedMesh = null; _npcRoot = r; } }
   let hitPoint, hitNormal;
-  let npcRoot = null, meshObj = null, bone = null, bot = null;
-  let bestDist = Infinity;
+  let npcRoot = null, meshObj = null, skin = null, anchor = null, peerRoot = null;
+  let bestDist = Infinity, _assisted = 0;
 
-  // Graze fallback: bone sensor hit but the precise mesh raycast missed
-  // (thin limbs). Synthesize a surface point on the hit bone so the sticker
-  // still lands on the character instead of flying through to the floor.
-  let npcSurfaceEff = npcSurface;
-  if (!npcSurfaceEff && boneInfo?.npcRoot && boneInfo.npcRoot === _npcRoot && boneInfo.bone) {
-    npcSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
-  }
-
-  if (npcSurfaceEff && _npcRoot) {
-    const d = npcSurfaceEff.point.distanceTo(origin);
-    bestDist = d;
-    hitPoint = npcSurfaceEff.point;
-    hitNormal = npcSurfaceEff.normal;
-    // Real mesh hit: attach to the bone that drives the skin at the hit face
-    // (max skin weight). The grazed collider bone can be a neighbour that
-    // moves differently, leaving the sticker floating. Graze fallback: use it.
-    const surfaceBone = npcSurfaceEff !== npcSurface ? null : _getSurfaceHitBone(npcSurfaceEff);
-    bone = surfaceBone || (boneInfo?.npcRoot === _npcRoot ? boneInfo.bone : null);
+  const npcSkinnedMesh = _npcRoot ? _getNpcSkinnedMesh() : null;
+  const npcSurface = npcSkinnedMesh ? _raycastSkinnedMesh(npcSkinnedMesh, origin, dirN) : null;
+  if (npcSurface) {
+    bestDist = npcSurface.point.distanceTo(origin);
+    hitPoint = npcSurface.point;
+    hitNormal = npcSurface.normal;
+    skin = npcSkinnedMesh; anchor = npcSurface.anchor; _assisted = npcSurface.assisted;
     npcRoot = _npcRoot;
   }
 
-  let boneSurfaceEff = boneSurface;
-  if (!boneSurfaceEff && boneInfo?.bot && boneInfo.bone) {
-    boneSurfaceEff = _boneGrazeFallback(boneInfo.bone, origin, dirN);
-  }
+  // ── Static meshes (trees, crates, terrain, grass) ──
+  const meshHit = _raycastScene(origin, dirN);
 
-  if (boneInfo?.bot && boneSurfaceEff) {
-    const d = boneSurfaceEff.point.distanceTo(origin);
-    if (d < bestDist) {
-      bestDist = d;
-      hitPoint = boneSurfaceEff.point;
-      hitNormal = boneSurfaceEff.normal;
-      const surfaceBone = boneSurfaceEff !== boneSurface ? null : _getSurfaceHitBone(boneSurfaceEff);
-      bone = surfaceBone || boneInfo.bone || null;
-      npcRoot = null;
-      bot = boneInfo.bot;
-    }
-  }
-
-  // Broad capsule hit — it may identify a bot or an NPC that was not yet
-  // cached, but it only counts when the real skinned surface also intersects.
-  if (rapierHit && (rapierHit.npc || rapierHit.bot)) {
-    let broadSkinnedMesh = null;
-    let broadSurface = null;
-    if (rapierHit.bot?.model?.skinnedMesh) {
-      broadSkinnedMesh = rapierHit.bot.model.skinnedMesh;
-    } else if (rapierHit.npc) {
-      broadSkinnedMesh = rapierHit.npc === _npcRoot
-        ? npcSkinnedMesh
-        : _findSkinnedMesh(rapierHit.npc);
-    }
-    if (broadSkinnedMesh) {
-      broadSurface = broadSkinnedMesh === npcSkinnedMesh
-        ? npcSurface
-        : _raycastSkinnedMesh(broadSkinnedMesh, origin, dirN);
-    }
-    if (broadSurface) {
-      const d = broadSurface.point.distanceTo(origin);
-      if (d < bestDist) {
-        bestDist = d;
-        hitPoint = broadSurface.point;
-        hitNormal = broadSurface.normal;
-        npcRoot = rapierHit.npc || null;
-        bot = rapierHit.bot || null;
-        bone = boneInfo?.bone &&
-          (boneInfo.npcRoot === rapierHit.npc || boneInfo.bot === rapierHit.bot)
-          ? boneInfo.bone
-          : _getSurfaceHitBone(broadSurface);
-      }
-    }
-  }
-
-  // ── Step 2b: Peer avatars (multiplayer remote players) — surface-authoritative
-  // SkinnedMesh raycast, same as the NPC path. Peers have no Rapier colliders,
-  // so the Three.js surface ray is the ONLY targeting channel. The peer wrapper
-  // Group is a moving target (remoteAvatars.tick sets its position every frame),
-  // so the bone-local bake at fire time + flight tracking handle the motion.
-  let peerRoot = null;
+  // ── Peer avatars (multiplayer remote players) — same exact skin test ──
   const peers = _collectPeerRoots();
   for (let i = 0; i < peers.length; i++) {
+    if (!_nearAimLine(peers[i], origin, dirN)) continue;
     const sm = _findSkinnedMesh(peers[i]);
     if (!sm) continue;
     const peerSurface = _raycastSkinnedMesh(sm, origin, dirN);
@@ -601,10 +387,8 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
       hitPoint = peerSurface.point;
       hitNormal = peerSurface.normal;
       peerRoot = peers[i];
-      bone = _getSurfaceHitBone(peerSurface);
+      skin = sm; anchor = peerSurface.anchor; _assisted = peerSurface.assisted;
       npcRoot = null;
-      bot = null;
-      meshObj = null;
     }
   }
 
@@ -618,26 +402,17 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
       meshObj = meshHit.object;
       meshHitAccepted = meshHit;
       npcRoot = null;
-      bot = null;
-      bone = null;
+      skin = null; anchor = null; _assisted = 0;
       peerRoot = null;
     }
   }
 
-  if (!hitPoint) { _feel('onFire', null); return false; } // no hit at all
-
-  // Bake the hit into the bone's LOCAL space at fire time. The NPC walks
-  // ~0.3m during the 0.22s flight; storing a bone-local offset lets the
-  // landing code place the sticker at the bone's CURRENT transform of that
-  // offset, so it rides the skin instead of trailing behind in mid-air.
-  let boneLocalOffset = null;
-  let boneLocalNormal = null;
-  if (bone) {
-    bone.updateWorldMatrix(true, false);
-    _boneWorldInv.copy(bone.matrixWorld).invert();
-    boneLocalOffset = hitPoint.clone().applyMatrix4(_boneWorldInv);
-    boneLocalNormal = hitNormal.clone().transformDirection(_boneWorldInv);
-  }
+  _aim.shots++;
+  _aim.lastMs = performance.now() - _t0;
+  if (_aim.lastMs > _aim.maxMs) _aim.maxMs = _aim.lastMs;
+  if (!hitPoint) { _aim.last = null; _feel('onFire', null); return false; } // no hit at all
+  _aim.last = { target: npcRoot ? 'npc' : peerRoot ? 'peer' : 'surface', assisted: _assisted, dist: Math.round(bestDist * 1000) / 1000 };
+  if (_assisted) _aim.assisted++;
 
   // Flying sticker: always visible (texture or pink fallback), shared material.
   const sprite = new THREE.Sprite(_flyMaterial());
@@ -654,7 +429,7 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
   // Mesh hits with a face qualify for baked; everything else falls back to
   // the existing plane path (skinned, instanced grass, no-face fallbacks).
   const renderMode = chooseStickerRenderMode(meshHitAccepted, _renderState);
-  const target = npcRoot ? 'npc' : peerRoot ? 'peer' : bot ? 'bot' : 'surface';
+  const target = npcRoot ? 'npc' : peerRoot ? 'peer' : 'surface';
 
   _stickers.push({
     sprite,
@@ -663,11 +438,11 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
     normal: hitNormal.clone(),
     npcRoot,
     meshObj,
-    bone,
-    bot,
     peerRoot,
-    boneLocalOffset,
-    boneLocalNormal,
+    // ADR-0135: a character hit is an anchor on the drawn skin (triangle +
+    // barycentrics), re-skinned every frame — in flight and once stuck.
+    skin,
+    anchor,
     renderMode,
     hitFace: meshHitAccepted?.face || null,
     hitInstanceId: meshHitAccepted?.instanceId ?? null,
@@ -678,6 +453,25 @@ export function fireStickerAtNpc(origin, dir, spawnOrigin) {
   _feel('onFire', { target, point: hitPoint, dist: bestDist });
 
   return true;
+}
+
+// Place a stuck plane on the skin: lifted 0.012 m along the normal (clears
+// curved limbs) and facing out of the surface.
+function _poseSkinSticker(mesh, p, n) {
+  mesh.position.copy(p).addScaledVector(n, 0.012);
+  mesh.quaternion.setFromUnitVectors(_zAxis, n);
+}
+function _inScene(o) {
+  for (let p = o; p; p = p.parent) if (p === scene) return true;
+  return false;
+}
+
+// ADR-0135 debug: targeting cost + assist use + stickers riding a skin.
+const _aim = { shots: 0, assisted: 0, lastMs: 0, maxMs: 0, last: null };
+export function getStickerAimStats() {
+  let onSkin = 0;
+  for (const a of _attached) if (a.skin) onSkin++;
+  return { ..._aim, lastMs: Math.round(_aim.lastMs * 100) / 100, maxMs: Math.round(_aim.maxMs * 100) / 100, attached: _attached.length, onSkin };
 }
 
 // Called every frame to update flying + attached stickers.
@@ -696,6 +490,12 @@ export function tickStickerNpc(dt) {
       _npcRoot = r;
     }
   }
+  // Fit the NPC's skin hitbox off the fire path: once per geometry, on the
+  // first frame after the NPC loads (~50 ms one-time, never on a click).
+  if (_npcSkinnedMesh && _npcRigWarmed !== _npcSkinnedMesh) {
+    _npcRigWarmed = _npcSkinnedMesh;
+    try { skinRig(_npcSkinnedMesh); } catch { /* fitted lazily on fire */ }
+  }
   if (!_npcSkinnedMesh && _getNpcSkinnedMeshFn) {
     _npcSkinnedMesh = _getNpcSkinnedMeshFn();
   }
@@ -704,13 +504,9 @@ export function tickStickerNpc(dt) {
   for (let i = _stickers.length - 1; i >= 0; i--) {
     const s = _stickers[i];
     s.t += dt;
-    // Bone-bound stickers track the moving bone during flight so the landing
-    // is seamless (the NPC walks ~0.3m during the 0.22s flight).
-    if (s.bone && s.boneLocalOffset) {
-      s.bone.updateWorldMatrix(true, false);
-      _worldTarget.copy(s.boneLocalOffset).applyMatrix4(s.bone.matrixWorld);
-      s.to.copy(_worldTarget);
-    }
+    // Skin-anchored stickers track the drawn surface during flight so the
+    // landing is seamless (the NPC walks ~0.3m during the 0.22s flight).
+    if (s.skin && s.anchor) anchorPose(s.skin, s.anchor, s.to, s.normal);
     const p = Math.min(1, s.t / s.duration);
     const e = 1 - (1 - p) * (1 - p);
     s.sprite.position.lerpVectors(s.from, s.to, e);
@@ -808,94 +604,16 @@ export function tickStickerNpc(dt) {
 
       let parented = false;
 
-      // ── BONE: parent to specific bone via Object3D.attach() (v0.2.574) ──
-      if (s.bone) {
-        try {
-          if (s.boneLocalOffset) {
-            // Place at the bone's CURRENT world transform of the fire-time
-            // local offset — the NPC moved during flight, so the raw hit point
-            // is stale. This glues the sticker to the skin with zero lag.
-            s.bone.updateWorldMatrix(true, false);
-            _worldTarget.copy(s.boneLocalOffset).applyMatrix4(s.bone.matrixWorld);
-            _worldNormal.copy(s.boneLocalNormal).transformDirection(s.bone.matrixWorld);
-            sticker.position.copy(_worldTarget);
-            sticker.position.x += _worldNormal.x * 0.012;
-            sticker.position.y += _worldNormal.y * 0.012;
-            sticker.position.z += _worldNormal.z * 0.012;
-            _quat.setFromUnitVectors(_zAxis, _worldNormal);
-            sticker.quaternion.copy(_quat);
-          } else {
-            sticker.position.copy(worldPos);
-            sticker.quaternion.copy(_quat);
-          }
-          sticker.scale.setScalar(1.0);
-          scene.add(sticker);
-          sticker.updateMatrixWorld(true);
-          s.bone.attach(sticker);
-          parented = true;
-        } catch (e) {
-          console.warn('[sticker] bone.attach failed:', e);
-        }
-      }
-
-      // ── NPC: parent to NPC root (broad capsule hit, no specific bone) ──
-      if (!parented && s.npcRoot) {
-        try {
-          s.npcRoot.updateMatrixWorld(true);
-          const localPos = worldPos.clone();
-          s.npcRoot.worldToLocal(localPos);
-          sticker.position.copy(localPos);
-          sticker.quaternion.copy(_quat);
-          // Adjust orientation to match NPC root rotation
-          s.npcRoot.getWorldQuaternion(_worldQuatInv).invert();
-          sticker.quaternion.premultiply(_worldQuatInv);
-          sticker.scale.setScalar(1.0);
-          s.npcRoot.add(sticker);
-          parented = true;
-        } catch (e) {
-          console.warn('[sticker] NPC root parenting failed:', e);
-        }
-      }
-
-      // ── BOT: parent to bot root (broad capsule/head hit, no specific bone) ──
-      // v0.2.575: same pattern as NPC root — convert world to bot-root-local.
-      if (!parented && s.bot && s.bot.model?.root) {
-        try {
-          const botRoot = s.bot.model.root;
-          botRoot.updateMatrixWorld(true);
-          const localPos = worldPos.clone();
-          botRoot.worldToLocal(localPos);
-          sticker.position.copy(localPos);
-          sticker.quaternion.copy(_quat);
-          botRoot.getWorldQuaternion(_worldQuatInv).invert();
-          sticker.quaternion.premultiply(_worldQuatInv);
-          sticker.scale.setScalar(1.0);
-          botRoot.add(sticker);
-          parented = true;
-        } catch (e) {
-          console.warn('[sticker] bot root parenting failed:', e);
-        }
-      }
-
-      // ── PEER: parent to peer avatar root (fallback when no bone was found) ──
-      // Same pattern as NPC root: convert world → peer-local, then add.
-      // The peer wrapper Group moves every frame via remoteAvatars.tick, so
-      // the sticker rides the peer's transform automatically.
-      if (!parented && s.peerRoot) {
-        try {
-          s.peerRoot.updateMatrixWorld(true);
-          const localPos = worldPos.clone();
-          s.peerRoot.worldToLocal(localPos);
-          sticker.position.copy(localPos);
-          sticker.quaternion.copy(_quat);
-          s.peerRoot.getWorldQuaternion(_worldQuatInv).invert();
-          sticker.quaternion.premultiply(_worldQuatInv);
-          sticker.scale.setScalar(1.0);
-          s.peerRoot.add(sticker);
-          parented = true;
-        } catch (e) {
-          console.warn('[sticker] peer root parenting failed:', e);
-        }
+      // ── SKIN (NPC / peer): ride the drawn surface (ADR-0135) ──
+      // World-space plane re-posed every frame from its skin anchor, so it
+      // stays exactly on the skin through every clip — blended joints included
+      // (a single-bone parent slid off shoulders, hips and elbows).
+      let skinRef = null;
+      if (s.skin && s.anchor && anchorPose(s.skin, s.anchor, _worldTarget, _worldNormal)) {
+        _poseSkinSticker(sticker, _worldTarget, _worldNormal);
+        scene.add(sticker);
+        skinRef = { skin: s.skin, anchor: s.anchor };
+        parented = true;
       }
 
       // ── Static mesh parenting (trees, crates, etc.) ──
@@ -919,7 +637,8 @@ export function tickStickerNpc(dt) {
         scene.add(sticker);
       }
 
-      _attached.push({ mesh: sticker, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME });
+      _attached.push({ mesh: sticker, life: ATTACHED_LIFETIME, maxLife: ATTACHED_LIFETIME,
+        skin: skinRef ? skinRef.skin : null, anchor: skinRef ? skinRef.anchor : null });
 
       while (_attached.length > MAX_ATTACHED) {
         const old = _attached.shift();
@@ -939,6 +658,12 @@ export function tickStickerNpc(dt) {
   for (let i = _attached.length - 1; i >= 0; i--) {
     const a = _attached[i];
     a.life -= dt;
+    // Skin stickers follow the drawn surface; a character that left the scene
+    // (peer gone, NPC rebuilt) takes its stickers with it.
+    if (a.skin && a.life > 0) {
+      if (!_inScene(a.skin) || !anchorPose(a.skin, a.anchor, _worldTarget, _worldNormal)) a.life = 0;
+      else _poseSkinSticker(a.mesh, _worldTarget, _worldNormal);
+    }
     if (a.life <= 0) {
       if (a.mesh.parent) a.mesh.parent.remove(a.mesh);
       if (a.mesh.geometry) a.mesh.geometry.dispose();
@@ -955,6 +680,7 @@ export function tickStickerNpc(dt) {
 // NPC root ref (for gesture trigger detection)
 let _npcRoot = null;
 let _npcSkinnedMesh = null;
+let _npcRigWarmed = null;
 let _getNpcRootFn = null;
 let _getNpcSkinnedMeshFn = null;
 let _npcImportStarted = false;

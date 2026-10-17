@@ -41,7 +41,7 @@ import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interact
 import { playBotShoot, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot } from './napNpc.js';
-import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks } from './stickerNpc.js';
+import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks, getStickerAimStats } from './stickerNpc.js';
 import { createStickerFeel } from './engine/feel/stickerFeel.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initHUD, tickHUD, flashCross, addKill, setReticleState, setBossBar, hideBossBar, showHitMarker, voidHitMarker, popCombatText, voidCombatText, showDamageDir, clearCombatFeel, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
@@ -1542,7 +1542,7 @@ export function createArenaRuntime(hooks = {}) {
     on(EV.HUD_UPDATE,    () => { if (isReloading()) triggerReload(); });
 
     installToriiDebug({
-      version: VERSION, getGameZone: () => _gz, getStickerFeel: () => _stickerFeel, getNapNpc: getNpcRoot, playerObj, resetPlayerPos, setNextSpawn,
+      version: VERSION, getGameZone: () => _gz, getStickerFeel: () => _stickerFeel, getStickerAim: getStickerAimStats, getNapNpc: getNpcRoot, playerObj, resetPlayerPos, setNextSpawn,
       camera, setPitch, setYaw,
       castRay, castRayStatic, hasLineOfSight, getWorld,
       getGrassMat, getFlowerMat, getMirror,

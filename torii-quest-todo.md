@@ -1,5 +1,13 @@
 # Torii Quest ToDo
 
+## v0.2.899-alpha: boss lying-down fix + capture access (ADR-0134)
+
+- [x] No bot left lying on the ground alive: authoritative-hp lethal test, every result settles a predicted death, safety net.
+- [x] Autocap frames also sealed to the diagnostics key; `autocap-pull.yml` workflow; dispatcher v3 `autocap-export`.
+- [ ] Operator: reinstall the admin dispatcher on the VPS once (`ops/install-admin-ssh.sh`).
+- [ ] Operator playtest; then run `autocap-pull` after a glitch.
+- [ ] Next (approved 2026-10-17): stickers land exactly where aimed (ADR-0135, in progress).
+
 ## v0.2.898-alpha: bot colour + start-up hand-over fix (ADR-0133)
 
 - [x] Hit bots no longer go dark: the flash returns each material to its own emissive (`client/hitFlash.js`).

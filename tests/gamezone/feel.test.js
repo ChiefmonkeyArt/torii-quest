@@ -304,3 +304,39 @@ describe('Game Zone client feel wiring (ADR-0131)', () => {
     expect(calls.some((c) => c[0] === 'clearFeel')).toBe(true);
   });
 });
+
+describe('predicted deaths always resolve (ADR-0134: boss lying on the ground)', () => {
+  const pdOf = (gz, id) => gz.list().find((b) => b.id === id).predictedDead;
+
+  it('sustained fire on the 60 HP boss never predicts death early', async () => {
+    const { gz } = await makeZone();
+    gz.ingestSnapshot(snap(10, [[4, 1, 0, 0, -10, 0, 60, 0, 1, 0]]));
+    gz.frame(1 / 60, { playing: false });
+    // 12 body shots = 36 dmg pending, no results yet: 60 − 36 > 0.
+    for (let i = 0; i < 12; i++) { shoot(gz, 1.0); gz.frame(1 / 60, { playing: false }); }
+    expect(pdOf(gz, 4)).toBe(false);
+  });
+
+  it('a landed but non-lethal result stands a predicted death back up', async () => {
+    const { gz, sent } = await makeZone();
+    gz.ingestSnapshot(snap(10, [[0, 0, 0, 0, -10, 0, 5, 0, 1, 0]]));
+    gz.frame(1 / 60, { playing: false });
+    shoot(gz, 1.7); // head claim: 9 ≥ 5 → predicted kill
+    expect(pdOf(gz, 0)).toBe(true);
+    // The authority downgrades it to a body hit: 3 dmg, 2 hp left, not killed.
+    gz.ingestEvents({ ev: [{ type: 'result', sid: 'me', seq: sent[0].seq, ok: true,
+      hit: { tk: 'bot', tid: 0, zone: 'body', dmg: 3, hp: 2, killed: false, absorbed: false } }] });
+    expect(pdOf(gz, 0)).toBe(false);
+    expect(gz.list()[0].life).toBe(0);
+  });
+
+  it('a confirmed kill keeps it down', async () => {
+    const { gz, sent } = await makeZone();
+    gz.ingestSnapshot(snap(10, [[0, 0, 0, 0, -10, 0, 5, 0, 1, 0]]));
+    gz.frame(1 / 60, { playing: false });
+    shoot(gz, 1.7);
+    gz.ingestEvents({ ev: [{ type: 'result', sid: 'me', seq: sent[0].seq, ok: true,
+      hit: { tk: 'bot', tid: 0, zone: 'head', dmg: 9, hp: 0, killed: true, absorbed: false } }] });
+    expect(pdOf(gz, 0)).toBe(true);
+  });
+});

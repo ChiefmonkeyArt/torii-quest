@@ -29,7 +29,11 @@
 
 set -euo pipefail
 
-DISPATCHER_VERSION=2
+DISPATCHER_VERSION=3
+
+# ADR-0134: the 1 Hz autocap ring. Exported as a tar stream by the fixed,
+# argument-less autocap-export op (never a general /var/lib read root).
+AUTOCAP_PARENT=/var/lib/torii-quest/kami
 
 die() { echo "torii-admin-run: $*" >&2; exit 2; }
 
@@ -161,6 +165,8 @@ Read ops (reason-limited):
   journal <unit>               journalctl -u <unit> --no-pager -n 500
   unit-status <unit>           systemctl status (fixed unit enumeration)
   unit-show <unit>             systemctl show   (fixed unit enumeration)
+  autocap-export               tar.gz of the sealed 1 Hz autocap ring to stdout
+                               (fixed path, no arguments; frames stay sealed)
 
 Unit ops (fixed enumeration only):
   unit-start|unit-stop|unit-restart|unit-reload <unit>
@@ -194,6 +200,14 @@ case "$op" in
     denied_path "$p" && die "denied path: $1"
     in_roots "$p" "$READ_ROOTS" || die "path not in read roots: $1"
     exec /bin/cat -- "$p"
+    ;;
+  autocap-export)
+    [[ $# -eq 0 ]] || die "autocap-export takes no arguments"
+    [[ -d "${AUTOCAP_PARENT}/autocap" && ! -L "${AUTOCAP_PARENT}/autocap" ]] || die "no autocap ring at ${AUTOCAP_PARENT}/autocap"
+    # Regular *.json files directly in the ring only (no symlinks, no subdirs).
+    cd "$AUTOCAP_PARENT"
+    /usr/bin/find autocap -maxdepth 1 -type f -name '*.json' -print0 \
+      | /bin/tar -czf - --null --no-recursion -T -
     ;;
   search)
     [[ $# -ge 2 ]] || die "search needs <dir> <name-pattern>"

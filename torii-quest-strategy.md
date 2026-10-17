@@ -54,6 +54,11 @@ v0.2.898-alpha (ADR-0133) fixes two play-test findings in the game zone. Hit
 bots now keep their colour, and multiplayer entry, re-entry and reconnects
 hold for the server's bots instead of swapping in a local world first.
 
+v0.2.899-alpha (ADR-0134): predicted kills always resolve, so no bot is left
+lying down alive. Gameplay glitches can now be reviewed from the in-game
+captures in a session, through a diagnostics key held only as a GitHub secret.
+Next approved item: stickers land exactly where aimed.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

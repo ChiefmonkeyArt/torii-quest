@@ -18,6 +18,7 @@ import { BOT_TEMPLATES } from './botTemplates.js';
 import { fitHitboxParts, createHitboxRig, stripRootMotion } from './hitbox.js';
 import { ANIMS, BOT_KINDS, HEADSHOT_DIE_SPEED } from '../core/constants.js';
 import { flinchEnvelope, flinchPeak, leanFromShot } from './feel.js';
+import { createHitFlash } from './hitFlash.js';
 import { rayVsBody } from '../core/body.js';
 import { raySegmentClosest } from '../core/geom.js';
 
@@ -145,6 +146,7 @@ export function createBotView(parent, meta) {
 
   let model = null, mixer = null, rig = null, actions = {}, current = null, currentCode = -1;
   const materials = [];   // emissive-capable (hit flash)
+  let hitFlash = null;    // restores each material's own emissive after a flash
   const owned = [];       // every cloned material (disposed with the view)
   let platesOn = true;
   let life = 0, hp = spec.hp, maxHp = spec.hp, flash = 0, disposed = false, predictedDead = false;
@@ -166,6 +168,7 @@ export function createBotView(parent, meta) {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m && m.emissive) materials.push(m);
       if (o.isSkinnedMesh && !skinned) skinned = o;
     });
+    hitFlash = createHitFlash(materials);
     lean.add(model);
     if (placeholder) { holder.remove(placeholder); placeholder.material.dispose(); placeholder = null; }
     mixer = new THREE.AnimationMixer(model);
@@ -299,8 +302,7 @@ export function createBotView(parent, meta) {
       }
       if (flash > 0) {
         flash = Math.max(0, flash - dt);
-        const k = flash / FLASH_S;
-        for (const m of materials) m.emissive.setRGB(0.9 * k, 0.08 * k, 0.04 * k);
+        if (hitFlash) hitFlash.apply(flash / FLASH_S);
       }
       if (plate) plate.material.opacity = platesOn ? 1 : 0;
       if (plate && plate.visible && platesOn) {

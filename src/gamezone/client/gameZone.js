@@ -31,7 +31,11 @@ import {
 let _active = null;
 export function setAllNameplatesVisible(on) { if (_active) _active.setAllNameplatesVisible(on); }
 
-const NET_WAIT_MS = 3000;     // connected but no GZ_SNAP yet → keep the local sim running
+const NET_WAIT_MS = 3000;     // connected but no GZ_SNAP yet → wait this long before going local
+// ADR-0133: while a multiplayer session is (re)connecting, draw NO bots rather
+// than a throwaway local world that is torn down and rebuilt elsewhere a second
+// later. The local sim starts only if the node has not answered in time.
+export const NET_HOLD_MS = 5000;
 const PREDICT_TTL_MS = 1500;  // forget an unanswered prediction after this
 const BOSS_BAR_RANGE = 35;
 const RETICLE_CLOSE = 0.9;    // m — "near the line of fire" for the orange reticle
@@ -65,6 +69,8 @@ export function createGameZone(d) {
   const now = () => performance.now();
   let local = null, net = null, authority = null;
   let netSince = 0, frameNo = 0, seq = 0, disposed = false, platesVisible = true;
+  let holdUntil = 0;          // ADR-0133: no local sim before this (performance.now ms)
+  let holds = 0, handovers = 0;
   const pending = new Map(); // seq → {id, dmg, at, zone, mk, pop}
   const feel = createFeelMeter();
   const _mix = { gain: 0, pan: 0 };
@@ -97,11 +103,20 @@ export function createGameZone(d) {
         onEvents: _onEvents,
       });
       netSince = now();
+      // Connected but no GZ_SNAP yet: give the node NET_WAIT_MS to send one.
+      holdUntil = Math.max(holdUntil, netSince + NET_WAIT_MS);
     }
     return net;
   }
+  /** ADR-0133: a multiplayer (re)connect is starting — hold off the local sim. */
+  function holdForNet(ms = NET_HOLD_MS) {
+    if (disposed) return;
+    holdUntil = Math.max(holdUntil, now() + (ms > 0 ? ms : NET_HOLD_MS));
+    holds++;
+  }
   function _switchTo(next) {
     if (next === authority) return;
+    if (authority && next) handovers++;
     authority = next;
     // A different authority is a different world of bots: drop every view and
     // every prediction; the next reconcile builds the new roster from scratch.
@@ -114,17 +129,27 @@ export function createGameZone(d) {
     if (connected) {
       const n = _ensureNet(mp);
       if (n.ready) {
+        holdUntil = 0;
         if (local) { local.dispose(); local = null; }
         _switchTo(n);
         return;
       }
-      // Connected but the node has not sent a snapshot (yet, or ever — an
-      // older node). Keep playing against the local sim until it does.
-      if (now() - netSince < NET_WAIT_MS && authority === n) return;
-      _switchTo(_ensureLocal());
+      // Connected but the node has not sent a snapshot yet (or never will: an
+      // older node). The hold set in _ensureNet covers the wait.
+    } else if (net) {
+      // Lost the node mid-game: wait for the reconnect instead of swapping in
+      // a different (local) world of bots and swapping back a moment later.
+      if (authority === net) holdUntil = Math.max(holdUntil, now() + NET_HOLD_MS);
+      net.dispose(); net = null;
+    }
+    if (now() < holdUntil) {
+      // Holding: an already-running local game carries on (offline play is
+      // never interrupted); otherwise show no bots until the node answers.
+      if (authority && authority === local) return;
+      _switchTo(null);
       return;
     }
-    if (net) { net.dispose(); net = null; }
+    holdUntil = 0;
     _switchTo(_ensureLocal());
   }
 
@@ -531,6 +556,7 @@ export function createGameZone(d) {
     return {
       authority: authority ? authority.kind : null,
       ready: !!(authority && authority.ready),
+      holding: !authority && now() < holdUntil, holds, handovers,
       selfId: _selfId(),
       tick: authority && authority.latest ? authority.latest.tick : null,
       renderTick: authority ? Math.round(authority.renderTick() * 100) / 100 : null,
@@ -557,7 +583,7 @@ export function createGameZone(d) {
   }
 
   const api = {
-    fire, frame, clear, dispose, ingestSnapshot, ingestEvents, setAllNameplatesVisible,
+    fire, frame, clear, dispose, ingestSnapshot, ingestEvents, setAllNameplatesVisible, holdForNet,
     debug, list, debugDamage,
     resetFeelStats() { feel.reset(); },
     alivePositions() {

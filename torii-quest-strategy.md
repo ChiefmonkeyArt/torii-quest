@@ -50,6 +50,10 @@ version of the same feel pattern in the NAP zone, covering the thwip, gentle
 recoil, pink marker, pop/sparkle/STUCK! and the NPC giggle bounce. Sticker
 hit-what-you-see is the next proposal item and is not yet approved.
 
+v0.2.898-alpha (ADR-0133) fixes two play-test findings in the game zone. Hit
+bots now keep their colour, and multiplayer entry, re-entry and reconnects
+hold for the server's bots instead of swapping in a local world first.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

@@ -149,10 +149,12 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0130](./0130-game-zone-v2-combat-rebuild.md) | Game Zone v2 — rebuild the arena combat layer from scratch (one shared authority sim, tick-addressed lag comp, exact skinned hitboxes + validated claims, snapshot-is-roster) | Accepted |
 | [0131](./0131-game-zone-combat-feel.md) | Game Zone combat feel: immediate, honest, measured feedback (predict on click, retract on rejection; markers, numbers, flinch, recoil climb, roll-only kick, damage arcs, spatial gunfire) | Accepted |
 | [0132](./0132-nap-sticker-feel.md) | NAP sticker feel: playful, immediate, measured feedback (pink marker on the click, thwip + gentle recoil, pop/sparkle/STUCK! on landing, NPC giggle bounce; shared flying material) | Accepted |
+| [0133](./0133-gz-bot-glow-and-net-handover.md) | Game Zone bot colour restore and multiplayer hand-over hold (hit flash returns each material to its own emissive; no local-then-net bot swap on entry, re-entry, travel or blips) | Accepted |
 
 ## Workflow for a new decision
 
 ADR-0132: [NAP sticker feel: playful, immediate, measured feedback](./0132-nap-sticker-feel.md).
+ADR-0133: [Game Zone bot colour restore and multiplayer hand-over hold](./0133-gz-bot-glow-and-net-handover.md).
 Accepted for the operator-approved NAP sticker feel pass; NAP zone only, placement unchanged, no combat or points.
 
 ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-game-zone-combat-feel.md).

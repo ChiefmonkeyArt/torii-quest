@@ -1,5 +1,13 @@
 # Torii Quest ToDo
 
+## v0.2.898-alpha: bot colour + start-up hand-over fix (ADR-0133)
+
+- [x] Hit bots no longer go dark: the flash returns each material to its own emissive (`client/hitFlash.js`).
+- [x] No local-then-net bot swap on entry, re-entry after Home, travel or connection blips (`holdForNet`, 5 s hold).
+- [x] `ToriiDebug.gz.holding` / `holds` / `handovers`.
+- [ ] Operator playtest: bots keep their colour after hits; entering shows no pop/teleport. Describe any remaining start-up glitch.
+- [ ] The Kami autocap ring (`/var/lib/torii-quest/kami/autocap`) can't be read by the repair admin role (READ_ROOTS excludes /var/lib). Decide whether to allow it.
+
 ## v0.2.897-alpha: NAP sticker feel pass (ADR-0132)
 
 - [x] Sticker gun: its own soft "thwip" sound (no gunshot in the NAP) and the arena recoil curve at 0.45×.

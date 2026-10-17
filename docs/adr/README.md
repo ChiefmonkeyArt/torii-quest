@@ -147,8 +147,12 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0123](./0123-live-gaze-through-browse.md) | Live gaze-through gate browse — keep PLAYING + pointer lock while browsing, APPROACH aperture reveal that holds open, parallax portal camera | Accepted |
 | [0124](./0124-world-space-gate-window.md) | World-space gate window — replace the fullscreen circular iris with a plane inside the torii opening showing the live mirror | Accepted |
 | [0130](./0130-game-zone-v2-combat-rebuild.md) | Game Zone v2 — rebuild the arena combat layer from scratch (one shared authority sim, tick-addressed lag comp, exact skinned hitboxes + validated claims, snapshot-is-roster) | Accepted |
+| [0131](./0131-game-zone-combat-feel.md) | Game Zone combat feel: immediate, honest, measured feedback (predict on click, retract on rejection; markers, numbers, flinch, recoil climb, roll-only kick, damage arcs, spatial gunfire) | Accepted |
 
 ## Workflow for a new decision
+
+ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-game-zone-combat-feel.md).
+Accepted for the operator-approved feel pass; feedback predicts on the click and is retracted on rejection; points unchanged.
 
 ADR-0130: [Game Zone v2 — rebuild the arena combat layer from scratch](./0130-game-zone-v2-combat-rebuild.md).
 Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.

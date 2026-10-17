@@ -1,5 +1,21 @@
 # Torii Quest ToDo
 
+## v0.2.896-alpha: Game Zone combat feel pass (ADR-0131)
+
+- [x] Hit markers on the click frame: body / head / kill / headkill, voided on rejection.
+- [x] Floating damage numbers (9 gold / 3 white); `+5⚡` only when the authority pays.
+- [x] Hit / headshot / kill-confirm sounds; headshot kills named in the kill feed.
+- [x] Bot flinch (lean away along the shot), faster headshot death clip.
+- [x] Arena recoil: harder kick + muzzle climb, same input event as sound/flash/tracer.
+- [x] Screen kick on headshot/kill — camera roll only (aim line never moves).
+- [x] Damage-direction arc toward whoever hit you (only when hp actually drops).
+- [x] Distance/pan-mixed bot gunfire; one cached noise buffer (was one per shot).
+- [x] Stop flashing the "damage taken" vignette when YOU land a shot.
+- [x] `ToriiDebug.gz.feel`: click→frame latency p50/p95/max, marker void %, kills.
+- [x] Bench gate: honest claims on a max-flinch bot never rejected (0 %).
+- [ ] Operator playtest (2026-10-18 morning) → tune from notes, points frozen.
+- [ ] Review the NAP/world proposal: `docs/design/gameplay-lessons-nap-and-world.md`.
+
 ## v0.2.895-alpha: Game Zone v2 — combat rebuilt from scratch (TOP PRIORITY)
 
 - [x] Strategy: game zone combat quality is the top priority (operator, 2026-10-16).

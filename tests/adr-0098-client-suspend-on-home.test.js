@@ -117,7 +117,7 @@ describe('ADR-0098 client-suspend on Home \u2014 audio.js source contract', () =
     // The guard must sit BEFORE _audioCtx() so a suspended client never even
     // resolves the AudioContext (no side-effect on a fresh page load either).
     const body = AUDIO_SRC.match(
-      /export\s+function\s+playBotShoot\s*\(\)\s*\{([\s\S]*?)\n\}/,
+      /export\s+function\s+playBotShoot\s*\([^)]*\)\s*\{([\s\S]*?)\n\}/, // ADR-0131: (level, pan)
     );
     expect(body).not.toBeNull();
     const [firstStmt] = body[1].trim().split('\n');

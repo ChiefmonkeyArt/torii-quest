@@ -1,5 +1,23 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## COMBAT FEEL PASS: v0.2.896-alpha (ADR-0131)
+
+All feedback is prediction plus confirmation and never decides an outcome.
+- `src/gamezone/client/feel.js`: pure maths (marker kinds and lifetimes,
+  `screenAngleTo`, `shotMix`, flinch, kick and recoil curves, `createFeelMeter`).
+- `src/hud.js`: pooled `showHitMarker`/`voidHitMarker`, `popCombatText`/
+  `voidCombatText`, `showDamageDir`, `clearCombatFeel`, all animated in `tickHUD`.
+- `src/audio.js`: `playHitMarker(zone)`, `playKillConfirm(head)`,
+  `playBotShoot(level, pan)` with a cached noise buffer.
+- `botView.js`: `gz-lean` pivot plus `flinch(zone, dx, dz)`. Headshot kills use
+  `HEADSHOT_DIE_SPEED`. The flinch limits sit in `core/constants.js` because the
+  bench gates them.
+- `gunViewmodel.triggerRecoil(true)`: the arena recoil. Without the flag, the
+  NAP sticker gun kick is unchanged.
+- Debug: `ToriiDebug.gz.feel` reports latency and honesty; `ToriiDebug.resetFeelStats()` zeroes it.
+Tune feel only against `npm run bench:gamezone` and the meters. Points are frozen.
+Next: the operator playtest, then `docs/design/gameplay-lessons-nap-and-world.md`.
+
 ## GAME ZONE v2 — COMBAT REBUILT FROM SCRATCH: v0.2.895-alpha (TOP PRIORITY)
 
 Operator directive: game zone combat quality is the top priority; rebuild only

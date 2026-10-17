@@ -26,7 +26,7 @@ import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
 import { setClientSuspended } from './engine/state/clientSuspended.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed, lastShootInputAt } from './input.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setCustomHeadlessUrl, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
@@ -38,12 +38,12 @@ import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, cas
 import { createGameZone } from './gamezone/client/gameZone.js';
 import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/weapons/gunViewmodel.js';
 import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
-import { playBotShoot } from './audio.js';
+import { playBotShoot, playHitMarker, playKillConfirm } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc, setNapNpcName } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
-import { initHUD, tickHUD, flashCross, flashHit, addKill, setReticleState, setBossBar, hideBossBar, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
+import { initHUD, tickHUD, flashCross, addKill, setReticleState, setBossBar, hideBossBar, showHitMarker, voidHitMarker, popCombatText, voidCombatText, showDamageDir, clearCombatFeel, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
 import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
@@ -1471,7 +1471,12 @@ export function createArenaRuntime(hooks = {}) {
         flash: (kind, pos) => _muzzleFlashes.trigger(kind, pos),
         getMp: () => _mp,
         isKami: () => kamiActive(),
-        hud: { flashCross, flashHit, addKill, setReticleState, setBossBar, hideBossBar },
+        hud: {
+          flashCross, addKill, setReticleState, setBossBar, hideBossBar,
+          showHitMarker, voidHitMarker, popCombatText, voidCombatText, showDamageDir, clearCombatFeel,
+        },
+        sfx: { hitMarker: playHitMarker, killConfirm: playKillConfirm },
+        inputAt: lastShootInputAt,
         player: { takeDamage, killPlayer, setNextSpawn, isDead },
         state, emit, EV, playBotShoot,
         peerAvatar: (id) => { const e = _mp && _mp.roster._peek(id); return e ? e.obj : null; },
@@ -1483,9 +1488,11 @@ export function createArenaRuntime(hooks = {}) {
       on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
         const aim = aimOrigin || origin;
         const ad = aimDir || dir;
-        triggerRecoil();
         playShoot();
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
+        // Arena: the Game Zone recoil (kick + muzzle climb, ADR-0131). NAP
+        // sticker gun keeps its original short kick.
+        triggerRecoil(!inNap);
         if (inNap) {
           // NAP zone: stickers only. The sticker TARGETS along the aim ray
           // (camera/crosshair) but visibly leaves the GUN muzzle.

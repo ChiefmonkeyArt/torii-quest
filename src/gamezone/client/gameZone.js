@@ -21,6 +21,10 @@ import { reconcileViews, clearViews } from './reconciler.js';
 import { createLocalAuthority, createNetAuthority, LOCAL_ID } from './authority.js';
 import { createGzFx, TRACER_PLAYER, TRACER_BOT, TRACER_PEER } from './fx.js';
 import { isClientSuspended } from '../../engine/state/clientSuspended.js';
+import {
+  markerKind, screenAngleTo, shotMix, kickRoll, createFeelMeter,
+  KICK_HEAD_RAD, KICK_KILL_RAD, KICK_MS,
+} from './feel.js';
 
 // The live game zone (one per page). portalMirror hides bot nameplates while it
 // renders the main scene into the portal, through this module-level switch.
@@ -43,12 +47,16 @@ const RETICLE_CLOSE = 0.9;    // m — "near the line of fire" for the orange re
  * @param {(kind:string, pos:THREE.Vector3)=>void} [d.flash]   muzzle-flash pool trigger
  * @param {()=>any} d.getMp                      multiplayer host or null
  * @param {()=>boolean} d.isKami
- * @param {object} d.hud     {flashCross, flashHit, addKill, setReticleState, setBossBar, hideBossBar}
+ * @param {object} d.hud     {flashCross, addKill, setReticleState, setBossBar, hideBossBar,
+ *                            showHitMarker?, voidHitMarker?, popCombatText?, voidCombatText?,
+ *                            showDamageDir?, clearCombatFeel?}  (feel: ADR-0131)
  * @param {object} d.player  {takeDamage, killPlayer, setNextSpawn, isDead}
  * @param {object} d.state   game state (kills/sats/hp)
  * @param {(name:string, p?:any)=>void} d.emit
  * @param {object} d.EV
- * @param {()=>void} [d.playBotShoot]
+ * @param {(level?:number, pan?:number)=>void} [d.playBotShoot]
+ * @param {{hitMarker?:(zone:string)=>void, killConfirm?:(head:boolean)=>void}} [d.sfx]
+ * @param {()=>number} [d.inputAt]   performance.now() of the click behind the current shot
  * @param {(id:string)=>any} [d.peerAvatar]      remote avatar object (triggerAnim)
  */
 export function createGameZone(d) {
@@ -57,7 +65,12 @@ export function createGameZone(d) {
   const now = () => performance.now();
   let local = null, net = null, authority = null;
   let netSince = 0, frameNo = 0, seq = 0, disposed = false, platesVisible = true;
-  const pending = new Map(); // seq → {id, dmg, at}
+  const pending = new Map(); // seq → {id, dmg, at, zone, mk, pop}
+  const feel = createFeelMeter();
+  const _mix = { gain: 0, pan: 0 };
+  let kickMs = -1, kickPeak = 0;
+  const H = d.hud;
+  const sfx = d.sfx || {};
   const rowsById = new Map(); // newest snapshot row per bot id
   const _pose = {};
   const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Vector3();
@@ -205,13 +218,29 @@ export function createGameZone(d) {
       // bot this frame. The authority's result confirms or rolls it back.
       let pred = 0;
       for (const p of pending.values()) if (p.id === v.id) pred += p.dmg;
-      pending.set(my, { id: v.id, dmg, at: now() });
+      const lethal = v.hp - pred - dmg <= 0;
+      const head = hit.zone === 'head';
+      // Feel (ADR-0131): marker, number, tick and reaction on the click's frame.
+      // (The red full-screen vignette is for damage TAKEN only — it no longer
+      // fires when you land a shot.)
+      const mk = H.showHitMarker ? H.showHitMarker(markerKind(hit.zone, lethal)) : 0;
+      const pop = H.popCombatText ? H.popCombatText(String(dmg), head ? 'head' : 'body') : 0;
+      feel.marker();
+      pending.set(my, { id: v.id, dmg, at: now(), zone: hit.zone, mk, pop });
       v.flashHit();
-      d.hud.flashCross();
-      d.hud.flashHit(dmg >= HEAD_DAMAGE ? 50 : 25);
+      H.flashCross();
+      if (sfx.hitMarker) sfx.hitMarker(hit.zone);
       fx.impact(_p.x, _p.y, _p.z, true);
       if (d.flash) d.flash('botHit', _p);
-      if (v.hp - pred - dmg <= 0) v.predictDeath();
+      if (lethal) {
+        v.predictDeath(hit.zone);
+        feel.counts.kills++;
+        if (sfx.killConfirm) sfx.killConfirm(head);
+        _kick(head ? KICK_HEAD_RAD : KICK_KILL_RAD);
+      } else {
+        v.flinch(hit.zone, _d.x, _d.z);
+        if (head) _kick(KICK_HEAD_RAD);
+      }
     } else {
       if (wh) fx.impact(_p.x, _p.y, _p.z, false);
       if (wh && d.flash) d.flash('impact', _p);
@@ -220,6 +249,7 @@ export function createGameZone(d) {
     // Tracer leaves the gun barrel, ends where the crosshair ray stopped.
     fx.tracer(s.origin.x, s.origin.y, s.origin.z, _p.x, _p.y, _p.z, TRACER_PLAYER);
 
+    feel.shotAt(d.inputAt ? d.inputAt() : now());
     const rt = authority.renderTick();
     const shot = {
       seq: my,
@@ -259,8 +289,18 @@ export function createGameZone(d) {
     if (e.ok) stats.accepted++; else stats.rejected++;
     if (!p) return;
     const v = views.get(p.id);
-    if (!v) return;
     const landed = e.ok && e.hit && e.hit.tk === 'bot' && e.hit.tid === p.id && !e.hit.absorbed;
+    if (!landed) {
+      // Take the feedback back: the marker and number were a prediction.
+      if (H.voidHitMarker) H.voidHitMarker(p.mk);
+      if (H.voidCombatText) H.voidCombatText(p.pop);
+      feel.voided();
+    } else if (e.hit.zone !== p.zone && H.voidCombatText && H.popCombatText) {
+      // Authority downgraded the zone (head → body): show the damage it applied.
+      H.voidCombatText(p.pop);
+      H.popCombatText(String(e.hit.dmg), e.hit.zone === 'head' ? 'head' : 'body');
+    }
+    if (!v) return;
     if (!landed && v.predictedDead) {
       // Still lethal counting what remains pending? keep it down; else stand up.
       let rest = 0;
@@ -272,12 +312,28 @@ export function createGameZone(d) {
   function _onHit(e, self) {
     if (e.tk === 'bot') {
       const v = views.get(e.tid);
-      if (v) { if (e.sid !== self) v.flashHit(); v.setHp(e.hp, BOT_KINDS[v.kind].hp); }
+      if (v) {
+        if (e.sid !== self) {
+          v.flashHit();
+          const src = _sourcePos(e.sk, e.sid);
+          if (src) v.flinch(e.zone, v.holder.position.x - src.x, v.holder.position.z - src.z);
+        }
+        v.setHp(e.hp, BOT_KINDS[v.kind].hp);
+      }
       return;
     }
     if (e.tk === 'player') {
       if (e.tid === self) {
+        const before = d.state.hp;
         d.player.takeDamage(e.dmg);
+        // Damage-direction arc — only when the hit actually cost hp (not in
+        // god/Kami mode), pointing at whoever fired.
+        const src = d.state.hp < before ? _sourcePos(e.sk, e.sid) : null;
+        if (src && H.showDamageDir) {
+          const pp = d.playerObj.position;
+          H.showDamageDir(screenAngleTo(pp.x, pp.z, d.playerObj.rotation.y, src.x, src.z), e.dmg / 25);
+          feel.counts.damageArcs++;
+        }
       } else {
         const a = d.peerAvatar && d.peerAvatar(e.tid);
         if (a && a.triggerAnim) a.triggerAnim('hit');
@@ -288,16 +344,26 @@ export function createGameZone(d) {
   function _onKill(e, self) {
     if (e.tk === 'bot') {
       const v = views.get(e.tid);
+      const wasPredicted = !!(v && v.predictedDead);
       if (v) {
         const r = rowsById.get(e.tid);
         v.killedSp = r ? r[9] : -1;
+        if (e.zone) v.noteZone(e.zone);
         v.setLife(1);
       }
       if (e.sid === self) {
         stats.kills++;
+        feel.counts.killsConfirmed++;
+        // Unpredicted kill (e.g. the prediction was conservative): confirm now.
+        if (!wasPredicted) {
+          if (sfx.killConfirm) sfx.killConfirm(e.zone === 'head');
+          if (H.showHitMarker) H.showHitMarker(markerKind(e.zone, true));
+        }
+        // The reward pops only once the authority has actually paid it.
+        if (H.popCombatText) H.popCombatText(`+${KILL_SATS}⚡`, 'reward');
         d.state.kills++;
         d.state.sats += KILL_SATS;
-        d.emit(d.EV.BOT_KILLED, { sats: KILL_SATS });
+        d.emit(d.EV.BOT_KILLED, { sats: KILL_SATS, zone: e.zone });
         d.emit(d.EV.HUD_UPDATE);
       }
       return;
@@ -325,11 +391,37 @@ export function createGameZone(d) {
     _b.set(e.to[0], e.to[1], e.to[2]);
     fx.tracer(_a.x, _a.y, _a.z, _b.x, _b.y, _b.z, e.sk === 'bot' ? TRACER_BOT : TRACER_PEER);
     if (d.flash) d.flash('muzzle', _a);
-    if (e.sk === 'bot') { if (d.playBotShoot) d.playBotShoot(); }
+    if (e.sk === 'bot') {
+      if (d.playBotShoot) {
+        const pp = d.playerObj.position;
+        shotMix(pp.x, pp.z, d.playerObj.rotation.y, e.from[0], e.from[2], _mix);
+        if (_mix.gain > 0) d.playBotShoot(_mix.gain, _mix.pan);
+      }
+    }
     else {
       const av = d.peerAvatar && d.peerAvatar(e.sid);
       if (av && av.triggerAnim) av.triggerAnim('shoot');
     }
+  }
+
+  /** World position of a shooter (bot view or peer avatar), or null. */
+  function _sourcePos(sk, sid) {
+    if (sk === 'bot') { const v = views.get(sid); return v ? v.holder.position : null; }
+    const a = d.peerAvatar && d.peerAvatar(sid);
+    return a && a.position ? a.position : null;
+  }
+
+  /** Screen kick: camera ROLL only, so the aim line (crosshair) never moves. */
+  function _kick(peak) {
+    if (!d.camera) return;
+    const live = kickMs >= 0 && kickMs < KICK_MS ? kickPeak : 0;
+    kickMs = 0; kickPeak = Math.max(live, peak);
+  }
+  function _tickKick(dt) {
+    if (kickMs < 0 || !d.camera) return;
+    kickMs += dt * 1000;
+    if (kickMs >= KICK_MS) { kickMs = -1; kickPeak = 0; d.camera.rotation.z = 0; return; }
+    d.camera.rotation.z = kickRoll(kickMs, kickPeak);
   }
 
   // ── per-frame HUD: reticle + boss bar ──────────────────────────────────────
@@ -379,6 +471,7 @@ export function createGameZone(d) {
    */
   function frame(dt, ctx = {}) {
     if (disposed) return;
+    feel.frameAt(now());
     frameNo++;
     _selectAuthority();
     if (authority && authority.kind === 'local') {
@@ -401,11 +494,17 @@ export function createGameZone(d) {
     }
     _syncViews(dt);
     fx.tick(dt);
+    _tickKick(dt);
     if (ctx.playing !== false) { _reticle(); _bossBar(); }
   }
 
   /** Drop every bot view + effect (world rebuild). The authority keeps running. */
-  function clear() { _clearViews(); pending.clear(); fx.clear(); d.hud.hideBossBar(); d.hud.setReticleState('none'); }
+  function clear() {
+    _clearViews(); pending.clear(); fx.clear(); d.hud.hideBossBar(); d.hud.setReticleState('none');
+    if (H.clearCombatFeel) H.clearCombatFeel();
+    if (kickMs >= 0 && d.camera) d.camera.rotation.z = 0;
+    kickMs = -1; kickPeak = 0;
+  }
 
   function dispose() {
     if (disposed) return;
@@ -438,6 +537,7 @@ export function createGameZone(d) {
       views: views.size,
       pending: pending.size,
       stats: { ...stats },
+      feel: feel.stats(),
       fx: fx.active,
       lastShot, lastResult, lastMiss,
     };
@@ -459,6 +559,7 @@ export function createGameZone(d) {
   const api = {
     fire, frame, clear, dispose, ingestSnapshot, ingestEvents, setAllNameplatesVisible,
     debug, list, debugDamage,
+    resetFeelStats() { feel.reset(); },
     alivePositions() {
       const out = [];
       for (const v of views.values()) if (v.life === 0) out.push({ x: v.holder.position.x, z: v.holder.position.z });

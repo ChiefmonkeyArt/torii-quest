@@ -14,12 +14,15 @@ import { RELOAD_TIME } from '../../config.js';
 import { assetUrl } from '../../assetUrl.js';
 import { barrelWorldFromCamera } from './muzzle.js';
 import { reloadDip } from './reloadPose.js';
+import { recoilPose } from '../../gamezone/client/feel.js';
 
 // ── FP gun viewmodel (gunScene — always rendered on top) ─────────────────────
 const _barrelWorld = new THREE.Vector3();
 let _gunMesh   = null;
 let _gunPlaceholder = null;
 let _recoilTimer = 0;
+let _arenaRecoilMs = -1;          // ADR-0131: arena recoil (kick + muzzle climb)
+const _rp = { back: 0, climb: 0 };
 
 // FP gun rest position — brought further into player's view in v0.2.48.
 // Closer to camera (less negative Z) and pushed up so more body is visible.
@@ -62,7 +65,15 @@ export function buildGunViewmodel() {
   });
 }
 
-export function triggerRecoil() { _recoilTimer = 0.08; }
+/**
+ * Gun kick on a shot. `arena` = the Game Zone recoil (ADR-0131): a harder
+ * z-kick plus muzzle climb with an eased settle, started on the click's frame.
+ * Without it (NAP sticker gun) the original short z-kick is unchanged.
+ */
+export function triggerRecoil(arena = false) {
+  if (arena) { _arenaRecoilMs = 0; _recoilTimer = 0; return; }
+  _recoilTimer = 0.08;
+}
 
 // Returns barrel tip in world space (used to spawn bullets from the gun barrel).
 // Delegates to the pure muzzle module (v0.2.129): the offset basis is built from
@@ -84,7 +95,15 @@ export function tickGunViewmodel(dt) {
     _recoilTimer = Math.max(0, _recoilTimer - dt);
     z = FP_REST_Z + (_recoilTimer / 0.08) * 0.05;
   }
+  let climb = 0;
+  if (_arenaRecoilMs >= 0) {
+    recoilPose(_arenaRecoilMs, _rp);
+    _arenaRecoilMs += dt * 1000;
+    if (_rp.back === 0 && _rp.climb === 0 && _arenaRecoilMs > 0) _arenaRecoilMs = -1;
+    z += _rp.back; climb = _rp.climb;
+  }
   mesh.position.z = z;
+  if (mesh.rotation.x !== climb) mesh.rotation.x = climb;
 
   // v0.2.111: visible reload feedback. The 3rd-person model plays a reload clip
   // (mirror-only), but the FP viewmodel showed nothing, so reload "looked broken".

@@ -16,11 +16,13 @@ import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import { assetUrl } from '../../assetUrl.js';
 import { BOT_TEMPLATES } from './botTemplates.js';
 import { fitHitboxParts, createHitboxRig, stripRootMotion } from './hitbox.js';
-import { ANIMS, BOT_KINDS } from '../core/constants.js';
+import { ANIMS, BOT_KINDS, HEADSHOT_DIE_SPEED } from '../core/constants.js';
+import { flinchEnvelope, flinchPeak, leanFromShot } from './feel.js';
 import { rayVsBody } from '../core/body.js';
 import { raySegmentClosest } from '../core/geom.js';
 
 const _near = { dist: 0, t: 0, s: 0, px: 0, py: 0, pz: 0 };
+const _lean = { x: 0, z: 0 };
 
 const FADE = 0.15;
 const FLASH_S = 0.14;
@@ -130,6 +132,12 @@ export function createBotView(parent, meta) {
   holder.userData.isBotMesh = true;      // stickers' raycaster skips bots
   holder.userData.gzBotId = meta.id;
   parent.add(holder);
+  // Flinch pivot (ADR-0131): leans the drawn model about its feet on a hit.
+  // The hitbox rig reads the skinned mesh's world matrices, so what you aim at
+  // and what you hit stay the same object, lean included.
+  const lean = new THREE.Group();
+  lean.name = 'gz-lean';
+  holder.add(lean);
   let placeholder = _placeholder(kind);
   holder.add(placeholder);
   const plate = _makePlate(meta.name);
@@ -140,6 +148,7 @@ export function createBotView(parent, meta) {
   const owned = [];       // every cloned material (disposed with the view)
   let platesOn = true;
   let life = 0, hp = spec.hp, maxHp = spec.hp, flash = 0, disposed = false, predictedDead = false;
+  let flinchMs = -1, flinchX = 0, flinchZ = 0, lastZone = 'body';
 
   function _buildModel(tpl) {
     if (disposed || model) return;
@@ -157,7 +166,7 @@ export function createBotView(parent, meta) {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m && m.emissive) materials.push(m);
       if (o.isSkinnedMesh && !skinned) skinned = o;
     });
-    holder.add(model);
+    lean.add(model);
     if (placeholder) { holder.remove(placeholder); placeholder.material.dispose(); placeholder = null; }
     mixer = new THREE.AnimationMixer(model);
     for (const code of ANIMS) {
@@ -181,8 +190,9 @@ export function createBotView(parent, meta) {
     const next = actions[name] || actions.walk;
     if (!next) return;
     if (current && current.act === next.act) { next.act.timeScale = next.a.timeScale; current = next; return; }
+    if (name === 'die') { flinchMs = -1; lean.rotation.x = 0; lean.rotation.z = 0; }
     next.act.reset();
-    next.act.timeScale = next.a.timeScale;
+    next.act.timeScale = next.a.timeScale * (name === 'die' && lastZone === 'head' ? HEADSHOT_DIE_SPEED : 1);
     if (next.a.timeScale < 0) next.act.time = next.clip.duration;
     next.act.enabled = true;
     next.act.setEffectiveWeight(1);
@@ -225,6 +235,7 @@ export function createBotView(parent, meta) {
       life = st;
       if (st === 0) {
         predictedDead = false;
+        lastZone = 'body'; flinchMs = -1; lean.rotation.x = 0; lean.rotation.z = 0;
         holder.visible = true;
         currentCode = -1;
         _play(1, true);
@@ -237,9 +248,14 @@ export function createBotView(parent, meta) {
       if (plate) plate.visible = st === 0;
     },
 
+    /** Zone of the latest hit on this bot (a headshot kill dies faster). */
+    noteZone(zone) { lastZone = zone === 'head' ? 'head' : 'body'; },
+    get lastZone() { return lastZone; },
+
     /** Client prediction: the shot we just fired is lethal — fall now, confirm later. */
-    predictDeath() {
+    predictDeath(zone) {
       if (predictedDead || life !== 0) return;
+      if (zone) api.noteZone(zone);
       predictedDead = true;
       _play(ANIMS.indexOf('die'));
       if (plate) plate.visible = false;
@@ -253,12 +269,34 @@ export function createBotView(parent, meta) {
 
     flashHit() { flash = FLASH_S; },
 
+    /**
+     * Visual hit reaction: lean away along the shot (world dx, dz), stronger on
+     * a headshot. Restarts on every hit; never accumulates past flinchPeak().
+     */
+    flinch(zone, dx, dz) {
+      if (life !== 0 || predictedDead || disposed) return;
+      api.noteZone(zone);
+      const L = Math.hypot(dx, dz);
+      if (!(L > 1e-6)) return;
+      flinchX = dx / L; flinchZ = dz / L; flinchMs = 0;
+    },
+    get flinching() { return flinchMs >= 0; },
+
     /** Global nameplate switch (portal mirror capture hides them). */
     setPlatesVisible(on) { platesOn = !!on; },
 
     update(dt, frame) {
       if (disposed) return;
       if (mixer && holder.visible) mixer.update(dt);
+      if (flinchMs >= 0) {
+        flinchMs += dt * 1000;
+        const k = flinchEnvelope(flinchMs);
+        if (k <= 0 && flinchMs > 0) { flinchMs = -1; lean.rotation.x = 0; lean.rotation.z = 0; }
+        else {
+          leanFromShot(flinchX, flinchZ, holder.rotation.y, flinchPeak(lastZone) * k, _lean);
+          lean.rotation.x = _lean.x; lean.rotation.z = _lean.z;
+        }
+      }
       if (flash > 0) {
         flash = Math.max(0, flash - dt);
         const k = flash / FLASH_S;

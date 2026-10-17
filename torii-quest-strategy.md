@@ -32,9 +32,18 @@ Rules for all combat work from here on:
   operator explicitly approved the full game zone rebuild. The exception covers
   the game zone only.
 
-Next combat-quality steps: live multi-client playtest on the VPS (two browsers +
-bots), then feel tuning (hit markers, kill confirmation, recoil/audio timing)
-measured against the bench and playtest notes — still without touching points.
+v0.2.896-alpha adds the combat feel pass (ADR-0131): feedback appears on the
+click frame and is retracted if the authority rejects the shot, so it is
+immediate and honest. It covers markers, damage numbers, sounds, flinch, recoil
+climb, a roll-only screen kick, damage-direction arcs and spatial bot gunfire.
+It is measured through `ToriiDebug.gz.feel` and a bench flinch gate.
+
+Next combat-quality steps: operator playtest (single-player and a live
+multi-client VPS session), then tuning from those notes, with points unchanged.
+Proposal (not approved): apply the same patterns to the NAP zone and the rest of
+the world (`docs/design/gameplay-lessons-nap-and-world.md`). The proposed order
+is sticker hit-what-you-see and sticker feel, then cached footstep audio, then
+tick-addressed peer interpolation, then no-ghost peers/NPCs.
 
 ## Character identity and paired views
 

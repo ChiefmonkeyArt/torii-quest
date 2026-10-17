@@ -80,5 +80,15 @@ export const PLAYER_BODY = Object.freeze({
 export const MAX_SHOTS_PER_TICK = 3;   // SHOOT_CD 0.06 s ≈ 0.83 shots / tick at 20 Hz
 export const MAX_ORIGIN_DRIFT = 2.5;   // m — shot origin must be near the shooter's eye
 
+// ── Feel (ADR-0131) ───────────────────────────────────────────────────────────
+// Visual-only hit reactions. They live here, not in the client, because a flinch
+// moves the drawn mesh the player aims at: the bench (`npm run bench:gamezone`)
+// validates honest claims against a bot leaned by FLINCH_HEAD_RAD so a reaction
+// can never turn a fair hit into a rejection. Points are NOT affected.
+export const FLINCH_BODY_RAD = 0.07;   // lean away from the shooter on a body hit
+export const FLINCH_HEAD_RAD = 0.12;   // stronger snap on a headshot (bench-gated max)
+export const FLINCH_MS = 170;          // attack + recovery window
+export const HEADSHOT_DIE_SPEED = 1.4; // a headshot kill plays the death clip faster
+
 export const ANIMS = Object.freeze(['idle', 'walk', 'run', 'shoot', 'strafeL', 'strafeR', 'die']);
 export const BOT_STATES = Object.freeze(['alive', 'dying', 'dead']);

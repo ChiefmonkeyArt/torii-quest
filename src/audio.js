@@ -267,11 +267,40 @@ export function playReload() {
 // SHOT relays that arrive between leaveToTitle() and the MP socket disconnect
 // from playing bot fire at the title screen. The world keeps running on the
 // server for other players; only OUR client is silenced.
-export function playBotShoot() {
+// One shared noise buffer for every bot shot (was a fresh buffer + Math.random
+// fill per shot). Built lazily on the first shot; reused forever.
+let _botNoise = null;
+function _botNoiseBuf(ctx) {
+  if (_botNoise && _botNoise.sampleRate === ctx.sampleRate) return _botNoise;
+  const sr = ctx.sampleRate;
+  _botNoise = ctx.createBuffer(1, Math.floor(sr * 0.04), sr);
+  const ch = _botNoise.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  return _botNoise;
+}
+
+// Route a cue through an optional stereo pan (ADR-0131 spatial gunfire).
+function _out(ctx, pan) {
+  if (!pan || typeof ctx.createStereoPanner !== 'function') return ctx.destination;
+  const p = ctx.createStereoPanner();
+  p.pan.value = Math.max(-1, Math.min(1, pan));
+  p.connect(ctx.destination);
+  return p;
+}
+
+/**
+ * Bot gunfire. `level` (0..1) and `pan` (-1..1) come from the shot's distance
+ * and bearing (feel.shotMix, ADR-0131): near fire is full volume, far fights
+ * are quieter, and you can hear which side it came from.
+ */
+export function playBotShoot(level = 1, pan = 0) {
   if (isClientSuspended()) return;
+  if (!(level > 0)) return;
   const ctx = _audioCtx();
   if (!ctx) return;
   const t = ctx.currentTime;
+  const out = _out(ctx, pan);
+  const L = Math.min(1, level);
 
   // Tone — softer triangle zap (v0.2.102). Triangle is mellower than sawtooth;
   // a gentle attack ramp + longer tail removes the harsh click of the old
@@ -282,31 +311,67 @@ export function playBotShoot() {
   osc.frequency.setValueAtTime(720, t);
   osc.frequency.exponentialRampToValueAtTime(200, t + 0.12);
   gain.gain.setValueAtTime(1e-4, t);
-  gain.gain.linearRampToValueAtTime(0.035, t + 0.008);
+  gain.gain.linearRampToValueAtTime(Math.max(2e-4, 0.035 * L), t + 0.008);
   gain.gain.exponentialRampToValueAtTime(1e-4, t + 0.18);
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(out);
   osc.start(t);
   osc.stop(t + 0.2);
 
   // Body — short lowpassed noise burst for a soft energy thump (no crackle).
   const dur = 0.04;
-  const sr  = ctx.sampleRate;
-  const buf = ctx.createBuffer(1, Math.floor(sr * dur), sr);
-  const ch  = buf.getChannelData(0);
-  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
   const src   = ctx.createBufferSource();
   const ngain = ctx.createGain();
   const lp    = ctx.createBiquadFilter();
-  src.buffer = buf;
+  src.buffer = _botNoiseBuf(ctx);
   lp.type = 'lowpass';
   lp.frequency.value = 520;
-  ngain.gain.setValueAtTime(0.004, t);
+  ngain.gain.setValueAtTime(Math.max(2e-4, 0.004 * L), t);
   ngain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(lp);
   lp.connect(ngain);
-  ngain.connect(ctx.destination);
+  ngain.connect(out);
   src.start(t);
+}
+
+// ── Combat feedback cues (ADR-0131) ──────────────────────────────────────────
+// Short, dry, and pitched above the gunfire so they cut through it. Played on
+// the click's frame (prediction); the shared sim still decides the outcome.
+function _blip(ctx, t, type, f0, f1, peak, dur) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(f0, t);
+  if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8);
+  g.gain.setValueAtTime(1e-4, t);
+  g.gain.linearRampToValueAtTime(peak, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(1e-4, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+/** Hit marker tick: a dry click for a body hit, a bright "tink" for a headshot. */
+export function playHitMarker(zone) {
+  if (isClientSuspended()) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  if (zone === 'head') {
+    _blip(ctx, t, 'sine', 2350, 2350, 0.055, 0.13);
+    _blip(ctx, t, 'sine', 3520, 3400, 0.025, 0.09);
+  } else {
+    _blip(ctx, t, 'square', 1500, 1100, 0.022, 0.035);
+  }
+}
+
+/** Kill confirmation: a quick rising two-note; a headshot kill adds a sparkle. */
+export function playKillConfirm(head = false) {
+  if (isClientSuspended()) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  _blip(ctx, t, 'triangle', 660, 660, 0.06, 0.09);
+  _blip(ctx, t + 0.07, 'triangle', 990, 990, 0.065, 0.16);
+  if (head) _blip(ctx, t + 0.07, 'sine', 1980, 2200, 0.03, 0.2);
 }
 
 // ── Jump land — deeper, single thump on touchdown ──────────────────────────

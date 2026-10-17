@@ -5,6 +5,7 @@ const FLASH_TYPES = {
   muzzle: { color: 0xffaa44, intensity: 3.0, distance: 8, duration: 0.08 },
   impact: { color: 0xffffaa, intensity: 2.0, distance: 6, duration: 0.12 },
   botHit: { color: 0xff4422, intensity: 2.5, distance: 10, duration: 0.15 },
+  sticker: { color: 0xff7ad9, intensity: 1.6, distance: 5, duration: 0.14 }, // NAP sticker land (ADR-0132)
 };
 
 export function createMuzzleFlashPool(scene, {

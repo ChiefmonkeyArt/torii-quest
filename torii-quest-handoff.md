@@ -1,5 +1,22 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## NAP STICKER FEEL: v0.2.897-alpha (ADR-0132)
+
+- `src/engine/feel/stickerFeel.js`: pure `bounceEnvelope`, `popPitch`, and the
+  `createStickerFeel(deps)` orchestrator (`onFire` / `onLand` / `frame` / `stats`).
+- `stickerNpc.js`: `setStickerFeelHooks({ onFire, onLand })`. Hooks are
+  try/caught. There is one shared flying `SpriteMaterial` (never dispose it on
+  landing), and the gesture import is cached.
+- `napNpc.js`: `bounceNpc()`. The bounce is applied in `tickNapNpc` before the
+  collider sync, and last frame's offset is removed first.
+- `audio.js`: `playStickerFire()` and `playStickerStick(level, pan, character, pitch)`
+  (shared noise buffer).
+- `gunViewmodel.triggerRecoil('sticker')`: the arena curve × `STICKER_RECOIL_SCALE`.
+  `true` means the arena recoil; no argument keeps the legacy kick.
+- `hud.js` / `feel.js`: a `sticker` marker kind and popCombatText kind (#ff7ad9).
+  `muzzleFlash.js` has a `sticker` flash.
+- Debug: `ToriiDebug.stickerFeel`, `resetStickerFeel()`, `napNpc`.
+
 ## COMBAT FEEL PASS: v0.2.896-alpha (ADR-0131)
 
 All feedback is prediction plus confirmation and never decides an outcome.

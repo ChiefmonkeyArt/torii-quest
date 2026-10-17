@@ -22,6 +22,7 @@ let _gunMesh   = null;
 let _gunPlaceholder = null;
 let _recoilTimer = 0;
 let _arenaRecoilMs = -1;          // ADR-0131: arena recoil (kick + muzzle climb)
+let _recoilScale = 1;             // ADR-0132: 1 = arena, STICKER_RECOIL_SCALE = NAP sticker gun
 const _rp = { back: 0, climb: 0 };
 
 // FP gun rest position — brought further into player's view in v0.2.48.
@@ -65,13 +66,21 @@ export function buildGunViewmodel() {
   });
 }
 
+/** NAP sticker gun: the arena curve at a gentler strength (ADR-0132). */
+export const STICKER_RECOIL_SCALE = 0.45;
+
 /**
- * Gun kick on a shot. `arena` = the Game Zone recoil (ADR-0131): a harder
- * z-kick plus muzzle climb with an eased settle, started on the click's frame.
- * Without it (NAP sticker gun) the original short z-kick is unchanged.
+ * Gun kick on a shot, started on the click's frame.
+ *  - `true` / 'arena': the Game Zone recoil (ADR-0131), a z-kick plus muzzle
+ *    climb with an eased settle.
+ *  - 'sticker': the same curve at STICKER_RECOIL_SCALE (NAP, ADR-0132).
+ *  - no argument: the legacy short z-kick.
  */
-export function triggerRecoil(arena = false) {
-  if (arena) { _arenaRecoilMs = 0; _recoilTimer = 0; return; }
+export function triggerRecoil(mode = false) {
+  if (mode === true || mode === 'arena' || mode === 'sticker') {
+    _recoilScale = mode === 'sticker' ? STICKER_RECOIL_SCALE : 1;
+    _arenaRecoilMs = 0; _recoilTimer = 0; return;
+  }
   _recoilTimer = 0.08;
 }
 
@@ -97,7 +106,7 @@ export function tickGunViewmodel(dt) {
   }
   let climb = 0;
   if (_arenaRecoilMs >= 0) {
-    recoilPose(_arenaRecoilMs, _rp);
+    recoilPose(_arenaRecoilMs, _rp, _recoilScale);
     _arenaRecoilMs += dt * 1000;
     if (_rp.back === 0 && _rp.climb === 0 && _arenaRecoilMs > 0) _arenaRecoilMs = -1;
     z += _rp.back; climb = _rp.climb;

@@ -21,6 +21,7 @@ import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
 // exercise them without pulling in three/scene. Re-exported here so callers
 // that already import from napNpc.js keep working.
 import { composeNakamaLabel, NAKAMA_SUFFIX, NAKAMA_DEFAULT_LABEL } from './engine/character/nakamaLabel.js';
+import { bounceEnvelope, BOUNCE_MS } from './engine/feel/stickerFeel.js';
 export { composeNakamaLabel, NAKAMA_SUFFIX, NAKAMA_DEFAULT_LABEL };
 
 let _root   = null;
@@ -104,6 +105,14 @@ function _onGestureFinished() {
 }
 
 let _currentAction = null;
+
+// ADR-0132: giggle bounce when a sticker lands on the NPC. A playful
+// squash-hop-settle on the root scale (volume-preserving) with the feet kept
+// planted. It is the reverse of a flinch: the NPC is delighted, not hurt.
+let _bounceMs = -1;
+let _bounceDy = 0;
+const _bounce = { sy: 1, sxz: 1, hop: 0 };
+export function bounceNpc() { if (_root) _bounceMs = 0; }
 
 // v0.2.548: Expose NPC root for the sticker interaction system.
 export function getNpcRoot() { return _root; }
@@ -296,6 +305,8 @@ export function tickNapNpc(dt) {
   if (!_mixer || !_root) return;
   _clock += dt;
   _mixer.update(dt);
+  // Take off last frame's bounce offset before walking re-samples the ground.
+  if (_bounceDy !== 0) { _root.position.y -= _bounceDy; _bounceDy = 0; }
 
   if (_state === 'walk' && _target) {
     const pos = _root.position;
@@ -334,6 +345,22 @@ export function tickNapNpc(dt) {
     if (_state === 'walk' && _clock >= _nextGestureAt && _gestureClips.length > 0) {
       _playGesture();
       _nextGestureAt = _clock + GESTURE_MIN_DELAY + Math.random() * (GESTURE_MAX_DELAY - GESTURE_MIN_DELAY);
+    }
+  }
+
+  if (_bounceMs >= 0) {
+    // Advance first: the frame after the landing already shows motion.
+    const elapsed = (_bounceMs += dt * 1000);
+    bounceEnvelope(elapsed, _bounce);
+    if (elapsed >= BOUNCE_MS) {
+      _root.scale.setScalar(1.0);
+      _bounceMs = -1;
+    } else {
+      _root.scale.set(_bounce.sxz, _bounce.sy, _bounce.sxz);
+      // Feet sit at local _minY; scaling about the origin would lift or sink
+      // them, so offset by _minY·(1−sy). The hop is added on top.
+      _bounceDy = _bounce.hop + _minY * (1 - _bounce.sy);
+      _root.position.y += _bounceDy;
     }
   }
 

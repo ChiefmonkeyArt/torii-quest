@@ -148,8 +148,12 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0124](./0124-world-space-gate-window.md) | World-space gate window — replace the fullscreen circular iris with a plane inside the torii opening showing the live mirror | Accepted |
 | [0130](./0130-game-zone-v2-combat-rebuild.md) | Game Zone v2 — rebuild the arena combat layer from scratch (one shared authority sim, tick-addressed lag comp, exact skinned hitboxes + validated claims, snapshot-is-roster) | Accepted |
 | [0131](./0131-game-zone-combat-feel.md) | Game Zone combat feel: immediate, honest, measured feedback (predict on click, retract on rejection; markers, numbers, flinch, recoil climb, roll-only kick, damage arcs, spatial gunfire) | Accepted |
+| [0132](./0132-nap-sticker-feel.md) | NAP sticker feel: playful, immediate, measured feedback (pink marker on the click, thwip + gentle recoil, pop/sparkle/STUCK! on landing, NPC giggle bounce; shared flying material) | Accepted |
 
 ## Workflow for a new decision
+
+ADR-0132: [NAP sticker feel: playful, immediate, measured feedback](./0132-nap-sticker-feel.md).
+Accepted for the operator-approved NAP sticker feel pass; NAP zone only, placement unchanged, no combat or points.
 
 ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-game-zone-combat-feel.md).
 Accepted for the operator-approved feel pass; feedback predicts on the click and is retracted on rejection; points unchanged.

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-// tests/gamezone/feel-dom.test.js — ADR-0131 HUD + audio feel surfaces.
+// tests/gamezone/feel-dom.test.js — ADR-0131 HUD + audio feel surfaces, plus the
+// ADR-0132 NAP sticker cues (same file: the suite shares module state across files).
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 
 vi.mock('../../src/engine/state/clientSuspended.js', () => ({ isClientSuspended: () => false }));
@@ -12,7 +13,7 @@ class FakeCtx {
   constructor() { this.currentTime = 0; this.sampleRate = 8000; this.state = 'running'; this.destination = new Node(); }
   createOscillator() { made.osc++; const n = new Node(); n.frequency = new P(); n.start = () => {}; n.stop = () => {}; return n; }
   createGain() { const n = new Node(); n.gain = new P(); return n; }
-  createBiquadFilter() { const n = new Node(); n.frequency = new P(); return n; }
+  createBiquadFilter() { const n = new Node(); n.frequency = new P(); n.Q = new P(); return n; }
   createBuffer(c, len) { made.buf++; const d = new Float32Array(len); return { sampleRate: this.sampleRate, getChannelData: () => d }; }
   createBufferSource() { made.src++; const n = new Node(); n.start = () => {}; return n; }
   createStereoPanner() { made.pan++; const n = new Node(); n.pan = new P(); return n; }
@@ -87,5 +88,47 @@ describe('audio feel cues (ADR-0131)', () => {
     const o = made.osc;
     audio.playBotShoot(0);             // silent → builds nothing
     expect(made.osc).toBe(o);
+  });
+});
+
+describe('sticker HUD (ADR-0132)', () => {
+  it('pink sticker marker reuses the pooled hit marker', () => {
+    hud.showHitMarker('sticker');
+    const el = document.getElementById('gz-hitmarker');
+    expect(el.style.opacity).toBe('1');
+    expect(el.children[0].style.background).toMatch(/ff7ad9|255, 122, 217/);
+    hud.tickHUD(1);
+    expect(el.style.opacity).toBe('0');
+    expect(document.querySelectorAll('#gz-hitmarker')).toHaveLength(1);
+  });
+
+  it('STUCK! pops pink from the same pool', () => {
+    const before = document.body.children.length;
+    hud.popCombatText('STUCK!', 'sticker');
+    const pop = [...document.body.children].find((e) => e.textContent === 'STUCK!');
+    expect(pop).toBeTruthy();
+    expect(pop.style.color).toMatch(/ff7ad9|255, 122, 217/);
+    for (let i = 0; i < 10; i++) hud.popCombatText('STUCK!', 'sticker');
+    expect(document.body.children.length - before).toBeLessThanOrEqual(6);
+    hud.clearCombatFeel();
+  });
+});
+
+describe('sticker audio (ADR-0132)', () => {
+  it('fire thwip and landing pops never allocate a new AudioBuffer after the first', () => {
+    audio.playStickerFire();
+    const buf0 = made.buf;
+    for (let i = 0; i < 20; i++) { audio.playStickerFire(); audio.playStickerStick(1, 0.3, i % 2 === 0, 1); }
+    audio.playBotShoot(1, 0);
+    expect(made.buf).toBe(buf0);
+    expect(buf0).toBeLessThanOrEqual(1);
+  });
+
+  it('a character pop adds the boing; distance pans; silence at level 0', () => {
+    let o = made.osc; audio.playStickerStick(1, 0, false); const plain = made.osc - o;
+    o = made.osc; audio.playStickerStick(1, 0, true); const boing = made.osc - o;
+    expect(boing).toBe(plain + 1);
+    const p = made.pan; audio.playStickerStick(0.4, 0.6, false); expect(made.pan).toBe(p + 1);
+    o = made.osc; audio.playStickerStick(0, 0, true); expect(made.osc).toBe(o);
   });
 });

@@ -47,7 +47,7 @@ import { enableFly, disableFly, toggleFly, isFlyEnabled, getFlyEyeY } from './fl
 
 export function installToriiDebug(refs) {
   const {
-    version, getGameZone, playerObj, resetPlayerPos, setNextSpawn,
+    version, getGameZone, getStickerFeel, getNapNpc, playerObj, resetPlayerPos, setNextSpawn,
     camera, setPitch, setYaw,
     castRay, castRayStatic, hasLineOfSight, getWorld,
     getGrassMat, getFlowerMat, getMirror,
@@ -109,6 +109,14 @@ export function installToriiDebug(refs) {
 
     // Game Zone v2 (ADR-0130): authority, ticks, prediction stats, last shot/result.
     get gz() { return _gzDbg(); },
+    // ADR-0132: NAP sticker feel — fired / landed / stuck / bounces + click→frame latency.
+    get stickerFeel() { const f = typeof getStickerFeel === 'function' ? getStickerFeel() : null; return f ? f.stats() : null; },
+    // NAP NPC pose for sticker checks: feet position + current bounce scale.
+    get napNpc() {
+      const r = typeof getNapNpc === 'function' ? getNapNpc() : null;
+      return r ? { x: r.position.x, y: r.position.y, z: r.position.z, scaleY: r.scale.y } : null;
+    },
+    resetStickerFeel() { const f = typeof getStickerFeel === 'function' ? getStickerFeel() : null; if (f) { f.reset(); return true; } return false; },
     // ADR-0131: zero the combat-feel meter (latency ring + marker honesty counts).
     resetFeelStats() { const g = _gz(); if (g && g.resetFeelStats) { g.resetFeelStats(); return true; } return false; },
 

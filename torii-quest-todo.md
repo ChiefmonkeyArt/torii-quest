@@ -1,5 +1,16 @@
 # Torii Quest ToDo
 
+## v0.2.897-alpha: NAP sticker feel pass (ADR-0132)
+
+- [x] Sticker gun: its own soft "thwip" sound (no gunshot in the NAP) and the arena recoil curve at 0.45×.
+- [x] Pink hit marker on the click when the sticker is heading for a character.
+- [x] Landing: bubbly pop (distance/pan mixed, varied pitch), pink sparkle; "STUCK!" + boing on characters.
+- [x] NPC giggle bounce (squash, hop, soft landing; feet planted) alongside the existing gesture.
+- [x] One shared flying-sticker material; NPC gesture import resolved once.
+- [x] `ToriiDebug.stickerFeel`, `ToriiDebug.resetStickerFeel()`, `ToriiDebug.napNpc`.
+- [ ] Operator playtest in the NAP zone.
+- [ ] Next proposal item: stickers land exactly where aimed (hitbox.js instead of bone sensors), still unapproved.
+
 ## v0.2.896-alpha: Game Zone combat feel pass (ADR-0131)
 
 - [x] Hit markers on the click frame: body / head / kill / headkill, voided on rejection.

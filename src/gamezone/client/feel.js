@@ -16,7 +16,7 @@ import { FLINCH_BODY_RAD, FLINCH_HEAD_RAD, FLINCH_MS } from '../core/constants.j
 /** Marker kinds, in rising order of emphasis. */
 export const MARKER = Object.freeze({ BODY: 'body', HEAD: 'head', KILL: 'kill', HEADKILL: 'headkill' });
 /** How long each marker stays on screen (ms). */
-export const MARKER_MS = Object.freeze({ body: 160, head: 220, kill: 380, headkill: 460 });
+export const MARKER_MS = Object.freeze({ body: 160, head: 220, kill: 380, headkill: 460, sticker: 200 });
 /** A rejected shot's marker is pulled within this many ms (fast fade). */
 export const MARKER_VOID_MS = 70;
 
@@ -109,13 +109,17 @@ export const RECOIL_MS = 95;
 export const RECOIL_BACK = 0.06;   // m — z-kick toward the camera
 export const RECOIL_CLIMB = 0.075; // rad — muzzle climb
 
-/** Arena recoil pose at elapsed ms: instant kick, eased return. Writes {back, climb}. */
-export function recoilPose(elapsedMs, out = { back: 0, climb: 0 }) {
+/**
+ * Recoil pose at elapsed ms: instant kick, eased return. Writes {back, climb}.
+ * `scale` sizes the same curve for other guns (NAP sticker gun: ADR-0132).
+ */
+export function recoilPose(elapsedMs, out = { back: 0, climb: 0 }, scale = 1) {
   if (!(elapsedMs >= 0) || elapsedMs >= RECOIL_MS) { out.back = 0; out.climb = 0; return out; }
   const r = 1 - elapsedMs / RECOIL_MS;
   const e = r * r * (3 - 2 * r); // smoothstep: holds the kick, then settles
-  out.back = RECOIL_BACK * e;
-  out.climb = RECOIL_CLIMB * e;
+  const k = scale > 0 ? scale : 1;
+  out.back = RECOIL_BACK * e * k;
+  out.climb = RECOIL_CLIMB * e * k;
   return out;
 }
 

@@ -38,10 +38,11 @@ import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, cas
 import { createGameZone } from './gamezone/client/gameZone.js';
 import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/weapons/gunViewmodel.js';
 import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
-import { playBotShoot, playHitMarker, playKillConfirm } from './audio.js';
+import { playBotShoot, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
-import { buildNapNpc, tickNapNpc, setNapNpcName } from './napNpc.js';
-import { fireStickerAtNpc, tickStickerNpc } from './stickerNpc.js';
+import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot } from './napNpc.js';
+import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks } from './stickerNpc.js';
+import { createStickerFeel } from './engine/feel/stickerFeel.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initHUD, tickHUD, flashCross, addKill, setReticleState, setBossBar, hideBossBar, showHitMarker, voidHitMarker, popCombatText, voidCombatText, showDamageDir, clearCombatFeel, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
 import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
@@ -719,6 +720,7 @@ export function createArenaRuntime(hooks = {}) {
     },
   });
   let _muzzleFlashes = null;
+  let _stickerFeel = null; // ADR-0132 NAP sticker feel (null in the minimal world)
   let _gz = null; // Game Zone v2 (ADR-0130) — null in the minimal world until first arena boot
   const _perfHud = createPerfHud({
     window,
@@ -1017,6 +1019,7 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal) {
       tickNapNpc(dt);
       tickStickerNpc(dt);
+      if (_stickerFeel) _stickerFeel.frame();
       const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
       setNapMode(_inNapNow);
       // ADR-0036: the market auction-panel + ADR-0035 boards no longer
@@ -1483,22 +1486,36 @@ export function createArenaRuntime(hooks = {}) {
       });
       mark('boot-gamezone-done');
 
+      // ADR-0132: NAP sticker feel (pink marker on the click, pop + sparkle +
+      // STUCK! + NPC giggle bounce on landing). Feedback only.
+      _stickerFeel = createStickerFeel({
+        hud: { showHitMarker, popCombatText },
+        sfx: { stick: playStickerStick },
+        flash: (kind, pos) => _muzzleFlashes.trigger(kind, pos),
+        bounceNpc,
+        getListener: () => ({ x: playerObj.position.x, z: playerObj.position.z, yaw: playerObj.rotation.y }),
+        inputAt: lastShootInputAt,
+      });
+      setStickerFeelHooks({ onFire: _stickerFeel.onFire, onLand: _stickerFeel.onLand });
+
       // Shoot wire: player emits EV.SHOOT → recoil + SFX, then EITHER a sticker
       // (NAP zone) OR a Game Zone shot (arena). They are mutually exclusive.
       on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
         const aim = aimOrigin || origin;
         const ad = aimDir || dir;
-        playShoot();
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
-        // Arena: the Game Zone recoil (kick + muzzle climb, ADR-0131). NAP
-        // sticker gun keeps its original short kick.
-        triggerRecoil(!inNap);
         if (inNap) {
-          // NAP zone: stickers only. The sticker TARGETS along the aim ray
-          // (camera/crosshair) but visibly leaves the GUN muzzle.
+          // NAP zone: stickers only. A soft "thwip" and the arena recoil curve
+          // at sticker strength (ADR-0132). The sticker TARGETS along the aim
+          // ray (camera/crosshair) but visibly leaves the GUN muzzle.
+          playStickerFire();
+          triggerRecoil('sticker');
           fireStickerAtNpc(aim, ad, origin);
           return;
         }
+        // Arena: the Game Zone recoil (kick + muzzle climb, ADR-0131).
+        playShoot();
+        triggerRecoil(true);
         _muzzleFlashes.trigger('muzzle', origin);
         _gz.fire({ origin, dir, aimOrigin, aimDir });
       });
@@ -1524,7 +1541,7 @@ export function createArenaRuntime(hooks = {}) {
     on(EV.HUD_UPDATE,    () => { if (isReloading()) triggerReload(); });
 
     installToriiDebug({
-      version: VERSION, getGameZone: () => _gz, playerObj, resetPlayerPos, setNextSpawn,
+      version: VERSION, getGameZone: () => _gz, getStickerFeel: () => _stickerFeel, getNapNpc: getNpcRoot, playerObj, resetPlayerPos, setNextSpawn,
       camera, setPitch, setYaw,
       castRay, castRayStatic, hasLineOfSight, getWorld,
       getGrassMat, getFlowerMat, getMirror,

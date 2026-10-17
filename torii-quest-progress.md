@@ -1,5 +1,18 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.898-alpha: bot colour + start-up hand-over fix (ADR-0133)
+
+Bots no longer turn dark once they've been hit. They are lit by their own glow
+texture, and the red hit flash used to fade that glow to black instead of back
+to normal, so every bot that took a hit looked back-lit and colourless. The
+flash now returns each bot to its exact original colour.
+
+Entering the game zone in multiplayer no longer shows a throwaway set of local
+bots that vanish and reappear somewhere else a second later. The game waits up
+to 5 s for your server's bots and shows those first; the local bots only start
+if the server doesn't answer. The same applies after Home, after travel and
+during connection blips. Points and damage are unchanged.
+
 ## v0.2.897-alpha: NAP sticker feel pass (ADR-0132)
 
 Stickers in the NAP zone now feel playful and responsive. The sticker gun has

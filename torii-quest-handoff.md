@@ -1,5 +1,17 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## BOT COLOUR + HAND-OVER: v0.2.898-alpha (ADR-0133)
+
+- `src/gamezone/client/hitFlash.js`: `createHitFlash(materials)` records each
+  material's original emissive and intensity. `apply(k)` blends toward red, and
+  `apply(0)` restores exactly. Bot GLBs are emissive-lit (metallic, no envMap),
+  so never write emissive without restoring it.
+- `gameZone.holdForNet(ms = NET_HOLD_MS)`: arenaRuntime calls it before every
+  `_mp.start()`. While holding, no authority and no bots are drawn, unless a
+  local game is already running. Net creation holds `NET_WAIT_MS`; a mid-game
+  disconnect holds `NET_HOLD_MS` and disposes the stale net. Debug:
+  `ToriiDebug.gz.holding/holds/handovers`.
+
 ## NAP STICKER FEEL: v0.2.897-alpha (ADR-0132)
 
 - `src/engine/feel/stickerFeel.js`: pure `bounceEnvelope`, `popPitch`, and the

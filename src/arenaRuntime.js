@@ -1939,6 +1939,8 @@ export function createArenaRuntime(hooks = {}) {
           return { npub, sig: event.sig, event };
         },
       });
+      // ADR-0133: hold the Game Zone's local sim while this first connect runs.
+      if (_gz && _gz.holdForNet) _gz.holdForNet();
       _mp.start();
     }
 
@@ -2307,7 +2309,10 @@ export function createArenaRuntime(hooks = {}) {
     setClientSuspended(false);
     resumeAudioContext();
     if (isLoopStopped()) startLoop();
-    if (_mp) { try { _mp.start(); } catch { /* noop */ } }
+    if (_mp) {
+      if (_gz && _gz.holdForNet) _gz.holdForNet(); // ADR-0133: no local-then-net bot swap on re-entry
+      try { _mp.start(); } catch { /* noop */ }
+    }
   }
 
   // openLiveMirror(world, { wsEndpoint }) — the portal LIVE MIRROR (ADR-0118). Builds
@@ -2555,6 +2560,7 @@ export function createArenaRuntime(hooks = {}) {
           const dest = opts && opts.wsEndpoint;
           _mp.setWsEndpoint((typeof dest === 'string' && dest.startsWith('wss://')) ? dest : null);
           if (_mp.stop) { try { _mp.stop('travel'); } catch { /* noop */ } }
+          if (_gz && _gz.holdForNet) _gz.holdForNet(); // ADR-0133
           if (_mp.start) { try { _mp.start(); } catch { /* noop */ } }
         }
       } catch (e) {

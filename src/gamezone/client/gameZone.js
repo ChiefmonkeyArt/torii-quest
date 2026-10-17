@@ -241,9 +241,11 @@ export function createGameZone(d) {
       claim = { k: 'bot', id: v.id, zone: hit.zone, dist: Math.round(hit.t * 1000) / 1000 };
       // Predict: show the hit NOW (flash + hitmarker); a lethal shot drops the
       // bot this frame. The authority's result confirms or rolls it back.
-      let pred = 0;
-      for (const p of pending.values()) if (p.id === v.id) pred += p.dmg;
-      const lethal = v.hp - pred - dmg <= 0;
+      // ADR-0134: lethal = AUTHORITATIVE hp − every unanswered shot − this one.
+      // (v.hp is the displayed hp, which already has the pending damage taken
+      // off; subtracting pending again predicted the boss's death far too early,
+      // and a landed-but-not-lethal result then left it lying on the ground.)
+      const lethal = _authHp(v) - _pendingDmg(v.id) - dmg <= 0;
       const head = hit.zone === 'head';
       // Feel (ADR-0131): marker, number, tick and reaction on the click's frame.
       // (The red full-screen vignette is for damage TAKEN only — it no longer
@@ -307,6 +309,21 @@ export function createGameZone(d) {
     }
   }
 
+  function _pendingDmg(id) {
+    let n = 0;
+    for (const q of pending.values()) if (q.id === id) n += q.dmg;
+    return n;
+  }
+  function _authHp(v) {
+    const r = rowsById.get(v.id);
+    return r ? r[6] : v.hp + _pendingDmg(v.id);
+  }
+  /** A predicted death that the authority did not confirm must stand back up. */
+  function _settlePrediction(v, authHp) {
+    if (!v || !v.predictedDead || v.life !== 0) return;
+    if (authHp - _pendingDmg(v.id) > 0) { v.cancelPredictedDeath(); stats.mispredicts++; }
+  }
+
   function _onResult(e) {
     const p = pending.get(e.seq);
     pending.delete(e.seq);
@@ -326,11 +343,10 @@ export function createGameZone(d) {
       H.popCombatText(String(e.hit.dmg), e.hit.zone === 'head' ? 'head' : 'body');
     }
     if (!v) return;
-    if (!landed && v.predictedDead) {
-      // Still lethal counting what remains pending? keep it down; else stand up.
-      let rest = 0;
-      for (const q of pending.values()) if (q.id === p.id) rest += q.dmg;
-      if (v.hp + p.dmg - rest > 0 || rest === 0) { v.cancelPredictedDeath(); stats.mispredicts++; }
+    // Landed but not lethal (zone downgraded, boss hp, other shooters), or not
+    // landed at all: stand the bot back up unless what is still pending kills it.
+    if (v.predictedDead && !(landed && e.hit.killed)) {
+      _settlePrediction(v, landed && Number.isFinite(e.hit.hp) ? e.hit.hp : _authHp(v));
     }
   }
 
@@ -515,6 +531,16 @@ export function createGameZone(d) {
           const v = views.get(p.id);
           if (v && v.predictedDead) { v.cancelPredictedDeath(); stats.mispredicts++; }
         }
+      }
+    }
+    // Safety net (ADR-0134): a predicted death with nothing left pending and no
+    // kill from the authority stands back up — a bot is never left lying alive.
+    if (frameNo % 15 === 0) {
+      for (const v of views.values()) {
+        if (v.predictedDead && v.life === 0 && _pendingDmg(v.id) === 0) {
+          if (!v._pdAt) v._pdAt = now();
+          else if (now() - v._pdAt > PREDICT_TTL_MS) { v._pdAt = 0; _settlePrediction(v, _authHp(v)); }
+        } else if (v._pdAt) v._pdAt = 0;
       }
     }
     _syncViews(dt);

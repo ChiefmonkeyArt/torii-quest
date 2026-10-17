@@ -150,11 +150,13 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0131](./0131-game-zone-combat-feel.md) | Game Zone combat feel: immediate, honest, measured feedback (predict on click, retract on rejection; markers, numbers, flinch, recoil climb, roll-only kick, damage arcs, spatial gunfire) | Accepted |
 | [0132](./0132-nap-sticker-feel.md) | NAP sticker feel: playful, immediate, measured feedback (pink marker on the click, thwip + gentle recoil, pop/sparkle/STUCK! on landing, NPC giggle bounce; shared flying material) | Accepted |
 | [0133](./0133-gz-bot-glow-and-net-handover.md) | Game Zone bot colour restore and multiplayer hand-over hold (hit flash returns each material to its own emissive; no local-then-net bot swap on entry, re-entry, travel or blips) | Accepted |
+| [0134](./0134-predicted-death-resolve-and-autocap-diag.md) | Predicted deaths always resolve (no bot left lying alive: authoritative-hp lethal test, every result settles, safety net) + diagnostics recipient for the autocap ring (`autocap-pull.yml`, dispatcher `autocap-export`) | Accepted |
 
 ## Workflow for a new decision
 
 ADR-0132: [NAP sticker feel: playful, immediate, measured feedback](./0132-nap-sticker-feel.md).
 ADR-0133: [Game Zone bot colour restore and multiplayer hand-over hold](./0133-gz-bot-glow-and-net-handover.md).
+ADR-0134: [Predicted deaths always resolve; diagnostic access to the autocap ring](./0134-predicted-death-resolve-and-autocap-diag.md).
 Accepted for the operator-approved NAP sticker feel pass; NAP zone only, placement unchanged, no combat or points.
 
 ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-game-zone-combat-feel.md).

@@ -90,6 +90,7 @@ import { isRecordingRingEnabled, setRecordingRingEnabled } from './engine/dev/re
 import { setStickerForcePlaneMode, getStickerRenderState } from './stickerNpc.js';
 import { createAutoCapture } from './engine/kami/kamiAutoCapture.js';
 import { KAMI_PUBKEY } from './engine/kami/kamiMode.js';
+import { DIAG_PUBKEY } from './engine/kami/diagKey.js';
 import { sealJson, sealTo } from './engine/kami/kamiSeal.js';
 import { fetchCapability, isAdminOperator } from './engine/update/adminUpdateClient.js';
 import { getTimings as getBootTimings } from './engine/debug/bootTiming.js';
@@ -1190,7 +1191,7 @@ export function createArenaRuntime(hooks = {}) {
       try {
         const ownerPub = state.nostrPubkey || '';
         if (!/^[0-9a-f]{64}$/.test(ownerPub)) { _autoCap.markFailed(req.frameId, 'no-pubkey', Date.now()); return; }
-        const recipients = [ownerPub, KAMI_PUBKEY];
+        const recipients = [ownerPub, KAMI_PUBKEY, DIAG_PUBKEY]; // ADR-0134: + diagnostics (autocap only)
         // Split seal: small snapshot JSON + large JPEG bytes (same as manual ema).
         const ema = await sealJson(req.snapshot, recipients);
         let shot = null;

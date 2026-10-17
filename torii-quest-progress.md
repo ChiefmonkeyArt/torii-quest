@@ -1,5 +1,18 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.899-alpha: boss lying-down fix + capture access (ADR-0134)
+
+Bots, especially the big boss Augustine, could get stuck lying on the ground
+while still alive. The game showed a kill as soon as you fired a shot it
+thought was lethal, but it counted your unconfirmed shots twice, and when the
+server said "hit, but not dead" nothing stood the bot back up. Both are fixed,
+and a safety net stands up any bot left in that state.
+
+In-game captures can now be reviewed in a session. Each capture is also sealed
+to a diagnostics key whose private half lives only in a GitHub secret, and a
+workflow pulls the ring from the VPS and opens it there. Your manual notes stay
+private.
+
 ## v0.2.898-alpha: bot colour + start-up hand-over fix (ADR-0133)
 
 Bots no longer turn dark once they've been hit. They are lit by their own glow

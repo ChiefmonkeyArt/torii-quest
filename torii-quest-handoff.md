@@ -1,5 +1,16 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## PREDICTION + CAPTURES: v0.2.899-alpha (ADR-0134)
+
+- `gameZone.js`: lethal = `_authHp(v) − _pendingDmg(id) − dmg ≤ 0` (never
+  `v.hp`, which is the display hp with pending damage already off).
+  `_settlePrediction` runs on every result that is not a landed kill, and a
+  15-frame safety net settles stale predicted deaths.
+- Captures: `src/engine/kami/diagKey.js` `DIAG_PUBKEY` is added to the autocap
+  recipients only. The private key is the `TORII_DIAG_PRIV` secret. To review:
+  `gh workflow run autocap-pull.yml -f reason='…'`, then `gh run download <id>`.
+  This needs dispatcher v3 on the VPS (`autocap-export`).
+
 ## BOT COLOUR + HAND-OVER: v0.2.898-alpha (ADR-0133)
 
 - `src/gamezone/client/hitFlash.js`: `createHitFlash(materials)` records each

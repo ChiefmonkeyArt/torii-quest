@@ -90,5 +90,12 @@ ExecStart=/bin/sh -c "id"
 # --- config-remove: symlink-only ------------------------------------------
 [[ "$(rc config-remove does-not-exist)" -ne 0 ]] && ok "config-remove: non-symlink/absent target rejected" || bad "config-remove: absent target accepted"
 
+# --- autocap-export: fixed path, no arguments (ADR-0134) ------------------
+[[ "$(rc autocap-export /etc/shadow)" -ne 0 ]] && ok "autocap-export: arguments rejected" || bad "autocap-export: accepted an argument"
+if [[ ! -d /var/lib/torii-quest/kami/autocap ]]; then
+  [[ "$(rc autocap-export)" -ne 0 ]] && ok "autocap-export: missing ring fails closed" || bad "autocap-export: missing ring did not fail"
+fi
+grep -q "autocap-export" <(bash "${DISPATCHER}" --help) && ok "autocap-export: listed in --help" || bad "autocap-export: not in --help"
+
 printf '\n%d passed, %d failed\n' "${pass}" "${fail}"
 [[ "${fail}" -eq 0 ]]

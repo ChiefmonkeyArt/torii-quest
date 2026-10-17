@@ -29,7 +29,7 @@ SUDOERS=/etc/sudoers.d/torii-admin
 REPO="ChiefmonkeyArt/torii-quest"
 REF="${TORII_QUEST_ADMIN_REF:-main}"
 RAW_BASE="https://raw.githubusercontent.com/${REPO}/${REF}"
-DISPATCHER_SHA256="c5ddfbcd0bd0f656a3f0b006b7b5dabdb39d8025e70b18be9075608ced5764d1"
+DISPATCHER_SHA256="5a8f7e228cffe42a32d8c7cdc3120563526869bf2e25979137f31d0470064218"
 
 echo "==> Ensuring user $USER exists"
 if ! id -u "$USER" >/dev/null 2>&1; then

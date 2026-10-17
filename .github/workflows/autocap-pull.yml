@@ -1,0 +1,79 @@
+name: Autocap pull (diagnostic frames)
+# ADR-0134: pull the owner's 1 Hz in-game capture ring from the VPS, open the
+# frames sealed to the diagnostics key, and publish them as a short-lived
+# artifact so a gameplay session can review the run-up to a glitch.
+#
+# • The VPS side is the fixed, argument-less `torii-admin-run autocap-export`
+#   (tar of the SEALED ring; nothing is decrypted on the VPS).
+# • TORII_DIAG_PRIV exists ONLY as this repo secret. It opens frames sealed to
+#   DIAG_PUBKEY (src/engine/kami/diagKey.js) — autocap frames only, never the
+#   owner's manual ema notes. Revoke by deleting the secret.
+# • Frames sealed before v0.2.899-alpha (owner + Kami only) are skipped.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'One-line reason (goes into the audit log).'
+        required: true
+        type: string
+
+concurrency:
+  group: torii-quest-vps-admin
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fetch the sealed ring
+        env:
+          SSH_KEY: ${{ secrets.TORII_ADMIN_SSH_KEY }}
+          HOST: ${{ secrets.TORII_ADMIN_HOST }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          echo "Actor: ${{ github.actor }}  Run: ${{ github.run_id }}  Reason: $REASON"
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id && chmod 600 ~/.ssh/id
+          ssh-keyscan -T 15 "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/id -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            "torii-admin@$HOST" "sudo /usr/local/sbin/torii-admin-run autocap-export" > ring.tgz
+          rm -f ~/.ssh/id
+          mkdir -p ring && tar -xzf ring.tgz -C ring --no-same-owner
+          echo "ring files: $(ls ring/autocap | wc -l)"
+      - name: Open the frames
+        env:
+          KAMI_PRIV: ${{ secrets.TORII_DIAG_PRIV }}
+        run: |
+          set -euo pipefail
+          # The secret must match the shipped DIAG_PUBKEY (fails closed otherwise).
+          node --input-type=module -e "
+            import { secp256k1 } from '@noble/curves/secp256k1.js';
+            import { DIAG_PUBKEY } from './src/engine/kami/diagKey.js';
+            const pub = Buffer.from(secp256k1.getPublicKey(Buffer.from(process.env.KAMI_PRIV, 'hex'), true)).toString('hex').slice(2);
+            if (pub !== DIAG_PUBKEY) { console.error('TORII_DIAG_PRIV does not match DIAG_PUBKEY'); process.exit(1); }
+            console.log('diagnostics key OK');"
+          sudo apt-get install -y -qq ffmpeg >/dev/null 2>&1 || true
+          node tools/kami-autocap-dump.mjs --ring ring --out out --video
+          echo "frames opened: $(ls out/frames 2>/dev/null | wc -l)"
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: autocap-${{ github.run_id }}
+          path: out
+          retention-days: 3
+          if-no-files-found: error

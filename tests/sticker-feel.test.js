@@ -175,7 +175,7 @@ describe('wiring contracts (THREE-bound modules)', () => {
 
   it('stickerNpc reports fire (sync, incl. misses) and land through guarded hooks', () => {
     expect(NPC).toMatch(/export function setStickerFeelHooks\(/);
-    expect(NPC).toMatch(/if \(!hitPoint\) \{ _feel\('onFire', null\); return false; \}/);
+    expect(NPC).toMatch(/if \(!hitPoint\) \{ _aim\.last = null; _feel\('onFire', null\); return false; \}/);
     expect(NPC).toMatch(/_feel\('onFire', \{ target, point: hitPoint, dist: bestDist \}\)/);
     expect(NPC).toMatch(/_feel\('onLand', \{ target: s\.target, point: s\.to \}\)/);
     expect(NPC).toMatch(/try \{ f\(info\); \} catch/); // a throwing hook never breaks placement
@@ -196,7 +196,9 @@ describe('wiring contracts (THREE-bound modules)', () => {
     expect(NAP).toMatch(/_root\.position\.y -= _bounceDy/);
     expect(NAP).toMatch(/_bounceDy = _bounce\.hop \+ _minY \* \(1 - _bounce\.sy\)/);
     expect(NAP).toMatch(/_root\.scale\.set\(_bounce\.sxz, _bounce\.sy, _bounce\.sxz\)/);
-    expect(NAP.indexOf('_root.scale.set(_bounce.sxz')).toBeLessThan(NAP.indexOf('syncNpcBoneColliders(_boneColliders)'));
+    expect(NAP.indexOf('_root.scale.set(_bounce.sxz')).toBeLessThan(NAP.indexOf('setNpcColliderPos(_npcColliderBody.body'));
+    // ADR-0135: no per-bone sensors any more (stickers use the exact skin test).
+    expect(NAP).not.toMatch(/syncNpcBoneColliders|createNpcBoneColliders/);
   });
 
   it('NAP fire path: sticker sound + gentle recoil; arena keeps its gunshot', () => {

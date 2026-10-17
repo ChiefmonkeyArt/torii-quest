@@ -1,5 +1,15 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.900-alpha: stickers land exactly where aimed (ADR-0135)
+
+Stickers now land exactly where your crosshair meets a character's body, and
+stay on that exact spot as the character moves, even on shoulders, hips and
+elbows where they used to slide off. A near miss still sticks if real skin is
+within 4 cm of your aim. A clear miss flies past instead of landing on a
+guessed spot. Each sticker shot also got about 16 times cheaper (no more hitch
+on the click), and the NPC no longer needs about 60 physics sensors updated
+every frame.
+
 ## v0.2.899-alpha: boss lying-down fix + capture access (ADR-0134)
 
 Bots, especially the big boss Augustine, could get stuck lying on the ground

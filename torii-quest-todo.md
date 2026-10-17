@@ -1,5 +1,15 @@
 # Torii Quest ToDo
 
+## v0.2.900-alpha: stickers land exactly where aimed (ADR-0135)
+
+- [x] Exact skinned-triangle hit on the drawn skin (Game Zone hitbox); no Rapier sensors, no guessed graze points.
+- [x] Honest 4 cm assist (real skin only); clear misses fly on.
+- [x] Triangle + barycentric skin anchors: the sticker stays on the skin through every pose.
+- [x] NPC per-bone sensors + per-frame sync removed; peers pre-filtered; ~2.6 ms per shot (was ~41 ms).
+- [x] `ToriiDebug.stickerAim`.
+- [ ] Operator playtest in the NAP zone (NPC + a peer).
+- [ ] Clean-up: remove the now-unused bone-collider helpers from `engine/physics/bodies.js`.
+
 ## v0.2.899-alpha: boss lying-down fix + capture access (ADR-0134)
 
 - [x] No bot left lying on the ground alive: authoritative-hp lethal test, every result settles a predicted death, safety net.

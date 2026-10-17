@@ -47,7 +47,7 @@ import { enableFly, disableFly, toggleFly, isFlyEnabled, getFlyEyeY } from './fl
 
 export function installToriiDebug(refs) {
   const {
-    version, getGameZone, getStickerFeel, getNapNpc, playerObj, resetPlayerPos, setNextSpawn,
+    version, getGameZone, getStickerFeel, getStickerAim, getNapNpc, playerObj, resetPlayerPos, setNextSpawn,
     camera, setPitch, setYaw,
     castRay, castRayStatic, hasLineOfSight, getWorld,
     getGrassMat, getFlowerMat, getMirror,
@@ -111,6 +111,8 @@ export function installToriiDebug(refs) {
     get gz() { return _gzDbg(); },
     // ADR-0132: NAP sticker feel — fired / landed / stuck / bounces + click→frame latency.
     get stickerFeel() { const f = typeof getStickerFeel === 'function' ? getStickerFeel() : null; return f ? f.stats() : null; },
+    // ADR-0135: sticker targeting cost (ms), assist use, stickers riding a skin.
+    get stickerAim() { return typeof getStickerAim === 'function' ? getStickerAim() : null; },
     // NAP NPC pose for sticker checks: feet position + current bounce scale.
     get napNpc() {
       const r = typeof getNapNpc === 'function' ? getNapNpc() : null;

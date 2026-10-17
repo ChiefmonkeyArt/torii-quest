@@ -196,9 +196,11 @@ export function createHitboxRig(skinned, parts) {
     }
   }
 
-  // Möller–Trumbore over one part's triangles. Returns nearest {t, zone} or null.
+  // Möller–Trumbore over one part's triangles. Returns nearest
+  // {t, zone, tri, u, v} or null — `tri` is the triangle's offset into the index
+  // array and (u, v) its barycentrics, so callers can anchor to the skin (ADR-0135).
   function _exact(p, ox, oy, oz, dx, dy, dz, maxT) {
-    let best = maxT, zone = null;
+    let best = maxT, zone = null, bj = -1, bu = 0, bv = 0;
     const tris = p.tris;
     for (let k = 0; k < tris.length; k++) {
       const j = tris[k];
@@ -217,13 +219,13 @@ export function createHitboxRig(skinned, parts) {
       if (w < 0 || u + w > 1) continue;
       const t = (e2x * qx + e2y * qy + e2z * qz) * inv;
       if (t > 1e-4 && t < best) {
-        best = t;
+        best = t; bj = j; bu = u; bv = w;
         const w0 = 1 - u - w;
         const vi = w0 >= u && w0 >= w ? index[j] : (u >= w ? index[j + 1] : index[j + 2]);
         zone = headVert[vi] ? 'head' : 'body';
       }
     }
-    return zone ? { t: best, zone } : null;
+    return zone ? { t: best, zone, tri: bj, u: bu, v: bv } : null;
   }
 
   /**
@@ -250,7 +252,7 @@ export function createHitboxRig(skinned, parts) {
       const p = parts[cand[i + 1]];
       _skinPart(p);
       const h = _exact(p, ox, oy, oz, dx, dy, dz, best ? best.t : maxT);
-      if (h) best = { t: h.t, zone: h.zone, part: p.name };
+      if (h) best = { t: h.t, zone: h.zone, part: p.name, tri: h.tri, u: h.u, v: h.v };
     }
     return best;
   }

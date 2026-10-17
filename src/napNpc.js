@@ -15,8 +15,7 @@ import { isNapLand, NAP_BBOX } from './terrain/tomoeShape.js';
 import { assetUrl } from './assetUrl.js';
 import { normalizeAngle } from './engine/math/angle.js';
 import { setFreezeStage } from './engine/diagnostics/freezeWatchdog.js';
-import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y,
-         createNpcBoneColliders, syncNpcBoneColliders } from './physics.js';
+import { createNpcCollider, setNpcColliderPos, NPC_CAPSULE_CENTRE_Y } from './physics.js';
 // v0.2.813: the label rules live in a pure, node-safe module so tests can
 // exercise them without pulling in three/scene. Re-exported here so callers
 // that already import from napNpc.js keep working.
@@ -28,7 +27,6 @@ let _root   = null;
 let _mixer  = null;
 let _minY   = 0;             // geometry feet offset
 let _npcColliderBody = null;  // Rapier kinematic body for sticker raycasting
-let _boneColliders = [];      // Per-bone sensor colliders (v0.2.574)
 let _skinnedMesh = null;      // NPC SkinnedMesh reference for bone collider setup
 let _gestureClips = [];     // clips from chiefmonkey-npc-animations.glb
 let _walkClip = null;       // walk clip from the model GLB
@@ -253,17 +251,12 @@ export function buildNapNpc() {
     _npcColliderBody = createNpcCollider(_root,
       _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
 
-    // Find the SkinnedMesh and create per-bone colliders (v0.2.574)
+    // Find the SkinnedMesh. Stickers hit its drawn skin exactly (ADR-0135);
+    // the per-bone Rapier sensors (v0.2.574) and their per-frame sync are gone.
     _root.traverse(o => {
       if (o.isSkinnedMesh && !_skinnedMesh) _skinnedMesh = o;
     });
-    if (_skinnedMesh) {
-      _root.updateMatrixWorld(true);
-      _boneColliders = createNpcBoneColliders(_root, _skinnedMesh);
-      console.log('[napNpc] bone names:', _skinnedMesh.skeleton.bones.map(b => b.name));
-    } else {
-      console.warn('[napNpc] no SkinnedMesh found — per-bone colliders skipped');
-    }
+    if (!_skinnedMesh) console.warn('[napNpc] no SkinnedMesh found — stickers fall through to the scene');
 
     _mixer = new THREE.AnimationMixer(_root);
 
@@ -369,10 +362,6 @@ export function tickNapNpc(dt) {
   if (_npcColliderBody) {
     setNpcColliderPos(_npcColliderBody.body,
       _root.position.x, _root.position.y + NPC_CAPSULE_CENTRE_Y, _root.position.z);
-  }
-  if (_boneColliders.length > 0) {
-    _root.updateMatrixWorld(true);
-    syncNpcBoneColliders(_boneColliders);
   }
 
   // v0.2.813: track the NPC with the nameplate. Sprites bill-board themselves,

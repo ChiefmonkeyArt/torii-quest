@@ -14,7 +14,9 @@ import { sampleArenaHeight } from '../../terrain/heightmap.js';
 import { isArenaPlayArea } from '../../terrain/tomoeShape.js';
 
 export const ARENA_CRATES_VERSION = '0.1.0';
-const CRATE_COLOR = '#4a4458'; // C_CRATE from arena.js (0x4a4458)
+// ADR-0136: the shared crate albedo (was the near-black #4a4458 slate). Kept as
+// a literal so this module stays node-pure; a test pins it to crateLook.js.
+const CRATE_COLOR = '#c9a274';
 
 // expand(config) → the 9 legacy crate box objects. Mirrors bake-crates.mjs +
 // arena.js:144 / physics.js:152 exactly: center Y = ch/2 + sampleArenaHeight;

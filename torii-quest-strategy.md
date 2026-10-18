@@ -64,6 +64,12 @@ an honest 4 cm assist, and ride the skin through every pose. The next proposal
 items, cached footstep audio then tick-addressed peer interpolation, are not
 yet approved.
 
+v0.2.901-alpha (ADR-0136), approved 2026-10-18, adds:
+- visible orange/purple tracers for your shots and black/red for the bots';
+- bots that fight back (hit alert, memory, bursts, settled aim, fan-out);
+- wooden crates that no longer render black.
+Points are unchanged.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

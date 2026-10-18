@@ -65,7 +65,7 @@ const RETICLE_CLOSE = 0.9;    // m — "near the line of fire" for the orange re
  */
 export function createGameZone(d) {
   const views = new Map();
-  const fx = createGzFx(d.scene);
+  const fx = createGzFx(d.scene, d.camera);
   const now = () => performance.now();
   let local = null, net = null, authority = null;
   let netSince = 0, frameNo = 0, seq = 0, disposed = false, platesVisible = true;
@@ -544,7 +544,7 @@ export function createGameZone(d) {
       }
     }
     _syncViews(dt);
-    fx.tick(dt);
+    fx.tick(dt * fxScale);
     _tickKick(dt);
     if (ctx.playing !== false) { _reticle(); _bossBar(); }
   }
@@ -603,6 +603,10 @@ export function createGameZone(d) {
     }));
   }
   /** Debug-only: damage bot `id` through the local sim (single-player only). */
+  // Debug seam (ADR-0136): slow effects down so tracers can be inspected/captured.
+  let fxScale = 1;
+  function setFxTimeScale(k) { fxScale = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : 1; return fxScale; }
+
   function debugDamage(id, n = 3) {
     if (!authority || authority.kind !== 'local' || !authority.sim) return false;
     return authority.sim.debugDamage ? authority.sim.debugDamage(id, n, LOCAL_ID) : false;
@@ -610,7 +614,7 @@ export function createGameZone(d) {
 
   const api = {
     fire, frame, clear, dispose, ingestSnapshot, ingestEvents, setAllNameplatesVisible, holdForNet,
-    debug, list, debugDamage,
+    debug, list, debugDamage, setFxTimeScale,
     resetFeelStats() { feel.reset(); },
     alivePositions() {
       const out = [];

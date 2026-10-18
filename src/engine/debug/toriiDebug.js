@@ -106,6 +106,8 @@ export function installToriiDebug(refs) {
         return g ? g.debugDamage(id, n) : false;
       },
     },
+    // ADR-0136: slow Game Zone effects (tracers/sparks) to inspect them; 1 = normal.
+    fxTimeScale(k = 1) { const g = _gz(); return g && g.setFxTimeScale ? g.setFxTimeScale(k) : null; },
 
     // Game Zone v2 (ADR-0130): authority, ticks, prediction stats, last shot/result.
     get gz() { return _gzDbg(); },

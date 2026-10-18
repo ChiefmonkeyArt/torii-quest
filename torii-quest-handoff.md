@@ -1,5 +1,12 @@
 # Torii Quest — Contributor / Agent Handoff
 
+## TRACERS + BOTS + CRATES: v0.2.901-alpha (ADR-0136)
+
+- `src/gamezone/client/fx.js`: the ribbon tracer pool. Styles are `TRACER_PLAYER`, `TRACER_PEER` and `TRACER_BOT`, and `createGzFx(parent, camera)` needs the camera for billboarding.
+- `src/gamezone/core/sim.js`: bot awareness (`_alert`, `_forget`, `lastSeen`, `burstLeft`, `settleMs`, `flank`). Its tunables are in `constants.js` (REACT_S … FLANK_R, plus the per-kind `burst`, `burstGap` and `settledSpread`).
+- `src/engine/render/crateLook.js`: `crateMaterial()` and `fitCrateUVs()`. `arenaCrates.js` keeps a literal `#c9a274`, pinned by a test.
+- Debug: `ToriiDebug.fxTimeScale(0.02)` slows tracers so you can capture them.
+
 ## STICKERS WHERE AIMED: v0.2.900-alpha (ADR-0135)
 
 - `src/engine/character/stickerSkin.js`: `skinRig(sm)` (hitbox fitted once per

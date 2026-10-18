@@ -33,7 +33,7 @@ describe('arena.crates component', () => {
       expect(c.type).toBe('box');
       expect(c.position[1]).toBeCloseTo(ch / 2 + sampleArenaHeight(cx, cz), 4);
       expect(c.scale).toEqual([hw * 2, ch, hd * 2]);
-      expect(c.color).toBe('#4a4458');
+      expect(c.color).toBe('#c9a274');
       expect(c.collider.size).toEqual([hw * 2, ch, hd * 2]);
     }
   });

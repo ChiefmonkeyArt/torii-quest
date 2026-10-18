@@ -25,7 +25,8 @@ import {
   TICK_MS, TICK_DT, MAX_REWIND_TICKS, ROSTER, BOT_KINDS, PLAYER_BODY, PLAYER_EYE, PLAYER_HP,
   HEAD_DAMAGE, BODY_DAMAGE, BOSS_NAME, ENGAGE_MIN, ENGAGE_MAX, TURN_RATE, AIM_CONE, SHOT_RANGE,
   FIRE_RANGE, SHOOT_ANIM_MS, BOT_DYING_MS, BOT_RESPAWN_MS, PLAYER_RESPAWN_MS, SPAWN_PROTECT_MS,
-  MAX_SHOTS_PER_TICK, MAX_ORIGIN_DRIFT,
+  MAX_SHOTS_PER_TICK, MAX_ORIGIN_DRIFT, REACT_S, ALERT_MS, ALERT_RADIUS, ALERT_SIGHT,
+  MEMORY_MS, SETTLE_SPEED, SETTLE_MS, FLANK_R,
 } from './constants.js';
 import { createRng, wrapAngle, normalize3 } from './geom.js';
 import { createHistory, q2, q3 } from './history.js';
@@ -80,6 +81,9 @@ export function createGameZoneSim(opts = {}) {
       cd: spec.shootCd * (0.5 + rng()), shootMs: 0, anim: A.walk,
       target: null, retargetIn: 0, route: [], wpMs: 0,
       strafe: rng() < 0.5 ? -1 : 1, strafeMs: 1500, moving: false,
+      // ADR-0136 awareness: who hurt me, last place I saw my target, burst state.
+      alertBy: null, alertMs: 0, lastSeen: null, lostMs: 0, burstLeft: 0, settleMs: 0,
+      flank: (id * 2.39996323) % (Math.PI * 2), // golden angle: bots fan out around you
     });
   }
 
@@ -91,6 +95,7 @@ export function createGameZoneSim(opts = {}) {
       id, x: pos[0], y: pos[1] - PLAYER_EYE, z: pos[2], yaw: Number(init.yaw) || 0,
       hp: PLAYER_HP, alive: true, deadMs: 0, protectMs: SPAWN_PROTECT_MS,
       targetable: init.targetable !== false, shotTick: -1, shots: 0, kills: 0, deaths: 0,
+      px: pos[0], pz: pos[2], speed: 0, // per-tick ground speed (bots read it to settle aim)
     };
     players.set(id, p);
     return p;
@@ -104,14 +109,15 @@ export function createGameZoneSim(opts = {}) {
   }
   function removePlayer(id) {
     players.delete(id);
-    for (const b of bots.values()) if (b.target === id) b.target = null;
+    for (const b of bots.values()) if (b.target === id || b.alertBy === id) _forget(b);
   }
   function setTargetable(id, on) {
     const p = players.get(id);
     if (!p) return;
     p.targetable = !!on;
-    if (!on) for (const b of bots.values()) if (b.target === id) b.target = null;
+    if (!on) for (const b of bots.values()) if (b.target === id || b.alertBy === id) _forget(b);
   }
+  function _forget(b) { b.target = null; b.alertBy = null; b.alertMs = 0; b.lastSeen = null; b.lostMs = 0; b.settleMs = 0; }
   function canBeHurt(p) { return p && p.alive && p.targetable && p.protectMs <= 0 && world.inPlay(p.x, p.z); }
 
   // ── damage application ──────────────────────────────────────────────────────
@@ -119,6 +125,7 @@ export function createGameZoneSim(opts = {}) {
     if (b.st !== ST.alive) return { tk: 'bot', tid: b.id, zone, dmg: 0, hp: 0, killed: false, absorbed: true };
     b.hp = Math.max(0, b.hp - dmg);
     events.push({ type: 'hit', tk: 'bot', tid: b.id, sid, sk, zone, dmg, hp: b.hp });
+    if (sk === 'player') _alert(b, sid);
     if (onDamage && sk === 'player') onDamage(sid, dmg, 'bot');
     let killed = false;
     if (b.hp <= 0) {
@@ -138,7 +145,7 @@ export function createGameZoneSim(opts = {}) {
     if (p.hp <= 0) {
       killed = true;
       p.alive = false; p.deadMs = PLAYER_RESPAWN_MS; p.deaths++;
-      for (const b of bots.values()) if (b.target === p.id) b.target = null;
+      for (const b of bots.values()) if (b.target === p.id || b.alertBy === p.id) _forget(b);
       events.push({ type: 'kill', tk: 'player', tid: p.id, sid, sk, zone });
       if (onKill) onKill(sid, sk === 'bot' ? 'botKilledPlayer' : 'player', p.id);
     }
@@ -232,11 +239,27 @@ export function createGameZoneSim(opts = {}) {
     for (const p of players.values()) {
       if (!canBeHurt(p)) continue;
       const d = Math.hypot(p.x - b.x, p.z - b.z);
-      if (d > b.spec.sight || d >= bestD) continue;
+      // An alerted bot looks much further for the player who shot it.
+      const sight = b.alertMs > 0 && b.alertBy === p.id ? ALERT_SIGHT : b.spec.sight;
+      if (d > sight || d >= bestD) continue;
       if (!world.lineOfSight(b.x, _eye(b), b.z, p.x, p.y + 1.3, p.z)) continue;
       best = p; bestD = d;
     }
     return best;
+  }
+
+  // ADR-0136: being shot makes a bot (and its neighbours) hunt the shooter.
+  function _alert(b, sid) {
+    const p = players.get(sid);
+    if (!p || !canBeHurt(p)) return;
+    for (const o of bots.values()) {
+      if (o.st !== ST.alive) continue;
+      if (o !== b && Math.hypot(o.x - b.x, o.z - b.z) > ALERT_RADIUS) continue;
+      if (o !== b && o.target != null) continue; // already busy
+      o.alertBy = sid; o.alertMs = ALERT_MS;
+      o.lastSeen = { x: p.x, z: p.z }; o.lostMs = MEMORY_MS;
+      o.retargetIn = 0; // look now
+    }
   }
 
   function _tryMove(b, vx, vz) {
@@ -271,8 +294,10 @@ export function createGameZoneSim(opts = {}) {
     let dx = target.x - ox, dy = (target.y + 1.25) - oy, dz = target.z - oz;
     const L = Math.hypot(dx, dy, dz) || 1;
     dx /= L; dy /= L; dz /= L;
-    // Spread: jitter yaw and pitch independently.
-    const jy = (rng() * 2 - 1) * spec.spread, jp = (rng() * 2 - 1) * spec.spread * 0.6;
+    // Spread: jitter yaw and pitch independently. A settled aim on a still
+    // target tightens it (ADR-0136) — moving is how you stay hard to hit.
+    const spread = b.settleMs >= SETTLE_MS ? spec.settledSpread : spec.spread;
+    const jy = (rng() * 2 - 1) * spread, jp = (rng() * 2 - 1) * spread * 0.6;
     const cy = Math.cos(jy), sy = Math.sin(jy);
     let rx = dx * cy - dz * sy, rz = dx * sy + dz * cy;
     let ry = dy + jp;
@@ -288,7 +313,10 @@ export function createGameZoneSim(opts = {}) {
     const t = best ? best.t : maxT;
     events.push({ type: 'shot', sk: 'bot', sid: b.id, from: [q2(ox), q2(oy), q2(oz)], to: [q2(ox + rx * t), q2(oy + ry * t), q2(oz + rz * t)] });
     if (best) damagePlayer(best.p, 'body', spec.damage, b.id, 'bot');
-    b.cd = spec.shootCd * (0.8 + 0.4 * rng());
+    // Bursts: short gaps inside a burst, the normal cooldown between bursts.
+    if (b.burstLeft <= 0) b.burstLeft = spec.burst;
+    b.burstLeft--;
+    b.cd = b.burstLeft > 0 ? spec.burstGap : spec.shootCd * (0.8 + 0.4 * rng());
     b.shootMs = SHOOT_ANIM_MS;
   }
 
@@ -297,14 +325,20 @@ export function createGameZoneSim(opts = {}) {
     if (b.shootMs > 0) b.shootMs -= TICK_MS;
     if (b.cd > 0) b.cd -= TICK_DT;
     // Re-evaluate the target 5×/s (LOS is the expensive bit).
+    if (b.alertMs > 0) b.alertMs -= TICK_MS;
     if (--b.retargetIn <= 0) {
       const t = _pickTarget(b);
+      const was = b.target;
       b.target = t ? t.id : null;
+      // Fair reaction beat on first sight; aim settles from scratch.
+      if (t && was !== t.id) { b.cd = Math.max(b.cd, REACT_S); b.settleMs = 0; b.burstLeft = 0; }
       b.retargetIn = 4;
     }
     const target = b.target != null ? players.get(b.target) : null;
     let moved = false, anim = A.walk;
     if (target && canBeHurt(target)) {
+      b.lastSeen = { x: target.x, z: target.z }; b.lostMs = MEMORY_MS;
+      b.settleMs = target.speed <= SETTLE_SPEED ? b.settleMs + TICK_MS : 0;
       const dx = target.x - b.x, dz = target.z - b.z;
       const dist = Math.hypot(dx, dz) || 1e-6;
       const want = Math.atan2(dx, dz);
@@ -315,6 +349,15 @@ export function createGameZoneSim(opts = {}) {
       if (dist > ENGAGE_MAX) { moved = _tryMove(b, fx * spec.runSpeed, fz * spec.runSpeed); anim = A.run; }
       else if (dist < ENGAGE_MIN) { moved = _tryMove(b, -fx * spec.speed, -fz * spec.speed); anim = A.walk; }
       else {
+        // Fan out: drift toward this bot's own spot on a ring around the
+        // target (golden-angle slots), strafing once it's there (ADR-0136).
+        const gx = target.x + Math.sin(b.flank) * FLANK_R, gz = target.z + Math.cos(b.flank) * FLANK_R;
+        const ox = gx - b.x, oz = gz - b.z, od = Math.hypot(ox, oz);
+        if (od > 2.5) {
+          // side-step toward the slot (perpendicular component only: keeps range)
+          const side = (ox * fz - oz * fx) >= 0 ? 1 : -1;
+          b.strafe = side;
+        }
         b.strafeMs -= TICK_MS;
         if (b.strafeMs <= 0) { b.strafe = -b.strafe; b.strafeMs = 1200 + rng() * 1600; }
         const sx = fz * b.strafe, sz = -fx * b.strafe;
@@ -326,8 +369,21 @@ export function createGameZoneSim(opts = {}) {
           world.lineOfSight(b.x, _eye(b), b.z, target.x, target.y + 1.3, target.z)) {
         _botFire(b, target);
       }
+    } else if (b.lastSeen && b.lostMs > 0) {
+      // Lost sight: run to where it last saw you, then look around.
+      b.target = null; b.settleMs = 0;
+      b.lostMs -= TICK_MS;
+      const dx = b.lastSeen.x - b.x, dz = b.lastSeen.z - b.z, dist = Math.hypot(dx, dz);
+      if (dist < 1.2) { b.lostMs = 0; b.lastSeen = null; anim = A.idle; }
+      else {
+        const want = Math.atan2(dx, dz), diff = wrapAngle(want - b.yaw), turn = TURN_RATE * TICK_DT;
+        b.yaw = wrapAngle(b.yaw + Math.max(-turn, Math.min(turn, diff)));
+        if (Math.abs(diff) < 1.2) moved = _tryMove(b, (dx / dist) * spec.runSpeed, (dz / dist) * spec.runSpeed);
+        if (!moved) { b.lostMs = 0; b.lastSeen = null; }
+        anim = moved ? A.run : A.idle;
+      }
     } else {
-      b.target = null;
+      b.target = null; b.lastSeen = null; b.settleMs = 0;
       b.wpMs -= TICK_MS;
       if (!b.route.length || b.wpMs <= 0) _newRoute(b);
       const wp = b.route[0];
@@ -374,6 +430,7 @@ export function createGameZoneSim(opts = {}) {
     b.yaw = rng() * Math.PI * 2 - Math.PI;
     b.hp = b.spec.hp; b.st = ST.alive; b.stMs = 0; b.sp++;
     b.cd = b.spec.shootCd; b.shootMs = 0; b.anim = A.walk; b.route = []; b.target = null; b.retargetIn = 0;
+    b.alertBy = null; b.alertMs = 0; b.lastSeen = null; b.lostMs = 0; b.burstLeft = 0; b.settleMs = 0;
     events.push({ type: 'spawn', bid: b.id });
   }
 
@@ -395,6 +452,7 @@ export function createGameZoneSim(opts = {}) {
   function step() {
     tick++;
     for (const p of players.values()) {
+      p.speed = Math.hypot(p.x - p.px, p.z - p.pz) / TICK_DT; p.px = p.x; p.pz = p.z;
       if (p.protectMs > 0) p.protectMs -= TICK_MS;
       if (!p.alive) { p.deadMs -= TICK_MS; if (p.deadMs <= 0) _respawnPlayer(p); }
     }

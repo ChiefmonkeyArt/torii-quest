@@ -14,9 +14,9 @@ import { buildSeaMesh } from './terrain/sea.js';
 import { seaQualityFromSearch } from './terrain/seaConfig.js';
 import { buildBridge } from './bridge.js';
 import { assetUrl } from './assetUrl.js';
+import { crateMaterial, fitCrateUVs } from './engine/render/crateLook.js';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
-const C_CRATE  = 0x4a4458;
 const C_PURPLE = 0x8b5cf6;
 const C_TURQ   = 0x1ad6c4;
 const C_NEON   = 0x27e1ff; // coastline neon edge
@@ -26,7 +26,6 @@ const WALL_WALL_H = 0.5; // wall height (m) — above the 0.3 autostep, well und
 // v0.2.511: No gate gap — the wall follows the play rings and bridges are separate.
 function _inGateGap(mx, mz) { return false; }
 
-const crateMat = new THREE.MeshStandardMaterial({ color: C_CRATE, roughness: 0.7 });
 
 // The arena perimeter walls were removed in v0.2.333 — the island is now open to
 // the sea on all sides, with the shore slope (terrain) as the visual/physical
@@ -149,7 +148,8 @@ function _buildCrates(scene) {
       console.warn('[arena] crate at (' + cx + ',' + cz + ') is outside play zone — skipping');
       return;
     }
-    const m = new THREE.Mesh(new THREE.BoxGeometry(hw * 2, ch, hd * 2), crateMat);
+    // ADR-0136: shared wood look (was a near-black #4a4458 slate).
+    const m = new THREE.Mesh(fitCrateUVs(new THREE.BoxGeometry(hw * 2, ch, hd * 2), hw * 2, ch, hd * 2), crateMaterial());
     m.name = 'arena-crate'; // named for legacy teardown (in-place travel)
     // Crate sits ON the undulating arena surface: its base is the terrain height
     // sampled at the crate centre, so it rides the hills instead of floating over

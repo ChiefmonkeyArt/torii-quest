@@ -1,5 +1,13 @@
 # Torii Quest ToDo
 
+## v0.2.901-alpha: tracers, bots fight back, crates (ADR-0136)
+
+- [x] Ribbon tracers: orange core/purple glow (yours), black core/red glow (bots), travelling streaks, min on-screen width.
+- [x] Bots: hit alert + neighbours, last-seen chase, reaction beat, 2-round bursts, settled aim on still targets, fan-out ring, sight 20 m.
+- [x] Crates: shared wood look (procedural texture, per-box UVs); never near-black.
+- [x] `ToriiDebug.fxTimeScale`.
+- [ ] Operator playtest: difficulty feel (tunables in `src/gamezone/core/constants.js`).
+
 ## v0.2.900-alpha: stickers land exactly where aimed (ADR-0135)
 
 - [x] Exact skinned-triangle hit on the drawn skin (Game Zone hitbox); no Rapier sensors, no guessed graze points.

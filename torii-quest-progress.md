@@ -1,5 +1,14 @@
 # Torii Quest — Progress Dashboard
 
+## v0.2.901-alpha: tracers, bots fight back, crates (ADR-0136)
+
+Your shots now leave a glowing orange-and-purple streak that flies to where you
+aimed. Bot shots are black with a red glow, slower and wider, so you can see
+incoming fire. Bots are smarter: shoot one and it, plus any nearby bots, comes
+after you. They chase where they last saw you, fire short bursts, aim better
+when you stand still, and spread out around you. Damage, health and sats are
+unchanged. The crates are now proper lit wooden crates instead of black boxes.
+
 ## v0.2.900-alpha: stickers land exactly where aimed (ADR-0135)
 
 Stickers now land exactly where your crosshair meets a character's body, and

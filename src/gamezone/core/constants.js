@@ -42,7 +42,9 @@ export const ROSTER = Object.freeze({ total: BOT_COUNT, bosses: BOSS_COUNT });
 export const BOT_KINDS = Object.freeze({
   regular: Object.freeze({
     hp: BOT_HP, speed: BOT_SPEED, runSpeed: BOT_SPEED * 1.45, shootCd: BOT_SHOOT_CD,
-    damage: BOT_DAMAGE, spread: BOT_SPREAD, sight: BOT_SIGHT,
+    damage: BOT_DAMAGE, spread: BOT_SPREAD, sight: BOT_SIGHT * 1.45,
+    // ADR-0136: 2-round bursts; a settled aim on a still target tightens spread.
+    burst: 2, burstGap: 0.16, settledSpread: BOT_SPREAD * 0.45,
     // Coarse envelope used by the authority. Measured against banker-rigged.glb
     // (root motion stripped): standing height 1.80 m incl. hat, neck at ~1.42 m,
     // arms/gun reach up to ~1.05 m from the root in the clips we play.
@@ -50,7 +52,8 @@ export const BOT_KINDS = Object.freeze({
   }),
   boss: Object.freeze({
     hp: BOSS_HP, speed: BOSS_SPEED, runSpeed: BOSS_SPEED * 1.4, shootCd: BOSS_SHOOT_CD,
-    damage: BOSS_DAMAGE, spread: BOT_SPREAD * 0.8, sight: BOT_SIGHT * 1.3,
+    damage: BOSS_DAMAGE, spread: BOT_SPREAD * 0.8, sight: BOT_SIGHT * 1.6,
+    burst: 1, burstGap: 0, settledSpread: BOT_SPREAD * 0.4,
     // augustink4.glb rendered at 3.0 m (BOSS_TARGET_HEIGHT).
     radius: 0.8, height: 3.15, neckY: 2.45, envR: 2.4, headMinY: 1.9, muzzleY: 2.3,
   }),
@@ -63,6 +66,17 @@ export const AIM_CONE = 0.35;     // rad — must be roughly facing the target t
 export const SHOT_RANGE = 60;     // m — bot hitscan reach
 export const FIRE_RANGE = 120;    // m — player hitscan reach
 export const SHOOT_ANIM_MS = 450; // how long a bot reads as "shooting" after a shot
+
+// ── Bot awareness (ADR-0136) ──────────────────────────────────────────────────
+// Behaviour only: damage per hit, HP and sats are unchanged (frozen point system).
+export const REACT_S = 0.45;        // first shot after spotting you: a fair beat to react
+export const ALERT_MS = 6000;       // a shot bot hunts its attacker this long, beyond sight
+export const ALERT_RADIUS = 14;     // m — bots this close to a hit bot join in
+export const ALERT_SIGHT = 45;      // m — how far an alerted bot will look for its attacker
+export const MEMORY_MS = 3500;      // chase the last place it saw you before giving up
+export const SETTLE_SPEED = 1.2;    // m/s — at or below this the target counts as "still"
+export const SETTLE_MS = 900;       // aim needs this long on a still target to tighten
+export const FLANK_R = 7.5;         // m — preferred ring around the target (bots spread out)
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 export const BOT_DYING_MS = 1400;    // death clip window; not hittable, no nameplate

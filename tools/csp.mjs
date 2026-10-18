@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-983sjeuNLkqwzxm/i7LHbyFzusmiXmbkjcWTN5rAY08=";
+export const INLINE_SCRIPT_SHA256 = "sha256-/33h24hqf4ju3LxIxwCurAaidIC8VwlOnSvyNz9+W+o=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;

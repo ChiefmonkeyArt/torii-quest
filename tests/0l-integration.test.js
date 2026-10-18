@@ -37,7 +37,7 @@ describe('0l component-seam integration (chiefmonkey-template)', () => {
     expect(ex.expanded).toBe(10);
     const crates = ex.world.objects.filter(
       (o) => o.type === 'box' && o.collider && Math.abs(o.position[0]) >= 0,
-    ).filter((o) => o.scale && o.color === '#4a4458');
+    ).filter((o) => o.scale && o.color === '#c9a274');
     expect(crates.length).toBe(9);
     const gateway = ex.world.objects.filter(
       (o) => o.type === 'gltf' && o.model === 'torii-gateway-experience.glb',

@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { scene } from './scene.js';
 import { createDynamicCrate } from './engine/physics/bodies.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
+import { crateMaterial } from './engine/render/crateLook.js';
 
 const _crates = []; // { body, mesh }
 
@@ -12,7 +13,6 @@ const HALF = 0.5;
 const SPOTS = [[3, 3], [-4, 2], [2, -4], [-3, -3]];
 
 const _geo = new THREE.BoxGeometry(HALF * 2, HALF * 2, HALF * 2);
-const _mat = new THREE.MeshStandardMaterial({ color: 0xb5905d, roughness: 0.8, metalness: 0.05 });
 
 export function buildDynamicCrates() {
   // Clear any prior crates (re-entering the arena rebuilds the world).
@@ -27,7 +27,7 @@ export function buildDynamicCrates() {
     const y = sampleArenaHeight(x, z) + HALF + 0.05;
     const handle = createDynamicCrate(x, y, z, HALF);
     if (!handle) continue;
-    const mesh = new THREE.Mesh(_geo, _mat);
+    const mesh = new THREE.Mesh(_geo, crateMaterial());
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.position.set(x, y, z);

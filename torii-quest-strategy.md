@@ -1119,3 +1119,10 @@ The game brings people in. NAP zones make it social. Nostr makes it sovereign. B
 The shoot'em up is the proof-of-work layer. The prize is a self-sovereign, open, FOSS, Nostr/Bitcoin-powered world builder and decentralised metaverse layer for Plebeian and Plebeian.Market — one that no single company owns, no central server controls, and any developer or AI agent can contribute to from the repo alone.
 
 Bitcoin and Nostr only, baby.
+
+v0.2.903-alpha (ADR-0138), approved 2026-10-20, adds:
+- human bot aim: reaction lag, wandering error, close misses, and a learned lead that a change of direction beats;
+- agile bots: dodges, jukes and wounded retreat;
+- complementary cyan/lime incoming tracers with a visible tip, plus a near-miss whizz.
+Points are unchanged.
+

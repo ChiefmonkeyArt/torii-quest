@@ -39,7 +39,7 @@ import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, cas
 import { createGameZone } from './gamezone/client/gameZone.js';
 import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/weapons/gunViewmodel.js';
 import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
-import { playBotShoot, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
+import { playBotShoot, playNearMiss, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks, getStickerAimStats } from './stickerNpc.js';
@@ -1483,7 +1483,7 @@ export function createArenaRuntime(hooks = {}) {
         sfx: { hitMarker: playHitMarker, killConfirm: playKillConfirm },
         inputAt: lastShootInputAt,
         player: { takeDamage, killPlayer, setNextSpawn, isDead },
-        state, emit, EV, playBotShoot,
+        state, emit, EV, playBotShoot, playNearMiss,
         peerAvatar: (id) => { const e = _mp && _mp.roster._peek(id); return e ? e.obj : null; },
       });
       mark('boot-gamezone-done');

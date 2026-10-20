@@ -1,3 +1,15 @@
+## v0.2.903-alpha: human aim, agile bots, complementary tracers (ADR-0138)
+
+Bots now shoot like people rather than turrets. They react to you with a
+short delay, their aim wanders, and most misses fly close past you, so you
+hear a quiet whizz when one nearly gets you. Keep running one way and they
+learn to lead you; change direction and they lose it. They're also nimbler:
+shoot at one, or nearly hit it, and it may side-step. They change direction
+unpredictably and back off when hurt. Their bullets are now cyan with a
+lime glow, the opposite of your orange and purple, with a bright tip you can
+see even when a round is coming straight at you. Damage, health and sats are
+unchanged.
+
 ## v0.2.902-alpha: play on your phone (ADR-0137)
 
 Torii Quest can now be added to a phone's home screen and opens fullscreen.

@@ -22,7 +22,7 @@ import { createLocalAuthority, createNetAuthority, LOCAL_ID } from './authority.
 import { createGzFx, TRACER_PLAYER, TRACER_BOT, TRACER_PEER } from './fx.js';
 import { isClientSuspended } from '../../engine/state/clientSuspended.js';
 import {
-  markerKind, screenAngleTo, shotMix, kickRoll, createFeelMeter,
+  markerKind, screenAngleTo, shotMix, nearMiss, WHIZ_GAP_MS, kickRoll, createFeelMeter,
   KICK_HEAD_RAD, KICK_KILL_RAD, KICK_MS,
 } from './feel.js';
 
@@ -59,6 +59,7 @@ const RETICLE_CLOSE = 0.9;    // m — "near the line of fire" for the orange re
  * @param {(name:string, p?:any)=>void} d.emit
  * @param {object} d.EV
  * @param {(level?:number, pan?:number)=>void} [d.playBotShoot]
+ * @param {(level?:number, pan?:number)=>void} [d.playNearMiss]  ADR-0138 whizz
  * @param {{hitMarker?:(zone:string)=>void, killConfirm?:(head:boolean)=>void}} [d.sfx]
  * @param {()=>number} [d.inputAt]   performance.now() of the click behind the current shot
  * @param {(id:string)=>any} [d.peerAvatar]      remote avatar object (triggerAnim)
@@ -74,6 +75,8 @@ export function createGameZone(d) {
   const pending = new Map(); // seq → {id, dmg, at, zone, mk, pop}
   const feel = createFeelMeter();
   const _mix = { gain: 0, pan: 0 };
+  const _whiz = { level: 0, pan: 0 };
+  let lastWhiz = -1e9;
   let kickMs = -1, kickPeak = 0;
   const H = d.hud;
   const sfx = d.sfx || {};
@@ -82,7 +85,7 @@ export function createGameZone(d) {
   const _o = new THREE.Vector3(), _d = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Vector3();
   const _a = new THREE.Vector3(), _b = new THREE.Vector3();
   let lastShot = null, lastResult = null, lastMiss = null;
-  const stats = { shots: 0, claims: 0, accepted: 0, rejected: 0, kills: 0, mispredicts: 0, created: 0, disposed: 0 };
+  const stats = { shots: 0, claims: 0, accepted: 0, rejected: 0, kills: 0, mispredicts: 0, created: 0, disposed: 0, botShots: 0 };
 
   // Warm both templates immediately so the first bot draws as a model, not a capsule.
   loadBotTemplate('regular').catch(() => {});
@@ -433,10 +436,16 @@ export function createGameZone(d) {
     fx.tracer(_a.x, _a.y, _a.z, _b.x, _b.y, _b.z, e.sk === 'bot' ? TRACER_BOT : TRACER_PEER);
     if (d.flash) d.flash('muzzle', _a);
     if (e.sk === 'bot') {
+      stats.botShots++;
       if (d.playBotShoot) {
         const pp = d.playerObj.position;
         shotMix(pp.x, pp.z, d.playerObj.rotation.y, e.from[0], e.from[2], _mix);
         if (_mix.gain > 0) d.playBotShoot(_mix.gain, _mix.pan);
+      }
+      // ADR-0138: a close miss whizzes past your head.
+      if (d.playNearMiss && d.camera && now() - lastWhiz >= WHIZ_GAP_MS) {
+        d.camera.getWorldPosition(_o);
+        if (nearMiss(e.from, e.to, _o.x, _o.y, _o.z, d.playerObj.rotation.y, _whiz)) { lastWhiz = now(); feel.counts.whiz++; d.playNearMiss(_whiz.level, _whiz.pan); }
       }
     }
     else {

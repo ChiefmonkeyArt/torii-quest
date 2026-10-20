@@ -1,3 +1,13 @@
+## HUMAN AIM + AGILE BOTS: v0.2.903-alpha (ADR-0138)
+
+- `sim.js`:
+  - `_botFire` aims at the lagged pose from `playerHist` plus `vx/vz × lag × lead`, with OU error `ax/ay` and a twitch;
+  - `_tickAim` advances the error state, cooldowns and lead learning;
+  - `_startle` (called from `damageBot` and the near-miss scan in `_finish`) triggers dodges.
+- Tunables live in `constants.js`: `AIM_*`, `LEAD_*`, `DODGE_*`, `NEAR_MISS_M`, `JUKE_*`, `RETREAT_HP`, and per-kind `aimErr`, `lagTicks` and `agile`.
+- `fx.js`: 8 vertices per tracer (ribbon plus head billboard). Styles now take `head`, `headPx` and `wPx`.
+- Near miss: `feel.nearMiss()` (pure) and `audio.playNearMiss()`. The cue is passed in via `arenaRuntime` deps as `playNearMiss` and throttled by `WHIZ_GAP_MS`.
+
 ## TOUCH CONTROLS + PWA: v0.2.902-alpha (ADR-0137)
 
 - `src/engine/input/touchControls.js`: `installTouchControls({isActive, look, shoot})`, plus the pure `joystickKeys()`, `clampKnob()` and `shouldEnableTouch()`. It is installed from `arenaRuntime.js` next to the crosshair wiring.

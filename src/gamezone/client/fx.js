@@ -15,8 +15,8 @@
 // ADR-0136: tracers are camera-facing ribbons, not 1-px GL lines. A short
 // glowing streak (hot core + soft coloured glow) travels from the muzzle to the
 // impact at bullet speed, then fades. Your rounds are an orange core with a
-// purple glow; bot rounds are a black core with a red glow (slower and wider so
-// incoming fire is obvious). Width never drops below ~1.5 px at range.
+// purple glow; bot rounds are the complements, a cyan core with a lime glow
+// (slower and wider so incoming fire is obvious, ADR-0138). Width never drops below ~1.5 px at range.
 
 import * as THREE from 'three';
 
@@ -28,10 +28,15 @@ const SPARK_G = -9;
 const MIN_PX_W = 0.0026; // min ribbon width per metre of camera distance
 const NEAR_CAM_M = 1.5;  // incoming streaks end this far from the camera
 
-// core/glow: LINEAR RGB (converted to the output colour space in the shader); speed m/s; len streak m; w ribbon width m; fade s; a alpha.
-export const TRACER_PLAYER = Object.freeze({ core: [1.0, 0.3, 0.02], glow: [0.38, 0.06, 1.0], speed: 240, len: 2.4, w: 0.055, fade: 0.07, a: 1 });
-export const TRACER_PEER = Object.freeze({ core: [1.0, 0.3, 0.02], glow: [0.38, 0.06, 1.0], speed: 240, len: 2.4, w: 0.05, fade: 0.07, a: 0.8 });
-export const TRACER_BOT = Object.freeze({ core: [0.0, 0.0, 0.0], glow: [1.0, 0.015, 0.008], speed: 110, len: 1.8, w: 0.09, fade: 0.1, a: 1 });
+// core/glow: LINEAR RGB (converted to the output colour space in the shader);
+// head/headPx: tip glow size (m) and its minimum per metre of camera distance;
+// wPx: optional per-style minimum ribbon width per metre (default MIN_PX_W); speed m/s; len streak m; w ribbon width m; fade s; a alpha.
+export const TRACER_PLAYER = Object.freeze({ core: [1.0, 0.3, 0.02], glow: [0.38, 0.06, 1.0], speed: 240, len: 2.4, w: 0.055, fade: 0.07, a: 1, head: 0.07, headPx: 0.007 });
+export const TRACER_PEER = Object.freeze({ core: [1.0, 0.3, 0.02], glow: [0.38, 0.06, 1.0], speed: 240, len: 2.4, w: 0.05, fade: 0.07, a: 0.8, head: 0.06, headPx: 0.006 });
+// ADR-0138: bot rounds use the COMPLEMENTS of yours — icy cyan core (opposite
+// your orange) with an acid-lime glow (opposite your purple). Bright against the
+// purple grass, blue sky and teal water alike; slower + wider so it reads.
+export const TRACER_BOT = Object.freeze({ core: [0.15, 1.0, 1.0], glow: [0.45, 1.0, 0.0], speed: 110, len: 3.2, w: 0.12, fade: 0.12, a: 1, head: 0.14, headPx: 0.018, wPx: 0.005 });
 const SPARK_WALL = Object.freeze({ r: 1.0, g: 0.7, b: 0.28 });
 const SPARK_FLESH = Object.freeze({ r: 1.0, g: 0.18, b: 0.1 });
 
@@ -39,13 +44,22 @@ const VS = `attribute vec3 aCore; attribute vec3 aGlow; attribute vec3 aUv;
 varying vec3 vCore; varying vec3 vGlow; varying vec3 vUv;
 void main() { vCore = aCore; vGlow = aGlow; vUv = aUv;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-// vUv.x: -1..1 across, vUv.y: 0 tail .. 1 head, vUv.z: alpha.
+// Ribbon: vUv.x -1..1 across, vUv.y 0 tail .. 1 head. Head glow (ADR-0138):
+// vUv.y in 2..4 marks the round billboard at the bullet's tip. vUv.z: alpha.
 const FS = `varying vec3 vCore; varying vec3 vGlow; varying vec3 vUv;
-void main() { float a = abs(vUv.x);
-  float core = 1.0 - smoothstep(0.2, 0.46, a);
-  float glow = (1.0 - a) * (1.0 - a);
-  float along = mix(0.1, 1.0, vUv.y * vUv.y);
-  float al = vUv.z * along * max(core, glow * 0.9);
+void main() { float core, glow, al;
+  if (vUv.y > 1.5) {
+    float r = length(vec2(vUv.x, vUv.y - 3.0));
+    if (r > 1.0) discard;
+    core = 1.0 - smoothstep(0.16, 0.4, r);
+    glow = pow(1.0 - r, 1.8);
+    al = vUv.z * max(core, glow);
+  } else {
+    float a = abs(vUv.x);
+    core = 1.0 - smoothstep(0.16, 0.42, a);
+    glow = pow(1.0 - a, 1.6);
+    al = vUv.z * mix(0.12, 1.0, vUv.y * vUv.y) * max(core, glow);
+  }
   if (al < 0.004) discard;
   gl_FragColor = vec4(mix(vGlow, vCore, core), al);
   #include <colorspace_fragment>
@@ -53,17 +67,24 @@ void main() { float a = abs(vUv.x);
 
 export function createGzFx(parent, camera = null) {
   // ── tracers (ribbons) ──
-  const V = MAX_TRACERS * 4;
+  // 8 vertices per tracer: a 4-vert ribbon + a 4-vert head glow (ADR-0138).
+  const V = MAX_TRACERS * 8;
   const tPos = new Float32Array(V * 3);
   const tCore = new Float32Array(V * 3);
   const tGlow = new Float32Array(V * 3);
   const tUv = new Float32Array(V * 3);
-  const idx = new Uint16Array(MAX_TRACERS * 6);
+  const idx = new Uint16Array(MAX_TRACERS * 12);
   for (let i = 0; i < MAX_TRACERS; i++) {
-    const v = i * 4, o = i * 6;
-    idx[o] = v; idx[o + 1] = v + 1; idx[o + 2] = v + 2; idx[o + 3] = v + 2; idx[o + 4] = v + 1; idx[o + 5] = v + 3;
+    const v = i * 8, o = i * 12;
+    for (let q = 0; q < 2; q++) {
+      const w = v + q * 4, k = o + q * 6;
+      idx[k] = w; idx[k + 1] = w + 1; idx[k + 2] = w + 2; idx[k + 3] = w + 2; idx[k + 4] = w + 1; idx[k + 5] = w + 3;
+    }
     tUv[v * 3] = -1; tUv[(v + 1) * 3] = 1; tUv[(v + 2) * 3] = -1; tUv[(v + 3) * 3] = 1;
-    tUv[(v + 2) * 3 + 1] = tUv[(v + 3) * 3 + 1] = 1; // head verts
+    tUv[(v + 2) * 3 + 1] = tUv[(v + 3) * 3 + 1] = 1; // ribbon head verts
+    // head billboard corners: x ±1, y 2 / 4 (the shader recentres to ±1)
+    tUv[(v + 4) * 3] = -1; tUv[(v + 5) * 3] = 1; tUv[(v + 6) * 3] = -1; tUv[(v + 7) * 3] = 1;
+    tUv[(v + 4) * 3 + 1] = tUv[(v + 5) * 3 + 1] = 2; tUv[(v + 6) * 3 + 1] = tUv[(v + 7) * 3 + 1] = 4;
   }
   // Per tracer: from (3), unit dir (3), total dist, travelled head, style ref.
   const tFrom = new Float32Array(MAX_TRACERS * 3);
@@ -87,7 +108,7 @@ export function createGzFx(parent, camera = null) {
   tracers.raycast = () => {};
   parent.add(tracers);
   let tNext = 0, tAlive = 0;
-  const _cam = new THREE.Vector3();
+  const _cam = new THREE.Vector3(), _right = new THREE.Vector3(1, 0, 0), _up = new THREE.Vector3(0, 1, 0);
 
   function tracer(ax, ay, az, bx, by, bz, style = TRACER_PLAYER) {
     const dx = bx - ax, dy = by - ay, dz = bz - az;
@@ -111,8 +132,8 @@ export function createGzFx(parent, camera = null) {
     const D = Math.hypot(dx, dy, dz);
     tDir[o] = dx / D; tDir[o + 1] = dy / D; tDir[o + 2] = dz / D;
     tDist[i] = L; tHead[i] = 0; tFade[i] = 0;
-    for (let k = 0; k < 4; k++) {
-      const v = (i * 4 + k) * 3;
+    for (let k = 0; k < 8; k++) {
+      const v = (i * 8 + k) * 3;
       tCore[v] = style.core[0]; tCore[v + 1] = style.core[1]; tCore[v + 2] = style.core[2];
       tGlow[v] = style.glow[0]; tGlow[v + 1] = style.glow[1]; tGlow[v + 2] = style.glow[2];
     }
@@ -133,27 +154,44 @@ export function createGzFx(parent, camera = null) {
     let sx = uy * cz - uz * cy, sy = uz * cx - ux * cz, sz = ux * cy - uy * cx;
     const sl = Math.hypot(sx, sy, sz);
     if (sl < 1e-6) { sx = 0; sy = 1; sz = 0; } else { sx /= sl; sy /= sl; sz /= sl; }
-    const w = Math.max(st.w, cd * MIN_PX_W) * 0.5;
+    const w = Math.max(st.w, cd * (st.wPx || MIN_PX_W)) * 0.5;
     sx *= w; sy *= w; sz *= w;
     const ax = fx + ux * t0, ay = fy + uy * t0, az = fz + uz * t0;
     const bx = fx + ux * t1, by = fy + uy * t1, bz = fz + uz * t1;
-    const v = i * 12;
+    const v = i * 24;
     tPos[v] = ax - sx; tPos[v + 1] = ay - sy; tPos[v + 2] = az - sz;
     tPos[v + 3] = ax + sx; tPos[v + 4] = ay + sy; tPos[v + 5] = az + sz;
     tPos[v + 6] = bx - sx; tPos[v + 7] = by - sy; tPos[v + 8] = bz - sz;
     tPos[v + 9] = bx + sx; tPos[v + 10] = by + sy; tPos[v + 11] = bz + sz;
     const a = alpha * st.a;
     tUv[v + 2] = tUv[v + 5] = tUv[v + 8] = tUv[v + 11] = a;
+    // Head glow: a camera-facing disc at the tip with a minimum on-screen size,
+    // so a round coming straight at you still reads (a streak seen end-on
+    // collapses to a speck). Uses the camera's right/up axes.
+    const hd = Math.hypot(_cam.x - bx, _cam.y - by, _cam.z - bz);
+    const hs = Math.max(st.head, hd * st.headPx) * 0.5;
+    const rx = _right.x * hs, ry = _right.y * hs, rz = _right.z * hs;
+    const qx = _up.x * hs, qy = _up.y * hs, qz = _up.z * hs;
+    tPos[v + 12] = bx - rx - qx; tPos[v + 13] = by - ry - qy; tPos[v + 14] = bz - rz - qz;
+    tPos[v + 15] = bx + rx - qx; tPos[v + 16] = by + ry - qy; tPos[v + 17] = bz + rz - qz;
+    tPos[v + 18] = bx - rx + qx; tPos[v + 19] = by - ry + qy; tPos[v + 20] = bz - rz + qz;
+    tPos[v + 21] = bx + rx + qx; tPos[v + 22] = by + ry + qy; tPos[v + 23] = bz + rz + qz;
+    tUv[v + 14] = tUv[v + 17] = tUv[v + 20] = tUv[v + 23] = a;
   }
 
   function _hide(i) {
-    const v = i * 12;
+    const v = i * 24;
+    for (let k = 0; k < 24; k++) tPos[v + k] = 0;
     tUv[v + 2] = tUv[v + 5] = tUv[v + 8] = tUv[v + 11] = 0;
-    for (let k = 0; k < 12; k++) tPos[v + k] = 0;
+    tUv[v + 14] = tUv[v + 17] = tUv[v + 20] = tUv[v + 23] = 0;
   }
 
   function _tickTracers(dt) {
-    if (camera) camera.getWorldPosition(_cam);
+    if (camera) {
+      camera.getWorldPosition(_cam);
+      const e = camera.matrixWorld.elements;
+      _right.set(e[0], e[1], e[2]).normalize(); _up.set(e[4], e[5], e[6]).normalize();
+    }
     for (let i = 0; i < MAX_TRACERS; i++) {
       const st = tStyle[i];
       if (!st) continue;

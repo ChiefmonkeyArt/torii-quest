@@ -43,8 +43,9 @@ export const BOT_KINDS = Object.freeze({
   regular: Object.freeze({
     hp: BOT_HP, speed: BOT_SPEED, runSpeed: BOT_SPEED * 1.45, shootCd: BOT_SHOOT_CD,
     damage: BOT_DAMAGE, spread: BOT_SPREAD, sight: BOT_SIGHT * 1.45,
-    // ADR-0136: 2-round bursts; a settled aim on a still target tightens spread.
-    burst: 2, burstGap: 0.16, settledSpread: BOT_SPREAD * 0.45,
+    // ADR-0136: 2-round bursts. ADR-0138: human aim — aimErr is the 1-sigma
+    // angular error (rad); lagTicks is how far behind it "sees" a moving target.
+    burst: 2, burstGap: 0.16, aimErr: 0.066, lagTicks: 6, agile: 1,
     // Coarse envelope used by the authority. Measured against banker-rigged.glb
     // (root motion stripped): standing height 1.80 m incl. hat, neck at ~1.42 m,
     // arms/gun reach up to ~1.05 m from the root in the clips we play.
@@ -53,7 +54,7 @@ export const BOT_KINDS = Object.freeze({
   boss: Object.freeze({
     hp: BOSS_HP, speed: BOSS_SPEED, runSpeed: BOSS_SPEED * 1.4, shootCd: BOSS_SHOOT_CD,
     damage: BOSS_DAMAGE, spread: BOT_SPREAD * 0.8, sight: BOT_SIGHT * 1.6,
-    burst: 1, burstGap: 0, settledSpread: BOT_SPREAD * 0.4,
+    burst: 1, burstGap: 0, aimErr: 0.055, lagTicks: 7, agile: 0.35,
     // augustink4.glb rendered at 3.0 m (BOSS_TARGET_HEIGHT).
     radius: 0.8, height: 3.15, neckY: 2.45, envR: 2.4, headMinY: 1.9, muzzleY: 2.3,
   }),
@@ -77,6 +78,33 @@ export const MEMORY_MS = 3500;      // chase the last place it saw you before gi
 export const SETTLE_SPEED = 1.2;    // m/s — at or below this the target counts as "still"
 export const SETTLE_MS = 900;       // aim needs this long on a still target to tighten
 export const FLANK_R = 7.5;         // m — preferred ring around the target (bots spread out)
+
+// ── Human aim + agility (ADR-0138) ────────────────────────────────────────────
+// Bots aim like people: at where they last perceived you (reaction lag), with a
+// slowly wandering offset plus a per-shot twitch, so misses land CLOSE more
+// often than wide. They learn your lead while you run one way; a change of
+// direction resets it. Damage per hit is unchanged (frozen point system).
+export const AIM_MIN_M = 0.22;      // m — error floor at point-blank range
+export const AIM_WANDER_HZ = 1.6;   // how fast the wandering offset drifts
+export const AIM_TWITCH = 0.55;     // per-shot noise, relative to the wander
+export const AIM_SETTLED = 0.75;    // error × this when settled on a still target
+export const AIM_MOVING = 1.35;     // error × this while the bot itself moves
+export const AIM_DODGING = 1.9;     // … and while it's dodging
+export const AIM_HURT = 1.7;        // … for HURT_MS after being hit
+export const AIM_FIRST = 1.4;       // first shot at a newly spotted target
+export const AIM_K_MAX = 2.2;       // the multipliers above never stack past this
+export const AIM_FAR_M = 15;        // beyond this range error grows at 40% (no wild long misses)
+export const HURT_MS = 600;
+export const LEAD_RATE = 0.6;       // lead fraction learned per second you keep running one way
+export const LEAD_MAX = 0.9;
+export const DODGE_MS = 420;        // side-step burst length (± random 40%)
+export const DODGE_CD_MS = 1200;    // min gap between dodges
+export const DODGE_CHANCE = 0.5;    // base chance to dodge a hit / near miss…
+export const DODGE_ADAPT = 0.12;    // …+ this per recent threat (you keep landing near it)
+export const NEAR_MISS_M = 1.4;     // a player round this close to a bot startles it
+export const JUKE_MIN_MS = 450;     // strafe reversals: 450–1400 ms, varied speed
+export const JUKE_MAX_MS = 1400;
+export const RETREAT_HP = 0.5;      // below this hp fraction a bot backs off while fighting
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 export const BOT_DYING_MS = 1400;    // death clip window; not hittable, no nameplate

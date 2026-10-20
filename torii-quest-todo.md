@@ -1,3 +1,11 @@
+## v0.2.903-alpha: human aim, agile bots, complementary tracers (ADR-0138)
+
+- [x] Bot aim: 0.3 s reaction lag, wandering error + twitch, learned lead (direction change resets), multipliers capped.
+- [x] Agility: dodges on hits/near misses (adaptive chance), irregular jukes, wounded retreat.
+- [x] Bot tracers: cyan core + lime glow (complements of orange/purple), head glow with min on-screen size.
+- [x] Near-miss whizz (throttled, panned).
+- [ ] Operator playtest: aim/agility feel (tunables in `src/gamezone/core/constants.js`).
+
 ## v0.2.902-alpha: touch thumb controls + PWA (ADR-0137)
 
 - [x] Floating left-thumb move stick → W/A/S/D (8-way, dead zone).

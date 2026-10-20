@@ -21,11 +21,15 @@ describe('tracers (ADR-0136)', () => {
     expect(parent.children.length).toBe(2); // ribbons + sparks
   });
 
-  it('your rounds glow orange/purple; bot rounds are black with a red glow', () => {
+  it('your rounds glow orange/purple; bot rounds are the complements, cyan/lime (ADR-0138)', () => {
     const [r, g, b] = TRACER_PLAYER.core; expect(r).toBeGreaterThan(0.9); expect(g).toBeLessThan(0.5); expect(b).toBeLessThan(0.1);
     expect(TRACER_PLAYER.glow[2]).toBeGreaterThan(TRACER_PLAYER.glow[0]); // purple: blue-dominant
-    expect(TRACER_BOT.core).toEqual([0, 0, 0]);
-    expect(TRACER_BOT.glow[0]).toBeGreaterThan(0.9); expect(TRACER_BOT.glow[1]).toBeLessThan(0.1);
+    // Complements: bot core is cyan (opposite orange: low red, high green+blue),
+    // bot glow is lime (opposite purple: high green, ~no blue).
+    const hue = (c) => { const C = new THREE.Color(c[0], c[1], c[2]); const h = {}; C.getHSL(h); return h.h * 360; };
+    const opp = (a, b2) => { const d = Math.abs(a - b2) % 360; return Math.min(d, 360 - d); };
+    expect(opp(hue(TRACER_BOT.core), hue(TRACER_PLAYER.core))).toBeGreaterThan(150);
+    expect(opp(hue(TRACER_BOT.glow), hue(TRACER_PLAYER.glow))).toBeGreaterThan(150);
     // incoming fire is the more obvious one: wider and slower
     expect(TRACER_BOT.w).toBeGreaterThan(TRACER_PLAYER.w);
     expect(TRACER_BOT.speed).toBeLessThan(TRACER_PLAYER.speed);
@@ -44,7 +48,7 @@ describe('tracers (ADR-0136)', () => {
     expect(Math.abs(p[3] - p[0])).toBeGreaterThanOrEqual(TRACER_BOT.w - 1e-6);
     for (let i = 0; i < 60 && fx.active; i++) fx.tick(1 / 30);
     expect(fx.active).toBe(0);
-    expect(Array.from(p.slice(0, 12)).every((v) => v === 0)).toBe(true); // hidden
+    expect(Array.from(p.slice(0, 24)).every((v) => v === 0)).toBe(true); // ribbon + head hidden
   });
 
   it('keeps a minimum on-screen width at range', () => {
@@ -102,5 +106,24 @@ describe('incoming rounds (ADR-0136)', () => {
     const p = mesh.geometry.attributes.position.array;
     const headZ = (p[8] + p[11]) / 2;
     expect(headZ).toBeLessThan(-1.4);
+  });
+});
+
+describe('head glow (ADR-0138)', () => {
+  it('a round coming straight at you keeps a visible tip (min on-screen size)', () => {
+    const parent = new THREE.Group();
+    const cam = new THREE.PerspectiveCamera(); cam.position.set(0, 1.7, 0); cam.lookAt(0, 1.7, -10); cam.updateMatrixWorld(true);
+    const fx = createGzFx(parent, cam);
+    const mesh = parent.children.find((o) => o.name === 'gz-tracers');
+    fx.tracer(0, 1.7, -40, 0, 1.7, 5, TRACER_BOT); // dead-on at the lens
+    fx.tick(0.05);
+    const p = mesh.geometry.attributes.position.array;
+    const ribbonW = Math.hypot(p[3] - p[0], p[4] - p[1]);
+    const headW = Math.hypot(p[15] - p[12], p[16] - p[13], p[17] - p[14]);
+    const dist = 40 - TRACER_BOT.speed * 0.05;
+    expect(headW).toBeGreaterThanOrEqual(dist * TRACER_BOT.headPx - 1e-6);
+    expect(headW).toBeGreaterThan(ribbonW);
+    // head quad faces the camera: all four corners share the tip's depth
+    expect(Math.abs(p[14] - p[23])).toBeLessThan(1e-6);
   });
 });

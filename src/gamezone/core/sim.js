@@ -27,6 +27,9 @@ import {
   FIRE_RANGE, SHOOT_ANIM_MS, BOT_DYING_MS, BOT_RESPAWN_MS, PLAYER_RESPAWN_MS, SPAWN_PROTECT_MS,
   MAX_SHOTS_PER_TICK, MAX_ORIGIN_DRIFT, REACT_S, ALERT_MS, ALERT_RADIUS, ALERT_SIGHT,
   MEMORY_MS, SETTLE_SPEED, SETTLE_MS, FLANK_R,
+  AIM_MIN_M, AIM_WANDER_HZ, AIM_TWITCH, AIM_SETTLED, AIM_MOVING, AIM_DODGING, AIM_HURT, AIM_FIRST,
+  HURT_MS, LEAD_RATE, LEAD_MAX, AIM_K_MAX, AIM_FAR_M, DODGE_MS, DODGE_CD_MS, DODGE_CHANCE, DODGE_ADAPT, NEAR_MISS_M,
+  JUKE_MIN_MS, JUKE_MAX_MS, RETREAT_HP,
 } from './constants.js';
 import { createRng, wrapAngle, normalize3 } from './geom.js';
 import { createHistory, q2, q3 } from './history.js';
@@ -84,6 +87,9 @@ export function createGameZoneSim(opts = {}) {
       // ADR-0136 awareness: who hurt me, last place I saw my target, burst state.
       alertBy: null, alertMs: 0, lastSeen: null, lostMs: 0, burstLeft: 0, settleMs: 0,
       flank: (id * 2.39996323) % (Math.PI * 2), // golden angle: bots fan out around you
+      // ADR-0138 human aim + agility.
+      ax: 0, ay: 0, lead: 0, firstShot: true, hurtMs: 0,
+      dodgeMs: 0, dodgeCd: 0, dodgeDir: 1, threat: 0, jukeSpd: spec.speed, _lvx: 0, _lvz: 0,
     });
   }
 
@@ -96,6 +102,7 @@ export function createGameZoneSim(opts = {}) {
       hp: PLAYER_HP, alive: true, deadMs: 0, protectMs: SPAWN_PROTECT_MS,
       targetable: init.targetable !== false, shotTick: -1, shots: 0, kills: 0, deaths: 0,
       px: pos[0], pz: pos[2], speed: 0, // per-tick ground speed (bots read it to settle aim)
+      vx: 0, vz: 0, // smoothed ground velocity (bots learn to lead it)
     };
     players.set(id, p);
     return p;
@@ -125,7 +132,7 @@ export function createGameZoneSim(opts = {}) {
     if (b.st !== ST.alive) return { tk: 'bot', tid: b.id, zone, dmg: 0, hp: 0, killed: false, absorbed: true };
     b.hp = Math.max(0, b.hp - dmg);
     events.push({ type: 'hit', tk: 'bot', tid: b.id, sid, sk, zone, dmg, hp: b.hp });
-    if (sk === 'player') _alert(b, sid);
+    if (sk === 'player') { _alert(b, sid); b.hurtMs = HURT_MS; _startle(b, sid, null); }
     if (onDamage && sk === 'player') onDamage(sid, dmg, 'bot');
     let killed = false;
     if (b.hp <= 0) {
@@ -219,6 +226,17 @@ export function createGameZoneSim(opts = {}) {
 
   function _finish(sid, seq, ox, oy, oz, dx, dy, dz, maxT, best, note) {
     const t = best ? best.t : maxT;
+    // ADR-0138: rounds that pass close to a bot startle it (it may dodge).
+    for (const b of bots.values()) {
+      if (b.st !== ST.alive || (best && best.ref === b)) continue;
+      const cx = b.x - ox, cy = b.y + b.spec.height * 0.6 - oy, cz = b.z - oz;
+      const k = Math.max(0, Math.min(t, cx * dx + cy * dy + cz * dz));
+      const mx = cx - dx * k, my = cy - dy * k, mz = cz - dz * k;
+      if (mx * mx + my * my + mz * mz < NEAR_MISS_M * NEAR_MISS_M) {
+        // side of the bullet line the bot is on: dodge further away from it
+        _startle(b, sid, (dx * mz - dz * mx) >= 0 ? -1 : 1);
+      }
+    }
     events.push({ type: 'shot', sk: 'player', sid, from: [q2(ox), q2(oy), q2(oz)], to: [q2(ox + dx * t), q2(oy + dy * t), q2(oz + dz * t)] });
     let hit = null;
     if (best) {
@@ -262,6 +280,25 @@ export function createGameZoneSim(opts = {}) {
     }
   }
 
+  function _gauss() {
+    const u = Math.max(1e-9, rng()), v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  // ADR-0138: a hit or a near miss can trigger a quick side-step. Bots get
+  // jumpier the more often you land close (threat), within limits.
+  function _startle(b, sid, side) {
+    if (b.st !== ST.alive) return;
+    b.threat = Math.min(4, b.threat + 1);
+    if (b.dodgeCd > 0 || b.dodgeMs > 0) return;
+    const chance = Math.min(0.85, (DODGE_CHANCE + DODGE_ADAPT * (b.threat - 1)) * b.spec.agile);
+    if (rng() >= chance) return;
+    b.dodgeMs = DODGE_MS * (0.6 + 0.8 * rng());
+    b.dodgeCd = DODGE_CD_MS + b.dodgeMs;
+    b.dodgeDir = side || (rng() < 0.5 ? -1 : 1);
+    if (sid != null && b.target == null && players.has(sid)) b.retargetIn = 0;
+  }
+
   function _tryMove(b, vx, vz) {
     const nx = b.x + vx * TICK_DT, nz = b.z + vz * TICK_DT;
     if (world.walkable(nx, nz)) { b.x = nx; b.z = nz; return true; }
@@ -291,16 +328,31 @@ export function createGameZoneSim(opts = {}) {
   function _botFire(b, target) {
     const spec = b.spec;
     const ox = b.x + Math.sin(b.yaw) * 0.3, oy = _eye(b), oz = b.z + Math.cos(b.yaw) * 0.3;
-    let dx = target.x - ox, dy = (target.y + 1.25) - oy, dz = target.z - oz;
+    // Perceived target: where it was `lagTicks` ago, plus however much of your
+    // run the bot has learned to lead (ADR-0138). A change of direction (or a
+    // stop) makes the learned lead wrong — that's how you beat its aim.
+    const past = playerHist.sample(target.id, tick - spec.lagTicks, _pose) || target;
+    const lagS = spec.lagTicks * TICK_DT;
+    const lx = past.x + target.vx * lagS * b.lead, lz = past.z + target.vz * lagS * b.lead;
+    let dx = lx - ox, dy = (past.y + 1.2) - oy, dz = lz - oz;
     const L = Math.hypot(dx, dy, dz) || 1;
     dx /= L; dy /= L; dz /= L;
-    // Spread: jitter yaw and pitch independently. A settled aim on a still
-    // target tightens it (ADR-0136) — moving is how you stay hard to hit.
-    const spread = b.settleMs >= SETTLE_MS ? spec.settledSpread : spec.spread;
-    const jy = (rng() * 2 - 1) * spread, jp = (rng() * 2 - 1) * spread * 0.6;
-    const cy = Math.cos(jy), sy = Math.sin(jy);
-    let rx = dx * cy - dz * sy, rz = dx * sy + dz * cy;
-    let ry = dy + jp;
+    // Human error: wandering offset + per-shot twitch, in metres at the target,
+    // scaled by what the bot is doing. Sigma grows with range (angular error)
+    // but never below AIM_MIN_M, so close misses are the common miss.
+    let k = 1;
+    if (b.settleMs >= SETTLE_MS) k *= AIM_SETTLED;
+    if (b.dodgeMs > 0) k *= AIM_DODGING; else if (b.moving) k *= AIM_MOVING;
+    if (b.hurtMs > 0) k *= AIM_HURT;
+    if (b.firstShot) k *= AIM_FIRST;
+    const Le = L <= AIM_FAR_M ? L : AIM_FAR_M + (L - AIM_FAR_M) * 0.4;
+    const sig = Math.max(AIM_MIN_M, spec.aimErr * Le) * Math.min(k, AIM_K_MAX);
+    const ex = (b.ax + AIM_TWITCH * _gauss()) * sig;
+    const ey = (b.ay * 0.6 + AIM_TWITCH * 0.6 * _gauss()) * sig;
+    // Offset the aim point sideways (horizontal right vector) and vertically
+    // (world up — bot shots are near-level, so it's close enough).
+    let hx = dz, hz = -dx; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
+    let rx = dx * L + hx * ex, ry = dy * L + ey, rz = dz * L + hz * ex;
     const M = Math.hypot(rx, ry, rz) || 1;
     rx /= M; ry /= M; rz /= M;
     const maxT = world.occlusionT(ox, oy, oz, rx, ry, rz, SHOT_RANGE);
@@ -313,11 +365,32 @@ export function createGameZoneSim(opts = {}) {
     const t = best ? best.t : maxT;
     events.push({ type: 'shot', sk: 'bot', sid: b.id, from: [q2(ox), q2(oy), q2(oz)], to: [q2(ox + rx * t), q2(oy + ry * t), q2(oz + rz * t)] });
     if (best) damagePlayer(best.p, 'body', spec.damage, b.id, 'bot');
+    b.firstShot = false;
     // Bursts: short gaps inside a burst, the normal cooldown between bursts.
     if (b.burstLeft <= 0) b.burstLeft = spec.burst;
     b.burstLeft--;
     b.cd = b.burstLeft > 0 ? spec.burstGap : spec.shootCd * (0.8 + 0.4 * rng());
     b.shootMs = SHOOT_ANIM_MS;
+  }
+
+  // Wandering aim offset (Ornstein–Uhlenbeck, unit variance) + lead reset on
+  // a change of direction. Runs every tick for every live bot: a few flops.
+  function _tickAim(b, target) {
+    const a = AIM_WANDER_HZ * TICK_DT, n = Math.sqrt(2 * a);
+    b.ax += -a * b.ax + n * _gauss();
+    b.ay += -a * b.ay + n * _gauss();
+    if (b.hurtMs > 0) b.hurtMs -= TICK_MS;
+    if (b.dodgeCd > 0) b.dodgeCd -= TICK_MS;
+    b.threat = Math.max(0, b.threat - TICK_DT * 0.35);
+    if (target) {
+      const v = Math.hypot(target.vx, target.vz);
+      const dot = b._lvx * target.vx + b._lvz * target.vz;
+      // Learn your lead while you keep running one way; stopping or reversing
+      // makes it wrong, and it starts over (that's how you beat its aim).
+      if (v < SETTLE_SPEED * 0.5 || dot < 0) b.lead = 0;
+      else b.lead = Math.min(LEAD_MAX, b.lead + LEAD_RATE * TICK_DT);
+      b._lvx = target.vx; b._lvz = target.vz;
+    }
   }
 
   function _think(b) {
@@ -331,13 +404,15 @@ export function createGameZoneSim(opts = {}) {
       const was = b.target;
       b.target = t ? t.id : null;
       // Fair reaction beat on first sight; aim settles from scratch.
-      if (t && was !== t.id) { b.cd = Math.max(b.cd, REACT_S); b.settleMs = 0; b.burstLeft = 0; }
+      if (t && was !== t.id) { b.cd = Math.max(b.cd, REACT_S); b.settleMs = 0; b.burstLeft = 0; b.firstShot = true; b.lead = 0; }
       b.retargetIn = 4;
     }
     const target = b.target != null ? players.get(b.target) : null;
+    _tickAim(b, target);
     let moved = false, anim = A.walk;
     if (target && canBeHurt(target)) {
-      b.lastSeen = { x: target.x, z: target.z }; b.lostMs = MEMORY_MS;
+      if (b.lastSeen) { b.lastSeen.x = target.x; b.lastSeen.z = target.z; } else b.lastSeen = { x: target.x, z: target.z };
+      b.lostMs = MEMORY_MS;
       b.settleMs = target.speed <= SETTLE_SPEED ? b.settleMs + TICK_MS : 0;
       const dx = target.x - b.x, dz = target.z - b.z;
       const dist = Math.hypot(dx, dz) || 1e-6;
@@ -346,7 +421,22 @@ export function createGameZoneSim(opts = {}) {
       const turn = TURN_RATE * TICK_DT;
       b.yaw = wrapAngle(b.yaw + Math.max(-turn, Math.min(turn, diff)));
       const fx = dx / dist, fz = dz / dist;
-      if (dist > ENGAGE_MAX) { moved = _tryMove(b, fx * spec.runSpeed, fz * spec.runSpeed); anim = A.run; }
+      const hurt = b.hp <= spec.hp * RETREAT_HP;
+      if (b.dodgeMs > 0) {
+        // ADR-0138 dodge: a quick side-step at run speed, flipping off walls.
+        b.dodgeMs -= TICK_MS;
+        moved = _tryMove(b, fz * b.dodgeDir * spec.runSpeed, -fx * b.dodgeDir * spec.runSpeed);
+        if (!moved) { b.dodgeDir = -b.dodgeDir; moved = _tryMove(b, fz * b.dodgeDir * spec.runSpeed, -fx * b.dodgeDir * spec.runSpeed); }
+        anim = b.dodgeDir > 0 ? A.strafeR : A.strafeL;
+      }
+      else if (dist > ENGAGE_MAX && !hurt) { moved = _tryMove(b, fx * spec.runSpeed, fz * spec.runSpeed); anim = A.run; }
+      else if (hurt && dist < ENGAGE_MAX + 3) {
+        // Wounded: back off on a diagonal while still fighting.
+        const k = spec.speed * 0.7071;
+        moved = _tryMove(b, (-fx + fz * b.strafe) * k, (-fz - fx * b.strafe) * k);
+        if (!moved) b.strafe = -b.strafe;
+        anim = A.walk;
+      }
       else if (dist < ENGAGE_MIN) { moved = _tryMove(b, -fx * spec.speed, -fz * spec.speed); anim = A.walk; }
       else {
         // Fan out: drift toward this bot's own spot on a ring around the
@@ -359,9 +449,14 @@ export function createGameZoneSim(opts = {}) {
           b.strafe = side;
         }
         b.strafeMs -= TICK_MS;
-        if (b.strafeMs <= 0) { b.strafe = -b.strafe; b.strafeMs = 1200 + rng() * 1600; }
+        if (b.strafeMs <= 0) {
+          // Jukes (ADR-0138): irregular reversals at a varied pace.
+          b.strafe = -b.strafe;
+          b.strafeMs = JUKE_MIN_MS + rng() * (JUKE_MAX_MS - JUKE_MIN_MS);
+          b.jukeSpd = Math.min(spec.runSpeed * 0.9, spec.speed * (0.75 + 0.7 * rng() * spec.agile + 0.25 * (1 - spec.agile)));
+        }
         const sx = fz * b.strafe, sz = -fx * b.strafe;
-        moved = _tryMove(b, sx * spec.speed, sz * spec.speed);
+        moved = _tryMove(b, sx * b.jukeSpd, sz * b.jukeSpd);
         if (!moved) { b.strafe = -b.strafe; b.strafeMs = 900; }
         anim = b.strafe > 0 ? A.strafeR : A.strafeL;
       }
@@ -431,6 +526,7 @@ export function createGameZoneSim(opts = {}) {
     b.hp = b.spec.hp; b.st = ST.alive; b.stMs = 0; b.sp++;
     b.cd = b.spec.shootCd; b.shootMs = 0; b.anim = A.walk; b.route = []; b.target = null; b.retargetIn = 0;
     b.alertBy = null; b.alertMs = 0; b.lastSeen = null; b.lostMs = 0; b.burstLeft = 0; b.settleMs = 0;
+    b.ax = b.ay = 0; b.lead = 0; b.firstShot = true; b.hurtMs = 0; b.dodgeMs = 0; b.dodgeCd = 0; b.threat = 0;
     events.push({ type: 'spawn', bid: b.id });
   }
 
@@ -452,7 +548,10 @@ export function createGameZoneSim(opts = {}) {
   function step() {
     tick++;
     for (const p of players.values()) {
-      p.speed = Math.hypot(p.x - p.px, p.z - p.pz) / TICK_DT; p.px = p.x; p.pz = p.z;
+      const ivx = (p.x - p.px) / TICK_DT, ivz = (p.z - p.pz) / TICK_DT;
+      p.speed = Math.hypot(ivx, ivz); p.px = p.x; p.pz = p.z;
+      if (p.speed > 12) { p.vx = p.vz = 0; } // teleport / respawn, not running
+      else { p.vx += (ivx - p.vx) * 0.5; p.vz += (ivz - p.vz) * 0.5; }
       if (p.protectMs > 0) p.protectMs -= TICK_MS;
       if (!p.alive) { p.deadMs -= TICK_MS; if (p.deadMs <= 0) _respawnPlayer(p); }
     }

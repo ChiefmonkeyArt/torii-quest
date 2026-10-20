@@ -334,6 +334,37 @@ export function playBotShoot(level = 1, pan = 0) {
   src.start(t);
 }
 
+// ── Near-miss whizz (ADR-0138) ─────────────────────────────────────────────
+// A bot round that passes close to your head: a short band-passed noise sweep
+// falling in pitch (a cheap doppler), panned to the side it passed. Shares one
+// noise buffer; ~4 audio nodes per cue, nothing allocated besides those.
+let _whizNoise = null;
+export function playNearMiss(level = 1, pan = 0) {
+  if (isClientSuspended()) return;
+  if (!(level > 0)) return;
+  const ctx = _audioCtx();
+  if (!ctx) return;
+  const sr = ctx.sampleRate;
+  if (!_whizNoise || _whizNoise.sampleRate !== sr) {
+    _whizNoise = ctx.createBuffer(1, Math.floor(sr * 0.2), sr);
+    const ch = _whizNoise.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  }
+  const t = ctx.currentTime, L = Math.min(1, level);
+  const src = ctx.createBufferSource();
+  const bp = ctx.createBiquadFilter();
+  const g = ctx.createGain();
+  src.buffer = _whizNoise;
+  bp.type = 'bandpass'; bp.Q.value = 6;
+  bp.frequency.setValueAtTime(3400, t);
+  bp.frequency.exponentialRampToValueAtTime(900, t + 0.15);
+  g.gain.setValueAtTime(1e-4, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(2e-4, 0.09 * L), t + 0.05);
+  g.gain.exponentialRampToValueAtTime(1e-4, t + 0.17);
+  src.connect(bp); bp.connect(g); g.connect(_out(ctx, pan));
+  src.start(t); src.stop(t + 0.2);
+}
+
 // ── Combat feedback cues (ADR-0131) ──────────────────────────────────────────
 // Short, dry, and pitched above the gunfire so they cut through it. Played on
 // the click's frame (prediction); the shared sim still decides the outcome.

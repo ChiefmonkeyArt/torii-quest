@@ -63,6 +63,30 @@ export function shotMix(px, pz, yaw, sx, sz, out = { gain: 0, pan: 0 }) {
   return out;
 }
 
+// ── near-miss whizz (ADR-0138) ───────────────────────────────────────────────
+export const WHIZ_M = 1.3;      // a round passing this close to your head whizzes
+export const WHIZ_GAP_MS = 350; // at most one whizz per this long (tasteful, not a buzz)
+export const WHIZ_HIT_M = 1.1;  // …unless it ENDS this close (that's a hit, not a miss)
+
+/**
+ * Did the bot round from→to pass close by the eye (ex,ey,ez) without ending on
+ * you? Returns out = {level 0..1, pan -1..1} or null. Pure; zero allocation.
+ */
+export function nearMiss(from, to, ex, ey, ez, yaw, out = { level: 0, pan: 0 }) {
+  const ax = from[0], ay = from[1], az = from[2];
+  const dx = to[0] - ax, dy = to[1] - ay, dz = to[2] - az;
+  const L2 = dx * dx + dy * dy + dz * dz;
+  if (!(L2 > 1e-6)) return null;
+  if (Math.hypot(to[0] - ex, to[1] - (ey - 0.45), to[2] - ez) < WHIZ_HIT_M) return null;
+  const t = Math.max(0, Math.min(1, ((ex - ax) * dx + (ey - ay) * dy + (ez - az) * dz) / L2));
+  const cx = ax + dx * t, cy = ay + dy * t, cz = az + dz * t;
+  const d = Math.hypot(cx - ex, cy - ey, cz - ez);
+  if (!(d < WHIZ_M) || t <= 0 || t >= 1) return null;
+  out.level = 0.35 + 0.65 * (1 - d / WHIZ_M);
+  out.pan = Math.max(-AUDIO_PAN_MAX, Math.min(AUDIO_PAN_MAX, Math.sin(screenAngleTo(ex, ez, yaw, cx, cz)) * AUDIO_PAN_MAX));
+  return out;
+}
+
 // ── curves ───────────────────────────────────────────────────────────────────
 const FLINCH_ATTACK = 0.18; // fraction of FLINCH_MS spent leaning in
 
@@ -132,7 +156,7 @@ export function createFeelMeter(size = 64) {
   const ring = new Float64Array(size);
   const sorted = new Float64Array(size);
   let n = 0, head = 0, waitingSince = -1;
-  const c = { markers: 0, voided: 0, kills: 0, killsConfirmed: 0, damageArcs: 0 };
+  const c = { markers: 0, voided: 0, kills: 0, killsConfirmed: 0, damageArcs: 0, whiz: 0 };
 
   return {
     counts: c,
@@ -158,7 +182,7 @@ export function createFeelMeter(size = 64) {
         clickToFrameMs: { p50: q(0.5), p95: q(0.95), max: n ? Math.round(v[n - 1] * 10) / 10 : null },
         markers: c.markers, voided: c.voided,
         voidPct: c.markers ? Math.round((1000 * c.voided) / c.markers) / 10 : 0,
-        kills: c.kills, killsConfirmed: c.killsConfirmed, damageArcs: c.damageArcs,
+        kills: c.kills, killsConfirmed: c.killsConfirmed, damageArcs: c.damageArcs, whiz: c.whiz,
       };
     },
     reset() { n = 0; head = 0; waitingSince = -1; for (const k of Object.keys(c)) c[k] = 0; },

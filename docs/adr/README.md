@@ -154,6 +154,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0135](./0135-stickers-land-where-aimed.md) | Stickers land exactly where you aim (exact skinned-triangle hit via the Game Zone hitbox, honest 4 cm assist, triangle+barycentric skin anchors; NPC bone sensors removed; ~16× faster per shot) | Accepted |
 | [0136](./0136-tracers-bot-awareness-crates.md) | Visible ribbon tracers (orange/purple yours, black/red bots), bots that fight back (hit alert, memory, bursts, settled aim, fan-out), wood crates that never render black; points unchanged | Accepted |
 | [0137](./0137-touch-thumb-controls-pwa.md) | Touch thumb controls (floating move stick → WASD, look pad → yaw/pitch, FIRE/JUMP/MENU) + installable PWA manifest; desktop unchanged | Accepted |
+| [0138](./0138-human-aim-agile-bots.md) | Human bot aim (reaction lag, wandering error, learned lead), agile bots (dodges, jukes, wounded retreat), complementary cyan/lime incoming tracers with head glow, near-miss whizz; points unchanged | Accepted |
 
 ## Workflow for a new decision
 
@@ -169,6 +170,7 @@ ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-g
 Accepted for the operator-approved feel pass; feedback predicts on the click and is retracted on rejection; points unchanged.
 
 ADR-0130: [Game Zone v2 — rebuild the arena combat layer from scratch](./0130-game-zone-v2-combat-rebuild.md).
+ADR-0138: [Human aim, agile bots, complementary incoming tracers](./0138-human-aim-agile-bots.md).
 Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.
 
 ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).

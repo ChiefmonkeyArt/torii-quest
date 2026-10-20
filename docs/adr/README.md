@@ -155,6 +155,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0136](./0136-tracers-bot-awareness-crates.md) | Visible ribbon tracers (orange/purple yours, black/red bots), bots that fight back (hit alert, memory, bursts, settled aim, fan-out), wood crates that never render black; points unchanged | Accepted |
 | [0137](./0137-touch-thumb-controls-pwa.md) | Touch thumb controls (floating move stick → WASD, look pad → yaw/pitch, FIRE/JUMP/MENU) + installable PWA manifest; desktop unchanged | Accepted |
 | [0138](./0138-human-aim-agile-bots.md) | Human bot aim (reaction lag, wandering error, learned lead), agile bots (dodges, jukes, wounded retreat), complementary cyan/lime incoming tracers with head glow, near-miss whizz; points unchanged | Accepted |
+| [0139](./0139-player-tracer-from-visible-muzzle.md) | Your tracer starts at the visible gun tip (gunCamera to main camera screen match), is never hidden by grass (near-plane pin), has an anchored launch, and uses an orange/magenta-violet core opposite the bots' cyan/lime; points unchanged | Accepted |
 
 ## Workflow for a new decision
 
@@ -171,6 +172,7 @@ Accepted for the operator-approved feel pass; feedback predicts on the click and
 
 ADR-0130: [Game Zone v2 — rebuild the arena combat layer from scratch](./0130-game-zone-v2-combat-rebuild.md).
 ADR-0138: [Human aim, agile bots, complementary incoming tracers](./0138-human-aim-agile-bots.md).
+ADR-0139: [Your tracer leaves the gun you see](./0139-player-tracer-from-visible-muzzle.md).
 Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.
 
 ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).

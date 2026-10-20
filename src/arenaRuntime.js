@@ -1502,7 +1502,7 @@ export function createArenaRuntime(hooks = {}) {
 
       // Shoot wire: player emits EV.SHOOT → recoil + SFX, then EITHER a sticker
       // (NAP zone) OR a Game Zone shot (arena). They are mutually exclusive.
-      on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir }) => {
+      on(EV.SHOOT, ({ origin, dir, aimOrigin, aimDir, tracerFrom }) => {
         const aim = aimOrigin || origin;
         const ad = aimDir || dir;
         const inNap = isNapLand(playerObj.position.x, playerObj.position.z);
@@ -1518,8 +1518,8 @@ export function createArenaRuntime(hooks = {}) {
         // Arena: the Game Zone recoil (kick + muzzle climb, ADR-0131).
         playShoot();
         triggerRecoil(true);
-        _muzzleFlashes.trigger('muzzle', origin);
-        _gz.fire({ origin, dir, aimOrigin, aimDir });
+        _muzzleFlashes.trigger('muzzle', tracerFrom || origin);
+        _gz.fire({ origin, dir, aimOrigin, aimDir, tracerFrom });
       });
       on(EV.SHOOT, () => { _shootUntil = performance.now() + SHOOT_ANIM_WINDOW_MS; });
     } else {

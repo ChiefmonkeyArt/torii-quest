@@ -1,3 +1,11 @@
+## v0.2.904-alpha: your tracer leaves the gun you see (ADR-0139)
+
+- [x] Tracer starts at the visible gun tip (screen-matched from the gun overlay camera).
+- [x] Never hidden by grass between you and the hit; bots/peers still respect walls.
+- [x] Anchored launch, width taper, orange core + magenta-violet glow (opposite the bots' cyan/lime).
+- [ ] Operator playtest on a real GPU.
+- [ ] Start-up glitch: needs the operator's description (not reproduced headless).
+
 ## v0.2.903-alpha: human aim, agile bots, complementary tracers (ADR-0138)
 
 - [x] Bot aim: 0.3 s reaction lag, wandering error + twitch, learned lead (direction change resets), multipliers capped.

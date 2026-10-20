@@ -1,3 +1,11 @@
+## v0.2.904-alpha: your shots are visible (ADR-0139)
+
+Your own bullets now fly out of the end of the gun you see, as a hot orange
+streak with a magenta-violet edge, the opposite of the bots' cyan and lime.
+Before, they started from a point that didn't line up with the gun on
+screen, and the grass around your feet hid them. Damage, health and sats
+are unchanged.
+
 ## v0.2.903-alpha: human aim, agile bots, complementary tracers (ADR-0138)
 
 Bots now shoot like people rather than turrets. They react to you with a

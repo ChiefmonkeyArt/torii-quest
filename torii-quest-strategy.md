@@ -1126,3 +1126,4 @@ v0.2.903-alpha (ADR-0138), approved 2026-10-20, adds:
 - complementary cyan/lime incoming tracers with a visible tip, plus a near-miss whizz.
 Points are unchanged.
 
+v0.2.904-alpha (ADR-0139), approved 2026-10-20: your shots leave the visible gun tip, are never hidden by grass, and use colours opposite the bots'. Points are unchanged.

@@ -1,3 +1,14 @@
+## PLAYER TRACER FROM VISIBLE MUZZLE: v0.2.904-alpha (ADR-0139)
+
+- `muzzle.js`: `screenMatchedPoint` and `findGunTip` (pure).
+- `gunViewmodel.getGunMuzzleVisualWorld(camera, out)` projects the tip through `gunCamera`, then onto the main camera's ray 0.5 m out.
+- `player.js` emits `tracerFrom` on `EV.SHOOT`; `arenaRuntime` passes it to the muzzle flash and `_gz.fire`; `gameZone` reads `s.tracerFrom || s.origin`.
+- Hits still use `origin`/`dir`.
+- `fx.js`:
+  - `aX` vec2 attribute holds (xray, coreW);
+  - the VS pins x-ray verts to the near plane;
+  - style fields: `anchor`, `wMaxPx`, `headMaxPx`, `xray`, `coreW`.
+
 ## HUMAN AIM + AGILE BOTS: v0.2.903-alpha (ADR-0138)
 
 - `sim.js`:

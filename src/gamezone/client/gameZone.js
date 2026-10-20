@@ -276,8 +276,9 @@ export function createGameZone(d) {
       if (wh && d.flash) d.flash('impact', _p);
       if (crate && d.nudgeCrate) d.nudgeCrate(crate, _d, _p);
     }
-    // Tracer leaves the gun barrel, ends where the crosshair ray stopped.
-    fx.tracer(s.origin.x, s.origin.y, s.origin.z, _p.x, _p.y, _p.z, TRACER_PLAYER);
+    // Tracer leaves the gun you SEE (ADR-0139), ends where the crosshair ray stopped.
+    const tf = s.tracerFrom || s.origin;
+    fx.tracer(tf.x, tf.y, tf.z, _p.x, _p.y, _p.z, TRACER_PLAYER);
 
     feel.shotAt(d.inputAt ? d.inputAt() : now());
     const rt = authority.renderTick();

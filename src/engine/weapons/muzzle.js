@@ -64,3 +64,50 @@ export function barrelWorldFromCamera(camera, out) {
     out,
   );
 }
+
+// ADR-0139: the FP gun is drawn by a SEPARATE camera (gunCamera, 55° FOV) on top
+// of the world camera (75° FOV), so a fixed camera-local offset never lines up
+// with the gun you see. Instead we take the gun tip's screen position (NDC, from
+// gunCamera) and find the world point on the MAIN camera's ray through that same
+// pixel, `depth` metres in front of it. A tracer started there visibly leaves
+// the barrel. Pure: scalars + a column-major Matrix4 `elements` array in.
+export const MUZZLE_VIS_DEPTH = 0.5; // m in front of the main camera (> near 0.1)
+export function screenMatchedPoint(ndcX, ndcY, depth, fovDeg, aspect, m, out) {
+  const t = Math.tan((fovDeg * Math.PI) / 360);
+  const lx = ndcX * t * aspect * depth, ly = ndcY * t * depth, lz = -depth;
+  out.x = m[0] * lx + m[4] * ly + m[8] * lz + m[12];
+  out.y = m[1] * lx + m[5] * ly + m[9] * lz + m[13];
+  out.z = m[2] * lx + m[6] * ly + m[10] * lz + m[14];
+  return out;
+}
+
+/**
+ * ADR-0139: the barrel tip of the FP gun model, in the model's LOCAL space.
+ * gunScene's world frame is gunCamera's view frame (the camera sits at the
+ * origin looking down -Z), so the tip is the front-most geometry: the mean of
+ * the vertices within 1.2 cm of the minimum Z. Runs once when the GLB loads.
+ * Returns false if the model has no geometry.
+ */
+export function findGunTip(root, out) {
+  root.updateMatrixWorld(true);
+  let minZ = Infinity;
+  const v = _pos;
+  root.traverse((o) => {
+    const p = o.isMesh && o.geometry && o.geometry.attributes.position;
+    if (!p) return;
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); if (v.z < minZ) minZ = v.z; }
+  });
+  if (!Number.isFinite(minZ)) return false;
+  let sx = 0, sy = 0, n = 0;
+  root.traverse((o) => {
+    const p = o.isMesh && o.geometry && o.geometry.attributes.position;
+    if (!p) return;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld);
+      if (v.z < minZ + 0.012) { sx += v.x; sy += v.y; n++; }
+    }
+  });
+  out.set(sx / n, sy / n, minZ);
+  root.worldToLocal(out);
+  return true;
+}

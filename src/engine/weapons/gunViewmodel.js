@@ -8,16 +8,18 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { gunScene } from '../../scene.js';
+import { gunScene, gunCamera } from '../../scene.js';
 import { state, isReloading } from '../../state.js';
 import { RELOAD_TIME } from '../../config.js';
 import { assetUrl } from '../../assetUrl.js';
-import { barrelWorldFromCamera } from './muzzle.js';
+import { barrelWorldFromCamera, screenMatchedPoint, findGunTip, MUZZLE_VIS_DEPTH } from './muzzle.js';
 import { reloadDip } from './reloadPose.js';
 import { recoilPose } from '../../gamezone/client/feel.js';
 
 // ── FP gun viewmodel (gunScene — always rendered on top) ─────────────────────
 const _barrelWorld = new THREE.Vector3();
+const _tipLocal = new THREE.Vector3(), _tipV = new THREE.Vector3();
+let _tipReady = false;
 let _gunMesh   = null;
 let _gunPlaceholder = null;
 let _recoilTimer = 0;
@@ -60,6 +62,7 @@ export function buildGunViewmodel() {
     _gunMesh.rotation.set(0, -Math.PI/2, 0);
     gunScene.add(_gunMesh);
     gunScene.remove(_gunPlaceholder);
+    _tipReady = findGunTip(_gunMesh, _tipLocal);
 
     // Also build the world-gun copy now that the GLB is decoded.
     _buildWorldGun(gltf.scene);
@@ -89,6 +92,20 @@ export function triggerRecoil(mode = false) {
 // the camera's WORLD quaternion so the +right barrel offset tracks player yaw and
 // the muzzle/tracer stays on the visible right-hand gun. Direction down the barrel
 // (toward the crosshair) is unchanged — only the origin side is corrected.
+/**
+ * ADR-0139: the world point a tracer should start from so it visibly leaves the
+ * gun you SEE: the gun tip (with recoil) projected through gunCamera, matched
+ * onto the main camera's ray through the same pixel. Falls back to the fixed
+ * barrel offset until the model has loaded.
+ */
+export function getGunMuzzleVisualWorld(mainCamera, out) {
+  if (!_gunMesh || !_tipReady || !mainCamera.isPerspectiveCamera) return barrelWorldFromCamera(mainCamera, out);
+  _gunMesh.updateMatrixWorld();
+  _tipV.copy(_tipLocal).applyMatrix4(_gunMesh.matrixWorld).project(gunCamera);
+  mainCamera.updateWorldMatrix(true, false);
+  return screenMatchedPoint(_tipV.x, _tipV.y, MUZZLE_VIS_DEPTH, mainCamera.fov, mainCamera.aspect, mainCamera.matrixWorld.elements, out);
+}
+
 export function getGunBarrelWorld(mainCamera) {
   return barrelWorldFromCamera(mainCamera, _barrelWorld);
 }

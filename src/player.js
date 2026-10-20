@@ -8,7 +8,7 @@ import { stepPhysics, createKinematic, movePlayer, physicsReady } from './physic
 // v0.2.132 (ARS-3) — crosshair/aim ray goes through the RaycastService facade
 // (same default Rapier impl as before, behaviour-identical).
 import { raycastService } from './engine/physics/raycastService.js';
-import { getGunBarrelWorld } from './engine/weapons/gunViewmodel.js';
+import { getGunBarrelWorld, getGunMuzzleVisualWorld } from './engine/weapons/gunViewmodel.js';
 import { isFlyEnabled, enableFly, disableFly, getFlyEye } from './engine/debug/flyCamera.js';
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isInsideFence } from './terrain/coastline.js';
@@ -367,6 +367,8 @@ export function shoot() {
   emit(EV.SHOOT, {
     origin: _shootOrigin.clone(), dir: _shootDir.clone(),
     aimOrigin: _camPos.clone(), aimDir: _camFwd.clone(),
+    // ADR-0139: where the VISIBLE gun tip is on screen (tracer + flash start).
+    tracerFrom: getGunMuzzleVisualWorld(camera, new THREE.Vector3()),
   });
   emit(EV.HUD_UPDATE);
   if (state.ammo === 0) startReload();

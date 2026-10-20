@@ -1127,3 +1127,5 @@ v0.2.903-alpha (ADR-0138), approved 2026-10-20, adds:
 Points are unchanged.
 
 v0.2.904-alpha (ADR-0139), approved 2026-10-20: your shots leave the visible gun tip, are never hidden by grass, and use colours opposite the bots'. Points are unchanged.
+
+Gateway (2026-10-21): the gateway experience is paramount. ADR-0140 trials Applesauce as its relay layer (faster first results, live updates, owner relays). It's adopted only on measured wins; otherwise the in-house streaming fix ships. Trust checks stay Quest's own.

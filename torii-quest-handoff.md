@@ -1,3 +1,9 @@
+## GATEWAY APPLESAUCE TRIAL: v0.2.905-alpha docs (ADR-0140, proposed, not started)
+
+- Today the gateway reads through `fanoutReq`: a fresh socket per relay per call, waiting for the slowest relay (4–5 s), with no subscription, outbox routing or shared cache.
+- The trial swaps only the transport behind a flag, and only for the gateway directory. `gatewayRead`, `handoffVerify`, the handshake and the consent gates stay authoritative.
+- The exit criteria and the fallback in-house fix are in the ADR.
+
 ## PLAYER TRACER FROM VISIBLE MUZZLE: v0.2.904-alpha (ADR-0139)
 
 - `muzzle.js`: `screenMatchedPoint` and `findGunTip` (pure).

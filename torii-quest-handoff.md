@@ -1,3 +1,12 @@
+## TOUCH CONTROLS + PWA: v0.2.902-alpha (ADR-0137)
+
+- `src/engine/input/touchControls.js`: `installTouchControls({isActive, look, shoot})`, plus the pure `joystickKeys()`, `clampKnob()` and `shouldEnableTouch()`. It is installed from `arenaRuntime.js` next to the crosshair wiring.
+- `src/input.js`: the new `applyLookDelta(dYaw, dPitch)` and `triggerShoot()`. Mousedown now routes through `triggerShoot`.
+- The move stick emits synthetic KeyboardEvents, so player movement code is untouched.
+- Tunables: `JOY_RADIUS_PX`, `JOY_DEAD_ZONE` and `LOOK_SENS`.
+- Desktop testing: `?touch=1` together with devtools touch emulation.
+- PWA files: `public/manifest.webmanifest` and `public/icon-{192,512,maskable-512}.png`.
+
 # Torii Quest — Contributor / Agent Handoff
 
 ## TRACERS + BOTS + CRATES: v0.2.901-alpha (ADR-0136)

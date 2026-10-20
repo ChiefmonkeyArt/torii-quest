@@ -153,6 +153,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0134](./0134-predicted-death-resolve-and-autocap-diag.md) | Predicted deaths always resolve (no bot left lying alive: authoritative-hp lethal test, every result settles, safety net) + diagnostics recipient for the autocap ring (`autocap-pull.yml`, dispatcher `autocap-export`) | Accepted |
 | [0135](./0135-stickers-land-where-aimed.md) | Stickers land exactly where you aim (exact skinned-triangle hit via the Game Zone hitbox, honest 4 cm assist, triangle+barycentric skin anchors; NPC bone sensors removed; ~16× faster per shot) | Accepted |
 | [0136](./0136-tracers-bot-awareness-crates.md) | Visible ribbon tracers (orange/purple yours, black/red bots), bots that fight back (hit alert, memory, bursts, settled aim, fan-out), wood crates that never render black; points unchanged | Accepted |
+| [0137](./0137-touch-thumb-controls-pwa.md) | Touch thumb controls (floating move stick → WASD, look pad → yaw/pitch, FIRE/JUMP/MENU) + installable PWA manifest; desktop unchanged | Accepted |
 
 ## Workflow for a new decision
 
@@ -161,6 +162,7 @@ ADR-0133: [Game Zone bot colour restore and multiplayer hand-over hold](./0133-g
 ADR-0134: [Predicted deaths always resolve; diagnostic access to the autocap ring](./0134-predicted-death-resolve-and-autocap-diag.md).
 ADR-0135: [Stickers land exactly where you aim](./0135-stickers-land-where-aimed.md).
 ADR-0136: [Visible tracers, bots that fight back, crates that aren't black](./0136-tracers-bot-awareness-crates.md).
+ADR-0137: [Touch thumb controls + installable PWA](./0137-touch-thumb-controls-pwa.md).
 Accepted for the operator-approved NAP sticker feel pass; NAP zone only, placement unchanged, no combat or points.
 
 ADR-0131: [Game Zone combat feel: immediate, honest, measured feedback](./0131-game-zone-combat-feel.md).

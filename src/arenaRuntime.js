@@ -26,7 +26,8 @@ import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
 import { setClientSuspended } from './engine/state/clientSuspended.js';
-import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed, lastShootInputAt } from './input.js';
+import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed, lastShootInputAt, applyLookDelta, triggerShoot } from './input.js';
+import { installTouchControls, shouldEnableTouch } from './engine/input/touchControls.js';
 import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlayerBody, takeDamage, killPlayer, setNextSpawn, getPlayerCollider, resetPlayerPos, pickRespawnCorner, isPlayerOnGround, flyToggleFromInput, SPAWN_X, SPAWN_Z, SPAWN_YAW } from './player.js';
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setCustomHeadlessUrl, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
@@ -1650,6 +1651,12 @@ export function createArenaRuntime(hooks = {}) {
       if (document.pointerLockElement) _elCrosshair?.classList.add('active');
       else _elCrosshair?.classList.remove('active');
     });
+
+    // ADR-0137: touch devices get on-screen thumb controls (floating move stick +
+    // look pad + FIRE/JUMP/MENU). Desktop is untouched unless ?touch=1.
+    if (shouldEnableTouch()) {
+      installTouchControls({ isActive: () => isPlaying(), look: applyLookDelta, shoot: triggerShoot });
+    }
 
     // Canvas click → re-engage pointer lock when playing.
     renderer.domElement.addEventListener('click', () => {

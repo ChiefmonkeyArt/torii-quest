@@ -1,3 +1,10 @@
+## v0.2.902-alpha: play on your phone (ADR-0137)
+
+Torii Quest can now be added to a phone's home screen and opens fullscreen.
+Tap Enter as a guest. Slide your left thumb to walk and your right thumb to
+look around. On-screen buttons fire, jump and pause. Computers work exactly as
+before.
+
 # Torii Quest — Progress Dashboard
 
 ## v0.2.901-alpha: tracers, bots fight back, crates (ADR-0136)

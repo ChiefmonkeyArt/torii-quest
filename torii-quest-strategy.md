@@ -70,6 +70,11 @@ v0.2.901-alpha (ADR-0136), approved 2026-10-18, adds:
 - wooden crates that no longer render black.
 Points are unchanged.
 
+v0.2.902-alpha (ADR-0137) adds the first mobile step:
+- Quest installs as a PWA;
+- guests can walk and look with on-screen thumb controls.
+This is the PWA stage of the mobile progression path. Desktop is unchanged.
+
 ## Character identity and paired views
 
 ADR-0128: every new uploaded/AI full GLB must acquire its own headless derivative

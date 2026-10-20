@@ -76,13 +76,27 @@ const _mouseCbs = [];
 
 export function onMouseMove(fn) { _mouseCbs.push(fn); }
 
+const _PITCH_MAX = Math.PI / 2.1;
+function _look(dYaw, dPitch) {
+  _yaw   -= dYaw;
+  _pitch -= dPitch;
+  _pitch  = Math.max(-_PITCH_MAX, Math.min(_PITCH_MAX, _pitch));
+  _mouseCbs.forEach(fn => fn(_yaw, _pitch));
+}
 document.addEventListener('mousemove', e => {
   if (!state.pointerLocked) return;
-  _yaw   -= e.movementX * SENS;
-  _pitch -= e.movementY * SENS;
-  _pitch  = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, _pitch));
-  _mouseCbs.forEach(fn => fn(_yaw, _pitch));
+  _look(e.movementX * SENS, e.movementY * SENS);
 });
+
+/** ADR-0137 touch look: apply a look delta in RADIANS from a non-mouse source
+ *  (touch thumb-slide). Same accumulator + pitch clamp + callbacks as mouse-look,
+ *  but NOT gated on pointer lock (mobile has none). Gated on isPlaying() and the
+ *  ADR-0027 full input suppression, so it can't steer while a modal is open. */
+export function applyLookDelta(dYaw, dPitch) {
+  if (_inputSuppressed || !isPlaying()) return;
+  if (!Number.isFinite(dYaw) || !Number.isFinite(dPitch)) return;
+  _look(dYaw, dPitch);
+}
 
 /** Wrap an angle to [-π, π]. The pointer-lock yaw accumulates without bound
  *  (each mousemove subtracts movementX * SENS), so after a full 360° turn the
@@ -113,15 +127,21 @@ export function onShoot(fn) { _clickCbs.push(fn); }
 // performance.now() of the latest shoot click (ADR-0131: click→frame latency meter).
 let _shootInputAt = 0;
 export function lastShootInputAt() { return _shootInputAt; }
-document.addEventListener('mousedown', e => {
+/** Fire the shoot path once. Shared by left-click and the ADR-0137 touch FIRE
+ *  button so both honour the same ADR-0027/0029 suppression + isPlaying gates. */
+export function triggerShoot() {
   // ADR-0027: clicking the ema modal must not fire a shot.
   // ADR-0029: in Kami Mode the shoot path is suppressed independently of
   // movement (the spirit roams + aims but doesn't fire).
+  if (_inputSuppressed || _shootingSuppressed) return false;
+  if (!isPlaying()) return false;
+  _shootInputAt = performance.now();
+  _clickCbs.forEach(fn => fn());
+  return true;
+}
+document.addEventListener('mousedown', e => {
   if (_inputSuppressed || _shootingSuppressed) return;
-  if (e.button === 0 && isPlaying()) {
-    _shootInputAt = performance.now();
-    _clickCbs.forEach(fn => fn());
-  }
+  if (e.button === 0 && isPlaying()) triggerShoot();
 });
 
 // Pointer lock — browser blocks re-acquire for ~1s after release

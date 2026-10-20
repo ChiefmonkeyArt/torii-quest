@@ -1,3 +1,11 @@
+## v0.2.902-alpha: touch thumb controls + PWA (ADR-0137)
+
+- [x] Floating left-thumb move stick → W/A/S/D (8-way, dead zone).
+- [x] Right-thumb look pad → yaw/pitch (no pointer lock needed).
+- [x] FIRE / JUMP / pause buttons; overlay only while playing, below panels and menus.
+- [x] Installable PWA: manifest, 192/512/maskable icons, Apple meta tags, relative scope for `/quest/`.
+- [ ] Operator real-phone check: walk and look feel, then tune `LOOK_SENS`; check iOS and Android install.
+
 # Torii Quest ToDo
 
 ## v0.2.901-alpha: tracers, bots fight back, crates (ADR-0136)

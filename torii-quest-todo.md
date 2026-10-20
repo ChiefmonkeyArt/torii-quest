@@ -1,3 +1,11 @@
+## v0.2.905-alpha: Gateway Applesauce relay-layer trial (ADR-0140, proposed)
+
+- [ ] Add `GATEWAY_TRANSPORT` flag (default `'fanout'`); dynamic-import Applesauce from the gateway screen only.
+- [ ] Adapter: Applesauce RelayPool + EventStore to the same events `gatewayRead` already validates (trust layer unchanged).
+- [ ] Bench both transports: time to first world (p50/p95), worlds found vs known set, dead/slow relay, reopen time, live new-world arrival.
+- [ ] Bundle report: added gzip bytes + parse time; must not touch arena/entry chunks.
+- [ ] Decide: adopt (ADR-0140 → Accepted) or ship the in-house streaming + cache fix to `fanoutReq` (ADR-0140 → Rejected).
+
 ## v0.2.904-alpha: your tracer leaves the gun you see (ADR-0139)
 
 - [x] Tracer starts at the visible gun tip (screen-matched from the gun overlay camera).

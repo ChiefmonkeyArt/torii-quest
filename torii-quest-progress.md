@@ -1,3 +1,11 @@
+## v0.2.905-alpha: gateway relay trial planned (ADR-0140)
+
+A plan, not a change to the game. Quest will test a ready-made Nostr toolkit
+(Applesauce) as the way the gateway fetches the list of worlds. The aim is
+worlds showing up faster, new worlds appearing live, and fewer missing. It
+stays switched off until the numbers prove it's better, and Quest's own
+safety checks on every world stay as they are.
+
 ## v0.2.904-alpha: your shots are visible (ADR-0139)
 
 Your own bullets now fly out of the end of the gun you see, as a hot orange

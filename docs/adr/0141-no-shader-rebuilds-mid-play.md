@@ -16,6 +16,10 @@ The 1 Hz autocap ring fell behind twice, which means the main thread froze:
 
 The frames themselves look normal: it's a stall, not a rendering bug.
 
+**Correction (v0.2.907-alpha).** A gap is the normal 1 s between captures plus the freeze, so the real freezes were about 0.5–1.5 s, not 1.5–2.5 s. This was cross-checked against the operator's 25 fps screencast of a v0.2.905 session (2026-10-21 10:06 BST, autocap run 39580075828):
+- **Worst freeze:** in the video it was 0.84 s, about 17 s into play, just after the second kill with bots firing. The autocap ring showed the same moment as a 1.56 s gap.
+- **Other stutters:** about 0.3 s each in the first 4 s of play and once at 28 s.
+
 ## Cause
 
 three.js bakes the visible light count into every lit material's shader program.

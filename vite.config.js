@@ -10,6 +10,7 @@ import {
   inlineBootstrapSha256Of,
 } from './tools/csp.mjs';
 import { buildReleaseMeta, validateReleaseMeta } from './tools/releaseMeta.mjs';
+import { enginePreloadFiles, enginePreloadMeta } from './tools/enginePreload.mjs';
 
 // CSP via HTTP header (S3, v0.2.266). The policy lives in tools/csp.mjs (single source).
 // This plugin: (1) rewrites the BUILT index.html so the trusted classic inline bootstrap
@@ -90,6 +91,8 @@ function cspHeaderPlugin() {
         // v0.2.360-alpha regression fix: previously matched `\n</script>\n</body>`
         // verbatim, which silently no-op'd when DOM elements landed between the script
         // and </body>. This lastIndexOf-based append is decoupled from that layout.
+        // v0.2.907-alpha: list the engine chunks for the title-screen modulepreload.
+        if (out.includes('</head>')) out = out.replace('</head>', '  ' + enginePreloadMeta(enginePreloadFiles(ctx.bundle)) + '\n</head>');
         const lastCloseIdx = out.lastIndexOf('</script>');
         if (lastCloseIdx === -1) {
           throw new Error('torii-csp-http-header: no </script> found in built HTML — refusing to emit a bootstrap-less bundle');

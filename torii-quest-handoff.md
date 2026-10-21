@@ -1,3 +1,11 @@
+## COLD-LOAD PRELOAD + PIN LIFECYCLE: v0.2.907-alpha (ADR-0142)
+
+- **Build side.** `tools/enginePreload.mjs` lists the engine chunk, its static deps and Rapier, minus the entry's own chunks. The CSP plugin in `vite.config.js` writes the list into `<meta name="torii-engine-preload">`.
+- **Shell side.** `engine/boot/enginePrefetch.js` runs `scheduleEnginePrefetch()` after `__toriiEnterReady` and adds modulepreload links. They are never executed. It skips chunks already hinted, Data Saver and 2G.
+- **Pin.** `engine/boot/nukedParam.js` runs `clearNukedPin()` right after `bootstrapPhysics` succeeds; never earlier, because the loop guard must hold during boot.
+- **Lighting.** `scene.js` sets `AMBIENT_FILL = 0.8` on the light named `ambient-fill`.
+- **Freeze numbers.** Autocap gap ≈ 1 s cadence + the freeze. A 25 fps screencast is the ground truth for real freeze length.
+
 ## NO SHADER REBUILDS MID-PLAY: v0.2.906-alpha (ADR-0141)
 
 - `muzzleFlash.js`: `FLASH_LIGHTS = 3` lights that are always visible; idle means intensity 0 and a 1 cm range. The tier `muzzleLights` value (3/2/0) only caps how many are lit. Never toggle `light.visible` on lights in the main scene.

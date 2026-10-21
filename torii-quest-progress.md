@@ -1,7 +1,17 @@
+## v0.2.907-alpha: quicker first load (ADR-0142)
+
+Your screencast showed a fresh load taking about 15 seconds after ENTER, a
+third of it just downloading the game code, even though you had already
+spent half a minute on the title screen logging in. The game now downloads
+that code quietly while you're on the title screen, so ENTER can start
+straight away. Shaded sides of crates and trees are no longer near-black, and
+the "?nuked=1" left in the address after a cache repair now disappears once
+the game loads, so that repair can work again in future.
+
 ## v0.2.906-alpha: smoother start and first fight (ADR-0141)
 
-The recording from your session showed the game freezing for one and a half
-to two and a half seconds just as the bots first opened fire, and briefly
+The recording from your session showed the game freezing (about half a
+second to a second and a half, corrected in v0.2.907) just as the bots first opened fire, and briefly
 right after entering. Each gun flash switched a light on, which made the
 graphics card rebuild every surface's shader. Now the flash lights stay
 present (just dark until needed), and all the shaders are built while the

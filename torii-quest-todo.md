@@ -1,3 +1,11 @@
+## v0.2.906-alpha: no freezes from shader rebuilds (ADR-0141)
+
+- [x] Autocap pipeline verified after dispatcher v3 (run 39574066654, 86 frames from 2026-10-20 18:48 BST).
+- [x] Root cause: flash lights toggled → every lit shader recompiled (first-fight 1.5–2.5 s freezes) + adaptive tier feedback.
+- [x] Constant flash-light count (3, every tier); boot shader prewarm; freeze meter in `snapshot().perf`.
+- [ ] Operator playtest on a real GPU; next autocap pull should show `perf.hitches.long` near 0 during the first fight.
+- [ ] Remaining first-seconds cost: deferred NAP NPC load (8.5 MB animations) after the first frame; measure via `perf` before changing.
+
 ## v0.2.905-alpha: Gateway Applesauce relay-layer trial (ADR-0140, proposed)
 
 - [ ] Add `GATEWAY_TRANSPORT` flag (default `'fanout'`); dynamic-import Applesauce from the gateway screen only.

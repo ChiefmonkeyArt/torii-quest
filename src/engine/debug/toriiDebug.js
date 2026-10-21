@@ -58,6 +58,8 @@ export function installToriiDebug(refs) {
     isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
     // ADR-0055 — auto-capture ring status for the ema snapshot.
     getAutoCaptureReport,
+    // ADR-0141 — freezes + shader prewarm.
+    getPerf, getProgramNames,
   } = refs;
 
   // v0.2.130 — providers for the JSON-serialisable debug snapshot. Each is a
@@ -92,6 +94,7 @@ export function installToriiDebug(refs) {
     isKamiActive, isKamiNoteOpen, isKamiEntering, isPointerLocked,
     // ADR-0055: auto-capture ring status so a hung ema points at nearby frames.
     getAutoCaptureReport,
+    getPerf,
   };
 
   const api = {
@@ -106,6 +109,10 @@ export function installToriiDebug(refs) {
         return g ? g.debugDamage(id, n) : false;
       },
     },
+    // ADR-0141: freezes while playing (long frames) + the boot shader prewarm result.
+    get perf() { return typeof getPerf === 'function' ? getPerf() : null; },
+    // Compiled shader programs (name#id), to spot what compiles mid-play.
+    programNames() { return typeof getProgramNames === 'function' ? getProgramNames() : []; },
     // ADR-0136: slow Game Zone effects (tracers/sparks) to inspect them; 1 = normal.
     fxTimeScale(k = 1) { const g = _gz(); return g && g.setFxTimeScale ? g.setFxTimeScale(k) : null; },
 

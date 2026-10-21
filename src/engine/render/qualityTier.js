@@ -25,8 +25,11 @@
 // player and multiplayer behave identically — the tier is independent of MP.
 
 export const TIERS = {
-  HIGH:   { name: 'HIGH',   dpr: 1.5,  bloom: true,  shadowMapSize: 1024, muzzleLights: 8 },
-  NORMAL: { name: 'NORMAL', dpr: 1.25, bloom: false, shadowMapSize: 512,  muzzleLights: 4 },
+  // muzzleLights = how many flash lights may be LIT at once. The pool itself is
+  // a constant FLASH_LIGHTS on every tier (ADR-0141), so a tier change never
+  // changes the scene's light count (that recompiles every lit material).
+  HIGH:   { name: 'HIGH',   dpr: 1.5,  bloom: true,  shadowMapSize: 1024, muzzleLights: 3 },
+  NORMAL: { name: 'NORMAL', dpr: 1.25, bloom: false, shadowMapSize: 512,  muzzleLights: 2 },
   LOW:    { name: 'LOW',    dpr: 1.0,  bloom: false, shadowMapSize: 256,  muzzleLights: 0 },
 };
 

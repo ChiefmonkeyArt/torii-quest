@@ -104,6 +104,8 @@ export function buildSnapshot(p = {}) {
     // ADR-0045 v0.2.666: per-bot render state so an ema tells us WHICH branch is
     // broken when bots appear as cubes / floating nameplates with no body.
     bots:     safe(p.getBotRenderStates),
+    // ADR-0141: long frames (freezes) + shader prewarm, so a capture shows stalls.
+    perf:     safe(p.getPerf) ?? null,
     config:  safe(() => p.config) ?? null,
   };
 }

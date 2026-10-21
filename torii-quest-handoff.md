@@ -29,7 +29,7 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
-## APPLESAUCE RELAY LAYER: v0.2.910-alpha (ADR-0140, stage 1 accepted)
+## APPLESAUCE RELAY LAYER: v0.2.910-alpha + live directory v0.2.911-alpha (ADR-0140, accepted)
 
 - **Files:**
   - `src/engine/gateway/reqCollector.js`: pure used/failed/dedupe accounting;
@@ -41,7 +41,13 @@
   - `await ToriiDebug.gatewayScan()` times one scan;
   - override with `?gateway-transport=fanout|applesauce` or localStorage `torii.gatewayTransport`.
 - **Gotcha.** Never ask a not-ready relay through the pool: the REQ hangs until it reconnects.
-- **Stage 2 (open):** a held subscription while the directory is open.
+- **Stage 2 (v0.2.911):**
+  - `liveWorlds.js` + `createLiveSubscribe` live in the lazy chunk; `_gatewayTransport.liveWorlds()` returns an inert stand-in until it loads.
+  - `_shellTick` calls `setWanted` once a second: want = (not playing AND logged in) OR the gateway screen is open.
+  - Pushes go through `worldsFromEvents` (verify).
+  - Debug: `ToriiDebug.gateway().live`.
+- **Size budget.** `npm run budget:applesauce` (tools/applesauce-budget.mjs) runs in `test:release`. If it fails, shrink the change; don't raise the limits without an owner decision.
+- **Signature cache.** `nostrSig.js` caches schnorr verdicts by (id, pubkey, sig); the id is always recomputed from the content first.
 
 ## GATEWAY APPLESAUCE TRIAL: v0.2.905-alpha docs (ADR-0140, superseded by the section above)
 

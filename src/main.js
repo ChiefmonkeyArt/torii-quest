@@ -134,9 +134,9 @@ import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
 import { createNodePresenceCache, mergeNodeWorlds } from './engine/presence/nodePresenceClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
-import { resolveGatewayTransport, createGatewayRequestGetter } from './engine/gateway/gatewayTransport.js';
+import { resolveGatewayTransport, createGatewayRequestGetter, LIVE_PRESENCE_POLL_MS, LIVE_CHECK_MS } from './engine/gateway/gatewayTransport.js';
 import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
-import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
+import { fetchOnlineWorlds, worldsFromEvents, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
 // and the rAF shell tick drives the republish (NO setTimeout in new code).
@@ -941,6 +941,7 @@ const _gatewayTransport = createGatewayRequestGetter({
   mode: resolveGatewayTransport({ fallback: GATEWAY_TRANSPORT, search: (window.location && window.location.search) || '', storage: _gatewayStorage }),
   fanout: fanoutReq,
   loadApplesauce: () => import('./engine/gateway/applesauceTransport.js'),
+  onLiveEvents: () => _applyLiveWorlds(), // ADR-0140 stage 2 (hoisted function)
   // Load when the title is idle, never during the cold load (ADR-0142).
   schedule: (fn) => (typeof window.requestIdleCallback === 'function'
     ? window.requestIdleCallback(fn, { timeout: 8000 })
@@ -954,8 +955,10 @@ async function refreshOnlineWorlds() {
   // same list presence publishes to, ADR-0081). This is read-only — a failed
   // relay just lands in `failed` and never fails the scan (fanoutReq returns the
   // union).
+  const req = _gatewayTransport.get();
   const r = await fetchOnlineWorlds({
-    request: _gatewayTransport.get(),
+    // Keep the raw scan so live pushes (ADR-0140 stage 2) merge with it.
+    request: async (...a) => { const x = await req(...a); _lastScanEvents = x && Array.isArray(x.events) ? x.events : []; return x; },
     relays: _effectiveRelays(),
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
@@ -968,7 +971,7 @@ async function refreshOnlineWorlds() {
     _worldsScan = _worldsCache.length ? 'idle' : 'offline';
     return;
   }
-  _worldsCache = mergeNodeWorlds(r.worlds || [], _nodePresence.worlds(state.nostrPubkey || ''));
+  _worldsCache = mergeNodeWorlds(_gatewayTransport.liveWorlds().active ? _liveMergedWorlds(r.worlds || []) : (r.worlds || []), _nodePresence.worlds(state.nostrPubkey || ''));
   _worldsScan = 'idle';
   // ADR-0119 slice-5: enrich owner identity (kind:0 displayName/avatar) for rows
   // whose presence omitted it, then re-render so the directory shows the person.
@@ -980,12 +983,33 @@ async function refreshOnlineWorlds() {
   // gateway directory is already open. If it's open, re-render so a row that just
   // resolved its owner name (serial → "BitcoinBekka") updates in place instead of
   // staying frozen on the pre-enrichment snapshot. No-op when no arena/screen.
+  _rerenderGatewayIfOpen();
+}
+
+function _rerenderGatewayIfOpen() {
   try {
     if (isGatewayScreenOpen()) {
       const gw = _gatewayScreenState();
       refreshGatewayScreen({ mutualFriends: gw.mutualFriends, otherWorlds: gw.otherWorlds, scanStatus: gw.scanStatus, canTravel: gw.canTravel });
     }
   } catch { /* re-render is best-effort; never fail the scan */ }
+}
+
+// ── ADR-0140 stage 2: live directory ─────────────────────────────────────────
+// While the world list is visible (shell menus, or the in-world gateway
+// screen), one Applesauce subscription backfills the current heartbeats and
+// then pushes new ones. Every pushed event is re-read through worldsFromEvents
+// (signature check, liveness, sanitising): the same trust as a scan.
+let _lastScanEvents = [];
+function _liveMergedWorlds(fallbackWorlds) {
+  const w = worldsFromEvents([..._lastScanEvents, ..._gatewayTransport.liveWorlds().events()], { verify: true, ourPubkey: state.nostrPubkey || '' });
+  return w.ok ? w.worlds : fallbackWorlds;
+}
+async function _applyLiveWorlds() {
+  _worldsCache = mergeNodeWorlds(_liveMergedWorlds([]), _nodePresence.worlds(state.nostrPubkey || ''));
+  if (_worldsScan !== 'scanning') _worldsScan = 'idle';
+  await _enrichWorldOwners(_worldsCache);
+  _rerenderGatewayIfOpen();
 }
 
 // _refreshFriendData() — the cheapest correct mutual-follow detection (v0.2.403):
@@ -3254,11 +3278,16 @@ scheduleEnginePrefetch();
 // F11: cadences are now wall-clock and serialized via _shellPoller, so a slow
 // request is skipped (never overlapped) instead of stacking on the next frame.
 function _shellTick() {
+  // ADR-0140 stage 2: hold the live subscription only while the list is visible.
+  _shellPoller.poll('live', LIVE_CHECK_MS, () => {
+    const want = (!isPlaying() && !!state.nostrPubkey) || isGatewayScreenOpen();
+    _gatewayTransport.liveWorlds().setWanted(want, want ? _effectiveRelays() : [], [buildGatewayFilter({ limit: 200 })]);
+  });
   if (!isPlaying() && state.nostrPubkey) {
     _shellPoller.poll('handshake', POLL_MS.handshake, () =>
       _handshake.tick(),
     );
-    _shellPoller.poll('presence', POLL_MS.presence, () => refreshOnlineWorlds());
+    _shellPoller.poll('presence', _gatewayTransport.liveWorlds().active ? LIVE_PRESENCE_POLL_MS : POLL_MS.presence, () => refreshOnlineWorlds());
     // Phase 0d: heartbeat republish rides the same rAF tick (no new timers).
     // The actual interval gate (10 min default) lives in isHeartbeatDue, so this
     // just pokes that pure helper on a serialized wall-clock cadence.
@@ -3330,6 +3359,7 @@ if (typeof window !== 'undefined') {
       hasInboundTraveller: incoming ? { npub: incoming.npub, hint: incoming.pubkey } : null,
       worldsOnline: _worldsCache.length,
       transport: _gatewayTransport.active, // ADR-0140: 'fanout' until Applesauce loads
+      live: { active: _gatewayTransport.liveWorlds().active, received: _gatewayTransport.liveWorlds().received, held: _gatewayTransport.liveWorlds().events().length }, // ADR-0140 stage 2
       ready: !!(armed && hardened.ok && state.nostrPubkey),
     };
   };

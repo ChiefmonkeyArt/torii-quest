@@ -1,6 +1,6 @@
 # ADR-0140: Trial Applesauce as the gateway's relay layer
 
-- **Status:** Accepted, stage 1 (v0.2.910): the directory read path and owner profiles use Applesauce by default. Stage 2 (a live subscription) is still open; see Results.
+- **Status:** Accepted (stage 1 in v0.2.910, stage 2 and the size budget in v0.2.911). The directory read path, owner profiles and the live directory all use Applesauce, with a fanout fallback.
 - **Date:** 2026-10-21
 - **Deciders:** chiefmonkey: "The Torii gateway experience is paramount to torii quest… Write the ADR and add the Applesauce gateway trial to the todo list".
 - **Related:** the gateway protocol and directory (`src/engine/gateway/*`), live following, ADR-0057 (napplets), ADR-0111 (FIPS as the node transport), ADR-0126 (FIPS two-node heartbeat; it left Applesauce out of scope).
@@ -95,3 +95,33 @@ The operator asked for Applesauce "ASAP", so stage 1 ships with Applesauce on by
   - The size budget wasn't agreed in advance. Proposed budget: lazy ≤ 55 KB gzip, entry ≤ +1 KB.
 - **Revert:** `GATEWAY_TRANSPORT = 'fanout'`, one line, or the URL/localStorage override per browser.
 - **`npm audit`:** no new advisories. The one high advisory, in `sharp`, a build-time image tool, already existed and is unrelated.
+
+## Stage 2 and the size budget (v0.2.911-alpha, 2026-10-21)
+
+The operator adopted the proposed budget and asked for stage 2.
+
+**Size budget, now enforced by `npm run budget:applesauce` in `test:release`:**
+- lazy Applesauce chunks ≤ 55 KB gzip (measured 52.2 KB, including the transport chunk and the shared runtime, counted conservatively);
+- no Applesauce or RxJS library code in the entry chunk (marker check);
+- the entry-side `gatewayTransport.js` ≤ 1 KB gzip once minified (measured 739 B).
+
+**Live directory:**
+- **When it runs.** While the world list is visible (shell menus when logged in, or the in-world gateway screen), one `pool.subscription` streams heartbeats: the current set as a backfill, then new ones as they're published. It closes when the list is hidden. The check runs once a second on the existing serialised poller, with no new timers in `main.js`.
+- **Code.**
+  - `liveWorlds.js` keeps the newest event per (pubkey, d), at most 400, and coalesces bursts into one recompute at a time.
+  - `createLiveSubscribe` reconnects with 20 tries, 5 s apart, reset after success.
+  - Both live in the lazy chunk. The entry only holds an inert stand-in.
+- **Same trust.** Pushed events are merged with the last scan and re-read through `worldsFromEvents` (split out of `fetchOnlineWorlds`): signature check, liveness and sanitising, exactly as a scan.
+- **Cheaper rescans.** While live, the full rescan drops from every 10 s to every 60 s; it still prunes expired worlds and refreshes friends.
+- **Signature cache.** `verifyNostrEventSig` now caches the schnorr verdict per (id, pubkey, sig). The id is still recomputed from the content every time, so altered content is always rejected. A check drops from about 5 ms to 0.03 ms, which also speeds up ordinary scans.
+- **Straggler cap hardened.** It's now 3 s (the library's own grace), and only starts after an EOSE from a relay that sent events. An early empty relay can no longer cut slow relays off.
+
+**Measured:**
+- **Live arrival, local relay with the real pool (CI test):** backfill, then a heartbeat published after subscribing arrives in under 1 s, pushed rather than polled.
+- **Real relays, 7 defaults plus 1 dead:** first live world in 459 ms, the same 2 worlds as a scan.
+- **Warm scan, re-benched:** median 467 ms against 860 ms for fanout.
+- **Browser (headless Chromium):**
+  - the transport is Applesauce;
+  - live stays off while playing with the gateway screen closed, as intended;
+  - no CSP violations or page errors.
+  - Not yet clicked in a browser: opening the in-world gateway screen. It's covered by unit tests plus the Node live tests.

@@ -69,13 +69,19 @@ describe('reqRound / partitionReady', () => {
     expect(c.result().used).toEqual([A]);
   });
   it('caps the wait for a silent relay after the first EOSE (straggler cap)', async () => {
-    const pool = fakePool(() => [[5, { type: 'EOSE', from: A }]]);
+    const pool = fakePool(() => [[2, { type: 'EVENT', from: A, event: ev('9') }], [5, { type: 'EOSE', from: A }]]);
     const c = createReqCollector([A, B]);
     const t = Date.now();
     await reqRound(pool, [A, B], [{}], c, { timeoutMs: 5000, straggleMs: 60 });
     expect(Date.now() - t).toBeLessThan(1000);
     expect(c.result().failed).toEqual([B]);
-    expect(STRAGGLE_MS).toBeLessThanOrEqual(2000);
+    expect(STRAGGLE_MS).toBe(3000);
+  });
+  it('an EMPTY early EOSE does not start the straggler cap', async () => {
+    const pool = fakePool(() => [[2, { type: 'EOSE', from: A }], [150, { type: 'EVENT', from: B, event: ev('8') }], [160, { type: 'EOSE', from: B }]]);
+    const c = createReqCollector([A, B]);
+    await reqRound(pool, [A, B], [{}], c, { timeoutMs: 3000, straggleMs: 60 });
+    expect(c.result().used).toEqual([B]); // B's late events were still collected
   });
   it('respects the overall deadline when no relay answers', async () => {
     const c = createReqCollector([A]);
@@ -168,7 +174,7 @@ describe('gatewayTransport', () => {
 describe('wiring', () => {
   const main = readFileSync('src/main.js', 'utf8');
   it('directory scan and owner profiles use the gateway transport', () => {
-    expect(main).toMatch(/request: _gatewayTransport\.get\(\),/);
+    expect(main).toMatch(/const req = _gatewayTransport\.get\(\);\n  const r = await fetchOnlineWorlds\(\{/);
     expect(main).toMatch(/const ownerRequest = _gatewayTransport\.get\(\);/);
     expect(main).toMatch(/loadApplesauce: \(\) => import\('\.\/engine\/gateway\/applesauceTransport\.js'\)/);
     expect(main).toMatch(/requestIdleCallback\(fn, \{ timeout: 8000 \}\)/);

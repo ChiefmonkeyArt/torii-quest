@@ -18,7 +18,7 @@ Torii Quest is the first world, and the proof that it works.**
   - The Applesauce relay trial (ADR-0140) follows G1–G2.
 - **Status (v0.2.909, ADR-0144):**
   - G1 and G2 are done.
-  - The Applesauce relay layer shipped in v0.2.910 (stage 1: directory and owner profiles). A live subscription is stage 2.
+  - The Applesauce relay layer shipped in v0.2.910 (directory and owner profiles) and v0.2.911 (live directory, enforced size budget: lazy ≤ 55 KB gzip, entry ≤ +1 KB).
   - The invitation letter is drafted but **held** until much more Quest work is done; then it goes to many people.
   - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Proposed).
 - **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.

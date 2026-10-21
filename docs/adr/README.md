@@ -159,6 +159,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0140](./0140-applesauce-gateway-trial.md) | Trial Applesauce as the gateway directory's relay layer behind a flag; Quest's trust layer unchanged; adopt only on measured wins, else in-house streaming fix | Proposed |
 | [0141](./0141-no-shader-rebuilds-mid-play.md) | No shader rebuilds mid-play: constant flash-light count on every tier, boot shader prewarm, freeze meter in snapshots/autocap (first-fight freezes ≈0.5–1.5 s; autocap gaps include the 1 s cadence) | Accepted |
 | [0142](./0142-cold-load-engine-preload.md) | Cold-load engine preload on the title screen (modulepreload, no execution), `?nuked=1` pin cleared after boot, ambient fill 0.8 | Accepted |
+| [0143](./0143-gate-is-the-product.md) | North star: the Torii Gate (open protocol) is the product, Quest is the first world; Gate track G1–G4 ahead of the Applesauce trial | Accepted |
 
 ## Workflow for a new decision
 
@@ -179,6 +180,7 @@ ADR-0139: [Your tracer leaves the gun you see](./0139-player-tracer-from-visible
 ADR-0140: [Trial Applesauce as the gateway's relay layer](./0140-applesauce-gateway-trial.md).
 ADR-0141: [No shader rebuilds mid-play](./0141-no-shader-rebuilds-mid-play.md).
 ADR-0142: [Cold-load engine preload](./0142-cold-load-engine-preload.md).
+ADR-0143: [The Torii Gate is the product](./0143-gate-is-the-product.md).
 Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.
 
 ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).

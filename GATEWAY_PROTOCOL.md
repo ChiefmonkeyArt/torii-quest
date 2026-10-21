@@ -1,5 +1,7 @@
 # Torii Gateway Protocol — n2n Spatial Hop (DRAFT)
 
+> **North star (ADR-0143, v0.2.908-alpha):** this protocol is the Torii product for developers; Quest is its first world. Next: **G1** freeze v1 (open travel: heartbeat discovery + URL handoff + arrival; the signed event in §6 becomes an optional extension) → **G2** conformance kit → **G3** second world on another stack → **G4** NIP.
+>
 > **Status:** DRAFT (v0.1, GWPROTO-1, landed v0.2.134-alpha). This is a working
 > draft of the wire agreement, not a frozen spec. It is implementation-independent
 > on purpose — any Nostr/Bitcoin world should be able to implement it, not just

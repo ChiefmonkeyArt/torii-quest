@@ -1,3 +1,12 @@
+## v0.2.908-alpha: the Gate is the product (ADR-0143)
+
+The headline has changed: Torii is an open network of worlds, the Torii Gate
+is the open way to travel between them, and Torii Quest is the first world
+and the proof that it works. Anyone should be able to build a world in any
+engine and join by following the Gate's short spec. Next we'll freeze that
+spec, build a kit that checks a world gets it right, and get a second world
+built on a different engine to travel to and from Quest.
+
 ## v0.2.907-alpha: quicker first load (ADR-0142)
 
 Your screencast showed a fresh load taking about 15 seconds after ENTER, a

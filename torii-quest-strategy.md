@@ -1,5 +1,23 @@
 # Torii Quest Strategy & Next Steps
 
+## NORTH STAR: the Torii Gate is the product; Quest is the first world (ADR-0143, 2026-10-21)
+
+**Torii is an open network of worlds. The Torii Gate is its open protocol.
+Torii Quest is the first world, and the proof that it works.**
+
+- **Products for two audiences.** For players the product is Quest, because people visit worlds. For developers the product is the Gate: build in any engine, implement the Gate protocol (or drop in the doorway), and your world joins the network.
+- **Three layers, only the first required.**
+  - The protocol: Nostr events for heartbeat discovery, destination by npub, handoff and arrival.
+  - The doorway: a napplet for web worlds, an SDK/adapter for native engines.
+  - Optional node services such as FIPS, which run on the operator's node, not in the game. Never "FIPS napplet".
+- **Gate track, in order:**
+  - **G1:** freeze spatial hop v1 (open travel).
+  - **G2:** a conformance kit (fixtures, an engine-free validator, a minimal reference world).
+  - **G3:** a second world on another stack. First candidate: the Nostr Game Engine (Java/jMonkeyEngine). Outreach needs operator approval.
+  - **G4:** a NIP draft.
+  - The Applesauce relay trial (ADR-0140) follows G1–G2.
+- **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.
+
 ## TOP PRIORITY: game zone combat quality (ADR-0130, 2026-10-16)
 
 Operator directive (2026-10-16): **gameplay combat quality in the game zone is
@@ -658,6 +676,8 @@ Important trade-off:
 - Start relay-mediated, design so node-to-node can be added later.
 
 ### Nostr Spatial Gateway Protocol (n2n spatial hop as an open protocol)
+
+> v0.2.908 (ADR-0143): this protocol is now the north-star product. The live order is the Gate track G1–G4 at the top of this file; the staged path below is kept as history.
 
 The NAP-to-NAP handoff above should be lifted from a Torii-internal mechanism
 into an **open, documented protocol** so any Nostr/Bitcoin world — not just Torii

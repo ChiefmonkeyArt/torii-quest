@@ -29,7 +29,21 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
-## GATEWAY APPLESAUCE TRIAL: v0.2.905-alpha docs (ADR-0140, proposed, not started)
+## APPLESAUCE RELAY LAYER: v0.2.910-alpha (ADR-0140, stage 1 accepted)
+
+- **Files:**
+  - `src/engine/gateway/reqCollector.js`: pure used/failed/dedupe accounting;
+  - `applesauceTransport.js`: one shared `RelayPool` (keepAlive 60 s, `requestReconnect: 0`), `partitionReady` (skips relays in backoff), a straggler cap of 1.5 s;
+  - `gatewayTransport.js`: flag resolution and the lazy getter.
+- **Wiring.** In `main.js`, `_gatewayTransport.get()` feeds `fetchOnlineWorlds` and the owner-profile lookups. The first scan is always fanout; Applesauce loads through `requestIdleCallback`.
+- **Debug.**
+  - `ToriiDebug.gateway().transport` shows the active transport;
+  - `await ToriiDebug.gatewayScan()` times one scan;
+  - override with `?gateway-transport=fanout|applesauce` or localStorage `torii.gatewayTransport`.
+- **Gotcha.** Never ask a not-ready relay through the pool: the REQ hangs until it reconnects.
+- **Stage 2 (open):** a held subscription while the directory is open.
+
+## GATEWAY APPLESAUCE TRIAL: v0.2.905-alpha docs (ADR-0140, superseded by the section above)
 
 - Today the gateway reads through `fanoutReq`: a fresh socket per relay per call, waiting for the slowest relay (4–5 s), with no subscription, outbox routing or shared cache.
 - The trial swaps only the transport behind a flag, and only for the gateway directory. `gatewayRead`, `handoffVerify`, the handshake and the consent gates stay authoritative.

@@ -1,3 +1,9 @@
+## v0.2.910-alpha: Applesauce relay layer, stage 1 (ADR-0140)
+
+- [x] Directory and owner-profile reads use one shared Applesauce relay pool, with a fanout fallback.
+- [x] 21 tests: collector, transport, backoff skip, fallback, flag, wiring.
+- [ ] Stage 2 live subscription; size budget sign-off (see the ADR-0140 section below).
+
 ## v0.2.909-alpha: Gate v1 frozen, conformance kit, letter, market plan (ADR-0144/0145)
 
 - [x] `GATEWAY_PROTOCOL.md` v1 (frozen), matching the live reader/writer/hop/arrival; v0.1 draft kept in `docs/`.
@@ -5,7 +11,7 @@
 - [x] Conformance kit: `gate-v1.mjs`, signed fixtures, `check.mjs`, `reference-world/`; CI runs the fixtures on kit + Quest.
 - [x] Invitation letter (living draft, not sent): `docs/outreach/torii-gate-letter.md`.
 - [ ] **Owner decision:** licence for the spec and kit (repo is GPL-3.0; a permissive licence would help other engines adopt it).
-- [ ] **Applesauce relay layer, ASAP** (operator 2026-10-21): next release, v0.2.910 (ADR-0140 trial steps below).
+- [x] **Applesauce relay layer, ASAP:** stage 1 shipped in v0.2.910 (ADR-0140, steps below).
 - [ ] **NAP Zone market (ADR-0145, Proposed), soon:**
   - [ ] Owner from the world, not the build (fix: `ADMIN_PUBKEY_HEX` is empty in the browser).
   - [ ] Curated sellers: stalls with products, live auctions, past auctions.
@@ -43,11 +49,14 @@
 Order (ADR-0143): starts after Gate track G1–G2 (done in v0.2.909). Operator 2026-10-21: ASAP, so it is next.
 
 
-- [ ] Add `GATEWAY_TRANSPORT` flag (default `'fanout'`); dynamic-import Applesauce from the gateway screen only.
-- [ ] Adapter: Applesauce RelayPool + EventStore to the same events `gatewayRead` already validates (trust layer unchanged).
-- [ ] Bench both transports: time to first world (p50/p95), worlds found vs known set, dead/slow relay, reopen time, live new-world arrival.
-- [ ] Bundle report: added gzip bytes + parse time; must not touch arena/entry chunks.
-- [ ] Decide: adopt (ADR-0140 → Accepted) or ship the in-house streaming + cache fix to `fanoutReq` (ADR-0140 → Rejected).
+- [x] `GATEWAY_TRANSPORT` flag (default now `'applesauce'`), loaded lazily on idle, with a fanout fallback (v0.2.910).
+- [x] Adapter behind the `fanoutReq` contract; trust layer unchanged (v0.2.910).
+- [x] Bench: warm scan 382 ms vs 806 ms median, same worlds; dead relay skipped while in backoff (v0.2.910).
+- [x] Bundle: entry +0.34 KB, lazy 51.4 KB gzip, arena untouched (v0.2.910).
+- [x] Decided: stage 1 adopted (ADR-0140 Accepted, stage 1).
+- [ ] **Stage 2:** a held live subscription while the directory is open, so new worlds appear instantly.
+- [ ] Owner decision: confirm the size budget (proposed: lazy ≤ 55 KB gzip, entry ≤ +1 KB).
+- [ ] Later, each behind its own decision: move follows, live following and presence reads to the pool; share one `@noble/curves` copy when nostr-tools allows it.
 
 ## v0.2.904-alpha: your tracer leaves the gun you see (ADR-0139)
 

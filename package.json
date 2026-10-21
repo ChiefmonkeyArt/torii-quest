@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.909-alpha",
+  "version": "0.2.910-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -57,6 +57,7 @@
     "@gltf-transform/functions": "^4.4.2",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
+    "applesauce-relay": "7.0.0",
     "draco3d": "^1.5.7",
     "nostr-tools": "^2.24.3",
     "three": "^0.184.0",

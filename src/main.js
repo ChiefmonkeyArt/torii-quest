@@ -134,6 +134,7 @@ import { fetchBeaconState, setBeacon } from './engine/presence/beaconClient.js';
 import { createNodePresenceCache, mergeNodeWorlds } from './engine/presence/nodePresenceClient.js';
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
+import { resolveGatewayTransport, createGatewayRequestGetter } from './engine/gateway/gatewayTransport.js';
 import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
@@ -229,7 +230,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // enforcement (handoffArrival.js / writeAuthority.js) is untouched; only
 // this title-screen EDITING surface and its import are gone.
 import {
-  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED,
+  NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED, GATEWAY_TRANSPORT,
 } from './config.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
@@ -886,10 +887,11 @@ async function _enrichWorldOwners(worlds) {
     missing.push(ok);
   }
   if (missing.length) {
+    const ownerRequest = _gatewayTransport.get();
     await Promise.all(missing.map(async (owner) => {
       let profile = null;
       try {
-        profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: fanoutReq });
+        profile = await fetchOwnProfile(owner, { relays: _effectiveRelays(), request: ownerRequest });
       } catch (e) {
         console.warn('[ownerProfile]', owner.slice(0, 8), '→ lookup failed:', (e && e.message) || e);
       }
@@ -931,6 +933,19 @@ async function _enrichWorldOwners(worlds) {
 }
 
 const _nodePresence = createNodePresenceCache();
+// ADR-0140: the directory's relay transport. Applesauce is a dynamic import so
+// it stays out of the entry/arena chunks; any failure falls back to fanoutReq.
+let _gatewayStorage = null;
+try { _gatewayStorage = window.localStorage; } catch { /* storage blocked */ }
+const _gatewayTransport = createGatewayRequestGetter({
+  mode: resolveGatewayTransport({ fallback: GATEWAY_TRANSPORT, search: (window.location && window.location.search) || '', storage: _gatewayStorage }),
+  fanout: fanoutReq,
+  loadApplesauce: () => import('./engine/gateway/applesauceTransport.js'),
+  // Load when the title is idle, never during the cold load (ADR-0142).
+  schedule: (fn) => (typeof window.requestIdleCallback === 'function'
+    ? window.requestIdleCallback(fn, { timeout: 8000 })
+    : window.requestAnimationFrame(() => window.requestAnimationFrame(fn))),
+});
 async function refreshOnlineWorlds() {
   // Never await mesh discovery here: use its bounded same-origin RAM snapshot.
   void _nodePresence.refresh(resolveMpHttpBase());
@@ -940,7 +955,7 @@ async function refreshOnlineWorlds() {
   // relay just lands in `failed` and never fails the scan (fanoutReq returns the
   // union).
   const r = await fetchOnlineWorlds({
-    request: fanoutReq,
+    request: _gatewayTransport.get(),
     relays: _effectiveRelays(),
     ourPubkey: state.nostrPubkey || '',
     timeoutMs: 5000,
@@ -3314,8 +3329,17 @@ if (typeof window !== 'undefined') {
       currentUrl: window.location?.href || '',
       hasInboundTraveller: incoming ? { npub: incoming.npub, hint: incoming.pubkey } : null,
       worldsOnline: _worldsCache.length,
+      transport: _gatewayTransport.active, // ADR-0140: 'fanout' until Applesauce loads
       ready: !!(armed && hardened.ok && state.nostrPubkey),
     };
+  };
+
+  // ADR-0140: time one directory scan on the active transport.
+  //   await ToriiDebug.gatewayScan() → { transport, ms, worlds, scan }
+  window.ToriiDebug.gatewayScan = async () => {
+    const t0 = performance.now();
+    await refreshOnlineWorlds();
+    return { transport: _gatewayTransport.active, ms: Math.round(performance.now() - t0), worlds: _worldsCache.length, scan: _worldsScan };
   };
 
   // ADR-0090 slice 2 — sticker render-mode A/B toggle. Open the browser

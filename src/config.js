@@ -1,7 +1,7 @@
 // config.js — ALL constants. Never scatter magic numbers.
 import { npubToHex } from './engine/crypto/npub.js';
 
-export const VERSION   = 'v0.2.909-alpha';
+export const VERSION   = 'v0.2.910-alpha';
 export const GAME_NAME = 'Torii Quest';
 export const ARENA_HALF     = 20;
 export const WALL_H         = 2.6;  // was 8 → 5.5 → 4.4 → 3.52 → 2.6 (reduced again, user request v0.2.57)
@@ -123,10 +123,17 @@ export const MP_WS_PATH     = '/mp';
 // PLEBEIAN_AUCTION_ID defaults to the first test auction ("Building from Strength
 // to Strength") so the market stall panel has live data on first load; an admin
 // can point it at any kind-30408 auction id.
+// ADR-0140: relay transport for the gateway directory read path (world records
+// + owner profiles). 'applesauce' = one persistent applesauce-relay pool loaded
+// by dynamic import (falls back to 'fanout' on any failure); 'fanout' = a fresh
+// WebSocket per relay per scan. Override: ?gateway-transport=fanout|applesauce
+// or localStorage 'torii.gatewayTransport'.
+export const GATEWAY_TRANSPORT = 'applesauce';
+
 export const PLEBEIAN_RELAYS   = ['wss://relay.staging.plebeian.market'];
 export const PLEBEIAN_AUCTION_ID = '55d80b60877693e4e5e8a20c358b6a03657fc74912bab90abf1fc7221266f6cb';
 
-// v0.2.909-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
+// v0.2.910-alpha (UPD-2): admin identity for the server-side "Update Now" gate.
 // QUEST_ADMIN_NPUB is read from the SERVER environment only (arena-ws), accepting
 // either an `npub1…` or a raw hex64 pubkey. An npub is a PUBLIC key, so surfacing
 // it (e.g. via the public capability endpoint) leaks nothing — but the value is

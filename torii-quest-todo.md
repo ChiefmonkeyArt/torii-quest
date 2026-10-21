@@ -1,8 +1,16 @@
+## v0.2.911-alpha: live world list + enforced size budget (ADR-0140)
+
+- [x] One Applesauce subscription while the world list is visible; pushed events get the same signature checks as scans.
+- [x] The full rescan slows from 10 s to 60 s while live.
+- [x] Signature-verdict cache; the straggler cap is hardened.
+- [x] `npm run budget:applesauce` enforced in CI (lazy 52.2/55 KB, entry side 739 B/1 KB).
+- [ ] **Owner decision:** licence for the spec and kit (still open).
+
 ## v0.2.910-alpha: Applesauce relay layer, stage 1 (ADR-0140)
 
 - [x] Directory and owner-profile reads use one shared Applesauce relay pool, with a fanout fallback.
 - [x] 21 tests: collector, transport, backoff skip, fallback, flag, wiring.
-- [ ] Stage 2 live subscription; size budget sign-off (see the ADR-0140 section below).
+- [x] Stage 2 live subscription and the size budget: done in v0.2.911.
 
 ## v0.2.909-alpha: Gate v1 frozen, conformance kit, letter, market plan (ADR-0144/0145)
 
@@ -54,8 +62,9 @@ Order (ADR-0143): starts after Gate track G1–G2 (done in v0.2.909). Operator 2
 - [x] Bench: warm scan 382 ms vs 806 ms median, same worlds; dead relay skipped while in backoff (v0.2.910).
 - [x] Bundle: entry +0.34 KB, lazy 51.4 KB gzip, arena untouched (v0.2.910).
 - [x] Decided: stage 1 adopted (ADR-0140 Accepted, stage 1).
-- [ ] **Stage 2:** a held live subscription while the directory is open, so new worlds appear instantly.
-- [ ] Owner decision: confirm the size budget (proposed: lazy ≤ 55 KB gzip, entry ≤ +1 KB).
+- [x] **Stage 2:** live subscription while the world list is visible (v0.2.911).
+- [x] Size budget adopted and enforced in `test:release`: lazy ≤ 55 KB gzip, entry ≤ +1 KB (v0.2.911).
+- [ ] Real-GPU check: open the in-world gateway screen and watch a new world appear without waiting for a rescan.
 - [ ] Later, each behind its own decision: move follows, live following and presence reads to the pool; share one `@noble/curves` copy when nostr-tools allows it.
 
 ## v0.2.904-alpha: your tracer leaves the gun you see (ADR-0139)

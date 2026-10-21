@@ -1,6 +1,6 @@
 {
   "name": "torii-quest",
-  "version": "0.2.910-alpha",
+  "version": "0.2.911-alpha",
   "private": true,
   "type": "module",
   "scripts": {
@@ -39,9 +39,10 @@
     "test:fast": "node tools/test-profile.mjs fast",
     "test:foundation": "vitest run --changed origin/main --passWithNoTests",
     "test:foundation:list": "node tools/test-profile.mjs foundation",
-    "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run handoff:status",
+    "test:release": "npm run build && vitest run && npm run check && npm run bundle:report && npm run budget:applesauce && npm run handoff:status",
     "build:server": "node tools/write-server-runtime-manifest.mjs && esbuild server/arena-ws.js --bundle --platform=node --format=cjs --target=node18 --external:ws --external:draco3d --alias:sharp=./tools/server-stubs/native-stub.js --alias:ndarray-pixels=./tools/server-stubs/native-stub.js --outfile=dist/server/arena-ws.cjs --log-level=warning",
-    "bench:gamezone": "node tools/gamezone-bench.mjs"
+    "bench:gamezone": "node tools/gamezone-bench.mjs",
+    "budget:applesauce": "node tools/applesauce-budget.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.27.7",

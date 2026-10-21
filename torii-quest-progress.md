@@ -1,3 +1,13 @@
+## v0.2.911-alpha: worlds appear the moment they open (ADR-0140)
+
+While you're looking at the world list, Quest now listens for new worlds
+instead of checking every 10 seconds, so a world that opens shows up
+straight away. Because it's listening, the full check runs only once a
+minute, which means less network traffic. Quest checks every new listing's
+signature the same way as before, and remembers the ones it has already
+checked, so this is cheaper too. The relay library's size is now a hard
+limit, checked on every build.
+
 ## v0.2.910-alpha: faster world list (ADR-0140)
 
 The list of online worlds now keeps its connections open between refreshes

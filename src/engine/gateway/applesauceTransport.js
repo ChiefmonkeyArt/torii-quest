@@ -8,6 +8,8 @@
 // it never lands in the entry or arena chunks. Any failure falls back to the
 // supplied fallback transport (fanoutReq), so the directory can't get worse.
 import { createReqCollector } from './reqCollector.js';
+// Re-exported so the live controller ships in this lazy chunk, not the entry.
+export { createLiveWorlds } from './liveWorlds.js';
 
 let _poolPromise = null;
 
@@ -21,8 +23,9 @@ export function getPool(load = () => import('applesauce-relay')) {
 }
 export function _resetPoolForTests() { _poolPromise = null; }
 
-/** Default cap on waiting for slow relays once the first relay has answered. */
-export const STRAGGLE_MS = 1500;
+/** Default cap on waiting for slow relays once a relay has answered WITH events
+ * (v0.2.911: 3 s, the library's own grace; an empty early EOSE never starts it). */
+export const STRAGGLE_MS = 3000;
 
 /**
  * Split relays into ones worth asking and ones the pool already knows are in a
@@ -50,7 +53,7 @@ const relayKeyEq = (a, b) => String(a).replace(/\/+$/, '').toLowerCase() === Str
  */
 export function reqRound(pool, relays, filters, collector, { timeoutMs = 4000, graceMs = 0, straggleMs = STRAGGLE_MS } = {}) {
   return new Promise((resolve) => {
-    let sub = null, done = false, graceTimer = null, straggleTimer = null;
+    let sub = null, done = false, graceTimer = null, straggleTimer = null, sawEvents = false;
     const finish = () => {
       if (done) return; done = true;
       clearTimeout(deadline); clearTimeout(graceTimer); clearTimeout(straggleTimer);
@@ -61,7 +64,8 @@ export function reqRound(pool, relays, filters, collector, { timeoutMs = 4000, g
     try {
       sub = pool.req(relays, filters).subscribe({
         next: (msg) => {
-          if (msg && msg.type === 'EOSE' && !straggleTimer && straggleMs > 0) straggleTimer = setTimeout(finish, straggleMs);
+          if (msg && msg.type === 'EVENT') sawEvents = true;
+          if (msg && msg.type === 'EOSE' && sawEvents && !straggleTimer && straggleMs > 0) straggleTimer = setTimeout(finish, straggleMs);
           if (collector.onMessage(msg)) {
             if (graceMs > 0 && msg && msg.type === 'EOSE' && !graceTimer) graceTimer = setTimeout(finish, graceMs);
             else if (!graceTimer) finish();
@@ -103,5 +107,32 @@ export function createApplesauceRequest({ fallback = null, getPool: gp = getPool
       await reqRound(pool, ask, fl, c, { timeoutMs, graceMs });
     }
     return c.result();
+  };
+}
+
+/**
+ * ADR-0140 stage 2: live subscribe on the shared pool.
+ * subscribe(relays, filters, onEvent) → unsubscribe (synchronous). The pool
+ * dedupes across relays and resubscribes after reconnects; events are handed
+ * on raw, and the caller verifies them.
+ */
+/** Long-lived: keep retrying a dropped relay (5 s apart), reset after success. */
+export const LIVE_SUB_OPTIONS = Object.freeze({ reconnect: Object.freeze({ count: 20, delay: 5000, resetOnSuccess: true }) });
+
+export function createLiveSubscribe({ getPool: gp = getPool } = {}) {
+  return function subscribeLive(relays, filters, onEvent) {
+    let cancelled = false, sub = null;
+    const list = (Array.isArray(relays) ? relays : []).filter((r) => typeof r === 'string' && r);
+    const fl = Array.isArray(filters) ? filters : [filters];
+    if (!list.length || typeof onEvent !== 'function') return () => {};
+    Promise.resolve().then(() => gp()).then((pool) => {
+      if (cancelled) return;
+      sub = pool.subscription(list, fl, { reconnect: { ...LIVE_SUB_OPTIONS.reconnect } }).subscribe({
+        next: (e) => { if (e && typeof e === 'object' && typeof e.id === 'string') { try { onEvent(e); } catch { /* sink errors stay local */ } } },
+        error: () => { sub = null; },
+      });
+      if (cancelled && sub) { try { sub.unsubscribe(); } catch { /* closed */ } }
+    }).catch(() => { /* library unavailable: the 10 s scan still runs */ });
+    return () => { cancelled = true; try { if (sub) sub.unsubscribe(); } catch { /* closed */ } sub = null; };
   };
 }

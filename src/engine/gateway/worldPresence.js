@@ -181,14 +181,23 @@ export async function fetchOnlineWorlds(opts = {}) {
   out.used = Array.isArray(raw.used) ? raw.used : [];
   out.failed = Array.isArray(raw.failed) ? raw.failed : [];
 
+  const w = worldsFromEvents(events, { nowSec: o.nowSec, verify: o.verify === true, ourPubkey: o.ourPubkey });
+  if (!w.ok) { out.errors.push(...w.errors); return out; }
+  out.worlds = w.worlds;
+  out.count = w.worlds.length;
+  out.ok = true;
+  return out;
+}
+
+// worldsFromEvents(events, { nowSec, verify, ourPubkey }) → { ok, worlds, errors }
+// The pure reader half of fetchOnlineWorlds, shared with the live subscription
+// (ADR-0140 stage 2) so a pushed event goes through EXACTLY the same checks.
+export function worldsFromEvents(events, o = {}) {
   // ADR-0053: pass the caller's clock through so liveness filtering is testable
   // (defaults to Date.now() inside readGateways when nowSec is absent).
   // Gate v1 §3.1: the live directory passes verify:true (signature check).
-  const report = readGateways(events, { nowSec: o.nowSec, verify: o.verify === true });
-  if (!report.ok) {
-    out.errors.push(...(report.errors || []));
-    return out;
-  }
+  const report = readGateways(Array.isArray(events) ? events : [], { nowSec: o.nowSec, verify: o.verify === true });
+  if (!report.ok) return { ok: false, worlds: [], errors: report.errors || [] };
   // Drop our own world from the list (the host should not list itself as a
   // travel destination). ADR-0094: match on the resolved OWNER (admin) first — a
   // server-beacon event is signed by the beacon key, not the admin.
@@ -197,10 +206,7 @@ export async function fetchOnlineWorlds(opts = {}) {
   if (_isHex64(ourPubkey)) {
     worlds = worlds.filter((w) => (w.owner || w.pubkey || '') !== ourPubkey);
   }
-  out.worlds = worlds;
-  out.count = worlds.length;
-  out.ok = true;
-  return out;
+  return { ok: true, worlds, errors: [] };
 }
 
 // publishOurPresence({ unsigned, sign, publish, relays, timeoutMs }) → signs

@@ -1,3 +1,10 @@
+## NORTH STAR: GATE IS THE PRODUCT: v0.2.908-alpha (ADR-0143)
+
+- Headline: Torii is an open network of worlds; the Gate is the open protocol; Quest is the first world.
+- The Gate has three layers: protocol (required), doorway (napplet for web, SDK for native) and node services (FIPS etc., optional, node-side).
+- Gate track: G1 freeze v1 → G2 conformance kit → G3 second world on another stack (Nostr Game Engine first) → G4 NIP. The Applesauce trial comes after G1–G2.
+- Combat directive ADR-0130 unchanged for Quest's game zone; points frozen.
+
 ## COLD-LOAD PRELOAD + PIN LIFECYCLE: v0.2.907-alpha (ADR-0142)
 
 - **Build side.** `tools/enginePreload.mjs` lists the engine chunk, its static deps and Rapier, minus the entry's own chunks. The CSP plugin in `vite.config.js` writes the list into `<meta name="torii-engine-preload">`.

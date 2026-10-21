@@ -1,3 +1,11 @@
+## v0.2.908-alpha: Gate track, the north star (ADR-0143)
+
+- [x] Strategy north star: the Gate is the product, Quest is the first world (ADR-0143).
+- [ ] **G1:** freeze spatial hop v1 in `GATEWAY_PROTOCOL.md`: open travel (heartbeat discovery, URL handoff, arrival). §6 signed event → optional extension. Add wire-format fixtures to CI.
+- [ ] **G2:** conformance kit: JSON fixtures + an engine-free validator + a minimal reference world (no Three.js).
+- [ ] **G3:** a second world on another stack. Draft an outreach note to the Nostr Game Engine developers (operator approves the text and the sending identity first).
+- [ ] **G4:** NIP draft after G3 travels both ways.
+
 ## v0.2.907-alpha: faster cold load, sticky pin, shaded faces (ADR-0142)
 
 - [x] Screencast review (2026-10-21, v0.2.905): real freezes ≈0.3–0.85 s; cold ENTER→play ≈15 s, of which ≈5–6 s is fetching modules.
@@ -16,6 +24,9 @@
 - [ ] Remaining first-seconds cost: deferred NAP NPC load (8.5 MB animations) after the first frame; measure via `perf` before changing.
 
 ## v0.2.905-alpha: Gateway Applesauce relay-layer trial (ADR-0140, proposed)
+
+Order (ADR-0143): starts after Gate track G1–G2.
+
 
 - [ ] Add `GATEWAY_TRANSPORT` flag (default `'fanout'`); dynamic-import Applesauce from the gateway screen only.
 - [ ] Adapter: Applesauce RelayPool + EventStore to the same events `gatewayRead` already validates (trust layer unchanged).

@@ -65,6 +65,7 @@ const SETTIMEOUT_ALLOWED = new Set([
   'src/engine/multiplayer/wsClient.js', // MP-1 reconnect timer (setTimeoutFn is injectable)
   'src/engine/kami/kamiMode.js', // ADR-0027/0034: status-badge auto-revert + note-highlight pulse-revert timers
   'src/engine/plebeian/marketStall.js', // ADR-0026: lazy market-panel status-message auto-revert timer
+  'src/engine/gateway/applesauceTransport.js', // ADR-0140: REQ deadline + straggler + grace timers (same role as nostr.js fanoutReq)
   'src/engine/plebeian/plebeianRelay.js', // ADR-0026/0035: relay reconnect-with-backoff + connect-error retry timers
   'src/engine/ui/toast.js', // ADR-0097: settings toast auto-dismiss + leave-animation cleanup
   'src/engine/diagnostics/freezeWatchdog.js', // v0.2.778 (Bug L): worker-thread ping heartbeat — string-embedded, runs OFF the main thread (not a main-loop timer)

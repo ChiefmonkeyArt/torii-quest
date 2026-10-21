@@ -18,7 +18,7 @@ Torii Quest is the first world, and the proof that it works.**
   - The Applesauce relay trial (ADR-0140) follows G1–G2.
 - **Status (v0.2.909, ADR-0144):**
   - G1 and G2 are done.
-  - The Applesauce relay layer is next, ASAP.
+  - The Applesauce relay layer shipped in v0.2.910 (stage 1: directory and owner profiles). A live subscription is stage 2.
   - The invitation letter is drafted but **held** until much more Quest work is done; then it goes to many people.
   - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Proposed).
 - **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.
@@ -1153,4 +1153,4 @@ Points are unchanged.
 
 v0.2.904-alpha (ADR-0139), approved 2026-10-20: your shots leave the visible gun tip, are never hidden by grass, and use colours opposite the bots'. Points are unchanged.
 
-Gateway (2026-10-21): the gateway experience is paramount. ADR-0140 trials Applesauce as its relay layer (faster first results, live updates, owner relays). It's adopted only on measured wins; otherwise the in-house streaming fix ships. Trust checks stay Quest's own.
+Gateway (2026-10-21): the gateway experience is paramount. ADR-0140 trials Applesauce as its relay layer (faster first results, live updates, owner relays). It was adopted for the directory in v0.2.910 on measured wins (warm scans 2× faster, no socket churn). Trust checks stay Quest's own.

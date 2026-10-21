@@ -1,3 +1,12 @@
+## v0.2.910-alpha: faster world list (ADR-0140)
+
+The list of online worlds now keeps its connections open between refreshes
+instead of reconnecting every 10 seconds. Repeat refreshes are about twice
+as fast (0.4 s instead of 0.8 s), with far less network churn, and the same
+worlds show up. The first load is no slower: the new relay library downloads
+quietly after the world has loaded. If it ever fails, Quest falls back to the
+old way by itself.
+
 ## v0.2.909-alpha: the Gate's rules are set (ADR-0144)
 
 The rules for travelling between worlds are now fixed as version 1. There's

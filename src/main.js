@@ -198,6 +198,8 @@ import { buildInstanceSettingsModel, renderInstanceSettingsPanel, coerceEditable
 import { buildProfileMetadataEvent } from './engine/identity/profileMetadata.js';
 import { getProfileDraft, setProfileDraft } from './engine/identity/profileDraft.js';
 import { resolveToriiOwnerLabel } from './engine/identity/toriiOwnerLabel.js';
+import { scheduleEnginePrefetch } from './engine/boot/enginePrefetch.js';
+import { clearNukedPin } from './engine/boot/nukedParam.js';
 // Phase 0g: the "Gateway setup" homepage stub — a three-free DOM overlay (mirrors
 // toriiMenu.js) presenting the 4 operator/visitor entry actions. main.js owns
 // the state + every callback; the stub is a pure renderer. No timer primitives,
@@ -3095,6 +3097,8 @@ async function ensureArenaReady(loadingLabel) {
     startPhase('bootstrap-physics');
     await _arena.bootstrapPhysics();
     endPhase('bootstrap-physics');
+    // v0.2.907-alpha: the fresh code booted, so drop the self-heal loop pin.
+    clearNukedPin();
   } catch (e) {
     console.error('Arena bootstrap failed:', e);
     // v0.2.776-alpha: keep the armed "ENTER" copy on retry (the button was
@@ -3221,6 +3225,8 @@ if (typeof window !== 'undefined') {
 // bound, so it stands down. The shell wires this synchronously (no three), so the
 // flag is raised even though the 3D runtime is now deferred behind ENTER.
 window.__toriiEnterReady = true;
+// v0.2.907-alpha: fetch + compile (not run) the engine while the title is up.
+scheduleEnginePrefetch();
 
 // ── Title-screen ticker (three-free) ────────────────────────────────────────────
 // The n2n handshake + presence polling used to ride the game loop, which ran from

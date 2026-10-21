@@ -155,7 +155,14 @@ export { syncComposerViewportSize };
 const _sunDir = new THREE.Vector3(0.70, 0.22, -0.45).normalize();
 
 // ── Lights ────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffc080, 0.55)); // v0.2.484: warmer ambient, dimmer so directional dominates
+// v0.2.907-alpha: 0.55 → 0.8. With ACES at exposure 0.5, faces turned away from
+// the low sun (crate sides/tops, the NAP tree trunk) went near-black up close in
+// the operator's screencast. Ambient is the cheapest fill there is (a uniform,
+// no per-light shader cost), and changing its intensity never recompiles.
+export const AMBIENT_FILL = 0.8;
+const ambient = new THREE.AmbientLight(0xffc080, AMBIENT_FILL); // warm; the sun still dominates
+ambient.name = 'ambient-fill';
+scene.add(ambient);
 export const sun = new THREE.DirectionalLight(0xffa830, 1.15); // v0.2.484: golden bronze, brighter
 // v0.2.497: Matches _sunDir (0.70, 0.22, -0.45) — low rising sun behind mountains
 sun.position.copy(_sunDir).multiplyScalar(50); // v0.2.476: exact match to Sky.js sun direction

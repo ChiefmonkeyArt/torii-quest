@@ -1,7 +1,16 @@
+## v0.2.907-alpha: faster cold load, sticky pin, shaded faces (ADR-0142)
+
+- [x] Screencast review (2026-10-21, v0.2.905): real freezes ≈0.3–0.85 s; cold ENTER→play ≈15 s, of which ≈5–6 s is fetching modules.
+- [x] Engine + Rapier modulepreload on the title screen (no execution; skips Data Saver/2G).
+- [x] `?nuked=1` cleared after a successful boot (self-heal re-armed).
+- [x] Ambient fill 0.55 → 0.8 (near-black crate faces and tree trunk).
+- [x] ADR-0141 freeze numbers corrected (autocap gap = 1 s cadence + freeze).
+- [ ] Next cold-load screencast: "Loading engine…" should be near-instant after a title-screen login.
+
 ## v0.2.906-alpha: no freezes from shader rebuilds (ADR-0141)
 
 - [x] Autocap pipeline verified after dispatcher v3 (run 39574066654, 86 frames from 2026-10-20 18:48 BST).
-- [x] Root cause: flash lights toggled → every lit shader recompiled (first-fight 1.5–2.5 s freezes) + adaptive tier feedback.
+- [x] Root cause: flash lights toggled → every lit shader recompiled (first-fight freezes ≈0.5–1.5 s; corrected v0.2.907 against the screencast) + adaptive tier feedback.
 - [x] Constant flash-light count (3, every tier); boot shader prewarm; freeze meter in `snapshot().perf`.
 - [ ] Operator playtest on a real GPU; next autocap pull should show `perf.hitches.long` near 0 during the first fight.
 - [ ] Remaining first-seconds cost: deferred NAP NPC load (8.5 MB animations) after the first frame; measure via `perf` before changing.

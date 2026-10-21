@@ -8,45 +8,53 @@ const FLASH_TYPES = {
   sticker: { color: 0xff7ad9, intensity: 1.6, distance: 5, duration: 0.14 }, // NAP sticker land (ADR-0132)
 };
 
+// ADR-0141: the pool size is the SAME on every quality tier. three.js bakes the
+// number of visible lights into every lit material's shader, so turning a light
+// on/off (or a tier change that changes the count) recompiles every lit
+// material in the scene; that was the 1.5–2.5 s freeze when the first bots
+// opened fire (and the slow frames then stepped the tier down, causing
+// another). Lights are therefore ALWAYS visible: idle ones sit at intensity 0
+// with a short range, and a tier only limits how many may be lit at once.
+export const FLASH_LIGHTS = 3;
+const IDLE_DISTANCE = 0.01;
+
 export function createMuzzleFlashPool(scene, {
-  size = TIERS.HIGH.muzzleLights,
+  size = FLASH_LIGHTS,
   getQualityTier = () => TIERS.HIGH.name,
 } = {}) {
   const count = Math.max(0, Math.floor(size));
   const entries = new Array(count);
 
   for (let i = 0; i < count; i++) {
-    const light = new THREE.PointLight(0xffffff, 0, 0, 2);
-    light.visible = false;
+    const light = new THREE.PointLight(0xffffff, 0, IDLE_DISTANCE, 2);
+    light.visible = true; // constant light count: never toggled (see above)
     light.castShadow = false;
     scene.add(light);
-    entries[i] = { light, elapsed: 0, duration: 0, intensity: 0 };
+    entries[i] = { light, busy: false, elapsed: 0, duration: 0, intensity: 0 };
+  }
+
+  function _idle(entry) {
+    entry.busy = false;
+    entry.light.intensity = 0;
+    entry.light.distance = IDLE_DISTANCE;
   }
 
   function trigger(type, pos, opts) {
     const preset = FLASH_TYPES[type];
     if (!preset || !pos) return false;
 
-    const tierName = getQualityTier();
-    const tierDef = TIERS[tierName];
+    const tierDef = TIERS[getQualityTier()];
     if (!tierDef || tierDef.muzzleLights === 0) return false;
 
-    let active = 0;
+    let active = 0, entry = null;
     for (let i = 0; i < entries.length; i++) {
-      if (entries[i].light.visible) active++;
+      if (entries[i].busy) active++;
+      else if (!entry) entry = entries[i];
     }
-    if (active >= tierDef.muzzleLights) return false;
-
-    let entry = null;
-    for (let i = 0; i < entries.length; i++) {
-      if (!entries[i].light.visible) {
-        entry = entries[i];
-        break;
-      }
-    }
-    if (!entry) return false;
+    if (active >= tierDef.muzzleLights || !entry) return false;
 
     const intensity = opts?.intensity ?? preset.intensity;
+    entry.busy = true;
     entry.elapsed = 0;
     entry.duration = (opts?.durationMs ?? preset.duration * 1000) / 1000;
     entry.intensity = intensity;
@@ -54,7 +62,6 @@ export function createMuzzleFlashPool(scene, {
     entry.light.color.setHex(opts?.color ?? preset.color);
     entry.light.intensity = intensity;
     entry.light.distance = opts?.distance ?? preset.distance;
-    entry.light.visible = true;
     return true;
   }
 
@@ -62,25 +69,26 @@ export function createMuzzleFlashPool(scene, {
     if (!(dt > 0)) return;
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
-      if (!entry.light.visible) continue;
+      if (!entry.busy) continue;
       entry.elapsed += dt;
-      if (entry.elapsed >= entry.duration) {
-        entry.light.intensity = 0;
-        entry.light.visible = false;
-        continue;
-      }
+      if (entry.elapsed >= entry.duration) { _idle(entry); continue; }
       entry.light.intensity = entry.intensity * (1 - entry.elapsed / entry.duration);
     }
   }
 
+  /** Lights currently lit (tests / debug). */
+  function activeCount() {
+    let n = 0;
+    for (let i = 0; i < entries.length; i++) if (entries[i].busy) n++;
+    return n;
+  }
+
   function dispose() {
     for (let i = 0; i < entries.length; i++) {
-      const light = entries[i].light;
-      light.visible = false;
-      light.intensity = 0;
-      scene.remove(light);
+      _idle(entries[i]);
+      scene.remove(entries[i].light);
     }
   }
 
-  return { trigger, tick, dispose };
+  return { trigger, tick, activeCount, dispose };
 }

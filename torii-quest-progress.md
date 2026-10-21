@@ -1,3 +1,13 @@
+## v0.2.906-alpha: smoother start and first fight (ADR-0141)
+
+The recording from your session showed the game freezing for one and a half
+to two and a half seconds just as the bots first opened fire, and briefly
+right after entering. Each gun flash switched a light on, which made the
+graphics card rebuild every surface's shader. Now the flash lights stay
+present (just dark until needed), and all the shaders are built while the
+loading screen is still up. The recordings now also note any freeze and how
+long it lasted.
+
 ## v0.2.905-alpha: gateway relay trial planned (ADR-0140)
 
 A plan, not a change to the game. Quest will test a ready-made Nostr toolkit

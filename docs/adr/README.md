@@ -157,6 +157,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0138](./0138-human-aim-agile-bots.md) | Human bot aim (reaction lag, wandering error, learned lead), agile bots (dodges, jukes, wounded retreat), complementary cyan/lime incoming tracers with head glow, near-miss whizz; points unchanged | Accepted |
 | [0139](./0139-player-tracer-from-visible-muzzle.md) | Your tracer starts at the visible gun tip (gunCamera to main camera screen match), is never hidden by grass (near-plane pin), has an anchored launch, and uses an orange/magenta-violet core opposite the bots' cyan/lime; points unchanged | Accepted |
 | [0140](./0140-applesauce-gateway-trial.md) | Trial Applesauce as the gateway directory's relay layer behind a flag; Quest's trust layer unchanged; adopt only on measured wins, else in-house streaming fix | Proposed |
+| [0141](./0141-no-shader-rebuilds-mid-play.md) | No shader rebuilds mid-play: constant flash-light count on every tier, boot shader prewarm, freeze meter in snapshots/autocap (first-fight 1.5–2.5 s freezes) | Accepted |
 
 ## Workflow for a new decision
 
@@ -175,6 +176,7 @@ ADR-0130: [Game Zone v2 — rebuild the arena combat layer from scratch](./0130-
 ADR-0138: [Human aim, agile bots, complementary incoming tracers](./0138-human-aim-agile-bots.md).
 ADR-0139: [Your tracer leaves the gun you see](./0139-player-tracer-from-visible-muzzle.md).
 ADR-0140: [Trial Applesauce as the gateway's relay layer](./0140-applesauce-gateway-trial.md).
+ADR-0141: [No shader rebuilds mid-play](./0141-no-shader-rebuilds-mid-play.md).
 Accepted for the operator-directed combat-quality rebuild; supersedes the combat mechanisms of ADR-0006/0007/0011/0013–0017/0019–0021/0023/0024/0043; points unchanged.
 
 ADR-0129: [Presence liveness must tolerate reader clock skew](./0129-presence-liveness-clock-skew-rescue.md).

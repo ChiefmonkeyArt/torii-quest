@@ -39,7 +39,7 @@ describe('createQualityTier', () => {
     expect(TIERS.NORMAL).toMatchObject({
       bloom: false,
       shadowMapSize: 512,
-      muzzleLights: 4,
+      muzzleLights: 2,
     });
     // v0.2.612: LOW keeps a 256px shadow map — the renderer.shadowMap.enabled
     // toggle is gone (runtime flip = full scene shader recompile = frame stall).

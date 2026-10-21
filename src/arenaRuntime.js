@@ -14,7 +14,9 @@
 // back into the shell's module scope.
 import { state, isPlaying, isPaused, isLive, isDead, needsPointerLock, isReloading, transition, GAME_EVENT, resetRun } from './state.js';
 import { emit, on, EV } from './events.js';
-import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab, setArenaAtmosphere } from './scene.js';
+import { renderer, renderFrame, scene, camera, composer, bloomPass, sun, requestFrameGrab, setArenaAtmosphere, gunScene, gunCamera } from './scene.js';
+import { prewarmShaders } from './engine/render/shaderPrewarm.js';
+import { createHitchMeter } from './engine/render/frameHitch.js';
 import { createQualityTier } from './engine/render/qualityTier.js';
 import { createPerfHud } from './engine/render/perfHud.js';
 import { createRecIndicator } from './engine/render/recIndicator.js';
@@ -722,6 +724,9 @@ export function createArenaRuntime(hooks = {}) {
     },
   });
   let _muzzleFlashes = null;
+  let _prewarm = null; // ADR-0141: last shader prewarm result (ToriiDebug.prewarm)
+  const _hitch = createHitchMeter(); // ADR-0141: freezes while playing (snapshot.perf)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => _hitch.resume());
   let _stickerFeel = null; // ADR-0132 NAP sticker feel (null in the minimal world)
   let _gz = null; // Game Zone v2 (ADR-0130) — null in the minimal world until first arena boot
   const _perfHud = createPerfHud({
@@ -951,6 +956,7 @@ export function createArenaRuntime(hooks = {}) {
   const FOOT_MIN_SPEED = 1.5;
 
   function update(dt, frame) {
+    if ('playing' === state.phase) _hitch.note(performance.now()); else _hitch.resume();
     tickPlayer(dt);
     tickFly(dt);   // dev free-fly: no-op unless ToriiDebug.fly is enabled
     // ADR-0099: 1Hz-throttled refresh of the Kami-mode dev menu. Cheap:
@@ -1554,6 +1560,9 @@ export function createArenaRuntime(hooks = {}) {
         reloading: state.reloading, pointerLocked: state.pointerLocked,
       }),
       getCrateSummary, config: TUNING,
+      // ADR-0141: freezes + shader prewarm result (rides along in autocap frames).
+      getPerf: () => ({ hitches: _hitch.stats(), prewarm: _prewarm, programs: renderer.info && renderer.info.programs ? renderer.info.programs.length : null }),
+      getProgramNames: () => (renderer.info && renderer.info.programs ? renderer.info.programs.map((p) => p.name + '#' + p.id) : []),
       // ADR-0052: Kami Mode client-state providers for the ema snapshot.
       isKamiActive: () => kamiActive(),
       isKamiNoteOpen: () => kamiNoteOpen(),
@@ -2129,6 +2138,16 @@ export function createArenaRuntime(hooks = {}) {
         try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
       }));
     }
+    // ADR-0141: compile every shader now, behind the loading screen, instead of
+    // the first frame each thing is seen (the first-seconds / first-fight
+    // freezes). Waits up to ~3 s for the bot models; never throws.
+    startPhase('prewarmShaders');
+    _prewarm = await prewarmShaders({
+      renderer,
+      targets: [[scene, camera], [gunScene, gunCamera]],
+      ready: () => !_gz || _gz.list().every((b) => b.modelReady),
+    });
+    endPhase('prewarmShaders');
     mark('bootstrap-physics-end');
   }
 

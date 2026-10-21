@@ -1,3 +1,10 @@
+## NO SHADER REBUILDS MID-PLAY: v0.2.906-alpha (ADR-0141)
+
+- `muzzleFlash.js`: `FLASH_LIGHTS = 3` lights that are always visible; idle means intensity 0 and a 1 cm range. The tier `muzzleLights` value (3/2/0) only caps how many are lit. Never toggle `light.visible` on lights in the main scene.
+- `shaderPrewarm.js`: called at the end of `bootstrapPhysics`. It compiles `scene` and `gunScene`, waiting up to 180 frames for bot models.
+- `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
+- To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
+
 ## GATEWAY APPLESAUCE TRIAL: v0.2.905-alpha docs (ADR-0140, proposed, not started)
 
 - Today the gateway reads through `fanoutReq`: a fresh socket per relay per call, waiting for the slowest relay (4–5 s), with no subscription, outbox routing or shared cache.

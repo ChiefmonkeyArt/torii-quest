@@ -1,9 +1,24 @@
+## v0.2.909-alpha: Gate v1 frozen, conformance kit, letter, market plan (ADR-0144/0145)
+
+- [x] `GATEWAY_PROTOCOL.md` v1 (frozen), matching the live reader/writer/hop/arrival; v0.1 draft kept in `docs/`.
+- [x] Directory reader verifies signatures (`verify: true`); forged or tampered worlds are dropped.
+- [x] Conformance kit: `gate-v1.mjs`, signed fixtures, `check.mjs`, `reference-world/`; CI runs the fixtures on kit + Quest.
+- [x] Invitation letter (living draft, not sent): `docs/outreach/torii-gate-letter.md`.
+- [ ] **Owner decision:** licence for the spec and kit (repo is GPL-3.0; a permissive licence would help other engines adopt it).
+- [ ] **Applesauce relay layer, ASAP** (operator 2026-10-21): next release, v0.2.910 (ADR-0140 trial steps below).
+- [ ] **NAP Zone market (ADR-0145, Proposed), soon:**
+  - [ ] Owner from the world, not the build (fix: `ADMIN_PUBKEY_HEX` is empty in the browser).
+  - [ ] Curated sellers: stalls with products, live auctions, past auctions.
+  - [ ] Shop metadata kind: confirm read-only against `PlebeianApp/market`.
+  - [ ] Gate `market` extension tags.
+  - [ ] Answer the open questions in ADR-0145.
+
 ## v0.2.908-alpha: Gate track, the north star (ADR-0143)
 
 - [x] Strategy north star: the Gate is the product, Quest is the first world (ADR-0143).
-- [ ] **G1:** freeze spatial hop v1 in `GATEWAY_PROTOCOL.md`: open travel (heartbeat discovery, URL handoff, arrival). §6 signed event → optional extension. Add wire-format fixtures to CI.
-- [ ] **G2:** conformance kit: JSON fixtures + an engine-free validator + a minimal reference world (no Three.js).
-- [ ] **G3:** a second world on another stack. Draft an outreach note to the Nostr Game Engine developers (operator approves the text and the sending identity first).
+- [x] **G1:** spatial hop v1 frozen in `GATEWAY_PROTOCOL.md`, with fixtures in CI (v0.2.909, ADR-0144).
+- [x] **G2:** conformance kit `conformance/gateway-v1/` (v0.2.909, ADR-0144).
+- [ ] **G3:** a second world on another stack. Invitation letter drafted in `docs/outreach/torii-gate-letter.md`, **not sent**. The operator will send it to many people, after much more Quest work; refresh and rewrite it from its checklist before each send.
 - [ ] **G4:** NIP draft after G3 travels both ways.
 
 ## v0.2.907-alpha: faster cold load, sticky pin, shaded faces (ADR-0142)
@@ -25,7 +40,7 @@
 
 ## v0.2.905-alpha: Gateway Applesauce relay-layer trial (ADR-0140, proposed)
 
-Order (ADR-0143): starts after Gate track G1–G2.
+Order (ADR-0143): starts after Gate track G1–G2 (done in v0.2.909). Operator 2026-10-21: ASAP, so it is next.
 
 
 - [ ] Add `GATEWAY_TRANSPORT` flag (default `'fanout'`); dynamic-import Applesauce from the gateway screen only.

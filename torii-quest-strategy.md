@@ -16,6 +16,11 @@ Torii Quest is the first world, and the proof that it works.**
   - **G3:** a second world on another stack. First candidate: the Nostr Game Engine (Java/jMonkeyEngine). Outreach needs operator approval.
   - **G4:** a NIP draft.
   - The Applesauce relay trial (ADR-0140) follows G1–G2.
+- **Status (v0.2.909, ADR-0144):**
+  - G1 and G2 are done.
+  - The Applesauce relay layer is next, ASAP.
+  - The invitation letter is drafted but **held** until much more Quest work is done; then it goes to many people.
+  - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Proposed).
 - **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.
 
 ## TOP PRIORITY: game zone combat quality (ADR-0130, 2026-10-16)

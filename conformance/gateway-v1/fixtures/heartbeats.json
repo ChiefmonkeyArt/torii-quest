@@ -1,0 +1,876 @@
+{
+  "protocol": "torii-gate",
+  "version": 1,
+  "nowSec": 1792540800,
+  "owner": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+  "cases": [
+    {
+      "name": "valid owner-signed heartbeat",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "nap-main"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"nap-main\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "fea6a012fc8df570f096a1e1f7d42bf8a1cc8d200d441e121b8212895b3d7aac",
+        "sig": "867ffc2aa5b9c20df924670831afde7c84dede0c86f9993f18b5d71df063ce669a0d8277d90f9a51b4328dca8f4fb88e65b39521899e4921d67b17d4fc2c4c43"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "zoneId": "nap-main",
+          "owner": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+          "website": "https://quest.example.org/",
+          "zoneType": "nap",
+          "travellable": true
+        }
+      }
+    },
+    {
+      "name": "beacon-signed heartbeat names the owner in a p tag",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "beacon-zone"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "p",
+            "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"beacon-zone\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+        "id": "8df608d4c9830a32698b37aa06277a06c082d5ac3e1480180fc046a63f897c17",
+        "sig": "948326a0fad660be83c382f178a7afdfacdb8bbecd8d8bb5aa271cf5a87d21e798cf9425e3ee03710da52e6462101e9e7065d5de99f7957c1d644816ab4b3639"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "zoneId": "beacon-zone",
+          "owner": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa"
+        }
+      }
+    },
+    {
+      "name": "tampered content fails the signature check",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "tampered"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"tampered\",\"title\":\"Chiefmonkey World\",\"description\":\"A FAKE zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "80bab369657f09073c27e7c7315ea8b385391a4e8cbc024b063159875b83e000",
+        "sig": "c37f6a71fbaa434adbfff06ad72d51b6aabe08fbb3308ef5fcb2aa3eac51dd153cf696bfaf2d20b701da093aa53dbb22305affa1ff9b5242cb2e34a22eddfb93"
+      },
+      "expect": {
+        "listed": false,
+        "reason": "bad-signature",
+        "writerOk": false
+      }
+    },
+    {
+      "name": "expired long ago is stale",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792533600,
+        "tags": [
+          [
+            "d",
+            "old"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792534800"
+          ]
+        ],
+        "content": "{\"zoneId\":\"old\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "d9a81177c6c9edfbf179b10ef29010a61eb7f11f96161316894d91590fed3273",
+        "sig": "87aef108d0aa30f5358c167796aeba709fabcefc57fa48d9b220ecf1612743e20f8c8e573ae75880ab2a738d11188f751fe2d46d6ca35d74ef4f489c861558d4"
+      },
+      "expect": {
+        "listed": false,
+        "reason": "stale",
+        "writerOk": false
+      }
+    },
+    {
+      "name": "just-expired but recent (reader clock ahead) stays live",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792539500,
+        "tags": [
+          [
+            "d",
+            "skew"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792540700"
+          ]
+        ],
+        "content": "{\"zoneId\":\"skew\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "6d5a90f155c8e4b6eb158fc7311e39e91862e463e53b390a5e96d18e216e0876",
+        "sig": "e5c081de72984e8c06b717194e43c6cbe1f3ef8e1e532dc61da12478cebab5a32db2af72311350f0e1754bd136b3426b16e7ea843bc467820a5bea271992f4d4"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "zoneId": "skew"
+        }
+      }
+    },
+    {
+      "name": "no expiration, two hours old, is stale",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792533600,
+        "tags": [
+          [
+            "d",
+            "noexp-old"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ]
+        ],
+        "content": "{\"zoneId\":\"noexp-old\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "9bab622c39f95a459ee2cf2d01831bbdc1b06061caba3ae261d0625c054a270a",
+        "sig": "780c668f1246565d430fc185ddbbe25b98c78ec4a55fe33eb4bceed2328a5e3489329d1c27ece49dd2abfef2c3b694225e4d161c0a9b83024e29d8c62dab1b46"
+      },
+      "expect": {
+        "listed": false,
+        "reason": "stale",
+        "writerOk": false
+      }
+    },
+    {
+      "name": "no expiration, recent: listed by readers, but not a conforming writer",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "noexp-new"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ]
+        ],
+        "content": "{\"zoneId\":\"noexp-new\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "a4ac00bc73b2c894077b9e29c21c23ecca6dc9defcff55a4b0aa16c480b97218",
+        "sig": "0d9963f4eac3f0ba73684dddaf7b29a2df827f8c34291d66a181e44545e38c750b357057aa45494e728c4cda3bc1f8790ad3684f98432a125f5818cd75cbd33d"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "zoneId": "noexp-new"
+        }
+      }
+    },
+    {
+      "name": "a state tag marks a handshake, not presence",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "handshake"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "state",
+            "request"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"handshake\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "1eb6744bf58d216c7720dd29721be1d9eae8da98b1b24e637292b74bc5e6054f",
+        "sig": "af6aa6ce6b4d52db92db3f661f2218c9b5c32cc6ef33ff0132a3f857559674733151a394676ae59129a8a83ca3e88898c5835a1b662ff0668ba53e46536c4954"
+      },
+      "expect": {
+        "listed": false,
+        "reason": "stale",
+        "writerOk": true
+      }
+    },
+    {
+      "name": "markup and control characters are stripped from text",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "markup"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"markup\",\"title\":\"<b>Evil</b>\\u0007 World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "9da926b6c8be8a1f3d049c7fb5a9856422bfa3eeef13f31b312979c46f56e17d",
+        "sig": "2ac2d8f93de446e9b1630e21cb9d6594fa14605256c35c10481cc49bda74d1a71a0b1e522da62a872002576137f6e0cb97e9b8dc74ff4ce47c0643bf38302b7f"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "title": "bEvil/b World"
+        }
+      }
+    },
+    {
+      "name": "http website: listed but not travellable",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "plain-http"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"plain-http\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"http://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "bb70586099e5d18e2bd2b15f1a328588d2fdabd00b4c89b08b2931a98b654f52",
+        "sig": "2badcc73c253cd8ffc2f4aa1910bdf196d032af8ca0ed0002516f08cc07819b00788f34ad3b8977b108f02a68a1484cf41d2cf170551a87b9548b206ea82fe15"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "website": null,
+          "travellable": false
+        }
+      }
+    },
+    {
+      "name": "javascript avatar is dropped",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "bad-avatar"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"bad-avatar\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1,\"avatar\":\"javascript:alert(1)\"}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "2ec4f164a23bd1736369931cabc6f6b052e0097da7b5d221996f31a64f3db435",
+        "sig": "9729761866709e895eb308fbf416d6b48b90790b455aaa9e3237128af65b85faaf3dd39bf5407b5272ddc8941d256bb3e19cc50f8cd609377d3920079b259b13"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "avatar": null
+        }
+      }
+    },
+    {
+      "name": "ws extension: wss kept, the tag wins over content",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "mp"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "ws",
+            "wss://quest.example.org/mp"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"mp\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1,\"wsEndpoint\":\"wss://other.example.org/mp\"}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "590f63deb02c3c44f038e0f2ea0e5d62d335225d2a1930e2662500e6b3e19396",
+        "sig": "928ffd7cdab48e11a65eb9b3131299d52a559011f298e870a44f3bc9524fd1bc3252d71e013bdbfedebbf1a109b34716da9b087b518dc5be9d5833dba1404d29"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "ws": "wss://quest.example.org/mp"
+        }
+      }
+    },
+    {
+      "name": "plaintext ws extension is dropped",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "mp-plain"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "ws",
+            "ws://quest.example.org/mp"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"mp-plain\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "27c4f46bcc398467ae6db3d86d33d383a7aca46b5bebc0360e692f79070545c3",
+        "sig": "79b9102b6d06d63764a1e74d107eab32ddb0559732a37d27bf1b776fb06594a25fc9e228c76649abfb421bf74781209091978b6d2766eaec23e5178624dd6b78"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "ws": null
+        }
+      }
+    },
+    {
+      "name": "unknown zoneType degrades to none",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "odd-type"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"odd-type\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"casino\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "27348805a867a4c99466edab0b10863ca2ac2b7300f163788b470de2b68bc899",
+        "sig": "1fa220110cfde0c3e1e9a814dc76a3c5ab5cc9a08a55a1d6b8b79e4d1cd56dd5f2e30e8c79d765efa33a7bce309ea3efffa1e29c1e3707a64e3c47dc9ee34794"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "zoneType": null
+        }
+      }
+    },
+    {
+      "name": "future version with unknown fields is still read",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "future"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"future\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":2,\"teleportFx\":\"sparkles\"}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "cad245c0de8089b88ae4f4fabeb97c5b12249a81403673ee444fdcd53e712027",
+        "sig": "6afbeb3141812dda6465d12e3403ca7b0a00de12ca3963c60f1e4f813763c320039270955edb86cfc8768155388212fb08aa4880f8d1e9196449d2a42754cf69"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "zoneId": "future"
+        }
+      }
+    },
+    {
+      "name": "wrong kind is skipped",
+      "event": {
+        "kind": 1,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "kind1"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"kind1\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "39c9bd008c8afaee27df13cf784aab8179080597b290ffbc73b8b3d0d67c44b6",
+        "sig": "b7ae675d04703fb616748cac1e8a459dbcbee3fe222c85d7c2ed8148564f49cd0b0ce13d741e2a44e17e87a8682e350370121c387918c23a4f02d20dab39314d"
+      },
+      "expect": {
+        "listed": false,
+        "reason": "wrong-kind",
+        "writerOk": false
+      }
+    },
+    {
+      "name": "malformed content JSON falls back to tags",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "tags-only"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{not json",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "fbd69aac2519e150781344e7cbb64cf9bb9e8f8a0ffafed822923e0418e975f8",
+        "sig": "ec13e68813da485c47561370c13119e3d76bc5a2db4bd3c7d3c7c2e2c3cb088113eda369b384377c529fa2372eabfbd427ef45c56e723ad9717e2fd5820aef2e"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": false,
+        "world": {
+          "zoneId": "tags-only",
+          "title": "Chiefmonkey World",
+          "website": null
+        }
+      }
+    }
+  ],
+  "dedupe": {
+    "name": "newest record per (pubkey, zone) wins",
+    "events": [
+      {
+        "kind": 30078,
+        "created_at": 1792540200,
+        "tags": [
+          [
+            "d",
+            "moving"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541400"
+          ]
+        ],
+        "content": "{\"zoneId\":\"moving\",\"title\":\"Old\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "42187abfc24070ead4b2d0ab85852d2c7b09a74c9c3034131d8b92170b0d517a",
+        "sig": "a9932d67cadf1a831e14b37d4fef193911b5c90d3e345c383a5316d645f86b210fb70d930f4413aea896a822d476872d7db6f0b4e1d1db9eb83cfc61bd9c1f0c"
+      },
+      {
+        "kind": 30078,
+        "created_at": 1792540770,
+        "tags": [
+          [
+            "d",
+            "moving"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541970"
+          ]
+        ],
+        "content": "{\"zoneId\":\"moving\",\"title\":\"New\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "955714781597ead9bf47785402a218030742fc62ad7d78a56a5a160ddb74c528",
+        "sig": "d511e1e1201d71489ab1582bb102073ed3b890bfdfb6e7d51511a79fd5b746ae9d681210efbf162088305c6f95f5e214e275ca015e7d285a3535995b65fad06f"
+      },
+      {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "moving"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"moving\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "3c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
+        "id": "11ebde36dee22b38ea6b446dfd7ce655edd4abc89bd88209f9b9a96b48b5e783",
+        "sig": "8391b1dd8caed7eb8d4a247401383f637b4de764d561ed67db7e212cfdb9ffe7ce71d982d8a5fd1ee92221e54ebb22544c2af9c65268fdfc73743ceb2203e71c"
+      }
+    ],
+    "expect": {
+      "count": 2,
+      "titles": [
+        "New",
+        "Chiefmonkey World"
+      ]
+    }
+  }
+}

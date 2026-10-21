@@ -19,6 +19,7 @@
 import { normalizeRelayEvent, validateRelayEvent, validateRelayUrl } from '../nostr/relayRead.js';
 import { safeProfileUrl, shortPubkey } from '../nostr/profileRead.js';
 import { looksLikeNpub } from './travelIntent.js';
+import { verifyNostrEventSig } from '../crypto/nostrSig.js';
 
 // NIP-78 application-data kind. The Torii world-registry / gateway descriptor is an
 // addressable (parameterised-replaceable) event — its `d` tag is the zone id, so the
@@ -376,11 +377,18 @@ export function readGateways(input, options = {}) {
       result.skipped.push({ event, errors: struct.errors });
       continue;
     }
+    // Gate v1 §3.1 (ADR-0144): with `verify`, drop any record whose NIP-01 id or
+    // BIP-340 signature fails, so a hostile relay can't inject a forged world.
+    if (options.verify === true && !verifyNostrEventSig(event)) {
+      result.skipped.push({ event, errors: ['bad-signature'] });
+      continue;
+    }
     const ex = extractGatewayFromEvent(event);
     if (!ex.ok) {
       result.skipped.push({ event, errors: ex.errors });
       continue;
     }
+    if (options.verify === true) ex.gateway.trust = 'signature-verified';
     // ADR-0053: drop travel handshake records + expired/stale presence so the
     // directory only ever lists LIVE worlds.
     if (!_presenceLive(event, nowSec)) {

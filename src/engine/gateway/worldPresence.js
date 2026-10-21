@@ -183,7 +183,8 @@ export async function fetchOnlineWorlds(opts = {}) {
 
   // ADR-0053: pass the caller's clock through so liveness filtering is testable
   // (defaults to Date.now() inside readGateways when nowSec is absent).
-  const report = readGateways(events, { nowSec: o.nowSec });
+  // Gate v1 §3.1: the live directory passes verify:true (signature check).
+  const report = readGateways(events, { nowSec: o.nowSec, verify: o.verify === true });
   if (!report.ok) {
     out.errors.push(...(report.errors || []));
     return out;

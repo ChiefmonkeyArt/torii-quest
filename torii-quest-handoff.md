@@ -1,3 +1,12 @@
+## GATE V1 FROZEN + KIT: v0.2.909-alpha (ADR-0144/0145)
+
+- **Spec.** `GATEWAY_PROTOCOL.md` is v1 and frozen; the old draft is in `docs/gateway-protocol-v0.1-draft.md`. Wire changes = additive §8 extensions, or v2 with an ADR + new fixtures.
+- **Kit.** `conformance/gateway-v1/gate-v1.mjs` must keep zero Torii imports (a test enforces it).
+- **Fixtures.** Regenerate with `node tools/gen-gate-v1-fixtures.mjs` (deterministic keys and clock). `tests/gateway/gate-v1-conformance.test.js` runs them on the kit AND Quest.
+- **Reader.** `readGateways(..., {verify:true})` marks `trust:'signature-verified'`; `fetchOnlineWorlds` forwards `verify`, and `main.js` sets it.
+- **Letter.** `docs/outreach/torii-gate-letter.md` is NOT to be sent. Before any send: run its checklist, refresh its facts table, and get operator approval for the text and the identity.
+- **Market.** ADR-0145 is a proposal only. Known bug to fix first: `ADMIN_PUBKEY_HEX` is '' in the browser, so the owner boards have no owner there.
+
 ## NORTH STAR: GATE IS THE PRODUCT: v0.2.908-alpha (ADR-0143)
 
 - Headline: Torii is an open network of worlds; the Gate is the open protocol; Quest is the first world.

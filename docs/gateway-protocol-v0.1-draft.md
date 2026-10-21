@@ -1,0 +1,463 @@
+# Torii Gateway Protocol: v0.1 DRAFT (historical; superseded by GATEWAY_PROTOCOL.md v1, ADR-0144)
+
+> **North star (ADR-0143, v0.2.908-alpha):** this protocol is the Torii product for developers; Quest is its first world. Next: **G1** freeze v1 (open travel: heartbeat discovery + URL handoff + arrival; the signed event in §6 becomes an optional extension) → **G2** conformance kit → **G3** second world on another stack → **G4** NIP.
+>
+> **Status:** DRAFT (v0.1, GWPROTO-1, landed v0.2.134-alpha). This is a working
+> draft of the wire agreement, not a frozen spec. It is implementation-independent
+> on purpose — any Nostr/Bitcoin world should be able to implement it, not just
+> Torii Quest.
+>
+> **Scope of this version:** the relay-first **URL handoff MVP** is specified
+> concretely (Torii ships pure helpers for it in `src/engine/gateway/travelIntent.js`).
+> The **signed spatial event** is specified as the forward target, not yet
+> implemented. No signing, publishing, or browser navigation is performed by the
+> current code.
+
+---
+
+## 0. Component is code, protocol is agreement
+
+This is the central distinction and the reason this file exists separately from
+the gateway component:
+
+- The **Torii Gateway component** (`src/engine/components/toriiGateway.js`, CMP-8)
+  is **code** — one concrete, droppable implementation of a gate. It is owned by
+  whoever ships it, it can be rewritten, forked, or replaced, and it carries
+  Torii-specific assumptions.
+- The **Gateway Protocol** (this document) is an **agreement** — the shape of the
+  message two independently-built worlds exchange so a player can cross from one
+  into the other. It carries no code and no Torii assumptions. A world that has
+  never heard of Torii Quest can implement it.
+
+A protocol survives its first implementation. If the only way to travel between
+worlds is "run the Torii component," then there is no commons — there is one
+client. The handoff is fundamentally a *spatial* event (cross a gate in world A,
+arrive in world B carrying your identity), so it belongs in the open, like any
+other Nostr event kind.
+
+---
+
+## 1. Identity: world, zone, gateway
+
+Three nested identities, all anchored to a Nostr `npub` for ownership/provenance:
+
+| Thing | What it is | Identity |
+|---|---|---|
+| **World / node** | An independently-operated instance (a game client + its relays). | `npub` of the operator + a human label. |
+| **Zone** | A scoped space inside a world (a NAP zone, arena, shop, gallery). | `zone` id, unique within the world; optional `npub` if separately owned. |
+| **Gateway** | A specific gate placed in a zone that points at a destination. | `gateway` id + the destination block it carries. |
+
+Ownership rule: a destination is addressed by **`npub` (+ optional `relay` hint)**,
+not by a hostname. The npub is the durable identity; relays and URLs are
+discovery hints that can change. This keeps the graph self-sovereign — no central
+registry of worlds, no DNS dependency for identity (DNS may still serve the
+*bytes* of a client, but it does not *name* the destination).
+
+---
+
+## 2. Discovery: relay-first hybrid
+
+How does a gate learn where it can send a player, and how does a destination
+world know a traveller is coming?
+
+**Relay-first hybrid** — try relays first, fall back to direct hints:
+
+1. **Relay-mediated (preferred).** Worlds publish a discoverable presence/zone
+   descriptor to shared relays (a world-registry event, future kind TBD). A gate
+   resolves its destination `npub` → current `relay` + entry data by querying
+   relays. This is the Nostr-native path: no central server, censorship-resistant,
+   and it lets a destination move relays without breaking inbound gates.
+
+   > **Read-proof (v0.2.164, `src/engine/gateway/gatewayRead.js`).** The READ side
+   > of this path now has a pure, inert proof: `readGateways(input,options)`
+   > consumes injected/sample relay events (whatever a read-only transport WOULD
+   > return), builds a NIP-01 filter for kind **30078** (NIP-78 app data — the
+   > read-proof choice while the registry kind is TBD) carrying the discovery topic
+   > tag `['t','torii-gateway']`, and extracts each event into a SANITISED travel-
+   > preview model (`zoneId` from the `d` tag, `title`/`description`/`zoneType`,
+   > `npub`/`pubkey`, https-only `website`/`banner`, ws/wss `relays`, `topics`,
+   > `created_at`, `trust:'unverified'`), deduped to the newest record per
+   > addressable `pubkey+zoneId` (parameterised-replaceable semantics). It NEVER
+   > navigates, queries the network, signs, or publishes — the report pins
+   > `navigated:false`/`signed:false`/`published:false`/`performed:false`/
+   > `readOnly:true`. This proves how a gate would read + validate a destination
+   > descriptor into a safe preview; the live relay query + the act of travelling
+   > remain deferred (§6).
+2. **Direct hint fallback.** The gate's manifest already carries a `relay` hint
+   and (in the URL-handoff MVP) a destination URL. If relays are unavailable or
+   the destination has not published a descriptor, the gate uses these static
+   hints directly. Lower resilience, but always works for a known pair.
+
+The two are not exclusive — the static hint seeds discovery, the relay refreshes
+it. Implementations MAY ship with only the fallback (URL MVP) and add relay
+discovery later without changing the travel-intent shape (§4).
+
+---
+
+## 3. URL handoff MVP (implemented helpers)
+
+The minimum viable hop, with **no signing and no relay**: a safe, parseable URL
+(or equivalent intent object) that describes a travel request. This is what
+`src/engine/gateway/travelIntent.js` builds and parses today. It is a *transport
+encoding* of the travel intent in §4 — the same fields, serialised into a query
+string a host can hand to a (future) navigation layer.
+
+Properties:
+
+- **Pure data, no side effects.** The helper *builds* and *parses* — it never
+  navigates the browser. Whether/how to act on a parsed intent is the host's
+  decision (and a separate, reviewable step).
+- **Validated.** Required fields (`to`) must be present; npub-shaped fields are
+  shape-checked; unknown/malformed input yields a structured error, never a throw.
+- **Round-trippable.** `parseTravelUrl(buildTravelUrl(intent))` returns an
+  equivalent intent.
+- **Forward-compatible.** The URL carries exactly the §4 fields, so upgrading the
+  MVP to a signed event (§6) is additive: the same intent gains a `sig`/`pubkey`
+  and moves from a query string to an event body.
+
+The URL form is explicitly a **bootstrap**, not the destination. It is trivially
+forgeable (anyone can type a URL), so it is only acceptable while worlds are
+trusted/demo-grade. Trust comes with §6.
+
+---
+
+## 4. Travel intent (the core payload)
+
+The travel intent is the implementation-independent heart of the protocol. Both
+the URL MVP (§3) and the future signed event (§6) carry these fields:
+
+| Field | Req | Meaning |
+|---|---|---|
+| `to` | **yes** | Destination identity — the world/zone owner `npub` (or a `world:zone` address). Where the player is going. |
+| `from` | no | Source identity — the origin world/zone `npub`/address. Where the player came from (provenance + analytics). |
+| `return` | no | Return address — where "go back" sends the player. Often equal to `from`, but may differ (e.g. a hub). Enables the return path (§5). |
+| `spawn` | no | Spawn point id / label within the destination zone (which entry point to arrive at). |
+| `zoneType` | no | Hint about the destination kind (`nap`, `arena`, `shop`, `gallery`, …) so the host can prepare the right scene before arrival. |
+| `relays` | no | Ordered list of relay URLs to reach the destination (discovery hint; see §2). |
+| `player` | no | Traveller identity (`npub`) — who is travelling. Omitted in anonymous demos; required for a signed hop. |
+| `state` | no | Opaque pointer to carried state (a hash/id, not the state itself — keep payloads small; the destination fetches state out-of-band). |
+
+Design rules:
+- **Address by npub, not host.** `to`/`from`/`return` are identities; `relays`
+  are hints.
+- **Carry a pointer, not a payload.** `state` is a reference, never a blob — the
+  hop stays small and the destination pulls what it needs.
+- **Minimal required set.** Only `to` is mandatory; everything else degrades
+  gracefully so a bare hop still works.
+
+---
+
+## 5. Entry points and the return path
+
+- **Entry points.** A destination zone exposes named spawn points. The intent's
+  `spawn` selects one; absent that, the destination chooses a default. Entry
+  points let a single zone be entered "at the front door," "at the market stall,"
+  etc., without separate gateways.
+- **Return path.** A hop SHOULD carry `return` so the destination can offer "go
+  back" without the player getting stranded. The return is itself a travel intent
+  (the destination builds a new hop addressed at `return`). This makes travel
+  symmetric and composable — A→B→A is just two intents, and a hub can route
+  A→Hub→B.
+
+Statelessness: the protocol does not require either side to hold a session. Each
+hop is a self-contained intent. Return works because the address travels *with*
+the player, not because a server remembers them.
+
+---
+
+## 6. Signed spatial event (forward target, not yet built)
+
+The trust upgrade. The travel intent (§4) becomes the content of a **signed Nostr
+event**: the traveller (or the source world) signs the hop with their key, so the
+destination can verify *who* is arriving and *where from* before admitting them.
+
+Sketch (fields, not a frozen kind):
+
+- `pubkey` — signer (traveller npub, or source-world npub for world-authorised hops).
+- `kind` — a spatial-hop kind (TBD; candidate for the NIP in §8).
+- `content` / `tags` — the §4 travel intent (to/from/return/spawn/zoneType/relays/state).
+- `created_at`, `id`, `sig` — standard Nostr event integrity.
+
+This makes a hop **unforgeable and attributable** the same way the component
+economy does it: **attribution travels with the npub, integrity with the
+signature** (see `COMPONENTS.md` provenance rules). The URL MVP becomes the
+unsigned/demo tier; the signed event is the trust tier. No code in v0.2.134
+signs or publishes anything — this section is the target the MVP is shaped to
+grow into.
+
+> **Travel-intent confirmation (v0.2.165, `src/engine/gateway/travelConfirm.js`).**
+> Before any hop is performed, the destination is prepared and CONSENT-CHECKED. The
+> READ-side `gatewayRead` preview model (§2) — or a plain destination descriptor — is
+> re-sanitised by `sanitizeDestination` (required `zoneId`; control/markup-stripped text;
+> https-only website; ws/wss credential-free relays; valid npub/hex pubkey; known
+> `zoneType`) and routed through the v0.2.162 consent gate's `gateway:travel` action by
+> `prepareTravelIntent(input, grant)`. The result is INERT —
+> `{ok, action, destination, consent, summary, navigated:false, performed:false,
+> signed:false, published:false, readOnly:true}` — BLOCKED by default (`consent-required`)
+> and allowed only with an explicit matching grant. Even when allowed, it NEVER navigates,
+> unloads/reloads the world, signs, publishes, or opens a socket: `allowed:true` is proof
+> of what the host *could* later execute, not the act itself. The actual world hop
+> (§5, `world/handoff.js`) and the consent UX that mints the grant remain the deferred
+> host steps.
+
+---
+
+## 7. Relays
+
+- Relays are **transport and discovery**, never identity. A destination is its
+  npub; relays are where you currently reach it.
+- A hop SHOULD carry a small ordered `relays` hint; a robust client also resolves
+  the destination npub against its own relay set.
+- Operators are free to run private/community relays. The protocol assumes
+  multiple, possibly overlapping relay sets — no canonical relay.
+
+---
+
+## 8. Security and trust
+
+The honest threat model for each tier:
+
+| Tier | Forgeable? | Acceptable for |
+|---|---|---|
+| URL handoff MVP (§3) | Yes — anyone can craft a URL. | Demos, trusted pairs, local/dev. |
+| Signed event (§6) | No — requires the signer's key. | Real cross-world travel between untrusted worlds. |
+
+Rules even at MVP tier:
+- **No implicit navigation.** Parsing an intent never moves the player. Acting on
+  it is a separate host decision (so a malicious link cannot teleport/grief a
+  player without host mediation).
+- **Validate at the boundary.** Treat every inbound intent as untrusted input:
+  shape-check npubs, reject unknown/oversized fields, never `eval` or fetch from
+  unvalidated URLs. (Consistent with the existing Nostr-avatar URL validation and
+  CSP hardening already in the codebase.)
+- **State is a pointer, fetched and re-validated by the destination** — the
+  source cannot push arbitrary state into the destination; it can only point at
+  state the destination chooses to fetch and check.
+- **Destination consent.** A world MAY refuse a hop (unknown source, blocklist,
+  capacity). Admission is the destination's right, mirroring component
+  host-side verification.
+
+---
+
+## 9. Possible NIP path
+
+Once the signed-event format (§6) is stable and demonstrated **cross-world** (a
+Torii gate handing off to a second world that implements only this document, not
+Torii code), it is a candidate to propose as a **NIP** — a spatial-hop / world-
+handoff event kind for the wider Nostr ecosystem. The staged path mirrors
+`torii-quest-strategy.md` → *Nostr Spatial Gateway Protocol*:
+
+1. Reference component — Torii Gateway (landed v0.2.133). ✅
+2. **This spec** — extract the wire format (GWPROTO-1, v0.2.134). ✅ (draft)
+3. Interop demo — validate with a non-Torii consumer. ⏳
+4. Propose as a NIP once stable and demonstrated. ⏳
+
+The end state: the metaverse layer is a graph of independently-owned worlds
+linked by signed spatial events, with **no central router**.
+
+---
+
+## 10. Relationship to the code
+
+- `src/engine/components/toriiGateway.js` (CMP-8) — the reference **component**;
+  its manifest carries `gateway: { npub, relay, target, position }`, the
+  destination wiring a host reads to build a travel intent.
+- `src/engine/gateway/travelIntent.js` (v0.2.134) — pure **helpers** that
+  build/parse/validate the URL-handoff MVP intent (§3–§4). No navigation, no
+  signing, no relay I/O.
+- `src/engine/gateway/gatewayHandoff.js` (v0.2.135) — pure **shell** that joins
+  the two: `gatewayDestination(component)` reads the gate's `gateway` block,
+  `planGatewayTravel(component, context)` maps it (+ host context: from/player/
+  spawn/return/zoneType/state) onto a validated travel intent, and
+  `gatewayTravelUrl(component, context, {base})` serialises a valid plan to a URL.
+  Pure return values — still NO `window.location` / relay / signing.
+- `src/engine/gateway/gatewayPortal.js` (v0.2.136) — pure **view shell** over the
+  handoff: `gatewayPortalView(component, context, {base,prompt})` returns a
+  render-ready portal view-model `{ status, isGateway, armed, destination,
+  destinationLabel, relay, prompt, plan, urlPreview, errors }` for a portal mesh to
+  display. `armed = plan.valid`; `prompt` and `urlPreview` are blank unless armed,
+  so an invalid/unconfigured gate shows no actionable travel affordance.
+  DISPLAY-ONLY — it never assigns `window.location`, contacts a relay, or signs;
+  crossing the gate is still the deferred host step in `world/handoff.js`.
+- `src/engine/gateway/gatewayRead.js` (v0.2.164) — pure **read proof** for the
+  destination-record READ path (§2): builds the kind-30078 `#t:torii-gateway` filter
+  and extracts/sanitises injected/sample relay events into a safe travel-preview model,
+  deduped newest-per-zone. No relay I/O, navigation, or signing.
+- `src/engine/gateway/travelConfirm.js` (v0.2.165) — pure **travel confirmation/intent**
+  behind the consent gate (§6 note): `sanitizeDestination` re-sanitises a `gatewayRead`
+  preview model or a plain descriptor, and `prepareTravelIntent(input, grant)` routes it
+  through `evaluateConsent('gateway:travel', grant)` into an INERT
+  `{ok, action, destination, consent, summary, navigated:false, performed:false, …}`
+  report. BLOCKED by default; allowed-but-never-performed with a matching grant. No
+  navigation/world-unload/signing/publishing/relay I/O.
+- `src/engine/consent/consentView.js` (v0.2.166) — pure **consent UX view-model** over the
+  consent gate: `consentPromptView(input, grant)` re-shapes the `gateway:travel` (and every
+  other) consent decision into INERT, render-ready PROMPT copy (`{title, badge, severity,
+  headline, bodyLines, actionLabel, cancelLabel, allowed, blocked, reason, …,
+  performed:false, actionable:false, readOnly:true}`); `consentPromptRows(grants)` gives one
+  inert preview row per action. DISPLAY-ONLY — a rendered "Travel" label is COPY, not a wired
+  button; it exposes no confirm/navigate/sign/publish method. The clickable confirm dialog
+  that MINTS the grant is still the deferred host step.
+- `src/engine/gateway/handoffPlan.js` (v0.2.167) — pure **host travel handoff seam**: the
+  boundary that consumes an allowed `gateway:travel` intent (the `travelConfirm.js` output)
+  plus an injected host context and produces an INERT dry-run handoff/rollback PLAN.
+  `planHandoff(input, grant, hostContext)` returns `{action, status, ok, reason, targetZoneId,
+  targetRoute, targetUrl, currentRoute, rollbackRoute, preflight, commands, summary,
+  dryRun:true, navigated:false, worldReloaded:false, performed:false, …}`; READY only under a
+  matching grant, blocked-by-default otherwise, with sanitised same-origin route fragments and
+  https-only preview URLs. `HANDOFF_COMMANDS` names the FUTURE steps (preflight/snapshotState/
+  unloadWorld/navigate/loadWorld/spawnPlayer) as STRINGS only — none execute. Host
+  `window.location` is never read at runtime (currentRoute is injected). The last safe seam
+  before v0.2.168 can implement a first controlled local/same-site travel action. No
+  navigation/world-reload/signing/publishing/relay I/O.
+- `src/engine/gateway/handoffExecute.js` (v0.2.168) — the FIRST acting travel **executor**:
+  `executeHandoff(plan, transport, opts)` consumes a `status:'ready'` `handoffPlan.js` plan and
+  performs a SAFE same-origin route change, but ONLY through an explicitly injected host
+  transport `{ navigate(route), snapshot?(), rollback?(route), log?() }` — it never touches
+  `window.location` / `history.pushState` / `location.href` / `window.open` / `reload`, and the
+  external `targetUrl` is NEVER executed (preview-only). It re-validates `targetRoute` with
+  `safeRoutePath` (defense in depth), and with NO transport (or `opts.dryRun`) it is a dry-run
+  NO-OP. On a navigate throw/`false`-return it attempts a SINGLE synchronous rollback (no timers)
+  via `transport.rollback(rollbackRoute)`. The report PINS `external:false`, `worldReloaded:false`,
+  `signed:false`, `published:false`, `network:false` (and `navigated`/`performed` true ONLY when the
+  injected navigate actually succeeded), so a tampered plan can never flip a safety flag.
+  `executeHandoffFor(input, grant, transport, opts)` folds `planHandoff`+`executeHandoff`.
+- `src/engine/gateway/hostTransport.js` (v0.2.170) — the real same-site host **TRANSPORT
+  ADAPTER**: `createHostTransport(host, opts)` builds the `{ navigate, snapshot, rollback, log }`
+  object `executeHandoff(plan, transport)` consumes, with every browser primitive INJECTED via a
+  host (`pushState(route)` + optional `replaceState`/`getRoute`). `navigate`/`rollback`
+  re-validate the route with `safeRoutePath` (defense in depth) so an external URL,
+  protocol-relative `//host`, scheme, markup, or whitespace is REFUSED (returns `false`, nothing
+  reaches the host). `snapshot()` records the current route; `rollback(route)` restores
+  route→snapshot→`home` in ONE synchronous call (no timers) — the back-home escape.
+  `createRecordingHost()` is the DEFAULT-SAFE in-memory host (records `pushState`/`replaceState`
+  calls, performs no real navigation) used by the debug shell + tests; `createBrowserHostTransport(win)`
+  is the runtime SEAM that uses ONLY `history.pushState`/`replaceState` (same-origin, reversible,
+  NO reload/`location.href`/`window.open`) and is NOT wired into the live app yet. An unusable host
+  → `null`, so the executor safely no-ops. NO network/fetch/relay/signing/publishing. Read-only at
+  `ToriiDebug.shells.hostTransport()` (acts through the in-memory host). SDK `hostTransport` (experimental).
+- `src/engine/gateway/gatewayActivation.js` (v0.2.178) — the **LIVE-WIRE activation seam** that
+  finally lets the v0.2.168 executor ACT on a CONFIRMED same-origin hop. `resolveHostTransport(source)`
+  turns an injected transport / a window (`history.pushState`) / a recording host into a usable
+  v0.2.170 transport WITHOUT navigating; `activateGatewayHandoff(input, grant, opts)` ALWAYS builds the
+  dry-run `planHandoff` first, then resolves + drives a transport ONLY after THREE ordered gates —
+  (1) a LITERAL `confirmed:true` (any truthy-but-not-true value is rejected and the transport is NEVER
+  resolved), (2) the consent-gated plan being `ok`, and (3) the planned same-origin `targetRoute` passing
+  an optional `routeAllowlist` prefix check — so a read/preview/render or unconfirmed path can NEVER
+  navigate. A failed navigate rolls back to the rollback route (back-home); `external`/`worldReloaded`/
+  `signed`/`published`/`network` are pinned false; the browser window is INJECTED, never reached at module
+  scope. This realises the spec's "explicit, confirmed travel intent → controlled same-origin hop"
+  requirement for the local/same-site tier (the signed/relay-mediated tier still gates behind SEC-2).
+  Read-only at `ToriiDebug.shells.gatewayActivation()` (acts through an in-memory recording host, never
+  live-navigates). SDK `gatewayActivation` (experimental). **v0.2.179 route hardening** (security-review
+  follow-up): `safeRoutePath` now also rejects any `..` dot-dot traversal segment and any `%`
+  percent-encoding (closing `/zone/../admin` + `/zone/%2e%2e/admin` climb-out attempts — internally-built
+  `/zone/<slug>` routes never need either), and the activation `routeAllowlist` ignores trivially-permissive
+  prefixes shorter than 2 chars so a `['/']` allowlist fails CLOSED (matches nothing) rather than silently
+  allowing every same-origin route; meaningful prefixes such as `['/zone/']` are unaffected.
+- `src/engine/gateway/gatewayPortalActivation.js` (v0.2.180) — the **portal-boundary seam** that bridges an
+  in-world gateway COMPONENT to the v0.2.178 confirmed same-origin hop. `portalActivationInput(component, context)`
+  maps `gatewayDestination(component).target`→`zoneId` and DROPS the external `website` so an external profile
+  URL is never built or navigated (only the INTERNAL same-origin destination travels); `sanitizePortalAllowlist`
+  keeps only same-origin `/`-prefixes of length ≥2 and FOLDS `['/']`→`['/zone/']`, so the boundary can never be
+  permit-everything (stronger than the executor's fail-closed); `withinPortalRange(playerPos, portalPos, radius)`
+  is a scalar squared-distance check (no `Vector3` allocation, hot-path safe). `activatePortalHandoff(component,
+  context, grant, opts)` builds the input, sanitises the allowlist, and DELEGATES to `activateGatewayHandoff`, so
+  all three gates above (`confirmed===true`, consent-gated plan `ok`, route-allowlist prefix) still apply.
+  `createGatewayPortalBoundary(opts)` captures the injected window/transport/host ONCE at construction and is a
+  one-shot `arm(component, context)`→`confirm(grant)` controller (`cancel`/`state`/`armed`/`routeAllowlist`/
+  `stagedZoneId`), refusing with `not-armed` when not armed. `external`/`worldReloaded`/`signed`/`published`/
+  `network` pinned false; the window is INJECTED, never reached at module scope; no NIP-07/payments/relay-writes/
+  external navigation. The signed/relay-mediated tier still gates behind SEC-2 and is NOT live. Read-only at
+  `ToriiDebug.shells.gatewayPortalActivation()` (acts through an in-memory recording host). SDK
+  `gatewayPortalActivation` (experimental).
+- `src/engine/gateway/portalTrigger.js` (v0.2.181) — the **proximity→confirm controller** that wires an
+  in-world portal POSITION to a `createGatewayPortalBoundary` (above). `createPortalTrigger({boundary, component,
+  context, portalPos, range, onPrompt})` returns `{tick(playerPos), interact(grant), isArmed, inRange,
+  promptShown, reset, ...}`. `tick` uses the v0.2.180 `withinPortalRange` scalar compare (no `Vector3`
+  allocation) and, ONLY on a range TRANSITION, calls `boundary.arm(component, context)` + shows the prompt on
+  entry or `boundary.cancel()` + hides it on exit — proximity ALONE arms/previews but NEVER navigates. Only an
+  explicit player `interact(grant)` (KeyF), and ONLY while `armed()`, delegates to `boundary.confirm(grant)`, so
+  all three gates above + the `['/zone/']` allowlist still apply. Pure/node-safe — no `window`/THREE/DOM (the
+  boundary, which captured the injected window once at construction, is injected); exposes NO bare
+  navigate/open/reload/goto/assign/href/pushState method; never throws. WIRED in `main.js` (composition root
+  ONLY): `tick` runs in `update()` while playing (else `reset()`), a KeyF handler calls `interact(true)`, and
+  `hud.js` `showPortalPrompt`/`hidePortalPrompt` render the inert `#portal-prompt` div. Read-only at
+  `ToriiDebug.shells.portalTrigger()` (drives a recording-host boundary, never live-navigates). SDK
+  `portalTrigger` (experimental). The SPA `/zone/<slug>` route handler landed v0.2.182 and a dedicated visible
+  portal MESH marker landed v0.2.183 (`portalMesh.js`, below).
+- `src/engine/gateway/zoneRoute.js` (v0.2.182) — the pure **SPA `/zone/<slug>` route parser/handler** that
+  gives the same-origin gateway URL state a safe client-side interpretation so it does not become brittle
+  after a hard refresh or popstate navigation. `parseZoneRoute(path)` runs the `safeRoutePath` security gate
+  FIRST (rejecting non-string, empty, >256 chars, scheme/protocol-relative `//`, control/markup/backslash/
+  whitespace/`%` percent, and `..` traversal — §8 boundary rules), strips any `?query`/`#hash`, then classifies
+  the path into `ZONE_ROUTE_KIND` `HOME` (`/`), `ZONE` (`/zone/<slug>` with a STRICT `isValidZoneSlug` —
+  lowercase alphanumerics + single internal hyphens, ≤64 chars), or `INVALID` (everything else), mapping a
+  valid slug to INERT local zone intent/display via `humanizeZoneSlug`/`describeZoneRoute`. It pins
+  `navigated:false`/`performed:false`/`external:false`/`signed:false`/`published:false`/`network:false` —
+  it NEVER fetches the network, loads relay data, navigates, or reads `window.location` at module scope (the
+  path is injected). `zoneRouteFor(slug)` builds a same-origin `/zone/<slug>` route string. WIRED in `main.js`
+  (composition root ONLY): `_applyZoneRoute()` reads the injected `window.location.pathname` on startup and on
+  `popstate`, routing a valid `/zone/<slug>` into inert local zone state / a safe placeholder notice and
+  leaving an invalid or unknown path on the safe HOME default — no network, no auto-travel. Read-only at
+  `ToriiDebug.shells.zoneRoute(path?)`. SDK `zoneRoute` (experimental).
+  > **Static-host hard-refresh fallback (REQUIRED, outside repo code).** A client-side parser cannot, by
+  > itself, make `https://host/zone/<slug>` resolve on a *cold* hard refresh — the static host must serve
+  > `index.html` for unknown deep-link paths so the SPA boots and `_applyZoneRoute()` can interpret the path.
+  > This is a hosting config, not app code, and is documented honestly rather than faked: Nginx
+  > `try_files $uri $uri/ /index.html;`, Caddy `try_files {path} /index.html`, or a CDN 404→`/index.html`
+  > rewrite (see `torii-quest-handoff.md` §7). Without it a hard refresh on a deep link 404s before any JS runs.
+- `src/engine/gateway/portalMeshPlan.js` + `src/engine/gateway/portalMesh.js` (v0.2.183) — the dedicated
+  visible in-world **portal MARKER** at the existing `portalTrigger` position, so a player can SEE the travel
+  point they are approaching. It is split per the project's pure-plan/adapter pattern: `portalMeshPlan.js` is a
+  PURE, node-safe render plan (`buildPortalMeshPlan(opts)` → an inert `{ok,anchor,range,ringRadius,count,parts,
+  …,reasons}` describing 4 parts — an outer-ring torus whose `ringRadius` EQUALS the trigger `range` so the
+  marker footprint matches the arm radius, a violet inner ring, a transparent beam, and a spinning core), with
+  every part + the plan pinning `navigated`/`performed`/`external`/`signed`/`published`=false, `readOnly`=true,
+  `actionable`=false; no module-scope `window`/THREE/DOM, never throws. `portalMesh.js` is the browser-only THREE
+  adapter (`buildPortalMesh(scene,opts)`/`tickPortalMesh(dt)`/`disposePortalMesh()`/`portalMeshRenderState()`)
+  that consumes the plan, builds emissive meshes ONCE behind a `_built` guard, ticks ALLOCATION-FREE (scalar
+  spin + emissive pulse only — no `Vector3`/`Matrix4`/geometry/material per frame), and disposes/reuses cleanly.
+  The marker is DISPLAY-ONLY and INERT: no collider, no raycast/click, no input, no navigation — it adds NO
+  capability and changes NOTHING in the three gates (proximity ARMS, KeyF confirms, same-origin `/zone/` only).
+  WIRED in `main.js` (composition root ONLY): `buildPortalMesh(scene,…)` once + `tickPortalMesh(dt)` in the loop.
+  Read-only at `ToriiDebug.shells.portalMeshPlan(opts?)` / `ToriiDebug.shells.portalMesh()`. SDK `portalMeshPlan`
+  (experimental).
+- `src/engine/gateway/zoneLabel.js` (v0.2.184) — the pure portal/zone state-CLARITY **label helpers** that tell
+  the player WHERE the `portalTrigger` portal goes and WHAT they entered after a hop, WITHOUT changing the
+  navigation-safety model. `portalPromptLabel({slug,route,title,key})` builds a target-aware proximity prompt
+  ("Press F to travel to Plebeian Market Bazaar"), falling back to the generic "Press F to travel" when no target
+  is known; `enteredZoneLabel(input,{prefix})` builds the concise post-hop notice ("Entered: …"), returning `''`
+  for an unknown/empty target. Both DERIVE their human text from the safe slug via `zoneRoute.humanizeZoneSlug`
+  (alnum by construction); any free-form/hostile string is run through an internal allowlist sanitiser
+  (`[A-Za-z0-9 -]` only, length-capped to 80) so NO markup/dangerous token can survive even though the HUD sink
+  is `textContent`. WIRED in `main.js` (composition root ONLY): the `portalTrigger` `promptText` is the
+  target-aware label, and the KeyF handler shows `showZoneNotice(enteredZoneLabel(rep.zoneId))` ONLY when the
+  `gatewayPortalActivation` `confirm()` report returns `navigated:true` with a string `zoneId` (a pushState hop
+  does NOT fire popstate, so the existing `_applyZoneRoute()` never refreshed the notice). DISPLAY-ONLY + INERT —
+  no network/relay/sign/publish/external nav; the three gates are unchanged (proximity ARMS, KeyF confirms,
+  same-origin `/zone/` only). Read-only at `ToriiDebug.shells.zoneLabel(opts?)`. SDK `zoneLabel` (experimental).
+- `src/engine/gateway/travelSmoke.js` (v0.2.195) — the pure READ-ONLY/DRY-RUN **smoke harness** that
+  EXECUTABLY documents the travel-flow contracts in this file: it drives `createGatewayPortalBoundary({dryRun:true})`
+  (with NO injected transport, so it can never navigate) through ten assertions and folds them into
+  `{ok,badge,summary,signals,safety,reasons,...}`. The signals are this protocol's safety invariants made
+  testable — proximity ARMS but never navigates (§5), only an explicit confirm acts (§8), same-origin
+  `/zone/<slug>` only (§3), the route allowlist is scoped and can never become `'/'` (§8), the external gateway
+  `website` is dropped from the hop (§8), travel is consent-gated (§8), the frozen `HOSTILE_ROUTES` fixture
+  (external/protocol-relative/`javascript:`/`data:`/`//`/backslash/dot-dot) is uniformly rejected, and every
+  report pins `navigated/performed/external/signed/published/network=false`. A future change that breaks any
+  travel-flow contract fails this harness locally without a browser/router/network. Pure/node-safe, never throws;
+  read-only at `ToriiDebug.shells.travelSmoke(opts?)`. SDK `travelSmoke` (experimental); `tests/gateway-travel-smoke.test.js`.
+- `src/world/handoff.js` — the (skeleton) host seam where a future build will inject the live app/browser
+  window into `gatewayActivation`/`gatewayPortalActivation` (above): it will hand a
+  `createBrowserHostTransport(window)` transport (or the host router) + a same-origin route allowlist to
+  `activateGatewayHandoff` / a `createGatewayPortalBoundary` so a confirmed in-world hop performs the controlled
+  same-origin navigation. The activation + portal-boundary seams now exist and the v0.2.181 `portalTrigger`
+  wires a real injected browser host + proximity/KeyF confirm at the `main.js` composition root; the SPA
+  `/zone/<slug>` route handler landed v0.2.182 (`zoneRoute.js`, above) so a hard refresh / popstate resolves the
+  target zone into inert local state (given the static-host fallback). A dedicated visible portal MESH marker
+  landed v0.2.183 (`portalMeshPlan.js` + `portalMesh.js`, above) — a DISPLAY-ONLY landmark at the trigger
+  position that adds no capability.
+
+Component is code. Protocol is agreement. This file is the agreement; the modules
+above are one implementation of it.

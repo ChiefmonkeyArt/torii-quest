@@ -1,0 +1,117 @@
+{
+  "protocol": "torii-gate",
+  "version": 1,
+  "visit": [
+    {
+      "name": "plain visit with traveller",
+      "website": "https://quest.example.org/",
+      "traveller": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect": {
+        "ok": true,
+        "url": "https://quest.example.org/?torii-traveller=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "zone route appended",
+      "website": "https://quest.example.org/quest/",
+      "traveller": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "zone": "nap-main",
+      "expect": {
+        "ok": true,
+        "url": "https://quest.example.org/quest/?torii-traveller=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#/zone/nap-main"
+      }
+    },
+    {
+      "name": "anonymous hop",
+      "website": "https://quest.example.org/",
+      "expect": {
+        "ok": true,
+        "url": "https://quest.example.org/"
+      }
+    },
+    {
+      "name": "invalid zone slug ignored",
+      "website": "https://quest.example.org/",
+      "zone": "Bad Slug!",
+      "expect": {
+        "ok": true,
+        "url": "https://quest.example.org/"
+      }
+    },
+    {
+      "name": "http refused",
+      "website": "http://quest.example.org/",
+      "expect": {
+        "ok": false,
+        "error": "scheme-must-be-https"
+      }
+    },
+    {
+      "name": "credentials refused",
+      "website": "https://u:p@quest.example.org/",
+      "expect": {
+        "ok": false,
+        "error": "no-credentials-in-url"
+      }
+    },
+    {
+      "name": "non-default port refused",
+      "website": "https://quest.example.org:8443/",
+      "expect": {
+        "ok": false,
+        "error": "non-default-port-rejected"
+      }
+    },
+    {
+      "name": "private host refused",
+      "website": "https://192.168.1.10/",
+      "expect": {
+        "ok": false,
+        "error": "private-host-rejected"
+      }
+    },
+    {
+      "name": "localhost refused",
+      "website": "https://localhost/",
+      "expect": {
+        "ok": false,
+        "error": "private-host-rejected"
+      }
+    },
+    {
+      "name": "bad traveller key refused",
+      "website": "https://quest.example.org/",
+      "traveller": "npub1xyz",
+      "expect": {
+        "ok": false,
+        "error": "bad-pubkey"
+      }
+    }
+  ],
+  "arrival": [
+    {
+      "name": "traveller claim read",
+      "url": "https://quest.example.org/?torii-traveller=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expect": {
+        "ok": true,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "no traveller",
+      "url": "https://quest.example.org/",
+      "expect": {
+        "ok": false,
+        "error": "no-traveller"
+      }
+    },
+    {
+      "name": "malformed traveller",
+      "url": "https://quest.example.org/?torii-traveller=ZZZ",
+      "expect": {
+        "ok": false,
+        "error": "bad-pubkey"
+      }
+    }
+  ]
+}

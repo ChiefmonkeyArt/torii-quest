@@ -946,6 +946,7 @@ async function refreshOnlineWorlds() {
     timeoutMs: 5000,
     graceMs: 250,
     retries: 1,
+    verify: true, // Gate v1 §3.1 (ADR-0144): drop forged/tampered world records
   });
   if (!r.ok) {
     _worldsCache = _nodePresence.worlds(state.nostrPubkey || '');

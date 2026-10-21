@@ -1,3 +1,14 @@
+## v0.2.909-alpha: the Gate's rules are set (ADR-0144)
+
+The rules for travelling between worlds are now fixed as version 1. There's
+a free kit any game maker can use to check their world follows them,
+including a tiny example world with no game engine at all, and Quest is
+checked against the same tests every time it's built. Quest now also
+ignores fake world listings by checking every listing's signature. A letter
+inviting other builders is drafted and kept back until Quest is further
+along. Bringing people's shops, products and auctions into the NAP Zone is
+planned (ADR-0145) and waiting on a few choices from you.
+
 ## v0.2.908-alpha: the Gate is the product (ADR-0143)
 
 The headline has changed: Torii is an open network of worlds, the Torii Gate

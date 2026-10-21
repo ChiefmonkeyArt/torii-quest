@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torii Gate v1 reference world</title>
+<!-- A world with no 3D engine at all: it publishes a heartbeat, lists other
+     worlds, travels, and greets arrivals. Proof that the Gate is engine-free.
+     Serve over https (any static host). Needs a NIP-07 signer to publish. -->
+<script type="importmap">{ "imports": {
+  "@noble/curves/secp256k1.js": "https://esm.sh/@noble/curves@2.2.0/secp256k1.js",
+  "@noble/hashes/sha2.js": "https://esm.sh/@noble/hashes@2.2.0/sha2.js",
+  "@noble/hashes/utils.js": "https://esm.sh/@noble/hashes@2.2.0/utils.js"
+} }</script>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #eee; background: #15120f; }
+  button { font: inherit; padding: .4rem .8rem; margin-right: .4rem; }
+  li { margin: .4rem 0; } .muted { color: #999; } #arrival { color: #ffb86b; }
+</style>
+</head>
+<body>
+<h1>Reference world</h1>
+<p id="arrival"></p>
+<p><button id="open">Open my world</button><button id="scan">Find worlds</button> <span id="status" class="muted"></span></p>
+<ul id="worlds"></ul>
+<script type="module" src="./world.mjs"></script>
+</body>
+</html>

@@ -10,7 +10,9 @@
 //   • RIGHT — a look pad. Sliding turns/tilts the camera through
 //             input.applyLookDelta (same yaw/pitch accumulator as mouse-look).
 // Plus three buttons: JUMP (Space), FIRE (input.triggerShoot) and MENU
-// (Escape → the normal pause overlay).
+// (Escape → the normal pause overlay). v0.2.920: a contextual USE button
+// (KeyQ) shows only while `useLabel()` returns a label, e.g. VIEW at a NAP
+// market board or CLOSE while its panels are open.
 //
 // Zero game logic lives here. The overlay sits at z-index 30: above the HUD
 // (10/20) so it gets the touches, below in-world panels (40+), the pause
@@ -91,6 +93,9 @@ const CSS = `
 #torii-touch .tb.down{background:rgba(255,140,60,.6)}
 #torii-touch .tb-fire{width:76px;height:76px;right:calc(22px + env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom))}
 #torii-touch .tb-jump{width:64px;height:64px;right:calc(108px + env(safe-area-inset-right));bottom:calc(30px + env(safe-area-inset-bottom))}
+#torii-touch .tb-use{width:88px;height:88px;right:calc(22px + env(safe-area-inset-right));bottom:calc(196px + env(safe-area-inset-bottom));
+  display:none;font-size:14px;border-color:rgba(247,147,26,.9);background:rgba(247,147,26,.35)}
+#torii-touch .tb-use.on{display:flex}
 #torii-touch .tb-menu{width:44px;height:44px;border-radius:12px;left:calc(14px + env(safe-area-inset-left));top:calc(58px + env(safe-area-inset-top))}
 `;
 
@@ -108,7 +113,7 @@ function _key(type, code) {
  * @returns {{ root: HTMLElement, destroy: () => void } | null}
  */
 let _installed = null;
-export function installTouchControls({ isActive, look, shoot }) {
+export function installTouchControls({ isActive, look, shoot, useLabel }) {
   if (_installed) return _installed;
   if (typeof document === 'undefined') return null;
 
@@ -123,7 +128,8 @@ export function installTouchControls({ isActive, look, shoot }) {
     '<div class="tz tz-move"></div><div class="tz tz-look"></div>' +
     '<div class="joy"><div class="knob"></div></div>' +
     '<div class="hint hint-move">MOVE</div><div class="hint hint-look">LOOK</div>' +
-    '<div class="tb tb-fire">FIRE</div><div class="tb tb-jump">JUMP</div><div class="tb tb-menu">II</div>';
+    '<div class="tb tb-fire">FIRE</div><div class="tb tb-jump">JUMP</div><div class="tb tb-menu">II</div>' +
+    '<div class="tb tb-use"></div>';
   document.body.appendChild(root);
 
   const $ = s => root.querySelector(s);
@@ -198,6 +204,17 @@ export function installTouchControls({ isActive, look, shoot }) {
   button('.tb-fire', () => shoot());
   button('.tb-jump', () => _key('keydown', 'Space'), () => _key('keyup', 'Space'));
   button('.tb-menu', () => _key('keydown', 'Escape'), () => _key('keyup', 'Escape'));
+  button('.tb-use', () => _key('keydown', 'KeyQ'), () => _key('keyup', 'KeyQ'));
+  const useBtn = $('.tb-use');
+  let useText = '';
+  function syncUse() {
+    let t = '';
+    if (shown && typeof useLabel === 'function') { try { t = String(useLabel() || '').slice(0, 8); } catch { t = ''; } }
+    if (t === useText) return;
+    useText = t;
+    useBtn.textContent = t;
+    useBtn.classList.toggle('on', !!t);
+  }
 
   // Block the long-press context menu / text selection on the overlay.
   root.addEventListener('contextmenu', e => e.preventDefault());
@@ -216,8 +233,8 @@ export function installTouchControls({ isActive, look, shoot }) {
       if (!document.pointerLockElement) crosshair?.classList.remove('active');
     }
   }
-  const timer = setInterval(sync, 150);
-  sync();
+  const timer = setInterval(() => { sync(); syncUse(); }, 150);
+  sync(); syncUse();
 
   _installed = {
     root,

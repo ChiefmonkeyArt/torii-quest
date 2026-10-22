@@ -21,7 +21,7 @@ Torii Quest is the first world, and the proof that it works.**
   - The Applesauce relay layer shipped in v0.2.910 (directory and owner profiles), v0.2.911 (live directory, enforced size budget: lazy ≤ 55 KB gzip, entry ≤ +1 KB) and v0.2.918 (one shared layer: every read, publish and Plebeian subscription uses one socket per relay).
   - Licensing (v0.2.912, ADR-0146): the spec is CC0, the kit is 0BSD, Quest stays GPL-3.0, so any engine, open or closed, can adopt the Gate.
   - The invitation letter is drafted but **held** until much more Quest work is done; then it goes to many people.
-  - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Accepted 2026-10-22: the owner's shop by default, or another npub, or a custom store of chosen products and auctions; no visitor shops in v1, later every shop owner's shop and a virtual marketplace; a market street; production + staging relays. Slice 1 v0.2.915, store source v0.2.916, live PRODUCT + AUCTION boards v0.2.919).
+  - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Accepted 2026-10-22: the owner's shop by default, or another npub, or a custom store of chosen products and auctions; no visitor shops in v1, later every shop owner's shop and a virtual marketplace; a market street; production + staging relays. Slice 1 v0.2.915, store source v0.2.916, live PRODUCT + AUCTION boards v0.2.919; phone-readable boards, touch VIEW button and saved listings v0.2.920).
 - **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.
 
 ## TOP PRIORITY: game zone combat quality (ADR-0130, 2026-10-16)

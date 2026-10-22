@@ -1,3 +1,11 @@
+## v0.2.920-alpha: market boards on phones (ADR-0145, ADR-0137 addendum)
+
+- [x] Bigger board text: price, high bid, countdown, bid totals and seller name readable on a phone. Long amounts shrink to fit.
+- [x] Touch: an orange VIEW button appears at either board (CLOSE while the panels are open). Prompts say "Tap VIEW …".
+- [x] Saved listings: the boards show the last listings instantly on return ("Saved listings · updating…"). Live data takes over within 15 s. Read-back is fully re-validated.
+- [ ] **Operator (phone):** walk to both boards, tap VIEW, then CLOSE.
+- [ ] Real-device check of board legibility at walking distance.
+
 ## v0.2.919-alpha: live market boards in the NAP Zone (ADR-0145 slice 4, part 1)
 
 - [x] PRODUCT sign shows live product slides: photo, title, price, stock, seller name + avatar.

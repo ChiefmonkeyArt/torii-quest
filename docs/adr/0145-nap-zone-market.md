@@ -155,6 +155,29 @@ The owner asked for two boards: one for products, one for auctions, with countdo
 
 Still open for slice 4: one stall per seller, and quality-tier stall caps.
 
+## Mobile readability, touch and saved listings (v0.2.920-alpha)
+
+The owner asked for the boards to be readable on phones, to work by touch, and to load faster (2026-10-22).
+
+- **Bigger type:**
+  - title 46–52 px, price up to 96 px, high bid up to 80 px, countdown 34 px, bid totals 34 px, seller name 34 px, on the same 1024×576 canvas;
+  - the photo shrinks to 380 px to make room;
+  - the "Seller" label is gone (the ringed avatar says it);
+  - long amounts shrink to fit (`fitFont`, down to 60% at most) instead of overflowing.
+- **Touch:**
+  - the touch overlay's new USE button shows **VIEW** within 3 m of either board and **CLOSE** while the panels are open. It sends `KeyQ` (ADR-0137 addendum);
+  - on touch, the footers and prompts say "Tap VIEW …".
+- **Saved listings (fast first paint):**
+  - **Storage:** the last live slides are kept in `localStorage` (`torii.marketBoards.v1`, at most 32 KB and 7 days old, scoped to one owner). A returning visitor sees the boards at once, with the footer "Saved listings · updating…".
+  - **Live data takes over:**
+    - for the first 15 s, an empty live list keeps the saved slides, and a live auction with fewer bids than the saved one keeps the saved totals (bids arrive after the auction);
+    - after 15 s, live data wins;
+    - a seller with no profile yet borrows the saved name and avatar.
+  - **Untrusted on read:**
+    - everything read back is re-validated: kinds, ids, clipped strings, https-only images, hex pubkeys, bounded numbers;
+    - a cache from the future or from another owner is dropped.
+  - **Writes:** at most once every 5 s and only when changed, driven by the board tick (no timers).
+
 ## Later (owner direction)
 
 - Every shop owner can see their own shop in the virtual world.

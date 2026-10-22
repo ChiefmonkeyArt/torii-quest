@@ -44,6 +44,12 @@ describe('stickerNpc raycast — position-attribute guard', () => {
     expect(SRC).toContain('skipping raycast of mesh without a position attribute');
   });
 
+  it('skips instanced shader geometry (grass) silently, before the warn (v0.2.917)', () => {
+    const guard = SRC.indexOf('if (geo && geo.isInstancedBufferGeometry) return;');
+    expect(guard).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(SRC.indexOf('skipping raycast of mesh without a position attribute'));
+  });
+
   it('wraps the static intersectObjects call in try/catch', () => {
     // `let staticHits = []` followed by a guarded intersectObjects ensures a
     // stale broken mesh cannot throw through the whole fire.

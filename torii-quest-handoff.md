@@ -29,6 +29,12 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## v0.2.917-alpha: STORE PREVIEW + STICKER + RELAY CHECK
+
+- `napStoreAdmin.js`: failed previews return `event: null` with a `shows`/`message` saying nothing was saved; successes return a `message` line.
+- `stickerNpc.js`: `geo.isInstancedBufferGeometry` → silent skip.
+- `nodeRelays.js`: re-check note. Keep nos.lol.
+
 ## NAP STORE SOURCE: v0.2.916-alpha
 
 - `boardOwner.js`:

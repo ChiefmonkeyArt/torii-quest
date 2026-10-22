@@ -125,6 +125,12 @@ export function readNodeRelays(opts = {}) {
 // wss://nostr.wine was probed too but rejected new connections with HTTP 403
 // (paywalled AUTH-required relay) — not usable as a public default; users
 // with paid access can still add it manually via the Relay settings tab.
+// Re-checked 2026-10-22 (v0.2.917): all 7 reachable read-side; the live
+// chiefmonkey.art node heartbeat was present on nos.lol, damus, primal, snort,
+// nostr.mom and routstr. nos.lol / snort / nostr.mom refuse brand-new keys
+// with no profile (the live probe's throwaway key), not real operator keys.
+// A browser "WebSocket connection to 'wss://nos.lol/' failed" line is that
+// relay's transient refusal; nos.lol stays on the default list.
 export const DEFAULT_NODE_RELAYS = Object.freeze([
   'wss://relay.plebeian.market',   // marketplace presence (Torii ecosystem) — writable, verified 2026-09-02
   'wss://relay.routstr.com',       // routstr network relay (Torii ecosystem) — writable, verified 2026-09-02

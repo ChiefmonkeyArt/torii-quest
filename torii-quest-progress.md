@@ -1,3 +1,11 @@
+## v0.2.917-alpha: clearer store preview, quieter console
+
+If you give the store helper a value that isn't valid, it now says plainly
+that nothing was saved and what to fix, instead of claiming "your own shop".
+The harmless grass warning is gone from the console. nos.lol stays on the
+relay list: your world's live signal is on it, and it only turned away the
+test's brand-new throwaway keys.
+
 ## v0.2.916-alpha: choose what your NAP store shows
 
 Your NAP Zone store shows your own shop by default. You can now switch it to

@@ -86,6 +86,25 @@ describe('napStore console helper', () => {
     expect(previewStore({ owner: OWNER, items: ['nope'] }).ok).toBe(false);
     expect(previewStore({ owner: '' }).ok).toBe(false);
   });
+  it('a failed preview never claims a result and explains itself (v0.2.917)', () => {
+    for (const bad of [{ seller: 'npub1…' }, { items: ['naddr1…'] }, { seller: 'nope', items: [n] }]) {
+      const p = previewStore({ owner: OWNER, ...bad });
+      expect(p.ok).toBe(false);
+      expect(p.event).toBeNull();
+      expect(p.shows).toMatch(/^nothing: fix the value first/);
+      expect(p.shows).not.toMatch(/your own shop/);
+      expect(p.message).toMatch(/^Not saved: /);
+    }
+    expect(previewStore({ owner: OWNER, seller: nip19.npubEncode(SELLER) }).message).toMatch(/^Preview only \(nothing sent\)\. It would show seller /);
+  });
+  it('publish with a bad value never reaches the signer', async () => {
+    const sign = vi.fn(); const getSignerPubkey = vi.fn();
+    const r = await publishStore({ owner: OWNER, seller: 'npub1…', sign, publish: vi.fn(), getSignerPubkey });
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/^Not saved: seller must be an npub/);
+    expect(sign).not.toHaveBeenCalled();
+    expect(getSignerPubkey).not.toHaveBeenCalled();
+  });
   it('publish refuses unless the signer is this world\'s owner', async () => {
     const sign = vi.fn(); const publish = vi.fn();
     const r = await publishStore({ owner: OWNER, items: [n], sign, publish, getSignerPubkey: async () => X });
@@ -99,6 +118,7 @@ describe('napStore console helper', () => {
     const publish = vi.fn(async () => ({ accepted: 1, failed: ['wss://down'] }));
     const r = await publishStore({ owner: OWNER, seller: SELLER, sign, publish, getSignerPubkey: async () => OWNER });
     expect(r).toMatchObject({ ok: true, accepted: 1, failedRelays: ['wss://down'] });
+    expect(r.message).toMatch(/^Saved to 1 relay\(s\)\. The NAP store now shows seller /);
     expect(parseStoreConfig(publish.mock.calls[0][0], OWNER)).toEqual({ mode: 'seller', seller: SELLER, items: [] });
   });
 });

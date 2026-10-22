@@ -1,3 +1,18 @@
+## LIVE MARKET BOARDS: v0.2.919-alpha (ADR-0145 slice 4, part 1)
+
+- `plebeian/marketBoardModel.js` (pure): slides, `formatCountdown`, `formatAmount`, `bidsFor` (signature-verified, must reference the auction), sorting.
+- `plebeian/marketBoardPainter.js`: `paintBoard(ctx, …)` onto a fixed 1024×576 canvas; empty state; `wrapLines`.
+- `plebeian/marketBoards3d.js`:
+  - `initMarketBoards3d` runs right after the legacy `buildArena()`;
+  - `tickMarketBoards3d(dt, pos, inNap)` runs in the NAP branch;
+  - `AUCTION_BOARD_SPEC` is at (12.4, 26.0), yaw π+0.915;
+  - the twin shares the sign's geometry.
+- `proofSurfaceMeshes.getProofSurfaceBoard(id)` returns `{board, plate}`.
+- `ownerBoards.setBoardsWorldWanted` / `onOwnerBoardsData`: the world feed survives the panels closing.
+- `arenaRuntime`: `_auctionBoardTrigger` ("Press Q to view auctions"). Q tries the product trigger first.
+- Debug: `ToriiDebug.marketBoards()`.
+- Tests: `tests/plebeian/market-boards.test.js`.
+
 ## GATE V1 FROZEN + KIT: v0.2.909-alpha (ADR-0144/0145)
 
 - **Spec.** `GATEWAY_PROTOCOL.md` is v1 and frozen; the old draft is in `docs/gateway-protocol-v0.1-draft.md`. Wire changes = additive §8 extensions, or v2 with an ADR + new fixtures.

@@ -161,7 +161,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0142](./0142-cold-load-engine-preload.md) | Cold-load engine preload on the title screen (modulepreload, no execution), `?nuked=1` pin cleared after boot, ambient fill 0.8 | Accepted |
 | [0143](./0143-gate-is-the-product.md) | North star: the Torii Gate (open protocol) is the product, Quest is the first world; Gate track G1–G4 ahead of the Applesauce trial | Accepted |
 | [0144](./0144-gate-v1-frozen.md) | Torii Gate protocol v1 frozen; readers verify signatures; engine-free conformance kit + reference world; CI runs fixtures on kit and Quest (G1 + G2) | Accepted |
-| [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916) |
+| [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916; live boards v0.2.919) |
 | [0146](./0146-gate-licensing.md) | Licensing: Gate spec CC0, conformance kit 0BSD, Quest stays GPL-3.0 | Accepted |
 
 ## Workflow for a new decision

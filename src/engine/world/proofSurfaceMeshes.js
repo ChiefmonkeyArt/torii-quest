@@ -27,6 +27,12 @@ let _state = Object.freeze({ rendered: false, count: 0, ok: false, badge: RENDER
 // panels rendered and that the spec/anchor gates passed.
 export function proofSurfaceRenderState() { return _state; }
 
+// v0.2.919 (ADR-0145): built boards by surface id, so the live market boards
+// can swap a plate's texture (and clone the board) without re-building it.
+const _boards = new Map();
+/** → { board, plate } for a built surface, or null. */
+export function getProofSurfaceBoard(id) { return _boards.get(id) || null; }
+
 // _labelTexture(label, sublabel) → a CanvasTexture with the panel's title drawn
 // on a dark plate — the same canvas-texture pattern the bitcoin sun sprite uses
 // in scene.js, so no new dependency is introduced. One-time creation only; needs
@@ -116,6 +122,9 @@ export function buildProofSurfaceMeshes(scene, opts = {}) {
     );
     plate.position.set(0, 0, panel.size.depth / 2 + 0.01);
     board.add(plate);
+    board.name = 'proof-board:' + panel.id;
+    plate.name = 'proof-plate:' + panel.id;
+    _boards.set(panel.id, { board, plate });
 
     // Mount under the board's parent subgroup; fall back to the root group if a
     // panel's parent had no binding (keeps every board in the scene regardless).

@@ -1,3 +1,12 @@
+## v0.2.919-alpha: live shop boards in the NAP Zone
+
+The NAP Zone now has two live boards. The PRODUCT board shows each product
+with its photo, price, stock and the seller's name and picture. A new AUCTION
+board next to the mirror shows each auction with a countdown, the high bid,
+how many bids and bidders, and the seller. Each board changes slide every
+8 seconds. Press Q at either board for the full details. Bids are checked
+before they're counted, so nobody can fake a total.
+
 ## v0.2.918-alpha: one connection per relay
 
 Quest now shares a single connection to each relay for everything it does:

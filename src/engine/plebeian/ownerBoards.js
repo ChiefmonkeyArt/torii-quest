@@ -24,12 +24,20 @@ let _owner = '';
 let _store = null;
 const _configByRelay = new Map();
 let _active = false;
+// v0.2.919: the in-world market boards want the same data while the player is
+// in the NAP Zone, with or without the HUD panels open.
+let _worldWanted = false;
+const _dataListeners = new Set();
 let _rawProducts = [];
 let _rawAuctions = [];
 const _productByRelay = new Map();
 const _auctionByRelay = new Map();
 
 function render() {
+  if (_dataListeners.size) {
+    const data = { products: _rawProducts, auctions: _rawAuctions, store: _store };
+    for (const fn of _dataListeners) { try { fn(data); } catch { /* listener errors stay local */ } }
+  }
   if (!_active) return;
   renderBoard(BOARD_IDS.product, selectOnSaleProducts(_rawProducts), 'product');
   const { live, past } = splitAuctionsByEnd(parseAuctionEvents(_rawAuctions));
@@ -93,7 +101,7 @@ function stop() {
 
 /** Test / debug seam. */
 export function _ownerBoardsState() {
-  return { owner: _owner, store: _store ? { ..._store, items: _store.items.slice() } : null, subs: _subs.length + _configSubs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active };
+  return { owner: _owner, store: _store ? { ..._store, items: _store.items.slice() } : null, subs: _subs.length + _configSubs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active, worldWanted: _worldWanted };
 }
 
 function showHide(active) {
@@ -124,7 +132,24 @@ export function setBoardsActive(active) {
   // (Re)start the relay subscriptions + render only on the false→true edge to
   // avoid redundant WebSocket churn on repeated trigger presses.
   if (active && !wasActive) { start(); render(); }
-  if (!active && wasActive) stop();
+  if (!active && wasActive && !_worldWanted) stop();
+}
+
+/** v0.2.919: the in-world boards want data (player in the NAP Zone). */
+export function setBoardsWorldWanted(want) {
+  const w = !!want;
+  if (w === _worldWanted) return;
+  _worldWanted = w;
+  if (w) { start(); render(); }
+  else if (!_active) stop();
+}
+
+/** v0.2.919: observe merged, verified owner-store data. Called now + on change. → unsubscribe */
+export function onOwnerBoardsData(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _dataListeners.add(fn);
+  try { fn({ products: _rawProducts, auctions: _rawAuctions, store: _store }); } catch { /* listener errors stay local */ }
+  return () => _dataListeners.delete(fn);
 }
 
 /**
@@ -148,5 +173,6 @@ export function _resetOwnerBoards() {
   _rawProducts = [];
   _rawAuctions = [];
   _store = null; _owner = '';
+  _worldWanted = false; _dataListeners.clear();
   _productByRelay.clear(); _auctionByRelay.clear(); _configByRelay.clear();
 }

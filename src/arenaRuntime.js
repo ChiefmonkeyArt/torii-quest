@@ -72,6 +72,8 @@ import { createGatewayPortalBoundary } from './engine/gateway/gatewayPortalActiv
 import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
+import { getProofSurfaceBoard } from './engine/world/proofSurfaceMeshes.js';
+import { initMarketBoards3d, tickMarketBoards3d, marketBoards3dState, marketBoards3dBuilt, auctionBoardPosition } from './engine/plebeian/marketBoards3d.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { initPortalWindow, setPortalWindow, hidePortalWindow } from './engine/world/portalWindow.js';
 import { portalWindowSpec } from './engine/world/portalWindowSpec.js';
@@ -822,6 +824,18 @@ export function createArenaRuntime(hooks = {}) {
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
     onOpen: () => { setMarketActive(true); setBoardsActive(true); },
   });
+  // ADR-0145 (v0.2.919): the two live market boards. The PRODUCT sign's plate
+  // shows live products; a twin AUCTION board stands past the mirror with its
+  // own Q prompt (opens the same panels).
+  // Boards are created right after buildArena() (below); the trigger only
+  // ticks once they exist (marketBoards3dBuilt()).
+  const _auctionBoardTrigger = createProductPanelTrigger({
+    panelPos: auctionBoardPosition(sampleNapHeight),
+    range: 3,
+    promptText: 'Press Q to view auctions',
+    onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
+    onOpen: () => { setMarketActive(true); setBoardsActive(true); },
+  });
   // Stable portal geometry reused each frame to drive the approach glow without
   // allocating (portalTrigger.portalPos() returns a fresh copy, so cache one here).
   const _portalPos = { x: TRAVEL_GATE_X, y: sampleNapHeight(TRAVEL_GATE_X, TRAVEL_GATE_Z), z: TRAVEL_GATE_Z };
@@ -1030,12 +1044,14 @@ export function createArenaRuntime(hooks = {}) {
       if (_stickerFeel) _stickerFeel.frame();
       const _inNapNow = isNapLand(playerObj.position.x, playerObj.position.z);
       setNapMode(_inNapNow);
+      tickMarketBoards3d(dt, playerObj.position, _inNapNow);
       // ADR-0036: the market auction-panel + ADR-0035 boards no longer
       // auto-show on NAP-zone entry and have no relationship to Kami Mode.
       // They open ONLY via the in-world PRODUCT sign's proximity+Q trigger,
       // and close only via an explicit close control on each panel.
       if (isPlaying()) {
         _productPanelTrigger.tick(playerObj.position);
+        if (marketBoards3dBuilt()) _auctionBoardTrigger.tick(playerObj.position);
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).
         const ap = portalApproachState({
@@ -1045,6 +1061,7 @@ export function createArenaRuntime(hooks = {}) {
       } else {
         _portalTrigger.reset();
         _productPanelTrigger.reset();
+        _auctionBoardTrigger.reset();
       }
       tickMirror(dt);
       tickFoliage(dt);
@@ -1401,6 +1418,8 @@ export function createArenaRuntime(hooks = {}) {
     } else {
       startPhase('buildArena');
       buildArena();
+      // ADR-0145 (v0.2.919): live PRODUCT + AUCTION boards on the built PRODUCT sign.
+      initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight });
       endPhase('buildArena');
       mark('boot-arena-done');
       // v0.2.879 (P0.2): a legacy home has no manifest to rebuild on homecoming.
@@ -1582,6 +1601,7 @@ export function createArenaRuntime(hooks = {}) {
         peerCount: _mp.roster ? _mp.roster.size : 0,
       } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
     });
+    if (window.ToriiDebug) window.ToriiDebug.marketBoards = marketBoards3dState; // ADR-0145 v0.2.919
 
     // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
     // the hotkey + mouse tracker unconditionally (inert); the owner check is lazy
@@ -1816,7 +1836,7 @@ export function createArenaRuntime(hooks = {}) {
     onKeyDown(code => {
       if (code !== 'KeyQ' || !isPlaying()) return;
       if (isMarketActive()) { setMarketActive(false); setBoardsActive(false); return; }
-      _productPanelTrigger.interact();
+      if (!_productPanelTrigger.interact()) _auctionBoardTrigger.interact();
     });
 
     // KeyM — open the persistent Torii menu (Phase 0c). Works whenever playing OR

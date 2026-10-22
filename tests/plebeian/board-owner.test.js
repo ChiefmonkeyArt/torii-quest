@@ -56,7 +56,7 @@ describe('ownerBoards wiring (owner decisions 2026-10-22)', () => {
     expect(src).toMatch(/_owner = resolveBoardOwner\(\{ adminHex: ADMIN_PUBKEY_HEX \}\)/);
     expect(src).toMatch(/mergeStoreEvents\(\[\.\.\.byRelay\.values\(\)\], _store\)/);
     expect(src).toMatch(/if \(!_store\) _store = ownerStore\(_owner\);/);
-    expect(src).toMatch(/if \(!active && wasActive\) stop\(\);/);
+    expect(src).toMatch(/if \(!active && wasActive && !_worldWanted\) stop\(\);/); // v0.2.919: world boards keep the feed
     expect(src).not.toMatch(/!ADMIN_PUBKEY_HEX\) return/);
   });
 });

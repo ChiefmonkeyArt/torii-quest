@@ -1,3 +1,15 @@
+## v0.2.917-alpha: store preview honesty, quiet grass, relay re-check
+
+- [x] `napStore.preview/publish` with a bad value: `shows` = "nothing: fix the value first, nothing was saved"; every result has a plain `message`; a bad value never reaches the signer.
+- [x] Sticker raycast skips instanced grass geometry silently. Other position-less meshes still warn once.
+- [x] Default relays re-checked (2026-10-22, read-only):
+  - all 7 reachable; `relay.plebeian.market` is back up;
+  - the live node heartbeat (3ae0fad8) is on nos.lol, damus, primal, snort, nostr.mom and routstr;
+  - **nos.lol stays.** Its refusals hit only the probe's new keys.
+- [x] One session opens about 3 short-lived sockets per relay on the title screen and keeps 1 open, the same for every relay.
+- [ ] Later (ADR-0140 stage 3): route one-shot reads (profiles, leaderboard) through the shared Applesauce pool, so each relay has one socket.
+- [ ] The live node heartbeat is missing from `relay.plebeian.market` (that relay was down earlier). Check that it's back after the next heartbeat.
+
 ## v0.2.916-alpha: NAP store source + probe relay reasons
 
 - [x] The store shows the owner's npub by default. It can show another npub (`p`) or a custom store of products and auctions (`a`, max 24), via an owner-signed kind 30003 `torii-nap-store` set.

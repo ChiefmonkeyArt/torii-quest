@@ -221,6 +221,10 @@ function _getMeshes() {
       // warn ONCE so the offender is named for a root-cause follow-up.
       const geo = obj.geometry;
       if (!geo || !geo.attributes || !geo.attributes.position) {
+        // v0.2.917: instanced shader geometry (the grass field) has no base
+        // position attribute BY DESIGN and is never a sticker surface: skip
+        // silently. Anything else still warns once, naming the offender.
+        if (geo && geo.isInstancedBufferGeometry) return;
         const key = _meshWarnKey(obj);
         if (!_warnedPositionless.has(key)) {
           _warnedPositionless.add(key);

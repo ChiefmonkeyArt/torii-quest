@@ -1,3 +1,13 @@
+## v0.2.913-alpha: a test button for the live world list, and the market plan
+
+There's now a one-line test you can run in the browser console with the
+gateway screen open. It briefly adds a labelled test world and measures how
+fast it appears on your screen; the test world disappears by itself within
+90 seconds. The plan for bringing shops, products and auctions into the NAP
+Zone is ready. It turned up a bug: the existing NAP boards never load in the
+browser, and fixing that is the first step. It's waiting on four choices
+from you.
+
 ## v0.2.912-alpha: anyone can use the Gate (ADR-0146)
 
 The rules for the Torii Gate are now public domain, and the starter kit is

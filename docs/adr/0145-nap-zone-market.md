@@ -44,3 +44,46 @@ Two gaps:
 - Do visiting players' shops show while they're present?
 - Physical layout: one stall per seller, a market street, or a wall of boards?
 - Which Plebeian relay set is authoritative now that the dev and production instances have split?
+
+## Preparation findings (v0.2.913-alpha, 2026-10-22)
+
+**Read-only look at `PlebeianApp/market`** (main branch, d4757b4, 2026-10-17; nothing changed there):
+- **There's no dedicated shop or stall event.** A shop is the seller's profile (kind 0) plus their NIP-99 products (kind 30402) and collections (kind 30405).
+- **Plebeian already has curated lists** (`src/lib/schemas/featured.ts`):
+  - `featured_products`: kind 30405;
+  - `featured_collections`: kind 30003;
+  - `featured_users`: kind 30000 (NIP-51, with `p` tags).
+
+  Quest can reuse the NIP-51 kind-30000 + `p` format for the owner's seller list, with no new schema.
+- **Relays:** `relay.plebeian.market` (production) and `relay.staging.plebeian.market` (staging).
+- **Auctions** (kind 30408, bids 1023) live on Plebeian's `auctions` branches, not main. Quest reads them from staging today.
+
+**Quest bug confirmed.** `ownerBoards.start()` returns early when `ADMIN_PUBKEY_HEX` is empty, which it always is in the browser, so the NAP boards never load. The live page already carries the owner key in `<meta name="torii-host-pubkey">`, which `_hostIdentity()` reads.
+
+## Implementation plan (each slice ships as its own release)
+
+1. **Owner fix.** The boards' author comes from `_hostIdentity()`, falling back to `ADMIN_PUBKEY_HEX`. Tests cover meta present, absent and malformed. Every operator then sees their own products and auctions.
+2. **Market data layer** (lazy chunk, on the shared Applesauce pool):
+   - one subscription while the NAP Zone is active, for `authors = sellers` and kinds 0, 30402, 30405, 30408, plus 1023 by `#a` for live auctions only;
+   - every event signature-verified (with the cached verifier) and parsed through the existing `boardModel` / `auctionModel` sanitisers;
+   - its own size budget, enforced like `budget:applesauce`, with no entry growth beyond 1 KB.
+3. **Seller list:**
+   - owner + an owner-curated NIP-51 kind-30000 list (`d: torii-nap-sellers`, `p` tags, the same format as Plebeian's `featured_users`);
+   - capped at 12 sellers;
+   - edited first through a console or settings helper that signs with the owner's NIP-07 key, which needs owner approval per publish.
+4. **Stalls in the world:**
+   - one stall per seller, showing name and avatar from their profile, products, live auction and past auction;
+   - at most N stalls rendered, set by quality tier;
+   - images only through the compressed texture path, https only.
+   - "Buy" and "Bid" open Plebeian (watch-only).
+5. **Gate extension.** The heartbeat MAY carry `["market","plebeian"]` and `["market-relay", wss]`. Doorways show a market badge. v1 readers ignore it, and new fixtures cover it.
+6. **Real-GPU and phone check.** Frame time in the NAP Zone with the maximum number of stalls, using the freeze meter.
+
+## Decisions needed before slice 2
+
+| Question | Recommendation |
+|---|---|
+| Who appears by default? | The owner plus their curated list (12 max). Followers and opt-in visitors come later. |
+| Do visiting players' shops show? | Not in v1. Later as opt-in, while present. |
+| Layout | A market street: stalls along the NAP edge, the nearest N rendered. |
+| Relays | Products and profiles from `relay.plebeian.market` plus each seller's NIP-65 relays. Auctions from staging until Plebeian ships auctions to production. |

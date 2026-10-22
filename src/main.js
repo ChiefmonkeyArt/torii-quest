@@ -3372,6 +3372,21 @@ if (typeof window !== 'undefined') {
     return { transport: _gatewayTransport.active, ms: Math.round(performance.now() - t0), worlds: _worldsCache.length, scan: _worldsScan };
   };
 
+  // ADR-0140 stage 2 real-device check. Open the gateway screen, then:
+  //   await ToriiDebug.gatewayLiveProbe()
+  // → { ok, transport, accepted, publishMs, arrivalMs, listedMs, zoneId, error }
+  // Publishes ONE throwaway-key test world (gone from every directory in ~90 s).
+  window.ToriiDebug.gatewayLiveProbe = async () => {
+    const m = await import('./engine/gateway/liveProbe.js');
+    return m.runLiveProbe({
+      live: _gatewayTransport.liveWorlds(),
+      transport: _gatewayTransport.active,
+      publish: (ev) => fanoutPublish(_effectiveRelays(), ev),
+      isListed: (z) => _worldsCache.some((w) => w && w.zoneId === z),
+      website: window.location.origin + window.location.pathname,
+    });
+  };
+
   // ADR-0090 slice 2 — sticker render-mode A/B toggle. Open the browser
   // console and run:
   //   ToriiDebug.stickers.state()               → { forcePlaneMode }

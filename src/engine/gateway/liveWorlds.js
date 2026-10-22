@@ -19,6 +19,7 @@ const isEvent = (e) => !!e && typeof e === 'object' && typeof e.id === 'string' 
 export function createLiveWorlds({ getSubscribe, onEvents }) {
   const byKey = new Map(); // pubkey:d → newest event (replaceable, so newest wins)
   let stop = null, relaysKey = '', flushing = false, dirty = false, received = 0;
+  const arrivalListeners = new Set();
 
   const keyOf = (e) => {
     let d = '';
@@ -40,6 +41,7 @@ export function createLiveWorlds({ getSubscribe, onEvents }) {
   function onEvent(e) {
     if (!isEvent(e)) return;
     received++;
+    if (arrivalListeners.size) { const at = Date.now(); for (const fn of arrivalListeners) { try { fn(e, at); } catch { /* listener errors stay local */ } } }
     const k = keyOf(e);
     const prev = byKey.get(k);
     if (prev && prev.created_at >= e.created_at) return;
@@ -69,6 +71,8 @@ export function createLiveWorlds({ getSubscribe, onEvents }) {
     get active() { return !!stop; },
     get received() { return received; },
     events() { return [...byKey.values()]; },
+    /** Observe every pushed event (the live probe times arrival). → unsubscribe */
+    onArrival(fn) { if (typeof fn !== 'function') return () => {}; arrivalListeners.add(fn); return () => arrivalListeners.delete(fn); },
     stop: halt,
   };
 }

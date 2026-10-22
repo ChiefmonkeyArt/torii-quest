@@ -1,3 +1,14 @@
+## v0.2.915-alpha: NAP market slice 1 (owner fix)
+
+- [x] ADR-0145 Accepted: owner + curated list (12 max); no visitor shops in v1; a market street; products from production + staging, auctions from staging.
+- [x] The boards use this world's owner (host pubkey meta), not the server-only admin key.
+- [x] Events are signature-checked and owner-only, newest per listing, merged across relays.
+- [x] Sockets close when the boards hide.
+- [ ] **Operator:** walk into the NAP Zone and confirm the product board and auction boards show your staging listing and auction.
+- [ ] Slice 2: market data layer on the Applesauce pool (lazy chunk, own size budget).
+- [ ] Slice 3: seller list (NIP-51 kind 30000 `torii-nap-sellers`); each publish needs owner approval.
+- [ ] Note: `relay.plebeian.market` returned 502 on 2026-10-22. Products currently come from staging.
+
 ## v0.2.914-alpha: live-probe timing fix
 
 - [x] First real-GPU probe (operator, 2026-10-22): `ok: true`, transport applesauce, 6 relays accepted, `publishMs` 5005 (one relay hit the 5 s publish timeout).
@@ -10,8 +21,8 @@
 - [x] `ToriiDebug.gatewayLiveProbe()`: publishes one throwaway-key test world and times publish → pushed → listed.
 - [ ] **Operator, real GPU:** open the in-world gateway screen, run the probe, and send the result. Watch the probe world appear without a rescan.
 - [x] NAP market preparation (ADR-0145): Plebeian kinds confirmed read-only, the owner-boards bug confirmed, a six-slice plan.
-- [ ] **Owner decisions for the market:** default sellers, visitor shops, layout, relays (table in ADR-0145).
-- [ ] Market slice 1: owner fix (boards use `_hostIdentity()`).
+- [x] **Owner decisions for the market:** all four accepted 2026-10-22.
+- [x] Market slice 1: owner fix, shipped v0.2.915.
 
 ## v0.2.912-alpha: Gate licensing (ADR-0146)
 

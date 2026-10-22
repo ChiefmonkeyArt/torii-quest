@@ -97,7 +97,7 @@ const headlessGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_HEADLESS,
 const generationGate = createConcurrencyGate({ maxGlobal: MAX_CONCURRENT_GENERATIONS, maxPerKey: MAX_GENERATIONS_PER_PUBKEY });
 const MAX_PEERS  = Number(process.env.MAX_PEERS || 32);
 const LOG_LEVEL  = process.env.LOG_LEVEL || 'info';
-const SERVER_VERSION = 'v0.2.914-alpha';
+const SERVER_VERSION = 'v0.2.915-alpha';
 
 // Kami Mode ema store (ADR-0025). Sealed at rest in the browser; the server only
 // holds ciphertext. KAMI_DIR is overridable for tests; default is the VPS data dir.
@@ -127,7 +127,7 @@ globalThis.WebSocket ??= WebSocket;
 // BOT_TICK_MS, BOT_STATE_MS. BOT_SIM_ENABLED is still honoured as an alias of GAMEZONE_ENABLED.
 const GAMEZONE_ENABLED = String(process.env.GAMEZONE_ENABLED || process.env.BOT_SIM_ENABLED || 'true').toLowerCase() !== 'false';
 
-// v0.2.914-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
+// v0.2.915-alpha (UPD-2): admin-gated "Update Now". QUEST_ADMIN_NPUB accepts an
 // `npub1…` OR a raw hex64 pubkey; it is normalised to hex ONCE here. When unset (or
 // unparseable) the admin gate denies everything and capability.selfUpdate is false.
 // arena-ws only ever WRITES an atomic request file — the root systemd runner (built
@@ -136,7 +136,7 @@ const ADMIN_PUBKEY_HEX     = npubToHex(process.env.QUEST_ADMIN_NPUB || '') || ''
 const UPDATE_REQUESTS_DIR  = process.env.UPDATE_REQUESTS_DIR || '/opt/torii-quest/mp/update-requests';
 const UPDATE_STATUS_PATH   = process.env.UPDATE_STATUS_PATH || '/opt/torii-quest/mp/update-status.json';
 
-// ADR-0094 (v0.2.914-alpha): server-side always-on presence beacon. The server
+// ADR-0094 (v0.2.915-alpha): server-side always-on presence beacon. The server
 // holds an instance-bound key (never the admin's nsec) and, while enabled,
 // republishes the world-presence event on a 10-min cadence so the world stays
 // listed on the gateway with no browser open. Relays default to the same curated
@@ -173,7 +173,7 @@ function _resolveLegacyWorldConfig() {
   return null;
 }
 
-// ADR-0032 (v0.2.914-alpha): server-side truth for "is this session the owner,
+// ADR-0032 (v0.2.915-alpha): server-side truth for "is this session the owner,
 // currently in Kami Mode". The client's KAMI_STATE message only ever SETS
 // sess.kamiActive; whether it's honoured is decided here by re-checking the
 // session's own authenticated pubkey (set once at AUTH, not client-suppliable
@@ -200,7 +200,7 @@ const RATE = Object.freeze({
 // several heartbeats without the peer ever vanishing from the other screen.
 // A genuinely dead socket is still reaped here; the wider window only costs a
 // little extra lingering for a hard-dropped connection.
-// v0.2.914-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
+// v0.2.915-alpha (Bug C): 15 minutes of no gameplay activity (see the PING/PONG
 // carve-out in handleMessage) before a session is swept. A real player leaving
 // the world is disconnected immediately by the client (leaveToTitle → stop), so
 // this is a backstop for crashed/hung tabs, not the primary exit path.
@@ -252,22 +252,22 @@ const SCORE_ENABLED = String(process.env.SCORE_ENABLED || 'true').toLowerCase() 
 // it is emitted in every SCORE frame so replay-attack guards / WoT
 // aggregation can group tallies per match.
 const SCORE_SESSION_ID = newScoreSessionId((n) => randomBytes(n));
-// v0.2.914-alpha: live in-arena leaderboard. In addition to the on-close SCORE
+// v0.2.915-alpha: live in-arena leaderboard. In addition to the on-close SCORE
 // emit, broadcast the running tally on every kill and on this periodic tick so
 // clients see real-time standings. Additive on PROTOCOL_VERSION=1.
 const SCORE_TICK_MS = Number(process.env.SCORE_TICK_MS || 5000);
 
-// Session-token authority (v0.2.914-alpha). Login signs a NIP-98 event ONCE
+// Session-token authority (v0.2.915-alpha). Login signs a NIP-98 event ONCE
 // over a one-time challenge (POST /mp/session), receives an opaque bearer
 // token, and the arena WS reuses it via AUTH_TOKEN — no per-entry NIP-42 sign.
 const sessionTokens = createSessionTokens();
 
-// Signed travel-token authority (v0.2.914-alpha). A traveller signs ONE NIP-98
+// Signed travel-token authority (v0.2.915-alpha). A traveller signs ONE NIP-98
 // "travel" event in their ORIGIN world; /mp/travel verifies + consumes it (single-use)
 // and issues a session token — no NIP-07 re-sign in this world.
 const travelTokens = createTravelTokens();
 
-// v0.2.914-alpha (UPD-2): admin-update request authority. Writes atomic request
+// v0.2.915-alpha (UPD-2): admin-update request authority. Writes atomic request
 // files only; never runs shell. Denies everything when QUEST_ADMIN_NPUB is unset.
 const adminUpdate = createAdminUpdate({
   adminPubkeyHex: ADMIN_PUBKEY_HEX,
@@ -276,7 +276,7 @@ const adminUpdate = createAdminUpdate({
   installedVersion: SERVER_VERSION,
 });
 
-// ADR-0094 (v0.2.914-alpha): server-side always-on presence beacon authority.
+// ADR-0094 (v0.2.915-alpha): server-side always-on presence beacon authority.
 // Holds an instance-bound key + enabled flag, persisted to disk so a restart
 // resumes the pulse with no admin re-login.
 const fipsPresence = createFipsPresence(loadPeerConfig(process.env.QUEST_FIPS_PEERS_PATH));
@@ -398,7 +398,7 @@ function closeSession(sess, reason) {
   if (sessions.has(sess.id)) {
     sessions.delete(sess.id);
     if (gameZone) gameZone.onLeave(sess);
-    // v0.2.914-alpha: RETIRE (not drop) so a disconnected player stays on the
+    // v0.2.915-alpha: RETIRE (not drop) so a disconnected player stays on the
     // LOCAL leaderboard for this arena instance until the server restarts.
     if (SCORE_ENABLED) scoreLedger.retire(sess.id);
     if (sess.authed) {
@@ -439,7 +439,7 @@ function finishAuth(sess, { npub, pubkey, character }) {
   sess.authed = true;
   sess.npub = npub;
   sess.pubkey = pubkey;
-  // Single-instance (v0.2.914-alpha): one npub = ONE live session per world, so a
+  // Single-instance (v0.2.915-alpha): one npub = ONE live session per world, so a
   // second-machine login with the same pubkey SUPERSEDES the older session (send it
   // REPLACED + close it → its LEFT removes the duplicate avatar for every peer). This
   // enforces "there can only be one of you" and prevents the reconnect ping-pong.
@@ -454,8 +454,8 @@ function finishAuth(sess, { npub, pubkey, character }) {
       }
     }
   }
-  // v0.2.914-alpha: accept a client-sent character key (validated against the
-  // known set) OR a 64-hex Character Forge mesh hash. v0.2.914-alpha: an absent/
+  // v0.2.915-alpha: accept a client-sent character key (validated against the
+  // known set) OR a 64-hex Character Forge mesh hash. v0.2.915-alpha: an absent/
   // invalid key now downgrades to `guest` (never `chiefmonkey`) so a bad client
   // can't surface as the owner's identity. Whitelist in server/auth/characterKeys.js.
   sess.character = isValidCharacterKey(character) ? character : 'guest';
@@ -498,7 +498,7 @@ async function handleMessage(sess, raw) {
   }
   const msg = sanitize(parsed.msg);
 
-  // v0.2.914-alpha (Bug C): only gameplay messages count as "activity" for the
+  // v0.2.915-alpha (Bug C): only gameplay messages count as "activity" for the
   // idle sweep. Keepalive PING/PONG are transport noise — the client pings every
   // 15s, so counting them kept a parked/backgrounded session alive forever and
   // it rendered as a static phantom peer. Now a session that sends nothing but
@@ -516,7 +516,7 @@ async function handleMessage(sess, raw) {
 
   // --- Handshake phase ---
   if (!sess.authed) {
-    // v0.2.914-alpha: bearer-token auth (login signed once via NIP-98). No
+    // v0.2.915-alpha: bearer-token auth (login signed once via NIP-98). No
     // NIP-07 signature needed on arena entry / reconnect.
     // SPECTATE (ADR-0118 D4): subscribe read-only, no identity. Detach from the
     // seated roster into the spectator registry — receive the world-state broadcast,
@@ -616,7 +616,7 @@ function broadcastScoreFrame() {
 
 if (gameZone) gameZone.start();
 
-// v0.2.914-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
+// v0.2.915-alpha: periodic live SCORE broadcast. broadcastScoreFrame() is a
 // no-op when SCORE is disabled or no tallies exist, so this only emits once
 // combat has produced standings. The on-kill + on-close emits stay in place;
 // this fills the quiet gaps (e.g. damage-only progress) at ~5s cadence.
@@ -767,7 +767,7 @@ const httpServer = createServer((req, res) => {
     });
   }
 
-  // v0.2.914-alpha session-token endpoints (plain HTTP, same origin as /mp).
+  // v0.2.915-alpha session-token endpoints (plain HTTP, same origin as /mp).
   //   GET  /mp/auth-challenge → { challenge, ttl }         (no auth)
   //   POST /mp/session {event, challenge} → { token, npub } (verifies NIP-98)
   if (req.method === 'GET' && path.endsWith('/mp/auth-challenge')) {
@@ -823,7 +823,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.914-alpha (UPD-2) admin-update endpoints.
+  // v0.2.915-alpha (UPD-2) admin-update endpoints.
   //   GET  /mp/admin/update-capability → { selfUpdate, adminPubkey }   (PUBLIC)
   //   GET  /mp/admin/update-status     → status JSON                    (PUBLIC read)
   //   POST /mp/admin/update {event}    → { ok, state } | error          (session+admin + fresh signed intent)
@@ -831,7 +831,7 @@ const httpServer = createServer((req, res) => {
     return sendJson(res, 200, adminUpdate.capability());
   }
 
-  // v0.2.914-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
+  // v0.2.915-alpha: PUBLIC read. Deploy restarts arena-ws, which drops in-memory
   // session tokens — an admin-gated status read then 403s post-restart and the
   // client poller sticks at DEPLOYING. readStatus() exposes only progress
   // (state/targetRef/startedAt/finishedAt/message); no secrets, so it is ungated.
@@ -850,7 +850,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // ADR-0094 (v0.2.914-alpha): server-side always-on presence beacon.
+  // ADR-0094 (v0.2.915-alpha): server-side always-on presence beacon.
   //   GET  /mp/admin/beacon → { enabled, activatedAt, pubkey, adminPubkey, … } (public)
   //   POST /mp/admin/beacon { action: 'on' | 'off' } → admin-gated toggle
   if (req.method === 'GET' && path.endsWith('/mp/admin/beacon')) {
@@ -881,11 +881,11 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.914-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.915-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
-  // v0.2.914-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
+  // v0.2.915-alpha (ADR-0039) Kami replies read. Admin-gated: only the logged-in
   // owner (bearer session token) sees the AI's replies in their emagake rack.
   // The browser cannot decrypt kamiSeal ema (NIP-07 has no ECDH), so AI replies
   // are a separate plaintext feed the rack polls and renders (text, not HTML).
@@ -906,7 +906,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.914-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
+  // v0.2.915-alpha (ADR-0025) Kami Mode ema intake. Admin-gated by session token.
   // Body cap is SEPARATE from MAX_LOGIN_BODY: a batch can carry several sealed
   // screenshots (~260 KB each after the 1.34x seal overhead), so 8 KB would
   // reject any ema with a shot. The server only ever holds ciphertext.
@@ -948,14 +948,14 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.914-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
+  // v0.2.915-alpha (real text-to-3d, Step C of ADR-0091): generate a human-
   // character GLB from a text prompt via Meshy (text-to-3d → refine → auto-rig),
   // returning the rigged GLB download URL. Session-gated (any logged-in npub) and
   // paid from the OPERATOR's Meshy account (MESHY_API_KEY server-side; the key never
   // reaches the browser). The client then downloads the GLB and uploads to Blossom
   // under its OWN NIP-98 key, exactly like the .glb upload path. See
   // server/character/meshyClient.js and src/engine/character/liveMeshGeneration.js.
-  // Paid character-creation (LNURL-pay + NIP-57, v0.2.914-alpha): two-phase.
+  // Paid character-creation (LNURL-pay + NIP-57, v0.2.915-alpha): two-phase.
   //   POST /mp/mesh/generate         {prompt} → {requirePayment, generationId, invoice, amountSats}
   //                                              when price>0, else {ok, glbUrl} (operator-paid).
   //   POST /mp/mesh/generate/confirm {generationId} → verify settlement → {ok, glbUrl}.
@@ -1102,7 +1102,7 @@ const httpServer = createServer((req, res) => {
     return;
   }
 
-  // v0.2.914-alpha (headless-fp-bodies for custom meshes): author a headless FP
+  // v0.2.915-alpha (headless-fp-bodies for custom meshes): author a headless FP
   // body variant from an uploaded/AI-generated player GLB. Session-gated (any
   // logged-in npub — headless authoring is a per-user tool). The server never
   // writes the file to disk and never signs anything: it returns the authored

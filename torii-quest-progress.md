@@ -1,3 +1,11 @@
+## v0.2.915-alpha: your shop now shows in the NAP Zone
+
+The four market choices are locked in. The first step fixes the NAP Zone
+boards, which were always empty: they now show your own products and auctions
+from Plebeian. Only listings genuinely signed by you are shown. The boards also
+stop using the network while hidden. Plebeian's main relay was down when we
+checked, so your listing is coming from the staging relay for now.
+
 ## v0.2.914-alpha: live test on your real machine passed
 
 Your first real-machine test worked: the test world appeared, using the new

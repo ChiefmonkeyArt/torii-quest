@@ -1,3 +1,10 @@
+## v0.2.914-alpha: live-probe timing fix
+
+- [x] First real-GPU probe (operator, 2026-10-22): `ok: true`, transport applesauce, 6 relays accepted, `publishMs` 5005 (one relay hit the 5 s publish timeout).
+- [x] The probe now measures the push and the listing while publishing, so listedMs isn't held back by the slowest relay; it reports `failedRelays`.
+- [x] `[ownerProfile]` diagnostics log as info, not warn: no stack spam for profile-less owners.
+- [ ] **Operator:** re-run the probe and send `arrivalMs` / `listedMs` / `failedRelays`.
+
 ## v0.2.913-alpha: live-probe for the real-GPU check + market preparation
 
 - [x] `ToriiDebug.gatewayLiveProbe()`: publishes one throwaway-key test world and times publish → pushed → listed.

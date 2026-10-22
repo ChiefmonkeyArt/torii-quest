@@ -1,3 +1,11 @@
+## v0.2.914-alpha: live test on your real machine passed
+
+Your first real-machine test worked: the test world appeared, using the new
+relay library, and six relays accepted it. One relay was slow, which made the
+test's timing look worse than it is, so the test now times the world list on
+its own and names the slow relay. A noisy warning in the console is now a
+plain info line.
+
 ## v0.2.913-alpha: a test button for the live world list, and the market plan
 
 There's now a one-line test you can run in the browser console with the

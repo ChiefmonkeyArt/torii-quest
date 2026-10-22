@@ -9,7 +9,8 @@
 import { subscribeByAuthor, PLEBEIAN_PRODUCT_KIND, PLEBEIAN_AUCTION_KIND } from './plebeianRelay.js';
 import { selectOnSaleProducts, splitAuctionsByEnd } from './boardModel.js';
 import { renderBoard, parseAuctionEvents } from './boardPanel.js';
-import { PLEBEIAN_RELAYS, ADMIN_PUBKEY_HEX } from '../../config.js';
+import { PLEBEIAN_PRODUCT_RELAYS, PLEBEIAN_AUCTION_RELAYS, ADMIN_PUBKEY_HEX } from '../../config.js';
+import { resolveBoardOwner, mergeOwnerEvents } from './boardOwner.js';
 
 const BOARD_IDS = {
   product: 'product-board',
@@ -17,11 +18,13 @@ const BOARD_IDS = {
   pastAuction: 'past-auction-board',
 };
 
-let _productSub = null;
-let _auctionSub = null;
+let _subs = [];
+let _owner = '';
 let _active = false;
 let _rawProducts = [];
 let _rawAuctions = [];
+const _productByRelay = new Map();
+const _auctionByRelay = new Map();
 
 function render() {
   if (!_active) return;
@@ -31,27 +34,39 @@ function render() {
   renderBoard(BOARD_IDS.pastAuction, past, 'auction-past');
 }
 
+// ADR-0145 slice 1: the owner is THIS world's owner (host pubkey meta), not the
+// server-only ADMIN_PUBKEY_HEX, which is '' in every browser and silently kept
+// the boards empty. One subscription per relay; merged, signature-checked and
+// owner-only via mergeOwnerEvents.
 function start() {
-  if (_productSub || _auctionSub) return;
-  const url = PLEBEIAN_RELAYS && PLEBEIAN_RELAYS[0];
-  if (!url || !ADMIN_PUBKEY_HEX) return;
-  _productSub = subscribeByAuthor({
-    url,
-    author: ADMIN_PUBKEY_HEX,
-    kinds: [PLEBEIAN_PRODUCT_KIND],
-    onUpdate: (events) => { _rawProducts = events; render(); },
-  });
-  _auctionSub = subscribeByAuthor({
-    url,
-    author: ADMIN_PUBKEY_HEX,
-    kinds: [PLEBEIAN_AUCTION_KIND],
-    onUpdate: (events) => { _rawAuctions = events; render(); },
-  });
+  if (_subs.length) return;
+  _owner = resolveBoardOwner({ adminHex: ADMIN_PUBKEY_HEX });
+  if (!_owner) return;
+  for (const url of PLEBEIAN_PRODUCT_RELAYS) {
+    _subs.push(subscribeByAuthor({
+      url, author: _owner, kinds: [PLEBEIAN_PRODUCT_KIND],
+      onUpdate: (events) => { _productByRelay.set(url, events); _rawProducts = mergeOwnerEvents([..._productByRelay.values()], _owner); render(); },
+    }));
+  }
+  for (const url of PLEBEIAN_AUCTION_RELAYS) {
+    _subs.push(subscribeByAuthor({
+      url, author: _owner, kinds: [PLEBEIAN_AUCTION_KIND],
+      onUpdate: (events) => { _auctionByRelay.set(url, events); _rawAuctions = mergeOwnerEvents([..._auctionByRelay.values()], _owner); render(); },
+    }));
+  }
 }
 
+// Close the sockets when the boards hide (v0.2.915): an unreachable relay no
+// longer retries every 3 s for the whole session. Cached events stay, so a
+// re-open renders instantly while the subscriptions reconnect.
 function stop() {
-  if (_productSub) { _productSub.close(); _productSub = null; }
-  if (_auctionSub) { _auctionSub.close(); _auctionSub = null; }
+  for (const s of _subs) { try { s.close(); } catch { /* closed */ } }
+  _subs = [];
+}
+
+/** Test / debug seam. */
+export function _ownerBoardsState() {
+  return { owner: _owner, subs: _subs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active };
 }
 
 function showHide(active) {
@@ -82,6 +97,7 @@ export function setBoardsActive(active) {
   // (Re)start the relay subscriptions + render only on the false→true edge to
   // avoid redundant WebSocket churn on repeated trigger presses.
   if (active && !wasActive) { start(); render(); }
+  if (!active && wasActive) stop();
 }
 
 /**

@@ -29,6 +29,19 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## NAP MARKET SLICE 1: v0.2.915-alpha
+
+- **ADR-0145 Accepted** (owner, 2026-10-22).
+- `plebeian/boardOwner.js`:
+  - `resolveBoardOwner` checks the window value, then the meta, then admin;
+  - `mergeOwnerEvents` keeps verified, owner-only events, newest per coordinate.
+- `ownerBoards.js` opens one `subscribeByAuthor` per relay:
+  - `PLEBEIAN_PRODUCT_RELAYS`: production + staging;
+  - `PLEBEIAN_AUCTION_RELAYS`: staging;
+  - `stop()` runs on hide;
+  - `_ownerBoardsState()` is the debug seam.
+- **Next:** slice 2 (Applesauce market data layer), then slice 3 (the seller list; each publish needs owner approval).
+
 ## LIVE PROBE + MARKET PREP: v0.2.913-alpha (timing fix v0.2.914-alpha)
 
 - **v0.2.914.** The probe watches the push and listing concurrently with publishing; `publishMs` is the slowest relay, and `failedRelays` names it. The first real-GPU run was `ok: true`, applesauce, 6 accepted, publishMs 5005.

@@ -1,6 +1,6 @@
-# ADR-0145: NAP Zone market: automatically show people's shops, products and auctions (Proposed)
+# ADR-0145: NAP Zone market: automatically show people's shops, products and auctions (Accepted)
 
-- **Status:** Proposed (plan only, nothing built)
+- **Status:** Accepted 2026-10-22. All four recommendations approved by the owner ("Accept all four market recommendations and continue"). Slice 1 shipped in v0.2.915-alpha.
 - **Date:** 2026-10-21
 - **Deciders:** chiefmonkey ("Soon we want to automatically pull in peoples shop and their products and auctions to the NAP Zone")
 - **Builds on:** ADR-0026 (watch-only Plebeian client), ADR-0035 (owner-scoped product/auction boards), ADR-0140 (Applesauce relay layer), ADR-0144 (Gate v1 extensions)
@@ -79,7 +79,7 @@ Two gaps:
 5. **Gate extension.** The heartbeat MAY carry `["market","plebeian"]` and `["market-relay", wss]`. Doorways show a market badge. v1 readers ignore it, and new fixtures cover it.
 6. **Real-GPU and phone check.** Frame time in the NAP Zone with the maximum number of stalls, using the freeze meter.
 
-## Decisions needed before slice 2
+## Owner decisions (2026-10-22): all four recommendations accepted
 
 | Question | Recommendation |
 |---|---|
@@ -87,3 +87,20 @@ Two gaps:
 | Do visiting players' shops show? | Not in v1. Later as opt-in, while present. |
 | Layout | A market street: stalls along the NAP edge, the nearest N rendered. |
 | Relays | Products and profiles from `relay.plebeian.market` plus each seller's NIP-65 relays. Auctions from staging until Plebeian ships auctions to production. |
+
+## Slice 1 shipped (v0.2.915-alpha)
+
+- New `src/engine/plebeian/boardOwner.js`:
+  - `resolveBoardOwner()` checks `window.__toriiHostPubkey`, then `<meta name="torii-host-pubkey">`, then `ADMIN_PUBKEY_HEX`.
+  - `mergeOwnerEvents()` keeps only events signed by the owner with a valid signature, newest per listing, across relays. A relay can't slip a forged or foreign listing into the owner's stall.
+- `ownerBoards.js`:
+  - one subscription per relay: products from `PLEBEIAN_PRODUCT_RELAYS` (production + staging), auctions from `PLEBEIAN_AUCTION_RELAYS` (staging);
+  - sockets close when the boards hide, so an unreachable relay no longer retries every 3 s all session.
+- **Checked 2026-10-22:**
+  - `relay.plebeian.market` answered HTTP 502;
+  - staging holds the live host's 1 product, 1 auction and a profile, and both listings pass the new signature filter.
+
+## Next
+
+- **Slice 2:** the market data layer on the shared Applesauce pool (lazy chunk with its own size budget).
+- **Slice 3:** the seller list. NIP-51 kind 30000 `d: torii-nap-sellers` with `p` tags, max 12, the same format as Plebeian's `featured_users`. Each publish needs owner approval.

@@ -29,7 +29,9 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
-## LIVE PROBE + MARKET PREP: v0.2.913-alpha
+## LIVE PROBE + MARKET PREP: v0.2.913-alpha (timing fix v0.2.914-alpha)
+
+- **v0.2.914.** The probe watches the push and listing concurrently with publishing; `publishMs` is the slowest relay, and `failedRelays` names it. The first real-GPU run was `ok: true`, applesauce, 6 accepted, publishMs 5005.
 
 - **Probe.** `await ToriiDebug.gatewayLiveProbe()` (lazy `gateway/liveProbe.js`) needs the live list active (gateway screen open, or the menu while logged in).
   - It returns `{ ok, transport, accepted, publishMs, arrivalMs, listedMs, zoneId, error }`.

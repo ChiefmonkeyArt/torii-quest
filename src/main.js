@@ -902,9 +902,11 @@ async function _enrichWorldOwners(worlds) {
       // ADR-0119 diagnostic: surface kind:0 enrichment outcome so a serial-only
       // directory row can be traced to a failed lookup vs. a missing profile name.
       if (hasName) {
-        console.warn('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
+        console.info('[ownerProfile]', owner.slice(0, 8), '→', profile.displayName);
       } else {
-        console.warn('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
+        // v0.2.914: info, not warn — a profile-less owner (e.g. the live probe's
+        // throwaway key) is normal, and warn prints a long async stack in DevTools.
+        console.info('[ownerProfile]', owner.slice(0, 8), '→ no kind:0 profile found');
       }
     }));
   }

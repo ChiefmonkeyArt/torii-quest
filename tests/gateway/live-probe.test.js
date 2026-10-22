@@ -55,6 +55,21 @@ describe('runLiveProbe', () => {
     expect(r.error).toMatch(/not pushed within 80 ms/);
     expect(offs[0]).toHaveBeenCalled();
   });
+  it('measures the listing independently of a slow publish (v0.2.914)', async () => {
+    let fire;
+    const live = { active: true, onArrival: (fn) => { fire = fn; return () => {}; } };
+    let listedNow = false;
+    const publish = async (ev) => {
+      setTimeout(() => { fire(ev, Date.now()); listedNow = true; }, 20); // pushed back fast
+      await new Promise((r) => setTimeout(r, 400)); // one slow relay holds publish
+      return { accepted: 5, failed: ['wss://slow.example'] };
+    };
+    const r = await runLiveProbe({ live, publish, isListed: () => listedNow, website: 'https://q.example/', secretKey: SK, timeoutMs: 2000 });
+    expect(r.ok).toBe(true);
+    expect(r.publishMs).toBeGreaterThanOrEqual(380);
+    expect(r.listedMs).toBeLessThan(300);
+    expect(r.failedRelays).toEqual(['wss://slow.example']);
+  });
   it('the controller exposes onArrival and its stand-in is inert', () => {
     const L = createLiveWorlds({ getSubscribe: () => null, onEvents: () => {} });
     const off = L.onArrival(() => {});

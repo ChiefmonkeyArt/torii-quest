@@ -1,3 +1,12 @@
+## v0.2.916-alpha: choose what your NAP store shows
+
+Your NAP Zone store shows your own shop by default. You can now switch it to
+someone else's shop, or build your own selection of products and auctions,
+with a short console command that your Nostr signer approves. Only you, as
+the world's owner, can change it. Your second live test was fast: the test
+world appeared on screen in under a third of a second. The test now also
+reports why some relays turned it away.
+
 ## v0.2.915-alpha: your shop now shows in the NAP Zone
 
 The four market choices are locked in. The first step fixes the NAP Zone

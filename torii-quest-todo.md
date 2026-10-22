@@ -1,3 +1,14 @@
+## v0.2.916-alpha: NAP store source + probe relay reasons
+
+- [x] The store shows the owner's npub by default. It can show another npub (`p`) or a custom store of products and auctions (`a`, max 24), via an owner-signed kind 30003 `torii-nap-store` set.
+- [x] `ToriiDebug.napStore.preview/publish/state`: NIP-07 signing, owner-only.
+- [x] `naddrToCoord` (NIP-19 naddr decoder).
+- [x] The second real-GPU probe (2026-10-22) passed: `arrivalMs` 273, `listedMs` 289, 5 accepted. nos.lol, relay.snort.social and nostr.mom refused the throwaway key.
+- [x] The probe now reports `failReasons` (each relay's own message).
+- [ ] **Operator:** optionally try `ToriiDebug.napStore.preview({ seller: 'npub1…' })`. Publishing changes the live store, so do it only when you want to.
+- [ ] Find out why nos.lol, relay.snort.social and nostr.mom refuse the probe, using `failReasons` from the next run.
+- [ ] Later: every shop owner's shop in the world; a mapped virtual marketplace.
+
 ## v0.2.915-alpha: NAP market slice 1 (owner fix)
 
 - [x] ADR-0145 Accepted: owner + curated list (12 max); no visitor shops in v1; a market street; products from production + staging, auctions from staging.
@@ -6,7 +17,7 @@
 - [x] Sockets close when the boards hide.
 - [ ] **Operator:** walk into the NAP Zone and confirm the product board and auction boards show your staging listing and auction.
 - [ ] Slice 2: market data layer on the Applesauce pool (lazy chunk, own size budget).
-- [ ] Slice 3: seller list (NIP-51 kind 30000 `torii-nap-sellers`); each publish needs owner approval.
+- [x] Slice 3 replaced by the store source (v0.2.916): owner default / another npub / custom store.
 - [ ] Note: `relay.plebeian.market` returned 502 on 2026-10-22. Products currently come from staging.
 
 ## v0.2.914-alpha: live-probe timing fix

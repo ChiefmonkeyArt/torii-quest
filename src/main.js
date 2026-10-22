@@ -231,6 +231,7 @@ import { readTravelRequests } from './engine/gateway/travelRequest.js';
 // this title-screen EDITING surface and its import are gone.
 import {
   NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED, GATEWAY_TRANSPORT,
+  PLEBEIAN_PRODUCT_RELAYS,
 } from './config.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
@@ -3387,6 +3388,25 @@ if (typeof window !== 'undefined') {
       isListed: (z) => _worldsCache.some((w) => w && w.zoneId === z),
       website: window.location.origin + window.location.pathname,
     });
+  };
+
+  // ADR-0145 (v0.2.916): owner's NAP store setting. Lazy; signs via NIP-07 only
+  // after the owner calls publish(), and only if the signer is this world's owner.
+  window.ToriiDebug.napStore = {
+    async state() { return (await import('./engine/plebeian/ownerBoards.js'))._ownerBoardsState(); },
+    async preview(o = {}) {
+      const [{ previewStore }, { resolveBoardOwner }] = await Promise.all([import('./engine/plebeian/napStoreAdmin.js'), import('./engine/plebeian/boardOwner.js')]);
+      return previewStore({ owner: resolveBoardOwner(), seller: o.seller, items: o.items });
+    },
+    async publish(o = {}) {
+      const [{ publishStore }, { resolveBoardOwner }] = await Promise.all([import('./engine/plebeian/napStoreAdmin.js'), import('./engine/plebeian/boardOwner.js')]);
+      return publishStore({
+        owner: resolveBoardOwner(), seller: o.seller, items: o.items,
+        sign: signEvent,
+        publish: (ev) => fanoutPublish(PLEBEIAN_PRODUCT_RELAYS, ev),
+        getSignerPubkey: () => (window.nostr && typeof window.nostr.getPublicKey === 'function' ? window.nostr.getPublicKey() : ''),
+      });
+    },
   };
 
   // ADR-0090 slice 2 — sticker render-mode A/B toggle. Open the browser

@@ -83,8 +83,8 @@ Two gaps:
 
 | Question | Recommendation |
 |---|---|
-| Who appears by default? | The owner plus their curated list (12 max). Followers and opt-in visitors come later. |
-| Do visiting players' shops show? | Not in v1. Later as opt-in, while present. |
+| Who appears by default? | **Refined by the owner, 2026-10-22:** the instance owner's npub by default. The owner can instead select someone else's npub, or build a custom store by adding individual products and auctions. Shipped v0.2.916. |
+| Do visiting players' shops show? | Not in v1. **Owner's direction:** later, every shop owner can see their shop in the virtual world, and possibly a mapped-out virtual marketplace where many people browse many shops. |
 | Layout | A market street: stalls along the NAP edge, the nearest N rendered. |
 | Relays | Products and profiles from `relay.plebeian.market` plus each seller's NIP-65 relays. Auctions from staging until Plebeian ships auctions to production. |
 
@@ -103,4 +103,29 @@ Two gaps:
 ## Next
 
 - **Slice 2:** the market data layer on the shared Applesauce pool (lazy chunk with its own size budget).
-- **Slice 3:** the seller list. NIP-51 kind 30000 `d: torii-nap-sellers` with `p` tags, max 12, the same format as Plebeian's `featured_users`. Each publish needs owner approval.
+- **Slice 3: replaced by the store source (v0.2.916).**
+
+## Store source shipped (v0.2.916-alpha)
+
+The owner refined decision 1 on 2026-10-22: the store shows the instance owner's npub by default, with the option to pick another npub or build a custom store. It's stored in one owner-signed NIP-51 set, with no new kind:
+
+- kind `30003`, `d: torii-nap-store`;
+- `["p", <hex>]`: show that seller's shop;
+- `["a", "30402|30408:<pk>:<d>"]`: a custom store of exactly those products and auctions, max 24. `a` wins over `p`;
+- no tags, or no event: the owner's own shop.
+
+How it works:
+- The boards start straight away with the owner's shop. They also subscribe to the owner's store set and switch when one arrives.
+- Only a set signed by this world's owner counts, and every listing is signature-checked.
+- Custom stores accept only the chosen coordinates.
+- The console helper is `ToriiDebug.napStore.preview({...})` / `.publish({...})` / `.state()`, lazy-loaded.
+  - `publish` signs through NIP-07 and refuses unless the signer is this world's owner.
+  - It publishes to `PLEBEIAN_PRODUCT_RELAYS`.
+  - `naddr1…` links (as Plebeian shares them) and raw coordinates are both accepted.
+- Live check: the real module against staging loaded the owner's 1 product and 1 auction, and closed all 5 sockets on hide.
+
+## Later (owner direction)
+
+- Every shop owner can see their own shop in the virtual world.
+- A mapped-out virtual marketplace with many shops to browse.
+- Builds on the Gate `market` extension (slice 5) and opt-in presence.

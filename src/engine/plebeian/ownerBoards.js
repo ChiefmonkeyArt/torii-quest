@@ -10,7 +10,7 @@ import { subscribeByAuthor, PLEBEIAN_PRODUCT_KIND, PLEBEIAN_AUCTION_KIND } from 
 import { selectOnSaleProducts, splitAuctionsByEnd } from './boardModel.js';
 import { renderBoard, parseAuctionEvents } from './boardPanel.js';
 import { PLEBEIAN_PRODUCT_RELAYS, PLEBEIAN_AUCTION_RELAYS, ADMIN_PUBKEY_HEX } from '../../config.js';
-import { resolveBoardOwner, mergeOwnerEvents } from './boardOwner.js';
+import { resolveBoardOwner, ownerStore, resolveStoreConfig, storeFilters, mergeStoreEvents, storeKey, STORE_KIND, STORE_D } from './boardOwner.js';
 
 const BOARD_IDS = {
   product: 'product-board',
@@ -19,7 +19,10 @@ const BOARD_IDS = {
 };
 
 let _subs = [];
+let _configSubs = [];
 let _owner = '';
+let _store = null;
+const _configByRelay = new Map();
 let _active = false;
 let _rawProducts = [];
 let _rawAuctions = [];
@@ -34,39 +37,63 @@ function render() {
   renderBoard(BOARD_IDS.pastAuction, past, 'auction-past');
 }
 
-// ADR-0145 slice 1: the owner is THIS world's owner (host pubkey meta), not the
-// server-only ADMIN_PUBKEY_HEX, which is '' in every browser and silently kept
-// the boards empty. One subscription per relay; merged, signature-checked and
-// owner-only via mergeOwnerEvents.
+// ADR-0145: the owner is THIS world's owner (host pubkey meta), not the
+// server-only ADMIN_PUBKEY_HEX ('' in every browser). The store shows the
+// owner's shop by default, or what the owner's signed store set picks: another
+// seller, or a custom list of products/auctions (boardOwner.js). Listings start
+// immediately with the owner default and switch when a store set arrives.
+function openListings(reset) {
+  closeAll(_subs); _subs = [];
+  if (reset) { _productByRelay.clear(); _auctionByRelay.clear(); _rawProducts = []; _rawAuctions = []; }
+  const plan = [
+    [PLEBEIAN_PRODUCT_RELAYS, PLEBEIAN_PRODUCT_KIND, _productByRelay, (v) => { _rawProducts = v; }],
+    [PLEBEIAN_AUCTION_RELAYS, PLEBEIAN_AUCTION_KIND, _auctionByRelay, (v) => { _rawAuctions = v; }],
+  ];
+  for (const [relays, kind, byRelay, set] of plan) {
+    const filters = storeFilters(_store, kind);
+    if (!filters.length) continue;
+    const store = _store;
+    for (const url of relays) {
+      _subs.push(subscribeByAuthor({
+        url, filters,
+        onUpdate: (events) => { if (store !== _store) return; byRelay.set(url, events); set(mergeStoreEvents([...byRelay.values()], _store)); render(); },
+      }));
+    }
+  }
+  render();
+}
+
 function start() {
-  if (_subs.length) return;
+  if (_subs.length || _configSubs.length) return;
   _owner = resolveBoardOwner({ adminHex: ADMIN_PUBKEY_HEX });
   if (!_owner) return;
+  if (!_store) _store = ownerStore(_owner);
+  openListings(false);
   for (const url of PLEBEIAN_PRODUCT_RELAYS) {
-    _subs.push(subscribeByAuthor({
-      url, author: _owner, kinds: [PLEBEIAN_PRODUCT_KIND],
-      onUpdate: (events) => { _productByRelay.set(url, events); _rawProducts = mergeOwnerEvents([..._productByRelay.values()], _owner); render(); },
-    }));
-  }
-  for (const url of PLEBEIAN_AUCTION_RELAYS) {
-    _subs.push(subscribeByAuthor({
-      url, author: _owner, kinds: [PLEBEIAN_AUCTION_KIND],
-      onUpdate: (events) => { _auctionByRelay.set(url, events); _rawAuctions = mergeOwnerEvents([..._auctionByRelay.values()], _owner); render(); },
+    _configSubs.push(subscribeByAuthor({
+      url, filters: [{ authors: [_owner], kinds: [STORE_KIND], '#d': [STORE_D], limit: 4 }],
+      onUpdate: (events) => {
+        _configByRelay.set(url, events);
+        const next = resolveStoreConfig([..._configByRelay.values()].flat(), _owner);
+        if (storeKey(next) !== storeKey(_store)) { _store = next; openListings(true); }
+      },
     }));
   }
 }
 
+function closeAll(list) { for (const s of list) { try { s.close(); } catch { /* closed */ } } }
+
 // Close the sockets when the boards hide (v0.2.915): an unreachable relay no
-// longer retries every 3 s for the whole session. Cached events stay, so a
-// re-open renders instantly while the subscriptions reconnect.
+// longer retries every 3 s for the whole session. The last store config and
+// listings stay cached, so a re-open renders instantly while they reconnect.
 function stop() {
-  for (const s of _subs) { try { s.close(); } catch { /* closed */ } }
-  _subs = [];
+  closeAll(_subs); closeAll(_configSubs);
+  _subs = []; _configSubs = [];
 }
 
 /** Test / debug seam. */
 export function _ownerBoardsState() {
-  return { owner: _owner, subs: _subs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active };
+  return { owner: _owner, store: _store ? { ..._store, items: _store.items.slice() } : null, subs: _subs.length + _configSubs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active };
 }
 
 function showHide(active) {
@@ -120,4 +147,6 @@ export function _resetOwnerBoards() {
   _active = false;
   _rawProducts = [];
   _rawAuctions = [];
+  _store = null; _owner = '';
+  _productByRelay.clear(); _auctionByRelay.clear(); _configByRelay.clear();
 }

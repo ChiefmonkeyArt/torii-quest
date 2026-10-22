@@ -606,13 +606,15 @@ export function publishEvent(url, event, opts = {}) {
     }
     let done = false;
     let timer = null;
-    const finish = (ok, accepted, error) => {
+    // v0.2.916: `reason` carries the relay's own words (OK message / NOTICE),
+    // trimmed, so operators can see WHY a relay refused (spam filter, auth, …).
+    const finish = (ok, accepted, error, reason) => {
       if (done) return; done = true;
       if (timer) clearTimeout(timer);
       // F04 (as in relayReq): close in every readyState and let callbacks guard on
       // `done` so a timed-out CONNECTING socket can't open later and send EVENT.
       try { ws.close(); } catch { /* best-effort close */ }
-      resolve({ ok, relay: url, accepted, error });
+      resolve(reason ? { ok, relay: url, accepted, error, reason } : { ok, relay: url, accepted, error });
     };
     timer = setTimeout(() => finish(false, false, 'timeout'), timeoutMs);
     ws.onopen = () => {
@@ -630,9 +632,9 @@ export function publishEvent(url, event, opts = {}) {
         if (!Array.isArray(frame)) return;
         const verb = frame[0];
         if (verb === 'OK' && frame[1] === event.id) {
-          clearTimeout(timer); finish(true, frame[2] === true, frame[2] === true ? null : 'rejected');
+          clearTimeout(timer); finish(true, frame[2] === true, frame[2] === true ? null : 'rejected', frame[2] === true ? '' : String(frame[3] == null ? '' : frame[3]).slice(0, 160));
         } else if (verb === 'NOTICE') {
-          clearTimeout(timer); finish(false, false, 'notice');
+          clearTimeout(timer); finish(false, false, 'notice', String(frame[1] == null ? '' : frame[1]).slice(0, 160));
         }
       } catch { /* ignore a malformed frame */ }
     };
@@ -657,12 +659,13 @@ export async function fanoutPublish(relays, event, opts = {}) {
   const results = await Promise.all(list.map((r) => publishEvent(r, event, opts)));
   const used = [];
   const failed = [];
+  const reasons = {};
   let accepted = 0;
   for (const r of results) {
     if (r.ok && r.accepted) { used.push(r.relay); accepted++; }
-    else failed.push(r.relay);
+    else { failed.push(r.relay); reasons[r.relay] = r.reason ? `${r.error}: ${r.reason}` : (r.error || 'failed'); }
   }
-  return { accepted, used, failed };
+  return { accepted, used, failed, reasons };
 }
 
 // ── Character create round-trip (write half) ────────────────────────────────

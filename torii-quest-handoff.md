@@ -29,6 +29,21 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## NAP STORE SOURCE: v0.2.916-alpha
+
+- `boardOwner.js`:
+  - `STORE_KIND` 30003 and `STORE_D` `torii-nap-store`;
+  - `parseStoreConfig` / `resolveStoreConfig` (owner-signed only, newest wins);
+  - `storeFilters` (a custom store gets one filter per author with `#d`);
+  - `mergeStoreEvents`, `buildStoreEvent`.
+- `ownerBoards.js`:
+  - `openListings(reset)` reopens only when `storeKey` changes;
+  - the store-set subscription runs on the product relays.
+- `subscribeByAuthor` takes optional `filters`.
+- `npub.js` gains `naddrToCoord`.
+- `napStoreAdmin.js`: `previewStore`, `publishStore` (signer must equal the owner).
+- `publishEvent` returns the relay's `reason`; `fanoutPublish` returns `reasons`; the probe returns `failReasons`.
+
 ## NAP MARKET SLICE 1: v0.2.915-alpha
 
 - **ADR-0145 Accepted** (owner, 2026-10-22).

@@ -1,3 +1,11 @@
+## v0.2.920-alpha: shop boards work on phones
+
+The NAP Zone boards now have much bigger writing, so prices, bids and
+countdowns are readable on a phone. On a touch screen, an orange VIEW button
+appears when you stand at a board: tap it for the full details, and tap CLOSE
+to put them away. The boards also remember the last listings, so when you come
+back they show straight away while the live ones load.
+
 ## v0.2.919-alpha: live shop boards in the NAP Zone
 
 The NAP Zone now has two live boards. The PRODUCT board shows each product

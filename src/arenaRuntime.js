@@ -821,6 +821,7 @@ export function createArenaRuntime(hooks = {}) {
   const _productPanelTrigger = createProductPanelTrigger({
     panelPos: _productPanelPos,
     range: 3,
+    ...(shouldEnableTouch() ? { promptText: 'Tap VIEW to see products' } : {}), // v0.2.920
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
     onOpen: () => { setMarketActive(true); setBoardsActive(true); },
   });
@@ -832,7 +833,7 @@ export function createArenaRuntime(hooks = {}) {
   const _auctionBoardTrigger = createProductPanelTrigger({
     panelPos: auctionBoardPosition(sampleNapHeight),
     range: 3,
-    promptText: 'Press Q to view auctions',
+    promptText: shouldEnableTouch() ? 'Tap VIEW to see auctions' : 'Press Q to view auctions',
     onPrompt: (show, text) => { if (show) showPortalPrompt(text); else hidePortalPrompt(); },
     onOpen: () => { setMarketActive(true); setBoardsActive(true); },
   });
@@ -1419,7 +1420,7 @@ export function createArenaRuntime(hooks = {}) {
       startPhase('buildArena');
       buildArena();
       // ADR-0145 (v0.2.919): live PRODUCT + AUCTION boards on the built PRODUCT sign.
-      initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight });
+      initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight, touch: shouldEnableTouch() });
       endPhase('buildArena');
       mark('boot-arena-done');
       // v0.2.879 (P0.2): a legacy home has no manifest to rebuild on homecoming.
@@ -1684,7 +1685,12 @@ export function createArenaRuntime(hooks = {}) {
     // ADR-0137: touch devices get on-screen thumb controls (floating move stick +
     // look pad + FIRE/JUMP/MENU). Desktop is untouched unless ?touch=1.
     if (shouldEnableTouch()) {
-      installTouchControls({ isActive: () => isPlaying(), look: applyLookDelta, shoot: triggerShoot });
+      installTouchControls({
+        isActive: () => isPlaying(), look: applyLookDelta, shoot: triggerShoot,
+        // v0.2.920 (ADR-0145): USE button → KeyQ at a market board / CLOSE open panels.
+        useLabel: () => (isMarketActive() ? 'CLOSE'
+          : (_productPanelTrigger.inRange() || (marketBoards3dBuilt() && _auctionBoardTrigger.inRange())) ? 'VIEW' : ''),
+      });
     }
 
     // Canvas click → re-engage pointer lock when playing.

@@ -142,3 +142,76 @@ export function sellersNeeded(slidesA, slidesB) {
   for (const x of [...(slidesA || []), ...(slidesB || [])]) if (x && x.seller && x.seller.pubkey) s.add(x.seller.pubkey);
   return [...s].slice(0, 24);
 }
+
+// ── v0.2.920: saved listings (fast first paint) ─────────────────────────────
+// The boards' last slides are kept in localStorage so a returning visitor sees
+// the market instantly, before the relays answer. Everything read back is
+// treated as untrusted: re-validated, re-clipped, images re-checked (https).
+export const BOARD_CACHE_KEY = 'torii.marketBoards.v1';
+export const BOARD_CACHE_MAX_AGE_S = 7 * 86400;
+export const BOARD_CACHE_MAX_BYTES = 32 * 1024;
+export const BOARD_CACHE_HOLD_MS = 15000; // live empties don't wipe saved slides before this
+
+const HEX64 = /^[0-9a-f]{64}$/;
+const num = (v, d = 0) => (Number.isFinite(v) ? v : d);
+
+function cleanSeller(x) {
+  const pubkey = x && typeof x.pubkey === 'string' && HEX64.test(x.pubkey) ? x.pubkey : '';
+  return { pubkey, name: clip(x && x.name, 32) || pubkey.slice(0, 8), picture: safeImageUrl(x && x.picture) };
+}
+
+function cleanSlide(x, kind) {
+  if (!x || typeof x !== 'object' || x.kind !== kind || typeof x.id !== 'string' || !x.id) return null;
+  const base = { kind, id: x.id.slice(0, 128), title: clip(x.title, 80), image: safeImageUrl(x.image), seller: cleanSeller(x.seller) };
+  if (kind === 'product') return { ...base, price: clip(x.price, 32), stock: clip(x.stock, 32) };
+  return {
+    ...base,
+    aTag: clip(x.aTag, 200),
+    phase: ['live', 'upcoming', 'ended'].includes(x.phase) ? x.phase : 'ended',
+    endAt: num(x.endAt), startAt: num(x.startAt),
+    countdown: { text: clip(x.countdown && x.countdown.text, 40), tone: ['live', 'soon', 'upcoming', 'ended'].includes(x.countdown && x.countdown.tone) ? x.countdown.tone : 'ended' },
+    highBid: clip(x.highBid, 32), startingBid: clip(x.startingBid, 32),
+    bidCount: Math.max(0, Math.floor(num(x.bidCount))), bidders: Math.max(0, Math.floor(num(x.bidders))),
+  };
+}
+
+/** → JSON string to store, or null (nothing worth saving / too big). */
+export function serializeBoardCache({ owner, products, auctions }, nowSec) {
+  if (!(products && products.length) && !(auctions && auctions.length)) return null;
+  const json = JSON.stringify({ v: 1, owner: typeof owner === 'string' ? owner : '', at: num(nowSec), products: (products || []).slice(0, MAX_SLIDES), auctions: (auctions || []).slice(0, MAX_SLIDES) });
+  return json.length <= BOARD_CACHE_MAX_BYTES ? json : null;
+}
+
+/** Untrusted JSON → { owner, at, products, auctions } or null (bad/stale/wrong owner). */
+export function parseBoardCache(json, nowSec, owner) {
+  if (typeof json !== 'string' || json.length > BOARD_CACHE_MAX_BYTES) return null;
+  let o;
+  try { o = JSON.parse(json); } catch { return null; }
+  if (!o || o.v !== 1 || !Number.isFinite(o.at)) return null;
+  if (nowSec - o.at > BOARD_CACHE_MAX_AGE_S || o.at - nowSec > 300) return null;
+  if (owner && o.owner && owner !== o.owner) return null;
+  const list = (a, kind) => (Array.isArray(a) ? a.slice(0, MAX_SLIDES).map((x) => cleanSlide(x, kind)).filter(Boolean) : []);
+  return { owner: typeof o.owner === 'string' ? o.owner : '', at: o.at, products: list(o.products, 'product'), auctions: list(o.auctions, 'auction') };
+}
+
+/**
+ * Blend live slides with saved ones.
+ *  - holding (first BOARD_CACHE_HOLD_MS): an empty live list keeps the saved one;
+ *    a live auction with fewer bids than saved keeps the saved totals (bids
+ *    arrive after the auction itself).
+ *  - always: a live seller with no profile yet borrows the saved name/picture.
+ */
+export function mergeWithCache(live, saved, holding) {
+  const L = Array.isArray(live) ? live : [], S = Array.isArray(saved) ? saved : [];
+  if (!L.length) return holding ? S : [];
+  const byId = new Map(S.map((x) => [x.id, x]));
+  const sellerBy = new Map(S.map((x) => [x.seller && x.seller.pubkey, x.seller]));
+  return L.map((x) => {
+    let out = x;
+    const sv = sellerBy.get(x.seller && x.seller.pubkey);
+    if (sv && x.seller && x.seller.name === x.seller.pubkey.slice(0, 8) && sv.name !== x.seller.name) out = { ...out, seller: { ...x.seller, name: sv.name, picture: x.seller.picture || sv.picture } };
+    const old = byId.get(x.id);
+    if (holding && old && x.kind === 'auction' && old.bidCount > x.bidCount) out = { ...out, highBid: old.highBid, bidCount: old.bidCount, bidders: old.bidders };
+    return out;
+  });
+}

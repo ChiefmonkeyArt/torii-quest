@@ -6,8 +6,9 @@ import { signEvent } from '../../conformance/gateway-v1/gate-v1.mjs';
 import {
   SLIDE_SECONDS, MAX_SLIDES, safeImageUrl, formatAmount, formatCountdown, sellerOf,
   buildProductSlides, bidsFor, buildAuctionSlides, retimeAuctionSlide, slideIndexAt, sellersNeeded,
+  serializeBoardCache, parseBoardCache, mergeWithCache, BOARD_CACHE_MAX_AGE_S, BOARD_CACHE_MAX_BYTES, BOARD_CACHE_KEY,
 } from '../../src/engine/plebeian/marketBoardModel.js';
-import { paintBoard, wrapLines, BOARD_W, BOARD_H } from '../../src/engine/plebeian/marketBoardPainter.js';
+import { paintBoard, wrapLines, fitFont, BOARD_W, BOARD_H } from '../../src/engine/plebeian/marketBoardPainter.js';
 
 const SK_SELLER = '22'.repeat(32), SK_B1 = '44'.repeat(32), SK_B2 = '55'.repeat(32);
 const pk = (sk) => signEvent({ kind: 1, created_at: 1, tags: [], content: '' }, sk).pubkey;
@@ -114,7 +115,7 @@ describe('painter', () => {
     } });
     expect(texts).toEqual(expect.arrayContaining(['AUCTIONS', '2 / 3', 'Chiefmonkey', 'Ended 21 Aug 2026', 'Winning bid', '169,000 sats', '19 bids · 5 bidders']));
     expect(images).toHaveLength(2); // photo + avatar, cover-fit
-    expect(images[0].slice(5)).toEqual([40, 78, 420, 420]);
+    expect(images[0].slice(5)).toEqual([36, 84, 380, 380]); // v0.2.920: bigger text column
   });
   it('product slide: price + stock; avatar falls back to an initial', () => {
     const { ctx, texts } = fakeCtx();
@@ -173,7 +174,7 @@ describe('wiring', () => {
   });
   it('ticked from the NAP branch; auction board has its own Q prompt and Q falls through to it', () => {
     expect(rt).toMatch(/setNapMode\(_inNapNow\);\n\s*tickMarketBoards3d\(dt, playerObj\.position, _inNapNow\);/);
-    expect(rt).toMatch(/promptText: 'Press Q to view auctions'/);
+    expect(rt).toMatch(/promptText: shouldEnableTouch\(\) \? 'Tap VIEW to see auctions' : 'Press Q to view auctions'/);
     expect(rt).toMatch(/if \(marketBoards3dBuilt\(\)\) _auctionBoardTrigger\.tick\(playerObj\.position\);/);
     expect(rt).toMatch(/if \(!_productPanelTrigger\.interact\(\)\) _auctionBoardTrigger\.interact\(\);/);
     expect(rt).toMatch(/_auctionBoardTrigger\.reset\(\);/);
@@ -189,5 +190,95 @@ describe('wiring', () => {
   it('proof surfaces expose built boards by id', () => {
     expect(psm).toMatch(/export function getProofSurfaceBoard\(id\)/);
     expect(psm).toMatch(/_boards\.set\(panel\.id, \{ board, plate \}\)/);
+  });
+});
+
+// ── v0.2.920: mobile readability, touch VIEW button, saved listings ──────────
+describe('v0.2.920 saved listings', () => {
+  const sellerHex = 'ec'.repeat(32);
+  const P = { kind: 'product', id: 'p1', title: 'noodles', image: 'https://img.example/p.jpg', price: '15 GBP', stock: '3 in stock', seller: { pubkey: sellerHex, name: 'Chiefmonkey', picture: 'https://img.example/me.png' } };
+  const A = { kind: 'auction', id: 'a1', aTag: '30408:x:a1', title: 'Art', image: null, phase: 'ended', endAt: NOW - 10, startAt: NOW - 100,
+    countdown: { text: 'Ended 21 Aug 2026', tone: 'ended' }, highBid: '169,000 sats', startingBid: '1,000 sats', bidCount: 19, bidders: 5, seller: P.seller };
+  it('round-trips, owner-scoped, expires, and refuses oversize', () => {
+    const json = serializeBoardCache({ owner: sellerHex, products: [P], auctions: [A] }, NOW);
+    expect(parseBoardCache(json, NOW + 60, sellerHex)).toMatchObject({ owner: sellerHex, products: [P], auctions: [A] });
+    expect(parseBoardCache(json, NOW + 60, 'ab'.repeat(32))).toBeNull();          // another owner
+    expect(parseBoardCache(json, NOW + BOARD_CACHE_MAX_AGE_S + 1, sellerHex)).toBeNull(); // stale
+    expect(parseBoardCache(json, NOW - 3600, sellerHex)).toBeNull();               // from the future
+    expect(serializeBoardCache({ owner: '', products: [], auctions: [] }, NOW)).toBeNull();
+    expect(parseBoardCache('{"v":1,"at":1,' + '"x":"' + 'a'.repeat(BOARD_CACHE_MAX_BYTES) + '"}', 1, '')).toBeNull();
+    expect(BOARD_CACHE_KEY).toBe('torii.marketBoards.v1');
+  });
+  it('untrusted storage is re-validated: bad images, kinds, sellers and junk dropped', () => {
+    const evil = JSON.stringify({ v: 1, owner: '', at: NOW, products: [
+      { ...P, image: 'javascript:alert(1)', seller: { pubkey: '<script>', name: 'x'.repeat(200), picture: 'http://track.example/p' } },
+      { ...P, kind: 'auction' }, null, 'str', { ...P, id: '' },
+    ], auctions: [{ ...A, phase: 'pwned', countdown: { text: 'Ends', tone: 'evil' }, bidCount: -3 }] });
+    const c = parseBoardCache(evil, NOW, '');
+    expect(c.products).toHaveLength(1);
+    expect(c.products[0].image).toBeNull();
+    expect(c.products[0].seller).toEqual({ pubkey: '', name: 'x'.repeat(31) + '…', picture: null });
+    expect(c.auctions[0]).toMatchObject({ phase: 'ended', countdown: { tone: 'ended' }, bidCount: 0 });
+    for (const bad of ['', 'not json', '{"v":2,"at":1}', '[]', null]) expect(parseBoardCache(bad, NOW, '')).toBeNull();
+  });
+  it('merge: hold keeps saved slides + bid totals until live catches up; seller name borrowed', () => {
+    expect(mergeWithCache([], [P], true)).toEqual([P]);
+    expect(mergeWithCache([], [P], false)).toEqual([]);
+    const liveA = { ...A, highBid: '', bidCount: 0, bidders: 0, seller: { pubkey: sellerHex, name: sellerHex.slice(0, 8), picture: null } };
+    const held = mergeWithCache([liveA], [A], true)[0];
+    expect(held).toMatchObject({ highBid: '169,000 sats', bidCount: 19, bidders: 5, seller: { name: 'Chiefmonkey', picture: P.seller.picture } });
+    const after = mergeWithCache([liveA], [A], false)[0];
+    expect(after.bidCount).toBe(0);                 // after the hold, live wins
+    expect(after.seller.name).toBe('Chiefmonkey');  // profile still borrowed
+  });
+});
+
+describe('v0.2.920 mobile readability + touch wording', () => {
+  const seller = { pubkey: 'ec'.repeat(32), name: 'Chiefmonkey', picture: null };
+  const fontsOf = (ctx) => { const sizes = []; const d = Object.getOwnPropertyDescriptor(ctx, 'font'); let f = ''; Object.defineProperty(ctx, 'font', { get: () => f, set: (v) => { f = v; sizes.push(parseInt(/(\d+)px/.exec(v)[1], 10)); d.set(v); } }); return sizes; };
+  it('big type: price ≥ 72px, title ≥ 46px, bid totals 34px', () => {
+    const { ctx, texts } = fakeCtx(); const sizes = fontsOf(ctx);
+    paintBoard(ctx, { board: 'products', slide: { kind: 'product', title: 'noodles', image: null, price: '15 GBP', stock: '3 in stock', seller } });
+    expect(Math.max(...sizes)).toBeGreaterThanOrEqual(72);
+    expect(sizes).toContain(52);
+    expect(texts).not.toContain('Seller');
+  });
+  it('long amounts shrink to fit the column instead of overflowing', () => {
+    const { ctx } = fakeCtx();
+    expect(fitFont(ctx, '15 GBP', 800, 96, 544)).toBe(96);
+    const px = fitFont(ctx, '21,000,000,000 sats', 800, 80, 544);
+    expect(px).toBeLessThan(80);
+    ctx.font = `800 ${px}px x`; expect(ctx.measureText('21,000,000,000 sats').width).toBeLessThanOrEqual(544);
+    expect(fitFont(ctx, 'x'.repeat(500), 800, 80, 544)).toBe(48); // floor = 60%
+  });
+  it('touch footers say Tap VIEW; saved listings say so honestly', () => {
+    const a = fakeCtx(); paintBoard(a.ctx, { board: 'auctions', touch: true, slide: { kind: 'auction', title: 't', phase: 'live', countdown: { text: 'Ends in 1h 00m', tone: 'live' }, highBid: '', startingBid: '1 sats', bidCount: 0, bidders: 0, seller } });
+    expect(a.texts).toContain('Tap VIEW for bids · bid on Plebeian Market');
+    const p = fakeCtx(); paintBoard(p.ctx, { board: 'products', cached: true, slide: { kind: 'product', title: 'n', image: null, price: '1 GBP', stock: '', seller } });
+    expect(p.texts).toContain('Saved listings · updating…');
+    const d = fakeCtx(); paintBoard(d.ctx, { board: 'products', slide: { kind: 'product', title: 'n', image: null, price: '1 GBP', stock: '', seller } });
+    expect(d.texts).toContain('Press Q for details · buy on Plebeian Market');
+  });
+});
+
+describe('v0.2.920 touch VIEW button wiring', () => {
+  const tc = readFileSync(new URL('../../src/engine/input/touchControls.js', import.meta.url), 'utf8');
+  const rt = readFileSync(new URL('../../src/arenaRuntime.js', import.meta.url), 'utf8');
+  const m3 = readFileSync(new URL('../../src/engine/plebeian/marketBoards3d.js', import.meta.url), 'utf8');
+  it('USE button sends KeyQ and only shows with a label', () => {
+    expect(tc).toMatch(/button\('\.tb-use', \(\) => _key\('keydown', 'KeyQ'\), \(\) => _key\('keyup', 'KeyQ'\)\)/);
+    expect(tc).toMatch(/#torii-touch \.tb-use\{[^}]*display:none/);
+    expect(tc).toMatch(/useBtn\.classList\.toggle\('on', !!t\)/);
+  });
+  it('label: CLOSE while panels open, VIEW in range of either board', () => {
+    expect(rt).toMatch(/useLabel: \(\) => \(isMarketActive\(\) \? 'CLOSE'/);
+    expect(rt).toMatch(/_productPanelTrigger\.inRange\(\) \|\| \(marketBoards3dBuilt\(\) && _auctionBoardTrigger\.inRange\(\)\)\) \? 'VIEW'/);
+    expect(rt).toMatch(/promptText: 'Tap VIEW to see products'/);
+    expect(rt).toMatch(/touch: shouldEnableTouch\(\) \}\);/);
+  });
+  it('saved listings: loaded at build, saved at most every 5 s, never with setTimeout', () => {
+    expect(m3).toMatch(/_saved = _loadSaved\(\);/);
+    expect(m3).toMatch(/SAVE_EVERY_MS = 5000/);
+    expect(m3).not.toMatch(/setTimeout|setInterval/);
   });
 });

@@ -153,7 +153,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0134](./0134-predicted-death-resolve-and-autocap-diag.md) | Predicted deaths always resolve (no bot left lying alive: authoritative-hp lethal test, every result settles, safety net) + diagnostics recipient for the autocap ring (`autocap-pull.yml`, dispatcher `autocap-export`) | Accepted |
 | [0135](./0135-stickers-land-where-aimed.md) | Stickers land exactly where you aim (exact skinned-triangle hit via the Game Zone hitbox, honest 4 cm assist, triangle+barycentric skin anchors; NPC bone sensors removed; ~16× faster per shot) | Accepted |
 | [0136](./0136-tracers-bot-awareness-crates.md) | Visible ribbon tracers (orange/purple yours, black/red bots), bots that fight back (hit alert, memory, bursts, settled aim, fan-out), wood crates that never render black; points unchanged | Accepted |
-| [0137](./0137-touch-thumb-controls-pwa.md) | Touch thumb controls (floating move stick → WASD, look pad → yaw/pitch, FIRE/JUMP/MENU) + installable PWA manifest; desktop unchanged | Accepted |
+| [0137](./0137-touch-thumb-controls-pwa.md) | Touch thumb controls (floating move stick → WASD, look pad → yaw/pitch, FIRE/JUMP/MENU; contextual USE/VIEW button v0.2.920) + installable PWA manifest; desktop unchanged | Accepted |
 | [0138](./0138-human-aim-agile-bots.md) | Human bot aim (reaction lag, wandering error, learned lead), agile bots (dodges, jukes, wounded retreat), complementary cyan/lime incoming tracers with head glow, near-miss whizz; points unchanged | Accepted |
 | [0139](./0139-player-tracer-from-visible-muzzle.md) | Your tracer starts at the visible gun tip (gunCamera to main camera screen match), is never hidden by grass (near-plane pin), has an anchored launch, and uses an orange/magenta-violet core opposite the bots' cyan/lime; points unchanged | Accepted |
 | [0140](./0140-applesauce-gateway-trial.md) | Applesauce as the gateway directory's relay layer: warm scans 2× faster, live directory subscription, fanout fallback; enforced budget lazy ≤ 55 KB gz, entry ≤ +1 KB; stage 3 v0.2.918: one shared relay layer for all reads/publishes/Plebeian subs | Accepted |
@@ -161,7 +161,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0142](./0142-cold-load-engine-preload.md) | Cold-load engine preload on the title screen (modulepreload, no execution), `?nuked=1` pin cleared after boot, ambient fill 0.8 | Accepted |
 | [0143](./0143-gate-is-the-product.md) | North star: the Torii Gate (open protocol) is the product, Quest is the first world; Gate track G1–G4 ahead of the Applesauce trial | Accepted |
 | [0144](./0144-gate-v1-frozen.md) | Torii Gate protocol v1 frozen; readers verify signatures; engine-free conformance kit + reference world; CI runs fixtures on kit and Quest (G1 + G2) | Accepted |
-| [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916; live boards v0.2.919) |
+| [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916; live boards v0.2.919; mobile + saved listings v0.2.920) |
 | [0146](./0146-gate-licensing.md) | Licensing: Gate spec CC0, conformance kit 0BSD, Quest stays GPL-3.0 | Accepted |
 
 ## Workflow for a new decision

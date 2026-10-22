@@ -11,7 +11,10 @@
 import * as THREE from 'three';
 import { onOwnerBoardsData, setBoardsWorldWanted } from './ownerBoards.js';
 import { subscribeByAuthor, fetchProfiles, PLEBEIAN_BID_KIND } from './plebeianRelay.js';
-import { buildProductSlides, buildAuctionSlides, retimeAuctionSlide, slideIndexAt, sellersNeeded, SLIDE_SECONDS } from './marketBoardModel.js';
+import {
+  buildProductSlides, buildAuctionSlides, retimeAuctionSlide, slideIndexAt, sellersNeeded, SLIDE_SECONDS,
+  BOARD_CACHE_KEY, BOARD_CACHE_HOLD_MS, serializeBoardCache, parseBoardCache, mergeWithCache,
+} from './marketBoardModel.js';
 import { paintBoard, BOARD_W, BOARD_H } from './marketBoardPainter.js';
 import { PLEBEIAN_PRODUCT_RELAYS, PLEBEIAN_AUCTION_RELAYS } from '../../config.js';
 import { DEFAULT_NODE_RELAYS } from '../presence/nodeRelays.js';
@@ -37,6 +40,22 @@ let _offData = null;
 let _wanted = false;
 let _elapsed = 0, _lastSec = -1;
 const _images = new Map(); // url → { img, ok }
+// v0.2.920: saved listings + touch wording
+let _touch = false;
+let _saved = null;          // parsed cache { owner, products, auctions }
+let _liveSince = 0;         // ms when the live feed (re)started
+let _holdPending = false;   // re-blend once the hold window ends
+let _cachedP = false, _cachedA = false;
+let _owner = '';
+let _saveDue = false, _lastSaved = '', _lastSaveAt = 0;
+const SAVE_EVERY_MS = 5000;
+
+function _storage() { try { return typeof localStorage !== 'undefined' ? localStorage : null; } catch { return null; } }
+function _loadSaved() {
+  const ls = _storage();
+  if (!ls) return null;
+  try { return parseBoardCache(ls.getItem(BOARD_CACHE_KEY), Math.floor(Date.now() / 1000), ''); } catch { return null; }
+}
 
 function _getImage(url) {
   const hit = _images.get(url);
@@ -73,8 +92,9 @@ function _makeBoard(plate, name) {
  * Build both boards. `getBoard(id)` → { board, plate } (proofSurfaceMeshes).
  * No-op (returns false) when the PRODUCT sign isn't built (minimal mode).
  */
-export function initMarketBoards3d({ scene, getBoard, sampleHeight } = {}) {
+export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = false } = {}) {
   if (_built) return true;
+  _touch = !!touch;
   const src = typeof getBoard === 'function' ? getBoard('product-stall-panel') : null;
   if (!src || !src.board || !src.plate || !scene || typeof document === 'undefined') return false;
   const products = _makeBoard(src.plate, 'products');
@@ -99,6 +119,11 @@ export function initMarketBoards3d({ scene, getBoard, sampleHeight } = {}) {
 
   _boards = { products, auctions, twin };
   _built = true;
+  _saved = _loadSaved();
+  if (_saved) {
+    _products = _saved.products; _auctions = _saved.auctions;
+    _cachedP = _products.length > 0; _cachedA = _auctions.length > 0;
+  }
   _paint('products'); _paint('auctions');
   return true;
 }
@@ -121,7 +146,7 @@ function _paint(which) {
   const i = slideIndexAt(_elapsed, list.length);
   let slide = i >= 0 ? list[i] : null;
   if (slide && slide.kind === 'auction') slide = retimeAuctionSlide(slide, Math.floor(Date.now() / 1000));
-  paintBoard(b.ctx, { board: which, slide, index: Math.max(0, i), count: list.length, getImage: _getImage });
+  paintBoard(b.ctx, { board: which, slide, index: Math.max(0, i), count: list.length, getImage: _getImage, touch: _touch, cached: which === 'products' ? _cachedP : _cachedA });
   b.tex.needsUpdate = true;
   b.dirty = false;
   b.shown = i;
@@ -129,13 +154,34 @@ function _paint(which) {
 
 function _rebuild(rawProducts) {
   const now = Math.floor(Date.now() / 1000);
-  _products = buildProductSlides(rawProducts, _profiles);
-  _auctions = buildAuctionSlides(_rawAuctions, _bidEvents, _profiles, now);
+  const liveP = buildProductSlides(rawProducts, _profiles);
+  const liveA = buildAuctionSlides(_rawAuctions, _bidEvents, _profiles, now);
+  const holding = !!_saved && Date.now() - _liveSince < BOARD_CACHE_HOLD_MS;
+  _holdPending = holding;
+  _products = _saved ? mergeWithCache(liveP, _saved.products, holding) : liveP;
+  _auctions = _saved ? mergeWithCache(liveA, _saved.auctions, holding) : liveA;
+  _cachedP = !liveP.length && _products.length > 0;
+  _cachedA = !liveA.length && _auctions.length > 0;
+  if (liveP.length || liveA.length) _saveDue = true;
   _dirtyAll();
 }
 
+function _maybeSave() {
+  if (!_saveDue || Date.now() - _lastSaveAt < SAVE_EVERY_MS) return;
+  _saveDue = false; _lastSaveAt = Date.now();
+  const json = serializeBoardCache({ owner: _owner, products: _cachedP ? [] : _products, auctions: _cachedA ? [] : _auctions }, Math.floor(Date.now() / 1000));
+  if (!json || json === _lastSaved) return;
+  const ls = _storage();
+  try { if (ls) { ls.setItem(BOARD_CACHE_KEY, json); _lastSaved = json; } } catch { /* quota / private mode */ }
+}
+
 let _lastRawProducts = [];
-function _onData({ products, auctions }) {
+function _onData({ products, auctions, store }) {
+  const seller = store && typeof store.seller === 'string' ? store.seller : '';
+  if (seller) {
+    if (_saved && _saved.owner && _saved.owner !== seller) _saved = null; // another owner's shop
+    _owner = seller;
+  }
   _lastRawProducts = products || [];
   _rawAuctions = auctions || [];
   _syncBids();
@@ -181,6 +227,7 @@ function _syncProfiles() {
 function _setWanted(w) {
   if (w === _wanted) return;
   _wanted = w;
+  if (w) _liveSince = Date.now();
   setBoardsWorldWanted(w);
   if (w && !_offData) _offData = onOwnerBoardsData(_onData);
   if (!w) {
@@ -209,6 +256,8 @@ export function tickMarketBoards3d(dt, playerPos, inNap) {
     const cur = _auctions[b.auctions.shown];
     if (cur && cur.phase !== 'ended' && playerPos && playerPos.distanceTo && playerPos.distanceTo(b.auctions.worldPos) < COUNTDOWN_NEAR_M) b.auctions.dirty = true;
   }
+  if (_holdPending && Date.now() - _liveSince >= BOARD_CACHE_HOLD_MS) _rebuild(_lastRawProducts);
+  _maybeSave();
   if (b.products.dirty) _paint('products');
   if (b.auctions.dirty) _paint('auctions');
 }
@@ -220,6 +269,7 @@ export function marketBoards3dState() {
     products: _products.map((s) => ({ title: s.title, price: s.price, seller: s.seller.name })),
     auctions: _auctions.map((s) => ({ title: s.title, phase: s.phase, countdown: s.countdown.text, highBid: s.highBid, bids: s.bidCount, bidders: s.bidders, seller: s.seller.name })),
     bids: _bidEvents.length, profiles: _profiles.size, images: _images.size,
+    saved: { loaded: !!_saved, showingP: _cachedP, showingA: _cachedA }, touch: _touch,
     slideSeconds: SLIDE_SECONDS,
   };
 }

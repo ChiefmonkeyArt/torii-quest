@@ -33,3 +33,11 @@ manifest, so it could not be installed to the home screen.
 - Phones can install Quest, enter as a guest from the title screen, then walk, look, jump and fire.
 - Desktop behaviour is unchanged.
 - Not yet verified on real devices: look sensitivity, and how iOS Safari handles fullscreen.
+
+## Addendum (v0.2.920-alpha): contextual USE button
+
+- A fourth button, **USE**, sends `KeyQ`, so every Q consumer works unchanged on touch.
+- It appears only while `useLabel()` returns a label. At the NAP market boards that is **VIEW** when the player is within range of the PRODUCT or AUCTION board, and **CLOSE** while their panels are open.
+- It sits above FIRE and is orange, so it reads as an action, not a weapon.
+- The label is polled on the overlay's existing 150 ms visibility timer: no per-frame work and no new timers.
+- On touch devices, the board prompts say "Tap VIEW …" instead of "Press Q …".

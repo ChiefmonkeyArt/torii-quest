@@ -1,3 +1,15 @@
+## MARKET BOARDS ON PHONES: v0.2.920-alpha (ADR-0145, ADR-0137 addendum)
+
+- **Painter:** bigger type, `fitFont(ctx, text, weight, maxPx, width)`. `paintBoard` gains `{touch, cached}`, which drive the footer wording.
+- **Model (saved listings):** `serializeBoardCache`, `parseBoardCache` (untrusted, re-validated), `mergeWithCache(live, saved, holding)`, `BOARD_CACHE_*` constants.
+- **marketBoards3d:**
+  - loads the saved listings at build;
+  - holds them for 15 s after the feed starts;
+  - `_maybeSave` writes at most every 5 s from the tick;
+  - `initMarketBoards3d({… touch})`.
+- **touchControls:** `installTouchControls({… useLabel})` adds a USE button that sends KeyQ. `arenaRuntime` passes VIEW, CLOSE or an empty label.
+- **Debug:** `ToriiDebug.marketBoards()` adds `saved` and `touch`.
+
 ## LIVE MARKET BOARDS: v0.2.919-alpha (ADR-0145 slice 4, part 1)
 
 - `plebeian/marketBoardModel.js` (pure): slides, `formatCountdown`, `formatAmount`, `bidsFor` (signature-verified, must reference the auction), sorting.

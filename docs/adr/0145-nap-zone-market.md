@@ -124,6 +124,37 @@ How it works:
   - `naddr1…` links (as Plebeian shares them) and raw coordinates are both accepted.
 - Live check: the real module against staging loaded the owner's 1 product and 1 auction, and closed all 5 sockets on hide.
 
+## Live market boards shipped (v0.2.919-alpha): slice 4, part 1
+
+The owner asked for two boards: one for products, one for auctions, with countdowns, bid totals and seller avatars (2026-10-22).
+
+- **PRODUCT board:** the existing PRODUCT sign (`product-stall-panel`). Its plate now shows live slides: photo, title, price, stock, and the seller's name and avatar.
+- **AUCTION board:** a twin board past the mirror at (12.4, 26.0). It follows the NAP-edge curve with about 0.9 m clear of the mirror. Each slide shows:
+  - photo, title, and the seller's name and avatar;
+  - a countdown chip: `Ends in 2d 04h` (green), red in the last 10 minutes, `Starts in …` (blue), or `Ended 21 Aug 2026` (grey);
+  - the high bid (or the winning bid once ended, or the starting bid if there are none);
+  - "N bids · M bidders".
+- **Cycling:** each board cycles up to 12 slides, 8 s each. Auctions are ordered live (soonest ending) → upcoming → ended (newest).
+- **Q prompts:** Q at either board opens the same HUD panels. The auction board has its own prompt, "Press Q to view auctions".
+- **Data:** the same owner-store source as the panels (`ownerBoards`), via `setBoardsWorldWanted` and `onOwnerBoardsData`. It runs while the player is in the NAP Zone and stops on leaving, unless the panels are open.
+- **Bids:**
+  - kind 1023 by `#e` for up to 8 auctions, on `PLEBEIAN_AUCTION_RELAYS`;
+  - **every bid is signature-checked and must reference that auction**, so a relay can't inflate a total with forged bids.
+- **Seller profiles:** fetched via `fetchProfiles` on the product relays plus the default node relays.
+- **Cost:**
+  - One fixed 1024×576 canvas texture per board.
+  - A repaint happens only on a slide change, new data or an image load. The countdown also repaints once a second, only while within 22 m.
+  - Images: https only, `crossOrigin: anonymous`, no referrer, a cache of 32.
+  - The twin shares the sign's geometry (no deep clone, so sticker decals are never copied).
+- **Not in minimal worlds:** created after the legacy `buildArena()`. If the PRODUCT sign isn't built, the boards are a no-op.
+- **Debug:** `ToriiDebug.marketBoards()`.
+- **Checked headlessly against live relays:**
+  - noodles, 15 GBP, seller Chiefmonkey;
+  - "Building from Strength to Strength": ended, "Ended 21 Aug 2026", winning bid 169,000 sats, 19 bids, 5 bidders;
+  - 1 profile and 2 images loaded.
+
+Still open for slice 4: one stall per seller, and quality-tier stall caps.
+
 ## Later (owner direction)
 
 - Every shop owner can see their own shop in the virtual world.

@@ -148,6 +148,7 @@ The operator asked to continue with the shared layer.
 - **Headless Chromium, real 7 default relays, title then in-game:**
   - before: 3–4 sockets per relay at the title, 1 kept open;
   - after: 2 per relay (one cold direct scan before the idle load, then the shared socket), 1 kept open;
+  - **correction (v0.2.919):** the live production check counted **about 3 per relay** at startup, not 2: two cold direct reads run before the pool exists, then the shared socket. In total that was 23 sockets in the first 75 s versus 34 before. Still 0 after 10 s, and 1 kept open;
   - 0 new sockets in game;
   - `ToriiDebug.gateway().sharedRelay === 'applesauce'`.
 - **Budget:** lazy 52.6 KB / 55 KB, entry-side 750 B / 1 KB. PASS.

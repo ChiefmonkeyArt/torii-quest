@@ -1,9 +1,21 @@
+## v0.2.919-alpha: live market boards in the NAP Zone (ADR-0145 slice 4, part 1)
+
+- [x] PRODUCT sign shows live product slides: photo, title, price, stock, seller name + avatar.
+- [x] New AUCTION board past the mirror: countdown chip, high/winning bid, "N bids · M bidders", seller name + avatar. Own Q prompt.
+- [x] Slides cycle every 8 s (max 12). Auctions sort live → upcoming → ended.
+- [x] Bids are signature-checked and must reference their auction (no inflated totals).
+- [x] Data runs only in the NAP Zone; repaints only on change (the countdown repaints 1/s, only within 22 m).
+- [x] ADR-0140 stage 3 corrected: about 3 sockets per relay at startup (live count), not 2.
+- [ ] **Operator:** walk to both boards in the NAP Zone; run `ToriiDebug.marketBoards()`.
+- [ ] Slice 4 part 2: one stall per seller; quality-tier stall caps.
+- [ ] Data-driven (manifest) worlds: create the boards there too, if the PRODUCT sign is built there.
+
 ## v0.2.918-alpha: shared Applesauce relay layer (ADR-0140 stage 3)
 
 - [x] `engine/relay/sharedRelay.js` registry; `createSharedRelay()` is registered after the pool starts.
 - [x] These now share one socket per relay: `fanoutReq`, `fanoutPublish`, Plebeian `subscribeAuction` / `subscribeByAuthor` / `fetchProfiles`.
 - [x] The direct paths (`fanoutReqDirect`, `publishEvent`) are the cold-start path and the fallback; `?gateway-transport=fanout` turns the shared layer off.
-- [x] Headless, real relays: 2 sockets per relay (was 3–4), 0 opened in game. E2E test: 1 connection for publish + reads + subscription.
+- [x] Headless, real relays: 2 sockets per relay (was 3–4), 0 opened in game (live production count: about 3 per relay; see v0.2.919). E2E test: 1 connection for publish + reads + subscription.
 - [ ] **Operator:** check `ToriiDebug.gateway().sharedRelay` reads `'applesauce'` after the title has idled for a few seconds, and that the NAP boards, gateway list and probe still work.
 - [ ] Optional: surface pool relay status in relay-health telemetry (today it covers direct sockets only).
 - [ ] Optional: move the login-time `fetchProfileProgressive` onto the pool when it's already loaded (a re-login).

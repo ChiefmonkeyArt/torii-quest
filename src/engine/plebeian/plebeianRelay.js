@@ -16,6 +16,7 @@ import { parseProfileEvent } from './auctionModel.js';
 // All record* calls are best-effort; wrapped in try/catch so a telemetry
 // failure never breaks the subscription/publish path.
 import { recordOpen, recordOpenFail, recordClose, recordMessage } from '../telemetry/relayHealth.js';
+import { sharedRelay } from '../relay/sharedRelay.js';
 
 export const PLEBEIAN_AUCTION_KIND = 30408;
 export const PLEBEIAN_BID_KIND = 1023;
@@ -60,6 +61,18 @@ export function subscribeAuction(opts) {
 
   function emit() {
     if (onUpdate) onUpdate({ auction: state.auction, bids: state.bids.slice() });
+  }
+  // ADR-0140 stage 3 (v0.2.918): on the shared pool when it's up (one socket
+  // per relay, reconnects handled by the library); direct socket otherwise.
+  const shared = sharedRelay();
+  if (shared && typeof shared.subscribe === 'function') {
+    if (onStatus) onStatus('open');
+    const unsub = shared.subscribe([url], [{ ids: [auctionId] }, { '#e': [auctionId], kinds: [PLEBEIAN_BID_KIND], limit: 500 }], (e) => {
+      if (closed) return;
+      const next = reduceEvents(state, ['EVENT', e.id === auctionId ? 'auc' : 'bids', e]);
+      if (next !== state) { state = next; emit(); }
+    });
+    return { close() { closed = true; try { unsub(); } catch { /* closed */ } } };
   }
   function connect() {
     if (closed) return;
@@ -159,6 +172,18 @@ export function subscribeByAuthor(opts) {
   function emit() {
     if (onUpdate) onUpdate(state.events.slice());
   }
+  // ADR-0140 stage 3 (v0.2.918): shared pool when up, direct socket otherwise.
+  const shared = sharedRelay();
+  const reqFilters = filters || (author && Array.isArray(kinds) && kinds.length ? [{ authors: [author], kinds, limit: 500 }] : null);
+  if (shared && typeof shared.subscribe === 'function' && reqFilters) {
+    if (onStatus) onStatus('open');
+    const unsub = shared.subscribe([url], reqFilters, (e) => {
+      if (closed) return;
+      const next = reduceAuthorEvents(state, ['EVENT', 'byauthor', e]);
+      if (next !== state) { state = next; emit(); }
+    });
+    return { close() { closed = true; try { unsub(); } catch { /* closed */ } } };
+  }
   function connect() {
     if (closed) return;
     if (!filters && (!author || !Array.isArray(kinds) || !kinds.length)) return;
@@ -215,6 +240,26 @@ export function subscribeByAuthor(opts) {
  * @returns {Promise<Map<string,{name:string|null,picture:string|null}>>}
  */
 export function fetchProfiles(pubkeys, relays, timeoutMs = 8000) {
+  // ADR-0140 stage 3 (v0.2.918): one request on the shared pool, done at EOSE
+  // (the direct path below holds every socket a fixed 6 s).
+  const shared = sharedRelay();
+  if (shared) {
+    const list = (pubkeys && pubkeys.length) ? [...new Set(pubkeys)] : [];
+    const urls = (relays && relays.length) ? [...new Set(relays)] : [];
+    const out = new Map();
+    if (!list.length || !urls.length) return Promise.resolve(out);
+    return Promise.resolve(shared.request(urls, [{ authors: list, kinds: [0] }], { timeoutMs: Math.min(timeoutMs, 6000) }))
+      .then((r) => {
+        for (const e of (r && Array.isArray(r.events)) ? r.events : []) {
+          const p = parseProfileEvent(e);
+          if (!p) continue;
+          const prev = out.get(p.pubkey) || { name: null, picture: null };
+          out.set(p.pubkey, { name: prev.name || p.name, picture: prev.picture || p.picture });
+        }
+        return out;
+      })
+      .catch(() => out);
+  }
   return new Promise((resolve) => {
     const out = new Map();
     const list = (pubkeys && pubkeys.length) ? [...new Set(pubkeys)] : [];

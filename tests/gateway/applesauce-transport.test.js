@@ -176,7 +176,7 @@ describe('wiring', () => {
   it('directory scan and owner profiles use the gateway transport', () => {
     expect(main).toMatch(/const req = _gatewayTransport\.get\(\);\n  const r = await fetchOnlineWorlds\(\{/);
     expect(main).toMatch(/const ownerRequest = _gatewayTransport\.get\(\);/);
-    expect(main).toMatch(/loadApplesauce: \(\) => import\('\.\/engine\/gateway\/applesauceTransport\.js'\)/);
+    expect(main).toMatch(/loadApplesauce: async \(\) => \{\n\s+const m = await import\('\.\/engine\/gateway\/applesauceTransport\.js'\);/);
     expect(main).toMatch(/requestIdleCallback\(fn, \{ timeout: 8000 \}\)/);
   });
   it('applesauce is never statically imported (stays out of entry + arena chunks)', () => {

@@ -1,3 +1,13 @@
+## v0.2.918-alpha: shared Applesauce relay layer (ADR-0140 stage 3)
+
+- [x] `engine/relay/sharedRelay.js` registry; `createSharedRelay()` is registered after the pool starts.
+- [x] These now share one socket per relay: `fanoutReq`, `fanoutPublish`, Plebeian `subscribeAuction` / `subscribeByAuthor` / `fetchProfiles`.
+- [x] The direct paths (`fanoutReqDirect`, `publishEvent`) are the cold-start path and the fallback; `?gateway-transport=fanout` turns the shared layer off.
+- [x] Headless, real relays: 2 sockets per relay (was 3–4), 0 opened in game. E2E test: 1 connection for publish + reads + subscription.
+- [ ] **Operator:** check `ToriiDebug.gateway().sharedRelay` reads `'applesauce'` after the title has idled for a few seconds, and that the NAP boards, gateway list and probe still work.
+- [ ] Optional: surface pool relay status in relay-health telemetry (today it covers direct sockets only).
+- [ ] Optional: move the login-time `fetchProfileProgressive` onto the pool when it's already loaded (a re-login).
+
 ## v0.2.917-alpha: store preview honesty, quiet grass, relay re-check
 
 - [x] `napStore.preview/publish` with a bad value: `shows` = "nothing: fix the value first, nothing was saved"; every result has a plain `message`; a bad value never reaches the signer.
@@ -7,7 +17,7 @@
   - the live node heartbeat (3ae0fad8) is on nos.lol, damus, primal, snort, nostr.mom and routstr;
   - **nos.lol stays.** Its refusals hit only the probe's new keys.
 - [x] One session opens about 3 short-lived sockets per relay on the title screen and keeps 1 open, the same for every relay.
-- [ ] Later (ADR-0140 stage 3): route one-shot reads (profiles, leaderboard) through the shared Applesauce pool, so each relay has one socket.
+- [x] ADR-0140 stage 3: one shared relay layer, shipped v0.2.918.
 - [ ] The live node heartbeat is missing from `relay.plebeian.market` (that relay was down earlier). Check that it's back after the next heartbeat.
 
 ## v0.2.916-alpha: NAP store source + probe relay reasons

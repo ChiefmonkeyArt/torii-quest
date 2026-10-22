@@ -29,6 +29,17 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## SHARED RELAY LAYER: v0.2.918-alpha (ADR-0140 stage 3)
+
+- `src/engine/relay/sharedRelay.js`: `setSharedRelay` / `sharedRelay`.
+- `main.js` `loadApplesauce`: import, then `await m.getPool()`, then `setSharedRelay(m.createSharedRelay({ fallbackRequest: fanoutReqDirect, fallbackPublish: publishEvent }))`. The gateway getter's `fanout` is `fanoutReqDirect`, so there's no loop.
+- `nostr.js`:
+  - `fanoutReq` delegates to the shared layer when registered; `fanoutReqDirect` is the old body;
+  - `fanoutPublish` uses `shared.publish`.
+- `plebeianRelay.js`: `subscribeAuction`, `subscribeByAuthor` and `fetchProfiles` branch to the shared layer.
+- Debug: `ToriiDebug.gateway().sharedRelay` reads 'applesauce' or 'direct'.
+- Tests: `tests/relay/shared-relay.test.js`, including an E2E connection count.
+
 ## v0.2.917-alpha: STORE PREVIEW + STICKER + RELAY CHECK
 
 - `napStoreAdmin.js`: failed previews return `event: null` with a `shows`/`message` saying nothing was saved; successes return a `message` line.

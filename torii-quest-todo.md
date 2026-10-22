@@ -1,3 +1,11 @@
+## v0.2.913-alpha: live-probe for the real-GPU check + market preparation
+
+- [x] `ToriiDebug.gatewayLiveProbe()`: publishes one throwaway-key test world and times publish → pushed → listed.
+- [ ] **Operator, real GPU:** open the in-world gateway screen, run the probe, and send the result. Watch the probe world appear without a rescan.
+- [x] NAP market preparation (ADR-0145): Plebeian kinds confirmed read-only, the owner-boards bug confirmed, a six-slice plan.
+- [ ] **Owner decisions for the market:** default sellers, visitor shops, layout, relays (table in ADR-0145).
+- [ ] Market slice 1: owner fix (boards use `_hostIdentity()`).
+
 ## v0.2.912-alpha: Gate licensing (ADR-0146)
 
 - [x] `GATEWAY_PROTOCOL.md` and the kit README: CC0 1.0.

@@ -29,6 +29,15 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## LIVE PROBE + MARKET PREP: v0.2.913-alpha
+
+- **Probe.** `await ToriiDebug.gatewayLiveProbe()` (lazy `gateway/liveProbe.js`) needs the live list active (gateway screen open, or the menu while logged in).
+  - It returns `{ ok, transport, accepted, publishMs, arrivalMs, listedMs, zoneId, error }`.
+  - The probe key is generated in the browser, never the operator's.
+  - The probe expires after 60 s, and `created_at` is back-dated so §3.2 grace ends 90 s after publishing.
+- **Market.** See ADR-0145 "Implementation plan". Slice 1, the owner fix, is a small bug fix. Slices 2+ wait for the owner decisions in the ADR table.
+- **Plebeian repo.** It's read-only: no edits to PlebeianApp/market without explicit approval.
+
 ## GATE LICENSING: v0.2.912-alpha (ADR-0146)
 
 - **Licences:**

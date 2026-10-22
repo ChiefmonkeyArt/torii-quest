@@ -31,7 +31,7 @@ export const LIVE_PRESENCE_POLL_MS = 60000;
 /** How often the shell re-evaluates whether the live subscription is wanted. */
 export const LIVE_CHECK_MS = 1000;
 /** Stand-in until the lazy chunk (with the real controller) has loaded. */
-const NO_LIVE = Object.freeze({ active: false, received: 0, events: () => [], setWanted() {}, stop() {} });
+const NO_LIVE = Object.freeze({ active: false, received: 0, events: () => [], setWanted() {}, stop() {}, onArrival: () => () => {} });
 
 export function createGatewayRequestGetter({ mode = 'fanout', fanout, loadApplesauce, schedule = (fn) => fn(), onLiveEvents = null }) {
   let current = fanout;

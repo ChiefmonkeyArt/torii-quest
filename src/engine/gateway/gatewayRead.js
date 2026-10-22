@@ -288,7 +288,7 @@ function _toEventArray(input) {
 // tag ('request'/'accepted'/'denied'). NIP-40: an `expiration` tag in the past
 // means the record is stale. Records with NO expiration tag (pre-NIP-40) fall back
 // to a grace window so ancient records don't linger forever.
-const PRESENCE_GRACE_SEC = 3600; // 1 hour fallback for records without expiration
+export const PRESENCE_GRACE_SEC = 3600; // 1 hour fallback for records without expiration
 // A live node republishes presence every ~10 min with a 20-min NIP-40 TTL, so a
 // healthy node's `expiration` is always in the future. BUT the reader judges
 // liveness against its OWN wall clock, which can run AHEAD of the publisher's — in

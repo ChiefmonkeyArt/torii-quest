@@ -1,3 +1,12 @@
+## v0.2.918-alpha: one connection per relay
+
+Quest now shares a single connection to each relay for everything it does:
+the world list, profiles, publishing, and the NAP Zone shop boards. Before,
+it opened a fresh connection for almost every lookup. In a test browser,
+connections per relay dropped from three or four to two, and none open
+during play. It's lighter on your device and on the relays, and less likely
+to be turned away by busy relays like nos.lol.
+
 ## v0.2.917-alpha: clearer store preview, quieter console
 
 If you give the store helper a value that isn't valid, it now says plainly

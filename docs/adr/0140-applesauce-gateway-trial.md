@@ -125,3 +125,31 @@ The operator adopted the proposed budget and asked for stage 2.
   - live stays off while playing with the gateway screen closed, as intended;
   - no CSP violations or page errors.
   - Not yet clicked in a browser: opening the in-world gateway screen. It's covered by unit tests plus the Node live tests.
+
+## Stage 3: one shared relay layer (v0.2.918-alpha, 2026-10-22)
+
+The operator asked to continue with the shared layer.
+
+**What changed:**
+- **Registry.** `src/engine/relay/sharedRelay.js` is a tiny entry-side registry. The lazy chunk's `createSharedRelay()` registers `{ request, publish, subscribe }` only after `getPool()` has started.
+- **Shared callers.** From then on, these all reuse the pool's single socket per relay:
+  - `fanoutReq` (directory, presence, friends, profiles, characters, access settings, leaderboard reads);
+  - `fanoutPublish` (heartbeats, profile, character, access settings, NAP store, probe);
+  - Plebeian `subscribeAuction`, `subscribeByAuthor` (NAP boards) and `fetchProfiles`.
+- **Fallbacks.** `fanoutReqDirect` and `publishEvent` stay the cold-start path and the pool's fallback. The gateway getter's fallback is the direct path, so a pool failure can never loop.
+- **Kill switch.** `?gateway-transport=fanout` turns the whole shared layer off.
+- **Same contracts:** `{events, used, failed}` and `{ok, relay, accepted, error, reason?}`. A publish skips relays in backoff (`ready === false`) and is capped at 5 s per relay.
+- **Same trust.** Callers still verify every event.
+- **Faster profiles.** `fetchProfiles` now finishes at EOSE. The direct path holds every socket for a fixed 6 s.
+- **Not moved:** the login-time `fetchProfileProgressive`, which runs during cold start before the pool exists.
+
+**Measured:**
+- **Unit end-to-end** (real `RelayPool`, local relay): publish, 4 reads and a live subscription ran over exactly 1 connection.
+- **Headless Chromium, real 7 default relays, title then in-game:**
+  - before: 3–4 sockets per relay at the title, 1 kept open;
+  - after: 2 per relay (one cold direct scan before the idle load, then the shared socket), 1 kept open;
+  - 0 new sockets in game;
+  - `ToriiDebug.gateway().sharedRelay === 'applesauce'`.
+- **Budget:** lazy 52.6 KB / 55 KB, entry-side 750 B / 1 KB. PASS.
+
+**Known gap:** relay-health telemetry (`recordOpen` and friends) only sees direct-path sockets. The pool's own backoff (`ready === false`) replaces the cooling-down check on the shared path.

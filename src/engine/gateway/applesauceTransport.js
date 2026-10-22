@@ -136,3 +136,41 @@ export function createLiveSubscribe({ getPool: gp = getPool } = {}) {
     return () => { cancelled = true; try { if (sub) sub.unsubscribe(); } catch { /* closed */ } sub = null; };
   };
 }
+
+/** Per-relay publish cap on the shared pool (matches publishEvent's default). */
+export const SHARED_PUBLISH_TIMEOUT_MS = 5000;
+
+/**
+ * ADR-0140 stage 3 (v0.2.918): the shared relay layer registered with
+ * engine/relay/sharedRelay.js. Every Nostr read, publish and Plebeian
+ * subscription reuses this pool's single socket per relay. Same result
+ * contracts as fanoutReq / publishEvent, and the same trust: callers still
+ * verify every event. Falls back to the direct paths if the pool is unusable.
+ */
+export function createSharedRelay({ fallbackRequest = null, fallbackPublish = null, getPool: gp = getPool } = {}) {
+  const request = createApplesauceRequest({ fallback: fallbackRequest, getPool: gp });
+  const subscribe = createLiveSubscribe({ getPool: gp });
+  async function publish(url, event, opts = {}) {
+    const timeoutMs = Number.isFinite(opts && opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : SHARED_PUBLISH_TIMEOUT_MS;
+    let pool;
+    try { pool = await gp(); } catch {
+      return fallbackPublish ? fallbackPublish(url, event, opts) : { ok: false, relay: url, accepted: false, error: 'no-pool' };
+    }
+    if (partitionReady(pool, [url]).skip.length) return { ok: false, relay: url, accepted: false, error: 'cooling-down' };
+    let timer = null;
+    try {
+      const r = await Promise.race([
+        pool.relay(url).publish(event, { retries: 0, reconnect: false, timeout: timeoutMs }),
+        new Promise((res) => { timer = setTimeout(() => res(null), timeoutMs + 250); }),
+      ]);
+      if (!r) return { ok: false, relay: url, accepted: false, error: 'timeout' };
+      if (r.ok) return { ok: true, relay: url, accepted: true, error: null };
+      const reason = String(r.message == null ? '' : r.message).slice(0, 160);
+      return reason ? { ok: true, relay: url, accepted: false, error: 'rejected', reason } : { ok: true, relay: url, accepted: false, error: 'rejected' };
+    } catch (e) {
+      const reason = String((e && e.message) || '').slice(0, 160);
+      return reason ? { ok: false, relay: url, accepted: false, error: 'error', reason } : { ok: false, relay: url, accepted: false, error: 'error' };
+    } finally { if (timer) clearTimeout(timer); }
+  }
+  return { kind: 'applesauce', request, publish, subscribe };
+}

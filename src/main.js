@@ -135,7 +135,7 @@ import { createNodePresenceCache, mergeNodeWorlds } from './engine/presence/node
 import { mvpLoopSummary } from './engine/mvpLoop.js';
 // v0.2.251 (P0): live n2n world-presence transport + pure presence layer.
 import { resolveGatewayTransport, createGatewayRequestGetter, LIVE_PRESENCE_POLL_MS, LIVE_CHECK_MS } from './engine/gateway/gatewayTransport.js';
-import { fanoutReq, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
+import { fanoutReq, fanoutReqDirect, publishEvent, signEvent, fanoutPublish, fetchOwnerProfileName, fetchOwnProfile, fetchOwnCharacter, publishCharacter, publishProfileMetadata, uploadBlossom, readLatestAccessSettings, publishAccessSettings } from './nostr.js';
 import { fetchOnlineWorlds, worldsFromEvents, buildPresenceEvent, publishOurPresence } from './engine/gateway/worldPresence.js';
 // Phase 0d: node presence heartbeat — pure timing + status helpers + the
 // node-relay config reader. Pure + node-safe; main.js injects `now` (epoch ms)
@@ -233,6 +233,7 @@ import {
   NAP_SPAWN_X, NAP_SPAWN_Z, NAP_SPAWN_YAW, SCORE_PUBLISH_ENABLED, GAMESTR_ENABLED, GATEWAY_TRANSPORT,
   PLEBEIAN_PRODUCT_RELAYS,
 } from './config.js';
+import { setSharedRelay, sharedRelay } from './engine/relay/sharedRelay.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
@@ -942,8 +943,16 @@ let _gatewayStorage = null;
 try { _gatewayStorage = window.localStorage; } catch { /* storage blocked */ }
 const _gatewayTransport = createGatewayRequestGetter({
   mode: resolveGatewayTransport({ fallback: GATEWAY_TRANSPORT, search: (window.location && window.location.search) || '', storage: _gatewayStorage }),
-  fanout: fanoutReq,
-  loadApplesauce: () => import('./engine/gateway/applesauceTransport.js'),
+  fanout: fanoutReqDirect,
+  // ADR-0140 stage 3 (v0.2.918): once the pool has started, register it as the
+  // shared relay layer, so every read, publish and Plebeian subscription
+  // reuses one socket per relay. The gateway fallback stays the DIRECT path,
+  // so a pool failure can never loop back into the pool.
+  loadApplesauce: async () => {
+    const m = await import('./engine/gateway/applesauceTransport.js');
+    try { await m.getPool(); setSharedRelay(m.createSharedRelay({ fallbackRequest: fanoutReqDirect, fallbackPublish: publishEvent })); } catch { /* direct sockets stay */ }
+    return m;
+  },
   onLiveEvents: () => _applyLiveWorlds(), // ADR-0140 stage 2 (hoisted function)
   // Load when the title is idle, never during the cold load (ADR-0142).
   schedule: (fn) => (typeof window.requestIdleCallback === 'function'
@@ -3353,6 +3362,8 @@ if (typeof window !== 'undefined') {
       hostPubkey: _hostIdentity() || 'NOT CONFIGURED',
       loggedInNpub: state.nostrPubkey || 'not logged in',
       relays: _effectiveRelays(),
+      // ADR-0140 stage 3: 'applesauce' once every read/publish shares the pool.
+      sharedRelay: (sharedRelay() && sharedRelay().kind) || 'direct',
       handshakeMode: view?.mode || 'idle',
       handshakeBadge: view?.badge || '',
       armed: armed ? { toZone: armed.toZone, spawn: armed.spawn, hostPubkey: armed.hostPubkey } : null,

@@ -1,4 +1,5 @@
 // nostr.js — NIP-07 login, kind:0 profile fetch
+import { sharedRelay } from './engine/relay/sharedRelay.js';
 import { state } from './state.js';
 import { emit, EV } from './events.js';
 import { resolveMpHttpBase, loginForSessionToken } from './engine/multiplayer/sessionAuth.js';
@@ -531,7 +532,15 @@ export function relayReq(url, filters, opts = {}) {
 // relay.nostr.band and relay.damus.io under concurrent load during the n2n
 // interop proof). opts.graceMs is passed through to relayReq. Both default to
 // off, so callers opt in deliberately.
-export async function fanoutReq(relays, filters, opts = {}) {
+// ADR-0140 stage 3 (v0.2.918): once the shared Applesauce pool is registered,
+// reads reuse its one socket per relay. fanoutReqDirect is the original
+// per-call-socket path: the cold-start path and the pool's own fallback.
+export function fanoutReq(relays, filters, opts = {}) {
+  const s = sharedRelay();
+  return s ? s.request(relays, filters, opts) : fanoutReqDirect(relays, filters, opts);
+}
+
+export async function fanoutReqDirect(relays, filters, opts = {}) {
   const list = Array.isArray(relays) ? relays : (relays ? [relays] : []);
   const retries = Number.isFinite(opts.retries) && opts.retries > 0 ? Math.floor(opts.retries) : 0;
   let results = await Promise.all(list.map((r) => relayReq(r, filters, opts)));
@@ -656,7 +665,9 @@ export function publishEvent(url, event, opts = {}) {
 // Publishes to every relay in parallel; a relay is "used" only on OK(true).
 export async function fanoutPublish(relays, event, opts = {}) {
   const list = Array.isArray(relays) ? relays : (relays ? [relays] : []);
-  const results = await Promise.all(list.map((r) => publishEvent(r, event, opts)));
+  const s = sharedRelay();
+  const pub = s && typeof s.publish === 'function' ? s.publish : publishEvent;
+  const results = await Promise.all(list.map((r) => pub(r, event, opts)));
   const used = [];
   const failed = [];
   const reasons = {};

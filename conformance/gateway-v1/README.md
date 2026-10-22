@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: CC0-1.0 -->
 # Torii Gate v1 conformance kit
 
 Connect your world to the Torii network, whatever engine or language you use. The protocol is in [`GATEWAY_PROTOCOL.md`](../../GATEWAY_PROTOCOL.md) and is short.
@@ -19,6 +20,13 @@ Connect your world to the Torii network, whatever engine or language you use. Th
 3. Your travel and arrival code matches `fixtures/travel.json`.
 
 Torii Quest runs these same fixtures in CI against its own code (`tests/gateway/gate-v1-conformance.test.js`).
+
+## Licence
+
+Use this kit in anything: open or closed, free or commercial, in any engine.
+- **The code and fixtures** (`gate-v1.mjs`, `check.mjs`, `fixtures/`, `reference-world/`) are [0BSD](./LICENSE). No conditions, not even attribution, so copy, paste or port them freely.
+- **This README and the protocol text** (`GATEWAY_PROTOCOL.md`) are [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+- **The rest of Torii Quest** is GPL-3.0.
 
 ## Notes
 

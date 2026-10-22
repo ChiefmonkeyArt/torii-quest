@@ -1,3 +1,11 @@
+## v0.2.912-alpha: anyone can use the Gate (ADR-0146)
+
+The rules for the Torii Gate are now public domain, and the starter kit is
+free to copy into any game with no conditions at all, whether it's open
+source or not. Torii Quest itself stays under its existing open-source
+licence (GPL-3.0). This removes the main legal reason another game maker
+might hesitate to join.
+
 ## v0.2.911-alpha: worlds appear the moment they open (ADR-0140)
 
 While you're looking at the world list, Quest now listens for new worlds

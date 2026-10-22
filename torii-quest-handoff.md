@@ -29,6 +29,16 @@
 - `frameHitch.js`: long frames are counted while playing and exposed in `ToriiDebug.perf` / `snapshot().perf`, together with the prewarm result and the program count. `ToriiDebug.programNames()` lists the compiled programs.
 - To check a capture: `perf.hitches.recent` shows the freezes, and `perf.programs` shows whether shaders grew mid-play.
 
+## GATE LICENSING: v0.2.912-alpha (ADR-0146)
+
+- **Licences:**
+  - `GATEWAY_PROTOCOL.md` and `conformance/gateway-v1/README.md`: CC0-1.0;
+  - `conformance/gateway-v1/**` code and fixtures, plus `tools/gen-gate-v1-fixtures.mjs`: 0BSD;
+  - everything else: GPL-3.0.
+- **Texts:** `LICENSES/0BSD.txt`, `LICENSES/CC0-1.0.txt`, and `conformance/gateway-v1/LICENSE`, which travels with a copied folder.
+- **New kit files** need the SPDX header `// SPDX-License-Identifier: 0BSD`. `tests/gateway/gate-licensing.test.js` enforces the list.
+- **Don't** copy GPL Quest code into the kit. The kit must stay engine-free and permissive.
+
 ## APPLESAUCE RELAY LAYER: v0.2.910-alpha + live directory v0.2.911-alpha (ADR-0140, accepted)
 
 - **Files:**

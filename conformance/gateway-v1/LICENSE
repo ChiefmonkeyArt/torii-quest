@@ -1,0 +1,18 @@
+Torii Gate v1 conformance kit: licensing
+
+- Code and data in this folder (gate-v1.mjs, check.mjs, fixtures/*.json,
+  reference-world/*) and tools/gen-gate-v1-fixtures.mjs: 0BSD (below).
+- README.md in this folder, and GATEWAY_PROTOCOL.md at the repo root: CC0 1.0
+  Universal, a public domain dedication (full text: LICENSES/CC0-1.0.txt, or
+  https://creativecommons.org/publicdomain/zero/1.0/legalcode).
+
+The rest of Torii Quest stays GPL-3.0 (see the root LICENSE).
+
+--------------------------------------------------------------------------
+Zero-Clause BSD (SPDX: 0BSD)
+
+Copyright (C) 2026 Chiefmonkey (ChiefmonkeyArt)
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.

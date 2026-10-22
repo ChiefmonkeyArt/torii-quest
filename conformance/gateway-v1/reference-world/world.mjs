@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: 0BSD
 // Torii Gate v1 reference world: everything a world needs, in plain JS.
 import { FILTER, KIND, TOPIC, TTL_DEFAULT, readWorlds, visitUrl, readTraveller } from '../gate-v1.mjs';
 

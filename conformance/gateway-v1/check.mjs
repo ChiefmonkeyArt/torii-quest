@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: 0BSD
 // Check your world's heartbeat against Torii Gate v1.
 //   node conformance/gateway-v1/check.mjs heartbeat.json   (a signed event, or an array)
 //   cat heartbeat.json | node conformance/gateway-v1/check.mjs -

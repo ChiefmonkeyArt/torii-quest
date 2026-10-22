@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: 0BSD
 // Regenerates conformance/gateway-v1/fixtures/*.json (deterministic: fixed test
 // keys, fixed clock, zero aux randomness). The keys below are PUBLIC test keys;
 // never use them for anything real. Run: node tools/gen-gate-v1-fixtures.mjs

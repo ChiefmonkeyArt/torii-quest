@@ -1,10 +1,18 @@
+## v0.2.912-alpha: Gate licensing (ADR-0146)
+
+- [x] `GATEWAY_PROTOCOL.md` and the kit README: CC0 1.0.
+- [x] The kit code, fixtures, reference world and fixture generator: 0BSD.
+- [x] Quest stays GPL-3.0.
+- [x] SPDX headers, a `LICENSES/` folder and a kit `LICENSE`, guarded by a test.
+- [x] The letter's licence checklist item is ticked.
+
 ## v0.2.911-alpha: live world list + enforced size budget (ADR-0140)
 
 - [x] One Applesauce subscription while the world list is visible; pushed events get the same signature checks as scans.
 - [x] The full rescan slows from 10 s to 60 s while live.
 - [x] Signature-verdict cache; the straggler cap is hardened.
 - [x] `npm run budget:applesauce` enforced in CI (lazy 52.2/55 KB, entry side 739 B/1 KB).
-- [ ] **Owner decision:** licence for the spec and kit (still open).
+- [x] Licence for the spec and kit: decided in v0.2.912 (ADR-0146).
 
 ## v0.2.910-alpha: Applesauce relay layer, stage 1 (ADR-0140)
 
@@ -18,7 +26,7 @@
 - [x] Directory reader verifies signatures (`verify: true`); forged or tampered worlds are dropped.
 - [x] Conformance kit: `gate-v1.mjs`, signed fixtures, `check.mjs`, `reference-world/`; CI runs the fixtures on kit + Quest.
 - [x] Invitation letter (living draft, not sent): `docs/outreach/torii-gate-letter.md`.
-- [ ] **Owner decision:** licence for the spec and kit (repo is GPL-3.0; a permissive licence would help other engines adopt it).
+- [x] Licence for the spec and kit: spec CC0, kit 0BSD, Quest GPL-3.0 (v0.2.912, ADR-0146).
 - [x] **Applesauce relay layer, ASAP:** stage 1 shipped in v0.2.910 (ADR-0140, steps below).
 - [ ] **NAP Zone market (ADR-0145, Proposed), soon:**
   - [ ] Owner from the world, not the build (fix: `ADMIN_PUBKEY_HEX` is empty in the browser).

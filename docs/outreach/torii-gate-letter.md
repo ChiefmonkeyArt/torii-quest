@@ -14,7 +14,7 @@
   - two independent operators' worlds travel both ways, from a fresh browser;
   - G1 (v1 frozen) and G2 (conformance kit) are shipped;
   - G3 has at least one non-Quest world, or a credible partner ready to try.
-- [ ] **The kit is public, documented and licensed for reuse.** The spec and kit licence is an owner decision: today the repo is GPL-3.0, and a permissive licence (MIT or CC0) for `GATEWAY_PROTOCOL.md` and `conformance/` would make adoption by any engine easier.
+- [x] **The kit is public, documented and licensed for reuse** (v0.2.912, ADR-0146): the spec is CC0 and the kit is 0BSD; Quest stays GPL-3.0.
 - [ ] **A 60–90 s video** of a hop between two worlds.
 - [ ] **The sending identity is chosen and approved:** which npub or email, and from which account. Each send is approved separately.
 - [ ] **The facts table below has been re-checked** against the live repo, and no claim goes beyond what's shipped.
@@ -28,6 +28,7 @@
 | Conformance kit | 17 signed heartbeat cases + dedupe, 13 travel/arrival cases, CLI, reference world | `conformance/gateway-v1/` |
 | Worlds on the network | (count live heartbeats on public relays) | reference world → "Find worlds" |
 | Non-Quest worlds | 0 (the reference world is ours) | — |
+| Licences | spec CC0, kit 0BSD, Quest GPL-3.0 | ADR-0146 |
 | Live URL | https://chiefmonkey.art/quest/ | — |
 | Repo | https://github.com/ChiefmonkeyArt/torii-quest | — |
 
@@ -46,7 +47,7 @@ What it is:
 - **A directory.** Any world can read those heartbeats, check the signatures, and list who's live.
 - **A hop.** A player travels by visiting the destination's https page with their pubkey attached. The destination decides who it admits.
 
-That's all. There's no central server, no Torii code to run, and no engine or language requirement. If your world can sign a Nostr event and serve a landing page, it can join. Multiplayer endpoints and node-to-node transports are optional extras on top.
+That's all. There's no central server, no Torii code to run, and no engine or language requirement. The spec is public domain (CC0) and the kit is 0BSD, so you can copy or port it into anything, open or closed. If your world can sign a Nostr event and serve a landing page, it can join. Multiplayer endpoints and node-to-node transports are optional extras on top.
 
 To make it easy to adopt, there's a conformance kit ({kit url}):
 - signed test fixtures;
@@ -88,3 +89,4 @@ chiefmonkey
 ## Change log
 
 - 2026-10-21: first draft (v0.2.909-alpha). Not sent.
+- 2026-10-22: licences settled (ADR-0146). Not sent.

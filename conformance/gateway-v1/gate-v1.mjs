@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: 0BSD
 // Torii Gate Protocol v1: reference reader + writer check (GATEWAY_PROTOCOL.md).
 // Engine-free and Torii-free on purpose: copy this file into any world. Only
 // dependency: @noble/curves + @noble/hashes (BIP-340 schnorr, sha256).

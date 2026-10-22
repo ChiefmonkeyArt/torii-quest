@@ -142,6 +142,10 @@ Nostr is the social layer. Bitcoin is the economic layer. The game is the fun la
 
 [GNU General Public License v3.0](LICENSE) — open source, copyleft, free to fork and build on.
 
+Exceptions, so any world in any engine can join the Torii Gate (ADR-0146):
+- [`GATEWAY_PROTOCOL.md`](GATEWAY_PROTOCOL.md): [CC0 1.0](LICENSES/CC0-1.0.txt), public domain.
+- [`conformance/gateway-v1/`](conformance/gateway-v1/) and `tools/gen-gate-v1-fixtures.mjs`: [0BSD](LICENSES/0BSD.txt). The kit's README is CC0.
+
 ## Credits
 
 - Built by [Chiefmonkey](https://github.com/chiefmonkey) and AI agents

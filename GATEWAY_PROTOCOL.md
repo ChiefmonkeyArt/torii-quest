@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: CC0-1.0 -->
 # Torii Gate Protocol v1 (frozen)
 
 > **Status:** FROZEN v1 (ADR-0144, v0.2.909-alpha). The wire format below changes only by **additive extensions** (§8) or a new major version. CI enforces it with the conformance fixtures in `conformance/gateway-v1/`.
@@ -152,3 +153,7 @@ A world conforms when its heartbeats pass `check.mjs` and its reader agrees with
 | Reader | `src/engine/gateway/gatewayRead.js` (`readGateways`, with `verify` per §3.1) |
 | Travel | `src/engine/gateway/openVisit.js` (`buildVisitUrl`), `urlHarden.js`, `zoneRoute.js` |
 | Arrival | `src/engine/gateway/handoffArrival.js` (`readArrivingTraveller`, arrival modes) |
+
+## Licence
+
+This specification is dedicated to the public domain under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/) (full text in `LICENSES/CC0-1.0.txt`). Copy, translate, quote or merge it into any document or standards process, including a NIP, with no conditions. The conformance kit in `conformance/gateway-v1/` is 0BSD. Torii Quest itself is GPL-3.0. Licensing the text freely doesn't change what conformance means: a world conforms to Torii Gate v1 when it passes the v1 fixtures.

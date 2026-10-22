@@ -42,7 +42,7 @@ export function buildProbeEvent({ nowSec, website, secretKey, tag }) {
  *   website:    https URL the probe world points at (the operator's own Quest)
  */
 export async function runLiveProbe({ live, publish, isListed, website, transport = '', now = () => Date.now(), timeoutMs = PROBE_TIMEOUT_MS, secretKey = schnorr.utils.randomSecretKey() }) {
-  const out = { ok: false, transport, zoneId: null, accepted: 0, failedRelays: [], publishMs: null, arrivalMs: null, listedMs: null, error: null, note: `probe world expires in ${PROBE_TTL_SEC} s and leaves every directory within ${PROBE_VISIBLE_SEC} s` };
+  const out = { ok: false, transport, zoneId: null, accepted: 0, failedRelays: [], failReasons: {}, publishMs: null, arrivalMs: null, listedMs: null, error: null, note: `probe world expires in ${PROBE_TTL_SEC} s and leaves every directory within ${PROBE_VISIBLE_SEC} s` };
   if (!live || !live.active) { out.error = 'live-inactive: open the in-world gateway screen (or the menu while logged in) first'; return out; }
   if (typeof website !== 'string' || !/^https:\/\//.test(website)) { out.error = 'website must be https'; return out; }
   const tag = bytesToHex(secretKey).slice(0, 8);
@@ -69,6 +69,8 @@ export async function runLiveProbe({ live, publish, isListed, website, transport
     out.accepted = (r && r.accepted) || 0;
     out.publishMs = now() - t0;
     out.failedRelays = (r && Array.isArray(r.failed)) ? r.failed.slice(0, 16) : [];
+    // v0.2.916: each refusing relay's own reason (timeout / rejected: <msg> / notice: <msg>).
+    out.failReasons = (r && r.reasons && typeof r.reasons === 'object') ? r.reasons : {};
     if (!out.accepted) { out.error = 'no relay accepted the probe'; await listed; return out; }
     await listed;
     out.ok = out.listedMs != null;

@@ -101,3 +101,33 @@ export function npubToHex(input) {
   if (!bytes || bytes.length !== 32) return null;
   return bytesToHex(bytes);
 }
+
+// v0.2.916 (ADR-0145): NIP-19 `naddr1…` → "kind:pubkey:d" coordinate, or null.
+// TLV: 0 = d identifier (utf-8), 1 = relay (ignored), 2 = author (32 bytes),
+// 3 = kind (4-byte big-endian). A raw "kind:hex64:d" string passes through.
+const COORD_RE = /^(\d{1,10}):([0-9a-f]{64}):(.{0,256})$/;
+export function naddrToCoord(input) {
+  if (typeof input !== 'string') return null;
+  const s = input.trim().replace(/^nostr:/i, '');
+  const raw = COORD_RE.exec(s);
+  if (raw) return `${Number(raw[1])}:${raw[2]}:${raw[3]}`;
+  const lower = s.toLowerCase();
+  if (s !== lower && s !== s.toUpperCase()) return null;
+  if (!lower.startsWith('naddr1') || lower.length > 1000) return null;
+  const data = [];
+  for (const ch of lower.slice(6)) { const i = CHARSET.indexOf(ch); if (i === -1) return null; data.push(i); }
+  if (!verifyChecksum('naddr', data)) return null;
+  const bytes = convertBits(data.slice(0, data.length - 6), 5, 8, false);
+  if (!bytes) return null;
+  let d = null, author = null, kind = null;
+  for (let i = 0; i + 2 <= bytes.length;) {
+    const t = bytes[i], len = bytes[i + 1], v = bytes.slice(i + 2, i + 2 + len);
+    if (v.length !== len) return null;
+    if (t === 0) d = new TextDecoder().decode(new Uint8Array(v));
+    else if (t === 2 && len === 32) author = bytesToHex(v);
+    else if (t === 3 && len === 4) kind = ((v[0] << 24) | (v[1] << 16) | (v[2] << 8) | v[3]) >>> 0;
+    i += 2 + len;
+  }
+  if (d == null || !author || kind == null || d.length > 256) return null;
+  return `${kind}:${author}:${d}`;
+}

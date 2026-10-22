@@ -49,12 +49,13 @@ describe('ownerBoards wiring (owner decisions 2026-10-22)', () => {
   it('products from production + staging, auctions from staging', () => {
     expect(PLEBEIAN_PRODUCT_RELAYS).toEqual(['wss://relay.plebeian.market', 'wss://relay.staging.plebeian.market']);
     expect(PLEBEIAN_AUCTION_RELAYS).toEqual(['wss://relay.staging.plebeian.market']);
-    expect(src).toMatch(/for \(const url of PLEBEIAN_PRODUCT_RELAYS\)/);
-    expect(src).toMatch(/for \(const url of PLEBEIAN_AUCTION_RELAYS\)/);
+    expect(src).toMatch(/\[PLEBEIAN_PRODUCT_RELAYS, PLEBEIAN_PRODUCT_KIND, _productByRelay,/);
+    expect(src).toMatch(/\[PLEBEIAN_AUCTION_RELAYS, PLEBEIAN_AUCTION_KIND, _auctionByRelay,/);
   });
   it('resolves the host owner, merges through the verifier, and closes sockets on hide', () => {
     expect(src).toMatch(/_owner = resolveBoardOwner\(\{ adminHex: ADMIN_PUBKEY_HEX \}\)/);
-    expect(src).toMatch(/mergeOwnerEvents\(\[\.\.\._productByRelay\.values\(\)\], _owner\)/);
+    expect(src).toMatch(/mergeStoreEvents\(\[\.\.\.byRelay\.values\(\)\], _store\)/);
+    expect(src).toMatch(/if \(!_store\) _store = ownerStore\(_owner\);/);
     expect(src).toMatch(/if \(!active && wasActive\) stop\(\);/);
     expect(src).not.toMatch(/!ADMIN_PUBKEY_HEX\) return/);
   });

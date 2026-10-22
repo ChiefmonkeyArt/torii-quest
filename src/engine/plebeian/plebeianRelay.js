@@ -149,6 +149,8 @@ export function reduceAuthorEvents(state, frame) {
  */
 export function subscribeByAuthor(opts) {
   const { url, author, kinds, onUpdate, onStatus } = opts || {};
+  // v0.2.916: optional explicit REQ filters (ADR-0145 custom store / store config).
+  const filters = Array.isArray(opts && opts.filters) && opts.filters.length ? opts.filters.slice(0, 16) : null;
   let state = { events: [], eosed: false };
   let closed = false;
   let ws = null;
@@ -159,7 +161,7 @@ export function subscribeByAuthor(opts) {
   }
   function connect() {
     if (closed) return;
-    if (!author || !Array.isArray(kinds) || !kinds.length) return;
+    if (!filters && (!author || !Array.isArray(kinds) || !kinds.length)) return;
     const connectStart = Date.now();
     let openRecorded = false;
     try {
@@ -174,7 +176,7 @@ export function subscribeByAuthor(opts) {
       openRecorded = true;
       try { recordOpen(url, Date.now() - connectStart); } catch { /* telemetry no-op */ }
       if (onStatus) onStatus('open');
-      ws.send(JSON.stringify(['REQ', 'byauthor', { authors: [author], kinds, limit: 500 }]));
+      ws.send(JSON.stringify(filters ? ['REQ', 'byauthor', ...filters] : ['REQ', 'byauthor', { authors: [author], kinds, limit: 500 }]));
     };
     ws.onmessage = (msg) => {
       try { recordMessage(url); } catch { /* telemetry no-op */ }

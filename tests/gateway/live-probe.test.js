@@ -62,13 +62,14 @@ describe('runLiveProbe', () => {
     const publish = async (ev) => {
       setTimeout(() => { fire(ev, Date.now()); listedNow = true; }, 20); // pushed back fast
       await new Promise((r) => setTimeout(r, 400)); // one slow relay holds publish
-      return { accepted: 5, failed: ['wss://slow.example'] };
+      return { accepted: 5, failed: ['wss://slow.example'], reasons: { 'wss://slow.example': 'rejected: blocked: pubkey not trusted' } };
     };
     const r = await runLiveProbe({ live, publish, isListed: () => listedNow, website: 'https://q.example/', secretKey: SK, timeoutMs: 2000 });
     expect(r.ok).toBe(true);
     expect(r.publishMs).toBeGreaterThanOrEqual(380);
     expect(r.listedMs).toBeLessThan(300);
     expect(r.failedRelays).toEqual(['wss://slow.example']);
+    expect(r.failReasons['wss://slow.example']).toMatch(/pubkey not trusted/);
   });
   it('the controller exposes onArrival and its stand-in is inert', () => {
     const L = createLiveWorlds({ getSubscribe: () => null, onEvents: () => {} });

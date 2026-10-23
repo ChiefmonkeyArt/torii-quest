@@ -23,6 +23,7 @@ import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
+import { loadHomeWorld } from './engine/world/homeWorld.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
 import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
@@ -637,6 +638,9 @@ export function createArenaRuntime(hooks = {}) {
   // remote code). Created once; expandWorldComponents resolves world.components
   // instances against it at manifest-load time.
   const _componentRegistry = createBuiltinRegistry();
+  // ADR-0147 M1 (v0.2.923): the home's own world description → which Starter
+  // Pack pieces get built. null until loaded (null = the full pack).
+  let _homePlan = null;
   // Phase 0l.2: runtime-mounted component handle. Once the minimal world scene
   // exists, mountWorldComponents mounts scene-mounted component instances +
   // stores them here; unmount is wired into stopMultiplayer (LIFO, never throws).
@@ -1418,7 +1422,11 @@ export function createArenaRuntime(hooks = {}) {
       }
     } else {
       startPhase('buildArena');
-      buildArena();
+      // ADR-0147 M1: the home loads its OWN world description. Never throws; a
+      // missing/invalid file falls back to the full Starter Pack (classic home).
+      _homePlan = await loadHomeWorld({ fetchImpl: (u, o) => fetch(u, o), base: assetUrl('') });
+      if (_homePlan.errors.length) console.warn('[home-world]', _homePlan.source, _homePlan.errors.join(' | '));
+      buildArena(undefined, _homePlan.plan);
       // ADR-0145 (v0.2.919): live PRODUCT + AUCTION boards on the built PRODUCT sign.
       initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight, touch: shouldEnableTouch() });
       endPhase('buildArena');
@@ -1603,6 +1611,10 @@ export function createArenaRuntime(hooks = {}) {
       } : { enabled: false, wsState: 'disabled', selfId: null, peers: [], peerCount: 0 },
     });
     if (window.ToriiDebug) window.ToriiDebug.marketBoards = marketBoards3dState; // ADR-0145 v0.2.919
+    // ADR-0147 M1 (v0.2.923): which world description the home was built from.
+    if (window.ToriiDebug) window.ToriiDebug.world = Object.assign(window.ToriiDebug.world || {}, {
+      home: () => (_homePlan ? { source: _homePlan.source, plan: [..._homePlan.plan], errors: [..._homePlan.errors] } : null),
+    });
 
     // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
     // the hotkey + mouse tracker unconditionally (inert); the owner check is lazy
@@ -2024,7 +2036,7 @@ export function createArenaRuntime(hooks = {}) {
     // the platform collider (built below, after the player body) replaces them.
     if (!_minimal) {
       startPhase('buildArenaColliders');
-      await step('buildArenaColliders', () => buildArenaColliders());
+      await step('buildArenaColliders', () => buildArenaColliders(_homePlan ? _homePlan.plan : null));
       endPhase('buildArenaColliders');
       await _yieldPaint();
 

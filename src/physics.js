@@ -27,6 +27,7 @@ import {
   ARENA_GRID, ARENA_TERRAIN, buildArenaHeightfieldArray, arenaTerrainPeak,
   sampleArenaHeight, ISLAND_BASE_Y,
 } from './terrain/heightmap.js';
+import { homeIncludes } from './engine/world/homeWorld.js';
 import { fenceRing } from './terrain/coastline.js';
 import { isArenaPlayArea } from './terrain/tomoeShape.js';
 
@@ -106,7 +107,11 @@ export function movePlayer(playerCollider, desiredDX, desiredDY, desiredDZ) {
 // sees the exact arena the player sees. Includes the NAP-zone floor and the
 // split east-wall segments (gate gap is a real hole in the collider, not just
 // in the manual code path).
-export function buildArenaColliders() {
+// ADR-0147 M1 (v0.2.923): `plan` = the home world's component ids (homeWorld.js);
+// null → everything. Ground follows world.island, crates arena.crates, the
+// knee-high shore wall world.coastline. Obstacles and the bridge are not gated yet.
+export function buildArenaColliders(plan = null) {
+  if (homeIncludes(plan, 'world.island')) {
   // Floors — BOTH zones are now undulating Rapier HEIGHTFIELDS (Stage 3, v0.2.329).
   // The old flat arena cuboid floor (createStatic at y=-0.1) is GONE; the arena is
   // an island like the NAP zone. Heights are column-major (col*rowsZ + row) over
@@ -135,6 +140,7 @@ export function buildArenaColliders() {
   console.info(`[island-terrain] arena ${ARENA_GRID.colsX}x${ARENA_GRID.rowsZ} ` +
     `peak=${_ap.height.toFixed(3)} · nap ${NAP_GRID.colsX}x${NAP_GRID.rowsZ} ` +
     `peak=${_np.height.toFixed(3)} · baseY=${ISLAND_BASE_Y}`);
+  }
 
   // Crates and obstacles sit ON the raised plateau, so their base rises by
   // ISLAND_BASE_Y (their footprints are on full-height plateau ground, not shore).
@@ -149,7 +155,7 @@ export function buildArenaColliders() {
   // surface: its collider base is the terrain height sampled at the crate centre
   // (v0.2.330), matching the visual mesh in arena.js so the collision box lines
   // up with what the player sees on the hills.
-  for (const [cx, cz, hw, hd, ch] of CRATES) {
+  if (homeIncludes(plan, 'arena.crates')) for (const [cx, cz, hw, hd, ch] of CRATES) {
     // v0.2.540: Skip crates outside the play zone (water, bridge, NAP).
     if (!isArenaPlayArea(cx, cz)) continue;
     createStatic(hw, ch / 2, hd, cx, ch / 2 + sampleArenaHeight(cx, cz), cz);
@@ -162,7 +168,7 @@ export function buildArenaColliders() {
   // COASTLINE wall — knee-high (0.5m) PLAYER colliders following the organic
   // v0.2.511: fenceRing() now returns an ARRAY of rings (two arena play loops).
   // Build wall segments for each ring. No gate gap — bridges are separate from the wall.
-  const rings = fenceRing();
+  const rings = homeIncludes(plan, 'world.coastline') ? fenceRing() : [];
   const WALL_HH = 0.25;
   const WALL_HD = 0.1;
   for (const ring of rings) {

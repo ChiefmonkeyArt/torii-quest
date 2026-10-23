@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "id": "home",
+  "name": "Torii Quest home",
+  "description": "This node's home world, built from the Starter Pack (ADR-0147). Remove a component to leave it out; pieces not yet migrated to components are always built.",
+  "components": [
+    {
+      "id": "world.island"
+    },
+    {
+      "id": "world.sea"
+    },
+    {
+      "id": "world.coastline"
+    },
+    {
+      "id": "world.bridge"
+    },
+    {
+      "id": "world.foliage"
+    },
+    {
+      "id": "torii.gate"
+    },
+    {
+      "id": "torii.gateway"
+    },
+    {
+      "id": "nap.zone"
+    },
+    {
+      "id": "nap.tree"
+    },
+    {
+      "id": "nap.mirror"
+    },
+    {
+      "id": "npc.greeter"
+    },
+    {
+      "id": "sign.board"
+    },
+    {
+      "id": "market.products"
+    },
+    {
+      "id": "market.auctions"
+    },
+    {
+      "id": "plebeian.product-display"
+    },
+    {
+      "id": "arena.crates"
+    },
+    {
+      "id": "game.arena"
+    }
+  ]
+}

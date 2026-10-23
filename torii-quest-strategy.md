@@ -31,6 +31,7 @@ Torii Quest is the first world, and the proof that it works.**
 - **One gate, two travel modes.** **Enter** (world-as-data, in place, path shows `…/w/<npub>/<world>`) for Torii worlds; **Hand-off** (Gate v1, frozen) for any other engine or site.
 - **Live worlds.** The owner's node is authoritative; world edits are pushed to everyone present.
 - **One persona.** npub, keys in your signer, one signed avatar record (`.glb` by hash), one live session at a time.
+- **Milestone 1 under way:** the home is built from `worlds/home/world.json` (v0.2.923). Starter Pack pieces move to components one group at a time.
 - **Owner decisions:** the `/quest/w/<npub>/<world>` path, the full Starter Pack, and anyone may publish signed components (safety from §7 checks + sandbox, not gatekeeping).
 - **Later:** a Kami-mode builder, user components as sandboxed napplets, a component marketplace.
 - **Roadmap:** `docs/design/sovereign-metaverse-roadmap.md`, Milestones 1–7. M1: home from data and the Starter Pack. M2: Gateway Experience napplet extraction. M3: location links and automatic mode choice.

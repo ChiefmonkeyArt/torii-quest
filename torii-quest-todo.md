@@ -1,3 +1,13 @@
+## v0.2.923-alpha: M1 group 1 + home from its own world description
+
+- [x] Home loads `worlds/home/world.json`; its components list decides what's built (fail-safe to the full pack; ground always kept).
+- [x] Group 1 as host-backed components: `world.island`, `world.sea`, `world.coastline`; mesh + colliders gated; `arena.crates` gated too.
+- [x] Headless: the full file = classic home; a trimmed file drops sea, coastline and crates cleanly.
+- [ ] Group 2: `nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`.
+- [ ] Group 3: `sign.board`, `market.products`, `market.auctions`, `plebeian.product-display`.
+- [ ] Group 4: `world.foliage`, `world.bridge`, `torii.gate`, `torii.gateway`, `game.arena`.
+- [ ] Visitors build from the same description; parity screenshots; retire the classic arena.
+
 ## v0.2.922-alpha: ADR-0147 accepted; Milestone 1 begins
 
 - [x] ADR-0147 Accepted: path `/quest/w/<npub>/<world>`, full Starter Pack, anyone may publish signed components.

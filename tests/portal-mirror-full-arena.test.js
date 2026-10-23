@@ -95,7 +95,7 @@ describe('v0.2.886 — arena builders accept a target scene', () => {
     const BRIDGE = readFileSync(join(ROOT, 'src/bridge.js'), 'utf8');
     const FOLIAGE = readFileSync(join(ROOT, 'src/arena-foliage.js'), 'utf8');
 
-    expect(ARENA).toContain('export function buildArena(scene = defaultScene)');
+    expect(ARENA).toContain('export function buildArena(scene = defaultScene, plan = null)');
     expect(SEA).toContain('export function buildSeaMesh(scene, opts = {})');
     expect(BRIDGE).toContain('buildBridge(targetScene');
     expect(FOLIAGE).toContain('buildFoliage(onProgress, targetScene');

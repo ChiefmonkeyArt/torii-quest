@@ -1,3 +1,23 @@
+## M1 GROUP 1 + HOME FROM ITS OWN WORLD DESCRIPTION: v0.2.923-alpha
+
+- **`worlds/home/world.json`** (served at `<base>worlds/home/world.json`; `public/worlds` → `worlds/`): all 17 Starter Pack ids.
+- **`src/engine/world/homeWorld.js`:**
+  - `planFromWorld` reads the RAW components list (the schema drops empty lists). Unknown ids are reported; `HOME_REQUIRED` (`world.island`) is re-added; more than 256 entries, an invalid file or a missing list → full pack;
+  - `homeIncludes(plan,id)` gates only `builtIn` pack ids;
+  - `loadHomeWorld({fetchImpl, base})` never throws; 64 KB cap.
+- **`src/engine/components/starterPackComponents.js`:** host-backed factories (`world.island`, `world.sea`, `world.coastline`), registered in `createBuiltinRegistry`.
+- **`src/arena.js`:**
+  - `ARENA_HOST_BUILDERS` + `_piece(id, scene, plan)` (mounts through the registry component, with a direct-call fallback);
+  - `buildArena(scene, plan=null)`;
+  - `_buildFloor` split into `_buildIslandGround` (arena + NAP meshes) + `_buildFloorLight`;
+  - crates gated by `arena.crates`.
+- **`src/physics.js`:** `buildArenaColliders(plan=null)` gates the heightfields (island), crates and the shore wall (coastline). OBSTACLES and the bridge are not gated yet.
+- **`src/arenaRuntime.js`:**
+  - `_homePlan` loaded before `buildArena` in the legacy branch (`base: assetUrl('')`) and reused for colliders. It is named `_homePlan` because `_homeWorld` is the existing homecoming manifest;
+  - `ToriiDebug.world.home()` → {source, plan, errors}.
+- **Headless test note:** block the service worker (`serviceWorkers: 'block'`) or `page.route` on world.json is bypassed.
+- **Next:** group 2 (`nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`).
+
 ## ADR-0147 ACCEPTED, M1 BEGINS: v0.2.922-alpha
 
 - **ADR-0147 Accepted** with the owner's decisions: the `/quest/w/<npub>/<world>` path, the full Starter Pack, and anyone may publish signed components (COMPONENTS.md "Publishing policy").

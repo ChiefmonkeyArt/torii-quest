@@ -163,6 +163,10 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - the file is fail-safe: a missing, invalid, oversized (64 KB) or over-long (256 entries) file gives the full pack, and the ground (`world.island`) is always kept;
   - group 1 (`world.island`, `world.sea`, `world.coastline`) is built through **host-backed built-in components** (`starterPackComponents.js`), which keep the registry free of THREE. `mount` calls the host's builder from `ctx.hostBuilders[id]`; with no builder it is a reported no-op.
   - Checked headless: the full file reproduces the classic home; a file listing only island, NAP Zone and gateway drops the sea, coastline and crates with no errors.
+- **v0.2.924:** the shipped home description is **bundled into the app**:
+  - why: on a VPS, `/quest/worlds/` is the operator's own `data/worlds/` (seeded once by torii-suite, only `default/`, never overwritten), so v0.2.923's new file returned 404 live and the home fell back silently;
+  - load order: the operator's `data/worlds/home/world.json` (their override) → bundled description (`source: 'bundled'`, a 404 is normal and silent) → full pack;
+  - a torii-suite follow-up may seed missing templates without overwriting; it isn't needed for correctness.
 
 ## Open owner decisions (resolved above)
 

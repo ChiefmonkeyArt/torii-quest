@@ -2,7 +2,7 @@
 // Starter Pack group 1 (island, sea, coastline) is built through components.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { planFromWorld, homeIncludes, loadHomeWorld, HOME_WORLD_PATH, HOME_WORLD_MAX_BYTES, HOME_REQUIRED } from '../../src/engine/world/homeWorld.js';
+import { planFromWorld, homeIncludes, loadHomeWorld, BUNDLED_HOME_WORLD, HOME_WORLD_PATH, HOME_WORLD_MAX_BYTES, HOME_REQUIRED } from '../../src/engine/world/homeWorld.js';
 import { STARTER_PACK_IDS, starterPackEntry } from '../../src/engine/components/starterPack.js';
 import { createBuiltinRegistry } from '../../src/engine/components/registry.js';
 import { createWorldIsland, createWorldSea, createWorldCoastline, STARTER_PACK_FACTORIES } from '../../src/engine/components/starterPackComponents.js';
@@ -84,9 +84,31 @@ describe('loadHomeWorld never throws', () => {
     expect(r.source).toBe('file');
     expect([...r.plan]).toEqual(['world.island', 'world.sea']);
   });
-  it('404, oversize, non-JSON, rejected fetch, no fetch → full pack', async () => {
+  it('404 (no operator override) → the bundled description, silently', async () => {
+    const r = await loadHomeWorld({ fetchImpl: async () => res(404, '') });
+    expect(r.source).toBe('bundled');
+    expect(r.errors).toEqual([]);
+    expect(r.plan.size).toBe(STARTER_PACK_IDS.length);
+    expect(BUNDLED_HOME_WORLD.components.map((c) => c.id)).toEqual([...STARTER_PACK_IDS]);
+  });
+  it('a 404 with a trimmed bundled copy uses that copy', async () => {
+    const r = await loadHomeWorld({ fetchImpl: async () => res(404, ''), fallback: world(ids(['world.island', 'world.sea'])) });
+    expect(r.source).toBe('bundled');
+    expect([...r.plan]).toEqual(['world.island', 'world.sea']);
+  });
+  it('an invalid bundled copy → the full pack (never nothing)', async () => {
+    const r = await loadHomeWorld({ fetchImpl: async () => res(404, ''), fallback: null });
+    expect(r.source).toBe('default');
+    expect(r.plan.size).toBe(STARTER_PACK_IDS.length);
+  });
+  it('an operator file that is invalid falls back to bundled, with the reason', async () => {
+    const r = await loadHomeWorld({ fetchImpl: async () => res(200, JSON.stringify({ nope: 1 })) });
+    expect(r.source).toBe('bundled');
+    expect(r.errors.length).toBe(1);
+  });
+  it('500, oversize, non-JSON, rejected fetch, no fetch → bundled with one reason', async () => {
     const cases = [
-      { fetchImpl: async () => res(404, '') },
+      { fetchImpl: async () => res(500, '') },
       { fetchImpl: async () => res(200, ' '.repeat(HOME_WORLD_MAX_BYTES + 1)) },
       { fetchImpl: async () => res(200, '{not json') },
       { fetchImpl: async () => { throw new Error('offline'); } },
@@ -95,7 +117,7 @@ describe('loadHomeWorld never throws', () => {
     ];
     for (const c of cases) {
       const r = await loadHomeWorld(c);
-      expect(r.source).toBe('default');
+      expect(r.source).toBe('bundled');
       expect(r.plan.size).toBe(STARTER_PACK_IDS.length);
       expect(r.errors.length).toBe(1);
     }

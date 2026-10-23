@@ -1,3 +1,10 @@
+## v0.2.924-alpha: the home world file now works on every server
+
+The new home world file wasn't reaching servers that were already installed,
+because each server keeps its own world files and updates never overwrite
+them. Quest now carries the file itself, and a server owner can still put
+their own copy in place to change their world.
+
 ## v0.2.923-alpha: your home is now built from its own world file
 
 Your home world now starts from a small description file listing the building

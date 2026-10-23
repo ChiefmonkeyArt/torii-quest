@@ -1,3 +1,8 @@
+## v0.2.924-alpha: home world description bundled
+
+- [x] The VPS served 404 for `worlds/home/world.json` (operator data dir, seeded once). The description is now bundled; an operator file overrides it.
+- [ ] Optional torii-suite follow-up: seed missing world templates on update without overwriting.
+
 ## v0.2.923-alpha: M1 group 1 + home from its own world description
 
 - [x] Home loads `worlds/home/world.json`; its components list decides what's built (fail-safe to the full pack; ground always kept).

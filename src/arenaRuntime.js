@@ -73,7 +73,7 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { getProofSurfaceBoard } from './engine/world/proofSurfaceMeshes.js';
-import { initMarketBoards3d, tickMarketBoards3d, marketBoards3dState, marketBoards3dBuilt, auctionBoardPosition } from './engine/plebeian/marketBoards3d.js';
+import { initMarketBoards3d, tickMarketBoards3d, marketBoards3dState, marketBoards3dBuilt, auctionBoardPosition, disposeMarketBoards3d } from './engine/plebeian/marketBoards3d.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { initPortalWindow, setPortalWindow, hidePortalWindow } from './engine/world/portalWindow.js';
 import { portalWindowSpec } from './engine/world/portalWindowSpec.js';
@@ -2446,6 +2446,9 @@ export function createArenaRuntime(hooks = {}) {
   // the "still all yellow" landing. The sweep itself is the pure, tested
   // sweepLegacyArena() in engine/world/legacyArenaTeardown.js. Never throws.
   function _teardownLegacyArena() {
+    // ADR-0147 M1 (v0.2.922): stop the market board feeds + free their textures first.
+    try { disposeMarketBoards3d(); } catch { /* noop */ }
+    try { _auctionBoardTrigger.reset(); } catch { /* noop */ }
     sweepLegacyArena(scene);
   }
 

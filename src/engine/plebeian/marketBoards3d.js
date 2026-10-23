@@ -262,6 +262,29 @@ export function tickMarketBoards3d(dt, playerPos, inNap) {
   if (b.auctions.dirty) _paint('auctions');
 }
 
+/**
+ * v0.2.922 (ADR-0147 M1): leaving the home world (in-place travel) stops the
+ * board feeds (owner store, bids), frees the two canvas textures and the twin's
+ * material, and forgets the boards. The meshes themselves are swept with the
+ * proof-surfaces group. Safe to call twice; boards can be built again later.
+ */
+export function disposeMarketBoards3d() {
+  _setWanted(false);
+  if (_boards) {
+    for (const k of ['products', 'auctions']) {
+      const b = _boards[k];
+      try { b.tex.dispose(); } catch { /* gone */ }
+      try { b.plate.material.dispose(); } catch { /* gone */ }
+    }
+    try { _boards.twin.material.dispose(); } catch { /* gone */ }
+    try { if (_boards.twin.parent) _boards.twin.parent.remove(_boards.twin); } catch { /* gone */ }
+  }
+  _boards = null; _built = false;
+  _products = []; _auctions = []; _rawAuctions = []; _bidEvents = []; _lastRawProducts = [];
+  _elapsed = 0; _lastSec = -1; _holdPending = false; _cachedP = false; _cachedA = false;
+  _images.clear();
+}
+
 /** Debug: ToriiDebug.marketBoards(). */
 export function marketBoards3dState() {
   return {

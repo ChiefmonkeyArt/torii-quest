@@ -8,7 +8,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Milestone 1: one world format (home from data)
 
-1. **Starter Pack components.** Express the classic arena as `world.json` components:
+1. **Starter Pack components** (full pack, owner-approved; catalogue `src/engine/components/starterPack.js`). Express the classic arena as `world.json` components:
    - `world.shore`: sea and coastline wall;
    - `nap.zone`: floor, tree and lights;
    - `nap.mirror`;
@@ -18,7 +18,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
    - `torii.gateway` (exists): the Gateway Experience frame.
 2. **Home loads its own `world.json`.** chiefmonkey-template becomes the full world, not a partial copy.
 3. **Parity check.** Screenshot the same viewpoints from the classic arena and the data home. They must match before anything is deleted.
-4. **Travel teardown.** Leaving a world stops its board feeds, sockets and textures (fixes the v0.2.920 background-feed leak).
+4. **Travel teardown.** Leaving a world stops its board feeds, sockets and textures (fixes the v0.2.920 background-feed leak). **Done in v0.2.922.**
 5. **Retire the classic arena.** Delete `buildArena()`'s home path; keep the mirror builder only as long as it's needed.
 
 ## Milestone 2: the Gateway Experience napplet
@@ -36,7 +36,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Milestone 3: location and links
 
-1. The location path: `…/quest/w/<npub>/<world-id>` (format to confirm). The back button goes to the previous world.
+1. The location path: `…/quest/w/<npub>/<world>` (owner-approved). The back button goes to the previous world.
 2. Opening a link in your own Quest joins that world (Enter mode).
 3. **Automatic mode choice.** A destination with a Torii world description gets Enter; others get the Gate v1 Hand-off. A §8 extension lets a heartbeat point at its world description and say which modes it supports.
 
@@ -55,7 +55,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 ## Milestone 6: the builder and the component marketplace
 
 1. **Kami-mode world builder:** place, configure and publish Starter Pack components.
-2. **User components:** signed by their author, addressed by hash, run as sandboxed napplets with granted capabilities.
+2. **User components:** anyone may publish (owner-approved). Signed by their author, addressed by hash, run as sandboxed napplets with granted capabilities. The COMPONENTS.md §7 checks run in every visitor's client.
 3. **A component library and marketplace** (Lightning, Cashu, Nostr market events).
 4. **Virtual market street:** many sellers' stalls in one world (ADR-0145, later).
 
@@ -67,4 +67,4 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Open owner decisions
 
-See ADR-0147, "Open owner decisions": the path format, milestone order, Starter Pack v1 contents, and the component trust policy.
+All resolved (2026-10-23): the `/quest/w/<npub>/<world>` path, M1 first, the full Starter Pack, and anyone may publish signed components.

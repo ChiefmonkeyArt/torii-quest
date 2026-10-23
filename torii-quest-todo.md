@@ -1,3 +1,12 @@
+## v0.2.921-alpha: sovereign metaverse architecture (ADR-0147, Proposed)
+
+- [x] ADR-0147 written: the Gateway Experience napplet at the centre; every world as data (home too); Enter / Hand-off travel modes; live worlds; one persona; Starter Pack, then builder.
+- [x] Roadmap: `docs/design/sovereign-metaverse-roadmap.md` (Milestones 1–7).
+- [ ] **Owner:** approve ADR-0147 and the 4 open decisions (path format, milestone order, Starter Pack v1, component trust).
+- [ ] M1: Starter Pack components; home loads its own `world.json`; parity screenshots; travel teardown (stop board feeds); retire the classic arena.
+- [ ] M2: extract the Gateway Experience doorway napplet, plus trusted gate services and the Quest adapter; mount it in the reference world.
+- [ ] M3: `/w/<npub>/<world>` location links; automatic Enter / Hand-off choice (§8 extension).
+
 ## v0.2.920-alpha: market boards on phones (ADR-0145, ADR-0137 addendum)
 
 - [x] Bigger board text: price, high bid, countdown, bid totals and seller name readable on a phone. Long amounts shrink to fit.

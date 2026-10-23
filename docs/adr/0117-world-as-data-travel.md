@@ -75,3 +75,6 @@ authoring/editor, and any change to how softare components are distributed.
   + Continuum), and FIPS npub-addressing slots in later without refactoring.
 - Trade-off: cross-origin manifest/asset fetches introduce a CORS + caching surface
   that did not exist in the iframe (which delegated those to the embedded site).
+## Amendment proposed (ADR-0147, 2026-10-23)
+
+ADR-0147 proposes relaxing "the address bar never changes" to **"the site never changes during Enter; the path shows where you are"** (`…/quest/w/<npub>/<world-id>`), for links, bookmarks and the back button. It also proposes that home loads from its own world description, like every destination. This ADR stays Accepted until ADR-0147 is approved.

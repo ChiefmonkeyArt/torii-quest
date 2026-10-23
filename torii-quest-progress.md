@@ -1,3 +1,14 @@
+## v0.2.921-alpha: the plan for a genuine metaverse
+
+We wrote down the architecture for Torii as a sovereign metaverse. The torii
+gateway is the heart of it: every world has one, and it's how you find worlds,
+peek in, agree to enter and arrive. Every world, including your own home, will
+be built from one signed description, so visitors see exactly what the owner
+intends, live. Your identity and avatar stay one and the same everywhere. The
+step-by-step roadmap starts with rebuilding the home world from that
+description, using a starter pack of building blocks. Nothing in the game
+changes in this release.
+
 ## v0.2.920-alpha: shop boards work on phones
 
 The NAP Zone boards now have much bigger writing, so prices, bids and

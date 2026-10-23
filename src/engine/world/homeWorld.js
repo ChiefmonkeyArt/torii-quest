@@ -6,12 +6,20 @@
 // `builtIn: true`) are gated by the list. Pieces not migrated yet are always
 // built, so nothing disappears before its component exists.
 //
-// Fail-safe: a missing, unreadable or invalid file → the FULL Starter Pack (the
-// classic home, unchanged). A home can never boot into nothing.
+// v0.2.924: the shipped description is BUNDLED into the app. On a VPS,
+// /quest/worlds/ is the operator's own data dir (data/worlds/, seeded once and
+// never overwritten by updates), so a new template never reaches it. Order:
+//   1. the operator's file at <base>worlds/home/world.json (their override);
+//   2. 404 / unreadable → the bundled description (source 'bundled');
+//   3. bundled copy invalid too → the FULL Starter Pack (source 'default').
+// A home can never boot into nothing.
 //
 // PURE except loadHomeWorld (which takes an injected fetch).
 import { STARTER_PACK, starterPackEntry } from '../components/starterPack.js';
 import { validateWorld } from './worldSchema.js';
+import BUNDLED_HOME_WORLD from '../../../worlds/home/world.json';
+
+export { BUNDLED_HOME_WORLD };
 
 export const HOME_WORLD_PATH = 'worlds/home/world.json';
 export const HOME_WORLD_MAX_BYTES = 64 * 1024;
@@ -57,18 +65,30 @@ export function homeIncludes(plan, id) {
   return plan.has(id);
 }
 
-/** Fetch + plan the home world. Never throws; falls back to the full pack. */
-export async function loadHomeWorld({ fetchImpl, base = '' } = {}) {
-  if (typeof fetchImpl !== 'function') return { plan: FULL(), source: 'default', errors: ['no fetch'] };
+// The bundled description's plan; `error` (if any) explains why it was used.
+function _bundled(fallback, error) {
+  const r = planFromWorld(fallback);
+  if (r.source !== 'file') return { plan: r.plan, source: 'default', errors: [...(error ? [error] : []), ...r.errors] };
+  return { plan: r.plan, source: 'bundled', errors: [...(error ? [error] : []), ...r.errors] };
+}
+
+/**
+ * Fetch + plan the home world. Never throws. A 404 is normal (no operator
+ * override) → the bundled description, with no error.
+ */
+export async function loadHomeWorld({ fetchImpl, base = '', fallback = BUNDLED_HOME_WORLD } = {}) {
+  if (typeof fetchImpl !== 'function') return _bundled(fallback, 'no fetch');
   try {
     const res = await fetchImpl(base + HOME_WORLD_PATH, { cache: 'no-cache', credentials: 'same-origin' });
-    if (!res || !res.ok) return { plan: FULL(), source: 'default', errors: [`home world not found (${res ? res.status : 'no response'})`] };
+    if (res && res.status === 404) return _bundled(fallback, null);
+    if (!res || !res.ok) return _bundled(fallback, `home world unavailable (${res ? res.status : 'no response'})`);
     const text = await res.text();
-    if (text.length > HOME_WORLD_MAX_BYTES) return { plan: FULL(), source: 'default', errors: ['home world too large'] };
+    if (text.length > HOME_WORLD_MAX_BYTES) return _bundled(fallback, 'home world too large');
     let world;
-    try { world = JSON.parse(text); } catch { return { plan: FULL(), source: 'default', errors: ['home world is not JSON'] }; }
-    return planFromWorld(world);
+    try { world = JSON.parse(text); } catch { return _bundled(fallback, 'home world is not JSON'); }
+    const r = planFromWorld(world);
+    return r.source === 'file' ? r : _bundled(fallback, r.errors[0] || 'home world invalid');
   } catch (e) {
-    return { plan: FULL(), source: 'default', errors: ['home world fetch failed: ' + (e && e.message ? e.message : String(e))] };
+    return _bundled(fallback, 'home world fetch failed: ' + (e && e.message ? e.message : String(e)));
   }
 }

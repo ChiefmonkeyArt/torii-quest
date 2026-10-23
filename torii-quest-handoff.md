@@ -1,3 +1,14 @@
+## HOME WORLD DESCRIPTION BUNDLED: v0.2.924-alpha
+
+- **Live finding (v0.2.923):** `/quest/worlds/` is nginx-aliased to `/apps/quest/data/worlds/`. torii-suite `install-quest.sh` seeds only `default/`, once, so `worlds/home/world.json` was 404 live (chiefmonkey-template and gateway-blank are 404 there too).
+- **Fix:** `homeWorld.js` imports `worlds/home/world.json` as `BUNDLED_HOME_WORLD`. `loadHomeWorld({fetchImpl, base, fallback})`:
+  - operator file → `file`;
+  - 404 → `bundled`, silent;
+  - other failure or invalid → `bundled` with the reason;
+  - an invalid fallback → `default` (full pack).
+- **Operator override:** `/apps/quest/data/worlds/home/world.json`.
+- **Next:** group 2 (`nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`).
+
 ## M1 GROUP 1 + HOME FROM ITS OWN WORLD DESCRIPTION: v0.2.923-alpha
 
 - **`worlds/home/world.json`** (served at `<base>worlds/home/world.json`; `public/worlds` → `worlds/`): all 17 Starter Pack ids.

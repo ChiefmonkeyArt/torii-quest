@@ -323,4 +323,4 @@ enforcement are tracked as later CMP tasks.
 
 ## Host-backed built-ins (ADR-0147 M1, v0.2.923)
 
-Starter Pack pieces whose drawing code lives in the engine (terrain, sea, coastline, …) are **host-backed**: the registry entry (`src/engine/components/starterPackComponents.js`) is pure, and `mount(scene, ctx)` calls the builder the host passes in `ctx.hostBuilders[id]`. A host that doesn't provide the piece gets a no-op (`false`), never a crash. The home's `worlds/home/world.json` lists which pieces it includes (`src/engine/world/homeWorld.js`).
+Starter Pack pieces whose drawing code lives in the engine (terrain, sea, coastline, …) are **host-backed**: the registry entry (`src/engine/components/starterPackComponents.js`) is pure, and `mount(scene, ctx)` calls the builder the host passes in `ctx.hostBuilders[id]`. A host that doesn't provide the piece gets a no-op (`false`), never a crash. The home's `worlds/home/world.json` lists which pieces it includes (`src/engine/world/homeWorld.js`). The shipped copy is bundled in the app; an operator overrides it with `data/worlds/home/world.json` on their VPS.

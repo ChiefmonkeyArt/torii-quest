@@ -1,3 +1,11 @@
+## v0.2.922-alpha: the metaverse plan is approved
+
+The architecture is now the agreed plan. Your world addresses will look like
+`/quest/w/<npub>/<world>`, every piece of today's island becomes a reusable
+building block (the full starter pack), and anyone can publish their own signed
+building blocks, which always run safely boxed in. As a first fix, leaving your
+world through the gate now stops the shop boards loading in the background.
+
 ## v0.2.921-alpha: the plan for a genuine metaverse
 
 We wrote down the architecture for Torii as a sovereign metaverse. The torii

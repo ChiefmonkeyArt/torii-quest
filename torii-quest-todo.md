@@ -1,3 +1,11 @@
+## v0.2.922-alpha: ADR-0147 accepted; Milestone 1 begins
+
+- [x] ADR-0147 Accepted: path `/quest/w/<npub>/<world>`, full Starter Pack, anyone may publish signed components.
+- [x] Starter Pack catalogue: `src/engine/components/starterPack.js`, 17 components (3 built in today, 14 to migrate).
+- [x] M1 step 4: travelling away stops the market board feeds and frees their textures (`disposeMarketBoards3d`).
+- [ ] M1 next: build the Starter Pack components one group at a time (terrain/sea/coastline → NAP Zone/tree/mirror/NPC → signs/market boards → foliage/bridge/game zone).
+- [ ] M1 then: home loads its own `world.json`; parity screenshots; retire the classic arena.
+
 ## v0.2.921-alpha: sovereign metaverse architecture (ADR-0147, Proposed)
 
 - [x] ADR-0147 written: the Gateway Experience napplet at the centre; every world as data (home too); Enter / Hand-off travel modes; live worlds; one persona; Starter Pack, then builder.

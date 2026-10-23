@@ -316,3 +316,7 @@ Validation today is intentionally a thin, machine-checkable slice
 (`validateManifest` / `isComponent` / `defineComponent` in
 `src/engine/components/contract.js`); signature, hash, and capability
 enforcement are tracked as later CMP tasks.
+
+## Publishing policy (ADR-0147, accepted 2026-10-23)
+
+**Anyone may publish signed components.** There is no approved list. Hosts keep visitors safe by running the §7 checks on every third-party component and mounting it only as a sandboxed napplet with its declared capabilities. A world owner chooses what their world includes; a visitor may block a component locally. The built-in Starter Pack (`src/engine/components/starterPack.js`) is vetted engine code shipped in the build.

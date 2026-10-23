@@ -58,6 +58,6 @@ The north star is: **Torii is an open network of worlds. The Torii Gate is its o
 - **Ship the Applesauce trial first:** it only speeds up Quest's own client and does nothing for interoperability.
 - **Go straight to a NIP:** NIPs without two working implementations rarely land; G2 and G3 come first.
 
-## Follow-up proposed (ADR-0147, 2026-10-23)
+## Follow-up accepted (ADR-0147, 2026-10-23)
 
 ADR-0147 puts the doorway layer (the **Torii Gateway Experience** napplet) at the centre of the architecture. The napplet asks (`gate.peek`, `gate.enter`); trusted gate services check, sign and act; a small engine adapter places it. Extracting it from Quest is Milestone 2 of `docs/design/sovereign-metaverse-roadmap.md`.

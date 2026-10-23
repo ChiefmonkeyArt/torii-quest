@@ -1,3 +1,11 @@
+## ADR-0147 ACCEPTED, M1 BEGINS: v0.2.922-alpha
+
+- **ADR-0147 Accepted** with the owner's decisions: the `/quest/w/<npub>/<world>` path, the full Starter Pack, and anyone may publish signed components (COMPONENTS.md "Publishing policy").
+- **`src/engine/components/starterPack.js`:** `STARTER_PACK` (17 entries: id, title, provides, `builtIn`, `classic` [file, builder]), `starterPackEntry`, `starterPackProgress`. A test keeps `builtIn` == registry and every `classic` builder existing.
+- **`marketBoards3d.disposeMarketBoards3d()`:** stops feeds, disposes the canvas textures, plate and twin materials, and resets state. Called first in `arenaRuntime._teardownLegacyArena` with `_auctionBoardTrigger.reset()`.
+- **Tests:** `tests/components/starter-pack.test.js`.
+- **Next:** build Starter Pack components group by group, each as a release.
+
 ## SOVEREIGN METAVERSE ARCHITECTURE: v0.2.921-alpha (ADR-0147, Proposed; docs only)
 
 - **ADR-0147** `docs/adr/0147-sovereign-metaverse-architecture.md`: the Gateway Experience napplet at the centre (napplet asks, trusted services act, engine adapter places it); every world as signed data, home included (the classic arena becomes the Starter Pack); one gate, two modes (Enter / Hand-off, Gate v1 unchanged); live worlds; one persona.

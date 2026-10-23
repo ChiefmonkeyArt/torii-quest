@@ -1,6 +1,6 @@
 # ADR-0147: Sovereign metaverse architecture: the Gateway Experience at the centre, every world as data
 
-- **Status:** Proposed. Written at the owner's request (2026-10-23); awaiting approval of the direction and the four open decisions below. Each roadmap step then ships as its own release, with its own ADR where it changes established behaviour.
+- **Status:** Accepted (2026-10-23, v0.2.922): "Approve ADR-0147 and use the proposed /quest/w/<npub>/<world> path. Use the full Starter Pack and allow anyone to publish signed components." Each roadmap step ships as its own release, with its own ADR where it changes established behaviour.
 - **Date:** 2026-10-23
 - **Deciders:** chiefmonkey
   - "Shouldn't all worlds be data driven?"
@@ -138,7 +138,23 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
 - **Load the other world in an iframe:** pointer-lock and keyboard pain, double downloads, re-login (ADR-0117). Rejected again.
 - **Keep the doorway built into Quest:** it can't be embedded by other engines, which defeats ADR-0143. Rejected.
 
-## Open owner decisions
+## Owner decisions (2026-10-23)
+
+1. **Location path:** `…/quest/w/<npub>/<world>` (as proposed).
+2. **Milestone order:** M1 (home from data + Starter Pack) first, as proposed. The owner raised no objection.
+3. **Starter Pack v1:** the **full Starter Pack**. Every classic arena piece becomes a built-in component, catalogued in `src/engine/components/starterPack.js`:
+   - `world.island`, `world.sea`, `world.coastline`, `world.bridge`, `world.foliage`;
+   - `torii.gate`, `torii.gateway`;
+   - `nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`;
+   - `sign.board`, `market.products`, `market.auctions`;
+   - `plebeian.product-display`, `arena.crates`, `game.arena`.
+4. **Component publishing: anyone may publish signed components.** There is no approved list. Safety comes from the visitor's client, not from gatekeeping:
+   - every third-party component passes the COMPONENTS.md §7 checks before mounting: author signature, bundle hash, asset hashes, declared capabilities;
+   - it runs only as a sandboxed napplet with the capabilities it declared and the world owner granted;
+   - a world owner chooses which components their world includes, and a visitor can block a component for themselves;
+   - built-in Starter Pack components are vetted engine code shipped in the build.
+
+## Open owner decisions (resolved above)
 
 1. **Location path format:** `…/quest/w/<npub>/<world-id>` (proposed) or `…/quest/#/w/<npub>`.
 2. **Milestone order:** whether the home-from-data move (Milestone 1) goes before the Gateway Experience extraction (Milestone 2). Proposed: 1 first, because the gate becomes a component of the world.

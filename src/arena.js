@@ -1,5 +1,7 @@
 // arena.js — floor, walls, crates, torii. Max 300 lines. Foliage in arena-foliage.js.
 import * as THREE from 'three';
+import { homeIncludes } from './engine/world/homeWorld.js';
+import { builtinRegistry } from './engine/components/registry.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { scene as defaultScene } from './scene.js';
@@ -39,20 +41,41 @@ const _quat = new THREE.Quaternion();
 const _scl  = new THREE.Vector3();
 const _m4   = new THREE.Matrix4();
 
-export function buildArena(scene = defaultScene) {
-  _buildFloor(scene);
-  _buildCrates(scene);
+// ADR-0147 M1 (v0.2.923): Starter Pack pieces the classic builder now builds
+// THROUGH their components. Each returns nothing (the legacy teardown sweeps by
+// name). Group 1: island, coastline, sea.
+export const ARENA_HOST_BUILDERS = Object.freeze({
+  'world.island': (scene) => { _buildIslandGround(scene); },
+  'world.coastline': (scene) => { _buildCoastlineWall(scene); },
+  'world.sea': (scene) => {
+    // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default.
+    const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
+    // track:true only for the HOME scene — a mirror scene's sea must not clobber the
+    // module singletons that tickSea/disposeSea/getSeaMat drive (ADR-0124).
+    buildSeaMesh(scene, { quality: _sq || undefined, track: scene === defaultScene });
+  },
+});
+
+// Build one Starter Pack piece if the plan includes it (null plan → everything).
+function _piece(id, scene, plan) {
+  if (!homeIncludes(plan, id)) return;
+  const r = builtinRegistry.load(id);
+  if (r.ok && r.component.mount(scene, { hostBuilders: ARENA_HOST_BUILDERS }) !== false) return;
+  ARENA_HOST_BUILDERS[id](scene); // registry unavailable → build directly (never lose the piece)
+}
+
+// buildArena(scene, plan) — `plan` is the home world's Set of component ids
+// (homeWorld.planFromWorld). null (mirror scenes, fallback) → the full world.
+export function buildArena(scene = defaultScene, plan = null) {
+  _piece('world.island', scene, plan);
+  _piece('world.coastline', scene, plan);
+  _buildFloorLight(scene);
+  if (homeIncludes(plan, 'arena.crates')) _buildCrates(scene);
   buildBridge(scene);       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
   _buildToriiGate(scene);
   _buildTravelGateway(scene); // far-side metaverse travel portal model (v0.2.239)
   _buildNapZone(scene);     // floor extension + tree past the torii gate
-  // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js).
-  // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default
-  // (high = original 400×400, unchanged).
-  const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
-  // track:true only for the HOME scene — a mirror scene's sea must not clobber the
-  // module singletons that tickSea/disposeSea/getSeaMat drive (ADR-0124).
-  buildSeaMesh(scene, { quality: _sq || undefined, track: scene === defaultScene }); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
+  _piece('world.sea', scene, plan); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   // buildFoliage() now called from arenaRuntime.js boot() as async with
   // paint yields for smooth progress bar animation (v0.2.545).
 }
@@ -63,11 +86,15 @@ export function buildArena(scene = defaultScene) {
 // raised to ISLAND_BASE_Y, matching the NAP island and rising from the Stage-2
 // sea. Grass + physics heightfield read the same sampleArenaHeight(), so all three
 // agree exactly. Overhead turquoise accent light kept for the arena's cool read.
-function _buildFloor(scene) {
+// world.island: both ground meshes (arena 'arena-floor' + NAP 'nap-zone-floor').
+function _buildIslandGround(scene) {
   buildArenaTerrainMesh(scene); // name 'arena-floor'
+  // Undulating NAP terrain (Stage 1, v0.2.326): same sampleHeight() as the grass
+  // + physics heightfield, so all three agree. Named 'nap-zone-floor'.
+  buildNapTerrainMesh(scene);
+}
 
-  _buildCoastlineWall(scene); // v0.2.488: reinstated — neon coastline ring
-
+function _buildFloorLight(scene) {
   // Soft top-down fill replacing the old single turquoise PointLight — a
   // HemisphereLight gives the arena its cool read for near-zero cost and without
   // the "stray light" hotspot the point light created over the removed boundary.
@@ -319,11 +346,7 @@ function _buildTravelGateway(scene) {
 
 // ── NAP Zone — peaceful area past the torii gate ─────────────────────────
 function _buildNapZone(scene) {
-  // Ground: undulating terrain mesh (Stage 1, v0.2.326). Replaces the flat
-  // green floor plane — vertices are baked from the same sampleHeight() the
-  // grass + physics heightfield use, so all three agree exactly. Named
-  // 'nap-zone-floor' to preserve the scene.getObjectByName lookup.
-  buildNapTerrainMesh(scene);
+  // Ground mesh moved to world.island (ADR-0147 M1, v0.2.923).
 
   // Soft teal accent light to mark the peace zone — centered on the NAP island
   const napLight = new THREE.PointLight(0x6ad9d0, 2.0, 22);

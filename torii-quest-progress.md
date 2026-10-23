@@ -1,3 +1,12 @@
+## v0.2.923-alpha: your home is now built from its own world file
+
+Your home world now starts from a small description file listing the building
+blocks it includes. The first three blocks are the island ground, the sea and
+the coastline. Take the sea or coastline out of the file and they disappear;
+leave it as it is and the world looks exactly as before. If the file is ever
+missing or broken, the full world loads anyway. The other building blocks
+follow one group at a time.
+
 ## v0.2.922-alpha: the metaverse plan is approved
 
 The architecture is now the agreed plan. Your world addresses will look like

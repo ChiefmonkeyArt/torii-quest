@@ -16,7 +16,13 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
    - `market.products` and `market.auctions` boards: they read the **world owner's** store setting (own, another npub, custom mix, or none);
    - `sign.*` and `arena.crates` (exists);
    - `torii.gateway` (exists): the Gateway Experience frame.
-2. **Home loads its own `world.json`.** chiefmonkey-template becomes the full world, not a partial copy.
+
+   Built one group at a time, each its own release:
+   - **Group 1, done in v0.2.923:** `world.island` (both ground meshes + heightfields), `world.sea`, `world.coastline` (wall + its colliders); `arena.crates` now gated too.
+   - Group 2: `nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`.
+   - Group 3: `sign.board`, `market.products`, `market.auctions`, `plebeian.product-display`.
+   - Group 4: `world.foliage`, `world.bridge`, `torii.gate`, `torii.gateway` gating, `game.arena`.
+2. **Home loads its own `world.json`.** **Started in v0.2.923:** the home reads `worlds/home/world.json` at boot. Its `components` list decides which migrated pieces are built; pieces not migrated yet are always built. A missing or invalid file falls back to the full pack, and `world.island` is always kept. Next: visitors build from the same description, so chiefmonkey-template stops being a partial copy.
 3. **Parity check.** Screenshot the same viewpoints from the classic arena and the data home. They must match before anything is deleted.
 4. **Travel teardown.** Leaving a world stops its board feeds, sockets and textures (fixes the v0.2.920 background-feed leak). **Done in v0.2.922.**
 5. **Retire the classic arena.** Delete `buildArena()`'s home path; keep the mirror builder only as long as it's needed.

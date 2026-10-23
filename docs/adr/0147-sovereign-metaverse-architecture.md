@@ -154,6 +154,16 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
    - a world owner chooses which components their world includes, and a visitor can block a component for themselves;
    - built-in Starter Pack components are vetted engine code shipped in the build.
 
+## Milestone 1 progress
+
+- **v0.2.922:** Starter Pack catalogue; travel teardown stops the market boards.
+- **v0.2.923:** the home loads its own world description, `worlds/home/world.json` (`src/engine/world/homeWorld.js`):
+  - its `components` list gates every migrated piece, in the builder and in physics;
+  - unmigrated pieces are always built;
+  - the file is fail-safe: a missing, invalid, oversized (64 KB) or over-long (256 entries) file gives the full pack, and the ground (`world.island`) is always kept;
+  - group 1 (`world.island`, `world.sea`, `world.coastline`) is built through **host-backed built-in components** (`starterPackComponents.js`), which keep the registry free of THREE. `mount` calls the host's builder from `ctx.hostBuilders[id]`; with no builder it is a reported no-op.
+  - Checked headless: the full file reproduces the classic home; a file listing only island, NAP Zone and gateway drops the sea, coastline and crates with no errors.
+
 ## Open owner decisions (resolved above)
 
 1. **Location path format:** `…/quest/w/<npub>/<world-id>` (proposed) or `…/quest/#/w/<npub>`.

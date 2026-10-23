@@ -21,6 +21,7 @@ import { createToriiGateway } from './toriiGateway.js';
 import { createProductDisplay } from './productDisplay.js';
 import { createArenaCrates } from './arenaCrates.js';
 import { createComponentBeacon } from './componentBeacon.js';
+import { STARTER_PACK_FACTORIES } from './starterPackComponents.js';
 
 // createRegistry() → an empty registry. `register(factory)` adds a built-in,
 // `load(id, config)` returns a fresh instance + a validation result.
@@ -106,6 +107,8 @@ export function createBuiltinRegistry() {
   reg.register(createProductDisplay);
   reg.register(createArenaCrates);
   reg.register(createComponentBeacon);
+  // ADR-0147 M1: host-backed Starter Pack pieces (group 1: island, sea, coastline).
+  for (const f of STARTER_PACK_FACTORIES) reg.register(f);
   return reg;
 }
 

@@ -170,7 +170,7 @@ describe('wiring', () => {
   const m3 = readFileSync(new URL('../../src/engine/plebeian/marketBoards3d.js', import.meta.url), 'utf8');
   const psm = readFileSync(new URL('../../src/engine/world/proofSurfaceMeshes.js', import.meta.url), 'utf8');
   it('boards are created right after the legacy arena build', () => {
-    expect(rt).toMatch(/buildArena\(\);\n[^\n]*\n\s*initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
+    expect(rt).toMatch(/buildArena\(undefined, _homePlan\.plan\);\n[^\n]*\n\s*initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
   });
   it('ticked from the NAP branch; auction board has its own Q prompt and Q falls through to it', () => {
     expect(rt).toMatch(/setNapMode\(_inNapNow\);\n\s*tickMarketBoards3d\(dt, playerObj\.position, _inNapNow\);/);

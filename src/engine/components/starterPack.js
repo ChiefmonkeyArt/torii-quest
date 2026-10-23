@@ -10,9 +10,9 @@
 // after the COMPONENTS.md §7 checks (signature, bundle hash, asset hashes,
 // declared capabilities).
 export const STARTER_PACK = Object.freeze([
-  { id: 'world.island', title: 'Island terrain', provides: 'arena + NAP ground meshes and their physics heightfields', builtIn: false, classic: ['src/terrain/terrainMesh.js', 'buildArenaTerrainMesh'] },
-  { id: 'world.sea', title: 'Sea', provides: 'animated ocean around the land', builtIn: false, classic: ['src/terrain/sea.js', 'buildSeaMesh'] },
-  { id: 'world.coastline', title: 'Coastline wall', provides: 'glass ribbon + neon edge along the shore', builtIn: false, classic: ['src/arena.js', '_buildCoastlineWall'] },
+  { id: 'world.island', title: 'Island terrain', provides: 'arena + NAP ground meshes and their physics heightfields', builtIn: true, classic: ['src/terrain/terrainMesh.js', 'buildArenaTerrainMesh'] },
+  { id: 'world.sea', title: 'Sea', provides: 'animated ocean around the land', builtIn: true, classic: ['src/terrain/sea.js', 'buildSeaMesh'] },
+  { id: 'world.coastline', title: 'Coastline wall', provides: 'glass ribbon + neon edge along the shore', builtIn: true, classic: ['src/arena.js', '_buildCoastlineWall'] },
   { id: 'world.bridge', title: 'Bridge', provides: 'deck across the river', builtIn: false, classic: ['src/bridge.js', 'buildBridge'] },
   { id: 'world.foliage', title: 'Grass and trees', provides: 'instanced grass, flowers and trees', builtIn: false, classic: ['src/arena-foliage.js', 'buildFoliage'] },
   { id: 'torii.gate', title: 'Torii gate', provides: 'the arena torii arch', builtIn: false, classic: ['src/arena.js', '_buildToriiGate'] },

@@ -1,3 +1,14 @@
+## SOVEREIGN METAVERSE ARCHITECTURE: v0.2.921-alpha (ADR-0147, Proposed; docs only)
+
+- **ADR-0147** `docs/adr/0147-sovereign-metaverse-architecture.md`: the Gateway Experience napplet at the centre (napplet asks, trusted services act, engine adapter places it); every world as signed data, home included (the classic arena becomes the Starter Pack); one gate, two modes (Enter / Hand-off, Gate v1 unchanged); live worlds; one persona.
+- **Roadmap:** `docs/design/sovereign-metaverse-roadmap.md`. **Next:** owner approval, then M1 (Starter Pack + home from `world.json` + parity check + travel teardown).
+- **Amendment notes** appended to ADR-0117 (address-bar requirement) and ADR-0143 (doorway at the centre). Both stay Accepted until ADR-0147 is approved.
+- **Facts found:**
+  - Quest→Quest travel already resolves the npub to a signed world reference, hash-checks the manifest, peeks, then swaps in place (`main.js _resolveWorldDirRecord`, `arenaRuntime.travelToWorld`).
+  - `buildVisitUrl` (Gate v1 hand-off) is the interop path.
+  - The live site boots the classic arena (`<meta name="torii-world">` commented out).
+  - `public/worlds/chiefmonkey-template/world.json` lacks the NAP Zone, mirror, NPC and boards.
+
 ## MARKET BOARDS ON PHONES: v0.2.920-alpha (ADR-0145, ADR-0137 addendum)
 
 - **Painter:** bigger type, `fitFont(ctx, text, weight, maxPx, width)`. `paintBoard` gains `{touch, cached}`, which drive the footer wording.

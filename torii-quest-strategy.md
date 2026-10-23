@@ -24,6 +24,16 @@ Torii Quest is the first world, and the proof that it works.**
   - Next after that: the NAP Zone market, which automatically brings people's shops, products and auctions into the NAP Zone (ADR-0145, Accepted 2026-10-22: the owner's shop by default, or another npub, or a custom store of chosen products and auctions; no visitor shops in v1, later every shop owner's shop and a virtual marketplace; a market street; production + staging relays. Slice 1 v0.2.915, store source v0.2.916, live PRODUCT + AUCTION boards v0.2.919; phone-readable boards, touch VIEW button and saved listings v0.2.920).
 - **Quest work.** The combat-quality directive below still governs Quest's game zone; the Gate track runs alongside it.
 
+## ARCHITECTURE: a sovereign metaverse with the Gateway Experience at the centre (ADR-0147, Proposed 2026-10-23)
+
+- **Gateway Experience.** The in-world torii and its doorway napplet are in every world, so they carry the network. It covers discovery, peek, consent, identity hand-over, choosing the travel mode, and arrival. The napplet asks; trusted gate services check, sign and act; a small engine adapter places it.
+- **Every world is data, home included.** One signed, hash-addressed world description made of components. Owner and visitors see the same world. The classic arena becomes the **Starter Pack** of components, and the shop shown is whatever the world owner configured.
+- **One gate, two travel modes.** **Enter** (world-as-data, in place, path shows `…/w/<npub>/<world>`) for Torii worlds; **Hand-off** (Gate v1, frozen) for any other engine or site.
+- **Live worlds.** The owner's node is authoritative; world edits are pushed to everyone present.
+- **One persona.** npub, keys in your signer, one signed avatar record (`.glb` by hash), one live session at a time.
+- **Later:** a Kami-mode builder, user components as sandboxed napplets, a component marketplace.
+- **Roadmap:** `docs/design/sovereign-metaverse-roadmap.md`, Milestones 1–7. M1: home from data and the Starter Pack. M2: Gateway Experience napplet extraction. M3: location links and automatic mode choice.
+
 ## TOP PRIORITY: game zone combat quality (ADR-0130, 2026-10-16)
 
 Operator directive (2026-10-16): **gameplay combat quality in the game zone is

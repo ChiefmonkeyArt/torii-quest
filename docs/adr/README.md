@@ -163,6 +163,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0144](./0144-gate-v1-frozen.md) | Torii Gate protocol v1 frozen; readers verify signatures; engine-free conformance kit + reference world; CI runs fixtures on kit and Quest (G1 + G2) | Accepted |
 | [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916; live boards v0.2.919; mobile + saved listings v0.2.920) |
 | [0146](./0146-gate-licensing.md) | Licensing: Gate spec CC0, conformance kit 0BSD, Quest stays GPL-3.0 | Accepted |
+| [0147](./0147-sovereign-metaverse-architecture.md) | Sovereign metaverse architecture: the Gateway Experience napplet at the centre; every world (home too) as signed data; one gate, two travel modes (Enter / Hand-off); live worlds; one persona; Starter Pack, then builder; roadmap in `docs/design/sovereign-metaverse-roadmap.md` | Proposed |
 
 ## Workflow for a new decision
 

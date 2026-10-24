@@ -107,6 +107,9 @@ export function movePlayer(playerCollider, desiredDX, desiredDY, desiredDZ) {
 // sees the exact arena the player sees. Includes the NAP-zone floor and the
 // split east-wall segments (gate gap is a real hole in the collider, not just
 // in the manual code path).
+// Starter Pack owner of each OBSTACLES entry (same order as config.js).
+export const OBSTACLE_OWNERS = Object.freeze(['nap.tree', 'torii.gate', 'torii.gate']);
+
 // ADR-0147 M1 (v0.2.923): `plan` = the home world's component ids (homeWorld.js);
 // null → everything. Ground follows world.island, crates arena.crates, the
 // knee-high shore wall world.coastline. Obstacles and the bridge are not gated yet.
@@ -161,9 +164,11 @@ export function buildArenaColliders(plan = null) {
     createStatic(hw, ch / 2, hd, cx, ch / 2 + sampleArenaHeight(cx, cz), cz);
   }
   // OBSTACLES — collision-only (tree trunk, torii pillars, east wall segments).
-  for (const [cx, cz, hw, hd, ch] of OBSTACLES) {
+  // ADR-0147 M1 (v0.2.925): each obstacle belongs to a Starter Pack piece.
+  OBSTACLES.forEach(([cx, cz, hw, hd, ch], i) => {
+    if (!homeIncludes(plan, OBSTACLE_OWNERS[i])) return;
     createStatic(hw, ch / 2, hd, cx, ch / 2 + B, cz);
-  }
+  });
 
   // COASTLINE wall — knee-high (0.5m) PLAYER colliders following the organic
   // v0.2.511: fenceRing() now returns an ARRAY of rings (two arena play loops).

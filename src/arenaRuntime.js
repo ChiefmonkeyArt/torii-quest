@@ -23,7 +23,7 @@ import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
-import { loadHomeWorld } from './engine/world/homeWorld.js';
+import { loadHomeWorld, homeIncludes } from './engine/world/homeWorld.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
 import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
@@ -1452,7 +1452,7 @@ export function createArenaRuntime(hooks = {}) {
     // Mirror + foliage are arena-only (the legacy island scene). Skip in minimal.
     if (!_minimal) {
       startPhase('buildMirror');
-      buildMirror();
+      if (homeIncludes(_homePlan ? _homePlan.plan : null, 'nap.mirror')) buildMirror(); // ADR-0147 M1 group 2
       endPhase('buildMirror');
       mark('boot-mirror-done');
       await _yieldPaint();
@@ -2173,6 +2173,8 @@ export function createArenaRuntime(hooks = {}) {
     // has no NAP zone, so skip the NPC build there.
     if (!_minimal) {
       requestAnimationFrame(() => requestAnimationFrame(() => {
+        // ADR-0147 M1 group 2: the greeter is the npc.greeter Starter Pack piece.
+        if (!homeIncludes(_homePlan ? _homePlan.plan : null, 'npc.greeter')) return;
         try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
       }));
     }

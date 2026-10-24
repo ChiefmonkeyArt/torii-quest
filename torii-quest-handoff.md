@@ -1,3 +1,13 @@
+## M1 GROUP 2: v0.2.925-alpha
+
+- **`starterPackComponents.js`:** `createNapZone`, `createNapTree`, `createNapMirror`, `createNpcGreeter`.
+- **`arena.js`:**
+  - `ARENA_HOST_BUILDERS` gains `nap.zone` (`_buildNapZoneLight`) and `nap.tree`;
+  - `_buildNapZone(scene, plan)` mounts both through `_piece`.
+- **`physics.js`:** `OBSTACLE_OWNERS` (`['nap.tree','torii.gate','torii.gate']`, same order as `config.OBSTACLES`) gates each obstacle collider.
+- **`arenaRuntime`:** `buildMirror()` and the deferred `buildNapNpc()` are gated by `homeIncludes(_homePlan.plan, …)`.
+- **Next:** group 3 (`sign.board`, `market.products`, `market.auctions`, `plebeian.product-display`).
+
 ## HOME WORLD DESCRIPTION BUNDLED: v0.2.924-alpha
 
 - **Live finding (v0.2.923):** `/quest/worlds/` is nginx-aliased to `/apps/quest/data/worlds/`. torii-suite `install-quest.sh` seeds only `default/`, once, so `worlds/home/world.json` was 404 live (chiefmonkey-template and gateway-blank are 404 there too).

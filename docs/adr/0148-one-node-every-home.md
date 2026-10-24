@@ -1,6 +1,6 @@
 # ADR-0148: One Node, Every Home (VPS, Laptop, Start9, Umbrel)
 
-- **Status:** Proposed (2026-10-24). Awaiting owner approval of the direction and the open decisions below.
+- **Status:** Proposed (2026-10-24). Awaiting owner approval of the direction and the open decisions below. **Start9 and Umbrel testing paused by the owner (2026-10-24):** N1 and N2 don't start, and no real-device installs are requested, until the owner resumes them.
 - **Date:** 2026-10-24
 - **Deciders:** chiefmonkey
 - **Related:**
@@ -92,7 +92,7 @@ Two facts shape the design:
 - **Native installs per platform** (no containers): more code to keep in sync, and neither platform supports it well.
 - **Host-addressed worlds** (a URL as the identity): breaks the moment a home IP, onion or tunnel changes. The npub plus manifest hash already solves this.
 
-## Open owner decisions
+## Open owner decisions (paused with N1/N2 testing)
 
 1. **Order:** Umbrel first (proposed: the compose stack exists, so it's the lowest effort), or Start9 first.
 2. **Devices:** which Umbrel and/or Start9 device can be used for real-device testing, and whether it's x86 or ARM.

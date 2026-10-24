@@ -1,8 +1,12 @@
+## v0.2.929-alpha: Start9 and Umbrel testing paused
+
+- [x] Owner paused Start9 and Umbrel testing; N1/N2 are on hold until resumed.
+
 ## v0.2.928-alpha: ADR-0148 (Proposed): one node, every home
 
 - [x] ADR-0148 written: VPS, laptop, Umbrel, Start9 from one image set; endpoint tags; keys stay with people.
 - [ ] Owner decisions: order (Umbrel first proposed), test device(s) + architecture, home-node public reachability, wrapper repo layout.
-- [ ] N1 Umbrel → N2 Start9 → N3 endpoints → N4 laptop → N5 health page.
+- [ ] N1 Umbrel → N2 Start9 → N3 endpoints → N4 laptop → N5 health page. **Start9/Umbrel testing PAUSED by the owner (2026-10-24).**
 
 ## v0.2.927-alpha: M1 group 4
 

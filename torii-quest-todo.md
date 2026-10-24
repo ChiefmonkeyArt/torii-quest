@@ -1,3 +1,9 @@
+## v0.2.927-alpha: M1 group 4
+
+- [x] `world.foliage`, `world.bridge` (+ deck colliders), `torii.gate` (+ pillar colliders). 16/17 Starter Pack pieces are built-in components.
+- [ ] `game.arena` follows the description once the game server reads it (M5).
+- [ ] M1 remainder: visitors build from the same description; parity screenshots; retire the classic arena path.
+
 ## v0.2.926-alpha: M1 group 3
 
 - [x] `sign.board`, `market.products`, `market.auctions` as Starter Pack components; each board optional; no bid sockets without an AUCTION board.

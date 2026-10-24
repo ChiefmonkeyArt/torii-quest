@@ -13,10 +13,10 @@ export const STARTER_PACK = Object.freeze([
   { id: 'world.island', title: 'Island terrain', provides: 'arena + NAP ground meshes and their physics heightfields', builtIn: true, classic: ['src/terrain/terrainMesh.js', 'buildArenaTerrainMesh'] },
   { id: 'world.sea', title: 'Sea', provides: 'animated ocean around the land', builtIn: true, classic: ['src/terrain/sea.js', 'buildSeaMesh'] },
   { id: 'world.coastline', title: 'Coastline wall', provides: 'glass ribbon + neon edge along the shore', builtIn: true, classic: ['src/arena.js', '_buildCoastlineWall'] },
-  { id: 'world.bridge', title: 'Bridge', provides: 'deck across the river', builtIn: false, classic: ['src/bridge.js', 'buildBridge'] },
-  { id: 'world.foliage', title: 'Grass and trees', provides: 'instanced grass, flowers and trees', builtIn: false, classic: ['src/arena-foliage.js', 'buildFoliage'] },
-  { id: 'torii.gate', title: 'Torii gate', provides: 'the arena torii arch', builtIn: false, classic: ['src/arena.js', '_buildToriiGate'] },
-  { id: 'torii.gateway', title: 'Gateway Experience', provides: 'the travel torii: directory, peek, enter, arrival (ADR-0147 §1)', builtIn: true, classic: ['src/arena.js', '_buildTravelGateway'] },
+  { id: 'world.bridge', title: 'Bridge', provides: 'deck across the river', builtIn: true, classic: ['src/bridge.js', 'buildBridge'] },
+  { id: 'world.foliage', title: 'Grass and trees', provides: 'instanced grass, flowers and trees', builtIn: true, classic: ['src/arena-foliage.js', 'buildFoliage'] },
+  { id: 'torii.gate', title: 'Torii gate', provides: 'the arena torii arch', builtIn: true, classic: ['src/arena.js', '_buildToriiGate'] },
+  { id: 'torii.gateway', title: 'Gateway Experience', provides: 'the travel torii: directory, peek, enter, arrival (ADR-0147 §1); always built: it is how every world joins the metaverse', builtIn: true, classic: ['src/arena.js', '_buildTravelGateway'] },
   { id: 'nap.zone', title: 'NAP Zone', provides: 'safe social/commerce zone marker light (the no-combat rule is enforced by the game server until it reads the world description, M5)', builtIn: true, classic: ['src/arena.js', '_buildNapZone'] },
   { id: 'nap.tree', title: 'NAP tree', provides: 'the tree past the torii', builtIn: true, classic: ['src/arena.js', '_buildNapTree'] },
   { id: 'nap.mirror', title: 'Mirror', provides: 'the NAP Zone mirror', builtIn: true, classic: ['src/mirror.js', 'buildMirror'] },
@@ -26,7 +26,7 @@ export const STARTER_PACK = Object.freeze([
   { id: 'market.auctions', title: 'AUCTION board', provides: "live auction slides (countdown, bids) from the WORLD OWNER's store setting", builtIn: true, classic: ['src/engine/plebeian/marketBoards3d.js', 'initMarketBoards3d'] },
   { id: 'plebeian.product-display', title: 'Product display', provides: 'a single in-world product display (placed by data worlds; the classic home has none)', builtIn: true, classic: null },
   { id: 'arena.crates', title: 'Crates', provides: 'arena cover crates', builtIn: true, classic: ['src/arena.js', '_buildCrates'] },
-  { id: 'game.arena', title: 'Arena game zone', provides: 'bots, combat and scoring (points frozen: head 9, body 3)', builtIn: false, classic: ['src/arenaRuntime.js', 'createGameZone'] },
+  { id: 'game.arena', title: 'Arena game zone', provides: 'bots, combat and scoring (points frozen: head 9, body 3); always on until the game server reads the world description (M5), because combat is server-authoritative', builtIn: false, classic: ['src/arenaRuntime.js', 'createGameZone'] },
 ]);
 
 /** Starter Pack ids in catalogue order. */

@@ -1463,7 +1463,8 @@ export function createArenaRuntime(hooks = {}) {
       // animates smoothly during the ~7s of grass blade generation. Grass is ready
       // before the player enters the arena (better UX than deferred pop-in).
       onBootProgress(3); // 'Growing grass…'
-      await buildFoliage((p) => {
+      // ADR-0147 M1 group 4: grass + trees are the world.foliage piece.
+      if (_homeHas('world.foliage')) await buildFoliage((p) => {
         // Map foliage progress (0..1) to 30%..58% of the boot bar
         onBootPct(30 + p * 28, 'Growing grass…', '75,000 blades · wind shaders');
       });

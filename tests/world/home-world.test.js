@@ -211,7 +211,7 @@ describe('group 2: NAP Zone, tree, mirror, greeter (v0.2.925)', () => {
   it('a trimmed plan leaves them out; unmigrated pieces still build', () => {
     const plan = new Set(['world.island']);
     for (const id of ['nap.zone', 'nap.tree', 'nap.mirror', 'npc.greeter']) expect(homeIncludes(plan, id)).toBe(false);
-    expect(homeIncludes(plan, 'torii.gate')).toBe(true);
+    expect(homeIncludes(plan, 'game.arena')).toBe(true);
   });
 });
 
@@ -249,5 +249,40 @@ describe('group 3: signs + PRODUCT/AUCTION boards (v0.2.926)', () => {
     expect(mod.marketBoardHas('auctions')).toBe(false);
     expect(mod.marketBoards3dState().boards).toEqual({ products: false, auctions: false });
     expect(() => mod.tickMarketBoards3d(0.016, null, true)).not.toThrow();
+  });
+});
+
+describe('group 4: foliage, bridges, torii gate (v0.2.927)', () => {
+  const arena = read('src/arena.js');
+  const physics = read('src/physics.js');
+  const rt = read('src/arenaRuntime.js');
+  it('are registered and built in; gateway + arena game documented as always on', () => {
+    const reg = createBuiltinRegistry();
+    for (const id of ['world.foliage', 'world.bridge', 'torii.gate']) {
+      expect(reg.load(id, {}).ok, id).toBe(true);
+      expect(starterPackEntry(id).builtIn, id).toBe(true);
+    }
+    expect(starterPackEntry('torii.gateway').provides).toMatch(/always built/);
+    expect(starterPackEntry('game.arena').builtIn).toBe(false);
+    expect(starterPackEntry('game.arena').provides).toMatch(/server-authoritative/);
+  });
+  it('arena builds bridges + torii through components; the gateway always', () => {
+    expect(arena).toMatch(/_piece\('world\.bridge', scene, plan\);\n\s*_piece\('torii\.gate', scene, plan\);/);
+    expect(arena).toMatch(/\n  _buildTravelGateway\(scene\);\n/);
+    expect(arena.match(/buildBridge\(scene\)/g).length).toBe(1);
+    expect(arena.match(/_buildToriiGate\(scene\);/g).length).toBe(1);
+  });
+  it('bridge decks follow world.bridge; torii pillars follow torii.gate', () => {
+    expect(physics).toMatch(/if \(!homeIncludes\(plan, 'world\.bridge'\)\) return;\n\s*\/\/ Bridge 1 deck/);
+    expect(physics).toMatch(/OBSTACLE_OWNERS = Object\.freeze\(\['nap\.tree', 'torii\.gate', 'torii\.gate'\]\)/);
+    const plan = new Set(['world.island']);
+    expect(homeIncludes(plan, 'torii.gate')).toBe(false);
+  });
+  it('foliage build follows world.foliage', () => {
+    expect(rt).toMatch(/if \(_homeHas\('world\.foliage'\)\) await buildFoliage\(/);
+  });
+  it('only the gateway and the arena game remain always-on', async () => {
+    const { starterPackProgress } = await import('../../src/engine/components/starterPack.js');
+    expect(starterPackProgress().remaining).toEqual(['game.arena']);
   });
 });

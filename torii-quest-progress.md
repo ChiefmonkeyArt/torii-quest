@@ -1,3 +1,10 @@
+## v0.2.927-alpha: almost every piece of your island is a building block
+
+Grass and trees, the bridges and the torii gate are now building blocks too.
+Of the 17 pieces of the island, 16 can be included or left out from your home
+world file. The travel gateway always stays, because it is how worlds connect,
+and the arena game follows once the game server learns to read the file.
+
 ## v0.2.926-alpha: signs and shop boards are building blocks
 
 The NAP signs and the PRODUCT and AUCTION boards can each be switched on or

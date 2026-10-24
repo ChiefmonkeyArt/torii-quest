@@ -1,3 +1,11 @@
+## M1 GROUP 4: v0.2.927-alpha
+
+- **`arena.js`:** `world.bridge` and `torii.gate` host builders via `_piece`; `_buildTravelGateway` stays unconditional.
+- **`physics.js`:** bridge decks gated by `world.bridge` (early return at the end of `buildArenaColliders`).
+- **`arenaRuntime`:** `if (_homeHas('world.foliage')) await buildFoliage(…)`.
+- **Catalogue:** `game.arena` stays `builtIn: false` (`starterPackProgress().remaining == ['game.arena']`).
+- **Next:** visitors build from the same description (M1 step 2b), parity, then retire the classic path.
+
 ## M1 GROUP 3: v0.2.926-alpha
 
 - **`arena.js`:** `sign.board` host builder (`buildProofSurfaceMeshes`) mounted via `_piece` in `_buildNapZone`.

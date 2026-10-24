@@ -112,7 +112,8 @@ export const OBSTACLE_OWNERS = Object.freeze(['nap.tree', 'torii.gate', 'torii.g
 
 // ADR-0147 M1 (v0.2.923): `plan` = the home world's component ids (homeWorld.js);
 // null → everything. Ground follows world.island, crates arena.crates, the
-// knee-high shore wall world.coastline. Obstacles and the bridge are not gated yet.
+// knee-high shore wall world.coastline, obstacles their OBSTACLE_OWNERS piece,
+// the bridge decks world.bridge.
 export function buildArenaColliders(plan = null) {
   if (homeIncludes(plan, 'world.island')) {
   // Floors — BOTH zones are now undulating Rapier HEIGHTFIELDS (Stage 3, v0.2.329).
@@ -190,6 +191,8 @@ export function buildArenaColliders(plan = null) {
     }
   }
 
+  // Bridge decks follow world.bridge (ADR-0147 M1 group 4, v0.2.927).
+  if (!homeIncludes(plan, 'world.bridge')) return;
   // Bridge 1 deck (NAP ↔ Arena BL) — rotated 45° to match visuals.
   createStaticYaw(
     BRIDGE_LEN / 2, BRIDGE_THICK / 2, BRIDGE_WIDTH / 2,

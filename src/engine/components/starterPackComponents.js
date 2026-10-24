@@ -41,6 +41,10 @@ export const createNpcGreeter = hostBacked({ id: 'npc.greeter', name: 'Greeter N
 export const createSignBoard = hostBacked({ id: 'sign.board', name: 'Signs', kind: 'scenery' });
 export const createMarketProducts = hostBacked({ id: 'market.products', name: 'PRODUCT board', kind: 'commerce' });
 export const createMarketAuctions = hostBacked({ id: 'market.auctions', name: 'AUCTION board', kind: 'commerce' });
+// Group 4 (v0.2.927).
+export const createWorldFoliage = hostBacked({ id: 'world.foliage', name: 'Grass and trees', kind: 'scenery' });
+export const createWorldBridge = hostBacked({ id: 'world.bridge', name: 'Bridge', kind: 'scenery' });
+export const createToriiGate = hostBacked({ id: 'torii.gate', name: 'Torii gate', kind: 'scenery' });
 
 /** Every host-backed Starter Pack factory shipped so far. */
-export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline, createNapZone, createNapTree, createNapMirror, createNpcGreeter, createSignBoard, createMarketProducts, createMarketAuctions]);
+export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline, createNapZone, createNapTree, createNapMirror, createNpcGreeter, createSignBoard, createMarketProducts, createMarketAuctions, createWorldFoliage, createWorldBridge, createToriiGate]);

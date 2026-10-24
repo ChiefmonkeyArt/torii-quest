@@ -54,6 +54,10 @@ export const ARENA_HOST_BUILDERS = Object.freeze({
   // Group 3 (v0.2.926): the NAP signboards (the PRODUCT stall sign is one of
   // them; the market boards paint onto it in arenaRuntime).
   'sign.board': (scene) => { buildProofSurfaceMeshes(scene); },
+  // Group 4 (v0.2.927): bridges, the NAP-entrance torii. (Foliage is built async
+  // in arenaRuntime with the same plan.)
+  'world.bridge': (scene) => { buildBridge(scene); }, // Stage 4 — decks across the river (bridge.js)
+  'torii.gate': (scene) => { _buildToriiGate(scene); },
   'world.sea': (scene) => {
     // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default.
     const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
@@ -78,9 +82,11 @@ export function buildArena(scene = defaultScene, plan = null) {
   _piece('world.coastline', scene, plan);
   _buildFloorLight(scene);
   if (homeIncludes(plan, 'arena.crates')) _buildCrates(scene);
-  buildBridge(scene);       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
-  _buildToriiGate(scene);
-  _buildTravelGateway(scene); // far-side metaverse travel portal model (v0.2.239)
+  _piece('world.bridge', scene, plan);
+  _piece('torii.gate', scene, plan);
+  // The Gateway Experience is always built: it is how every world joins the
+  // metaverse (ADR-0147 §1). Far-side travel portal model (v0.2.239).
+  _buildTravelGateway(scene);
   _buildNapZone(scene, plan); // zone light + tree + signs
   _piece('world.sea', scene, plan); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   // buildFoliage() now called from arenaRuntime.js boot() as async with

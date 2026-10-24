@@ -175,6 +175,15 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - both boards need `sign.board`;
   - `plebeian.product-display` is placed by data worlds; the classic home has none.
   - Checked headless: auctions only, no signs, and full all behave correctly with no errors.
+- **v0.2.927, group 4:**
+  - `world.foliage`: the async grass build is gated in `arenaRuntime`;
+  - `world.bridge`: meshes + both deck colliders;
+  - `torii.gate`: mesh, light and the two pillar colliders via `OBSTACLE_OWNERS`.
+  - **Always on:**
+    - `torii.gateway`: the Gateway Experience is how every world joins the metaverse (§1);
+    - `game.arena`: combat is server-authoritative, so the client can't drop it alone; it follows the description in M5 when servers read it.
+  - The Starter Pack is now 16 of 17 built-in components.
+  - Checked headless: a bare island (ground, sea, signs) builds with no errors; full = classic.
 
 ## Open owner decisions (resolved above)
 

@@ -74,7 +74,7 @@ import { createPortalTrigger } from './engine/gateway/portalTrigger.js';
 import { createProductPanelTrigger } from './engine/world/productPanelTrigger.js';
 import { getProofSurfaceSpec } from './engine/world/proofSurfaceSpecs.js';
 import { getProofSurfaceBoard } from './engine/world/proofSurfaceMeshes.js';
-import { initMarketBoards3d, tickMarketBoards3d, marketBoards3dState, marketBoards3dBuilt, auctionBoardPosition, disposeMarketBoards3d } from './engine/plebeian/marketBoards3d.js';
+import { initMarketBoards3d, tickMarketBoards3d, marketBoards3dState, auctionBoardPosition, disposeMarketBoards3d, marketBoardHas } from './engine/plebeian/marketBoards3d.js';
 import { buildPortalMesh, tickPortalMesh, setPortalApproach } from './engine/gateway/portalMesh.js';
 import { initPortalWindow, setPortalWindow, hidePortalWindow } from './engine/world/portalWindow.js';
 import { portalWindowSpec } from './engine/world/portalWindowSpec.js';
@@ -641,6 +641,7 @@ export function createArenaRuntime(hooks = {}) {
   // ADR-0147 M1 (v0.2.923): the home's own world description → which Starter
   // Pack pieces get built. null until loaded (null = the full pack).
   let _homePlan = null;
+  const _homeHas = (id) => homeIncludes(_homePlan ? _homePlan.plan : null, id);
   // Phase 0l.2: runtime-mounted component handle. Once the minimal world scene
   // exists, mountWorldComponents mounts scene-mounted component instances +
   // stores them here; unmount is wired into stopMultiplayer (LIFO, never throws).
@@ -833,7 +834,7 @@ export function createArenaRuntime(hooks = {}) {
   // shows live products; a twin AUCTION board stands past the mirror with its
   // own Q prompt (opens the same panels).
   // Boards are created right after buildArena() (below); the trigger only
-  // ticks once they exist (marketBoards3dBuilt()).
+  // ticks once they exist (marketBoardHas()).
   const _auctionBoardTrigger = createProductPanelTrigger({
     panelPos: auctionBoardPosition(sampleNapHeight),
     range: 3,
@@ -1055,8 +1056,8 @@ export function createArenaRuntime(hooks = {}) {
       // They open ONLY via the in-world PRODUCT sign's proximity+Q trigger,
       // and close only via an explicit close control on each panel.
       if (isPlaying()) {
-        _productPanelTrigger.tick(playerObj.position);
-        if (marketBoards3dBuilt()) _auctionBoardTrigger.tick(playerObj.position);
+        if (marketBoardHas('products')) _productPanelTrigger.tick(playerObj.position);
+        if (marketBoardHas('auctions')) _auctionBoardTrigger.tick(playerObj.position);
         _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).
         const ap = portalApproachState({
@@ -1428,7 +1429,8 @@ export function createArenaRuntime(hooks = {}) {
       if (_homePlan.errors.length) console.warn('[home-world]', _homePlan.source, _homePlan.errors.join(' | '));
       buildArena(undefined, _homePlan.plan);
       // ADR-0145 (v0.2.919): live PRODUCT + AUCTION boards on the built PRODUCT sign.
-      initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight, touch: shouldEnableTouch() });
+      // ADR-0147 M1 group 3: each board is its own Starter Pack piece (needs sign.board).
+      initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight, touch: shouldEnableTouch(), products: _homeHas('market.products'), auctions: _homeHas('market.auctions') });
       endPhase('buildArena');
       mark('boot-arena-done');
       // v0.2.879 (P0.2): a legacy home has no manifest to rebuild on homecoming.
@@ -1452,7 +1454,7 @@ export function createArenaRuntime(hooks = {}) {
     // Mirror + foliage are arena-only (the legacy island scene). Skip in minimal.
     if (!_minimal) {
       startPhase('buildMirror');
-      if (homeIncludes(_homePlan ? _homePlan.plan : null, 'nap.mirror')) buildMirror(); // ADR-0147 M1 group 2
+      if (_homeHas('nap.mirror')) buildMirror(); // ADR-0147 M1 group 2
       endPhase('buildMirror');
       mark('boot-mirror-done');
       await _yieldPaint();
@@ -1701,7 +1703,7 @@ export function createArenaRuntime(hooks = {}) {
         isActive: () => isPlaying(), look: applyLookDelta, shoot: triggerShoot,
         // v0.2.920 (ADR-0145): USE button → KeyQ at a market board / CLOSE open panels.
         useLabel: () => (isMarketActive() ? 'CLOSE'
-          : (_productPanelTrigger.inRange() || (marketBoards3dBuilt() && _auctionBoardTrigger.inRange())) ? 'VIEW' : ''),
+          : ((marketBoardHas('products') && _productPanelTrigger.inRange()) || (marketBoardHas('auctions') && _auctionBoardTrigger.inRange())) ? 'VIEW' : ''),
       });
     }
 
@@ -2174,7 +2176,7 @@ export function createArenaRuntime(hooks = {}) {
     if (!_minimal) {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         // ADR-0147 M1 group 2: the greeter is the npc.greeter Starter Pack piece.
-        if (!homeIncludes(_homePlan ? _homePlan.plan : null, 'npc.greeter')) return;
+        if (!_homeHas('npc.greeter')) return;
         try { buildNapNpc(); } catch (e) { console.warn('[napNpc] deferred build failed:', e); }
       }));
     }

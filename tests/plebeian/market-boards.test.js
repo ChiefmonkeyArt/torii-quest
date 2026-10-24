@@ -170,12 +170,12 @@ describe('wiring', () => {
   const m3 = readFileSync(new URL('../../src/engine/plebeian/marketBoards3d.js', import.meta.url), 'utf8');
   const psm = readFileSync(new URL('../../src/engine/world/proofSurfaceMeshes.js', import.meta.url), 'utf8');
   it('boards are created right after the legacy arena build', () => {
-    expect(rt).toMatch(/buildArena\(undefined, _homePlan\.plan\);\n[^\n]*\n\s*initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
+    expect(rt).toMatch(/buildArena\(undefined, _homePlan\.plan\);\n(?:[^\n]*\n){1,2}\s*initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
   });
   it('ticked from the NAP branch; auction board has its own Q prompt and Q falls through to it', () => {
     expect(rt).toMatch(/setNapMode\(_inNapNow\);\n\s*tickMarketBoards3d\(dt, playerObj\.position, _inNapNow\);/);
     expect(rt).toMatch(/promptText: shouldEnableTouch\(\) \? 'Tap VIEW to see auctions' : 'Press Q to view auctions'/);
-    expect(rt).toMatch(/if \(marketBoards3dBuilt\(\)\) _auctionBoardTrigger\.tick\(playerObj\.position\);/);
+    expect(rt).toMatch(/if \(marketBoardHas\('auctions'\)\) _auctionBoardTrigger\.tick\(playerObj\.position\);/);
     expect(rt).toMatch(/if \(!_productPanelTrigger\.interact\(\)\) _auctionBoardTrigger\.interact\(\);/);
     expect(rt).toMatch(/_auctionBoardTrigger\.reset\(\);/);
     expect(rt).toMatch(/window\.ToriiDebug\.marketBoards = marketBoards3dState/);
@@ -272,9 +272,9 @@ describe('v0.2.920 touch VIEW button wiring', () => {
   });
   it('label: CLOSE while panels open, VIEW in range of either board', () => {
     expect(rt).toMatch(/useLabel: \(\) => \(isMarketActive\(\) \? 'CLOSE'/);
-    expect(rt).toMatch(/_productPanelTrigger\.inRange\(\) \|\| \(marketBoards3dBuilt\(\) && _auctionBoardTrigger\.inRange\(\)\)\) \? 'VIEW'/);
+    expect(rt).toMatch(/\(marketBoardHas\('products'\) && _productPanelTrigger\.inRange\(\)\) \|\| \(marketBoardHas\('auctions'\) && _auctionBoardTrigger\.inRange\(\)\)\) \? 'VIEW'/);
     expect(rt).toMatch(/promptText: 'Tap VIEW to see products'/);
-    expect(rt).toMatch(/touch: shouldEnableTouch\(\) \}\);/);
+    expect(rt).toMatch(/touch: shouldEnableTouch\(\), products: _homeHas\('market\.products'\)/);
   });
   it('saved listings: loaded at build, saved at most every 5 s, never with setTimeout', () => {
     expect(m3).toMatch(/_saved = _loadSaved\(\);/);

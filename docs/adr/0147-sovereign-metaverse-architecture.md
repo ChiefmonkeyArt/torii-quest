@@ -168,6 +168,13 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - load order: the operator's `data/worlds/home/world.json` (their override) → bundled description (`source: 'bundled'`, a 404 is normal and silent) → full pack;
   - a torii-suite follow-up may seed missing templates without overwriting; it isn't needed for correctness.
 - **v0.2.925, group 2:** `nap.zone` (zone accent light), `nap.tree` (tree + trunk collider via `OBSTACLE_OWNERS`), `nap.mirror`, `npc.greeter`. The mirror and the deferred greeter build are gated in `arenaRuntime` by the same plan. The NAP no-combat rule stays on: the game server enforces it and will follow the world description once servers read it (M5). Checked headless: trimmed → no light, tree or mirror, no errors.
+- **v0.2.926, group 3:** `sign.board` (all NAP signboards), `market.products` and `market.auctions`, each optional on its own:
+  - `initMarketBoards3d({products, auctions})`: without `market.products` the stall stays a plain sign;
+  - with no AUCTION board there are no bid subscriptions (no sockets);
+  - the VIEW prompts appear only for boards that exist (`marketBoardHas`);
+  - both boards need `sign.board`;
+  - `plebeian.product-display` is placed by data worlds; the classic home has none.
+  - Checked headless: auctions only, no signs, and full all behave correctly with no errors.
 
 ## Open owner decisions (resolved above)
 

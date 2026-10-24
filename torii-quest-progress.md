@@ -1,3 +1,10 @@
+## v0.2.928-alpha: a plan for running Torii at home
+
+A written plan, awaiting your approval, for running the same Torii node on a
+server, a laptop, an Umbrel or a Start9. Your world is found by your Nostr
+identity, not by a web address, so it can move between machines or be
+reached over Tor without breaking.
+
 ## v0.2.927-alpha: almost every piece of your island is a building block
 
 Grass and trees, the bridges and the torii gate are now building blocks too.

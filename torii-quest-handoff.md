@@ -1,3 +1,11 @@
+## ADR-0148 PROPOSED (one node, every home): v0.2.928-alpha (docs-only)
+
+- `docs/adr/0148-one-node-every-home.md`: one image set (the existing `Dockerfile` web/arena-ws + strfry), wrappers for Umbrel (community store, `app_proxy` with public game paths) and Start9 (`.s9pk`, StartOS 0.4 start-sdk).
+- Optional `endpoint` tags in the world reference (https/onion/lan).
+- Milestones N1–N5; four open owner decisions.
+- CSP note: the wrappers must use same-origin `'self'` for `/mp` and `/relay` (host names vary).
+- **Verified while writing:** score publishing is still off (`SCORE_PUBLISH_ENABLED = false`). The compose `SCORE_ENABLED=true` is only the live in-game tally.
+
 ## M1 GROUP 4: v0.2.927-alpha
 
 - **`arena.js`:** `world.bridge` and `torii.gate` host builders via `_piece`; `_buildTravelGateway` stays unconditional.

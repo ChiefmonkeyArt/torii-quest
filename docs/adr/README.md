@@ -164,6 +164,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0145](./0145-nap-zone-market.md) | NAP Zone market: automatically show people's shops, products and auctions (owner-resolved, curated sellers, Gate `market` extension, watch-only) | Accepted (slice 1 v0.2.915; store source v0.2.916; live boards v0.2.919; mobile + saved listings v0.2.920) |
 | [0146](./0146-gate-licensing.md) | Licensing: Gate spec CC0, conformance kit 0BSD, Quest stays GPL-3.0 | Accepted |
 | [0147](./0147-sovereign-metaverse-architecture.md) | Sovereign metaverse architecture: the Gateway Experience napplet at the centre; every world (home too) as signed data; one gate, two travel modes (Enter / Hand-off); live worlds; one persona; Starter Pack, then builder; roadmap in `docs/design/sovereign-metaverse-roadmap.md`; path `/quest/w/<npub>/<world>`, full Starter Pack, anyone may publish signed components | Accepted |
+| [0148](./0148-one-node-every-home.md) | One node, every home: the same Torii node packaged for VPS, laptop, Umbrel and Start9; worlds addressed by npub with optional onion/LAN/tunnel endpoints; keys stay with people; operator-approved updates | Proposed |
 
 ## Workflow for a new decision
 

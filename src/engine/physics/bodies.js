@@ -144,11 +144,34 @@ export function setBotBodyPos(body, x, y, z) {
 }
 
 // ── Static + dynamic world bodies ──────────────────────────────────────────────
+// v0.2.930 (ADR-0147 M1): statics created inside collectStatics(fn) are recorded
+// so a world can remove exactly its own colliders when it is left (travel).
+let _staticSink = null;
+function _keep(c) { if (_staticSink && c) _staticSink.push(c); return c; }
+
+/** Run fn(); → the static colliders it created (nesting-safe). */
+export function collectStatics(fn) {
+  const prev = _staticSink;
+  const list = [];
+  _staticSink = list;
+  try { fn(); } finally { _staticSink = prev; }
+  return list;
+}
+
+/** Remove the given static colliders from the physics world; empties the list. */
+export function removeStatics(list) {
+  if (!Array.isArray(list)) return 0;
+  let n = 0;
+  if (_world) for (const c of list) { try { _world.removeCollider(c, false); n++; } catch { /* already gone */ } }
+  list.length = 0;
+  return n;
+}
+
 export function createStatic(hw, hh, hd, x, y, z) {
-  if (!_world) return;
-  _world.createCollider(
+  if (!_world) return null;
+  return _keep(_world.createCollider(
     _RAPIER.ColliderDesc.cuboid(hw, hh, hd).setTranslation(x, y, z)
-  );
+  ));
 }
 
 // Static cuboid rotated about the world Y axis by `yaw` radians. Used for the
@@ -156,13 +179,13 @@ export function createStatic(hw, hh, hd, x, y, z) {
 // arbitrary segment direction. Rotation about Y maps local +X → (cos yaw, 0,
 // -sin yaw), so callers pass yaw = atan2(-dz, dx) to point +X along (dx, dz).
 export function createStaticYaw(hw, hh, hd, x, y, z, yaw) {
-  if (!_world) return;
+  if (!_world) return null;
   const s = Math.sin(yaw / 2), c = Math.cos(yaw / 2);
-  _world.createCollider(
+  return _keep(_world.createCollider(
     _RAPIER.ColliderDesc.cuboid(hw, hh, hd)
       .setTranslation(x, y, z)
       .setRotation({ x: 0, y: s, z: 0, w: c })
-  );
+  ));
 }
 
 // Heightfield collider for undulating terrain (Stage 1, v0.2.326).
@@ -176,13 +199,13 @@ export function createStaticYaw(hw, hh, hd, x, y, z, yaw) {
 // scale.y. We pass scale.y=1 so the heights array already holds world metres.
 // (cx,cy,cz) is the world centre the heightfield is translated to.
 export function createHeightfield(nrows, ncols, heights, scaleX, scaleY, scaleZ, cx, cy, cz) {
-  if (!_world) return;
+  if (!_world) return null;
   const desc = _RAPIER.ColliderDesc.heightfield(
     nrows, ncols, heights,
     { x: scaleX, y: scaleY, z: scaleZ },
   );
   desc.setTranslation(cx, cy, cz);
-  _world.createCollider(desc);
+  return _keep(_world.createCollider(desc));
 }
 
 // Collider → NPC root map. Used by the sticker raycast to translate a Rapier
@@ -327,4 +350,12 @@ export function createDynamicCrate(x, y, z, half) {
   );
   colliderToCrate.set(collider.handle, body);
   return { body, collider };
+}
+
+// v0.2.930: free a dynamic crate (its collider goes with the body).
+export function removeDynamicCrate(handle) {
+  if (!handle) return false;
+  try { if (handle.collider) colliderToCrate.delete(handle.collider.handle); } catch { /* noop */ }
+  if (!_world || !handle.body) return false;
+  try { _world.removeRigidBody(handle.body); return true; } catch { return false; }
 }

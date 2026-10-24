@@ -184,6 +184,11 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
     - `game.arena`: combat is server-authoritative, so the client can't drop it alone; it follows the description in M5 when servers read it.
   - The Starter Pack is now 16 of 17 built-in components.
   - Checked headless: a bare island (ground, sea, signs) builds with no errors; full = classic.
+- **v0.2.930, travel teardown removes physics too.** Found while preparing visitor parity: leaving the classic home swept its meshes but left its physics behind. In the destination that meant invisible ground, shore wall, crates, obstacles and bridge decks, plus 4 visible push-around crates.
+  - `bodies.collectStatics` / `removeStatics` record and remove exactly the home's statics; `physics.disposeArenaColliders`;
+  - `dynamicCrates.disposeDynamicCrates` frees bodies as well as meshes; the push-around crates join `arena.crates`.
+  - Headless: Rapier colliders 1,210 → 2 after travel (player + the destination's platform), 0 crates.
+  - The test seam `ToriiDebug.world.visit(id)` travels to a bundled same-origin world (schema-validated).
 
 ## Open owner decisions (resolved above)
 

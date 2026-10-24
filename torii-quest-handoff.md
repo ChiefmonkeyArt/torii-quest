@@ -1,3 +1,12 @@
+## TRAVEL TEARDOWN REMOVES PHYSICS: v0.2.930-alpha
+
+- **`engine/physics/bodies.js`:** `collectStatics(fn)` / `removeStatics(list)`; `createStatic*` / `createHeightfield` now return the collider; `removeDynamicCrate(handle)`.
+- **`physics.js`:** `buildArenaColliders(plan)` records all statics (disposing any previous set); `disposeArenaColliders()`, `arenaColliderCount()`.
+- **`dynamicCrates.js`:** `disposeDynamicCrates()` (meshes + bodies); build gated by `arena.crates`.
+- **`arenaRuntime._teardownLegacyArena`:** boards → colliders → dynamic crates → mesh sweep.
+- **Debug:** `ToriiDebug.world.arenaColliders()`, `ToriiDebug.world.visit('<bundled id>')`.
+- **Headless:** `/tmp/pw/visit.mjs <id>` (Rapier report before/after).
+
 ## START9 / UMBREL TESTING PAUSED: v0.2.929-alpha (docs-only)
 
 - Owner, 2026-10-24: "Pause testing on Start9 and Umbrel". ADR-0148 stays Proposed; N1 (Umbrel) and N2 (Start9) don't start, and no real-device installs are asked for, until the owner resumes them.

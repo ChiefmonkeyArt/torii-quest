@@ -1,3 +1,10 @@
+## v0.2.930-alpha: no more invisible walls after travelling
+
+When you left your home through the gate, the shapes you bump into (ground,
+coastline wall, crates, bridges) quietly stayed behind, so another world could
+have invisible walls or floors, and four crates followed you there. They're
+now removed with the rest of your home when you travel.
+
 ## v0.2.929-alpha: Start9 and Umbrel on hold
 
 Testing on Start9 and Umbrel is paused at your request. The plan stays written

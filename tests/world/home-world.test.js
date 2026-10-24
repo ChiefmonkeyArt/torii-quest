@@ -158,7 +158,7 @@ describe('wiring', () => {
     expect(arena.match(/buildNapTerrainMesh\(scene\)/g).length).toBe(1);
   });
   it('physics gates ground, crates and shore wall by the same plan', () => {
-    expect(physics).toMatch(/export function buildArenaColliders\(plan = null\) \{\n\s*if \(homeIncludes\(plan, 'world\.island'\)\) \{/);
+    expect(physics).toMatch(/function _buildArenaStatics\(plan\) \{\n\s*if \(homeIncludes\(plan, 'world\.island'\)\) \{/);
     expect(physics).toMatch(/if \(homeIncludes\(plan, 'arena\.crates'\)\) for \(const \[cx, cz, hw, hd, ch\] of CRATES\)/);
     expect(physics).toMatch(/const rings = homeIncludes\(plan, 'world\.coastline'\) \? fenceRing\(\) : \[\];/);
   });

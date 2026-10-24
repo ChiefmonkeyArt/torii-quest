@@ -74,3 +74,15 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 ## Open owner decisions
 
 All resolved (2026-10-23): the `/quest/w/<npub>/<world>` path, M1 first, the full Starter Pack, and anyone may publish signed components.
+
+## Node targets (ADR-0148, Proposed)
+
+Runs alongside M2–M7. The same Torii node is packaged for every home:
+
+- **N1:** Umbrel community app store.
+- **N2:** Start9 `.s9pk` (StartOS 0.4).
+- **N3:** `endpoint` tags (onion, LAN, tunnel) in the world reference, plus mirrors for sleeping nodes.
+- **N4:** a one-command laptop node.
+- **N5:** a node health page and per-target documentation.
+
+Worlds stay addressed by npub and manifest hash, never by host.

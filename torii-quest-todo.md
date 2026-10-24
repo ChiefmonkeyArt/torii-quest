@@ -1,3 +1,9 @@
+## v0.2.928-alpha: ADR-0148 (Proposed): one node, every home
+
+- [x] ADR-0148 written: VPS, laptop, Umbrel, Start9 from one image set; endpoint tags; keys stay with people.
+- [ ] Owner decisions: order (Umbrel first proposed), test device(s) + architecture, home-node public reachability, wrapper repo layout.
+- [ ] N1 Umbrel → N2 Start9 → N3 endpoints → N4 laptop → N5 health page.
+
 ## v0.2.927-alpha: M1 group 4
 
 - [x] `world.foliage`, `world.bridge` (+ deck colliders), `torii.gate` (+ pillar colliders). 16/17 Starter Pack pieces are built-in components.

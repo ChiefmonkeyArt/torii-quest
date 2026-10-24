@@ -189,6 +189,19 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - `dynamicCrates.disposeDynamicCrates` frees bodies as well as meshes; the push-around crates join `arena.crates`.
   - Headless: Rapier colliders 1,210 → 2 after travel (player + the destination's platform), 0 crates.
   - The test seam `ToriiDebug.world.visit(id)` travels to a bundled same-origin world (schema-validated).
+- **v0.2.931, visitors build the owner's Starter Pack island.** The published world now carries `base: 'starter-island'`, the home description's `components` and `owner` (the configured owner's hex key).
+  - **Schema:** an unknown `base` or a bad `owner` is dropped, not an error, so newer worlds still render on older clients.
+  - **Back-compat:** the manifest keeps its inline terrain, sea and foliage, so older clients still render it as plain data.
+  - **Server:** reads the home description with the browser's planner (env `QUEST_HOME_WORLD_JSON_PATH` → operator `data/worlds/home/world.json` → release copy → bundled).
+  - **Client:** the visitor's Quest builds the island with the same engine code as home, from that world's list (`_buildVisitedStarterIsland`), with colliders, crates, foliage, mirror and greeter as listed.
+  - **Boards:** they show the destination owner's store (`setBoardOwnerOverride`) or stay off when no valid owner is given; never the visitor's own shop. Cached listings are neither shown nor saved while visiting.
+  - **Home-only behaviour stays at home:**
+    - the Plebeian Market portal (it opens this node's market);
+    - local bots and combat when the world leaves out `game.arena`;
+    - a greeter that's left out is hidden and its sticker sensor switched off.
+  - **Homecoming:** a classic home reloads; a data home rebuilds in place.
+  - **Leak fix:** the mirror's reflection render target is now freed on travel (`disposeMirror`).
+  - **Trust:** `owner` is asserted by the world's publisher (beacon-signed reference). At worst a world shows someone else's public listings; signatures on listings are still verified.
 
 ## Open owner decisions (resolved above)
 

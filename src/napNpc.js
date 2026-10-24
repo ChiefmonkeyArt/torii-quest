@@ -125,6 +125,15 @@ export function setNapNpcVisible(visible) {
   if (_nameplate) _nameplate.visible = !!visible;
 }
 
+// v0.2.931 (ADR-0147 M1): a visited world without npc.greeter hides the greeter
+// AND switches off its sticker sensor (a hidden NPC must not catch stickers).
+// Unlike setNapNpcVisible (per-frame mirror pass) this is a rare world change.
+export function setNapNpcPresent(present) {
+  setNapNpcVisible(present);
+  try { if (_npcColliderBody && _npcColliderBody.body) _npcColliderBody.body.setEnabled(!!present); } catch { /* noop */ }
+  return !!_root;
+}
+
 // v0.2.813: internal — make a canvas-textured sprite for the Nakama label.
 // Mirrors botModel.js:_makeNameplate but sized larger + no HP bar (NPC is
 // friendly, no combat). Returns null in non-DOM environments so unit tests

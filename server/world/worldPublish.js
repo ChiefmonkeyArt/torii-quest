@@ -54,8 +54,8 @@ export function buildWorldZones() {
  * Serializes the legacy config + sampled heightfield zones into the portable
  * manifest. Pure translation; fails loudly on an unrenderable world.
  */
-export function buildWorldManifest({ worldId, legacy, zones, name } = {}) {
-  const r = serializeArenaWorld({ worldId, legacy, zones, name });
+export function buildWorldManifest({ worldId, legacy, zones, name, home, owner } = {}) {
+  const r = serializeArenaWorld({ worldId, legacy, zones, name, home, owner });
   if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'serialize-failed' };
   return { ok: true, manifestJson: r.manifestJson, world: r.world };
 }

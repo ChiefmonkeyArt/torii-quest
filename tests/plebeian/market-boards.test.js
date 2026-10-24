@@ -277,7 +277,7 @@ describe('v0.2.920 touch VIEW button wiring', () => {
     expect(rt).toMatch(/touch: shouldEnableTouch\(\), products: _homeHas\('market\.products'\)/);
   });
   it('saved listings: loaded at build, saved at most every 5 s, never with setTimeout', () => {
-    expect(m3).toMatch(/_saved = _loadSaved\(\);/);
+    expect(m3).toMatch(/_saved = _useCache \? _loadSaved\(\) : null;/);
     expect(m3).toMatch(/SAVE_EVERY_MS = 5000/);
     expect(m3).not.toMatch(/setTimeout|setInterval/);
   });

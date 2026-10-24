@@ -44,7 +44,7 @@ describe('v0.2.868 — exit-restores-home (source contract)', () => {
   it('defines _restoreHomeWorld with a travelled-away guard (object identity)', () => {
     expect(RUNTIME_SRC).toMatch(/async function _restoreHomeWorld\(\)/);
     // No-op unless we actually left home: minimal + a captured home + identity differs.
-    expect(RUNTIME_SRC).toContain('if (!_minimal || !_homeWorld) return;');
+    expect(RUNTIME_SRC).toContain('if ((!_minimal && !_visitingStarter) || !_homeWorld) return;');
     expect(RUNTIME_SRC).toContain('if (_minimalWorld === _homeWorld) return;');
     // The homecoming rebuilds the captured home via the shared swap, with the home
     // world id + the home's OWN spawn (not a gate arrival).
@@ -62,8 +62,8 @@ describe('v0.2.868 — exit-restores-home (source contract)', () => {
     const src = RUNTIME_SRC;
     // The legacy-home guard must run BEFORE the minimal/no-home guard, and it must
     // reload the page (never rebuild in place — there is no manifest to rebuild).
-    const idxReload = src.indexOf('_homeWasLegacy && _minimal');
-    const idxNoop = src.indexOf('if (!_minimal || !_homeWorld) return;');
+    const idxReload = src.indexOf('_homeWasLegacy && (_minimal || _visitingStarter)');
+    const idxNoop = src.indexOf('if ((!_minimal && !_visitingStarter) || !_homeWorld) return;');
     expect(idxReload).toBeGreaterThan(-1);
     expect(idxNoop).toBeGreaterThan(-1);
     expect(idxReload).toBeLessThan(idxNoop);

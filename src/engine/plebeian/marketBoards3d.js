@@ -47,6 +47,8 @@ let _liveSince = 0;         // ms when the live feed (re)started
 let _holdPending = false;   // re-blend once the hold window ends
 let _cachedP = false, _cachedA = false;
 let _owner = '';
+// v0.2.931: false while visiting another world (never show or overwrite the home cache).
+let _useCache = true;
 let _saveDue = false, _lastSaved = '', _lastSaveAt = 0;
 const SAVE_EVERY_MS = 5000;
 
@@ -94,7 +96,7 @@ function _makeBoard(plate, name) {
  */
 // v0.2.926 (ADR-0147 M1 group 3): `products` / `auctions` choose which boards the
 // world includes (market.products / market.auctions). Neither → nothing built.
-export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = false, products: wantProducts = true, auctions: wantAuctions = true } = {}) {
+export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = false, products: wantProducts = true, auctions: wantAuctions = true, cache = true } = {}) {
   if (_built) return true;
   if (!wantProducts && !wantAuctions) return false;
   _touch = !!touch;
@@ -124,7 +126,8 @@ export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = fals
     _boards.auctions = auctions; _boards.twin = twin;
   }
   _built = true;
-  _saved = _loadSaved();
+  _useCache = cache !== false;
+  _saved = _useCache ? _loadSaved() : null;
   if (_saved) {
     _products = _saved.products; _auctions = _saved.auctions;
     _cachedP = _products.length > 0; _cachedA = _auctions.length > 0;
@@ -175,7 +178,7 @@ function _rebuild(rawProducts) {
 }
 
 function _maybeSave() {
-  if (!_saveDue || Date.now() - _lastSaveAt < SAVE_EVERY_MS) return;
+  if (!_useCache || !_saveDue || Date.now() - _lastSaveAt < SAVE_EVERY_MS) return;
   _saveDue = false; _lastSaveAt = Date.now();
   const json = serializeBoardCache({ owner: _owner, products: _cachedP ? [] : _products, auctions: _cachedA ? [] : _auctions }, Math.floor(Date.now() / 1000));
   if (!json || json === _lastSaved) return;

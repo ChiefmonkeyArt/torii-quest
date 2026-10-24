@@ -85,6 +85,8 @@ export function createBeacon(opts = {}) {
     // active world; uploadBlob is the injected node-safe Blossom upload.
     legacyWorldConfig = null,
     worldZones = [],
+    // v0.2.931: Starter Pack ids from the node's home world description.
+    homeComponents = null,
     worldId = 'torii-quest',
     worldVersion = '',
     blossomServer = DEFAULT_BLOSSOM_SERVER,
@@ -360,7 +362,7 @@ export function createBeacon(opts = {}) {
       return { ok: false, error: 'no-legacy-config' };
     }
     if (!Array.isArray(worldZones) || worldZones.length === 0) return { ok: false, error: 'no-world-zones' };
-    const built = buildWorldManifest({ worldId, legacy: legacyWorldConfig, zones: worldZones });
+    const built = buildWorldManifest({ worldId, legacy: legacyWorldConfig, zones: worldZones, home: homeComponents, owner: configured ? admin : undefined });
     if (!built.ok) return built;
     _worldManifestCache = built;
     return built;

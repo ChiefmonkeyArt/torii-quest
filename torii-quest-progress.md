@@ -1,3 +1,11 @@
+## v0.2.931-alpha: visitors see your island the way you set it up
+
+When someone travels to your world, their Quest now builds your island from
+your own world description, with the pieces you chose: ground, sea, NAP Zone,
+mirror, boards, bridges and gate. Before, they saw a simplified copy. The
+market boards show your shop, never theirs, and the market portal in the NAP
+Zone stays a home-only feature.
+
 ## v0.2.930-alpha: no more invisible walls after travelling
 
 When you left your home through the gate, the shapes you bump into (ground,

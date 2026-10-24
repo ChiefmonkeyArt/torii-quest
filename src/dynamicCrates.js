@@ -3,7 +3,7 @@
 // mesh follows the Rapier body each frame (allocation-free sync).
 import * as THREE from 'three';
 import { scene } from './scene.js';
-import { createDynamicCrate } from './engine/physics/bodies.js';
+import { createDynamicCrate, removeDynamicCrate } from './engine/physics/bodies.js';
 import { sampleArenaHeight } from './terrain/heightmap.js';
 import { crateMaterial } from './engine/render/crateLook.js';
 
@@ -14,10 +14,22 @@ const SPOTS = [[3, 3], [-4, 2], [2, -4], [-3, -3]];
 
 const _geo = new THREE.BoxGeometry(HALF * 2, HALF * 2, HALF * 2);
 
+// v0.2.930: remove the crates' meshes AND physics bodies (travel teardown; the
+// old rebuild path removed only the meshes, leaking the bodies).
+export function disposeDynamicCrates() {
+  for (const c of _crates) {
+    try { scene.remove(c.mesh); } catch { /* noop */ }
+    try { if (c.mesh.material) c.mesh.material.dispose(); } catch { /* noop */ }
+    removeDynamicCrate(c.handle);
+  }
+  const n = _crates.length;
+  _crates.length = 0;
+  return n;
+}
+
 export function buildDynamicCrates() {
   // Clear any prior crates (re-entering the arena rebuilds the world).
-  for (const c of _crates) scene.remove(c.mesh);
-  _crates.length = 0;
+  disposeDynamicCrates();
 
   for (const [x, z] of SPOTS) {
     // Spawn a hair above the undulating arena surface so gravity drops the crate
@@ -32,7 +44,7 @@ export function buildDynamicCrates() {
     mesh.receiveShadow = true;
     mesh.position.set(x, y, z);
     scene.add(mesh);
-    _crates.push({ body: handle.body, mesh });
+    _crates.push({ body: handle.body, handle, mesh });
   }
 }
 

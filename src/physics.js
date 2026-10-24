@@ -19,7 +19,7 @@ import {
   BRIDGE_X, BRIDGE_Z, BRIDGE_DECK_Y, BRIDGE_LEN, BRIDGE_WIDTH, BRIDGE_THICK,
   BRIDGE2_X, BRIDGE2_Z, BRIDGE2_LEN, BRIDGE2_WIDTH, BRIDGE2_THICK, BRIDGE_YAW,
 } from './config.js';
-import { initBodies, createStatic, createStaticYaw, createHeightfield } from './engine/physics/bodies.js';
+import { initBodies, createStatic, createStaticYaw, createHeightfield, collectStatics, removeStatics } from './engine/physics/bodies.js';
 import { initRaycast } from './engine/physics/raycast.js';
 // Pure (node-safe) terrain heightmap — static import is fine: no THREE/RAPIER.
 import {
@@ -114,7 +114,23 @@ export const OBSTACLE_OWNERS = Object.freeze(['nap.tree', 'torii.gate', 'torii.g
 // null → everything. Ground follows world.island, crates arena.crates, the
 // knee-high shore wall world.coastline, obstacles their OBSTACLE_OWNERS piece,
 // the bridge decks world.bridge.
+// v0.2.930: every collider built here is recorded, so leaving the classic home
+// (travel) removes them: no invisible walls, crates or ground in the destination.
+let _arenaStatics = [];
+
 export function buildArenaColliders(plan = null) {
+  disposeArenaColliders(); // never stack two copies
+  _arenaStatics = collectStatics(() => _buildArenaStatics(plan));
+  return _arenaStatics.length;
+}
+
+/** Remove the classic home's colliders (travel teardown). → count removed. */
+export function disposeArenaColliders() { return removeStatics(_arenaStatics); }
+
+/** How many classic-home colliders exist (debug/tests). */
+export function arenaColliderCount() { return _arenaStatics.length; }
+
+function _buildArenaStatics(plan) {
   if (homeIncludes(plan, 'world.island')) {
   // Floors — BOTH zones are now undulating Rapier HEIGHTFIELDS (Stage 3, v0.2.329).
   // The old flat arena cuboid floor (createStatic at y=-0.1) is GONE; the arena is

@@ -24,6 +24,7 @@ import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { loadHomeWorld, homeIncludes } from './engine/world/homeWorld.js';
+import { validateWorld } from './engine/world/worldSchema.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
 import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror } from './mirror.js';
@@ -35,7 +36,7 @@ import { initPlayer, tickPlayer, tickDeath, playerObj, setPlayerBody, spawnPlaye
 import { loadPlayerModel, tickPlayerModel, triggerHit, triggerDeath, triggerReload, setCharacter, getCharacter, setCustomMeshUrl, setCustomMeshHash, getCustomMeshHash, setCustomHeadlessUrl, setFlyHidden as setFlyHiddenPlayerModel } from './playerModel.js';
 import { blossomMeshUrl } from './engine/character/characterMesh.js';
 import { bundledCharacterPair } from './engine/character/characterPair.js';
-import { initPhysics, stepPhysics, buildArenaColliders, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
+import { initPhysics, stepPhysics, buildArenaColliders, disposeArenaColliders, arenaColliderCount, getWorld, getRapier, castRay, castRayStatic, hasLineOfSight } from './physics.js';
 // Game Zone v2 (ADR-0130): the arena combat layer — bots, hit detection, damage,
 // lifecycle, net sync — lives entirely under src/gamezone/. This runtime only
 // creates it, forwards arena shots and pumps it once per frame.
@@ -43,7 +44,7 @@ import { createGameZone } from './gamezone/client/gameZone.js';
 import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/weapons/gunViewmodel.js';
 import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
 import { playBotShoot, playNearMiss, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
-import { buildDynamicCrates, tickDynamicCrates, getCrateSummary } from './dynamicCrates.js';
+import { buildDynamicCrates, tickDynamicCrates, getCrateSummary, disposeDynamicCrates } from './dynamicCrates.js';
 import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks, getStickerAimStats } from './stickerNpc.js';
 import { createStickerFeel } from './engine/feel/stickerFeel.js';
@@ -1617,6 +1618,19 @@ export function createArenaRuntime(hooks = {}) {
     // ADR-0147 M1 (v0.2.923): which world description the home was built from.
     if (window.ToriiDebug) window.ToriiDebug.world = Object.assign(window.ToriiDebug.world || {}, {
       home: () => (_homePlan ? { source: _homePlan.source, plan: [..._homePlan.plan], errors: [..._homePlan.errors] } : null),
+      arenaColliders: () => arenaColliderCount(), // v0.2.930: classic-home colliders alive
+      // v0.2.930 test seam: travel in place to a world bundled on THIS origin
+      // (worlds/<id>/world.json), schema-validated like any manifest. Console-only.
+      visit: async (id) => {
+        if (typeof id !== 'string' || !/^[a-z0-9-]{1,64}$/.test(id)) return { ok: false, reason: 'bad-id' };
+        try {
+          const r = await fetch(assetUrl(`worlds/${id}/world.json`), { credentials: 'same-origin' });
+          if (!r.ok) return { ok: false, reason: 'http ' + r.status };
+          const v = validateWorld(await r.json());
+          if (!v.ok) return { ok: false, reason: 'invalid world' };
+          return await travelToWorld(v.world);
+        } catch (e) { return { ok: false, reason: e && e.message ? e.message : String(e) }; }
+      },
     });
 
     // ADR-0025 Kami Mode: the owner's in-world ema authoring surface. Installs
@@ -2043,7 +2057,8 @@ export function createArenaRuntime(hooks = {}) {
       endPhase('buildArenaColliders');
       await _yieldPaint();
 
-      await step('buildDynamicCrates', () => buildDynamicCrates());
+      // Push-around crates belong to the arena.crates piece (v0.2.930).
+      if (_homeHas('arena.crates')) await step('buildDynamicCrates', () => buildDynamicCrates());
       await _yieldPaint();
     }
     let handle;
@@ -2466,6 +2481,10 @@ export function createArenaRuntime(hooks = {}) {
     // ADR-0147 M1 (v0.2.922): stop the market board feeds + free their textures first.
     try { disposeMarketBoards3d(); } catch { /* noop */ }
     try { _auctionBoardTrigger.reset(); } catch { /* noop */ }
+    // v0.2.930: the home's colliders go with its meshes (no invisible walls/ground
+    // in the destination world).
+    try { disposeArenaColliders(); } catch { /* noop */ }
+    try { disposeDynamicCrates(); } catch { /* noop */ }
     sweepLegacyArena(scene);
   }
 

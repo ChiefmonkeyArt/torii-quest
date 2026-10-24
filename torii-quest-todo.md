@@ -1,3 +1,9 @@
+## v0.2.930-alpha: travel no longer leaves invisible walls behind
+
+- [x] Leaving the classic home removes its colliders (1,210 → 2 headless) and push-around crates.
+- [x] `ToriiDebug.world.visit(id)` test seam (bundled same-origin worlds only).
+- [ ] Next: visitors build the destination owner's Starter Pack island from their description.
+
 ## v0.2.929-alpha: Start9 and Umbrel testing paused
 
 - [x] Owner paused Start9 and Umbrel testing; N1/N2 are on hold until resumed.

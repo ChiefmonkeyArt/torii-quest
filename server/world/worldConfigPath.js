@@ -25,3 +25,17 @@ export function resolveLegacyWorldConfigPaths(cwd = process.cwd(), env = process
     pathJoin(cwd, '..', 'current', 'worlds', 'default', 'world.json'),
   ].filter(Boolean);
 }
+/**
+ * v0.2.931 (ADR-0147 M1): candidate paths for the node's HOME world description,
+ * operator override first. On a VPS /quest/worlds/ is the operator's
+ * data/worlds/ (never overwritten by updates); the release copy is the fallback.
+ */
+export function resolveHomeWorldPaths(cwd = process.cwd(), env = process.env) {
+  const override = ((env && env.QUEST_HOME_WORLD_JSON_PATH) || '').trim();
+  return [
+    override,
+    pathJoin(cwd, '..', 'data', 'worlds', 'home', 'world.json'),
+    pathJoin(cwd, 'worlds', 'home', 'world.json'),
+    pathJoin(cwd, '..', 'current', 'worlds', 'home', 'world.json'),
+  ].filter(Boolean);
+}

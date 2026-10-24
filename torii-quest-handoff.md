@@ -1,3 +1,20 @@
+## VISITORS BUILD THE STARTER ISLAND: v0.2.931-alpha
+
+- **Schema:** `base: 'starter-island'` and `owner` (hex). Both are dropped silently when invalid.
+- **Server:**
+  - `serializeArenaWorld({home, owner})` → `base`, `components`, `owner` (inline terrain kept for old clients);
+  - `buildWorldManifest` passes them through;
+  - `createBeacon({homeComponents})`;
+  - `arena-ws._resolveHomeComponents()` (via `resolveHomeWorldPaths()`, planFromWorld).
+- **Client (`arenaRuntime`):**
+  - `_rebuildWorldInPlace` → `_buildVisitedStarterIsland(world)` when `base === 'starter-island'`;
+  - flags `_visitingStarter` / `_visitPlan`; `_homeHas` reads the visit plan; `_combatHere()` gates `_gz.frame`;
+  - the market portal is home-only;
+  - homecoming reloads a classic home.
+- **Boards:** `ownerBoards.setBoardOwnerOverride(hex|null)` (an invalid value blocks the store); `initMarketBoards3d({cache:false})` while visiting.
+- **`mirror.disposeMirror()`; `napNpc.setNapNpcPresent(bool)`.**
+- **Headless:** `node /tmp/mkworld.out.mjs` (env `DROP=ids`) writes `dist/worlds/starter-test/world.json` from the real serializer; then `/tmp/pw/visit.mjs starter-test`.
+
 ## TRAVEL TEARDOWN REMOVES PHYSICS: v0.2.930-alpha
 
 - **`engine/physics/bodies.js`:** `collectStatics(fn)` / `removeStatics(list)`; `createStatic*` / `createHeightfield` now return the collider; `removeDynamicCrate(handle)`.

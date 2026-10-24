@@ -23,11 +23,11 @@ import { createRecIndicator } from './engine/render/recIndicator.js';
 import { createMuzzleFlashPool } from './engine/render/muzzleFlash.js';
 import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
-import { loadHomeWorld, homeIncludes } from './engine/world/homeWorld.js';
+import { loadHomeWorld, homeIncludes, planFromWorld } from './engine/world/homeWorld.js';
 import { validateWorld } from './engine/world/worldSchema.js';
 import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
 import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
-import { buildMirror, tickMirror, getMirror } from './mirror.js';
+import { buildMirror, tickMirror, getMirror, disposeMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
 import { setClientSuspended } from './engine/state/clientSuspended.js';
 import { onKeyDown, requestLock, setYaw, setPitch, keys, setGameInputSuppressed, setShootingSuppressed, lastShootInputAt, applyLookDelta, triggerShoot } from './input.js';
@@ -45,7 +45,7 @@ import { buildGunViewmodel, tickGunViewmodel, triggerRecoil } from './engine/wea
 import { applyNudge, CRATE_IMPULSE, CRATE_LIFT } from './engine/physics/interactions.js';
 import { playBotShoot, playNearMiss, playHitMarker, playKillConfirm, playStickerFire, playStickerStick } from './audio.js';
 import { buildDynamicCrates, tickDynamicCrates, getCrateSummary, disposeDynamicCrates } from './dynamicCrates.js';
-import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot } from './napNpc.js';
+import { buildNapNpc, tickNapNpc, setNapNpcName, bounceNpc, getNpcRoot, setNapNpcPresent } from './napNpc.js';
 import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks, getStickerAimStats } from './stickerNpc.js';
 import { createStickerFeel } from './engine/feel/stickerFeel.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
@@ -88,7 +88,7 @@ import { playShoot, playFootstep, playJumpLand, playSplash, suspendAudioContext,
 import { sampleArenaHeight, sampleNapHeight } from './terrain/heightmap.js';
 import { isNapLand } from './terrain/tomoeShape.js';
 import { setMarketActive, isMarketActive } from './engine/plebeian/marketStall.js';
-import { setBoardsActive, hideOwnerBoard } from './engine/plebeian/ownerBoards.js';
+import { setBoardsActive, hideOwnerBoard, setBoardOwnerOverride } from './engine/plebeian/ownerBoards.js';
 import { SEA_LEVEL, seaQualityFromSearch } from './terrain/seaConfig.js';
 import { installToriiDebug } from './engine/debug/toriiDebug.js';
 import { installKamiMode, kamiCapture, kamiNoteOpen, kamiBusy, kamiExit, kamiActive, kamiEntering, kamiIsOwner } from './engine/kami/kamiMode.js';
@@ -635,6 +635,11 @@ export function createArenaRuntime(hooks = {}) {
   //                     the same lifetime); acceptable for v1.
   let _minimal = false;
   let _minimalWorld = null;
+  // v0.2.931 (ADR-0147 M1): visiting another node's Starter Pack island. The
+  // scene is the classic island (so _minimal is false) built from THAT world's
+  // components (_visitPlan), but it is not home: owner-only paths stay off.
+  let _visitingStarter = false;
+  let _visitPlan = null;
   // The built-in component registry (pure, compile-time factories only — no
   // remote code). Created once; expandWorldComponents resolves world.components
   // instances against it at manifest-load time.
@@ -642,7 +647,10 @@ export function createArenaRuntime(hooks = {}) {
   // ADR-0147 M1 (v0.2.923): the home's own world description → which Starter
   // Pack pieces get built. null until loaded (null = the full pack).
   let _homePlan = null;
-  const _homeHas = (id) => homeIncludes(_homePlan ? _homePlan.plan : null, id);
+  // v0.2.931: a visited Starter Pack island without game.arena has no bots or
+  // combat (game.arena is not builtIn, so homeIncludes would say yes).
+  const _combatHere = () => !_visitingStarter || !_visitPlan || _visitPlan.has('game.arena');
+  const _homeHas = (id) => homeIncludes(_visitingStarter ? _visitPlan : (_homePlan ? _homePlan.plan : null), id);
   // Phase 0l.2: runtime-mounted component handle. Once the minimal world scene
   // exists, mountWorldComponents mounts scene-mounted component instances +
   // stores them here; unmount is wired into stopMultiplayer (LIFO, never throws).
@@ -993,7 +1001,7 @@ export function createArenaRuntime(hooks = {}) {
     // tickDynamicCrates is arena-only. Legacy behaviour is UNCHANGED.
     if (!_minimal) {
       if (isPlaying()) { stepPhysics(); tickDynamicCrates(); }
-      if (_gz) _gz.frame(dt, { playing: isPlaying() });
+      if (_gz && _combatHere()) _gz.frame(dt, { playing: isPlaying() });
       tickGunViewmodel(dt);
     } else {
       // Minimal: keep physics stepping so the player body lands on the platform
@@ -1059,7 +1067,8 @@ export function createArenaRuntime(hooks = {}) {
       if (isPlaying()) {
         if (marketBoardHas('products')) _productPanelTrigger.tick(playerObj.position);
         if (marketBoardHas('auctions')) _auctionBoardTrigger.tick(playerObj.position);
-        _portalTrigger.tick(playerObj.position);
+        // The Plebeian Market portal opens THIS node's market: home only.
+        if (!_visitingStarter) _portalTrigger.tick(playerObj.position);
         // Drive the torii-frame glow from the graded approach affordance (pure scalar).
         const ap = portalApproachState({
           playerPos: playerObj.position, portalPos: _portalPos, range: _portalRange,
@@ -2261,11 +2270,11 @@ export function createArenaRuntime(hooks = {}) {
     // minimal foreign world has no _homeWorld to swap back to. The only faithful
     // homecoming is a full reload — same URL, never a redirect to a foreign host —
     // which re-runs boot() and rebuilds the legacy arena from scratch.
-    if (_homeWasLegacy && _minimal) {
+    if (_homeWasLegacy && (_minimal || _visitingStarter)) {
       try { if (typeof window !== 'undefined' && window.location) window.location.reload(); } catch { /* noop */ }
       return;
     }
-    if (!_minimal || !_homeWorld) return;
+    if ((!_minimal && !_visitingStarter) || !_homeWorld) return;
     if (_minimalWorld === _homeWorld) return;
     await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });
     // P2 — home again: re-apply the LOCAL owner's nameplate (the visited world's
@@ -2485,6 +2494,7 @@ export function createArenaRuntime(hooks = {}) {
     // in the destination world).
     try { disposeArenaColliders(); } catch { /* noop */ }
     try { disposeDynamicCrates(); } catch { /* noop */ }
+    try { disposeMirror(); } catch { /* noop */ }
     sweepLegacyArena(scene);
   }
 
@@ -2520,6 +2530,12 @@ export function createArenaRuntime(hooks = {}) {
     if (_worldComponentMounts) { try { _worldComponentMounts.unmount(); } catch { /* noop */ } _worldComponentMounts = null; }
     if (_worldColliders) { try { _worldColliders.dispose(); } catch { /* noop */ } _worldColliders = null; }
     _worldCoastlineData = null;
+
+    // v0.2.931 (ADR-0147 M1): a Starter Pack island is built by the SAME engine
+    // code as the classic home, from the destination's own component list.
+    if (world.base === 'starter-island') return _buildVisitedStarterIsland(world, { worldId, arrival });
+    _visitingStarter = false; _visitPlan = null;
+    try { setBoardOwnerOverride(null); } catch { /* noop */ }
 
     // Adopt the destination world and rebuild the visual scene in place.
     _minimal = true;
@@ -2610,6 +2626,44 @@ export function createArenaRuntime(hooks = {}) {
     try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[world] respawn failed:', e && e.message ? e.message : e); }
 
     return { ok: true };
+  }
+
+  // v0.2.931: build a visited 'starter-island' world. The scene was torn down by
+  // _rebuildWorldInPlace. Never throws; each piece is best-effort. The boards show
+  // the DESTINATION owner's store (world.owner) or nothing, never this node's.
+  async function _buildVisitedStarterIsland(world, { worldId = '', arrival = null } = {}) {
+    let plan;
+    try { plan = planFromWorld(world).plan; } catch { plan = null; }
+    _visitPlan = plan;
+    _visitingStarter = true;
+    if (!_combatHere()) { try { if (_gz) _gz.clear(); } catch { /* noop */ } }
+    _minimal = false;
+    _minimalWorld = world;
+    _worldId = worldId || world.id || _worldId;
+    _platformY = 0;
+    try { setGrassColor(world.grassColor); } catch { /* noop */ }
+    try { setArenaAtmosphere(true); } catch { /* noop */ }
+    try { buildArena(scene, plan); } catch (e) { console.warn('[world] starter island build failed:', e && e.message ? e.message : e); }
+    try { buildArenaColliders(plan); } catch (e) { console.warn('[world] starter colliders failed:', e && e.message ? e.message : e); }
+    if (_homeHas('arena.crates')) { try { buildDynamicCrates(); } catch { /* noop */ } }
+    if (_homeHas('world.foliage')) {
+      try { await buildFoliage(); } catch (e) { console.warn('[world] foliage rebuild failed:', e && e.message ? e.message : e); }
+    }
+    if (_homeHas('nap.mirror')) { try { buildMirror(); } catch { /* noop */ } }
+    try {
+      if (_homeHas('npc.greeter')) { if (getNpcRoot()) setNapNpcPresent(true); else buildNapNpc(); }
+      else setNapNpcPresent(false);
+    } catch { /* noop */ }
+    const owner = typeof world.owner === 'string' ? world.owner : '';
+    try { setBoardOwnerOverride(owner); } catch { /* noop */ }
+    if (owner) {
+      try {
+        initMarketBoards3d({ scene, getBoard: getProofSurfaceBoard, sampleHeight: sampleNapHeight, touch: shouldEnableTouch(), products: _homeHas('market.products'), auctions: _homeHas('market.auctions'), cache: false });
+      } catch (e) { console.warn('[world] starter boards failed:', e && e.message ? e.message : e); }
+    }
+    const sp = arrival || resolveArrival(world);
+    try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { console.warn('[world] respawn failed:', e && e.message ? e.message : e); }
+    return { ok: true, base: 'starter-island' };
   }
 
   async function travelToWorld(world, opts = {}) {

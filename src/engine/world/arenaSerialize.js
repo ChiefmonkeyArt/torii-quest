@@ -109,7 +109,11 @@ function _zone(z) {
  * { ok:false, error }. Never throws. `manifestJson` is the JSON.stringify of `world`
  * (deterministic field order via the object built here).
  */
-export function serializeArenaWorld({ worldId, legacy, zones, name } = {}) {
+// v0.2.931 (ADR-0147 M1): `home` (Starter Pack ids from the node's home world
+// description) + `owner` (hex) make the manifest a 'starter-island' world, so a
+// current visitor builds the SAME island the owner configured. The inline
+// terrain/sea/foliage stay, so older clients still render it as plain data.
+export function serializeArenaWorld({ worldId, legacy, zones, name, home, owner } = {}) {
   const fail = (error) => ({ ok: false, error });
 
   if (typeof worldId !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/.test(worldId)) {
@@ -202,6 +206,15 @@ export function serializeArenaWorld({ worldId, legacy, zones, name } = {}) {
   // sky — a bright clear day matches the arena's warm read (legacy Sky.js is code,
   // not config, so we pin a sensible portable equivalent).
   world.sky = { type: 'clear', color: '#87ceeb' };
+
+  if (Array.isArray(home) && home.length) {
+    const ids = home.filter((id) => typeof id === 'string' && /^[a-z]+(\.[a-z][a-z-]*)+$/.test(id)).slice(0, 256);
+    if (ids.length) {
+      world.base = 'starter-island';
+      world.components = ids.map((id) => ({ id }));
+    }
+  }
+  if (typeof owner === 'string' && /^[0-9a-f]{64}$/.test(owner)) world.owner = owner;
 
   // Validate before returning — a serializer that emits an unrenderable manifest
   // must fail here (loud), not on the receiving node.

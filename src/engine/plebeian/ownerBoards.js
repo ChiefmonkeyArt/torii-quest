@@ -22,6 +22,9 @@ let _subs = [];
 let _configSubs = [];
 let _owner = '';
 let _store = null;
+// v0.2.931 (ADR-0147 M1): a VISITED Starter Pack island shows ITS owner's store.
+// undefined = no override (this node's owner); '' = blocked (no store); hex = that owner.
+let _ownerOverride;
 const _configByRelay = new Map();
 let _active = false;
 // v0.2.919: the in-world market boards want the same data while the player is
@@ -73,7 +76,7 @@ function openListings(reset) {
 
 function start() {
   if (_subs.length || _configSubs.length) return;
-  _owner = resolveBoardOwner({ adminHex: ADMIN_PUBKEY_HEX });
+  _owner = _ownerOverride !== undefined ? _ownerOverride : resolveBoardOwner({ adminHex: ADMIN_PUBKEY_HEX });
   if (!_owner) return;
   if (!_store) _store = ownerStore(_owner);
   openListings(false);
@@ -99,9 +102,26 @@ function stop() {
   _subs = []; _configSubs = [];
 }
 
+/**
+ * v0.2.931: point the boards at another world's owner (a visited Starter Pack
+ * island), or back home with null. Any non-null value that is not a 64-char
+ * lowercase hex pubkey BLOCKS the store, so a visitor never sees the wrong shop.
+ * A change drops the old store + listings and reopens the feeds if wanted.
+ */
+export function setBoardOwnerOverride(hex) {
+  const next = hex == null ? undefined : (typeof hex === 'string' && /^[0-9a-f]{64}$/.test(hex) ? hex : '');
+  if (next === _ownerOverride) return;
+  _ownerOverride = next;
+  stop();
+  _store = null; _owner = '';
+  _rawProducts = []; _rawAuctions = [];
+  _productByRelay.clear(); _auctionByRelay.clear(); _configByRelay.clear();
+  if (_worldWanted || _active) { start(); render(); }
+}
+
 /** Test / debug seam. */
 export function _ownerBoardsState() {
-  return { owner: _owner, store: _store ? { ..._store, items: _store.items.slice() } : null, subs: _subs.length + _configSubs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active, worldWanted: _worldWanted };
+  return { owner: _owner, override: _ownerOverride === undefined ? null : _ownerOverride, store: _store ? { ..._store, items: _store.items.slice() } : null, subs: _subs.length + _configSubs.length, products: _rawProducts.length, auctions: _rawAuctions.length, active: _active, worldWanted: _worldWanted };
 }
 
 function showHide(active) {
@@ -172,7 +192,7 @@ export function _resetOwnerBoards() {
   _active = false;
   _rawProducts = [];
   _rawAuctions = [];
-  _store = null; _owner = '';
+  _store = null; _owner = ''; _ownerOverride = undefined;
   _worldWanted = false; _dataListeners.clear();
   _productByRelay.clear(); _auctionByRelay.clear(); _configByRelay.clear();
 }

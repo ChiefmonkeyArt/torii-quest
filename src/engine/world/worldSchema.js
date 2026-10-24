@@ -289,6 +289,13 @@ export function validateWorld(data) {
   // sea (boolean) — when true, the runtime builds the procedural ocean mesh
   // (terrain/sea.js buildSeaMesh) around the land. Visual-only; the wave shader
   // animates via the shared tickSea(dt) already in the render loop.
+  // base — ADR-0147 M1 (v0.2.931): 'starter-island' = this world is the engine's
+  // Starter Pack island; `components` decide which pieces. Closed set; an unknown
+  // base is DROPPED (not an error) so a newer world still renders as plain data.
+  if (data.base === 'starter-island') world.base = 'starter-island';
+  // owner — the world owner's hex pubkey: whose store the market boards show.
+  // Invalid → dropped (the boards then stay off rather than show a wrong store).
+  if (typeof data.owner === 'string' && /^[0-9a-f]{64}$/.test(data.owner)) world.owner = data.owner;
   if (data.sea === true) world.sea = true;
 
   // foliage (boolean) — when true, the runtime builds the instanced grass +

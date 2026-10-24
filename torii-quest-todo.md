@@ -1,3 +1,13 @@
+## v0.2.931-alpha: visitors see your island as you set it up
+
+- [x] Published world carries `base: 'starter-island'`, components and owner.
+- [x] Visitors build the Starter Pack island from that list (same engine code as home).
+- [x] Boards show the destination owner's store, or nothing; no cached home listings while visiting.
+- [x] Home-only pieces stay home: market portal, local bots when `game.arena` is left out, hidden greeter loses its sensor.
+- [x] Mirror render target freed on travel.
+- [ ] Two-node live check (chiefmonkey.art → a second node) once a second node runs v0.2.931.
+- [ ] Next: retire the classic home path; `game.arena` from the description (M5).
+
 ## v0.2.930-alpha: travel no longer leaves invisible walls behind
 
 - [x] Leaving the classic home removes its colliders (1,210 → 2 headless) and push-around crates.

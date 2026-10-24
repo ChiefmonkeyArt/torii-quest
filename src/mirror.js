@@ -43,6 +43,18 @@ export function shouldUpdateMirror() { return true; } // kept for compat — mes
 // as a deprecated debug alias (regression check 10 forbids internal reads).
 export function getMirror() { return _mirrorRef; }
 
+// v0.2.931: free the mirror's reflection render target + geometry (travel
+// teardown). The scene sweep removed the mesh but left the GPU target alive.
+export function disposeMirror() {
+  const m = _mirrorRef;
+  _mirrorRef = null;
+  if (!m) return false;
+  try { if (m.parent) m.parent.remove(m); } catch { /* gone */ }
+  try { if (typeof m.dispose === 'function') m.dispose(); } catch { /* gone */ }
+  try { if (m.geometry) m.geometry.dispose(); } catch { /* gone */ }
+  return true;
+}
+
 export function buildMirror() {
   try {
     // ── Reflector surface ─────────────────────────────────────────────────────

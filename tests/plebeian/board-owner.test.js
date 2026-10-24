@@ -53,7 +53,7 @@ describe('ownerBoards wiring (owner decisions 2026-10-22)', () => {
     expect(src).toMatch(/\[PLEBEIAN_AUCTION_RELAYS, PLEBEIAN_AUCTION_KIND, _auctionByRelay,/);
   });
   it('resolves the host owner, merges through the verifier, and closes sockets on hide', () => {
-    expect(src).toMatch(/_owner = resolveBoardOwner\(\{ adminHex: ADMIN_PUBKEY_HEX \}\)/);
+    expect(src).toMatch(/_owner = _ownerOverride !== undefined \? _ownerOverride : resolveBoardOwner\(\{ adminHex: ADMIN_PUBKEY_HEX \}\)/);
     expect(src).toMatch(/mergeStoreEvents\(\[\.\.\.byRelay\.values\(\)\], _store\)/);
     expect(src).toMatch(/if \(!_store\) _store = ownerStore\(_owner\);/);
     expect(src).toMatch(/if \(!active && wasActive && !_worldWanted\) stop\(\);/); // v0.2.919: world boards keep the feed

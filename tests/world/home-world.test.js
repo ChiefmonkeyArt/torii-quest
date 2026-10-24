@@ -206,7 +206,7 @@ describe('group 2: NAP Zone, tree, mirror, greeter (v0.2.925)', () => {
     expect(rt).toMatch(/if \(!_homeHas\('npc\.greeter'\)\) return;\n\s*try \{ buildNapNpc\(\); \}/);
     // the mirror's plan is loaded before it is built
     expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf("_homeHas('nap.mirror')) buildMirror();"));
-    expect(rt).toMatch(/const _homeHas = \(id\) => homeIncludes\(_homePlan \? _homePlan\.plan : null, id\);/);
+    expect(rt).toMatch(/const _homeHas = \(id\) => homeIncludes\(_visitingStarter \? _visitPlan : \(_homePlan \? _homePlan\.plan : null\), id\);/);
   });
   it('a trimmed plan leaves them out; unmigrated pieces still build', () => {
     const plan = new Set(['world.island']);

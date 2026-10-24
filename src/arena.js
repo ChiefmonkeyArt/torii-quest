@@ -47,6 +47,10 @@ const _m4   = new THREE.Matrix4();
 export const ARENA_HOST_BUILDERS = Object.freeze({
   'world.island': (scene) => { _buildIslandGround(scene); },
   'world.coastline': (scene) => { _buildCoastlineWall(scene); },
+  // Group 2 (v0.2.925): NAP Zone accent light, NAP tree. (Mirror + greeter are
+  // runtime-built; arenaRuntime gates them with the same plan.)
+  'nap.zone': (scene) => { _buildNapZoneLight(scene); },
+  'nap.tree': (scene) => { _buildNapTree(NAP_TREE_X, NAP_TREE_Z, scene); }, // off the bridge axis, near the east beach (v0.2.339)
   'world.sea': (scene) => {
     // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default.
     const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
@@ -74,7 +78,7 @@ export function buildArena(scene = defaultScene, plan = null) {
   buildBridge(scene);       // Stage 4 — deck across the meandering river at x=20 (bridge.js)
   _buildToriiGate(scene);
   _buildTravelGateway(scene); // far-side metaverse travel portal model (v0.2.239)
-  _buildNapZone(scene);     // floor extension + tree past the torii gate
+  _buildNapZone(scene, plan); // zone light + tree + signs
   _piece('world.sea', scene, plan); // Stage 2 SEA — visual-only ocean around the land (terrain/sea.js)
   // buildFoliage() now called from arenaRuntime.js boot() as async with
   // paint yields for smooth progress bar animation (v0.2.545).
@@ -345,16 +349,11 @@ function _buildTravelGateway(scene) {
 }
 
 // ── NAP Zone — peaceful area past the torii gate ─────────────────────────
-function _buildNapZone(scene) {
-  // Ground mesh moved to world.island (ADR-0147 M1, v0.2.923).
-
-  // Soft teal accent light to mark the peace zone — centered on the NAP island
-  const napLight = new THREE.PointLight(0x6ad9d0, 2.0, 22);
-  napLight.position.set(NAP_TREE_X, 5 + ISLAND_BASE_Y, NAP_TREE_Z);
-  napLight.name = 'nap-light'; // named for legacy teardown (in-place travel)
-  scene.add(napLight);
-
-  _buildNapTree(NAP_TREE_X, NAP_TREE_Z, scene); // moved off the bridge axis, closer to the east beach (v0.2.339)
+function _buildNapZone(scene, plan = null) {
+  // Ground mesh moved to world.island (ADR-0147 M1, v0.2.923). Light + tree are
+  // Starter Pack pieces nap.zone / nap.tree (v0.2.925).
+  _piece('nap.zone', scene, plan);
+  _piece('nap.tree', scene, plan);
 
   // Display-only proof-surface panels (v0.2.150). One-time setup; inert visual
   // markers gated behind the pure render plan. No interaction/hot-path work.
@@ -366,6 +365,14 @@ function _buildNapZone(scene) {
 // group of squashed icospheres so it reads as a soft puff rather than a hard
 // blob. Trunk is intentionally short and gnarled, branches splay outward
 // asymmetrically for the bonsai silhouette.
+// nap.zone: soft teal accent light marking the peace zone, centred on the NAP island.
+function _buildNapZoneLight(scene) {
+  const napLight = new THREE.PointLight(0x6ad9d0, 2.0, 22);
+  napLight.position.set(NAP_TREE_X, 5 + ISLAND_BASE_Y, NAP_TREE_Z);
+  napLight.name = 'nap-light'; // named for legacy teardown (in-place travel)
+  scene.add(napLight);
+}
+
 function _buildNapTree(x, z, scene) {
   const group = new THREE.Group();
   group.name = 'nap-tree'; // named for legacy teardown (in-place travel)

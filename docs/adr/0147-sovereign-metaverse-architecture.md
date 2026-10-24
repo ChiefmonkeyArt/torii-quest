@@ -167,6 +167,7 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - why: on a VPS, `/quest/worlds/` is the operator's own `data/worlds/` (seeded once by torii-suite, only `default/`, never overwritten), so v0.2.923's new file returned 404 live and the home fell back silently;
   - load order: the operator's `data/worlds/home/world.json` (their override) → bundled description (`source: 'bundled'`, a 404 is normal and silent) → full pack;
   - a torii-suite follow-up may seed missing templates without overwriting; it isn't needed for correctness.
+- **v0.2.925, group 2:** `nap.zone` (zone accent light), `nap.tree` (tree + trunk collider via `OBSTACLE_OWNERS`), `nap.mirror`, `npc.greeter`. The mirror and the deferred greeter build are gated in `arenaRuntime` by the same plan. The NAP no-combat rule stays on: the game server enforces it and will follow the world description once servers read it (M5). Checked headless: trimmed → no light, tree or mirror, no errors.
 
 ## Open owner decisions (resolved above)
 

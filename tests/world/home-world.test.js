@@ -131,7 +131,7 @@ describe('group 1 host-backed components', () => {
       expect(reg.load(id, {}).ok, id).toBe(true);
       expect(starterPackEntry(id).builtIn).toBe(true);
     }
-    expect(STARTER_PACK_FACTORIES).toEqual([createWorldIsland, createWorldSea, createWorldCoastline]);
+    expect(STARTER_PACK_FACTORIES.slice(0, 3)).toEqual([createWorldIsland, createWorldSea, createWorldCoastline]);
   });
   it('mount calls the host builder; unmount runs its undo; no builder → false', () => {
     let built = 0, undone = 0;
@@ -169,5 +169,47 @@ describe('wiring', () => {
     expect(j).toBeGreaterThan(i);
     expect(rt).toMatch(/buildArenaColliders\(_homePlan \? _homePlan\.plan : null\)/);
     expect(rt).toMatch(/home: \(\) => \(_homePlan \? \{ source: _homePlan\.source/);
+  });
+});
+
+describe('group 2: NAP Zone, tree, mirror, greeter (v0.2.925)', () => {
+  const arena = read('src/arena.js');
+  const physics = read('src/physics.js');
+  const rt = read('src/arenaRuntime.js');
+  const config = read('src/config.js');
+  it('are registered host-backed components and marked built in', () => {
+    const reg = createBuiltinRegistry();
+    for (const id of ['nap.zone', 'nap.tree', 'nap.mirror', 'npc.greeter']) {
+      expect(reg.load(id, {}).ok, id).toBe(true);
+      expect(starterPackEntry(id).builtIn, id).toBe(true);
+    }
+  });
+  it('arena builds the zone light and tree through components', () => {
+    expect(arena).toMatch(/function _buildNapZone\(scene, plan = null\) \{[\s\S]*?_piece\('nap\.zone', scene, plan\);\n\s*_piece\('nap\.tree', scene, plan\);/);
+    expect(arena).toMatch(/_buildNapZone\(scene, plan\);/);
+    expect(arena).toMatch(/'nap\.zone': \(scene\) => \{ _buildNapZoneLight\(scene\); \}/);
+    expect(arena).toMatch(/'nap\.tree': \(scene\) => \{ _buildNapTree\(NAP_TREE_X, NAP_TREE_Z, scene\); \}/);
+    expect(arena.match(/_buildNapTree\(NAP_TREE_X, NAP_TREE_Z, scene\)/g).length).toBe(1);
+  });
+  it('the tree trunk collider follows nap.tree; one owner per obstacle', async () => {
+    const { OBSTACLE_OWNERS } = await import('../../src/physics.js').catch(() => ({}));
+    const owners = OBSTACLE_OWNERS || physics.match(/OBSTACLE_OWNERS = Object\.freeze\((\[[^\]]*\])\)/)[1];
+    const rows = config.match(/export const OBSTACLES = \[([\s\S]*?)\n\];/)[1].split('\n').filter((l) => /^\s*\[/.test(l));
+    const list = Array.isArray(owners) ? owners : JSON.parse(owners.replace(/'/g, '"'));
+    expect(list.length).toBe(rows.length);
+    expect(list[0]).toBe('nap.tree');
+    expect(rows[0]).toMatch(/NAP_TREE_X/);
+    expect(physics).toMatch(/if \(!homeIncludes\(plan, OBSTACLE_OWNERS\[i\]\)\) return;/);
+  });
+  it('runtime gates the mirror and the deferred greeter build by the home plan', () => {
+    expect(rt).toMatch(/if \(homeIncludes\(_homePlan \? _homePlan\.plan : null, 'nap\.mirror'\)\) buildMirror\(\);/);
+    expect(rt).toMatch(/if \(!homeIncludes\(_homePlan \? _homePlan\.plan : null, 'npc\.greeter'\)\) return;\n\s*try \{ buildNapNpc\(\); \}/);
+    // the mirror's plan is loaded before it is built
+    expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf("'nap.mirror')) buildMirror();"));
+  });
+  it('a trimmed plan leaves them out; unmigrated pieces still build', () => {
+    const plan = new Set(['world.island']);
+    for (const id of ['nap.zone', 'nap.tree', 'nap.mirror', 'npc.greeter']) expect(homeIncludes(plan, id)).toBe(false);
+    expect(homeIncludes(plan, 'torii.gate')).toBe(true);
   });
 });

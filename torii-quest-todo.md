@@ -1,3 +1,8 @@
+## v0.2.925-alpha: M1 group 2
+
+- [x] `nap.zone`, `nap.tree` (+ trunk collider), `nap.mirror`, `npc.greeter` as Starter Pack components, gated by the home description.
+- [ ] NAP no-combat rule follows the description once the game server reads it (M5).
+
 ## v0.2.924-alpha: home world description bundled
 
 - [x] The VPS served 404 for `worlds/home/world.json` (operator data dir, seeded once). The description is now bundled; an operator file overrides it.

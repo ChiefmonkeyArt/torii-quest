@@ -32,6 +32,11 @@ function hostBacked({ id, name, kind }) {
 export const createWorldIsland = hostBacked({ id: 'world.island', name: 'Island terrain', kind: 'terrain' });
 export const createWorldSea = hostBacked({ id: 'world.sea', name: 'Sea', kind: 'scenery' });
 export const createWorldCoastline = hostBacked({ id: 'world.coastline', name: 'Coastline wall', kind: 'scenery' });
+// Group 2 (v0.2.925).
+export const createNapZone = hostBacked({ id: 'nap.zone', name: 'NAP Zone', kind: 'zone' });
+export const createNapTree = hostBacked({ id: 'nap.tree', name: 'NAP tree', kind: 'scenery' });
+export const createNapMirror = hostBacked({ id: 'nap.mirror', name: 'Mirror', kind: 'scenery' });
+export const createNpcGreeter = hostBacked({ id: 'npc.greeter', name: 'Greeter NPC', kind: 'npc' });
 
 /** Every host-backed Starter Pack factory shipped so far. */
-export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline]);
+export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline, createNapZone, createNapTree, createNapMirror, createNpcGreeter]);

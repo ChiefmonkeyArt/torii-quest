@@ -1,3 +1,9 @@
+## v0.2.925-alpha: NAP Zone pieces are building blocks
+
+The NAP Zone's light, the tree, the mirror and the greeter character are now
+building blocks your home world file can include or leave out. Nothing looks
+different unless you change the file.
+
 ## v0.2.924-alpha: the home world file now works on every server
 
 The new home world file wasn't reaching servers that were already installed,

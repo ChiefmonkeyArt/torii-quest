@@ -20,7 +20,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
    Built one group at a time, each its own release:
    - **Group 1, done in v0.2.923:** `world.island` (both ground meshes + heightfields), `world.sea`, `world.coastline` (wall + its colliders); `arena.crates` now gated too.
    - **Group 2, done in v0.2.925:** `nap.zone`, `nap.tree`, `nap.mirror`, `npc.greeter`.
-   - Group 3: `sign.board`, `market.products`, `market.auctions`, `plebeian.product-display`.
+   - **Group 3, done in v0.2.926:** `sign.board`, `market.products`, `market.auctions` (`plebeian.product-display` is data-world only).
    - Group 4: `world.foliage`, `world.bridge`, `torii.gate`, `torii.gateway` gating, `game.arena`.
 2. **Home loads its own `world.json`.** **Started in v0.2.923:** the home reads `worlds/home/world.json` at boot. Its `components` list decides which migrated pieces are built; pieces not migrated yet are always built. A missing or invalid file falls back to the copy bundled in the app (v0.2.924), then the full pack, and `world.island` is always kept. Operators customise by creating `data/worlds/home/world.json`, which updates never overwrite. Next: visitors build from the same description, so chiefmonkey-template stops being a partial copy.
 3. **Parity check.** Screenshot the same viewpoints from the classic arena and the data home. They must match before anything is deleted.

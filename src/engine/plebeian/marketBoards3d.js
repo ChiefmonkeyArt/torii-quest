@@ -92,32 +92,37 @@ function _makeBoard(plate, name) {
  * Build both boards. `getBoard(id)` → { board, plate } (proofSurfaceMeshes).
  * No-op (returns false) when the PRODUCT sign isn't built (minimal mode).
  */
-export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = false } = {}) {
+// v0.2.926 (ADR-0147 M1 group 3): `products` / `auctions` choose which boards the
+// world includes (market.products / market.auctions). Neither → nothing built.
+export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = false, products: wantProducts = true, auctions: wantAuctions = true } = {}) {
   if (_built) return true;
+  if (!wantProducts && !wantAuctions) return false;
   _touch = !!touch;
   const src = typeof getBoard === 'function' ? getBoard('product-stall-panel') : null;
   if (!src || !src.board || !src.plate || !scene || typeof document === 'undefined') return false;
-  const products = _makeBoard(src.plate, 'products');
-  src.board.getWorldPosition(products.worldPos);
-
-  // Twin built from the SAME geometry (no deep clone: that would copy any
-  // sticker decals parented to the product board, and share its texture).
-  const twin = new THREE.Mesh(src.board.geometry, src.board.material.clone());
-  twin.name = 'proof-board:' + AUCTION_BOARD_SPEC.id;
-  twin.receiveShadow = true;
-  const twinPlate = new THREE.Mesh(src.plate.geometry, new THREE.MeshBasicMaterial());
-  twinPlate.position.copy(src.plate.position);
-  twin.add(twinPlate);
-  const p = AUCTION_BOARD_SPEC.position;
-  const h = typeof sampleHeight === 'function' ? sampleHeight(p.x, p.z) : 0;
-  twin.position.set(p.x, p.y + h, p.z);
-  twin.rotation.set(0, AUCTION_BOARD_SPEC.yawRad, 0);
-  const auctions = _makeBoard(twinPlate, 'auctions');
-  (src.board.parent || scene).add(twin);
-  twin.updateMatrixWorld(true);
-  twin.getWorldPosition(auctions.worldPos);
-
-  _boards = { products, auctions, twin };
+  // Without market.products the stall stays a plain sign (its own artwork).
+  const products = wantProducts ? _makeBoard(src.plate, 'products') : null;
+  if (products) src.board.getWorldPosition(products.worldPos);
+  _boards = { products, auctions: null, twin: null };
+  if (wantAuctions) {
+    // Twin built from the SAME geometry (no deep clone: that would copy any
+    // sticker decals parented to the product board, and share its texture).
+    const twin = new THREE.Mesh(src.board.geometry, src.board.material.clone());
+    twin.name = 'proof-board:' + AUCTION_BOARD_SPEC.id;
+    twin.receiveShadow = true;
+    const twinPlate = new THREE.Mesh(src.plate.geometry, new THREE.MeshBasicMaterial());
+    twinPlate.position.copy(src.plate.position);
+    twin.add(twinPlate);
+    const p = AUCTION_BOARD_SPEC.position;
+    const h = typeof sampleHeight === 'function' ? sampleHeight(p.x, p.z) : 0;
+    twin.position.set(p.x, p.y + h, p.z);
+    twin.rotation.set(0, AUCTION_BOARD_SPEC.yawRad, 0);
+    const auctions = _makeBoard(twinPlate, 'auctions');
+    (src.board.parent || scene).add(twin);
+    twin.updateMatrixWorld(true);
+    twin.getWorldPosition(auctions.worldPos);
+    _boards.auctions = auctions; _boards.twin = twin;
+  }
   _built = true;
   _saved = _loadSaved();
   if (_saved) {
@@ -128,8 +133,11 @@ export function initMarketBoards3d({ scene, getBoard, sampleHeight, touch = fals
   return true;
 }
 
-/** True once both boards exist (legacy arena build; not in minimal worlds). */
+/** True once the boards the world includes exist (legacy arena build; not in minimal worlds). */
 export function marketBoards3dBuilt() { return _built; }
+
+/** Is this board ('products' | 'auctions') part of the built world? */
+export function marketBoardHas(which) { return !!(_built && _boards && _boards[which]); }
 
 /** World position of the auction board (for its Q trigger). */
 export function auctionBoardPosition(sampleHeight) {
@@ -137,7 +145,7 @@ export function auctionBoardPosition(sampleHeight) {
   return { x: p.x, y: p.y + (typeof sampleHeight === 'function' ? sampleHeight(p.x, p.z) : 0), z: p.z };
 }
 
-function _dirtyAll() { if (_boards) { _boards.products.dirty = true; _boards.auctions.dirty = true; } }
+function _dirtyAll() { if (!_boards) return; if (_boards.products) _boards.products.dirty = true; if (_boards.auctions) _boards.auctions.dirty = true; }
 
 function _paint(which) {
   const b = _boards && _boards[which];
@@ -196,7 +204,8 @@ function _syncBids() {
   _bidKey = key;
   for (const s of _bidSubs) { try { s.close(); } catch { /* closed */ } }
   _bidSubs = []; _bidEvents = [];
-  if (!ids.length) return;
+  // No AUCTION board in this world → no bid subscriptions at all (no sockets).
+  if (!ids.length || !(_boards && _boards.auctions)) return;
   const byRelay = new Map();
   for (const url of PLEBEIAN_AUCTION_RELAYS) {
     _bidSubs.push(subscribeByAuthor({
@@ -248,18 +257,18 @@ export function tickMarketBoards3d(dt, playerPos, inNap) {
   if (!inNap) return;
   _elapsed += Math.max(0, Math.min(0.25, Number(dt) || 0));
   const b = _boards;
-  if (slideIndexAt(_elapsed, _products.length) !== b.products.shown) b.products.dirty = true;
-  if (slideIndexAt(_elapsed, _auctions.length) !== b.auctions.shown) b.auctions.dirty = true;
+  if (b.products && slideIndexAt(_elapsed, _products.length) !== b.products.shown) b.products.dirty = true;
+  if (b.auctions && slideIndexAt(_elapsed, _auctions.length) !== b.auctions.shown) b.auctions.dirty = true;
   const sec = Math.floor(Date.now() / 1000);
-  if (sec !== _lastSec) {
+  if (b.auctions && sec !== _lastSec) {
     _lastSec = sec;
     const cur = _auctions[b.auctions.shown];
     if (cur && cur.phase !== 'ended' && playerPos && playerPos.distanceTo && playerPos.distanceTo(b.auctions.worldPos) < COUNTDOWN_NEAR_M) b.auctions.dirty = true;
   }
   if (_holdPending && Date.now() - _liveSince >= BOARD_CACHE_HOLD_MS) _rebuild(_lastRawProducts);
   _maybeSave();
-  if (b.products.dirty) _paint('products');
-  if (b.auctions.dirty) _paint('auctions');
+  if (b.products && b.products.dirty) _paint('products');
+  if (b.auctions && b.auctions.dirty) _paint('auctions');
 }
 
 /**
@@ -273,11 +282,14 @@ export function disposeMarketBoards3d() {
   if (_boards) {
     for (const k of ['products', 'auctions']) {
       const b = _boards[k];
+      if (!b) continue;
       try { b.tex.dispose(); } catch { /* gone */ }
       try { b.plate.material.dispose(); } catch { /* gone */ }
     }
-    try { _boards.twin.material.dispose(); } catch { /* gone */ }
-    try { if (_boards.twin.parent) _boards.twin.parent.remove(_boards.twin); } catch { /* gone */ }
+    if (_boards.twin) {
+      try { _boards.twin.material.dispose(); } catch { /* gone */ }
+      try { if (_boards.twin.parent) _boards.twin.parent.remove(_boards.twin); } catch { /* gone */ }
+    }
   }
   _boards = null; _built = false;
   _products = []; _auctions = []; _rawAuctions = []; _bidEvents = []; _lastRawProducts = [];
@@ -288,7 +300,7 @@ export function disposeMarketBoards3d() {
 /** Debug: ToriiDebug.marketBoards(). */
 export function marketBoards3dState() {
   return {
-    built: _built, wanted: _wanted,
+    built: _built, wanted: _wanted, boards: { products: marketBoardHas('products'), auctions: marketBoardHas('auctions') },
     products: _products.map((s) => ({ title: s.title, price: s.price, seller: s.seller.name })),
     auctions: _auctions.map((s) => ({ title: s.title, phase: s.phase, countdown: s.countdown.text, highBid: s.highBid, bids: s.bidCount, bidders: s.bidders, seller: s.seller.name })),
     bids: _bidEvents.length, profiles: _profiles.size, images: _images.size,

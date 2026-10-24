@@ -202,14 +202,52 @@ describe('group 2: NAP Zone, tree, mirror, greeter (v0.2.925)', () => {
     expect(physics).toMatch(/if \(!homeIncludes\(plan, OBSTACLE_OWNERS\[i\]\)\) return;/);
   });
   it('runtime gates the mirror and the deferred greeter build by the home plan', () => {
-    expect(rt).toMatch(/if \(homeIncludes\(_homePlan \? _homePlan\.plan : null, 'nap\.mirror'\)\) buildMirror\(\);/);
-    expect(rt).toMatch(/if \(!homeIncludes\(_homePlan \? _homePlan\.plan : null, 'npc\.greeter'\)\) return;\n\s*try \{ buildNapNpc\(\); \}/);
+    expect(rt).toMatch(/if \(_homeHas\('nap\.mirror'\)\) buildMirror\(\);/);
+    expect(rt).toMatch(/if \(!_homeHas\('npc\.greeter'\)\) return;\n\s*try \{ buildNapNpc\(\); \}/);
     // the mirror's plan is loaded before it is built
-    expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf("'nap.mirror')) buildMirror();"));
+    expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf("_homeHas('nap.mirror')) buildMirror();"));
+    expect(rt).toMatch(/const _homeHas = \(id\) => homeIncludes\(_homePlan \? _homePlan\.plan : null, id\);/);
   });
   it('a trimmed plan leaves them out; unmigrated pieces still build', () => {
     const plan = new Set(['world.island']);
     for (const id of ['nap.zone', 'nap.tree', 'nap.mirror', 'npc.greeter']) expect(homeIncludes(plan, id)).toBe(false);
     expect(homeIncludes(plan, 'torii.gate')).toBe(true);
+  });
+});
+
+describe('group 3: signs + PRODUCT/AUCTION boards (v0.2.926)', () => {
+  const arena = read('src/arena.js');
+  const rt = read('src/arenaRuntime.js');
+  const m3 = read('src/engine/plebeian/marketBoards3d.js');
+  it('are registered and built in', () => {
+    const reg = createBuiltinRegistry();
+    for (const id of ['sign.board', 'market.products', 'market.auctions']) {
+      expect(reg.load(id, {}).ok, id).toBe(true);
+      expect(starterPackEntry(id).builtIn, id).toBe(true);
+    }
+  });
+  it('signs are built through sign.board', () => {
+    expect(arena).toMatch(/'sign\.board': \(scene\) => \{ buildProofSurfaceMeshes\(scene\); \}/);
+    expect(arena).toMatch(/_piece\('sign\.board', scene, plan\);/);
+    expect(arena.match(/buildProofSurfaceMeshes\(scene\)/g).length).toBe(1);
+  });
+  it('each board follows its own piece; prompts only for boards that exist', () => {
+    expect(rt).toMatch(/products: _homeHas\('market\.products'\), auctions: _homeHas\('market\.auctions'\) \}\);/);
+    expect(rt).toMatch(/if \(marketBoardHas\('products'\)\) _productPanelTrigger\.tick/);
+    expect(rt).toMatch(/if \(marketBoardHas\('auctions'\)\) _auctionBoardTrigger\.tick/);
+    expect(rt).toMatch(/\(marketBoardHas\('products'\) && _productPanelTrigger\.inRange\(\)\) \|\| \(marketBoardHas\('auctions'\) && _auctionBoardTrigger\.inRange\(\)\)/);
+  });
+  it('board module: neither → nothing; no AUCTION board → no bid sockets; null-safe everywhere', async () => {
+    expect(m3).toMatch(/if \(!wantProducts && !wantAuctions\) return false;/);
+    expect(m3).toMatch(/if \(!ids\.length \|\| !\(_boards && _boards\.auctions\)\) return;/);
+    expect(m3).toMatch(/if \(b\.products && b\.products\.dirty\) _paint\('products'\);/);
+    expect(m3).toMatch(/if \(b\.auctions && b\.auctions\.dirty\) _paint\('auctions'\);/);
+    expect(m3).toMatch(/if \(_boards\.twin\) \{/);
+    const mod = await import('../../src/engine/plebeian/marketBoards3d.js');
+    expect(mod.initMarketBoards3d({ scene: {}, getBoard: () => null, products: false, auctions: false })).toBe(false);
+    expect(mod.marketBoardHas('products')).toBe(false);
+    expect(mod.marketBoardHas('auctions')).toBe(false);
+    expect(mod.marketBoards3dState().boards).toEqual({ products: false, auctions: false });
+    expect(() => mod.tickMarketBoards3d(0.016, null, true)).not.toThrow();
   });
 });

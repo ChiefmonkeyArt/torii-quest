@@ -37,6 +37,10 @@ export const createNapZone = hostBacked({ id: 'nap.zone', name: 'NAP Zone', kind
 export const createNapTree = hostBacked({ id: 'nap.tree', name: 'NAP tree', kind: 'scenery' });
 export const createNapMirror = hostBacked({ id: 'nap.mirror', name: 'Mirror', kind: 'scenery' });
 export const createNpcGreeter = hostBacked({ id: 'npc.greeter', name: 'Greeter NPC', kind: 'npc' });
+// Group 3 (v0.2.926).
+export const createSignBoard = hostBacked({ id: 'sign.board', name: 'Signs', kind: 'scenery' });
+export const createMarketProducts = hostBacked({ id: 'market.products', name: 'PRODUCT board', kind: 'commerce' });
+export const createMarketAuctions = hostBacked({ id: 'market.auctions', name: 'AUCTION board', kind: 'commerce' });
 
 /** Every host-backed Starter Pack factory shipped so far. */
-export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline, createNapZone, createNapTree, createNapMirror, createNpcGreeter]);
+export const STARTER_PACK_FACTORIES = Object.freeze([createWorldIsland, createWorldSea, createWorldCoastline, createNapZone, createNapTree, createNapMirror, createNpcGreeter, createSignBoard, createMarketProducts, createMarketAuctions]);

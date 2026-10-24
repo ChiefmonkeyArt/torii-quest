@@ -1,3 +1,13 @@
+## M1 GROUP 3: v0.2.926-alpha
+
+- **`arena.js`:** `sign.board` host builder (`buildProofSurfaceMeshes`) mounted via `_piece` in `_buildNapZone`.
+- **`marketBoards3d`:**
+  - `initMarketBoards3d({…, products, auctions})`: `_boards.products`, `_boards.auctions` and `_boards.twin` may each be null;
+  - `marketBoardHas(which)`; `state().boards`;
+  - `_syncBids` skips subscribing without the auctions board.
+- **`arenaRuntime`:** `_homeHas(id)` helper; board triggers and the touch VIEW label are gated by `marketBoardHas`.
+- **Next:** group 4 (`world.foliage`, `world.bridge`, `torii.gate`, `torii.gateway`, `game.arena`).
+
 ## M1 GROUP 2: v0.2.925-alpha
 
 - **`starterPackComponents.js`:** `createNapZone`, `createNapTree`, `createNapMirror`, `createNpcGreeter`.

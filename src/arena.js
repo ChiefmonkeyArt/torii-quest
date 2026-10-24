@@ -51,6 +51,9 @@ export const ARENA_HOST_BUILDERS = Object.freeze({
   // runtime-built; arenaRuntime gates them with the same plan.)
   'nap.zone': (scene) => { _buildNapZoneLight(scene); },
   'nap.tree': (scene) => { _buildNapTree(NAP_TREE_X, NAP_TREE_Z, scene); }, // off the bridge axis, near the east beach (v0.2.339)
+  // Group 3 (v0.2.926): the NAP signboards (the PRODUCT stall sign is one of
+  // them; the market boards paint onto it in arenaRuntime).
+  'sign.board': (scene) => { buildProofSurfaceMeshes(scene); },
   'world.sea': (scene) => {
     // audit F12: opt-in grid density via ?seaQuality=low|high; absent → default.
     const _sq = (typeof window !== 'undefined' && window.location) ? seaQualityFromSearch(window.location.search) : null;
@@ -355,9 +358,8 @@ function _buildNapZone(scene, plan = null) {
   _piece('nap.zone', scene, plan);
   _piece('nap.tree', scene, plan);
 
-  // Display-only proof-surface panels (v0.2.150). One-time setup; inert visual
-  // markers gated behind the pure render plan. No interaction/hot-path work.
-  buildProofSurfaceMeshes(scene);
+  // Display-only proof-surface panels (v0.2.150): the sign.board piece.
+  _piece('sign.board', scene, plan);
 }
 
 // Bonsai-style oak. Chunky brown trunk + curving branches reaching out to

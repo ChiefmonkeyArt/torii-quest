@@ -1,3 +1,7 @@
+## v0.2.926-alpha: M1 group 3
+
+- [x] `sign.board`, `market.products`, `market.auctions` as Starter Pack components; each board optional; no bid sockets without an AUCTION board.
+
 ## v0.2.925-alpha: M1 group 2
 
 - [x] `nap.zone`, `nap.tree` (+ trunk collider), `nap.mirror`, `npc.greeter` as Starter Pack components, gated by the home description.

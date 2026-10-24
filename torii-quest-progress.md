@@ -1,3 +1,9 @@
+## v0.2.926-alpha: signs and shop boards are building blocks
+
+The NAP signs and the PRODUCT and AUCTION boards can each be switched on or
+off in your home world file. A world without an AUCTION board doesn't open
+any auction connections at all.
+
 ## v0.2.925-alpha: NAP Zone pieces are building blocks
 
 The NAP Zone's light, the tree, the mirror and the greeter character are now

@@ -75,7 +75,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 All resolved (2026-10-23): the `/quest/w/<npub>/<world>` path, M1 first, the full Starter Pack, and anyone may publish signed components.
 
-## Node targets (ADR-0148, Proposed)
+## Node targets (ADR-0148, Proposed; Start9/Umbrel testing paused 2026-10-24)
 
 Runs alongside M2–M7. The same Torii node is packaged for every home:
 

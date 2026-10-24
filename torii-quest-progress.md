@@ -1,3 +1,8 @@
+## v0.2.929-alpha: Start9 and Umbrel on hold
+
+Testing on Start9 and Umbrel is paused at your request. The plan stays written
+down for when you want to pick it up again.
+
 ## v0.2.928-alpha: a plan for running Torii at home
 
 A written plan, awaiting your approval, for running the same Torii node on a

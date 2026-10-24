@@ -1,3 +1,8 @@
+## START9 / UMBREL TESTING PAUSED: v0.2.929-alpha (docs-only)
+
+- Owner, 2026-10-24: "Pause testing on Start9 and Umbrel". ADR-0148 stays Proposed; N1 (Umbrel) and N2 (Start9) don't start, and no real-device installs are asked for, until the owner resumes them.
+- Next work continues on ADR-0147 M1 (visitors build from the same description).
+
 ## ADR-0148 PROPOSED (one node, every home): v0.2.928-alpha (docs-only)
 
 - `docs/adr/0148-one-node-every-home.md`: one image set (the existing `Dockerfile` web/arena-ws + strfry), wrappers for Umbrel (community store, `app_proxy` with public game paths) and Start9 (`.s9pk`, StartOS 0.4 start-sdk).

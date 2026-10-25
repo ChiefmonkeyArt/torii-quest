@@ -100,8 +100,10 @@ function cspHeaderPlugin() {
         // v0.2.773-alpha: idempotent import guard (belt + braces with the module guard
         // in src/main.js). With content-hashing this can no longer be tripped by a stale
         // entry, but the guard remains so at most one entry import ever fires per document.
+        // v0.2.933 (ADR-0147 M3): resolve from the app root the shell computed, so a
+        // `/quest/w/<npub>/<world>` link loads the same bundle ('./' = old behaviour).
         const entryImportLine =
-          `  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('${entryUrl}'); }`;
+          `  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import((window.__toriiAppRoot || './') + '${entryFileName}'); }`;
         out = out.slice(0, lastCloseIdx) + `\n${entryImportLine}\n` + out.slice(lastCloseIdx);
         return out;
       },

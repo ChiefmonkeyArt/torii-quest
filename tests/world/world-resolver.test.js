@@ -241,4 +241,14 @@ describe('discoverWorldReference + resolveWorldByNpub', () => {
     const found = await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn });
     expect(found.id).toBe(newRef.id);
   });
+
+  it('v0.2.933: worldId keeps only references whose d tag matches (a link names one world)', async () => {
+    const beaconSk = hexToBytes('c3'.repeat(32));
+    const a = signEvent(buildWorldReferenceUnsigned({ worldId: 'bekka-world', manifestHash: MANIFEST_HASH, relay: RELAY, owner: PUBKEY, nowMs: 100_000 }), beaconSk);
+    const b = signEvent(buildWorldReferenceUnsigned({ worldId: 'second-world', manifestHash: MANIFEST_HASH, relay: RELAY, owner: PUBKEY, nowMs: 200_000 }), beaconSk);
+    const relayReqFn = async () => ({ ok: true, events: [a, b] });
+    expect((await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn })).id).toBe(b.id);
+    expect((await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn, worldId: 'bekka-world' })).id).toBe(a.id);
+    expect(await discoverWorldReference({ pubkeyHex: PUBKEY, relays: ['wss://r'], relayReqFn, worldId: 'nope' })).toBeNull();
+  });
 });

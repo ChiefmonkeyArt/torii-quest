@@ -44,13 +44,13 @@ describe('v0.2.791-alpha — content-hashed entry (no ?v= timestamp)', () => {
   });
 
   it('the injected import uses the hashed relative entryUrl + idempotency guard', () => {
-    expect(VITE).toContain("import('${entryUrl}')");
+    expect(VITE).toContain("import((window.__toriiAppRoot || './') + '${entryFileName}')"); // v0.2.933
     expect(VITE).toContain('window.__toriiShellImported');
   });
 
   it('CSP fallback ENTRY_IMPORT_LINE carries the hashed path + guard', async () => {
     const { ENTRY_IMPORT_LINE } = await import('../tools/csp.mjs');
-    expect(ENTRY_IMPORT_LINE).toContain("import('./assets/torii-entry-[hash].js')");
+    expect(ENTRY_IMPORT_LINE).toContain("import((window.__toriiAppRoot || './') + 'assets/torii-entry-[hash].js')"); // v0.2.933
     expect(ENTRY_IMPORT_LINE).toContain('window.__toriiShellImported');
   });
 });

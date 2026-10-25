@@ -24,6 +24,7 @@ import {
 import { verifyHandoff } from './handoffVerify.js';
 import { verifyArrival, readArrivingTraveller, decideArrivalAdmission } from './handoffArrival.js';
 import { buildGatewayFilter } from './gatewayRead.js';
+import { appUrlOf } from '../location/worldPath.js';
 
 const HEX64 = /^[0-9a-f]{64}$/;
 
@@ -131,7 +132,7 @@ export function createHandshakeController(opts = {}) {
       hostPubkey: _ourPubkey,
       request: _incoming,
       accepted: accepted === true,
-      spawn: accepted ? (extra.spawn || window.location.origin + window.location.pathname) : null,
+      spawn: accepted ? (extra.spawn || appUrlOf(window.location)) : null,
       relays: _relays,
     });
     if (!built.ok) { _lastError = 'build-failed'; return { ok: false, error: _lastError }; }

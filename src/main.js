@@ -235,6 +235,8 @@ import {
 } from './config.js';
 import { setSharedRelay, sharedRelay } from './engine/relay/sharedRelay.js';
 import { mark, startPhase, endPhase, resetTimings, logReport } from './engine/debug/bootTiming.js';
+import { appUrlOf, parseWorldPath, worldPathFor } from './engine/location/worldPath.js';
+import { npubToHex, hexToNpub } from './engine/crypto/npub.js';
 
 // ── Top-level screen visibility (three-free) ───────────────────────────────────
 const elTitle = document.getElementById('screen-title');
@@ -685,6 +687,7 @@ async function _resolveWorldDirRecord(world) {
       npub: world.npub,
       relays,
       relayReqFn: reqRelay,
+      worldId: world.worldId || undefined, // v0.2.933: a /w/<npub>/<world> link names one world
       fetchBlob: (url) => fetch(url).then((r) => (r && r.ok) ? r.text() : null).catch(() => null),
     });
   } catch (e) {
@@ -701,19 +704,101 @@ async function _gwPeek(world) {
     console.warn('peek rejected: directory record has no identity');
     return;
   }
-  const resolved = await _resolveWorldDirRecord(world);
+  // v0.2.933: a world resolved earlier this session (hash-verified) peeks instantly.
+  const npub = world.npub || hexToNpub(world.pubkey) || '';
+  const hit = npub ? _linkWorlds.get(npub) : null;
+  const resolved = (hit && (!world.worldId || hit.id === world.worldId))
+    ? { ok: true, world: hit }
+    : await _resolveWorldDirRecord(world);
   if (!resolved || !resolved.ok || !resolved.world) {
     console.warn('peek resolve failed (world stays put):', resolved && resolved.reason);
     return;
   }
+  if (npub) _rememberLinkWorld(npub, resolved.world);
   if (_arena && typeof _arena.peekWorld === 'function') {
     // P2 — carry the destination world's owner label into the peek so the landed
     // NAP-zone NPC nameplate shows the OWNER's name over THEIR mesh, not the
     // traveller's. Best-effort label from the directory row (displayName/
     // shortPubkey); never fails the peek if it's absent.
     const ownerLabel = worldDirectoryLabel(world);
-    await _arena.peekWorld(resolved.world, { wsEndpoint: world.wsEndpoint, ownerLabel });
+    await _arena.peekWorld(resolved.world, { wsEndpoint: world.wsEndpoint, ownerLabel, npub });
   }
+}
+
+// ── v0.2.933 (ADR-0147 M3): world links — <app root>w/<npub>/<world> ─────────────
+// The address bar follows the player: travelling pushes the world path, coming home
+// pushes the app root. Back/Forward replays it. A link opened fresh pre-peeks the
+// gateway screen at that world after ENTER — the player still presses 入 (consent:
+// a URL alone never moves anyone). Everything in the path is validated
+// (worldPath.js) before it reaches the resolver.
+const _worldPath = (typeof window !== 'undefined') ? parseWorldPath(window.location.pathname) : { root: '/', link: null };
+let _initialLink = _worldPath.link;
+let _fromPopstate = false;
+// Worlds resolved this session (hash-verified manifests), so a Back/Forward or repeat
+// peek is instant instead of a relay round-trip. Keyed by npub; bounded LRU. The
+// live endpoint always comes from the directory row, never from this cache.
+const _linkWorlds = new Map();
+function _rememberLinkWorld(npub, world) {
+  _linkWorlds.delete(npub);
+  _linkWorlds.set(npub, world);
+  if (_linkWorlds.size > 32) _linkWorlds.delete(_linkWorlds.keys().next().value);
+}
+function _onArenaLocation(loc) {
+  if (_fromPopstate || typeof history === 'undefined' || !loc) return;
+  const target = loc.home ? _worldPath.root : worldPathFor(_worldPath.root, loc.npub, loc.worldId || null);
+  if (!target || target === window.location.pathname) return;
+  try {
+    const st = loc.home ? { torii: 'home' } : { torii: 'w', npub: loc.npub, world: loc.worldId || null };
+    history.pushState(st, '', target + window.location.search);
+  } catch { /* noop — a sandboxed frame may refuse history writes */ }
+}
+function _dirRowForLink(link) {
+  const pubkey = npubToHex(link.npub);
+  if (!pubkey) return null;
+  const row = _worldsCache.find((w) => w && (w.pubkey === pubkey || w.npub === link.npub));
+  return { ...(row || {}), npub: link.npub, pubkey, worldId: link.world || undefined };
+}
+// The gateway only opens in play (not mid-boot), so wait for PLAYING (one check per
+// frame, ≤ ~3600 frames; no timers — the setTimeout allowlist stays closed).
+// Guests see the gateway with its "login with nostr to travel" note but no armed
+// 入 — the same rule as the directory (travel is for signed-in players).
+function _openInitialLink(tries = 0) {
+  const link = _initialLink;
+  if (!link) return;
+  if (!isPlaying()) { if (tries < 3600) requestAnimationFrame(() => _openInitialLink(tries + 1)); else _initialLink = null; return; }
+  _initialLink = null; // once
+  const host = _hostIdentity && _hostIdentity();
+  if (host && npubToHex(link.npub) === host) return; // this node's own world: already home
+  const row = _dirRowForLink(link);
+  if (!row) return;
+  if (/^[0-9a-f]{64}$/.test(state.nostrPubkey || '')) _gwBrowseWorld(row);
+  else if (_arena && typeof _arena.openGatewayBrowse === 'function') _arena.openGatewayBrowse(null);
+}
+async function _onPopstate() {
+  if (!_arena || !window.__toriiEntered) return;
+  const { link } = parseWorldPath(window.location.pathname);
+  _fromPopstate = true;
+  try {
+    if (!link) { if (_arena.returnHome) await _arena.returnHome(); return; }
+    // Travel stays GATE-ONLY (v0.2.867): Back/Forward to a world reopens the gateway
+    // pre-peeked at it (instant from _linkWorlds) and the player presses 入.
+    const row = _dirRowForLink(link);
+    if (!row) return;
+    if (/^[0-9a-f]{64}$/.test(state.nostrPubkey || '')) _gwBrowseWorld(row);
+    else if (typeof _arena.openGatewayBrowse === 'function') _arena.openGatewayBrowse(null);
+  } catch (e) {
+    console.warn('[link] back/forward failed:', e && e.message ? e.message : e);
+  } finally { _fromPopstate = false; }
+}
+if (typeof window !== 'undefined') window.addEventListener('popstate', () => { void _onPopstate(); });
+if (typeof window !== 'undefined') {
+  window.ToriiDebug = window.ToriiDebug || {};
+  window.ToriiDebug.location = () => ({
+    root: _worldPath.root, path: window.location.pathname,
+    link: parseWorldPath(window.location.pathname).link, pendingLink: _initialLink,
+    cached: [..._linkWorlds].map(([k, w]) => [k.slice(0, 12), w && w.id]), playing: isPlaying(),
+    atHome: !!(_arena && _arena.isAtHome && _arena.isAtHome()),
+  });
 }
 
 // _gwCommit() — the 入 (enter) walk-through. Delegates to the arena's commitPeek, which
@@ -1186,7 +1271,8 @@ async function _publishPresenceOnce() {
     zoneId: 'quest-torii',
     title: 'Torii Quest',
     zoneType: 'arena',
-    website: (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : ''),
+    // v0.2.933: the APP url, never a /w/<npub>/<world> link the tab happens to be on.
+    website: (typeof window !== 'undefined' ? appUrlOf(window.location) : ''),
     relays,
     displayName: opDisplayName,
     avatar: (typeof draft.picture === 'string') ? draft.picture : '',
@@ -3138,6 +3224,7 @@ async function ensureArenaReady(loadingLabel) {
         // P2 — homecoming from a visited world re-applies the LOCAL owner's
         // nameplate (the Nakama greeter is the caller-away traveller's own NPC).
         onHomeRestored: () => _refreshOwnerLabel(),
+        onLocation: (loc) => _onArenaLocation(loc),
       });
       _seatCharacterIntoArena(_arena);
       startPhase('boot');
@@ -3223,6 +3310,7 @@ elNapBtn?.addEventListener('click', async () => {
   // stranded still gets healed by the reload. Sticky by design: the double-mount
   // risk persists for the duration of the 3D runtime's life, which is per-document.
   window.__toriiEntered = true;
+  _openInitialLink(); // v0.2.933 (ADR-0147 M3): a /w/<npub>/<world> link pre-peeks its world
 });
 // v0.2.776-alpha (Bug I): expose the exact same boot the guest ENTER click
 // runs so loginBootstrap.js can trigger it for the armed LOGIN-NOSTR button.
@@ -3354,7 +3442,7 @@ if (typeof window !== 'undefined') {
   window.ToriiDebug.gateway = () => {
     const snap = _handshake.snapshot();
     const armed = snap && snap.armed;
-    const spawn = armed?.spawn || (window.location.origin + window.location.pathname);
+    const spawn = armed?.spawn || appUrlOf(window.location);
     const hardened = hardenSpawnUrl(spawn);
     const incoming = readArrivingTraveller(window.location?.href || '');
     const view = _handshake.view();
@@ -3397,7 +3485,7 @@ if (typeof window !== 'undefined') {
       transport: _gatewayTransport.active,
       publish: (ev) => fanoutPublish(_effectiveRelays(), ev),
       isListed: (z) => _worldsCache.some((w) => w && w.zoneId === z),
-      website: window.location.origin + window.location.pathname,
+      website: appUrlOf(window.location),
     });
   };
 

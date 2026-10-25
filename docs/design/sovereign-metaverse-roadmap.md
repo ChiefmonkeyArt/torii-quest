@@ -42,8 +42,8 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Milestone 3: location and links
 
-1. The location path: `…/quest/w/<npub>/<world>` (owner-approved). The back button goes to the previous world.
-2. Opening a link in your own Quest joins that world (Enter mode).
+1. The location path: `…/quest/w/<npub>/<world>` (owner-approved). The back button goes to the previous world. **Done in v0.2.933** (Back to home is instant; Back to a world reopens the gate at it, one press of 入).
+2. Opening a link in your own Quest joins that world (Enter mode). **Done in v0.2.933:** the link pre-peeks the world in the gateway screen and the player presses 入.
 3. **Automatic mode choice.** A destination with a Torii world description gets Enter; others get the Gate v1 Hand-off. A §8 extension lets a heartbeat point at its world description and say which modes it supports.
 
 ## Milestone 4: one persona

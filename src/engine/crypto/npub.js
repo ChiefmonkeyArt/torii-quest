@@ -102,6 +102,22 @@ export function npubToHex(input) {
   return bytesToHex(bytes);
 }
 
+// v0.2.933 (ADR-0147 M3): hex64 pubkey → NIP-19 `npub1…` (BIP-173 encode), or null.
+// The inverse of npubToHex, for /w/<npub>/<world> links built from directory rows.
+export function hexToNpub(hex) {
+  if (typeof hex !== 'string' || !HEX64.test(hex.toLowerCase())) return null;
+  const h = hex.toLowerCase();
+  const bytes = [];
+  for (let i = 0; i < 64; i += 2) bytes.push(parseInt(h.slice(i, i + 2), 16));
+  const data = convertBits(bytes, 8, 5, true);
+  const values = hrpExpand('npub').concat(data, [0, 0, 0, 0, 0, 0]);
+  const mod = polymod(values) ^ 1;
+  let out = 'npub1';
+  for (let i = 0; i < data.length; i += 1) out += CHARSET[data[i]];
+  for (let i = 0; i < 6; i += 1) out += CHARSET[(mod >>> (5 * (5 - i))) & 31];
+  return out;
+}
+
 // v0.2.916 (ADR-0145): NIP-19 `naddr1…` → "kind:pubkey:d" coordinate, or null.
 // TLV: 0 = d identifier (utf-8), 1 = relay (ignored), 2 = author (32 bytes),
 // 3 = kind (4-byte big-endian). A raw "kind:hex64:d" string passes through.

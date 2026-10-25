@@ -1,3 +1,14 @@
+## v0.2.933-alpha: world links
+
+- [x] `/quest/w/<npub>[/<world>]` loads the same shell (bundle + icons from the app root).
+- [x] The address bar follows travel and homecoming; Back/Forward replays it.
+- [x] Opening a link pre-peeks that world in the gateway screen; the player presses 入.
+- [x] Resolver `worldId` filter (one world per link); published URLs never carry a link.
+- [ ] M3.3 automatic mode choice (Enter vs Gate v1 hand-off).
+- [ ] Next: the M2 Gateway napplet.
+- [ ] Finding: 入 looks armed before the peek resolves; an early press does nothing (fix in the M2 napplet: host-confirmed "ready").
+- [ ] Finding (owner decision): the repo CSP `connect-src` lists fixed relays only, so where it is enforced, Blossom manifests and other nodes' relays are blocked and remote peeks fail. chiefmonkey.art (nginx) sends no CSP header at all. Federation needs a deliberate CSP policy (ADR).
+
 ## v0.2.932-alpha: one home path; combat follows the description
 
 - [x] Home description says `base: 'starter-island'`; boot, visits and homecoming share one island builder.

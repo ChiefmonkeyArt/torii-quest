@@ -116,7 +116,8 @@ describe('v0.2.773 — build-time entry-import idempotency guard (vite.config.js
 
   it('still injects the hashed entry URL', () => {
     // Sanity: don't let the guard rewrite accidentally drop the actual import.
-    expect(cfg).toMatch(/import\('\$\{entryUrl\}'\)/);
+    // v0.2.933 (ADR-0147 M3): resolved from the shell's app root (world links).
+    expect(cfg).toMatch(/import\(\(window\.__toriiAppRoot \|\| '\.\/'\) \+ '\$\{entryFileName\}'\)/);
   });
 });
 
@@ -135,6 +136,6 @@ describe('v0.2.773 — CSP fallback + build injection stay in lockstep', () => {
     expect(ENTRY_IMPORT_LINE).toMatch(/if \(!window\.__toriiShellImported\)/);
     expect(ENTRY_IMPORT_LINE).toMatch(/window\.__toriiShellImported = true/);
     // Still an import() call — the guard mustn't swallow the actual load.
-    expect(ENTRY_IMPORT_LINE).toMatch(/import\(['"][^'"]*torii-entry-[^\s'"]*\.js['"]\)/);
+    expect(ENTRY_IMPORT_LINE).toMatch(/import\(\(window\.__toriiAppRoot \|\| '\.\/'\) \+ 'assets\/torii-entry-[^\s'"]*\.js'\)/);
   });
 });

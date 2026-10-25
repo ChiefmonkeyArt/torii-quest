@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-k9TZ0l8kla3dtpSVOf1BKBdr9SPT642AD4VHE+ecdxU=";
+export const INLINE_SCRIPT_SHA256 = "sha256-PdmJde4bfoF/YnEtTTO13R0LH4a1FEgnCTpo3tlQFKo=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -64,6 +64,9 @@ export const CSP_DIRECTIVES = [
   ["form-action", "'self'"],
   ["script-src", `'self' 'wasm-unsafe-eval' '${INLINE_SCRIPT_SHA256}'`],
   ["worker-src", "'self' blob:"],
+  // v0.2.934 (ADR-0147 M2): the only frame is the same-origin gateway napplet
+  // (sandboxed, no network). Nothing else may be framed.
+  ["frame-src", "'self'"],
   // v0.2.698-alpha (ADR-0067): the union of every runtime wss:// endpoint the
   // game actually opens a WebSocket to. Adds main.relay.gamestr.io (leaderboard
   // reads/writes — was MISSING before, a latent CSP bug) and the plebeian

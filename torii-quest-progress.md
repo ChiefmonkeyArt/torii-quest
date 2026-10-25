@@ -1,3 +1,13 @@
+## v0.2.934-alpha: the gateway is a portable doorway
+
+The gateway screen (the list of worlds, the "looking at" bar, 入 and ✕) is now
+a small self-contained page that runs in a locked box: it can't reach the
+internet, your keys or the game. It only asks Quest to look at a world or go
+in, and Quest does the checking. 入 now stays greyed out until the world is
+actually ready, so an early press is never lost. Any other world can use the
+same doorway with its own colours; the reference world in the conformance kit
+already does.
+
 ## v0.2.933-alpha: every world has a link
 
 Each world now has its own address, like `chiefmonkey.art/quest/w/npub1…/torii-quest`.

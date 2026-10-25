@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: 0BSD -->
+<!-- Torii gateway napplet v1: the doorway UI only (directory, peek, enter, cancel).
+     Mount it in <iframe sandbox="allow-scripts" src=".../index.html#c=<nonce>">.
+     No authority: it renders what the host sends and posts intents back. Network,
+     images, fonts, frames, workers and forms are all denied by the policy below. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'none'; connect-src 'none'; font-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torii gateway</title>
+<link rel="stylesheet" href="gateway.css">
+<script src="gateway.js" defer></script>
+</head>
+<body>
+<main id="card" aria-label="Torii gateway">
+  <header>
+    <div id="title">⛩  TORII GATEWAY</div>
+    <button id="close" type="button" aria-label="Step away from the gate" title="Step away from the gate">✕</button>
+  </header>
+  <section id="peek" hidden>
+    <div id="cap">
+      <div id="looking"></div>
+      <button id="enter" type="button" disabled aria-label="Enter this world">入 · ENTER</button>
+    </div>
+    <canvas id="preview" aria-hidden="true" hidden></canvas>
+  </section>
+  <div id="cols"></div>
+  <div id="note" hidden>login with nostr to travel</div>
+  <div id="hint">click a world to look · F to gaze around · Enter to enter · ✕ to step away</div>
+</main>
+</body>
+</html>

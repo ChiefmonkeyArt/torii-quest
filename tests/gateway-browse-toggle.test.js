@@ -12,6 +12,8 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RUNTIME = readFileSync(join(ROOT, 'src/arenaRuntime.js'), 'utf8');
 const GATEWAY = readFileSync(join(ROOT, 'src/engine/gateway/gatewayScreen.js'), 'utf8');
+// v0.2.934 (M2): the directory UI (and its hint) lives in the gateway napplet.
+const NAPPLET = readFileSync(join(ROOT, 'conformance/gateway-v1/napplet/index.html'), 'utf8');
 
 describe('gateway browse cursor ↔ gaze toggle', () => {
   it('opens with the cursor free (exits pointer lock) so the directory is clickable', () => {
@@ -31,10 +33,11 @@ describe('gateway browse cursor ↔ gaze toggle', () => {
 
   it('shooting stays suppressed during browse (cursor or gaze) and the directory hint names the F toggle', () => {
     expect(RUNTIME).toMatch(/setShootingSuppressed\(true\)/);
-    expect(GATEWAY).toMatch(/F to gaze around/);
+    expect(NAPPLET).toMatch(/F to gaze around/);
   });
 
   it('the directory no longer auto-focuses the × button (Enter must walk through, not close)', () => {
-    expect(GATEWAY).not.toMatch(/querySelector\('button'\)\?\.focus/);
+    expect(GATEWAY).not.toMatch(/\.focus\(/);
+    expect(NAPPLET).not.toMatch(/autofocus/);
   });
 });

@@ -50,7 +50,7 @@ import { fireStickerAtNpc, tickStickerNpc, setStickerFeelHooks, getStickerAimSta
 import { createStickerFeel } from './engine/feel/stickerFeel.js';
 import { loadFirstPersonBody, tickFirstPersonBody, setFlyHidden as setFlyHiddenFirstPersonBody } from './firstPersonBody.js';
 import { initHUD, tickHUD, flashCross, addKill, setReticleState, setBossBar, hideBossBar, showHitMarker, voidHitMarker, popCombatText, voidCombatText, showDamageDir, clearCombatFeel, setNapMode, showPortalPrompt, hidePortalPrompt, showFlyNotice } from './hud.js';
-import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld } from './engine/gateway/gatewayScreen.js';
+import { openGatewayScreen, closeGatewayScreen, commitGatewayScreen, isGatewayScreenOpen, isGatewayCommitting, getGatewayPreviewCanvas, peekGateWorld, markGatewayPeekReady, pushGatewayPreview, setGatewayTheme } from './engine/gateway/gatewayScreen.js';
 import { createPortalBrowse, BROWSE_ACTION, BROWSE_STATE } from './engine/gateway/portalBrowse.js';
 import {
   ARENA_HALF, WALL_H, NAP_X, TRAVEL_GATE_X, TRAVEL_GATE_Z, VERSION, TUNING,
@@ -1637,6 +1637,8 @@ export function createArenaRuntime(hooks = {}) {
       home: () => (_homePlan ? { source: _homePlan.source, plan: [..._homePlan.plan], errors: [..._homePlan.errors] } : null),
       arenaColliders: () => arenaColliderCount(), // v0.2.930: island colliders alive
       // v0.2.932: homecoming in place (the parity check: home rebuilt == home booted).
+      // v0.2.934 (M2): restyle the gateway napplet (validated colours only).
+      gatewayTheme: (vars) => setGatewayTheme(vars),
       goHome: async () => { const was = _atHome; await returnHome(); return { ok: true, wasHome: was, atHome: _atHome }; },
       state: () => ({ atHome: _atHome, minimal: _minimal, visiting: _visitingStarter, worldId: _worldId, combat: !_minimal && _combatHere(), peekReady: !!(_pendingTravel && _pendingTravel.world) }),
       // Named-object + mesh + triangle inventory of the live scene (parity checks).
@@ -2813,6 +2815,7 @@ export function createArenaRuntime(hooks = {}) {
         }
       }
       ctx.putImageData(flipped, 0, 0);
+      pushGatewayPreview(); // v0.2.934 (M2): the napplet draws it (transferable bitmap)
     } catch (e) {
       // Read-back is best-effort: a failed blit leaves the preview dark/stale, never
       // breaks travel.
@@ -2866,6 +2869,7 @@ export function createArenaRuntime(hooks = {}) {
     const r = _browse.step(BROWSE_ACTION.PEEK);
     if (!r.changed) return { tier: 'none', refused: true };
     _pendingTravel = { world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' ? ownerLabel : '', npub: typeof npub === 'string' ? npub : '' };
+    try { markGatewayPeekReady(); } catch { /* noop */ } // v0.2.934 (M2): 入 arms only now
     return peekWorld(world, { wsEndpoint });
   }
 

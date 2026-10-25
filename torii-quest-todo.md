@@ -1,3 +1,16 @@
+## v0.2.934-alpha: the Gateway napplet (M2)
+
+- [x] The gateway screen's directory, peek bar, 入 and ✕ run in a sandboxed napplet (`allow-scripts` only; its own CSP denies the network).
+- [x] Trusted host keeps all authority: resolve, hash checks, travel, socket switch. The napplet only asks (`gate.peek`, `gate.enter`, `gate.close`).
+- [x] Fixed: 入 looked armed before the peek resolved. It now stays disabled until the host says the world is ready.
+- [x] Fixed: a late resolve for a world the player clicked away from no longer becomes the pending travel.
+- [x] Portability proof: the engine-free reference world mounts the same napplet (`reference-world/doorway.html`), restyled orange.
+- [x] Restyling: a world author can theme the napplet with colour variables only.
+- [x] Page CSP gains `frame-src 'self'` (only the napplet may be framed).
+- [ ] The arrival card is still drawn by the host (it is not part of the doorway yet).
+- [ ] M3.3 automatic mode choice (Enter vs Gate v1 hand-off).
+- [ ] Finding (owner decision, still open): the CSP `connect-src` and federation.
+
 ## v0.2.933-alpha: world links
 
 - [x] `/quest/w/<npub>[/<world>]` loads the same shell (bundle + icons from the app root).
@@ -5,8 +18,8 @@
 - [x] Opening a link pre-peeks that world in the gateway screen; the player presses 入.
 - [x] Resolver `worldId` filter (one world per link); published URLs never carry a link.
 - [ ] M3.3 automatic mode choice (Enter vs Gate v1 hand-off).
-- [ ] Next: the M2 Gateway napplet.
-- [ ] Finding: 入 looks armed before the peek resolves; an early press does nothing (fix in the M2 napplet: host-confirmed "ready").
+- [x] Next: the M2 Gateway napplet (done in v0.2.934).
+- [x] Finding: 入 looks armed before the peek resolves; an early press does nothing. Fixed in v0.2.934 (host-confirmed "ready").
 - [ ] Finding (owner decision): the repo CSP `connect-src` lists fixed relays only, so where it is enforced, Blossom manifests and other nodes' relays are blocked and remote peeks fail. chiefmonkey.art (nginx) sends no CSP header at all. Federation needs a deliberate CSP policy (ADR).
 
 ## v0.2.932-alpha: one home path; combat follows the description

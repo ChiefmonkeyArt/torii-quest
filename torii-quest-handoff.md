@@ -1,3 +1,14 @@
+## WORLD LINKS: v0.2.933-alpha
+
+- **`src/engine/location/worldPath.js`:** `appRootOf`, `parseWorldPath` (→ `{root, link:{npub, world|null}}` or `{error}`), `worldPathFor`, `appUrlOf`. Pure, validated (bech32 npub shape, slug world id).
+- **`crypto/npub.js`:** `hexToNpub` (BIP-173 encode).
+- **Shell:** `index.html` sets `window.__toriiAppRoot` and rewrites `./` icon links on deep paths. `vite.config.js` imports `(window.__toriiAppRoot || './') + 'assets/torii-entry-*.js'`.
+- **`worldResolver`:** `discoverWorldReference` / `resolveWorldByNpub` take `worldId` (the `d` tag).
+- **`arenaRuntime`:** `hooks.onLocation({home} | {home:false, npub, worldId})` from `_restoreHomeWorld` and a successful `commitPeek`; `returnHome()`, `isAtHome()`; `peekWorld(..., {npub})`.
+- **`main.js`:** `_onArenaLocation` (pushState; skipped during popstate), `_onPopstate` (home → `returnHome`; link → `_gwBrowseWorld`, gate-only), `_openInitialLink` after ENTER (waits for PLAYING by rAF, → `_gwBrowseWorld` when signed in, else the plain gateway; once; own npub is a no-op). `_linkWorlds`: session LRU (32) of resolved worlds, used by `_gwPeek`. `ToriiDebug.location()`.
+- **Headless:** `/tmp/pw/link.mjs` (deep link → login (fake NIP-07) → enter → 入 → home → back → forward; needs `bypassCSP`, see the CSP finding in the todo).
+- **Rapier prefetch:** `enginePrefetch` anchors `./assets/…` to the app root (deep links 404'd otherwise).
+
 ## ONE HOME PATH: v0.2.932-alpha
 
 - **`homeWorld.js`:** `starterIslandWorld(plan)`; `planFromWorld` / `loadHomeWorld` return `world` as well. The bundled home says `base: 'starter-island'`.

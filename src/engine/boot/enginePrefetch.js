@@ -25,7 +25,9 @@ export function shouldPrefetch(nav) {
 }
 
 /** Adds the modulepreload links once. Returns the number added. */
-export function prefetchEngine({ doc = globalThis.document, nav = globalThis.navigator } = {}) {
+// v0.2.933 (ADR-0147 M3): `root` (the shell's window.__toriiAppRoot) anchors the
+// './assets/…' list, so a /w/<npub>/<world> link never preloads from its own dir.
+export function prefetchEngine({ doc = globalThis.document, nav = globalThis.navigator, root = globalThis.window && globalThis.window.__toriiAppRoot } = {}) {
   try {
     if (!doc || !doc.head || doc.__toriiEnginePrefetched) return 0;
     doc.__toriiEnginePrefetched = true;
@@ -38,7 +40,7 @@ export function prefetchEngine({ doc = globalThis.document, nav = globalThis.nav
       if (have.has(href.split('/').pop())) continue;
       const l = doc.createElement('link');
       l.rel = 'modulepreload';
-      l.href = href;
+      l.href = (typeof root === 'string' && root.startsWith('/')) ? root + href.slice(2) : href;
       doc.head.appendChild(l);
       n++;
     }

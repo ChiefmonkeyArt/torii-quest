@@ -1,3 +1,11 @@
+## v0.2.933-alpha: every world has a link
+
+Each world now has its own address, like `chiefmonkey.art/quest/w/npub1…/torii-quest`.
+The address bar changes when you walk through a gate and when you come home,
+and your browser's Back button takes you home or back to a world's gate. Open
+someone's link and, once you're in, Quest shows you their world at the gate;
+you press 入 to go in. A link never moves you without your say.
+
 ## v0.2.932-alpha: coming home is instant, and combat is your choice
 
 Coming back from someone else's world no longer reloads the page; your island

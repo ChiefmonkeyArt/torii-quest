@@ -46,6 +46,14 @@ describe('prefetchEngine (title screen)', () => {
     expect(doc.head.kids.map((l) => [l.rel, l.href])).toEqual([['modulepreload', './assets/a-1.js'], ['modulepreload', './assets/b-2.js']]);
     expect(prefetchEngine({ doc, nav: {} })).toBe(0); // idempotent
   });
+  it('v0.2.933: anchors chunks to the app root (a /w/<npub>/<world> link)', () => {
+    const doc = fakeDoc('./assets/a-1.js');
+    expect(prefetchEngine({ doc, nav: {}, root: '/quest/' })).toBe(1);
+    expect(doc.head.kids[0].href).toBe('/quest/assets/a-1.js');
+    const doc2 = fakeDoc('./assets/a-1.js');
+    prefetchEngine({ doc: doc2, nav: {}, root: 'https://evil/' }); // not a path → unchanged
+    expect(doc2.head.kids[0].href).toBe('./assets/a-1.js');
+  });
   it('skips chunks the bundler already preloads', () => {
     const doc = fakeDoc('./assets/a-1.js ./assets/b-2.js', ['/quest/assets/a-1.js']);
     expect(prefetchEngine({ doc, nav: {} })).toBe(1);

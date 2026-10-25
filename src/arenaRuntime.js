@@ -613,6 +613,9 @@ export function createArenaRuntime(hooks = {}) {
   // nameplate (the Nakama greeter is the traveller's own NPC, not the visited
   // world's). No-op default keeps a shell-without-hooks working.
   const onHomeRestoredHook = typeof hooks.onHomeRestored === 'function' ? hooks.onHomeRestored : null;
+  // v0.2.933 (ADR-0147 M3): where the player is, for the address bar:
+  // { home: true } | { home: false, npub, worldId }. Best-effort, never throws.
+  const _onLocation = (loc) => { try { if (typeof hooks.onLocation === 'function') hooks.onLocation(loc); } catch { /* noop */ } };
 
   let _booted = false;
 
@@ -1634,8 +1637,8 @@ export function createArenaRuntime(hooks = {}) {
       home: () => (_homePlan ? { source: _homePlan.source, plan: [..._homePlan.plan], errors: [..._homePlan.errors] } : null),
       arenaColliders: () => arenaColliderCount(), // v0.2.930: island colliders alive
       // v0.2.932: homecoming in place (the parity check: home rebuilt == home booted).
-      goHome: async () => { const was = _atHome; await _restoreHomeWorld(); return { ok: true, wasHome: was, atHome: _atHome }; },
-      state: () => ({ atHome: _atHome, minimal: _minimal, visiting: _visitingStarter, worldId: _worldId, combat: !_minimal && _combatHere() }),
+      goHome: async () => { const was = _atHome; await returnHome(); return { ok: true, wasHome: was, atHome: _atHome }; },
+      state: () => ({ atHome: _atHome, minimal: _minimal, visiting: _visitingStarter, worldId: _worldId, combat: !_minimal && _combatHere(), peekReady: !!(_pendingTravel && _pendingTravel.world) }),
       // Named-object + mesh + triangle inventory of the live scene (parity checks).
       inventory: () => {
         const names = {}; let meshes = 0; let tris = 0;
@@ -2296,6 +2299,7 @@ export function createArenaRuntime(hooks = {}) {
     // (resumeFromTitle re-dials right after this). Fixes a data home re-joining
     // the visited world's server.
     try { if (_mp && typeof _mp.setWsEndpoint === 'function') _mp.setWsEndpoint(null); } catch { /* noop */ }
+    _onLocation({ home: true });
     // P2 — home again: re-apply the LOCAL owner's nameplate (the visited world's
     // owner name was applied on travel; the greeter is now the caller's own NPC).
     try { if (onHomeRestoredHook) onHomeRestoredHook(); } catch { /* noop */ }
@@ -2838,10 +2842,11 @@ export function createArenaRuntime(hooks = {}) {
   async function commitPeek() {
     const r = _browse.step(BROWSE_ACTION.COMMIT);
     if (!r.swap || !_pendingTravel || !_pendingTravel.world) return { ok: false, reason: 'no-peek' };
-    const { world, wsEndpoint, ownerLabel } = _pendingTravel;
+    const { world, wsEndpoint, ownerLabel, npub } = _pendingTravel;
     _pendingTravel = null;
     try { closeGatewayScreen(); } catch { /* noop */ }
     const result = await travelToWorld(world, { wsEndpoint, ownerLabel });
+    if (result && result.ok && npub) _onLocation({ home: false, npub, worldId: world.id || null });
     // The player may have walked through from the FREE-CURSOR state (v0.2.884);
     // re-engage pointer lock so the landed world plays exactly like normal entry
     // (crosshair on, mouse-look live). A no-op if already locked.
@@ -2857,14 +2862,32 @@ export function createArenaRuntime(hooks = {}) {
     closeLiveMirror(); // also hides the gate window
   }
 
-  async function _handlePeek(world, { wsEndpoint, ownerLabel } = {}) {
+  async function _handlePeek(world, { wsEndpoint, ownerLabel, npub } = {}) {
     const r = _browse.step(BROWSE_ACTION.PEEK);
     if (!r.changed) return { tier: 'none', refused: true };
-    _pendingTravel = { world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' ? ownerLabel : '' };
+    _pendingTravel = { world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' ? ownerLabel : '', npub: typeof npub === 'string' ? npub : '' };
     return peekWorld(world, { wsEndpoint });
   }
 
+  // v0.2.933 (ADR-0147 M3): go home WHILE PLAYING (the Back button). Rebuilds the
+  // home in place (the same path as exit-restores-home) and re-dials THIS node's
+  // multiplayer socket. No-op at home.
+  async function returnHome() {
+    if (_atHome || !_homeWorld) return { ok: false, reason: 'at-home' };
+    try { closeLiveMirror(); } catch { /* noop */ }
+    await _restoreHomeWorld();
+    try {
+      if (_mp) {
+        if (_mp.stop) { try { _mp.stop('travel'); } catch { /* noop */ } }
+        if (_gz && _gz.holdForNet) _gz.holdForNet(); // ADR-0133
+        if (_mp.start) { try { _mp.start(); } catch { /* noop */ } }
+      }
+    } catch (e) { console.warn('[travel] home MP rejoin failed:', e && e.message ? e.message : e); }
+    return { ok: true };
+  }
+
   return {
+    returnHome, isAtHome: () => _atHome,
     boot, bootstrapPhysics, enter, setCharacter, setCustomMeshUrl,
     setCustomMeshHash, setSpawnOverride, stopMultiplayer, travelToWorld,
     peekWorld: _handlePeek, commitPeek, cancelBrowsePeek,

@@ -215,6 +215,16 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - **Combat:** the client runs no bots and takes no shots when the active world leaves out `game.arena` (home or visit). The server runs its game zone only when the home description includes `game.arena`. Both read the same file, so they always agree.
   - **Not in scope:** a home that is a whole data world (not an island) needs portable terrain assets, so it waits for the builder (M6). The `torii-world` meta flag stays a developer override.
 
+- **v0.2.933, world links (M3.1–M3.2).**
+  - **The path:** `<app root>w/<npub>[/<world>]`, e.g. `/quest/w/npub1…/torii-quest`. Parsed and built by `src/engine/location/worldPath.js`. The npub must be a well-formed bech32 npub and the world id a lowercase slug (`[a-z0-9][a-z0-9_-]{0,63}`); anything else is ignored (fails closed). No world id means "this owner's current world".
+  - **The shell:** the inline bootstrap computes the app root (the path before `/w/npub1`) and imports the entry bundle and icons from there, so a deep link loads the same shell. The VPS already serves `index.html` for any `/quest/…` path.
+  - **The address bar follows the player:** walking through 入 pushes the world path; coming home pushes the app root. Back/Forward replays it: back to home rebuilds home in place (`returnHome()`, re-dialling this node's socket); back to a world reopens the gateway pre-peeked at it and the player presses 入 (travel stays gate-only, as since v0.2.867). Worlds resolved this session are cached (hash-verified, 32 max), so that peek is instant.
+  - **Opening a link:** after ENTER, the gateway screen opens pre-peeked at the linked world. The player still presses 入; a URL alone never moves anyone. A link to this node's own world does nothing.
+  - **One world per link:** the resolver takes an optional `worldId` and keeps only references whose `d` tag matches.
+  - **Published URLs:** presence `website`, the gateway spawn URL and the live probe now use the app URL, never the link the tab happens to be on.
+  - **Found, not fixed here:** 入 looks armed before the peek resolves, so an early press does nothing (the M2 napplet adds a host-confirmed "ready"). The repo CSP's `connect-src` lists fixed relays only; where it is enforced, Blossom manifests and other nodes' relays are blocked. chiefmonkey.art (nginx) sends no CSP header. Owner decision needed.
+  - **Not yet:** automatic mode choice (M3.3: Enter for Torii worlds, Gate v1 hand-off for others).
+
 ## Open owner decisions (resolved above)
 
 1. **Location path format:** `…/quest/w/<npub>/<world-id>` (proposed) or `…/quest/#/w/<npub>`.

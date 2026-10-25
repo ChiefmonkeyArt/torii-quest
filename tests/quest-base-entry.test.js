@@ -104,7 +104,7 @@ function expectCspMatchesFinalInline(build) {
   const source = inlineBootstrapSourceOf(build.indexHtml);
   const hash = inlineBootstrapSha256Of(build.indexHtml);
   expect(source).toContain('navigator.serviceWorker.register');
-  expect(source).toContain("import('");
+  expect(source).toContain("import((window.__toriiAppRoot || './') + '"); // v0.2.933
   expect(source).not.toContain('Instance Settings overlay');
   const tokens = scriptSrcTokens(build.headers);
   expect(tokens).toContain("'self'");
@@ -129,10 +129,13 @@ afterAll(() => {
 });
 
 describe('quest-base entry-import — every torii-entry URL is relative + content-hashed (root, /quest/, and arbitrary sub-path safe)', () => {
-  it('the inline bootstrap imports the entry via a relative ./assets/ path', () => {
+  it('the inline bootstrap imports the entry from the app root (./ fallback) + assets/', () => {
     const urls = collectEntryUrls(questBuild.indexHtml);
     expect(urls.length).toBe(1);
-    expect(urls[0]).toMatch(/^\.\/assets\/torii-entry-[A-Za-z0-9_-]+\.js$/);
+    // v0.2.933 (ADR-0147 M3): `(window.__toriiAppRoot || './') + 'assets/…'` so a
+    // /quest/w/<npub>/<world> link loads the same bundle; still base-free.
+    expect(urls[0]).toMatch(/^assets\/torii-entry-[A-Za-z0-9_-]+\.js$/);
+    expect(questBuild.indexHtml).toMatch(/import\(\(window\.__toriiAppRoot \|\| '\.\/'\) \+ 'assets\/torii-entry-[A-Za-z0-9_-]+\.js'\)/);
     // No root-absolute regression: the inline bootstrap must NOT point at
     // '/assets/...' (404s under a sub-path deploy) NOR carry a deploy base
     // prefix like '/quest/assets/...' (also 404s under a different sub-path).

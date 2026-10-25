@@ -81,7 +81,7 @@ describe('one island builder for boot, visits and homecoming', () => {
     expect(rt).toMatch(/function _removePlatformCollider\(\) \{\n\s*if \(!_platformBody\) return false;/);
   });
   it('the debug seam can come home and report state', () => {
-    expect(rt).toMatch(/goHome: async \(\) => \{ const was = _atHome; await _restoreHomeWorld\(\);/);
+    expect(rt).toMatch(/goHome: async \(\) => \{ const was = _atHome; await returnHome\(\);/);
     expect(rt).toMatch(/inventory: \(\) => \{/);
   });
 });

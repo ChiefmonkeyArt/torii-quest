@@ -219,7 +219,7 @@ console.log('[6] dist markers (skipped if no dist/)');
       // silent no-op (the v0.2.358/359 live regression). Assert it. v0.2.791-alpha:
       // the entry is content-hashed (no more `?v=` query). Match absolute (`/assets/`),
       // depth-rewritten relative (`./assets/`), AND base-prefixed (`/quest/assets/`).
-      if (/import\(\s*['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\s*\)/.test(distHtmlSrc)) {
+      if (/import\(\s*(?:\(window\.__toriiAppRoot \|\| '\.\/'\) \+ )?['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\s*\)/.test(distHtmlSrc)) {
         pass('dist index.html bootstraps the content-hashed torii-entry-<hash>.js import');
       } else {
         fail('dist index.html has NO hashed torii-entry-<hash>.js import — build would ship a dead bundle');
@@ -646,7 +646,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
         .map((line) => line.trim())
         .find((line) => line.startsWith('Content-Security-Policy:'));
       const emittedCsp = cspLine ? cspLine.slice('Content-Security-Policy:'.length).trim() : '';
-      if (!source.includes('navigator.serviceWorker.register') || !source.includes("import('")) {
+      if (!source.includes('navigator.serviceWorker.register') || !source.includes("import((window.__toriiAppRoot || './') + '")) {
         fail('dist inline bootstrap selector did not return the executable registration/import source');
       } else if (!emittedCsp) fail('dist/_headers is missing its Content-Security-Policy value');
       else if (!validateQuotedHashSource(emittedCsp, sha, 'dist/_headers script-src')) { /* detailed failure emitted above */ }
@@ -661,7 +661,7 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     // Accept absolute (`/assets/`), depth-rewritten relative (`./assets/`), or
     // base-prefixed (`/quest/assets/`) — the plugin emits the hashed entry relative
     // to the document. v0.2.791-alpha: no more `?v=` cache-bust query (the hash IS it).
-    else if (!/import\(['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\)/.test(distHtml)) fail("dist/index.html missing import('...torii-entry-<hash>.js') in the inline bootstrap");
+    else if (!/import\((?:\(window\.__toriiAppRoot \|\| '\.\/'\) \+ )?['"][^'"]*torii-entry-[A-Za-z0-9_-]+\.js['"]\)/.test(distHtml)) fail("dist/index.html missing import('...torii-entry-<hash>.js') in the inline bootstrap");
     else pass("entry loaded via content-hashed import() from the trusted inline bootstrap ('self' module graph + hash cache-bust)");
 
     const hashedEntryFiles = existsSync(join(ROOT, 'dist/assets'))

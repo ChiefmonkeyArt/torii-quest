@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 // to `/` and ENTRY_IMPORT_LINE is appended. This is used only when no emitted
 // dist/index.html is available. Shipped builds recompute the actual hash from final
 // emitted HTML and write it into dist/_headers, including path-prefix deployments.
-export const INLINE_SCRIPT_SHA256 = "sha256-cZvONGEOfBs064Y10hT0jZsB4vcNtJOP957wtMT+cNA=";
+export const INLINE_SCRIPT_SHA256 = "sha256-k9TZ0l8kla3dtpSVOf1BKBdr9SPT642AD4VHE+ecdxU=";
 
 const ATTRIBUTELESS_SCRIPT_RE = /<script\s*>([\s\S]*?)<\/script\s*>/gi;
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
@@ -96,7 +96,8 @@ export const CSP_VALUE = CSP_DIRECTIVES.map(([k, v]) => `${k} ${v}`).join("; ");
 // close. Any bit-level change here shifts the sha256 that pins the trusted
 // inline bootstrap; INLINE_SCRIPT_SHA256 above MUST be updated in the same
 // commit or the CSP will block the bootstrap and the page will be dead.
-export const ENTRY_IMPORT_LINE = "  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import('./assets/torii-entry-[hash].js'); }";
+// v0.2.933 (ADR-0147 M3): resolves from the shell's app root (world links).
+export const ENTRY_IMPORT_LINE = "  if (!window.__toriiShellImported) { window.__toriiShellImported = true; import((window.__toriiAppRoot || './') + 'assets/torii-entry-[hash].js'); }";
 
 // Build a CSP value whose script-src carries the GIVEN inline-script sha (used at build
 // time so the emitted _headers always matches the actual emitted inline bootstrap).

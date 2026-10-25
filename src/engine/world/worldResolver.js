@@ -94,7 +94,9 @@ export async function resolveWorldReference({ referenceEvent, fetchBlob, blossom
  * @param {{ pubkeyHex:string, relays?:string[],
  *           relayReqFn?:(url:string,filters:object,opts?:object)=>Promise<{ok:boolean,events:any[]}> }} args
  */
-export async function discoverWorldReference({ pubkeyHex, relays = [], relayReqFn } = {}) {
+// v0.2.933 (ADR-0147 M3): optional `worldId` keeps only references whose `d` tag
+// matches (a /w/<npub>/<world> link names one world). Omitted → the newest of any.
+export async function discoverWorldReference({ pubkeyHex, relays = [], relayReqFn, worldId } = {}) {
   if (!HEX64.test(pubkeyHex || '')) return null;
   if (typeof relayReqFn !== 'function') return null;
   const hex = pubkeyHex.toLowerCase();
@@ -122,7 +124,9 @@ export async function discoverWorldReference({ pubkeyHex, relays = [], relayReqF
     for (const evt of events) {
       if (!evt || evt.kind !== 30078) continue;
       if (!verifyNostrEventSig(evt)) continue;           // reject relay garbage/forgery
-      if (!parseWorldReference(evt)) continue;           // reject malformed
+      const ref = parseWorldReference(evt);
+      if (!ref) continue;                                // reject malformed
+      if (worldId && ref.worldId !== worldId) continue;  // a link names one world
       if (!_attributed(evt)) continue;                   // must be owned by hex (author or p-tag)
       if (!best || (evt.created_at || 0) > (best.created_at || 0)) best = evt;
     }
@@ -138,7 +142,7 @@ export async function discoverWorldReference({ pubkeyHex, relays = [], relayReqF
  *           fetchBlob?:Function, relayReqFn?:Function, blossomServer?:string }} args
  */
 export async function resolveWorldByNpub({
-  npub, pubkeyHex, referenceEvent, relays = [], fetchBlob, relayReqFn, blossomServer,
+  npub, pubkeyHex, referenceEvent, relays = [], fetchBlob, relayReqFn, blossomServer, worldId,
 } = {}) {
   const fail = (reason) => ({ ok: false, reason });
   let evt = referenceEvent;
@@ -149,7 +153,7 @@ export async function resolveWorldByNpub({
       try { hex = npubToHex(npub); } catch { hex = ''; }
     }
     if (!HEX64.test(hex)) return fail('bad-npub');
-    evt = await discoverWorldReference({ pubkeyHex: hex, relays, relayReqFn });
+    evt = await discoverWorldReference({ pubkeyHex: hex, relays, relayReqFn, worldId });
     if (!evt) return fail('no-reference');
   }
 

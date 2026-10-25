@@ -22,7 +22,7 @@ describe('P2 — NPC nameplate owner identity on travel (source contract)', () =
   it('main.js imports worldDirectoryLabel and passes ownerLabel through peekWorld', () => {
     expect(MAIN).toMatch(/import\s*\{[^}]*worldDirectoryLabel[^}]*\}\s*from\s*'\.\/engine\/gateway\/gatewayRead\.js'/);
     expect(MAIN).toMatch(/const ownerLabel = worldDirectoryLabel\(world\);/);
-    expect(MAIN).toMatch(/_arena\.peekWorld\(resolved\.world, \{ wsEndpoint: world\.wsEndpoint, ownerLabel \}\)/);
+    expect(MAIN).toMatch(/_arena\.peekWorld\(resolved\.world, \{ wsEndpoint: world\.wsEndpoint, ownerLabel(, npub)? \}\)/);
   });
 
   it('main.js wires onHomeRestored to the local owner-label repaint', () => {
@@ -30,8 +30,8 @@ describe('P2 — NPC nameplate owner identity on travel (source contract)', () =
   });
 
   it('runtime threads ownerLabel through _handlePeek → _pendingTravel → commitPeek', () => {
-    expect(RUNTIME).toMatch(/_pendingTravel = \{ world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' \? ownerLabel : '' \};/);
-    expect(RUNTIME).toMatch(/const \{ world, wsEndpoint, ownerLabel \} = _pendingTravel;/);
+    expect(RUNTIME).toMatch(/_pendingTravel = \{ world, wsEndpoint, ownerLabel: typeof ownerLabel === 'string' \? ownerLabel : ''(, npub: [^}]*)? \};/);
+    expect(RUNTIME).toMatch(/const \{ world, wsEndpoint, ownerLabel(, npub)? \} = _pendingTravel;/);
     // v0.2.884: commit awaits the swap so it can re-engage pointer lock when the
     // player walked through from the free-cursor state — ownerLabel is still passed.
     expect(RUNTIME).toMatch(/await travelToWorld\(world, \{ wsEndpoint, ownerLabel \}\);/);

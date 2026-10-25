@@ -74,13 +74,13 @@ describe('wiring', () => {
     expect(physics).toMatch(/export function disposeArenaColliders\(\) \{ return removeStatics\(_arenaStatics\); \}/);
   });
   it('legacy teardown removes colliders and dynamic crates before sweeping meshes', () => {
-    const i = rt.indexOf('function _teardownLegacyArena() {');
+    const i = rt.indexOf('function _teardownStarterIsland() {');
     const seg = rt.slice(i, rt.indexOf('sweepLegacyArena(scene);', i));
     expect(seg).toMatch(/disposeArenaColliders\(\);/);
     expect(seg).toMatch(/disposeDynamicCrates\(\);/);
   });
   it('push-around crates follow arena.crates and free their bodies on rebuild', () => {
-    expect(rt).toMatch(/if \(_homeHas\('arena\.crates'\)\) await step\('buildDynamicCrates'/);
+    expect(rt).toMatch(/function _islandPhysics\(plan\) \{\n\s*buildArenaColliders\(plan\);\n\s*if \(homeIncludes\(plan, 'arena\.crates'\)\) buildDynamicCrates\(\);/);
     expect(dc).toMatch(/export function buildDynamicCrates\(\) \{\n[^\n]*\n\s*disposeDynamicCrates\(\);/);
     expect(dc).toMatch(/removeDynamicCrate\(c\.handle\);/);
   });

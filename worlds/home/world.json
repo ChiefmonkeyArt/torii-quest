@@ -2,7 +2,8 @@
   "version": 1,
   "id": "home",
   "name": "Torii Quest home",
-  "description": "This node's home world, built from the Starter Pack (ADR-0147). Remove a component to leave it out; pieces not yet migrated to components are always built.",
+  "description": "This node's home world: a Starter Pack island (ADR-0147). Visitors build it from this same description. Remove a component to leave it out; leave out game.arena for a world with no combat.",
+  "base": "starter-island",
   "components": [
     {
       "id": "world.island"

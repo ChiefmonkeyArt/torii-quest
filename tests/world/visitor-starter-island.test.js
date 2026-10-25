@@ -117,23 +117,23 @@ describe('ownerBoards owner override', () => {
 describe('wiring', () => {
   const rt = read('src/arenaRuntime.js');
   it('a starter-island world takes the engine island path', () => {
-    expect(rt).toMatch(/if \(world\.base === 'starter-island'\) return _buildVisitedStarterIsland\(world, \{ worldId, arrival \}\);/);
-    const i = rt.indexOf('async function _buildVisitedStarterIsland');
+    expect(rt).toMatch(/if \(world\.base === 'starter-island'\) return _buildStarterIsland\(world, \{ worldId, arrival, home \}\);/);
+    const i = rt.indexOf('function _islandBoards(');
     const seg = rt.slice(i, rt.indexOf('async function travelToWorld', i));
-    for (const re of [/plan = planFromWorld\(world\)\.plan/, /_minimal = false;/, /buildArena\(scene, plan\)/, /buildArenaColliders\(plan\)/,
-      /setBoardOwnerOverride\(owner\)/, /if \(owner\) \{/, /cache: false/, /setNapNpcPresent\(false\)/, /resolveArrival\(world\)/]) expect(seg).toMatch(re);
+    for (const re of [/else \{ try \{ plan = planFromWorld\(world\)\.plan; \}/, /_minimal = false;/, /buildArena\(scene, plan\)/, /buildArenaColliders\(plan\)/,
+      /setBoardOwnerOverride\(home \? null : owner\)/, /if \(!home && !owner\) return;/, /cache: home/, /setNapNpcPresent\(false\)/, /resolveArrival\(world\)/,
+      /if \(home\) \{ try \{ _islandPortal\(\); \}/]) expect(seg).toMatch(re);
   });
-  it('data worlds clear the visit state; homecoming reloads or rebuilds', () => {
+  it('data worlds clear the visit state; homecoming rebuilds in place', () => {
     expect(rt).toMatch(/_visitingStarter = false; _visitPlan = null;\n\s*try \{ setBoardOwnerOverride\(null\); \}/);
-    expect(rt).toMatch(/if \(_homeWasLegacy && \(_minimal \|\| _visitingStarter\)\) \{/);
-    expect(rt).toMatch(/if \(\(!_minimal && !_visitingStarter\) \|\| !_homeWorld\) return;/);
+    expect(rt).toMatch(/if \(_atHome \|\| !_homeWorld\) return;/);
   });
   it('home-only paths stay off while visiting', () => {
     expect(rt).toMatch(/if \(!_visitingStarter\) _portalTrigger\.tick\(playerObj\.position\);/);
-    expect(rt).toMatch(/_homeHas = \(id\) => homeIncludes\(_visitingStarter \? _visitPlan :/);
+    expect(rt).toMatch(/_homeHas = \(id\) => homeIncludes\(_activePlan\(\), id\);/);
     expect(rt).toMatch(/if \(_gz && _combatHere\(\)\) _gz\.frame/);
-    expect(rt).toMatch(/_combatHere = \(\) => !_visitingStarter \|\| !_visitPlan \|\| _visitPlan\.has\('game\.arena'\)/);
-    expect(rt).toMatch(/disposeMirror\(\);[^\n]*\n\s*sweepLegacyArena\(scene\);/);
+    expect(rt).toMatch(/_combatHere = \(\) => \{ const p = _activePlan\(\); return !p \|\| p\.has\('game\.arena'\); \}/);
+    expect(rt).toMatch(/disposeMirror\(\);[^\n]*\n(?:\s*\/\/[^\n]*\n)?\s*try \{ disposePortalMesh\(\); \}[^\n]*\n(?:\s*\/\/[^\n]*\n)?\s*try \{ disposeProofSurfaceMeshes\(scene\); \}[^\n]*\n\s*sweepLegacyArena\(scene\);/);
   });
   it('boards never read or write the home cache while visiting', () => {
     const mb = read('src/engine/plebeian/marketBoards3d.js');
@@ -146,7 +146,8 @@ describe('wiring', () => {
   });
   it('the server publishes the home components + configured owner', () => {
     const ws = read('server/arena-ws.js');
-    expect(ws).toMatch(/homeComponents: _resolveHomeComponents\(\),/);
+    expect(ws).toMatch(/const HOME_COMPONENTS = _resolveHomeComponents\(\);/);
+    expect(ws).toMatch(/homeComponents: HOME_COMPONENTS,/);
     expect(ws).toMatch(/if \(text\.length > HOME_WORLD_MAX_BYTES\) continue;/);
     expect(read('server/presence/beacon.js')).toMatch(/home: homeComponents, owner: configured \? admin : undefined/);
   });

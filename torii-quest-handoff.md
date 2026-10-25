@@ -1,3 +1,17 @@
+## ONE HOME PATH: v0.2.932-alpha
+
+- **`homeWorld.js`:** `starterIslandWorld(plan)`; `planFromWorld` / `loadHomeWorld` return `world` as well. The bundled home says `base: 'starter-island'`.
+- **`arenaRuntime.js`:**
+  - island helpers: `_islandBoards/_islandScene/_islandMirror/_islandFoliage/_islandPhysics/_islandNpc/_islandPortal`;
+  - `_buildStarterIsland(world, {home})` covers visits and homecoming;
+  - `_atHome` replaces `_homeWasLegacy`; `_activePlan()`; `_combatHere()` gates `_gz.frame` and shots;
+  - `_removePlatformCollider()`; teardown disposes portal + signboards.
+- **`proofSurfaceMeshes.disposeProofSurfaceMeshes(scene)`.**
+- **`server/arena-ws.js`:** `HOME_COMPONENTS` (resolved once) → beacon + `GAME_ARENA_IN_HOME` gate on `createGameZoneServer`.
+- **Debug:** `ToriiDebug.world.goHome()`, `.state()`, `.inventory()`.
+- **Parity:** `/tmp/pw/parity.mjs <port> <tag> [trip]`. Old build: `git worktree add /tmp/tq931 v0.2.931-alpha`, preview on 4174.
+- **Gotcha:** restart `vite preview` after every build (its CSP header is computed at start; a stale one blocks the bootstrap).
+
 ## VISITORS BUILD THE STARTER ISLAND: v0.2.931-alpha
 
 - **Schema:** `base: 'starter-island'` and `owner` (hex). Both are dropped silently when invalid.

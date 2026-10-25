@@ -1,3 +1,10 @@
+## v0.2.932-alpha: coming home is instant, and combat is your choice
+
+Coming back from someone else's world no longer reloads the page; your island
+is rebuilt in place, exactly as it was when you first arrived. Leave
+`game.arena` out of your world description and your world has no bots or
+combat, for you and for visitors.
+
 ## v0.2.931-alpha: visitors see your island the way you set it up
 
 When someone travels to your world, their Quest now builds your island from

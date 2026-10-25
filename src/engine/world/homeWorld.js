@@ -30,19 +30,32 @@ export const HOME_REQUIRED = Object.freeze(['world.island']);
 const FULL = () => new Set(STARTER_PACK.map((c) => c.id));
 
 /**
- * world → { plan:Set<id>, source:'file'|'default', errors:string[] }.
+ * v0.2.932 (ADR-0147 M1.5): the home as a WORLD, the same shape a visitor
+ * receives: `base: 'starter-island'` + its components. Homecoming rebuilds
+ * this in place (no page reload), through the same builder visits use.
+ */
+export function starterIslandWorld(plan, { id = 'home', name = 'Torii Quest home', grassColor } = {}) {
+  const w = { version: 1, id, name, base: 'starter-island', components: [...(plan || FULL())].map((cid) => ({ id: cid })) };
+  if (grassColor) w.grassColor = grassColor;
+  return w;
+}
+
+const _full = (errors) => { const plan = FULL(); return { plan, source: 'default', errors, world: starterIslandWorld(plan) }; };
+
+/**
+ * world → { plan:Set<id>, source:'file'|'default', errors:string[], world }.
  * Unknown ids are reported and ignored; required ids are put back.
  */
 export function planFromWorld(world) {
   const errors = [];
-  if (!world || typeof world !== 'object') return { plan: FULL(), source: 'default', errors: ['no world'] };
+  if (!world || typeof world !== 'object') return _full(['no world']);
   const checked = validateWorld(world);
-  if (!checked.ok || !checked.world) return { plan: FULL(), source: 'default', errors: ['invalid world: ' + (checked.errors || []).slice(0, 3).join('; ')] };
+  if (!checked.ok || !checked.world) return _full(['invalid world: ' + (checked.errors || []).slice(0, 3).join('; ')]);
   // The RAW list: the schema drops an empty/invalid list, but an owner's
   // `components: []` means "nothing" (bar the required ground), not "everything".
   const list = world.components;
-  if (!Array.isArray(list)) return { plan: FULL(), source: 'default', errors: ['no components list'] };
-  if (list.length > HOME_MAX_COMPONENTS) return { plan: FULL(), source: 'default', errors: [`too many components (${list.length})`] };
+  if (!Array.isArray(list)) return _full(['no components list']);
+  if (list.length > HOME_MAX_COMPONENTS) return _full([`too many components (${list.length})`]);
   const plan = new Set();
   list.forEach((inst, i) => {
     const id = inst && typeof inst.id === 'string' ? inst.id : null;
@@ -51,7 +64,7 @@ export function planFromWorld(world) {
     plan.add(id);
   });
   for (const id of HOME_REQUIRED) if (!plan.has(id)) { plan.add(id); errors.push(`${id} is required for a home world; kept`); }
-  return { plan, source: 'file', errors };
+  return { plan, source: 'file', errors, world: starterIslandWorld(plan, { id: checked.world.id, name: checked.world.name, grassColor: checked.world.grassColor }) };
 }
 
 /**
@@ -68,8 +81,8 @@ export function homeIncludes(plan, id) {
 // The bundled description's plan; `error` (if any) explains why it was used.
 function _bundled(fallback, error) {
   const r = planFromWorld(fallback);
-  if (r.source !== 'file') return { plan: r.plan, source: 'default', errors: [...(error ? [error] : []), ...r.errors] };
-  return { plan: r.plan, source: 'bundled', errors: [...(error ? [error] : []), ...r.errors] };
+  if (r.source !== 'file') return { plan: r.plan, source: 'default', errors: [...(error ? [error] : []), ...r.errors], world: r.world };
+  return { plan: r.plan, source: 'bundled', errors: [...(error ? [error] : []), ...r.errors], world: r.world };
 }
 
 /**

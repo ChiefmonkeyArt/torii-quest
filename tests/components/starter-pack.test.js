@@ -53,7 +53,7 @@ describe('travel teardown stops the market boards (M1 step 4)', () => {
   const rt = read('src/arenaRuntime.js');
   const m3 = read('src/engine/plebeian/marketBoards3d.js');
   it('legacy teardown disposes the boards and resets the auction prompt first', () => {
-    expect(rt).toMatch(/function _teardownLegacyArena\(\) \{\n[^\n]*\n\s*try \{ disposeMarketBoards3d\(\); \} catch \{[^}]*\}\n\s*try \{ _auctionBoardTrigger\.reset\(\); \}/);
+    expect(rt).toMatch(/function _teardownStarterIsland\(\) \{\n[^\n]*\n\s*try \{ disposeMarketBoards3d\(\); \} catch \{[^}]*\}\n\s*try \{ _auctionBoardTrigger\.reset\(\); \}/);
   });
   it('dispose stops feeds, frees textures/materials, forgets the boards', async () => {
     expect(m3).toMatch(/export function disposeMarketBoards3d\(\) \{\n\s*_setWanted\(false\);/);

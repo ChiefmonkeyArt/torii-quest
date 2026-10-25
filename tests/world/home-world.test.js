@@ -164,10 +164,10 @@ describe('wiring', () => {
   });
   it('runtime loads the home description before building, base-aware, and reuses it for colliders', () => {
     const i = rt.indexOf("_homePlan = await loadHomeWorld({ fetchImpl: (u, o) => fetch(u, o), base: assetUrl('') });");
-    const j = rt.indexOf('buildArena(undefined, _homePlan.plan);');
+    const j = rt.indexOf('_islandScene(_homePlan.plan, { home: true });');
     expect(i).toBeGreaterThan(0);
     expect(j).toBeGreaterThan(i);
-    expect(rt).toMatch(/buildArenaColliders\(_homePlan \? _homePlan\.plan : null\)/);
+    expect(rt).toMatch(/_islandPhysics\(_homePlan \? _homePlan\.plan : null\)/);
     expect(rt).toMatch(/home: \(\) => \(_homePlan \? \{ source: _homePlan\.source/);
   });
 });
@@ -202,11 +202,13 @@ describe('group 2: NAP Zone, tree, mirror, greeter (v0.2.925)', () => {
     expect(physics).toMatch(/if \(!homeIncludes\(plan, OBSTACLE_OWNERS\[i\]\)\) return;/);
   });
   it('runtime gates the mirror and the deferred greeter build by the home plan', () => {
-    expect(rt).toMatch(/if \(_homeHas\('nap\.mirror'\)\) buildMirror\(\);/);
-    expect(rt).toMatch(/if \(!_homeHas\('npc\.greeter'\)\) return;\n\s*try \{ buildNapNpc\(\); \}/);
+    expect(rt).toMatch(/function _islandMirror\(plan\) \{ if \(homeIncludes\(plan, 'nap\.mirror'\)\) buildMirror\(\); \}/);
+    expect(rt).toMatch(/if \(homeIncludes\(plan, 'npc\.greeter'\)\) \{ if \(getNpcRoot\(\)\) setNapNpcPresent\(true\); else buildNapNpc\(\); \}/);
+    expect(rt).toMatch(/try \{ _islandNpc\(_homePlan \? _homePlan\.plan : null\); \}/);
     // the mirror's plan is loaded before it is built
-    expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf("_homeHas('nap.mirror')) buildMirror();"));
-    expect(rt).toMatch(/const _homeHas = \(id\) => homeIncludes\(_visitingStarter \? _visitPlan : \(_homePlan \? _homePlan\.plan : null\), id\);/);
+    expect(rt.indexOf('_homePlan = await loadHomeWorld')).toBeLessThan(rt.indexOf('_islandMirror(_homePlan.plan);'));
+    expect(rt).toMatch(/const _homeHas = \(id\) => homeIncludes\(_activePlan\(\), id\);/);
+    expect(rt).toMatch(/const _activePlan = \(\) => \(_visitingStarter \? _visitPlan : \(_homePlan \? _homePlan\.plan : null\)\);/);
   });
   it('a trimmed plan leaves them out; unmigrated pieces still build', () => {
     const plan = new Set(['world.island']);
@@ -232,7 +234,7 @@ describe('group 3: signs + PRODUCT/AUCTION boards (v0.2.926)', () => {
     expect(arena.match(/buildProofSurfaceMeshes\(scene\)/g).length).toBe(1);
   });
   it('each board follows its own piece; prompts only for boards that exist', () => {
-    expect(rt).toMatch(/products: _homeHas\('market\.products'\), auctions: _homeHas\('market\.auctions'\) \}\);/);
+    expect(rt).toMatch(/products: homeIncludes\(plan, 'market\.products'\), auctions: homeIncludes\(plan, 'market\.auctions'\), cache: home \}\);/);
     expect(rt).toMatch(/if \(marketBoardHas\('products'\)\) _productPanelTrigger\.tick/);
     expect(rt).toMatch(/if \(marketBoardHas\('auctions'\)\) _auctionBoardTrigger\.tick/);
     expect(rt).toMatch(/\(marketBoardHas\('products'\) && _productPanelTrigger\.inRange\(\)\) \|\| \(marketBoardHas\('auctions'\) && _auctionBoardTrigger\.inRange\(\)\)/);
@@ -279,7 +281,7 @@ describe('group 4: foliage, bridges, torii gate (v0.2.927)', () => {
     expect(homeIncludes(plan, 'torii.gate')).toBe(false);
   });
   it('foliage build follows world.foliage', () => {
-    expect(rt).toMatch(/if \(_homeHas\('world\.foliage'\)\) await buildFoliage\(/);
+    expect(rt).toMatch(/if \(homeIncludes\(plan, 'world\.foliage'\)\) await buildFoliage\(onProgress\);/);
   });
   it('only the gateway and the arena game remain always-on', async () => {
     const { starterPackProgress } = await import('../../src/engine/components/starterPack.js');

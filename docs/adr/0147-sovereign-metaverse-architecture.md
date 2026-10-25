@@ -203,6 +203,18 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - **Leak fix:** the mirror's reflection render target is now freed on travel (`disposeMirror`).
   - **Trust:** `owner` is asserted by the world's publisher (beacon-signed reference). At worst a world shows someone else's public listings; signatures on listings are still verified.
 
+- **v0.2.932, classic home path retired (M1.5); `game.arena` follows the description.**
+  - **The home is a world:** `worlds/home/world.json` says `base: 'starter-island'`. A description without `base` is still read as an island, so existing operator files keep working. `loadHomeWorld` returns the home as a world as well as its plan.
+  - **One island builder:** boot, visits and homecoming all run the same helpers (`_islandScene`, `_islandPhysics`, `_islandFoliage`, `_islandMirror`, `_islandNpc`, `_islandPortal`). `buildArena()` is now only the Starter Pack builder; there is no separate home path.
+  - **Homecoming:** rebuilds the island in place; the page reload is gone. Multiplayer is pointed back at this node's socket, which fixes a data-world home re-joining the visited server.
+  - **Parity check (M1.3):** headless, the v0.2.931 boot and the v0.2.932 boot have identical scene inventories (126 meshes, 1,210 colliders, 67 named objects, both boards). Home rebuilt after a visit matches home booted.
+  - **Leaks fixed by the parity check:**
+    - signboards were never rebuilt after travel (also missing for visitors in v0.2.931); now `disposeProofSurfaceMeshes` runs on teardown;
+    - a data world's platform collider survived into an island as an invisible slab;
+    - the NAP market portal mesh floated in other worlds.
+  - **Combat:** the client runs no bots and takes no shots when the active world leaves out `game.arena` (home or visit). The server runs its game zone only when the home description includes `game.arena`. Both read the same file, so they always agree.
+  - **Not in scope:** a home that is a whole data world (not an island) needs portable terrain assets, so it waits for the builder (M6). The `torii-world` meta flag stays a developer override.
+
 ## Open owner decisions (resolved above)
 
 1. **Location path format:** `…/quest/w/<npub>/<world-id>` (proposed) or `…/quest/#/w/<npub>`.

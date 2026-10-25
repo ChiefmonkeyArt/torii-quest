@@ -25,7 +25,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 2. **Home loads its own `world.json`.** **Started in v0.2.923:** the home reads `worlds/home/world.json` at boot. Its `components` list decides which migrated pieces are built; pieces not migrated yet are always built. A missing or invalid file falls back to the copy bundled in the app (v0.2.924), then the full pack, and `world.island` is always kept. Operators customise by creating `data/worlds/home/world.json`, which updates never overwrite. Visitors build from the same description: **done in v0.2.931** (`base: 'starter-island'` + components + owner in the published world; boards show the destination owner's store).
 3. **Parity check.** Screenshot the same viewpoints from the classic arena and the data home. They must match before anything is deleted.
 4. **Travel teardown.** Leaving a world stops its board feeds, sockets and textures (fixes the v0.2.920 background-feed leak). **Done in v0.2.922.** Physics too (colliders + push-around crates): **done in v0.2.930.**
-5. **Retire the classic arena.** Delete `buildArena()`'s home path; keep the mirror builder only as long as it's needed.
+5. **Retire the classic arena.** Delete `buildArena()`'s home path; keep the mirror builder only as long as it's needed. **Done in v0.2.932:** one island builder for boot, visits and homecoming; homecoming no longer reloads; parity checked headless. `game.arena` now follows the description on both client and server.
 
 ## Milestone 2: the Gateway Experience napplet
 

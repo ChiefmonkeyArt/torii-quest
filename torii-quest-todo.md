@@ -1,3 +1,12 @@
+## v0.2.932-alpha: one home path; combat follows the description
+
+- [x] Home description says `base: 'starter-island'`; boot, visits and homecoming share one island builder.
+- [x] Homecoming rebuilds in place (no reload) and re-points multiplayer at this node.
+- [x] Parity check: classic boot == new boot == home after a visit (scene + physics inventory).
+- [x] Fixed: signboards after travel, data-world platform collider, market portal in other worlds.
+- [x] `game.arena` left out → no bots or shots (client) and no game zone (server).
+- [ ] Next: M3 location links (`/quest/w/<npub>/<world>`), then the M2 Gateway napplet.
+
 ## v0.2.931-alpha: visitors see your island as you set it up
 
 - [x] Published world carries `base: 'starter-island'`, components and owner.

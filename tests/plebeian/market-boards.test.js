@@ -170,7 +170,8 @@ describe('wiring', () => {
   const m3 = readFileSync(new URL('../../src/engine/plebeian/marketBoards3d.js', import.meta.url), 'utf8');
   const psm = readFileSync(new URL('../../src/engine/world/proofSurfaceMeshes.js', import.meta.url), 'utf8');
   it('boards are created right after the legacy arena build', () => {
-    expect(rt).toMatch(/buildArena\(undefined, _homePlan\.plan\);\n(?:[^\n]*\n){1,2}\s*initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
+    expect(rt).toMatch(/function _islandScene\(plan, opts\) \{\n\s*buildArena\(scene, plan\);\n\s*_islandBoards\(plan, opts\);/);
+    expect(rt).toMatch(/initMarketBoards3d\(\{ scene, getBoard: getProofSurfaceBoard/);
   });
   it('ticked from the NAP branch; auction board has its own Q prompt and Q falls through to it', () => {
     expect(rt).toMatch(/setNapMode\(_inNapNow\);\n\s*tickMarketBoards3d\(dt, playerObj\.position, _inNapNow\);/);
@@ -274,7 +275,7 @@ describe('v0.2.920 touch VIEW button wiring', () => {
     expect(rt).toMatch(/useLabel: \(\) => \(isMarketActive\(\) \? 'CLOSE'/);
     expect(rt).toMatch(/\(marketBoardHas\('products'\) && _productPanelTrigger\.inRange\(\)\) \|\| \(marketBoardHas\('auctions'\) && _auctionBoardTrigger\.inRange\(\)\)\) \? 'VIEW'/);
     expect(rt).toMatch(/promptText: 'Tap VIEW to see products'/);
-    expect(rt).toMatch(/touch: shouldEnableTouch\(\), products: _homeHas\('market\.products'\)/);
+    expect(rt).toMatch(/touch: shouldEnableTouch\(\),\n\s*products: homeIncludes\(plan, 'market\.products'\)/);
   });
   it('saved listings: loaded at build, saved at most every 5 s, never with setTimeout', () => {
     expect(m3).toMatch(/_saved = _useCache \? _loadSaved\(\) : null;/);

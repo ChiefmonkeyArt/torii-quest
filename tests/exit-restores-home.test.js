@@ -43,31 +43,27 @@ describe('v0.2.868 — exit-restores-home (source contract)', () => {
 
   it('defines _restoreHomeWorld with a travelled-away guard (object identity)', () => {
     expect(RUNTIME_SRC).toMatch(/async function _restoreHomeWorld\(\)/);
-    // No-op unless we actually left home: minimal + a captured home + identity differs.
-    expect(RUNTIME_SRC).toContain('if ((!_minimal && !_visitingStarter) || !_homeWorld) return;');
-    expect(RUNTIME_SRC).toContain('if (_minimalWorld === _homeWorld) return;');
+    // v0.2.932: no-op unless we actually left home (_atHome flips on travel).
+    expect(RUNTIME_SRC).toContain('if (_atHome || !_homeWorld) return;');
+    expect(RUNTIME_SRC).toMatch(/async function _rebuildWorldInPlace\(world, \{ worldId = '', arrival = null, home = false \} = \{\}\) \{\n[^\n]*\n\s*_atHome = !!home;/);
     // The homecoming rebuilds the captured home via the shared swap, with the home
     // world id + the home's OWN spawn (not a gate arrival).
-    expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });');
+    expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn, home: true });');
   });
 
-  it('captures _homeWasLegacy in the legacy boot branch (v0.2.879 P0.2)', () => {
-    // A legacy home has no manifest; _homeWasLegacy records it so homecoming can
-    // reload instead of silently no-op'ing.
-    expect(RUNTIME_SRC).toContain('_homeWasLegacy = true;');
-    expect(RUNTIME_SRC).toContain('let _homeWasLegacy = false;');
+  it('v0.2.932: the island home is captured as a world (classic reload retired)', () => {
+    // The island home is a `base: 'starter-island'` world from its description, so
+    // homecoming rebuilds it in place like any other world.
+    expect(RUNTIME_SRC).toContain('_homeWorld = _homePlan.world || starterIslandWorld(_homePlan.plan);');
+    expect(RUNTIME_SRC).toContain('_homeSpawn = { x: SPAWN_X, z: SPAWN_Z, yaw: SPAWN_YAW };');
+    expect(RUNTIME_SRC).not.toContain('_homeWasLegacy');
+    const fn = RUNTIME_SRC.slice(RUNTIME_SRC.indexOf('async function _restoreHomeWorld()'), RUNTIME_SRC.indexOf('async function enter()'));
+    expect(fn).not.toContain('location.reload');
   });
 
-  it('reloads (same URL) when a legacy home travelled into a minimal foreign world', () => {
-    const src = RUNTIME_SRC;
-    // The legacy-home guard must run BEFORE the minimal/no-home guard, and it must
-    // reload the page (never rebuild in place — there is no manifest to rebuild).
-    const idxReload = src.indexOf('_homeWasLegacy && (_minimal || _visitingStarter)');
-    const idxNoop = src.indexOf('if ((!_minimal && !_visitingStarter) || !_homeWorld) return;');
-    expect(idxReload).toBeGreaterThan(-1);
-    expect(idxNoop).toBeGreaterThan(-1);
-    expect(idxReload).toBeLessThan(idxNoop);
-    expect(src).toContain('window.location.reload()');
+  it('v0.2.932: homecoming points multiplayer back at THIS node', () => {
+    const fn = RUNTIME_SRC.slice(RUNTIME_SRC.indexOf('async function _restoreHomeWorld()'), RUNTIME_SRC.indexOf('async function enter()'));
+    expect(fn.indexOf('_mp.setWsEndpoint(null)')).toBeGreaterThan(fn.indexOf('await _rebuildWorldInPlace(_homeWorld'));
   });
 
   it('enter() is async and restores home before waking the client', () => {
@@ -86,9 +82,9 @@ describe('v0.2.868 — exit-restores-home (source contract)', () => {
     // The shared helper is the single teardown+rebuild site: travel commits through
     // it (gate arrival) and the home restore reuses it (home spawn). One path means
     // a fix to the swap fixes both directions.
-    expect(RUNTIME_SRC).toMatch(/async function _rebuildWorldInPlace\(world, \{ worldId = '', arrival = null \} = \{\}\)/);
+    expect(RUNTIME_SRC).toMatch(/async function _rebuildWorldInPlace\(world, \{ worldId = '', arrival = null, home = false \} = \{\}\)/);
     expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(world, { worldId: world.id || \'\' });');
-    expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn });');
+    expect(RUNTIME_SRC).toContain('await _rebuildWorldInPlace(_homeWorld, { worldId: _homeWorldId, arrival: _homeSpawn, home: true });');
   });
 
   it('the swap lands via resolveArrival for a traveller, but the commanded arrival otherwise', () => {

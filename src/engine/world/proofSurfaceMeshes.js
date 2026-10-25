@@ -137,3 +137,23 @@ export function buildProofSurfaceMeshes(scene, opts = {}) {
   _state = Object.freeze({ rendered: true, count: plan.panels.length, ok: true, badge: plan.badge, reasons: [], parents: Object.freeze(parents) });
   return _state;
 }
+
+// v0.2.932 (ADR-0147 M1.5): remove the signboards and free their GPU memory
+// (geometries, materials, label textures) so the island can be rebuilt in place
+// after travel; the next buildProofSurfaceMeshes renders them again.
+export function disposeProofSurfaceMeshes(scene = null) {
+  const root = scene && typeof scene.getObjectByName === 'function' ? scene.getObjectByName(PROOF_SURFACE_GROUP) : null;
+  let freed = 0;
+  for (const { board, plate } of _boards.values()) {
+    for (const m of [plate, board]) {
+      try { if (m.material && m.material.map) m.material.map.dispose(); } catch { /* gone */ }
+      try { if (m.material) m.material.dispose(); } catch { /* gone */ }
+      try { if (m.geometry) m.geometry.dispose(); } catch { /* gone */ }
+    }
+    freed++;
+  }
+  _boards.clear();
+  try { if (root && root.parent) root.parent.remove(root); } catch { /* gone */ }
+  _state = Object.freeze({ rendered: false, count: 0, ok: false, badge: RENDER_PLAN_BADGE, reasons: ['disposed'] });
+  return freed;
+}

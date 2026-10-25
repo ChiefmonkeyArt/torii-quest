@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, basename } from 'node:path';
 import { defineConfig } from 'vite';
@@ -170,8 +170,33 @@ function cspHeaderPlugin() {
   };
 }
 
+// v0.2.934 (ADR-0147 M2): the gateway napplet's canonical source is the 0BSD
+// conformance kit (conformance/gateway-v1/napplet/), so any world can mount the same
+// files. Quest ships them at <base>napplets/gateway/ (build) and serves them in dev.
+const GATE_NAPPLET_DIR = 'conformance/gateway-v1/napplet';
+export const GATE_NAPPLET_FILES = Object.freeze({ 'index.html': 'text/html', 'gateway.js': 'text/javascript', 'gateway.css': 'text/css' });
+function gateNappletPlugin() {
+  return {
+    name: 'torii-gate-napplet',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const m = /\/napplets\/gateway\/([a-z.]+)(?:[?#].*)?$/.exec(req.url || '');
+        const type = m && GATE_NAPPLET_FILES[m[1]];
+        if (!type) return next();
+        res.setHeader('Content-Type', `${type}; charset=utf-8`);
+        res.end(readFileSync(join(GATE_NAPPLET_DIR, m[1])));
+      });
+    },
+    writeBundle(options) {
+      const out = join(options.dir || 'dist', 'napplets', 'gateway');
+      mkdirSync(out, { recursive: true });
+      for (const f of Object.keys(GATE_NAPPLET_FILES)) writeFileSync(join(out, f), readFileSync(join(GATE_NAPPLET_DIR, f)));
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [cspHeaderPlugin()],
+  plugins: [cspHeaderPlugin(), gateNappletPlugin()],
   server: { port: 5174 },
   build: {
     outDir: 'dist',

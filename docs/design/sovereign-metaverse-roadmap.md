@@ -29,6 +29,8 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Milestone 2: the Gateway Experience napplet
 
+**Done in v0.2.934** (items 1–5; the arrival card stays host-drawn for now).
+
 1. **Extract the doorway** into a napplet (`nap-torii-world` gate surface): directory, selection, peek controls, enter/cancel, status, arrival card. It runs sandboxed (`allow-scripts`, network denied).
 2. **Trusted gate services** in the host shell:
    - heartbeat publish and read with signature checks;

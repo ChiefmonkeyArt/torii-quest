@@ -1,3 +1,14 @@
+## GATEWAY NAPPLET: v0.2.934-alpha (ADR-0147 M2)
+
+- **Napplet (0BSD, canonical):** `conformance/gateway-v1/napplet/` (`index.html` with meta CSP `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'`…, `gateway.css`, `gateway.js` classic script). Nonce from `#c=`; sends `gate.ready/peek/enter/close/key/size`; receives `gate.state/peek/preview/theme`. 入 disabled until `gate.peek {ready:true}`. Text via `textContent` only.
+- **Protocol (pure):** `src/engine/gateway/gateNapplet.js` — `gateStateFor` (display-only rows; originals stay host-side), `parseGateRequest` (nonce + namespace + action + payload), `sanitizeGateTheme`, `GATE_FORWARD_KEYS` (movement only; Enter is an intent).
+- **Host:** `src/engine/gateway/gatewayScreen.js` (v4) — same API plus `markGatewayPeekReady`, `pushGatewayPreview` (transferable `ImageBitmap`), `setGatewayTheme`, `gatewayPeekKey`. Iframe `sandbox="allow-scripts"`, `src=BASE_URL+napplets/gateway/index.html#c=<nonce>`.
+- **Runtime:** `_handlePeek` → `markGatewayPeekReady()`; `_blitPreview` → `pushGatewayPreview()`; `ToriiDebug.world.gatewayTheme(vars)`. `main.js _gwPeek` drops a resolve whose key no longer matches `gatewayPeekKey()`.
+- **Build:** `vite.config.js gateNappletPlugin` copies the kit files to `dist/napplets/gateway/` and serves them in dev. `tools/csp.mjs` adds `frame-src 'self'`.
+- **Portability:** `conformance/gateway-v1/reference-world/doorway.mjs` (`mountDoorway`) + `doorway.html`.
+- **Tests:** `tests/gateway/gate-napplet-{host,ui,portable}.test.js` (jsdom runs the real napplet). Removed `tests/gateway-screen-{peek,commit}.test.js`.
+- **Headless:** `/tmp/pw/napplet.mjs` (napplet alone, ~1 min) and `/tmp/pw/link.mjs` (full game, drives the napplet frame).
+
 ## WORLD LINKS: v0.2.933-alpha
 
 - **`src/engine/location/worldPath.js`:** `appRootOf`, `parseWorldPath` (→ `{root, link:{npub, world|null}}` or `{error}`), `worldPathFor`, `appUrlOf`. Pure, validated (bech32 npub shape, slug world id).

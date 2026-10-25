@@ -225,6 +225,16 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - **Found, not fixed here:** 入 looks armed before the peek resolves, so an early press does nothing (the M2 napplet adds a host-confirmed "ready"). The repo CSP's `connect-src` lists fixed relays only; where it is enforced, Blossom manifests and other nodes' relays are blocked. chiefmonkey.art (nginx) sends no CSP header. Owner decision needed.
   - **Not yet:** automatic mode choice (M3.3: Enter for Torii worlds, Gate v1 hand-off for others).
 
+- **v0.2.934, the Gateway napplet (M2).**
+  - **The doorway is a napplet:** the directory, the "looking at" bar, 入 and ✕ run in a same-origin iframe with `sandbox="allow-scripts"` (opaque origin: no storage, no cookies, no parent DOM) and their own CSP (`connect-src 'none'`, no images, no frames, no forms). The canonical source is the 0BSD kit folder `conformance/gateway-v1/napplet/`; Quest ships it at `<base>napplets/gateway/`.
+  - **The host keeps all authority:** heartbeat reads, world resolution with hash checks, the travel ticket and the socket switch stay in the shell. The napplet only asks (`gate.peek {key}`, `gate.enter`, `gate.close`) and every message must carry the per-mount nonce, come from that frame, and name a row the host itself sent. Rows carry display strings only; endpoints and relays never cross.
+  - **Host-confirmed ready:** 入 stays disabled until the host has resolved the world (`gate.peek {ready:true}`). This fixes the early-press finding from v0.2.933. A late resolve for a world the player has clicked away from is dropped.
+  - **Engine adapter:** the torii, the 3D peek and arrival stay in the engine; the peek view crosses as a transferable `ImageBitmap` the napplet draws.
+  - **Portability proof:** the engine-free reference world mounts the same files (`reference-world/doorway.html`).
+  - **Restyling without authority:** the host may send colour variables (`--gw-*`, hex/rgb only), validated on both sides.
+  - **Page CSP:** `frame-src 'self'` (previously unset, so `default-src` applied).
+  - **Not yet:** the arrival card is still host-drawn.
+
 ## Open owner decisions (resolved above)
 
 1. **Location path format:** `…/quest/w/<npub>/<world-id>` (proposed) or `…/quest/#/w/<npub>`.

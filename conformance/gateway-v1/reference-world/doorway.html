@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: 0BSD -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torii Gate v1 reference world: the doorway napplet</title>
+<!-- The same gateway napplet Torii Quest mounts, in a world with no engine and its
+     own colours. Serve the conformance-kit folder over https (any static host). -->
+<script type="importmap">{ "imports": {
+  "@noble/curves/secp256k1.js": "https://esm.sh/@noble/curves@2.2.0/secp256k1.js",
+  "@noble/hashes/sha2.js": "https://esm.sh/@noble/hashes@2.2.0/sha2.js",
+  "@noble/hashes/utils.js": "https://esm.sh/@noble/hashes@2.2.0/utils.js"
+} }</script>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; color: #eee; background: #15120f; }
+  button { font: inherit; padding: .4rem .8rem; } .muted { color: #999; }
+</style>
+</head>
+<body>
+<h1>Reference world: doorway</h1>
+<p><button id="scan">Find worlds</button> <span id="status" class="muted"></span></p>
+<div id="doorway"></div>
+<script type="module">
+  import { FILTER, readWorlds, visitUrl } from '../gate-v1.mjs';
+  import { mountDoorway } from './doorway.mjs';
+  const RELAYS = ['wss://relay.damus.io/', 'wss://nos.lol/'];
+  const status = (t) => { document.getElementById('status').textContent = t; };
+  const door = mountDoorway({
+    container: document.getElementById('doorway'),
+    // Restyle without authority: colours only.
+    theme: { '--gw-accent': '#f7931a', '--gw-accent-2': '#b45309', '--gw-ink': '#ffe8c7', '--gw-soft': '#ffb86b', '--gw-glass': 'rgba(30, 20, 10, 0.8)' },
+    onEnter: async (w) => {
+      const traveller = window.nostr ? await window.nostr.getPublicKey() : '';
+      const v = visitUrl(w.website, { traveller, zone: w.zoneType === 'nap' ? w.zoneId : '' });
+      if (v.ok) location.href = v.url; else status('Refused: ' + v.error);
+    },
+  });
+  function req(relay, filter, ms = 5000) {
+    return new Promise((resolve) => {
+      const out = []; let ws;
+      const done = () => { try { ws.close(); } catch { /* closed */ } resolve(out); };
+      try { ws = new WebSocket(relay); } catch { resolve(out); return; }
+      const timer = setTimeout(done, ms);
+      ws.onopen = () => ws.send(JSON.stringify(['REQ', 'gate', filter]));
+      ws.onmessage = (m) => { let d; try { d = JSON.parse(m.data); } catch { return; } if (d[0] === 'EVENT') out.push(d[2]); if (d[0] === 'EOSE') { clearTimeout(timer); done(); } };
+      ws.onerror = () => { clearTimeout(timer); done(); };
+    });
+  }
+  document.getElementById('scan').onclick = async () => {
+    status('Scanning…');
+    const events = (await Promise.all(RELAYS.map((r) => req(r, { ...FILTER, limit: 200 })))).flat();
+    const worlds = readWorlds(events);
+    door.setWorlds(worlds);
+    status(`${worlds.length} live worlds.`);
+  };
+</script>
+</body>
+</html>

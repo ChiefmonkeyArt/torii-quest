@@ -220,7 +220,7 @@ import {
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
-import { refreshGatewayScreen, isGatewayScreenOpen } from './engine/gateway/gatewayScreen.js';
+import { refreshGatewayScreen, isGatewayScreenOpen, gatewayPeekKey } from './engine/gateway/gatewayScreen.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -715,6 +715,9 @@ async function _gwPeek(world) {
     return;
   }
   if (npub) _rememberLinkWorld(npub, resolved.world);
+  // v0.2.934: the player may have clicked another world while this one resolved.
+  const current = gatewayPeekKey();
+  if (current && world.pubkey && current !== world.pubkey) return;
   if (_arena && typeof _arena.peekWorld === 'function') {
     // P2 — carry the destination world's owner label into the peek so the landed
     // NAP-zone NPC nameplate shows the OWNER's name over THEIR mesh, not the

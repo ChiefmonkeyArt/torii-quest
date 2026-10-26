@@ -7,7 +7,7 @@
 - [x] Federation network policy stage 1 (owner option B, ADR-0149): `connect-src 'self' blob: https: wss:`. Closes the CSP federation finding.
 - [x] Preparation: `connectSrcFor` with an inactive `preferred` mode + operator additions; per-build `dist/csp.nginx.conf`.
 - [ ] **Reminder (ADR-0149 review triggers):** move to stage 2 (open federated + operator-preferred list) and stage 3 (split network helper) when: third-party markup renders in the main page; a CSP/XSS bug is reported; more than about 10 nodes federate or an operator asks for a closed list; any secret would live in the page; or before Start9/Umbrel packages ship.
-- [ ] chiefmonkey.art enforcement (torii-suite, operator-approved): `include …/current/csp.nginx.conf;` in the Quest location, plus `nginx -t && systemctl reload nginx` in the update runner.
+- [x] chiefmonkey.art enforcement: torii-suite v0.9.25-alpha (operator-approved 2026-10-26), applied with the v0.2.936-alpha deploy. The installer validates and includes `csp.nginx.conf` on the game document every deploy, then `torii reload`; it also restores the four security headers that nested locations had dropped.
 - [ ] The §8 heartbeat extension (a heartbeat names its world description and the modes it supports).
 - [ ] A link to a world with no description and no website still shows "finding …" (no visit is possible); show a clear "not reachable" state.
 
@@ -33,7 +33,7 @@
 - [x] M3.3 automatic mode choice (Enter vs Gate v1 hand-off; done in v0.2.935).
 - [x] Next: the M2 Gateway napplet (done in v0.2.934).
 - [x] Finding: 入 looks armed before the peek resolves; an early press does nothing. Fixed in v0.2.934 (host-confirmed "ready").
-- [ ] Finding (owner decision): the repo CSP `connect-src` lists fixed relays only, so where it is enforced, Blossom manifests and other nodes' relays are blocked and remote peeks fail. chiefmonkey.art (nginx) sends no CSP header at all. Federation needs a deliberate CSP policy (ADR).
+- [x] (Resolved by ADR-0149 stage 1, v0.2.935; enforced on chiefmonkey.art from v0.2.936 / Suite v0.9.25.) Finding (owner decision): the repo CSP `connect-src` lists fixed relays only, so where it is enforced, Blossom manifests and other nodes' relays are blocked and remote peeks fail. chiefmonkey.art (nginx) sends no CSP header at all. Federation needs a deliberate CSP policy (ADR).
 
 ## v0.2.932-alpha: one home path; combat follows the description
 

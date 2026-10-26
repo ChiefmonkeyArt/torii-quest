@@ -62,9 +62,7 @@ These are also tracked in `torii-quest-todo.md` under "Federation network policy
 
 - **Docker / bare-metal (Caddy):** enforced from v0.2.935 (they add `wss://<domain>`, which `wss:` already covers).
 - **Static hosts reading `_headers`:** enforced.
-- **chiefmonkey.art (nginx via torii-suite):** **not enforced yet.** The bootstrap hash changes every build, so a hand-pasted header would break the page on the next deploy. Enabling it is a torii-suite change, approved by each operator for their own VPS:
-  - `include /apps/quest/current/csp.nginx.conf;` in the Quest location (path per the install);
-  - `nginx -t && systemctl reload nginx` in the update runner after the release swap.
+- **nginx nodes via torii-suite (incl. chiefmonkey.art):** enforced from **torii-suite v0.9.25-alpha** (operator-approved for chiefmonkey.art 2026-10-26; applied with the Quest v0.2.936-alpha deploy). On every deploy `install-quest.sh` validates this build's `dist/csp.nginx.conf` (one `add_header` line, CSP-safe characters only), copies it to `/opt/torii/nginx-snippets/quest-csp.inc`, and the closing `torii reload` (`nginx -t`, then reload) applies the new hash. The header goes on the game document only (`location = /quest/index.html`, which every `/quest/` and `/quest/w/…` route serves); `dashboard.html` and the napplets keep their own meta policies. The same change restores torii-base's four security headers on Quest's nested locations. Other operators get it on their next approved update; `QUEST_CSP_ENFORCE=0` opts out.
 
 ## Consequences
 

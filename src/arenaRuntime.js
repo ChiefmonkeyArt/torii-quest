@@ -116,6 +116,7 @@ import { createBuiltinRegistry } from './engine/components/registry.js';
 import { loadCoastlineWallData, buildCoastlineWallColliders } from './engine/world/worldCoastline.js';
 import { makeTerrainLoader } from './engine/world/worldTerrainLoader.js';
 import { resolveArrival } from './engine/world/worldArrival.js';
+import { showArrivalCard } from './engine/gateway/arrivalCard.js';
 import { sweepLegacyArena } from './engine/world/legacyArenaTeardown.js';
 
 // setCharacter is re-exported so the shell's character selector (three-free) can
@@ -2712,13 +2713,27 @@ export function createArenaRuntime(hooks = {}) {
     const owner = typeof world.owner === 'string' ? world.owner : '';
     try { _islandScene(plan, { home, owner }); } catch (e) { _warn('island', e); }
     try { _islandPhysics(plan); } catch (e) { _warn('physics', e); }
-    try { await _islandFoliage(plan); } catch (e) { _warn('foliage', e); }
     try { _islandMirror(plan); } catch (e) { _warn('mirror', e); }
     try { _islandNpc(plan); } catch (e) { _warn('greeter', e); }
     if (home) { try { _islandPortal(); } catch (e) { _warn('portal', e); } }
     const sp = arrival || resolveArrival(world);
     try { setNextSpawn(sp.x, sp.z, sp.yaw); setYaw(sp.yaw); resetPlayerPos(); } catch (e) { _warn('respawn', e); }
+    // v0.2.935: the player has LANDED (ground, colliders, spawn). Say so now — the
+    // gate window closes and the arrival card shows — and grow the grass after.
+    // Foliage is ~7 s of CPU on a typical device and used to hold all of that back.
+    _fireLanded();
+    try { await _islandFoliage(plan); } catch (e) { _warn('foliage', e); }
     return { ok: true, base: 'starter-island', home };
+  }
+
+  // v0.2.935: a one-shot "the player has landed" hook. Set by travel / homecoming
+  // just before a rebuild; fired by the starter-island builder right after the
+  // respawn (before foliage), or by the caller after any other rebuild. Idempotent.
+  let _landedHook = null;
+  function _fireLanded() {
+    const h = _landedHook;
+    _landedHook = null;
+    if (typeof h === 'function') { try { h(); } catch (e) { console.warn('[travel] landed hook failed:', e && e.message ? e.message : e); } }
   }
 
   async function travelToWorld(world, opts = {}) {
@@ -2739,7 +2754,16 @@ export function createArenaRuntime(hooks = {}) {
       });
 
       // Shared in-place world swap (teardown + rebuild + terrain + colliders + land).
-      await _rebuildWorldInPlace(world, { worldId: world.id || '' });
+      // On landing (before foliage on an island): drop the gate window and run the
+      // caller's onLanded (the arrival card), so the hand-over reads as one motion.
+      _landedHook = () => {
+        try { if (opts && opts.ownerLabel) setNapNpcName(opts.ownerLabel); } catch { /* noop */ }
+        closeLiveMirror();
+        if (opts && typeof opts.onLanded === 'function') opts.onLanded();
+      };
+      const rebuilt = await _rebuildWorldInPlace(world, { worldId: world.id || '' });
+      if (rebuilt && rebuilt.ok === false) { _landedHook = null; throw new Error(rebuilt.reason || 'rebuild-failed'); }
+      _fireLanded(); // a non-island rebuild lands when it returns (no-op if fired)
 
       // P2 — the landed world's NPC greeter shows the DESTINATION owner's name over
       // THEIR mesh, not the traveller's (was resolving local identity). Best-effort:
@@ -2769,6 +2793,7 @@ export function createArenaRuntime(hooks = {}) {
       }
       return { ok: true, tier };
     } catch (e) {
+      _landedHook = null;
       closeLiveMirror();
       console.warn('[travel] in-place travel failed:', e && e.message ? e.message : e);
       return { ok: false, reason: e && e.message ? e.message : e };
@@ -2848,7 +2873,10 @@ export function createArenaRuntime(hooks = {}) {
     const { world, wsEndpoint, ownerLabel, npub } = _pendingTravel;
     _pendingTravel = null;
     try { closeGatewayScreen(); } catch { /* noop */ }
-    const result = await travelToWorld(world, { wsEndpoint, ownerLabel });
+    // v0.2.935 (M2): the gateway napplet's arrival card says where you landed, the
+    // moment you land (not after the grass has grown).
+    const onLanded = () => showArrivalCard({ kind: 'arrive', owner: ownerLabel, world: world.id || '', npub });
+    const result = await travelToWorld(world, { wsEndpoint, ownerLabel, onLanded });
     if (result && result.ok && npub) _onLocation({ home: false, npub, worldId: world.id || null });
     // The player may have walked through from the FREE-CURSOR state (v0.2.884);
     // re-engage pointer lock so the landed world plays exactly like normal entry
@@ -2879,7 +2907,9 @@ export function createArenaRuntime(hooks = {}) {
   async function returnHome() {
     if (_atHome || !_homeWorld) return { ok: false, reason: 'at-home' };
     try { closeLiveMirror(); } catch { /* noop */ }
-    await _restoreHomeWorld();
+    _landedHook = () => showArrivalCard({ kind: 'home' }); // v0.2.935: on landing
+    try { await _restoreHomeWorld(); } catch (e) { _landedHook = null; throw e; }
+    _fireLanded();
     try {
       if (_mp) {
         if (_mp.stop) { try { _mp.stop('travel'); } catch { /* noop */ } }

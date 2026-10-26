@@ -1,34 +1,63 @@
-// tests/csp-relay-sync.test.js — ADR-0120 guard: the CSP connect-src must stay in
-// lockstep with DEFAULT_NODE_RELAYS. A relay that leaves the default set without a
-// matching connect-src entry is a latent drift bug: the browser silently cannot
-// reach it (the WebSocket open is blocked by CSP), which is exactly the class of
-// bug that let damus/primal/snort/nostr.mom fall out of connect-src after ADR-0104.
+// tests/csp-relay-sync.test.js — ADR-0120 + ADR-0149 guard. The page's connect-src must
+// permit every default relay (a relay the browser cannot open is a silent drift bug),
+// and the curated PREFERRED list (stage 2 of ADR-0149) must stay in lockstep with
+// DEFAULT_NODE_RELAYS so switching modes never strands a relay.
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_NODE_RELAYS } from '../src/engine/presence/nodeRelays.js';
 
-const { CSP_DIRECTIVES } = await import('../tools/csp.mjs');
+const { CSP_DIRECTIVES, CONNECT_MODE, CONNECT_MODES, PREFERRED_CONNECT_SOURCES, connectSrcFor, isOperatorConnectSource, nginxIncludeBodyForSha, cspValueForSha } = await import('../tools/csp.mjs');
 
 function connectSrcValue() {
   const entry = CSP_DIRECTIVES.find(([k]) => k === 'connect-src');
   return entry ? entry[1] : '';
 }
+// Minimal CSP source matcher for the source kinds we emit (scheme-source, host-source).
+function permits(csp, url) {
+  const u = new URL(url);
+  return csp.split(/\s+/).some((src) => src === u.protocol || src === `${u.protocol}//${u.host}`);
+}
 
-describe('CSP connect-src ⟷ DEFAULT_NODE_RELAYS sync (ADR-0120)', () => {
-  it('lists a connect-src covering every default relay, plus the allowed http endpoint', () => {
+describe('CSP connect-src (ADR-0120, ADR-0149)', () => {
+  it('stage 1 is OPEN: any secure server, never http:/ws:/*', () => {
+    expect(CONNECT_MODE).toBe(CONNECT_MODES.OPEN);
     const csp = connectSrcValue();
-    // Same-origin + blob + the update-check endpoint are always whitelisted.
-    expect(csp).toContain("'self' blob:");
-    expect(csp).toContain('https://api.github.com');
-    for (const relay of DEFAULT_NODE_RELAYS) {
-      // e.g. 'wss://relay.damus.io' → host 'relay.damus.io'
-      const host = new URL(relay).host;
-      expect(csp, `connect-src must allow ${host}`).toContain(`wss://${host}`);
-    }
+    expect(csp).toBe("'self' blob: https: wss:");
+    for (const bad of ['http:', 'ws:', '*', 'data:']) expect(csp.split(' ')).not.toContain(bad);
   });
 
-  it('has no stale relays that were removed from the default set', () => {
+  it('the active policy permits every default relay, the update check and other nodes', () => {
     const csp = connectSrcValue();
-    // ADR-0104 removed these from the presence path; they must not linger.
-    expect(csp).not.toContain('wss://relay.vertexlab.io');
+    for (const relay of DEFAULT_NODE_RELAYS) expect(permits(csp, relay), relay).toBe(true);
+    expect(permits(csp, 'https://api.github.com/repos/x')).toBe(true);
+    expect(permits(csp, 'wss://plebeian.build/relay')).toBe(true); // another node's relay
+    expect(permits(csp, 'https://blossom.primal.net/abc')).toBe(true); // Blossom media
+    expect(permits(csp, 'http://insecure.example/')).toBe(false);
+    expect(permits(csp, 'ws://insecure.example/')).toBe(false);
+  });
+
+  it('the prepared PREFERRED list covers every default relay (stage 2 is ready)', () => {
+    const pref = connectSrcFor(CONNECT_MODES.PREFERRED);
+    for (const relay of DEFAULT_NODE_RELAYS) expect(permits(pref, relay), relay).toBe(true);
+    expect(pref).toContain('https://api.github.com');
+    expect(pref).not.toContain('https: ');
+    expect(PREFERRED_CONNECT_SOURCES).not.toContain('wss://relay.vertexlab.io'); // ADR-0104
+  });
+
+  it('operator additions are bare secure origins only', () => {
+    const pref = connectSrcFor(CONNECT_MODES.PREFERRED, { extra: ['wss://plebeian.build', 'https://blossom.primal.net', 'http://x.example', 'wss://*.evil', "wss://a.example 'unsafe-inline'", 'wss://a.example/path', 'wss://plebeian.build'] });
+    expect(pref).toContain('wss://plebeian.build');
+    expect(pref).toContain('https://blossom.primal.net');
+    expect(pref.split(' ').filter((s) => s === 'wss://plebeian.build')).toHaveLength(1);
+    for (const bad of ['http://x.example', '*.evil', 'unsafe-inline', '/path']) expect(pref).not.toContain(bad);
+    expect(isOperatorConnectSource('wss://localhost')).toBe(false);
+    expect(() => connectSrcFor('everything')).toThrow();
+  });
+
+  it('nginx nodes get the same per-build policy as an include (dist/csp.nginx.conf)', () => {
+    const sha = 'sha256-' + 'A'.repeat(43) + '=';
+    const body = nginxIncludeBodyForSha(sha);
+    expect(body).toContain(`add_header Content-Security-Policy "${cspValueForSha(sha)}" always;`);
+    expect(body.split('\n').filter((l) => l.startsWith('add_header'))).toHaveLength(1);
+    expect(() => nginxIncludeBodyForSha('sha256-x"; add_header X "y')).toThrow();
   });
 });

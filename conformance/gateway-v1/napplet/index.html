@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: 0BSD -->
-<!-- Torii gateway napplet v1: the doorway UI only (directory, peek, enter, cancel).
-     Mount it in <iframe sandbox="allow-scripts" src=".../index.html#c=<nonce>">.
+<!-- Torii gateway napplet v1: the doorway UI only (directory, peek, enter/visit, cancel)
+     and the arrival card. Mount it in <iframe sandbox="allow-scripts"
+     src=".../index.html#c=<nonce>"> (add &m=arrival for the arrival card).
      No authority: it renders what the host sends and posts intents back. Network,
      images, fonts, frames, workers and forms are all denied by the policy below. -->
 <html lang="en">
@@ -25,11 +26,22 @@
       <div id="looking"></div>
       <button id="enter" type="button" disabled aria-label="Enter this world">入 · ENTER</button>
     </div>
+    <div id="peeknote" hidden></div>
+    <div id="confirm" role="alertdialog" aria-labelledby="confirm-q" hidden>
+      <span id="confirm-q"></span>
+      <button id="go" type="button">GO ↗</button>
+      <button id="stay" type="button">STAY</button>
+    </div>
     <canvas id="preview" aria-hidden="true" hidden></canvas>
   </section>
   <div id="cols"></div>
   <div id="note" hidden>login with nostr to travel</div>
   <div id="hint">click a world to look · F to gaze around · Enter to enter · ✕ to step away</div>
 </main>
+<aside id="arrival" aria-live="polite" hidden>
+  <div id="arr-kicker"></div>
+  <div id="arr-title"></div>
+  <div id="arr-sub"></div>
+</aside>
 </body>
 </html>

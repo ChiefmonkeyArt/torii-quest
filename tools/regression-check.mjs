@@ -583,8 +583,13 @@ console.log('[16] CSP via HTTP header + vendored Draco (S3+S4)');
     CSP_VALUE = csp.CSP_VALUE; INLINE_SHA = csp.INLINE_SCRIPT_SHA256; HEADERS_BODY = csp.headersFileBody();
     INLINE_SOURCE_OF = csp.inlineBootstrapSourceOf;
     INLINE_SHA_OF = csp.inlineBootstrapSha256Of;
-    const need = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src', 'https://api.github.com'];
+    const need = ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "'wasm-unsafe-eval'", 'worker-src', 'connect-src'];
     const missing = need.filter((d) => !CSP_VALUE.includes(d));
+    // ADR-0149: connect-src must permit the update check — explicitly (preferred list)
+    // or via the secure-scheme source (stage 1 open). Insecure schemes never appear.
+    const connect = (/connect-src ([^;]*)/.exec(CSP_VALUE) || [])[1] || '';
+    if (!/(^| )(https:|https:\/\/api\.github\.com)( |$)/.test(connect)) missing.push('connect-src https (update check)');
+    if (/(^| )(http:|ws:|\*)( |$)/.test(connect)) missing.push('connect-src without http:/ws:/*');
     const fallbackHashOk = validateQuotedHashSource(CSP_VALUE, INLINE_SHA, 'tools/csp.mjs CSP_VALUE script-src');
     const suppliedHash = 'sha256-' + createHash('sha256').update('dynamic-csp-hash-source-check', 'utf8').digest('base64');
     const dynamicCsp = csp.cspValueForSha(suppliedHash);

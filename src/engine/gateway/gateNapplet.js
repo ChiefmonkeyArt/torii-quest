@@ -14,7 +14,19 @@ import { worldDirectoryLabel } from './gatewayRead.js';
 export const GATE_NS = 'gate';
 export const GATE_NAPPLET_PATH = 'napplets/gateway/index.html';
 export const GATE_ROW_CAP = 24;
-const ACTIONS = new Set(['ready', 'peek', 'enter', 'close', 'key', 'size']);
+const ACTIONS = new Set(['ready', 'peek', 'enter', 'stay', 'close', 'key', 'size']);
+// v0.2.935 (ADR-0147 M3.3): how 入 travels for the peeked world.
+//   enter — a Torii world Quest can build: walk through in place (no page load).
+//   visit — another engine: hand off to its website (Gate v1), behind a host-tracked
+//           confirm ("Leave Torii Quest for <host>?").
+export const GATE_MODES = Object.freeze({ ENTER: 'enter', VISIT: 'visit' });
+// Why a world is offered as a visit (napplet shows a fixed sentence per code).
+export const GATE_NOTES = Object.freeze(['other-engine', 'enter-failed']);
+const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+/** A display hostname (lower-case, no port/path), or ''. */
+export function gateHostLabel(url) {
+  try { const h = new URL(url).hostname.toLowerCase(); return HOSTNAME.test(h) ? h : ''; } catch { return ''; }
+}
 // Keys a focused napplet may hand back to the game (movement + gaze). Enter and
 // Escape are NOT forwarded: the napplet maps them to the `enter`/`close` intents.
 export const GATE_FORWARD_KEYS = Object.freeze(new Set([
@@ -90,6 +102,7 @@ export function parseGateRequest(msg, channelId) {
     return { action, data: { type: d.type, code: d.code } };
   }
   if (action === 'size') return Number.isFinite(d.h) && d.h > 0 ? { action, data: { h: Math.min(4000, Math.round(d.h)) } } : null;
+  if (action === 'enter') return { action, data: { confirm: d.confirm === true } };
   return { action, data: {} };
 }
 
@@ -102,4 +115,16 @@ export function sanitizeGateTheme(vars) {
     if (typeof v === 'string' && v.length <= 40 && COLOUR.test(v.trim())) out[k] = v.trim();
   }
   return out;
+}
+
+// ── v0.2.935 (ADR-0147 M2): the arrival card ─────────────────────────────────────
+// The same napplet, mounted non-interactive in `#m=arrival` mode, shows who you just
+// arrived with and fades itself. Display strings only, capped.
+export const GATE_ARRIVAL_KINDS = Object.freeze(['arrive', 'home']);
+const clip = (v, n) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, n) : '');
+/** → the gate.arrival payload, or null for an unknown kind. */
+export function gateArrivalFor({ kind = 'arrive', owner = '', world = '', npub = '' } = {}) {
+  if (!GATE_ARRIVAL_KINDS.includes(kind)) return null;
+  const n = clip(npub, 80);
+  return { kind, owner: clip(owner, 80), world: clip(world, 80), npub: /^npub1[02-9ac-hj-np-z]{6,}$/.test(n) ? `${n.slice(0, 12)}…${n.slice(-6)}` : '' };
 }

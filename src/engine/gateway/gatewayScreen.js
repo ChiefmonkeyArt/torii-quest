@@ -15,6 +15,9 @@
 //   markGatewayPeekReady()      — the host resolved the peek; 入 may travel now
 //   peekGateWorld(world)        — pre-peek from outside (menu / world link hand-off)
 //   setGatewayTheme(vars)       — restyle (validated colours only; no authority)
+//   markGatewayPeekVisit({ host, note }) — v0.2.935 (M3.3): the peeked world is another
+//                                 engine; 入 becomes "Visit site ↗" behind a HOST-tracked
+//                                 confirm (first press asks, the confirm press travels)
 //
 // Trust rules (by construction):
 //   - Only messages whose event.source is THIS iframe's contentWindow AND whose
@@ -22,14 +25,15 @@
 //   - gate.peek names a row by key; only rows the host sent can be peeked, and only
 //     when the player is travel-capable.
 //   - gate.enter travels only when a peek is armed AND the host marked it ready.
+//   - A visit (leaving Quest) needs two steps the HOST tracks: ask → confirm.
 //   - Forwarded keys are a fixed movement/gaze set; Enter/Escape are intents.
 //   - Display strings only cross the boundary (labels, short keys) — never relays,
 //     endpoints or identities beyond what the directory already shows.
 
 import { generateChannelId } from '../napplets/nappletSrcdoc.js';
-import { GATE_NAPPLET_PATH, gateStateFor, gateRowKey, gateRowView, parseGateRequest, sanitizeGateTheme } from './gateNapplet.js';
+import { GATE_NAPPLET_PATH, GATE_MODES, GATE_NOTES, gateStateFor, gateRowKey, gateRowView, parseGateRequest, sanitizeGateTheme } from './gateNapplet.js';
 
-export const GATEWAY_SCREEN_VERSION = 4;
+export const GATEWAY_SCREEN_VERSION = 5;
 
 let _el = null;           // backdrop (click outside the card closes)
 let _iframe = null;
@@ -44,6 +48,10 @@ let _rows = new Map();    // key → world record (what a gate.peek may name)
 let _state = null;        // last gate.state payload
 let _peeking = null;      // the world record currently peered at (or null)
 let _peekReady = false;
+let _mode = GATE_MODES.ENTER; // how 入 travels for the current peek (M3.3)
+let _visitHost = '';
+let _note = '';
+let _confirming = false;      // a visit asked "leave for <host>?"; the next 入 goes
 let _theme = {};
 let _previewCanvas = null;
 let _previewBusy = false;
@@ -60,7 +68,7 @@ function _post(type, data, transfer) {
 
 function _sendPeek() {
   const v = _peeking ? gateRowView(_peeking) : null;
-  _post('gate.peek', v ? { key: v.key || 'pre', label: v.label, ready: _peekReady } : { key: '' });
+  _post('gate.peek', v ? { key: v.key || 'pre', label: v.label, ready: _peekReady, mode: _mode, host: _visitHost, note: _note, confirm: _confirming } : { key: '' });
 }
 
 function _flush() {
@@ -81,7 +89,8 @@ function _onMessage(ev) {
       if (w) _armPeek(w);
       break;
     }
-    case 'enter': _commit(); break;
+    case 'enter': _commit(req.data.confirm === true); break;
+    case 'stay': if (_confirming) { _confirming = false; _sendPeek(); } break;
     case 'close': _close(); break;
     case 'key': {
       if (!_open || typeof document === 'undefined' || typeof KeyboardEvent !== 'function') return;
@@ -148,15 +157,24 @@ function _close() {
   if (typeof cb === 'function') { try { cb(); } catch { /* host close is best-effort */ } }
 }
 
-function _commit() {
+function _commit(confirm) {
   if (!_open || !_peeking || !_peekReady) return; // 入 travels only on a READY peek
+  if (_mode === GATE_MODES.VISIT) {
+    // Leaving Quest: the first press only ASKS; the host remembers it asked, and only
+    // a confirm while asking travels. A napplet cannot skip the question.
+    if (!_confirming || !confirm) { _confirming = true; _sendPeek(); return; }
+    _confirming = false;
+  }
   const cb = _onCommit;
   if (typeof cb === 'function') { try { cb(); } catch { /* host commit is best-effort */ } }
 }
 
+function _resetMode() { _mode = GATE_MODES.ENTER; _visitHost = ''; _note = ''; _confirming = false; }
+
 function _clearPeek() {
   _peeking = null;
   _peekReady = false;
+  _resetMode();
   _sendPeek();
 }
 
@@ -166,6 +184,7 @@ function _armPeek(w) {
   if (typeof _onPeek !== 'function') return;
   _peeking = w;
   _peekReady = false;
+  _resetMode();
   _sendPeek();
   try { _onPeek(w); } catch { /* host peek is best-effort */ }
 }
@@ -185,6 +204,7 @@ export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanSt
   _canTravel = !!canTravel;
   _peeking = null;
   _peekReady = false;
+  _resetMode();
   _render({ mutualFriends, otherWorlds, scanStatus, canTravel: _canTravel });
   _sendPeek();
   _open = true;
@@ -202,9 +222,10 @@ export function refreshGatewayScreen({ mutualFriends = [], otherWorlds = [], sca
 }
 
 export function closeGatewayScreen() { _close(); }
-export function commitGatewayScreen() { _commit(); }
+// Keyboard Enter: in visit mode the first press asks, a second press (while asking) goes.
+export function commitGatewayScreen() { _commit(_confirming); }
 export function isGatewayScreenOpen() { return _open; }
-export function getGatewayPreviewCanvas() { return _open && _peeking ? _previewCanvas : null; }
+export function getGatewayPreviewCanvas() { return _open && _peeking && _mode === GATE_MODES.ENTER ? _previewCanvas : null; }
 export function isGatewayCommitting() { return !!_peeking; }
 /** The key of the row being peeked ('' when none) — a late resolve for another row is stale. */
 export function gatewayPeekKey() { return _peeking ? gateRowKey(_peeking) : ''; }
@@ -216,6 +237,26 @@ export function markGatewayPeekReady() {
   _sendPeek();
   return true;
 }
+
+/**
+ * v0.2.935 (M3.3): the current peek is another engine (or could not be built here):
+ * arm 入 as a VISIT to `host`. `note` ∈ GATE_NOTES says why. Returns false when closed,
+ * not peeking or the host label is empty.
+ */
+export function markGatewayPeekVisit({ host = '', note = 'other-engine' } = {}) {
+  if (!_open || !_peeking || typeof host !== 'string' || !host) return false;
+  _mode = GATE_MODES.VISIT;
+  _visitHost = host.slice(0, 253);
+  _note = GATE_NOTES.includes(note) ? note : 'other-engine';
+  _confirming = false;
+  _peekReady = true;
+  _sendPeek();
+  return true;
+}
+/** 'enter' | 'visit' for the current peek ('' when none). */
+export function gatewayPeekMode() { return _peeking ? _mode : ''; }
+/** The validated theme (the arrival card wears the same colours). */
+export function getGatewayTheme() { return { ..._theme }; }
 
 /** Send the preview canvas to the napplet as a transferable bitmap (one in flight). */
 export function pushGatewayPreview() {

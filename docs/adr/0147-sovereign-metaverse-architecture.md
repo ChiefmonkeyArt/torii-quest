@@ -233,7 +233,14 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
   - **Portability proof:** the engine-free reference world mounts the same files (`reference-world/doorway.html`).
   - **Restyling without authority:** the host may send colour variables (`--gw-*`, hex/rgb only), validated on both sides.
   - **Page CSP:** `frame-src 'self'` (previously unset, so `default-src` applied).
-  - **Not yet:** the arrival card is still host-drawn.
+  - **Not yet:** the arrival card is still host-drawn (done in v0.2.935).
+
+- **v0.2.935, automatic travel mode (M3.3) and the arrival card (M2). Owner choices 2026-10-26: mode option C, arrival option B; network policy option B in ADR-0149.**
+  - **Automatic, labelled mode** (`src/engine/gateway/travelMode.js`, pure): a signed, hash-verified Torii world description → **Enter** (in place). No description (`no-reference`, after one retry, since relays can miss an event for a moment) → **Visit** (`other-engine`, shown as "no Torii world found here"). A world Quest could not build (`fetch-failed`, `bad-json`, `invalid-world`, `resolve-error`, or a failed Enter) → **Visit** (`enter-failed`). A forgery or tampering signal (`bad-sig`, `hash-mismatch`, `bad-reference`, `bad-npub`) → refused.
+  - **The visit confirm is host-tracked:** in visit mode the first 入 only makes the host ask "Leave Torii Quest for <host>?"; only a confirm while asking travels. A napplet cannot skip the question. The URL is the hardened Gate v1 hop (`openVisit.buildVisitUrl`: https, public host, default port, no credentials, `?torii-traveller=<hex>`).
+  - **One navigation point:** `main.js _gwHandOff` is the only cross-host navigation; the v0.2.790 regression test now locks that (Torii worlds still travel in place).
+  - **Land first:** the island builder now respawns the player and fires a one-shot "landed" hook BEFORE the ~7 s foliage build; the gate window closes and the arrival card shows at that moment, and the grass grows in after.
+  - **Arrival card:** the same napplet mounted with `#c=<nonce>&m=arrival` (`src/engine/gateway/arrivalCard.js`): sandboxed, `pointer-events: none`, never focused, wears the gateway theme. It shows "入 arrived · <owner>'s world · <world> · <npub>" (or "⛩ home again"), fades itself and says `gate.close`. No timers in the host.
 
 ## Open owner decisions (resolved above)
 

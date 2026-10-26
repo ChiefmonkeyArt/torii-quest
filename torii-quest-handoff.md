@@ -1,3 +1,9 @@
+## CSP ENFORCED ON NGINX: v0.2.936-alpha (docs-only; pairs with torii-suite v0.9.25-alpha)
+
+- torii-suite `lib/quest-headers.sh` + `install-quest.sh`: validates `dist/csp.nginx.conf`, writes `/opt/torii/nginx-snippets/quest-{security,csp}.inc` each deploy, includes the CSP in `location = /quest/index.html` only, then `torii reload`. Keep `csp.nginx.conf` a single valid `add_header Content-Security-Policy "…" always;` line (charset `[A-Za-z0-9 ;:/'+=._*-]`, must contain `script-src ` and `object-src 'none'`), or nginx nodes silently send no policy (`csp-missing` in the deploy log).
+- Any new inline script in index.html changes the hash automatically (vite plugin); a new HTML page under /quest/ that is not index.html gets NO header CSP and needs its own meta policy.
+- Check: `curl -sI https://chiefmonkey.art/quest/ | grep -i content-security`.
+
 ## TRAVEL MODES + ARRIVAL CARD + NETWORK POLICY: v0.2.935-alpha
 
 - **Mode choice (ADR-0147 M3.3):** `src/engine/gateway/travelMode.js` `chooseTravelMode(resolved, row, {ourHex})` → enter | visit {url, host, note} | none. `main.js _gwPeek` retries a `no-reference` once (relay flakes), then calls it on a failed resolve and `_offerVisit` → `markGatewayPeekVisit`. `_gwCommit` → `_gwHandOff(url)` only when `gatewayPeekMode()==='visit'` and the key matches (the ONLY cross-host navigation; locked by `tests/v0.2.790-regression.test.js`). A failed `commitPeek` reopens the row with `_forceVisitKey` (note `enter-failed`).
@@ -5,7 +11,7 @@
 - **Arrival card:** `src/engine/gateway/arrivalCard.js` `showArrivalCard({kind, owner, world, npub})`; called from `arenaRuntime.commitPeek` (ok) and `returnHome`. Napplet `#c=<nonce>&m=arrival`, closes on `animationend`.
 - **Land first (speed):** `arenaRuntime _landedHook` / `_fireLanded()` (one-shot, success only). `_buildStarterIsland` order: scene → physics → mirror → greeter → portal → respawn → `_fireLanded()` → `await _islandFoliage`. `travelToWorld` sets the hook (greeter name, `closeLiveMirror`, `opts.onLanded`); `returnHome` sets the home card. Locked by `tests/gateway/travel-landing.test.js`.
 - **Network policy (ADR-0149):** `tools/csp.mjs` `connectSrcFor(CONNECT_MODE)`; stage 1 open `'self' blob: https: wss:`. `PREFERRED_CONNECT_SOURCES` + `isOperatorConnectSource` ready for stage 2. Build emits `dist/csp.nginx.conf`.
-- **Not done here:** chiefmonkey.art nginx enforcement (torii-suite runner change, operator-approved).
+- **chiefmonkey.art nginx enforcement:** done in v0.2.936 via torii-suite v0.9.25.
 
 ## GATEWAY NAPPLET: v0.2.934-alpha (ADR-0147 M2)
 

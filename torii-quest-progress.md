@@ -1,3 +1,11 @@
+## v0.2.936-alpha: the security policy is on at chiefmonkey.art
+
+chiefmonkey.art now sends Quest's security policy with the game page, so the browser
+refuses scripts the game didn't ship and connections to anything but secure servers.
+Each deploy picks up the new build's policy automatically (torii-suite v0.9.25). The
+page also gets back four standard security headers it had been missing. No game code
+changed in this release.
+
 ## v0.2.935-alpha: the gate knows how to take you there
 
 The gateway now picks how you travel. Torii worlds still open with 入 Enter, right

@@ -70,6 +70,22 @@ describe('v0.2.790 — sovereign-host purge (no pplx/perplexity reference)', () 
     expect(main).not.toContain('_arena.travelToWorld');
   });
 
+  it('v0.2.935 (ADR-0147 M3.3): the ONLY cross-host navigation is the confirmed visit', () => {
+    // Torii worlds still travel in place. A world on another engine may be VISITED,
+    // through exactly one guarded call site: a host-tracked confirm in visit mode for
+    // the row being peeked.
+    const main = read('src/main.js');
+    const navs = main.match(/location\.(assign|replace)\(|location\.href\s*=/g) || [];
+    // The cache-reset reload stays same-origin (its target is built from location.pathname).
+    expect(navs).toEqual(['location.replace(', 'location.assign(']);
+    expect(main).toMatch(/\? location\.pathname \+ location\.search \+ location\.hash\n\s+: location\.pathname \+ location\.search \+ sep \+ 'nuked=1' \+ location\.hash;\n\s+location\.replace\(target\);/);
+    expect(main).toMatch(/function _gwHandOff\(url\) \{\n  try \{ window\.location\.assign\(url\); \}/);
+    expect((main.match(/_gwHandOff\(/g) || []).length).toBe(2); // definition + one call
+    expect(main).toMatch(/if \(_pendingVisit && gatewayPeekMode\(\) === 'visit' && gatewayPeekKey\(\) === _pendingVisit\.key\) \{\n    const \{ url \} = _pendingVisit;\n    _pendingVisit = null;\n    _gwHandOff\(url\);/);
+    const screen = read('src/engine/gateway/gatewayScreen.js');
+    expect(screen).toMatch(/if \(!_confirming \|\| !confirm\) \{ _confirming = true; _sendPeek\(\); return; \}/);
+  });
+
   it('live-host fixtures resolve to chiefmonkey.art, never the retired subdomain', () => {
     const cfg = read('src/config.js');
     expect(cfg).not.toMatch(FORBIDDEN);

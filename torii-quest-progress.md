@@ -1,3 +1,14 @@
+## v0.2.935-alpha: the gate knows how to take you there
+
+The gateway now picks how you travel. Torii worlds still open with 入 Enter, right
+inside the game. Worlds built on other engines show "Visit site ↗" and ask "Leave
+Torii Quest for …?" before taking you to their own website. If Quest can't build a
+world, the gate offers the visit instead of failing. When you arrive, a short card
+says whose world you're in, then fades. Travel also feels quicker: you land
+straight away and the grass grows in around you, instead of waiting for it. Quest can now reach any secure server, so
+worlds on other nodes (their relays, game servers and media) work wherever the
+security policy is switched on. A closed, operator-chosen list is ready for later.
+
 ## v0.2.934-alpha: the gateway is a portable doorway
 
 The gateway screen (the list of worlds, the "looking at" bar, 入 and ✕) is now

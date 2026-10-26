@@ -1,3 +1,12 @@
+## TRAVEL MODES + ARRIVAL CARD + NETWORK POLICY: v0.2.935-alpha
+
+- **Mode choice (ADR-0147 M3.3):** `src/engine/gateway/travelMode.js` `chooseTravelMode(resolved, row, {ourHex})` → enter | visit {url, host, note} | none. `main.js _gwPeek` retries a `no-reference` once (relay flakes), then calls it on a failed resolve and `_offerVisit` → `markGatewayPeekVisit`. `_gwCommit` → `_gwHandOff(url)` only when `gatewayPeekMode()==='visit'` and the key matches (the ONLY cross-host navigation; locked by `tests/v0.2.790-regression.test.js`). A failed `commitPeek` reopens the row with `_forceVisitKey` (note `enter-failed`).
+- **Confirm (host-tracked):** `gatewayScreen` v5 `_commit(confirm)`: in visit mode the first press sets `_confirming` and re-sends the peek; only `gate.enter {confirm:true}` (or a second keyboard Enter) while asking travels. `gate.stay` backs out.
+- **Arrival card:** `src/engine/gateway/arrivalCard.js` `showArrivalCard({kind, owner, world, npub})`; called from `arenaRuntime.commitPeek` (ok) and `returnHome`. Napplet `#c=<nonce>&m=arrival`, closes on `animationend`.
+- **Land first (speed):** `arenaRuntime _landedHook` / `_fireLanded()` (one-shot, success only). `_buildStarterIsland` order: scene → physics → mirror → greeter → portal → respawn → `_fireLanded()` → `await _islandFoliage`. `travelToWorld` sets the hook (greeter name, `closeLiveMirror`, `opts.onLanded`); `returnHome` sets the home card. Locked by `tests/gateway/travel-landing.test.js`.
+- **Network policy (ADR-0149):** `tools/csp.mjs` `connectSrcFor(CONNECT_MODE)`; stage 1 open `'self' blob: https: wss:`. `PREFERRED_CONNECT_SOURCES` + `isOperatorConnectSource` ready for stage 2. Build emits `dist/csp.nginx.conf`.
+- **Not done here:** chiefmonkey.art nginx enforcement (torii-suite runner change, operator-approved).
+
 ## GATEWAY NAPPLET: v0.2.934-alpha (ADR-0147 M2)
 
 - **Napplet (0BSD, canonical):** `conformance/gateway-v1/napplet/` (`index.html` with meta CSP `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'`…, `gateway.css`, `gateway.js` classic script). Nonce from `#c=`; sends `gate.ready/peek/enter/close/key/size`; receives `gate.state/peek/preview/theme`. 入 disabled until `gate.peek {ready:true}`. Text via `textContent` only.

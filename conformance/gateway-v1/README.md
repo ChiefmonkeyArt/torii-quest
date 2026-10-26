@@ -12,7 +12,7 @@ Connect your world to the Torii network, whatever engine or language you use. Th
 | `fixtures/travel.json` | Travel-URL and arrival cases |
 | `check.mjs` | Checks your own heartbeat: `node check.mjs my-heartbeat.json` (add `--now 1792540800` to replay the fixtures) |
 | `reference-world/` | A complete world with no 3D engine: it publishes, lists, travels and greets arrivals. Serve the folder over https. |
-| `napplet/` | The gateway doorway (directory, peek bar, 入, ✕) as a sandboxed napplet. Mount it in an `<iframe sandbox="allow-scripts">` with `#c=<nonce>`; it asks, your host decides. The same files Torii Quest ships. |
+| `napplet/` | The gateway doorway (directory, peek bar, 入, ✕) as a sandboxed napplet. Mount it in an `<iframe sandbox="allow-scripts">` with `#c=<nonce>`; it asks, your host decides. The same files Torii Quest ships. Visit mode (`gate.peek {mode:'visit', host, confirm}`, `gate.stay`) and the arrival card (`#c=<nonce>&m=arrival`, `gate.arrival`) since v0.2.935. |
 | `reference-world/doorway.html`, `doorway.mjs` | The reference world mounting that napplet with its own colours (`mountDoorway`). |
 
 ## Your world conforms when

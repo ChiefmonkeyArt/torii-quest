@@ -23,7 +23,7 @@ button { font: inherit; cursor: pointer; }
 #enter:hover { filter: brightness(1.12); }
 #enter:disabled { opacity: .55; cursor: progress; filter: none; }
 #preview { display: block; width: 100%; height: 110px; border-radius: 10px; background: rgba(10,13,22,.4); border: 1px solid rgba(76,201,240,.3); object-fit: cover; }
-#preview[hidden], #peek[hidden], #note[hidden] { display: none; }
+#preview[hidden], #peek[hidden], #note[hidden], #peeknote[hidden], #confirm[hidden], #arrival[hidden], #card[hidden] { display: none; }
 #cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .col-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid rgba(196,181,253,.18); }
@@ -43,3 +43,20 @@ button { font: inherit; cursor: pointer; }
 #note { font-size: 10px; color: var(--gw-warn); margin-top: 10px; text-align: center; letter-spacing: 1px; }
 #hint { font-size: 10px; letter-spacing: 1px; color: var(--gw-muted); margin-top: 14px; text-align: center; text-transform: uppercase; }
 @media (max-width: 520px) { #cols { grid-template-columns: 1fr; } #title { font-size: 15px; letter-spacing: 2px; } }
+/* v0.2.935 (M3.3): another engine → a visit, behind a confirm. */
+#peeknote { font-size: 10px; letter-spacing: .5px; color: var(--gw-dim); margin: 2px 0 6px; }
+#confirm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 6px; border-radius: 8px;
+  background: rgba(247,147,26,.12); border: 1px solid var(--gw-warn); }
+#confirm-q { flex: 1 1 200px; font-size: 12px; color: var(--gw-text); }
+#go, #stay { border-radius: 8px; font-size: 12px; letter-spacing: 1.5px; font-weight: bold; padding: 5px 12px; }
+#go { background: var(--gw-warn); color: #1a1000; border: 1px solid var(--gw-warn); }
+#stay { background: transparent; color: var(--gw-soft); border: 1px solid rgba(196,181,253,.4); }
+/* v0.2.935 (M2): the arrival card — fades in, holds, fades out, then says close. */
+#arrival { box-sizing: border-box; width: 100%; text-align: center; padding: 10px 16px; border-radius: 12px; background: var(--gw-glass);
+  border: 1px solid var(--gw-edge); text-shadow: 0 1px 3px rgba(0,0,0,.6); animation: gw-arrive 5.2s ease both; }
+#arr-kicker { font-size: 10px; letter-spacing: 3px; color: var(--gw-soft); text-transform: uppercase; }
+#arr-title { font-size: 17px; letter-spacing: 1.5px; font-weight: bold; color: var(--gw-ink); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#arr-sub { font-size: 10px; letter-spacing: 1px; color: var(--gw-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes gw-arrive { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #arrival { animation-name: gw-arrive-still; } }
+@keyframes gw-arrive-still { 0%, 99% { opacity: 1; } 100% { opacity: 0; } }

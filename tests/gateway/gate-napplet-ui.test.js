@@ -100,6 +100,69 @@ describe('gateway napplet (real script, jsdom)', () => {
   });
 });
 
+describe('gateway napplet — visit mode (M3.3) and the arrival card (M2)', () => {
+  it('another engine: labelled VISIT, the host asks, GO confirms, STAY backs out', () => {
+    const n = mount();
+    n.state([{ key: K, label: 'Elsewhere', sub: 's' }]);
+    n.send('gate.peek', { key: K, label: 'Elsewhere', ready: true, mode: 'visit', host: 'other.example', note: 'other-engine', confirm: false });
+    const enter = n.doc.getElementById('enter');
+    expect(enter.textContent).toBe('VISIT SITE ↗');
+    expect(n.doc.getElementById('looking').textContent).toBe('Elsewhere · other.example');
+    expect(n.doc.getElementById('peeknote').textContent).toMatch(/no Torii world found/);
+    expect(n.doc.getElementById('confirm').hidden).toBe(true);
+    enter.click();
+    expect(n.sent.at(-1)).toMatchObject({ type: 'gate.enter', data: {} });
+    expect(n.sent.at(-1).data.confirm).toBeUndefined();
+    // the HOST decides to ask
+    n.send('gate.peek', { key: K, label: 'Elsewhere', ready: true, mode: 'visit', host: 'other.example', note: 'other-engine', confirm: true });
+    expect(n.doc.getElementById('confirm').hidden).toBe(false);
+    expect(n.doc.getElementById('confirm-q').textContent).toBe('Leave Torii Quest for other.example?');
+    expect(enter.disabled).toBe(true);
+    n.doc.getElementById('stay').click();
+    expect(n.sent.at(-1).type).toBe('gate.stay');
+    n.doc.getElementById('go').click();
+    expect(n.sent.at(-1)).toMatchObject({ type: 'gate.enter', data: { confirm: true } });
+    // keys while asking: Escape = stay (not close), Enter = go
+    const key = (code, k) => n.doc.dispatchEvent(new n.w.KeyboardEvent('keydown', { code, key: k, bubbles: true }));
+    key('Escape', 'Escape');
+    expect(n.sent.at(-1).type).toBe('gate.stay');
+    key('Enter', 'Enter');
+    expect(n.sent.at(-1)).toMatchObject({ type: 'gate.enter', data: { confirm: true } });
+    // a visit never shows the preview, and enter-failed has its own sentence
+    n.send('gate.peek', { key: K, label: 'Elsewhere', ready: true, mode: 'visit', host: 'other.example', note: 'enter-failed' });
+    expect(n.doc.getElementById('preview').hidden).toBe(true);
+    expect(n.doc.getElementById('peeknote').textContent).toMatch(/could not build/);
+    // back to a Torii world
+    n.send('gate.peek', { key: K, label: 'Bekka', ready: true, mode: 'enter' });
+    expect(enter.textContent).toBe('入 · ENTER');
+    expect(n.doc.getElementById('peeknote').hidden).toBe(true);
+  });
+
+  it('arrival mode: draws only gate.arrival, says size, closes when the fade ends', () => {
+    const n = mount(`#c=${CID}&m=arrival`);
+    expect(n.types()).toEqual(['gate.ready']);
+    expect(n.doc.getElementById('card').hidden).toBe(true);
+    n.state([{ key: K, label: 'x' }]); // directory messages are ignored here
+    expect(n.doc.querySelectorAll('.row')).toHaveLength(0);
+    n.send('gate.arrival', { kind: 'arrive', owner: 'Bekka <b>', world: 'torii-quest', npub: 'npub1abc…xyz' });
+    expect(n.doc.getElementById('arrival').hidden).toBe(false);
+    expect(n.doc.getElementById('arr-title').textContent).toBe('Bekka <b>’s world');
+    expect(n.doc.querySelector('b')).toBeNull();
+    expect(n.doc.getElementById('arr-sub').textContent).toBe('torii-quest · npub1abc…xyz');
+    // keys do nothing in arrival mode
+    n.doc.dispatchEvent(new n.w.KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
+    expect(n.types()).not.toContain('gate.close');
+    n.doc.getElementById('arrival').dispatchEvent(new n.w.Event('animationend'));
+    expect(n.types().at(-1)).toBe('gate.close');
+    n.send('gate.arrival', { kind: 'home' });
+    expect(n.doc.getElementById('arr-kicker').textContent).toBe('⛩ home again');
+  });
+
+  it('an unknown mount mode stays inert', () => {
+    expect(mount(`#c=${CID}&m=evil`).sent).toHaveLength(0);
+  });
+});
+
 describe('gateway napplet — static guarantees', () => {
   it('its own CSP denies the network; scripts and styles are external only', () => {
     const csp = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(HTML)[1];

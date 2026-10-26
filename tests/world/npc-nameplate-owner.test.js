@@ -34,7 +34,7 @@ describe('P2 — NPC nameplate owner identity on travel (source contract)', () =
     expect(RUNTIME).toMatch(/const \{ world, wsEndpoint, ownerLabel(, npub)? \} = _pendingTravel;/);
     // v0.2.884: commit awaits the swap so it can re-engage pointer lock when the
     // player walked through from the free-cursor state — ownerLabel is still passed.
-    expect(RUNTIME).toMatch(/await travelToWorld\(world, \{ wsEndpoint, ownerLabel \}\);/);
+    expect(RUNTIME).toMatch(/await travelToWorld\(world, \{ wsEndpoint, ownerLabel(, onLanded)? \}\);/);
   });
 
   it('travelToWorld applies the destination owner label to the NPC nameplate after the swap', () => {

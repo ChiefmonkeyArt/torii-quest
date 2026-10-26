@@ -220,7 +220,8 @@ import {
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
-import { refreshGatewayScreen, isGatewayScreenOpen, gatewayPeekKey } from './engine/gateway/gatewayScreen.js';
+import { refreshGatewayScreen, isGatewayScreenOpen, gatewayPeekKey, gatewayPeekMode, markGatewayPeekVisit } from './engine/gateway/gatewayScreen.js';
+import { chooseTravelMode, visitPlanFor } from './engine/gateway/travelMode.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -699,21 +700,52 @@ async function _resolveWorldDirRecord(world) {
 // into the LIVE MIRROR only (no swap). The arena's peekWorld is a state-machine-guarded
 // peek; a failed resolve leaves the player put (the directory panel simply doesn't
 // light up a preview).
+// v0.2.935 (ADR-0147 M3.3): automatic, labelled travel mode. A Torii world peeks for
+// 入 Enter (in place); another engine — or a Torii world Quest could not build — is
+// offered as "Visit site ↗" behind the host-tracked confirm in gatewayScreen.
+let _pendingVisit = null;   // { key, url } for the current visit peek (only one)
+let _lastPeekRow = null;    // the row behind the current Enter peek (visit fallback)
+let _forceVisitKey = '';    // reopen this row straight into a visit (Enter failed)
+const _travelOpts = () => ({ ourHex: /^[0-9a-f]{64}$/.test(state.nostrPubkey || '') ? state.nostrPubkey : '' });
+function _offerVisit(world, mode) {
+  const key = world.pubkey || '';
+  const current = gatewayPeekKey();
+  if (!key || (current && current !== key)) return false; // stale: the player moved on
+  _pendingVisit = { key, url: mode.url };
+  return markGatewayPeekVisit({ host: mode.host, note: mode.note });
+}
+
 async function _gwPeek(world) {
   if (!world || (!world.pubkey && !world.npub)) {
     console.warn('peek rejected: directory record has no identity');
     return;
   }
+  _pendingVisit = null;
+  if (_forceVisitKey && world.pubkey === _forceVisitKey) {
+    _forceVisitKey = '';
+    const plan = visitPlanFor(world, _travelOpts());
+    if (plan) _offerVisit(world, { ...plan, note: 'enter-failed' });
+    return;
+  }
   // v0.2.933: a world resolved earlier this session (hash-verified) peeks instantly.
   const npub = world.npub || hexToNpub(world.pubkey) || '';
   const hit = npub ? _linkWorlds.get(npub) : null;
-  const resolved = (hit && (!world.worldId || hit.id === world.worldId))
+  let resolved = (hit && (!world.worldId || hit.id === world.worldId))
     ? { ok: true, world: hit }
     : await _resolveWorldDirRecord(world);
+  // v0.2.935: relays can miss an event for a moment. Before calling a world "not a
+  // Torii world" (and offering a visit), ask once more — unless the player has moved on.
+  if (resolved && resolved.ok === false && resolved.reason === 'no-reference') {
+    const cur = gatewayPeekKey();
+    if (!cur || !world.pubkey || cur === world.pubkey) resolved = await _resolveWorldDirRecord(world);
+  }
   if (!resolved || !resolved.ok || !resolved.world) {
-    console.warn('peek resolve failed (world stays put):', resolved && resolved.reason);
+    const mode = chooseTravelMode(resolved, world, _travelOpts());
+    if (mode.mode === 'visit') { _offerVisit(world, mode); return; }
+    console.warn('peek resolve failed (world stays put):', mode.reason);
     return;
   }
+  _lastPeekRow = world;
   if (npub) _rememberLinkWorld(npub, resolved.world);
   // v0.2.934: the player may have clicked another world while this one resolved.
   const current = gatewayPeekKey();
@@ -807,9 +839,31 @@ if (typeof window !== 'undefined') {
 // _gwCommit() — the 入 (enter) walk-through. Delegates to the arena's commitPeek, which
 // asks the browse state machine whether this action may swap (only from an open peek).
 function _gwCommit() {
-  if (_arena && typeof _arena.commitPeek === 'function') {
-    _arena.commitPeek().catch((e) => console.warn('commit failed:', e && e.message ? e.message : e));
+  // v0.2.935 (M3.3): a confirmed visit leaves Quest for the world's own site. The ONLY
+  // browser navigation to another host: the gateway already asked "Leave Torii Quest
+  // for <host>?" and the player confirmed (gatewayScreen tracks that, not the napplet),
+  // and the URL is the hardened Gate v1 hop for the row being peeked.
+  if (_pendingVisit && gatewayPeekMode() === 'visit' && gatewayPeekKey() === _pendingVisit.key) {
+    const { url } = _pendingVisit;
+    _pendingVisit = null;
+    _gwHandOff(url);
+    return;
   }
+  if (_arena && typeof _arena.commitPeek === 'function') {
+    const row = _lastPeekRow;
+    _arena.commitPeek()
+      .then((r) => {
+        // Enter could not build the world: reopen the gate on it, offering the visit.
+        if (r && r.ok === false && r.reason !== 'no-peek' && row && visitPlanFor(row, _travelOpts())) {
+          _forceVisitKey = row.pubkey || '';
+          _gwBrowseWorld(row);
+        }
+      })
+      .catch((e) => console.warn('commit failed:', e && e.message ? e.message : e));
+  }
+}
+function _gwHandOff(url) {
+  try { window.location.assign(url); } catch (e) { console.warn('[visit] hand-off failed:', e && e.message ? e.message : e); }
 }
 
 // _gatewayScreenState() — the two-column directory snapshot the gateway card renders.

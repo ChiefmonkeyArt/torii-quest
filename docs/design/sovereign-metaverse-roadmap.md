@@ -29,7 +29,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 ## Milestone 2: the Gateway Experience napplet
 
-**Done in v0.2.934** (items 1–5; the arrival card stays host-drawn for now).
+**Done in v0.2.934** (items 1–5). **v0.2.935:** the arrival card is drawn by the napplet too (`m=arrival` mount).
 
 1. **Extract the doorway** into a napplet (`nap-torii-world` gate surface): directory, selection, peek controls, enter/cancel, status, arrival card. It runs sandboxed (`allow-scripts`, network denied).
 2. **Trusted gate services** in the host shell:
@@ -46,7 +46,7 @@ The order of work that takes Torii from "Quest plus a gate" to an open, sovereig
 
 1. The location path: `…/quest/w/<npub>/<world>` (owner-approved). The back button goes to the previous world. **Done in v0.2.933** (Back to home is instant; Back to a world reopens the gate at it, one press of 入).
 2. Opening a link in your own Quest joins that world (Enter mode). **Done in v0.2.933:** the link pre-peeks the world in the gateway screen and the player presses 入.
-3. **Automatic mode choice.** A destination with a Torii world description gets Enter; others get the Gate v1 Hand-off. A §8 extension lets a heartbeat point at its world description and say which modes it supports.
+3. **Automatic mode choice.** A destination with a Torii world description gets Enter; others get the Gate v1 Hand-off. A §8 extension lets a heartbeat point at its world description and say which modes it supports. **Done in v0.2.935 (owner option C):** automatic and labelled: "入 Enter" for Torii worlds; "Visit site ↗" behind a host-tracked "Leave Torii Quest for <host>?" confirm for other engines; if Enter cannot build a world, the gate reopens offering the visit. Forged or tampered references are refused. The §8 heartbeat extension is still open.
 
 ## Milestone 4: one persona
 

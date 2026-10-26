@@ -8,6 +8,8 @@ import {
   headersFileBodyForSha,
   cspValueForSha,
   inlineBootstrapSha256Of,
+  nginxIncludeBodyForSha,
+  INLINE_SCRIPT_SHA256,
 } from './tools/csp.mjs';
 import { buildReleaseMeta, validateReleaseMeta } from './tools/releaseMeta.mjs';
 import { enginePreloadFiles, enginePreloadMeta } from './tools/enginePreload.mjs';
@@ -117,11 +119,14 @@ function cspHeaderPlugin() {
       // the matching policy.
       const htmlPath = join(dir, 'index.html');
       let body = headersFileBody(); // fallback to the hardcoded sha
+      let emittedSha = INLINE_SCRIPT_SHA256;
       if (existsSync(htmlPath)) {
         const sha = inlineBootstrapSha256Of(readFileSync(htmlPath, 'utf8'));
-        if (sha) body = headersFileBodyForSha(sha);
+        if (sha) { body = headersFileBodyForSha(sha); emittedSha = sha; }
       }
       writeFileSync(join(dir, '_headers'), body);
+      // v0.2.935 (ADR-0149): the same policy for nginx nodes (include + reload on deploy).
+      writeFileSync(join(dir, 'csp.nginx.conf'), nginxIncludeBodyForSha(emittedSha));
 
       // v0.2.604: stamp a FRESH dist/release-metadata.json from the live version +
       // git commit + build timestamp on every build. The committed

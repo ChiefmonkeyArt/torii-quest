@@ -2,7 +2,7 @@
 // its pure protocol (gateNapplet.js). The doorway UI runs in a sandboxed iframe; the
 // host must validate every message and keep all authority.
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { gateStateFor, parseGateRequest, sanitizeGateTheme, gateRowView, GATE_FORWARD_KEYS } from '../../src/engine/gateway/gateNapplet.js';
+import { gateStateFor, parseGateRequest, sanitizeGateTheme, gateRowView, GATE_FORWARD_KEYS, gateHostLabel, gateArrivalFor } from '../../src/engine/gateway/gateNapplet.js';
 
 const A = 'aa'.repeat(32);
 const B = 'bb'.repeat(32);
@@ -44,6 +44,18 @@ describe('gateNapplet protocol (pure)', () => {
     expect(parseGateRequest(ok('gate.size', { h: -1 }), 'cid12345')).toBeNull();
     expect(GATE_FORWARD_KEYS.has('Escape')).toBe(false);
   });
+  it('v0.2.935: enter carries only a boolean confirm; stay is an intent; hosts and arrivals are display-safe', () => {
+    const ok = (type, data) => ({ type, id: 1, channelId: 'cid12345', data });
+    expect(parseGateRequest(ok('gate.enter', { confirm: true, url: 'https://evil' }), 'cid12345')).toEqual({ action: 'enter', data: { confirm: true } });
+    expect(parseGateRequest(ok('gate.enter', { confirm: 'yes' }), 'cid12345').data.confirm).toBe(false);
+    expect(parseGateRequest(ok('gate.stay', { x: 1 }), 'cid12345')).toEqual({ action: 'stay', data: {} });
+    expect(gateHostLabel('https://Other.Example/quest/?a=1')).toBe('other.example');
+    expect(gateHostLabel('not a url')).toBe('');
+    expect(gateHostLabel('https://localhost/')).toBe('');
+    expect(gateArrivalFor({ kind: 'arrive', owner: 'B\u0000ekka' + 'x'.repeat(200), npub: 'not-an-npub' })).toEqual({ kind: 'arrive', owner: ('Bekka' + 'x'.repeat(200)).slice(0, 80), world: '', npub: '' });
+    expect(gateArrivalFor({ kind: 'nope' })).toBeNull();
+  });
+
   it('theme: known keys with colour values only', () => {
     expect(sanitizeGateTheme({ '--gw-accent': '#f7931a', '--gw-glass': 'rgba(1, 2, 3, 0.5)', '--gw-evil': '#fff', '--gw-ink': 'url(x)', '--gw-edge': 'red; background:url(x)' }))
       .toEqual({ '--gw-accent': '#f7931a', '--gw-glass': 'rgba(1, 2, 3, 0.5)' });
@@ -196,6 +208,39 @@ describe('gatewayScreen — napplet host', () => {
     G.closeGatewayScreen();
   });
 
+  it('visit mode (M3.3): the HOST asks first, and only a confirm while asking travels', () => {
+    open();
+    from('gate.ready');
+    from('gate.peek', { key: B });
+    expect(G.markGatewayPeekVisit({ host: 'other.example', note: 'other-engine' })).toBe(true);
+    expect(G.gatewayPeekMode()).toBe('visit');
+    expect(posted().at(-1).data).toMatchObject({ key: B, ready: true, mode: 'visit', host: 'other.example', note: 'other-engine', confirm: false });
+    expect(G.getGatewayPreviewCanvas()).toBeNull(); // no mirror for a visit
+    const before = calls.commit;
+    from('gate.enter', { confirm: true });          // a napplet cannot skip the question
+    expect(calls.commit).toBe(before);
+    expect(posted().at(-1).data.confirm).toBe(true); // …it only made the host ask
+    from('gate.stay');
+    expect(posted().at(-1).data.confirm).toBe(false);
+    from('gate.enter', {});                          // ask again
+    from('gate.enter', {});                          // a plain enter while asking is not a confirm
+    expect(calls.commit).toBe(before);
+    from('gate.enter', { confirm: true });           // GO
+    expect(calls.commit).toBe(before + 1);
+    G.commitGatewayScreen();                         // keyboard: first Enter asks…
+    expect(calls.commit).toBe(before + 1);
+    G.commitGatewayScreen();                         // …second Enter goes
+    expect(calls.commit).toBe(before + 2);
+    from('gate.peek', { key: A });                   // switching rows resets the mode
+    expect(G.gatewayPeekMode()).toBe('enter');
+    expect(G.markGatewayPeekVisit({ host: '' })).toBe(false);
+    expect(G.markGatewayPeekVisit({ host: 'x.example', note: 'made-up' })).toBe(true);
+    expect(posted().at(-1).data.note).toBe('other-engine');
+    G.closeGatewayScreen();
+    expect(G.markGatewayPeekVisit({ host: 'x.example' })).toBe(false);
+    expect(G.gatewayPeekMode()).toBe('');
+  });
+
   it('a pre-peek (world link / menu hand-off) arms from the host side', () => {
     open();
     const linkRow = { npub: 'npub1x', pubkey: 'dd'.repeat(32) };
@@ -203,5 +248,52 @@ describe('gatewayScreen — napplet host', () => {
     expect(calls.peek.at(-1)).toBe(linkRow);
     expect(G.gatewayPeekKey()).toBe('dd'.repeat(32));
     G.closeGatewayScreen();
+  });
+});
+
+describe('arrivalCard — the napplet in arrival mode', () => {
+  let A_; let doc; let win; const saved = {};
+  beforeAll(async () => {
+    for (const k of ['document', 'window']) saved[k] = globalThis[k];
+    win = { innerHeight: 900, listeners: [], addEventListener(t, fn) { this.listeners.push([t, fn]); } };
+    doc = { body: fakeEl('body'), createElement: (t) => fakeEl(t) };
+    doc.body.removeChild = function (c) { this.children = this.children.filter((x) => x !== c); c.parentNode = null; };
+    globalThis.window = win; globalThis.document = doc;
+    vi.resetModules();
+    A_ = await import('../../src/engine/gateway/arrivalCard.js');
+  });
+  afterAll(() => { for (const k of Object.keys(saved)) { if (saved[k] === undefined) delete globalThis[k]; else globalThis[k] = saved[k]; } });
+
+  it('mounts sandboxed, non-interactive, in arrival mode; sends the card on ready', () => {
+    expect(A_.showArrivalCard({ kind: 'arrive', owner: 'Bekka', world: 'torii-quest', npub: 'npub1a3um269aaf3u5cy37kuykrrrnsg2pyv7za06pxjduv25lq5sdujs2qmdj6' })).toBe(true);
+    const { frame, cid, payload } = A_._arrivalStateForTest();
+    expect(frame.attrs.sandbox).toBe('allow-scripts');
+    expect(frame.attrs.tabindex).toBe('-1');
+    expect(frame.style.pointerEvents).toBe('none');
+    expect(frame.src).toBe(`/napplets/gateway/index.html#c=${cid}&m=arrival`);
+    expect(payload).toEqual({ kind: 'arrive', owner: 'Bekka', world: 'torii-quest', npub: 'npub1a3um269…2qmdj6' });
+    A_._arrivalMessageForTest({ source: {}, data: { type: 'gate.ready', id: 1, channelId: cid, data: {} } }); // wrong source
+    expect(frame.contentWindow.posted).toHaveLength(0);
+    A_._arrivalMessageForTest({ source: frame.contentWindow, data: { type: 'gate.ready', id: 1, channelId: cid, data: {} } });
+    expect(frame.contentWindow.posted.map((p) => p.m.type)).toEqual(['gate.theme', 'gate.arrival']);
+    A_._arrivalMessageForTest({ source: frame.contentWindow, data: { type: 'gate.size', id: 2, channelId: cid, data: { h: 999 } } });
+    expect(frame.style.height).toBe('200px');
+  });
+  it('ignores every intent but close, and close removes the frame', () => {
+    const { frame, cid } = A_._arrivalStateForTest();
+    A_._arrivalMessageForTest({ source: frame.contentWindow, data: { type: 'gate.enter', id: 3, channelId: cid, data: {} } });
+    expect(A_._arrivalStateForTest().frame).toBe(frame);
+    A_._arrivalMessageForTest({ source: frame.contentWindow, data: { type: 'gate.close', id: 4, channelId: cid, data: {} } });
+    expect(A_._arrivalStateForTest().frame).toBeNull();
+    expect(doc.body.children).toHaveLength(0);
+  });
+  it('one card at a time; unknown kinds and junk are refused', () => {
+    A_.showArrivalCard({ kind: 'arrive', owner: 'x' });
+    A_.showArrivalCard({ kind: 'home' });
+    expect(doc.body.children).toHaveLength(1);
+    expect(A_._arrivalStateForTest().payload).toEqual({ kind: 'home', owner: '', world: '', npub: '' });
+    expect(A_.showArrivalCard({ kind: 'teleport' })).toBe(false);
+    A_.hideArrivalCard();
+    expect(doc.body.children).toHaveLength(0);
   });
 });

@@ -1,3 +1,16 @@
+## v0.2.935-alpha: travel modes, arrival card, federation network policy
+
+- [x] M3.3 automatic, labelled travel mode (owner option C): 入 Enter for Torii worlds; "Visit site ↗" behind a host-tracked confirm for other engines; a failed Enter reopens the gate offering the visit; forged/tampered references refused.
+- [x] Arrival card in the gateway napplet (owner option B): "入 arrived · <owner>'s world", or "⛩ home again"; fades itself.
+- [x] Speed: travel lands first, grows grass after. The island builder used to await ~7 s of foliage CPU before the respawn, gate-window close, multiplayer rejoin and address-bar update; now a one-shot landed hook fires right after the respawn.
+- [ ] Speed follow-up: reuse the grass between starter islands (same geometry; only the colour differs) instead of regenerating 75k blades per hop.
+- [x] Federation network policy stage 1 (owner option B, ADR-0149): `connect-src 'self' blob: https: wss:`. Closes the CSP federation finding.
+- [x] Preparation: `connectSrcFor` with an inactive `preferred` mode + operator additions; per-build `dist/csp.nginx.conf`.
+- [ ] **Reminder (ADR-0149 review triggers):** move to stage 2 (open federated + operator-preferred list) and stage 3 (split network helper) when: third-party markup renders in the main page; a CSP/XSS bug is reported; more than about 10 nodes federate or an operator asks for a closed list; any secret would live in the page; or before Start9/Umbrel packages ship.
+- [ ] chiefmonkey.art enforcement (torii-suite, operator-approved): `include …/current/csp.nginx.conf;` in the Quest location, plus `nginx -t && systemctl reload nginx` in the update runner.
+- [ ] The §8 heartbeat extension (a heartbeat names its world description and the modes it supports).
+- [ ] A link to a world with no description and no website still shows "finding …" (no visit is possible); show a clear "not reachable" state.
+
 ## v0.2.934-alpha: the Gateway napplet (M2)
 
 - [x] The gateway screen's directory, peek bar, 入 and ✕ run in a sandboxed napplet (`allow-scripts` only; its own CSP denies the network).
@@ -7,9 +20,9 @@
 - [x] Portability proof: the engine-free reference world mounts the same napplet (`reference-world/doorway.html`), restyled orange.
 - [x] Restyling: a world author can theme the napplet with colour variables only.
 - [x] Page CSP gains `frame-src 'self'` (only the napplet may be framed).
-- [ ] The arrival card is still drawn by the host (it is not part of the doorway yet).
-- [ ] M3.3 automatic mode choice (Enter vs Gate v1 hand-off).
-- [ ] Finding (owner decision, still open): the CSP `connect-src` and federation.
+- [x] The arrival card is part of the doorway napplet (v0.2.935).
+- [x] M3.3 automatic mode choice (Enter vs Gate v1 hand-off; done in v0.2.935).
+- [x] Finding (owner decision): the CSP `connect-src` and federation. Decided 2026-10-26: ADR-0149 stage 1 (v0.2.935).
 
 ## v0.2.933-alpha: world links
 
@@ -17,7 +30,7 @@
 - [x] The address bar follows travel and homecoming; Back/Forward replays it.
 - [x] Opening a link pre-peeks that world in the gateway screen; the player presses 入.
 - [x] Resolver `worldId` filter (one world per link); published URLs never carry a link.
-- [ ] M3.3 automatic mode choice (Enter vs Gate v1 hand-off).
+- [x] M3.3 automatic mode choice (Enter vs Gate v1 hand-off; done in v0.2.935).
 - [x] Next: the M2 Gateway napplet (done in v0.2.934).
 - [x] Finding: 入 looks armed before the peek resolves; an early press does nothing. Fixed in v0.2.934 (host-confirmed "ready").
 - [ ] Finding (owner decision): the repo CSP `connect-src` lists fixed relays only, so where it is enforced, Blossom manifests and other nodes' relays are blocked and remote peeks fail. chiefmonkey.art (nginx) sends no CSP header at all. Federation needs a deliberate CSP policy (ADR).

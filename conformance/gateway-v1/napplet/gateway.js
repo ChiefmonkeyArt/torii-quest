@@ -10,19 +10,24 @@
 //   napplet → host  { type: 'gate.<action>', id, channelId, data }
 //     gate.ready {}               mounted, send me state
 //     gate.peek  { key }          the player clicked a row the host sent
-//     gate.enter {}               the player pressed 入 / Enter
+//     gate.enter { confirm? }     the player pressed 入 / Enter (confirm: GO on a visit)
+//     gate.stay  {}               STAY: back out of the "leave for <host>?" question
 //     gate.close {}               ✕ / Escape
 //     gate.key   { type, code }   a movement key while focus is in here
 //     gate.size  { h }            the card's height in CSS px
 //   host → napplet  { type, channelId, data }
 //     gate.state   { sections: [{ title, empty, rows: [{ key, label, sub }] }], searching, canTravel }
-//     gate.peek    { key, label, ready }   (key '' clears the peek)
+//     gate.peek    { key, label, ready, mode, host, note, confirm }   (key '' clears it)
+//                  mode 'enter' (Torii world, in place) | 'visit' (another engine:
+//                  its website, host = hostname; confirm = the host is asking)
+//     gate.arrival { kind: 'arrive'|'home', owner, world, npub }   (#m=arrival mount)
 //     gate.preview { bitmap }              an ImageBitmap of the destination
 //     gate.theme   { vars: { '--gw-accent': '#…', … } }
 (function () {
   'use strict';
-  var m = /^#c=([0-9a-z]{8,64})$/.exec(location.hash || '');
+  var m = /^#c=([0-9a-z]{8,64})(?:&m=(arrival))?$/.exec(location.hash || '');
   var CID = m ? m[1] : '';
+  var ARRIVAL = !!(m && m[2] === 'arrival');
   var host = window.parent;
   if (!CID || host === window) return; // not mounted by a host: stay inert
 
@@ -32,6 +37,9 @@
   var seq = 0;
   var peekKey = '';
   var ready = false;
+  var visit = false;
+  var asking = false;
+  var NOTES = { 'other-engine': 'no Torii world found here: visiting opens its own site', 'enter-failed': 'could not build this world here: you can visit its site instead' };
   var $ = function (id) { return document.getElementById(id); };
   var card = $('card');
   var bitmapCtx = null;
@@ -100,10 +108,22 @@
   function setPeek(d) {
     peekKey = str(d.key, 128);
     ready = !!peekKey && d.ready === true;
+    var hostName = str(d.host, 253);
+    visit = ready && d.mode === 'visit' && !!hostName;
+    asking = visit && d.confirm === true;
+    var label = str(d.label, 80);
     $('peek').hidden = !peekKey;
-    $('looking').textContent = peekKey ? (ready ? 'looking at ' : 'finding ') + str(d.label, 80) + (ready ? '' : '…') : '';
-    $('enter').disabled = !ready;
-    if (!peekKey) $('preview').hidden = true;
+    $('looking').textContent = !peekKey ? '' : !ready ? 'finding ' + label + '…' : visit ? label + ' · ' + hostName : 'looking at ' + label;
+    var enter = $('enter');
+    enter.textContent = visit ? 'VISIT SITE ↗' : '入 · ENTER';
+    enter.setAttribute('aria-label', visit ? 'Visit this world\'s site' : 'Enter this world');
+    enter.disabled = !ready || asking;
+    var note = visit ? (NOTES[d.note] || NOTES['other-engine']) : '';
+    $('peeknote').textContent = note;
+    $('peeknote').hidden = !note;
+    $('confirm-q').textContent = asking ? 'Leave Torii Quest for ' + hostName + '?' : '';
+    $('confirm').hidden = !asking;
+    if (!peekKey || visit) $('preview').hidden = true;
     markActive();
     reportSize();
   }
@@ -137,29 +157,55 @@
   }
 
   $('close').addEventListener('click', function () { send('close'); });
-  $('enter').addEventListener('click', function () { if (peekKey && ready) send('enter'); });
+  $('enter').addEventListener('click', function () { if (peekKey && ready && !asking) send('enter'); });
+  $('go').addEventListener('click', function () { if (asking) send('enter', { confirm: true }); });
+  $('stay').addEventListener('click', function () { if (asking) send('stay'); });
 
   function onKey(e) {
-    if (e.type === 'keydown' && e.key === 'Escape') { e.preventDefault(); send('close'); return; }
-    if (e.type === 'keydown' && e.key === 'Enter' && !(e.target && e.target.classList && e.target.classList.contains('row'))) {
-      e.preventDefault(); if (peekKey && ready) send('enter'); return;
+    if (e.type === 'keydown' && e.key === 'Escape') { e.preventDefault(); send(asking ? 'stay' : 'close'); return; }
+    if (e.type === 'keydown' && e.key === 'Enter' && !(e.target && e.target.classList && (e.target.classList.contains('row') || e.target.id === 'stay'))) {
+      e.preventDefault();
+      if (asking) send('enter', { confirm: true }); else if (peekKey && ready) send('enter');
+      return;
     }
     if (KEYS[e.code] && !e.repeat) { if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault(); send('key', { type: e.type, code: e.code }); }
   }
-  document.addEventListener('keydown', onKey, true);
-  document.addEventListener('keyup', onKey, true);
+  if (!ARRIVAL) {
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('keyup', onKey, true);
+  }
+
+  // ── the arrival card (#m=arrival): show, fade, then ask the host to remove us ──
+  function showArrival(d) {
+    var home = d.kind === 'home';
+    var owner = str(d.owner, 80);
+    var world = str(d.world, 80);
+    $('arr-kicker').textContent = home ? '⛩ home again' : '入 arrived';
+    $('arr-title').textContent = home ? 'your world' : (owner ? owner + '’s world' : 'a new world');
+    $('arr-sub').textContent = home ? '' : [world, str(d.npub, 40)].filter(Boolean).join(' · ');
+    var a = $('arrival');
+    a.hidden = false;
+    a.style.animation = 'none'; void a.offsetWidth; a.style.animation = ''; // restart the fade
+    var h = Math.ceil(a.scrollHeight + 2);
+    if (h) send('size', { h: h });
+  }
+  if (ARRIVAL) {
+    card.hidden = true;
+    $('arrival').addEventListener('animationend', function () { send('close'); });
+  }
 
   window.addEventListener('message', function (ev) {
     if (ev.source !== host) return;
     var msg = ev.data;
     if (!msg || typeof msg !== 'object' || msg.channelId !== CID || typeof msg.type !== 'string') return;
     var d = msg.data && typeof msg.data === 'object' ? msg.data : {};
+    if (ARRIVAL) { if (msg.type === 'gate.arrival') showArrival(d); else if (msg.type === 'gate.theme') applyTheme(d); return; }
     if (msg.type === 'gate.state') renderState(d);
     else if (msg.type === 'gate.peek') setPeek(d);
     else if (msg.type === 'gate.preview') drawPreview(d.bitmap);
     else if (msg.type === 'gate.theme') applyTheme(d);
   });
 
-  if (typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(card);
+  if (!ARRIVAL && typeof ResizeObserver === 'function') new ResizeObserver(reportSize).observe(card);
   send('ready');
 })();

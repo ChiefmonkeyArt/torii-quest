@@ -1,3 +1,8 @@
+## v0.2.938-alpha: napplet hosts beyond Quest (ADR-0150, docs only)
+
+- [x] ADR-0150 (Proposed): any Torii app may host napplets if it keeps Quest's boundary; Quest's runtime is the reference other hosts port; each host owns its contracts (first: `nap-torii-team@1`, owned by Continuum); FIPS node-side only; one conformance list. No Quest code change.
+- [ ] Owner decision: accept ADR-0150 together with Continuum's "FIPS private mode and the Teams napplet" amendment, or neither.
+
 ## v0.2.937-alpha: travel extension, unreachable group, grass reuse
 
 - [x] Grass reuse between starter islands, the §8.1 world + travel heartbeat extension, the collapsed "unreachable" group and the exact world lookup (details under v0.2.935 below).

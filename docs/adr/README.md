@@ -166,6 +166,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0147](./0147-sovereign-metaverse-architecture.md) | Sovereign metaverse architecture: the Gateway Experience napplet at the centre; every world (home too) as signed data; one gate, two travel modes (Enter / Hand-off); live worlds; one persona; Starter Pack, then builder; roadmap in `docs/design/sovereign-metaverse-roadmap.md`; path `/quest/w/<npub>/<world>`, full Starter Pack, anyone may publish signed components | Accepted |
 | [0148](./0148-one-node-every-home.md) | One node, every home: the same Torii node packaged for VPS, laptop, Umbrel and Start9; worlds addressed by npub with optional onion/LAN/tunnel endpoints; keys stay with people; operator-approved updates | Proposed |
 | [0149](./0149-federation-network-policy.md) | Federation network policy: stage 1 `connect-src` allows any secure server (`https:` `wss:`); prepared stage 2 (operator-preferred list) and stage 3 (split network helper) with review triggers; per-build `csp.nginx.conf` for nginx nodes | Accepted (stage 1) |
+| [0150](./0150-napplet-hosts-beyond-quest.md) | Napplet hosts beyond Quest: one host-agnostic sandbox boundary binding on every host, Quest's runtime as the reference other hosts port, each host owns its contracts (first: `nap-torii-team@1`), FIPS node-side only, shared conformance list | Proposed |
 
 ## Workflow for a new decision
 

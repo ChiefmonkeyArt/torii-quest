@@ -1,3 +1,10 @@
+## NAPPLET HOSTS BEYOND QUEST: v0.2.938-alpha (docs only, ADR-0150 Proposed)
+
+- `docs/adr/0150-napplet-hosts-beyond-quest.md` + index row. Extends ADR-0057/0082/0083/0147, supersedes nothing; those files are unchanged.
+- Pairs with Continuum `docs/adr-team-collaboration.md` amendment (FIPS private mode + Teams napplet) and its trial plan `docs/trials/teams-fips/`.
+- Conformance list (Decision 5) = what Quest's `tests/napplets/*` and `tests/gateway/gate-napplet-*` already check.
+- No code change; strategy "Napplet Architecture" gains an "Other hosts" paragraph.
+
 ## TRAVEL EXTENSION + UNREACHABLE GROUP + GRASS REUSE: v0.2.937-alpha
 
 - **Grass reuse:** `src/arena-foliage.js` `parkFoliage()` detaches the grass instead of disposing; `buildFoliage` re-adds it (default scene only) and reapplies `setGrassColor`. `disposeFoliage` frees the parked mesh too. `arenaRuntime` in-place swap calls `parkFoliage()`. Test: `tests/world/grass-reuse.test.js`.

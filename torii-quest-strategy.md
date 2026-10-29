@@ -1125,6 +1125,8 @@ Async handler protocol lets handlers return `{ __async, promise }` so relay-medi
 
 **Character event (proposed, not yet published).** kind 35100 addressable, `d="torii-character"`, one per npub for v0. Mandatory `contrib` tags carry `(dTag, aggregateHash)` per contributing napplet.
 
+**Other hosts (ADR-0150, Proposed).** Any Torii app may host napplets if it keeps Quest's boundary (`srcdoc` + `allow-scripts` only, network-denying napplet CSP, `event.source` + per-mount nonce, host owns keys/signing/network/FIPS). Other hosts port Quest's runtime rather than depend on it; each host owns its own contracts (first: `nap-torii-team@1`); Quest needs no code change.
+
 **Queued design work** (see `torii-quest-todo.md`):
 
 - **ADR-0092** arena full sandboxing (Three + Rapier inside the iframe, DOM<->WebGL bridge, per-frame snapshot protocol). Design done, proposed.

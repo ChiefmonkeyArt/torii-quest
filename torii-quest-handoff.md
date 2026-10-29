@@ -1,3 +1,12 @@
+## TRAVEL EXTENSION + UNREACHABLE GROUP + GRASS REUSE: v0.2.937-alpha
+
+- **Grass reuse:** `src/arena-foliage.js` `parkFoliage()` detaches the grass instead of disposing; `buildFoliage` re-adds it (default scene only) and reapplies `setGrassColor`. `disposeFoliage` frees the parked mesh too. `arenaRuntime` in-place swap calls `parkFoliage()`. Test: `tests/world/grass-reuse.test.js`.
+- **§8.1 world + travel:** `src/engine/gateway/travelExtension.js` (`readTravelExtension`, `effectiveTravelModes`, `travelExtensionFor`). `gatewayRead` adds `worlds` / `travel` (travel `null` = unknown → lookup as before). `worldPresence.buildPresenceEvent({worlds, travel})`. `server/presence/beacon.js` `_worldLive`: `travel: ['visit']` until the first accepted world reference, then `['enter','visit']` + `world` tag, heartbeat re-sent at once. The browser heartbeat omits the extension (stays unknown).
+- **Mode choice:** `travelMode.advertisedTravel(row)` → unknown | enter | visit-only | unreachable; `rowIsUnreachable(row, {failed})`. `main.js _gwPeek` skips the lookup when Enter isn't advertised.
+- **Unreachable group:** `gateStateFor({isUnreachable})` → `state.unreachable {count, rows}` (keyless, not peekable). `gatewayScreen.markGatewayRowUnreachable(key)` (10-min TTL). Napplet draws a closed `<details>` "unreachable · n", text only.
+- **Exact lookup:** `worldResolver.discoverWorldReference` sends `[{authors:[hex]}, {'#p':[hex]}]` (+ `#d`), limit 20; `main.js reqRelay` passes filter arrays through.
+- **Conformance:** spec §8.1; fixtures regenerated (21 heartbeats); reference world advertises `['travel','visit']`.
+
 ## CSP ENFORCED ON NGINX: v0.2.936-alpha (docs-only; pairs with torii-suite v0.9.25-alpha)
 
 - torii-suite `lib/quest-headers.sh` + `install-quest.sh`: validates `dist/csp.nginx.conf`, writes `/opt/torii/nginx-snippets/quest-{security,csp}.inc` each deploy, includes the CSP in `location = /quest/index.html` only, then `torii reload`. Keep `csp.nginx.conf` a single valid `add_header Content-Security-Policy "…" always;` line (charset `[A-Za-z0-9 ;:/'+=._*-]`, must contain `script-src ` and `object-src 'none'`), or nginx nodes silently send no policy (`csp-missing` in the deploy log).

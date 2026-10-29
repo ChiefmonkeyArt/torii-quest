@@ -6,8 +6,8 @@ import { gateStateFor, parseGateRequest, sanitizeGateTheme, gateRowView, GATE_FO
 
 const A = 'aa'.repeat(32);
 const B = 'bb'.repeat(32);
-const rowA = { pubkey: A, displayName: 'Bekka', shortPubkey: 'npub1bekka…', wsEndpoint: 'wss://bekka.example/mp', relays: ['wss://secret.relay'] };
-const rowB = { pubkey: B, displayName: 'Chief', wsEndpoint: 'wss://chief.example/mp' };
+const rowA = { pubkey: A, displayName: 'Bekka', shortPubkey: 'npub1bekka…', wsEndpoint: 'wss://bekka.example/mp', relays: ['wss://secret.relay'], website: 'https://bekka.example/quest/' };
+const rowB = { pubkey: B, displayName: 'Chief', wsEndpoint: 'wss://chief.example/mp', website: 'https://chief.example/quest/' };
 
 describe('gateNapplet protocol (pure)', () => {
   it('rows carry display strings only — no endpoints, relays or extra fields', () => {

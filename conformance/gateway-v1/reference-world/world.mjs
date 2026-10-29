@@ -45,7 +45,7 @@ async function heartbeat() {
   const now = Math.floor(Date.now() / 1000);
   const content = { zoneId: ZONE, title: 'Reference world', description: 'Torii Gate v1, no engine', zoneType: 'gallery', website: location.origin + location.pathname, relays: RELAYS, topics: [], version: 1 };
   const ev = await window.nostr.signEvent({ kind: KIND, created_at: now, content: JSON.stringify(content),
-    tags: [['d', ZONE], ['t', TOPIC], ['zoneType', 'gallery'], ['title', content.title], ...RELAYS.map((r) => ['relay', r]), ['expiration', String(now + TTL_DEFAULT)]] });
+    tags: [['d', ZONE], ['t', TOPIC], ['zoneType', 'gallery'], ['title', content.title], ...RELAYS.map((r) => ['relay', r]), ['travel', 'visit'], ['expiration', String(now + TTL_DEFAULT)]] }); // §8.1: no engine here, so visit only
   const ok = (await Promise.all(RELAYS.map((r) => publish(r, ev)))).filter(Boolean).length;
   status(`Heartbeat accepted by ${ok}/${RELAYS.length} relays.`);
 }

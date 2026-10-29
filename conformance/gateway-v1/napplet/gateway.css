@@ -23,7 +23,7 @@ button { font: inherit; cursor: pointer; }
 #enter:hover { filter: brightness(1.12); }
 #enter:disabled { opacity: .55; cursor: progress; filter: none; }
 #preview { display: block; width: 100%; height: 110px; border-radius: 10px; background: rgba(10,13,22,.4); border: 1px solid rgba(76,201,240,.3); object-fit: cover; }
-#preview[hidden], #peek[hidden], #note[hidden], #peeknote[hidden], #confirm[hidden], #arrival[hidden], #card[hidden] { display: none; }
+#preview[hidden], #peek[hidden], #unreach[hidden], #note[hidden], #peeknote[hidden], #confirm[hidden], #arrival[hidden], #card[hidden] { display: none; }
 #cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .col-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid rgba(196,181,253,.18); }
@@ -60,3 +60,8 @@ button { font: inherit; cursor: pointer; }
 @keyframes gw-arrive { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #arrival { animation-name: gw-arrive-still; } }
 @keyframes gw-arrive-still { 0%, 99% { opacity: 1; } 100% { opacity: 0; } }
+/* v0.2.937: the collapsed "unreachable · n" line under the lists */
+#unreach { margin-top: 8px; font-size: 10px; color: var(--gw-muted); }
+#unreach summary { cursor: pointer; letter-spacing: 1px; text-transform: uppercase; padding: 4px 2px; list-style-position: inside; }
+#unreach summary:focus-visible { outline: 1px solid rgba(196,181,253,.6); border-radius: 4px; }
+#unreach .row { opacity: .55; margin-top: 4px; }

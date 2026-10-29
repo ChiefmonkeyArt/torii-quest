@@ -12,6 +12,7 @@
 import { buildVisitUrl } from './openVisit.js';
 import { gateHostLabel } from './gateNapplet.js';
 import { isValidZoneSlug } from './zoneRoute.js';
+import { effectiveTravelModes } from './travelExtension.js';
 
 // Resolver outcomes that mean "fine world, just not one we can build here".
 const OTHER_ENGINE = new Set(['no-reference']);
@@ -38,4 +39,35 @@ export function chooseTravelMode(resolved, row, opts = {}) {
   if (!note) return { mode: 'none', reason };
   const plan = visitPlanFor(row, opts);
   return plan ? { mode: 'visit', url: plan.url, host: plan.host, note } : { mode: 'none', reason: `${reason}+no-website` };
+}
+
+/**
+ * v0.2.937 — what a row's heartbeat says about travel (Gate v1 §8 "world + travel").
+ * → { known: false }                       no extension: look the world up (as before)
+ * | { known: true, enter: true }           resolve + build in place
+ * | { known: true, enter: false, visit }   skip the lookup; offer the hand-off
+ * | { known: true, enter: false, unreachable: true }
+ */
+export function advertisedTravel(row, opts = {}) {
+  const modes = effectiveTravelModes(row);
+  if (!modes) return { known: false };
+  if (modes.includes('enter')) return { known: true, enter: true };
+  const plan = modes.includes('visit') ? visitPlanFor(row, opts) : null;
+  return plan
+    ? { known: true, enter: false, visit: { mode: 'visit', url: plan.url, host: plan.host, note: 'visit-only' } }
+    : { known: true, enter: false, unreachable: true };
+}
+
+/**
+ * v0.2.937 — a row with no way in: its heartbeat offers no usable mode, OR it says
+ * nothing and has no website (Gate v1 §3.7: listed, never travellable), OR a lookup
+ * just failed with no site to fall back on (`failed`: Set of owner keys; the host
+ * expires entries so a relay hiccup heals). Such rows are grouped, never clickable.
+ */
+export function rowIsUnreachable(row, { failed = null, ...opts } = {}) {
+  if (!row || typeof row !== 'object') return true;
+  if (failed && row.pubkey && failed.has(row.pubkey)) return true;
+  const adv = advertisedTravel(row, opts);
+  if (adv.known) return !!adv.unreachable;
+  return !row.website;
 }

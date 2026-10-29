@@ -412,7 +412,9 @@ describe('createBeacon world-reference publish (ADR-0119 slice 4)', () => {
         return { ok: true, status: 200, json: async () => ({ sha256: opts.headers['X-SHA-256'] }) };
       },
       publishToRelay: async (url, event) => {
-        pubEvents.push(event);
+        // v0.2.937: the first accepted reference also re-sends the heartbeat (Enter);
+        // keep this test on the world reference.
+        if ((event.tags || []).some((t) => t[0] === 't' && t[1] === 'torii-world')) pubEvents.push(event);
         return { ok: true, relay: url, accepted: true };
       },
     });
@@ -480,5 +482,65 @@ describe('createBeacon world-reference publish (ADR-0119 slice 4)', () => {
     const r = await b.publishWorldOnce();
     expect(r.ok).toBe(false);
     expect(r.error).toBe('disabled');
+  });
+});
+
+// v0.2.937 — Gate v1 §8.1 "world + travel": Enter is advertised only after a relay
+// accepted the world reference, and the heartbeat is re-sent at that moment.
+describe('beacon heartbeat travel modes (§8.1)', () => {
+  const travelOf = (e) => (e.tags.find((t) => t[0] === 'travel') || []).slice(1);
+  const isHb = (e) => e.tags.some((t) => t[0] === 't' && t[1] === 'torii-gateway');
+  const blossomOk = async (url, opts) => ({ ok: true, status: 200, json: async () => ({ sha256: opts.headers['X-SHA-256'] }) });
+
+  it('visit only before the world is out; enter + visit (and the world id) right after', async () => {
+    const hbs = [];
+    const b = makeWithWorld({
+      website: 'https://quest.example.com',
+      blossomFetch: blossomOk,
+      publishToRelay: async (url, event) => { if (isHb(event)) hbs.push(event); return { ok: true, relay: url, accepted: true }; },
+    });
+    b.enable();
+    await b.publishOnce();
+    expect(travelOf(hbs[0])).toEqual(['visit']);
+    expect(hbs[0].tags.some((t) => t[0] === 'world')).toBe(false);
+    await b.publishWorldOnce();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hbs.length).toBe(2);                                   // re-sent at once
+    expect(travelOf(hbs[1])).toEqual(['enter', 'visit']);
+    expect(hbs[1].tags.find((t) => t[0] === 'world')).toEqual(['world', 'torii-quest']);
+    expect(JSON.parse(hbs[1].content).travel).toEqual(['enter', 'visit']);
+    expect(verifyNostrEventSig(hbs[1])).toBe(true);
+    await b.publishWorldOnce();                                    // no second re-send
+    await new Promise((r) => setTimeout(r, 20));
+    expect(hbs.length).toBe(2);
+  });
+
+  it('no website: enter only, never visit', async () => {
+    const hbs = [];
+    const b = makeWithWorld({
+      blossomFetch: blossomOk,
+      publishToRelay: async (url, event) => { if (isHb(event)) hbs.push(event); return { ok: true, relay: url, accepted: true }; },
+    });
+    b.enable();
+    await b.publishOnce();
+    expect(travelOf(hbs[0])).toEqual([]);                          // known: no usable mode yet
+    await b.publishWorldOnce();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(travelOf(hbs.at(-1))).toEqual(['enter']);
+  });
+
+  it('a world reference no relay accepted never advertises enter', async () => {
+    const hbs = [];
+    const b = makeWithWorld({
+      blossomFetch: blossomOk,
+      publishToRelay: async (url, event) => {
+        if (isHb(event)) { hbs.push(event); return { ok: true, relay: url, accepted: true }; }
+        return { ok: false, relay: url, accepted: false, reason: 'blocked' };
+      },
+    });
+    b.enable();
+    await b.publishWorldOnce();
+    await b.publishOnce();
+    expect(hbs.every((e) => !travelOf(e).includes('enter'))).toBe(true);
   });
 });

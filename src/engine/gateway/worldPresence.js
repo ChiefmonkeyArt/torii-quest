@@ -18,6 +18,7 @@
 //   - BUILD: buildPresenceEvent produces an UNSIGNED event template. The host's
 //     NIP-07 signEvent adds id+sig. Never forges a signature.
 
+import { travelExtensionFor } from './travelExtension.js';
 import {
   GATEWAY_KIND, GATEWAY_TOPIC, buildGatewayFilter, readGateways,
 } from './gatewayRead.js';
@@ -127,6 +128,11 @@ export function buildPresenceEvent(input = {}) {
   if (wsEndpoint) content.wsEndpoint = wsEndpoint;
   if (displayName) content.displayName = displayName;
   if (avatar) content.avatar = avatar;
+  // v0.2.937 §8 "world + travel" extension: only when the writer knows (i.travel set).
+  const ext = (i.travel != null || (Array.isArray(i.worlds) && i.worlds.length))
+    ? travelExtensionFor({ worlds: i.worlds, travel: i.travel, website })
+    : { tags: [], content: {} };
+  Object.assign(content, ext.content);
 
   const tags = [
     ['d', zoneId],
@@ -137,6 +143,7 @@ export function buildPresenceEvent(input = {}) {
   if (npub) tags.push(['npub', npub]);
   for (const r of relays) tags.push(['relay', r]);
   if (wsEndpoint) tags.push(['ws', wsEndpoint]);
+  for (const t of ext.tags) tags.push(t);
 
   const created_at = Math.floor(Date.now() / 1000);
   // NIP-40: when ttl > 0, add the `expiration` tag so relays drop the event (and

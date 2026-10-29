@@ -25,7 +25,7 @@ import { initAtmosphere, tickAtmosphere } from './atmosphere.js';
 import { buildArena } from './arena.js';
 import { loadHomeWorld, homeIncludes, planFromWorld, starterIslandWorld } from './engine/world/homeWorld.js';
 import { validateWorld } from './engine/world/worldSchema.js';
-import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, disposeFoliage } from './arena-foliage.js';
+import { buildFoliage, tickFoliage, getGrassMat, getFlowerMat, setGrassColor, parkFoliage } from './arena-foliage.js';
 import { buildSeaMesh, tickSea, disposeSea } from './terrain/sea.js';
 import { buildMirror, tickMirror, getMirror, disposeMirror } from './mirror.js';
 import { initLoop, startLoop, stopLoop, isLoopStopped } from './loop.js';
@@ -891,6 +891,7 @@ export function createArenaRuntime(hooks = {}) {
       otherWorlds: gw.otherWorlds,
       scanStatus: gw.scanStatus,
       canTravel: gw.canTravel,
+      travelOpts: gw.travelOpts || null,
       onPeek: (w) => (typeof gw.onPeek === 'function' ? gw.onPeek(w) : undefined),
       onCommit: () => (typeof gw.onCommit === 'function' ? gw.onCommit() : undefined),
       onClose: () => { cancelBrowsePeek(); _gateBrowseOpen = false; setShootingSuppressed(false); },
@@ -2554,7 +2555,8 @@ export function createArenaRuntime(hooks = {}) {
     // part of _worldRt), so they leak across every swap unless explicitly disposed
     // here — a destination that rebuilds them would otherwise stack a second copy.
     try { disposeSea(); } catch { /* noop */ }
-    try { disposeFoliage(); } catch { /* noop */ }
+    // v0.2.937: park (not dispose) the grass — the next island re-adds it in ~0 ms.
+    try { parkFoliage(); } catch { /* noop */ }
     if (_worldRt) { try { _worldRt.dispose(); } catch { /* noop */ } _worldRt = null; }
     if (_worldTerrain) { try { _worldTerrain.dispose(); } catch { /* noop */ } _worldTerrain = null; }
     if (_worldCoastlineColliders) { try { _worldCoastlineColliders.dispose(); } catch { /* noop */ } _worldCoastlineColliders = null; }

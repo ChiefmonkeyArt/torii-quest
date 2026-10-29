@@ -39,7 +39,7 @@
   var ready = false;
   var visit = false;
   var asking = false;
-  var NOTES = { 'other-engine': 'no Torii world found here: visiting opens its own site', 'enter-failed': 'could not build this world here: you can visit its site instead' };
+  var NOTES = { 'other-engine': 'no Torii world found here: visiting opens its own site', 'enter-failed': 'could not build this world here: you can visit its site instead', 'visit-only': 'this world opens on its own site' };
   var $ = function (id) { return document.getElementById(id); };
   var card = $('card');
   var bitmapCtx = null;
@@ -99,6 +99,19 @@
         for (var j = 0; j < rows.length; j++) { col.append(rowEl(rows[j], canTravel)); any = true; }
         cols.append(col);
       }
+    }
+    // v0.2.937: worlds with no way in (no world description, no website) sit in one
+    // collapsed line, never as clickable rows.
+    var un = d.unreachable && Array.isArray(d.unreachable.rows) ? d.unreachable.rows.slice(0, 24) : [];
+    var box = $('unreach');
+    box.replaceChildren();
+    box.hidden = !un.length;
+    if (un.length) {
+      var det = el('details', '');
+      det.append(el('summary', '', 'unreachable · ' + String(Math.max(un.length, Math.min(9999, d.unreachable.count | 0)))));
+      for (var k = 0; k < un.length; k++) det.append(rowEl(un[k], false));
+      box.append(det);
+      det.addEventListener('toggle', reportSize);
     }
     $('note').hidden = canTravel || !any;
     markActive();

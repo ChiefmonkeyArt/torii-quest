@@ -20,6 +20,7 @@ import { normalizeRelayEvent, validateRelayEvent, validateRelayUrl } from '../no
 import { safeProfileUrl, shortPubkey } from '../nostr/profileRead.js';
 import { looksLikeNpub } from './travelIntent.js';
 import { verifyNostrEventSig } from '../crypto/nostrSig.js';
+import { readTravelExtension } from './travelExtension.js';
 
 // NIP-78 application-data kind. The Torii world-registry / gateway descriptor is an
 // addressable (parameterised-replaceable) event — its `d` tag is the zone id, so the
@@ -35,7 +36,7 @@ export const GATEWAY_TOPIC = 'torii-gateway';
 export const GATEWAY_FIELDS = Object.freeze([
   'zoneId', 'title', 'description', 'zoneType', 'npub', 'pubkey', 'owner', 'website',
   'banner', 'relays', 'topics', 'wsEndpoint', 'created_at', 'trust',
-  'displayName', 'avatar',
+  'displayName', 'avatar', 'worlds', 'travel',
 ]);
 
 // _safeWssRead(raw) → a wss URL string or null. Read-side counterpart to the
@@ -227,6 +228,8 @@ export function extractGatewayFromEvent(event) {
     // MP-1: optional multiplayer WebSocket endpoint. Reader picks from tag first,
     // then content — content is attacker-controlled JSON so tag takes precedence.
     wsEndpoint: _safeWssRead(_tagValue(tags, 'ws')) || _safeWssRead(content.wsEndpoint),
+    // v0.2.937 §8 "world + travel" (travelExtension.js): worlds [] / travel null = unknown.
+    ...readTravelExtension(tags, content),
     created_at: _isInt(event.created_at) ? event.created_at : null,
     // A read record is never crypto-verified here, so it is surfaced as unverified.
     trust: 'unverified',

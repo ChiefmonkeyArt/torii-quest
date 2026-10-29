@@ -535,6 +535,220 @@
       }
     },
     {
+      "name": "travel extension: a Torii world says enter + visit; the tags win over content",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "travel"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "world",
+            "torii-quest"
+          ],
+          [
+            "travel",
+            "enter",
+            "visit"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"travel\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1,\"worlds\":[\"other\"],\"travel\":[\"visit\"]}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "0b8a4eab1ce152b32c9cd8ffeecab4b07e03ed90465a0d7a8480d3adbd701de2",
+        "sig": "8f597a4252e7b22df66975fbd6f04c5f869c4bb2e08e6799c00e50035b6b5817e7235754c5b4842b054c3911001e230fc453a7aa1009fa84660ca50231080d95"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "worlds": [
+            "torii-quest"
+          ],
+          "travel": [
+            "enter",
+            "visit"
+          ]
+        }
+      }
+    },
+    {
+      "name": "travel extension: unknown modes, duplicates and bad world ids are dropped",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "travel-junk"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "world",
+            "bad id!"
+          ],
+          [
+            "world",
+            "ok.world"
+          ],
+          [
+            "travel",
+            "teleport",
+            "visit",
+            "visit"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"travel-junk\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "1278a74fada6941c91adb3849427a9d7cff1eeffaabc26624f2852a4270d81cf",
+        "sig": "88e5234c986591fa1ef0add87bb19a63e291bad2e0649e441d1e0a6256b3d3d7103d2a447610b59bda461fdcf7719ede0909fe8b995155e1cbabf9bc5201e2a6"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "worlds": [
+            "ok.world"
+          ],
+          "travel": [
+            "visit"
+          ]
+        }
+      }
+    },
+    {
+      "name": "travel extension in content only is read",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "travel-content"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"travel-content\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1,\"travel\":[\"visit\"]}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "48c3379baf27ef0e39481947d2995b899c417f9305a4e440492c5a2555fc918e",
+        "sig": "cca9e27fc7f38371540dc2a9f8b4ef9ef8cff7bd67494674d08b715f28430ef0801e9fda58d4991c4deee73a9df72c9ceedc11010178dd1b6149f15443048094"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "worlds": [],
+          "travel": [
+            "visit"
+          ]
+        }
+      }
+    },
+    {
+      "name": "no travel extension: travel unknown",
+      "event": {
+        "kind": 30078,
+        "created_at": 1792540740,
+        "tags": [
+          [
+            "d",
+            "travel-none"
+          ],
+          [
+            "t",
+            "torii-gateway"
+          ],
+          [
+            "zoneType",
+            "nap"
+          ],
+          [
+            "title",
+            "Chiefmonkey World"
+          ],
+          [
+            "relay",
+            "wss://relay.example.org/"
+          ],
+          [
+            "expiration",
+            "1792541940"
+          ]
+        ],
+        "content": "{\"zoneId\":\"travel-none\",\"title\":\"Chiefmonkey World\",\"description\":\"A NAP zone\",\"zoneType\":\"nap\",\"website\":\"https://quest.example.org/\",\"relays\":[\"wss://relay.example.org/\"],\"topics\":[],\"version\":1}",
+        "pubkey": "4f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+        "id": "932771b74536363414446a4172ff8693c9e2436e6803c454ea98be7c3b8d0e32",
+        "sig": "25420714bfe446c9da1c0107e1e2384976941d8c9dcb63e14f0ab04e4d96ee807ed6a9ec6972b32f059dbf4f003f8cf8c4fe8776aaa37ef255f0d79f6a82275b"
+      },
+      "expect": {
+        "listed": true,
+        "writerOk": true,
+        "world": {
+          "worlds": [],
+          "travel": null
+        }
+      }
+    },
+    {
       "name": "plaintext ws extension is dropped",
       "event": {
         "kind": 30078,

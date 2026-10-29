@@ -21,7 +21,7 @@ const ACTIONS = new Set(['ready', 'peek', 'enter', 'stay', 'close', 'key', 'size
 //           confirm ("Leave Torii Quest for <host>?").
 export const GATE_MODES = Object.freeze({ ENTER: 'enter', VISIT: 'visit' });
 // Why a world is offered as a visit (napplet shows a fixed sentence per code).
-export const GATE_NOTES = Object.freeze(['other-engine', 'enter-failed']);
+export const GATE_NOTES = Object.freeze(['other-engine', 'enter-failed', 'visit-only']);
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 /** A display hostname (lower-case, no port/path), or ''. */
 export function gateHostLabel(url) {
@@ -55,8 +55,24 @@ export function gateRowView(w) {
  * The host directory → { state, rows } where `state` is the gate.state payload and
  * `rows` maps key → the ORIGINAL world record (what a later gate.peek may name).
  */
-export function gateStateFor({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false } = {}) {
+export function gateStateFor({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, isUnreachable = null } = {}) {
   const rows = new Map();
+  // v0.2.937: rows with no way in go to one collapsed `unreachable` group — shown,
+  // never clickable, never peekable (not in `rows`).
+  const unreach = [];
+  let unreachCount = 0;
+  const cut = typeof isUnreachable === 'function' ? isUnreachable : () => false;
+  const split = (list) => (Array.isArray(list) ? list : []).filter((w) => {
+    if (!w || typeof w !== 'object') return true; // junk: `take` drops it, as before
+    let u = false;
+    try { u = !!cut(w); } catch { u = false; }
+    if (!u) return true;
+    unreachCount += 1;
+    if (unreach.length < GATE_ROW_CAP) unreach.push({ ...gateRowView(w), key: '' });
+    return false;
+  });
+  mutualFriends = split(mutualFriends);
+  otherWorlds = split(otherWorlds);
   const take = (list) => {
     const out = [];
     for (const w of (Array.isArray(list) ? list : [])) {
@@ -80,6 +96,7 @@ export function gateStateFor({ mutualFriends = [], otherWorlds = [], scanStatus 
         { title: 'mutual friends', count: Array.isArray(mutualFriends) ? mutualFriends.length : 0, empty: 'no mutual friends online', rows: friends },
         { title: 'all other worlds', count: Array.isArray(otherWorlds) ? otherWorlds.length : 0, empty: scanStatus === 'offline' ? 'login to see worlds' : 'no other worlds online', rows: others },
       ],
+      unreachable: { count: unreachCount, rows: unreach },
     },
   };
 }

@@ -32,6 +32,7 @@
 
 import { generateChannelId } from '../napplets/nappletSrcdoc.js';
 import { GATE_NAPPLET_PATH, GATE_MODES, GATE_NOTES, gateStateFor, gateRowKey, gateRowView, parseGateRequest, sanitizeGateTheme } from './gateNapplet.js';
+import { rowIsUnreachable } from './travelMode.js';
 
 export const GATEWAY_SCREEN_VERSION = 5;
 
@@ -55,6 +56,13 @@ let _confirming = false;      // a visit asked "leave for <host>?"; the next 入
 let _theme = {};
 let _previewCanvas = null;
 let _previewBusy = false;
+// v0.2.937: owner key → expiry (ms) for worlds a lookup just found unreachable, and
+// the last directory, so marking one re-renders without waiting for the host.
+const UNREACHABLE_TTL_MS = 10 * 60 * 1000;
+const _failed = new Map();
+let _lastDir = null;
+let _travelOpts = {};
+let _now = () => Date.now();
 
 function _baseUrl() {
   try { return (import.meta.env && import.meta.env.BASE_URL) || '/'; } catch { return '/'; }
@@ -189,15 +197,24 @@ function _armPeek(w) {
   try { _onPeek(w); } catch { /* host peek is best-effort */ }
 }
 
+function _failedNow() {
+  const t = _now();
+  for (const [k, exp] of _failed) if (exp <= t) _failed.delete(k);
+  return new Set(_failed.keys());
+}
+
 function _render(opts) {
-  const { rows, state } = gateStateFor(opts);
+  _lastDir = opts;
+  const failed = _failedNow();
+  const { rows, state } = gateStateFor({ ...opts, isUnreachable: (w) => rowIsUnreachable(w, { ...(_travelOpts || {}), failed }) });
   _rows = rows;
   _state = state;
   _post('gate.state', state);
 }
 
-export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null } = {}) {
+export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = false, onPeek = null, onCommit = null, onClose = null, travelOpts = null } = {}) {
   const el = _build();
+  if (travelOpts && typeof travelOpts === 'object') _travelOpts = travelOpts;
   _onClose = onClose;
   _onPeek = onPeek;
   _onCommit = onCommit;
@@ -214,14 +231,31 @@ export function openGatewayScreen({ mutualFriends = [], otherWorlds = [], scanSt
 
 // refreshGatewayScreen(...) — re-render the directory in place (owner names resolve
 // after open). Keeps the current peek. No-op when closed.
-export function refreshGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = null } = {}) {
+export function refreshGatewayScreen({ mutualFriends = [], otherWorlds = [], scanStatus = 'idle', canTravel = null, travelOpts = null } = {}) {
   if (!_open) return;
+  if (travelOpts && typeof travelOpts === 'object') _travelOpts = travelOpts;
   if (typeof canTravel === 'boolean') _canTravel = canTravel;
   _render({ mutualFriends, otherWorlds, scanStatus, canTravel: _canTravel });
   if (_peeking) _sendPeek();
 }
 
 export function closeGatewayScreen() { _close(); }
+
+/**
+ * v0.2.937: a lookup found this world has no way in (no world description, no site).
+ * Moves it into the collapsed `unreachable` group for 10 minutes (then it is tried
+ * again) and drops the peek if it was the one being looked at. Returns true if shown.
+ */
+export function markGatewayRowUnreachable(key, { ttlMs = UNREACHABLE_TTL_MS } = {}) {
+  if (!/^[0-9a-f]{64}$/.test(key || '')) return false;
+  _failed.set(key, _now() + Math.max(1000, Math.min(UNREACHABLE_TTL_MS * 6, ttlMs | 0)));
+  if (!_open) return false;
+  if (_peeking && gateRowKey(_peeking) === key) _clearPeek();
+  if (_lastDir) _render({ ..._lastDir, canTravel: _canTravel });
+  return true;
+}
+/** Test seam: a fixed clock for the unreachable expiry. */
+export function _setGatewayClockForTest(fn) { _now = typeof fn === 'function' ? fn : () => Date.now(); _failed.clear(); }
 // Keyboard Enter: in visit mode the first press asks, a second press (while asking) goes.
 export function commitGatewayScreen() { _commit(_confirming); }
 export function isGatewayScreenOpen() { return _open; }

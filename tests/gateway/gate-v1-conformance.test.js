@@ -14,7 +14,7 @@ const TR = JSON.parse(readFileSync('conformance/gateway-v1/fixtures/travel.json'
 const now = HB.nowSec;
 
 // Quest's preview model → the kit's field names.
-const questView = (g) => g && ({ zoneId: g.zoneId, owner: g.owner, website: g.website, travellable: !!g.website, title: g.title, zoneType: g.zoneType, avatar: g.avatar, ws: g.wsEndpoint });
+const questView = (g) => g && ({ zoneId: g.zoneId, owner: g.owner, website: g.website, travellable: !!g.website, title: g.title, zoneType: g.zoneType, avatar: g.avatar, ws: g.wsEndpoint, worlds: g.worlds, travel: g.travel });
 
 describe('Gate v1 heartbeat fixtures', () => {
   for (const c of HB.cases) {

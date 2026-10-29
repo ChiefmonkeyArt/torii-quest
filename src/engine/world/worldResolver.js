@@ -100,8 +100,16 @@ export async function discoverWorldReference({ pubkeyHex, relays = [], relayReqF
   if (!HEX64.test(pubkeyHex || '')) return null;
   if (typeof relayReqFn !== 'function') return null;
   const hex = pubkeyHex.toLowerCase();
-  // Topic-only filter (no authors) so beacon-signed references are not missed.
-  const filter = buildWorldFilter({ limit: 200 });
+  // v0.2.937: two EXACT filters in one REQ — the owner's own references (authors) and
+  // beacon-signed ones that name the owner (#p) — instead of the newest 200 world
+  // references from anyone, which silently missed a world once a relay held more
+  // than 200 (the "relay missed it" no-reference flake). A link's world id narrows
+  // both further (#d). The attribution + signature checks below are unchanged.
+  const dTag = (typeof worldId === 'string' && worldId) ? { '#d': [worldId] } : {};
+  const filter = [
+    { ...buildWorldFilter({ authors: [hex], limit: 20 }), ...dTag },
+    { ...buildWorldFilter({ limit: 20 }), '#p': [hex], ...dTag },
+  ];
 
   const tasks = (Array.isArray(relays) && relays.length ? relays : [''])
     .map((url) => Promise.resolve().then(() => relayReqFn(url, filter)).catch(() => ({ ok: false, events: [] })));

@@ -220,8 +220,8 @@ import {
   FOLLOW_POLICY_VISITOR_FOLLOWS_OWNER,
 } from './engine/gateway/handoffArrival.js';
 import { buildGatewayFilter, worldDirectoryLabel } from './engine/gateway/gatewayRead.js';
-import { refreshGatewayScreen, isGatewayScreenOpen, gatewayPeekKey, gatewayPeekMode, markGatewayPeekVisit } from './engine/gateway/gatewayScreen.js';
-import { chooseTravelMode, visitPlanFor } from './engine/gateway/travelMode.js';
+import { refreshGatewayScreen, isGatewayScreenOpen, gatewayPeekKey, gatewayPeekMode, markGatewayPeekVisit, markGatewayRowUnreachable } from './engine/gateway/gatewayScreen.js';
+import { chooseTravelMode, visitPlanFor, advertisedTravel } from './engine/gateway/travelMode.js';
 import { safeProfileUrl } from './engine/nostr/profileRead.js';
 import { resolveWorldByNpub } from './engine/world/worldResolver.js';
 import { readTravelRequests } from './engine/gateway/travelRequest.js';
@@ -678,7 +678,7 @@ async function _resolveWorldDirRecord(world) {
   // per-url resolver seam onto the existing fanoutReq transport.
   const reqRelay = (url, filter) => fanoutReq(
     (typeof url === 'string' && url) ? [url] : _effectiveRelays(),
-    [filter],
+    Array.isArray(filter) ? filter : [filter], // v0.2.937: the resolver sends 2 exact filters
     { timeoutMs: 5000, graceMs: 250, retries: 1 },
   );
   const relays = (Array.isArray(world.relays) && world.relays.length) ? world.relays : _effectiveRelays();
@@ -727,6 +727,16 @@ async function _gwPeek(world) {
     if (plan) _offerVisit(world, { ...plan, note: 'enter-failed' });
     return;
   }
+  // v0.2.937 §8 "world + travel": a heartbeat that says how to travel is believed
+  // for the CHOICE (never for trust — Enter still verifies signature + hash). No
+  // Enter advertised → skip the relay lookup entirely.
+  const adv = advertisedTravel(world, _travelOpts());
+  if (adv.known && !adv.enter) {
+    if (adv.visit) _offerVisit(world, adv.visit);
+    else markGatewayRowUnreachable(world.pubkey);
+    return;
+  }
+  if (!world.worldId && Array.isArray(world.worlds) && world.worlds.length === 1) world = { ...world, worldId: world.worlds[0] };
   // v0.2.933: a world resolved earlier this session (hash-verified) peeks instantly.
   const npub = world.npub || hexToNpub(world.pubkey) || '';
   const hit = npub ? _linkWorlds.get(npub) : null;
@@ -742,6 +752,9 @@ async function _gwPeek(world) {
   if (!resolved || !resolved.ok || !resolved.world) {
     const mode = chooseTravelMode(resolved, world, _travelOpts());
     if (mode.mode === 'visit') { _offerVisit(world, mode); return; }
+    // v0.2.937: no world description and no site to fall back on → the collapsed
+    // "unreachable" group (tried again after 10 min). Forgeries stay plain refusals.
+    if (/no-website$/.test(mode.reason || '') && world.pubkey) markGatewayRowUnreachable(world.pubkey);
     console.warn('peek resolve failed (world stays put):', mode.reason);
     return;
   }
@@ -884,6 +897,7 @@ function _gatewayScreenState() {
     otherWorlds: arenas,
     scanStatus: _worldsScan,
     canTravel,
+    travelOpts: _travelOpts(), // v0.2.937: the unreachable split uses the same visit rules
     // BROWSE LOOP (v0.2.865): a row click PEEKS; only the 入 button walks
     // through. onPeek resolves + opens the live mirror (no swap); onCommit
     // asks the arena's state machine to swap into the currently-peered world.
@@ -1144,7 +1158,7 @@ function _rerenderGatewayIfOpen() {
   try {
     if (isGatewayScreenOpen()) {
       const gw = _gatewayScreenState();
-      refreshGatewayScreen({ mutualFriends: gw.mutualFriends, otherWorlds: gw.otherWorlds, scanStatus: gw.scanStatus, canTravel: gw.canTravel });
+      refreshGatewayScreen({ mutualFriends: gw.mutualFriends, otherWorlds: gw.otherWorlds, scanStatus: gw.scanStatus, canTravel: gw.canTravel, travelOpts: gw.travelOpts });
     }
   } catch { /* re-render is best-effort; never fail the scan */ }
 }

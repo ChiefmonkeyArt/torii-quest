@@ -93,8 +93,27 @@ export function readHeartbeat(ev, { nowSec = Math.floor(Date.now() / 1000), veri
       avatar: https(c.avatar),
       displayName: text(c.displayName, 128),
       ws: url(tag(ev, 'ws'), ['wss:']) || url(c.wsEndpoint, ['wss:']),
+      ...travelExt(ev, c),
     },
   };
+}
+
+// §8 "world + travel" extension: ["world", id] (0..4) + ["travel", mode…]; the tags win
+// over content.worlds / content.travel. Modes ⊂ enter|visit; unknown dropped.
+// travel null = the heartbeat says nothing (a reader may look the world up).
+const WORLD_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const TRAVEL_MODES = ['enter', 'visit'];
+function uniq(list, ok, max) {
+  const out = [];
+  for (const v of Array.isArray(list) ? list : []) { if (ok(v) && !out.includes(v)) out.push(v); if (out.length >= max) break; }
+  return out;
+}
+function travelExt(ev, c) {
+  const wt = tags(ev, 'world');
+  const worlds = uniq(wt.length ? wt : c.worlds, (v) => typeof v === 'string' && WORLD_ID.test(v), 4);
+  const tt = (ev.tags || []).find((t) => Array.isArray(t) && t[0] === 'travel');
+  const raw = tt ? tt.slice(1) : (Array.isArray(c.travel) ? c.travel : null);
+  return { worlds, travel: raw ? uniq(raw, (v) => TRAVEL_MODES.includes(v), 2) : null };
 }
 
 /** §3 over many events: verified, live, newest per (pubkey, zone). */

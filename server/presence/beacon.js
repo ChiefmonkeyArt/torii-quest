@@ -291,6 +291,10 @@ export function createBeacon(opts = {}) {
       displayName: (typeof displayName === 'string' && displayName.trim()) ? displayName.trim() : undefined,
       avatar: (typeof avatar === 'string' && avatar.trim()) ? avatar : undefined,
       wsEndpoint: (typeof wsEndpoint === 'string' && wsEndpoint.trim()) ? wsEndpoint : undefined,
+      // v0.2.937 §8 "world + travel": advertise Enter only once this node's world
+      // description is actually published (manifestHash set); Visit needs the website.
+      worlds: _worldLive ? [worldId] : [],
+      travel: _worldLive ? ['enter', 'visit'] : ['visit'],
     });
     if (!built || !built.ok || !built.event) return { ok: false, error: 'build-failed' };
 
@@ -315,6 +319,8 @@ export function createBeacon(opts = {}) {
    * only when at least one relay accepted, else records lastError. Returns a
    * summary { ok, accepted, attempted, failures }.
    */
+  // v0.2.937 §8: true once a relay accepted this node's world reference (this run).
+  let _worldLive = false;
   async function publishOnce() {
     const builtResult = _buildSignedEvent();
     if (!builtResult.ok) {
@@ -436,6 +442,9 @@ export function createBeacon(opts = {}) {
       state.worldPublishedAt = now();
       state.worldError = null;
       _persist();
+      // v0.2.937: the first accepted reference this run flips the heartbeat to
+      // advertise Enter — re-send it now rather than waiting for the next pulse.
+      if (!_worldLive) { _worldLive = true; publishOnce().catch(() => {}); }
       return { ok: true, accepted, attempted: relayList.length, failures, manifestHash: state.manifestHash };
     }
     state.worldError = failures.length ? `world-all-rejected:${failures[0]}` : 'world-no-acceptance';

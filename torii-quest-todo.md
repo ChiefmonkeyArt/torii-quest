@@ -1,15 +1,22 @@
+## v0.2.937-alpha: travel extension, unreachable group, grass reuse
+
+- [x] Grass reuse between starter islands, the §8.1 world + travel heartbeat extension, the collapsed "unreachable" group and the exact world lookup (details under v0.2.935 below).
+- [ ] Playtest on chiefmonkey.art: hop between two starter islands (second hop's grass should appear at once); open the gate and check unreachable worlds sit in the folded line.
+- [ ] Other nodes pick up `enter` only after they update (older nodes stay "unknown" and are looked up as before).
+
 ## v0.2.935-alpha: travel modes, arrival card, federation network policy
 
 - [x] M3.3 automatic, labelled travel mode (owner option C): 入 Enter for Torii worlds; "Visit site ↗" behind a host-tracked confirm for other engines; a failed Enter reopens the gate offering the visit; forged/tampered references refused.
 - [x] Arrival card in the gateway napplet (owner option B): "入 arrived · <owner>'s world", or "⛩ home again"; fades itself.
 - [x] Speed: travel lands first, grows grass after. The island builder used to await ~7 s of foliage CPU before the respawn, gate-window close, multiplayer rejoin and address-bar update; now a one-shot landed hook fires right after the respawn.
-- [ ] Speed follow-up: reuse the grass between starter islands (same geometry; only the colour differs) instead of regenerating 75k blades per hop.
+- [x] Speed follow-up (v0.2.937): grass is parked on travel and reused by the next starter island with its colour reapplied (`parkFoliage`, `getGrassReuseCount`); ~8 s fresh build → <50 ms reuse.
 - [x] Federation network policy stage 1 (owner option B, ADR-0149): `connect-src 'self' blob: https: wss:`. Closes the CSP federation finding.
 - [x] Preparation: `connectSrcFor` with an inactive `preferred` mode + operator additions; per-build `dist/csp.nginx.conf`.
 - [ ] **Reminder (ADR-0149 review triggers):** move to stage 2 (open federated + operator-preferred list) and stage 3 (split network helper) when: third-party markup renders in the main page; a CSP/XSS bug is reported; more than about 10 nodes federate or an operator asks for a closed list; any secret would live in the page; or before Start9/Umbrel packages ship.
 - [x] chiefmonkey.art enforcement: torii-suite v0.9.25-alpha (operator-approved 2026-10-26), applied with the v0.2.936-alpha deploy. The installer validates and includes `csp.nginx.conf` on the game document every deploy, then `torii reload`; it also restores the four security headers that nested locations had dropped.
-- [ ] The §8 heartbeat extension (a heartbeat names its world description and the modes it supports).
-- [ ] A link to a world with no description and no website still shows "finding …" (no visit is possible); show a clear "not reachable" state.
+- [x] The §8 heartbeat extension (v0.2.937, GATEWAY_PROTOCOL §8.1): `["world", id]` + `["travel", enter?, visit?]`; the beacon advertises `enter` only after a relay accepts its world reference and re-sends the heartbeat then. 4 new conformance fixtures (21 heartbeats).
+- [x] Unreachable worlds (v0.2.937, owner choice: group them, not per-row states): rows with no way in go to one collapsed "unreachable · n" group, display-only; a lookup that fails with no website moves the row there for 10 minutes.
+- [x] Root cause of the `no-reference` flake: the resolver asked for the newest 200 world references from anyone. Now two exact filters (authors / `#p`, plus `#d`), limit 20 each.
 
 ## v0.2.934-alpha: the Gateway napplet (M2)
 
@@ -115,7 +122,7 @@
 - [ ] **Owner:** approve ADR-0147 and the 4 open decisions (path format, milestone order, Starter Pack v1, component trust).
 - [ ] M1: Starter Pack components; home loads its own `world.json`; parity screenshots; travel teardown (stop board feeds); retire the classic arena.
 - [ ] M2: extract the Gateway Experience doorway napplet, plus trusted gate services and the Quest adapter; mount it in the reference world.
-- [ ] M3: `/w/<npub>/<world>` location links; automatic Enter / Hand-off choice (§8 extension).
+- [x] M3: `/w/<npub>/<world>` location links (v0.2.933); automatic Enter / Hand-off choice (v0.2.935); §8 extension (v0.2.937).
 
 ## v0.2.920-alpha: market boards on phones (ADR-0145, ADR-0137 addendum)
 

@@ -41,6 +41,8 @@ const _m4   = new THREE.Matrix4();
 // (regression check 10).
 let _grassMat  = null;
 let _grassMesh = null; // the instanced grass mesh — tracked for legacy teardown
+let _parkedGrass = null; // v0.2.937: grass kept out of the scene between in-place swaps
+let _grassReuses = 0;
 let _flowerMat = null;
 let _tulipMat  = null; // v0.2.263: 2nd flower archetype (tulip cup)
 // P2 — the live grass palette (applied to uniforms at build + on world swap).
@@ -58,6 +60,21 @@ function smoothstep(edge0, edge1, x) {
 // Accepts an optional onProgress callback (0..1) so the boot progress bar
 // can animate smoothly during the ~7s of CPU work.
 export async function buildFoliage(onProgress, targetScene = defaultScene) {
+  // v0.2.937: reuse the parked grass (see parkFoliage) — the blade layout depends only
+  // on the fixed island heightmap + crate/tree constants, never on the world, so a
+  // trip only needs the destination's colours (uniforms). Saves ~7 s of CPU per hop.
+  if (targetScene === defaultScene && _parkedGrass) {
+    const mesh = _parkedGrass;
+    _parkedGrass = null;
+    targetScene.add(mesh);
+    _grassMesh = mesh;
+    _grassMat = mesh.material;
+    setGrassColor(_grassColor);
+    window._grassMat = _grassMat; // DEPRECATED debug alias (v0.2.118)
+    _grassReuses += 1;
+    if (onProgress) { try { onProgress(1); } catch { /* noop */ } }
+    return;
+  }
   await _buildGrass(onProgress, targetScene);
   // v0.2.312: wildflowers + tulips removed at user request (grass-only NAP zone).
   // _buildWildflowers();
@@ -95,13 +112,36 @@ export function setGrassColor(color) {
   }
 }
 export function getFlowerMat() { return _flowerMat; }
+// v0.2.937: how many builds reused the parked grass (debug + tests).
+export function getGrassReuseCount() { return _grassReuses; }
 export function getTulipMat()  { return _tulipMat; } // v0.2.263
 
 // disposeFoliage() — tear the instanced grass out of the scene for the in-place
 // travel swap (a legacy home's grass must not layer over the destination world's).
 // Removes + disposes the mesh/geometry/material and resets the module handles so a
 // later buildFoliage() starts clean. Idempotent + never throws (teardown path).
+// v0.2.937: parkFoliage() — the in-place swap's teardown. Takes the grass OUT of the
+// scene (so it never layers over a world without foliage) but keeps its geometry +
+// material, so the next buildFoliage() re-adds it instead of regenerating 75k blades.
+// Idempotent + never throws. disposeFoliage() still frees it for good.
+export function parkFoliage() {
+  if (_grassMesh) {
+    try { if (_grassMesh.parent) _grassMesh.parent.remove(_grassMesh); } catch { /* noop */ }
+    if (!_parkedGrass) _parkedGrass = _grassMesh;
+    else { _disposeMesh(_grassMesh); }
+    _grassMesh = null;
+  }
+  _grassMat = null;
+  _flowerMat = null;
+  _tulipMat = null;
+}
+function _disposeMesh(m) {
+  try { if (m.parent) m.parent.remove(m); } catch { /* noop */ }
+  try { if (m.geometry) m.geometry.dispose(); } catch { /* noop */ }
+  try { if (m.material) m.material.dispose(); } catch { /* noop */ }
+}
 export function disposeFoliage() {
+  if (_parkedGrass) { _disposeMesh(_parkedGrass); _parkedGrass = null; }
   if (_grassMesh) {
     try { if (_grassMesh.parent) _grassMesh.parent.remove(_grassMesh); else scene.remove(_grassMesh); } catch { /* noop */ }
     try { if (_grassMesh.geometry) _grassMesh.geometry.dispose(); } catch { /* noop */ }

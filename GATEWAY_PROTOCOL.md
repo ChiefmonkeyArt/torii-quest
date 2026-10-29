@@ -127,9 +127,21 @@ To send a player to a world, the origin navigates to:
 | Extension | Shape | Status |
 |---|---|---|
 | Multiplayer endpoint | `["ws", <wss url>]` tag (+ `content.wsEndpoint`); the tag wins | Live in Quest |
+| World + travel modes | `["world", <worldId>]` (0–4) + `["travel", "enter"?, "visit"?]` tags (+ `content.worlds` / `content.travel`); the tags win. See §8.1 | Live in Quest (v0.2.937) |
 | Signed invitation / private travel | handshake records carrying a `state` tag (readers drop them from presence) | Reserved, not in use |
 | Node transports (FIPS, …) | between operators' nodes, outside this protocol | Node-side |
 | Market listings in a zone | see ADR-0145 (NAP Zone market) | Proposed |
+
+### 8.1 World + travel modes
+
+A heartbeat MAY say how to travel to it, so a reader doesn't have to guess:
+
+- `["world", <worldId>]`, 0–4 tags: the `d` value of the owner's signed `torii-world` reference (characters `A–Z a–z 0–9 . _ : -`, at most 128, starting alphanumeric).
+- `["travel", <mode>, …]`, one tag. `enter`: build the world in place from its signed, hash-checked description. `visit`: open `website` (§4; §3.7 still applies).
+- Readers MUST ignore unknown modes and invalid world ids, and MUST NOT treat the extension as trust: `enter` still needs the reference's signature and manifest hash to check out, and `visit` still needs a travellable website.
+- No `travel` tag (and no `content.travel`) means "unknown": the reader MAY look a world description up, as without this extension. A `travel` list without `enter` means a reader SHOULD NOT look one up.
+- A record with no usable mode (an empty list, or no `website` and no extension) is listed at most as unreachable, never as a travel target.
+- Writers SHOULD advertise `enter` only once a relay has accepted their world reference.
 
 ## 9. Conformance
 

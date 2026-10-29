@@ -125,7 +125,7 @@ The napplet *asks* (`gate.peek(npub)`, `gate.enter(npub)`). The trusted services
 - **Changes earlier decisions:**
   - Relaxes ADR-0117's "the address bar never changes" to **"the site never changes during Enter; the path shows where you are."**
   - Makes ADR-0143's doorway napplet the *centre* of the design.
-  - Leaves the Gate v1 wire format (ADR-0144) unchanged. Hand-off is v1 as frozen; new fields (a world-description pointer, the travel modes a world supports) arrive as §8 extensions.
+  - Leaves the Gate v1 wire format (ADR-0144) unchanged. Hand-off is v1 as frozen; new fields (a world-description pointer, the travel modes a world supports) arrive as §8 extensions (the world + travel extension is §8.1, v0.2.937).
 - **Enforcement:**
   - The roadmap order lives in `docs/design/sovereign-metaverse-roadmap.md` and the todo.
   - Each step lands with tests. Milestone 1 includes a parity screenshot check: home from data must match the classic arena before the classic code is deleted.

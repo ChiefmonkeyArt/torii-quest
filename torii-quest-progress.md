@@ -1,3 +1,16 @@
+## v0.2.937-alpha: faster hops, worlds say how to reach them, dead ends tucked away
+
+- Hopping between starter islands reuses the grass instead of growing 75,000 blades
+  again; a hop's grass now takes milliseconds instead of about 8 seconds.
+- A world's heartbeat can now say which world it is and how to get there (step in, or
+  open its website). Quest's own node says "step in" only once its world is actually
+  published, so travellers stop hitting "no world found".
+- Worlds you can't reach no longer clutter the list: they sit in one folded
+  "unreachable · n" line at the bottom. A world that just failed is tried again after
+  ten minutes.
+- Looking up a world now asks relays for that owner's world exactly, instead of the
+  newest 200 worlds from anyone, which had been silently missing worlds.
+
 ## v0.2.936-alpha: the security policy is on at chiefmonkey.art
 
 chiefmonkey.art now sends Quest's security policy with the game page, so the browser

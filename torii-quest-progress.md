@@ -1,3 +1,10 @@
+## v0.2.938-alpha: other Torii apps may host napplets, on Quest's terms
+
+A new proposal, ADR-0150, lets other Torii apps show sandboxed napplets, starting with
+Continuum's team chat, as long as they follow exactly the rules Quest already uses: no
+network, no keys, the app checks everything the napplet asks for. FIPS stays on the
+node, never inside a napplet. Nothing in the game changed.
+
 ## v0.2.937-alpha: faster hops, worlds say how to reach them, dead ends tucked away
 
 - Hopping between starter islands reuses the grass instead of growing 75,000 blades

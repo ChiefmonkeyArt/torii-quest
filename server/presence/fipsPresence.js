@@ -1,4 +1,5 @@
-// First FIPS slice: one explicitly pinned peer, RAM only, no relay writes.
+// FIPS presence (ADR-0126, widened by ADR-0151): up to MAX_PEERS operator-pinned
+// peers, read one at a time, RAM only, no relay writes.
 import { readFileSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns';
@@ -9,6 +10,9 @@ import { verifyNostrEventSig } from '../../src/engine/crypto/nostrSig.js';
 
 export const MAX_EVENT_BYTES = 8192;
 export const POLL_MS = 30000;
+export const MAX_PEERS = 8; // ADR-0151; torii-suite fips/render-config.mjs matches
+export const MAX_CONFIG_BYTES = 8192;
+export const BACKOFF_MS = [60000, 120000, 240000, 480000, 600000];
 const HEX = /^[0-9a-f]{64}$/;
 const denied = new BlockList();
 for (const [net, prefix] of [
@@ -48,10 +52,15 @@ export function meshAddress(npub) {
 // Only root-owned node configuration supplies destinations, never relay events
 // or HTTP request parameters. The transport key is NOT the heartbeat signer.
 export function parsePeerConfig(raw) {
-  if (!raw || raw.version !== 1 || !Array.isArray(raw.peers) || raw.peers.length > 1) {
-    throw new Error('two-node proof supports at most one configured peer');
+  if (!raw || raw.version !== 1 || !Array.isArray(raw.peers) || raw.peers.length > MAX_PEERS) {
+    throw new Error(`at most ${MAX_PEERS} configured peers`);
   }
+  const seen = new Set();
   return raw.peers.map(p => {
+    for (const key of [`t:${p.transportNpub}`, `b:${p.beaconPubkey}:${p.zoneId}`]) {
+      if (seen.has(key)) throw new Error('duplicate peer');
+      seen.add(key);
+    }
     if (!HEX.test(p.beaconPubkey) || !HEX.test(p.ownerPubkey)
       || typeof p.zoneId !== 'string' || !p.zoneId || p.zoneId.length > 128) {
       throw new Error('missing pinned heartbeat identity');
@@ -76,8 +85,8 @@ export function loadPeerConfig(path) {
   if (!path) return { peers: [], error: null };
   try {
     const stat = statSync(path);
-    if (!stat.isFile() || stat.size > 4096 || stat.uid !== 0 || (stat.mode & 0o022)) {
-      throw new Error('peer config must be root-owned, non-writable and at most 4 KiB');
+    if (!stat.isFile() || stat.size > MAX_CONFIG_BYTES || stat.uid !== 0 || (stat.mode & 0o022)) {
+      throw new Error('peer config must be root-owned, non-writable and at most 8 KiB');
     }
     return { peers: parsePeerConfig(JSON.parse(readFileSync(path, 'utf8'))), error: null };
   } catch {
@@ -158,47 +167,69 @@ export function queryHeartbeat(url, peer, { WebSocketImpl = WebSocket, timeoutMs
 
 export function createFipsPresence({ peers = [], error = null, query = queryHeartbeat, now = Date.now } = {}) {
   // Defensive even for injected/internal callers.
-  if (peers.length > 1) throw new Error('only one peer permitted');
-  const peer = peers[0];
-  let event = null, via = null, receivedAt = null, lastAttemptAt = null;
+  if (peers.length > MAX_PEERS) throw new Error(`at most ${MAX_PEERS} peers permitted`);
+  // Per-peer RAM state: latest canonical event, route, failure backoff.
+  const state = peers.map(peer => ({ peer, event: null, failures: 0, nextAt: 0 }));
+  let via = null, receivedAt = null, lastAttemptAt = null, cursor = 0;
   let running = false, stopped = false, timer = null;
+  const live = s => s.event && Number(s.event.tags.find(t => t[0] === 'expiration')[1]) > Math.floor(now() / 1000);
   const snapshot = () => ({
     // Signatures are checked on ingestion, not per public HTTP request.
-    events: event && Number(event.tags.find(t => t[0] === 'expiration')[1]) > Math.floor(now() / 1000) ? [event] : [],
-    configured: !!peer, error, via, receivedAt, lastAttemptAt,
+    events: state.filter(live).map(s => s.event),
+    configured: state.length > 0, peers: state.length, error, via, receivedAt, lastAttemptAt,
   });
+  // Next peer whose backoff has elapsed, round-robin from the cursor.
+  function due() {
+    const t = now();
+    for (let i = 0; i < state.length; i++) {
+      const s = state[(cursor + i) % state.length];
+      if (s.nextAt <= t) { cursor = (cursor + i + 1) % state.length; return s; }
+    }
+    return null;
+  }
   async function poll() {
-    if (!peer || stopped || running) return;
+    if (!state.length || stopped || running) return;
+    const s = due();
+    if (!s) return;
+    const { peer } = s;
     running = true;
     lastAttemptAt = now();
+    let ok = false;
     try {
       let candidate;
       try { candidate = await query(peer.meshUrl, peer); } catch { candidate = null; }
       let route = 'fips';
       if (!candidate || !validHeartbeat(candidate, peer, now())) {
-        candidate = await query(peer.fallbackUrl, peer);
+        try { candidate = await query(peer.fallbackUrl, peer); } catch { candidate = null; }
         route = 'wss';
       }
       if (!stopped && candidate && validHeartbeat(candidate, peer, now())) {
-        if (!event || candidate.created_at > event.created_at
-          || (candidate.created_at === event.created_at && candidate.id <= event.id)) {
+        ok = true;
+        if (!s.event || candidate.created_at > s.event.created_at
+          || (candidate.created_at === s.event.created_at && candidate.id <= s.event.id)) {
           // Retain only canonical signed fields, never arbitrary relay extras.
-          event = Object.fromEntries(['id', 'pubkey', 'created_at', 'kind', 'tags', 'content', 'sig']
+          s.event = Object.fromEntries(['id', 'pubkey', 'created_at', 'kind', 'tags', 'content', 'sig']
             .map(key => [key, candidate[key]]));
           via = route;
           receivedAt = now();
         }
       }
     } catch { /* retain only until original expiry; retry at normal cadence */ }
-    finally { running = false; }
+    finally {
+      // A peer that keeps failing backs off so it can't use up the others' turns.
+      s.failures = ok ? 0 : s.failures + 1;
+      s.nextAt = s.failures ? now() + BACKOFF_MS[Math.min(s.failures, BACKOFF_MS.length) - 1] : 0;
+      running = false;
+    }
   }
   function start() {
-    if (timer || !peer) return;
+    if (timer || !state.length) return;
     stopped = false;
     void poll();
-    timer = setInterval(() => void poll(), POLL_MS);
+    // One read in flight; each peer comes round about every POLL_MS.
+    timer = setInterval(() => void poll(), Math.floor(POLL_MS / state.length));
     timer.unref?.();
   }
-  function stop() { stopped = true; clearInterval(timer); timer = null; event = null; }
+  function stop() { stopped = true; clearInterval(timer); timer = null; for (const s of state) s.event = null; }
   return { snapshot, poll, start, stop };
 }

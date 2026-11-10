@@ -1,7 +1,10 @@
 import { readGateways } from '../gateway/gatewayRead.js';
 import { verifyNostrEventSig } from '../crypto/nostrSig.js';
 
-// Same-origin, one-event RAM cache. Kick refresh without awaiting it on UI paths.
+// Same-origin RAM cache of up to MAX_PEER_EVENTS peer heartbeats (ADR-0151). Kick refresh without awaiting it on UI paths.
+export const MAX_PEER_EVENTS = 8; // server/presence/fipsPresence.js MAX_PEERS
+const MAX_BODY_BYTES = MAX_PEER_EVENTS * 8192 + 2048;
+
 export function createNodePresenceCache({
   fetchImpl = (...args) => fetch(...args), now = Date.now,
   origin = globalThis.location?.origin,
@@ -16,7 +19,7 @@ export function createNodePresenceCache({
         signal: AbortSignal.timeout(1500), cache: 'no-store', credentials: 'same-origin',
       });
       if (!response.ok) return;
-      // Our server guarantees a <9 KiB body. Bound the streamed response too.
+      // Our server sends at most 8 events of 8 KiB. Bound the streamed response too.
       const reader = response.body.getReader();
       let text = '', bytes = 0;
       const decoder = new TextDecoder();
@@ -25,13 +28,13 @@ export function createNodePresenceCache({
           const { done, value } = await reader.read();
           if (done) break;
           bytes += value.byteLength;
-          if (bytes > 10000) { await reader.cancel(); return; }
+          if (bytes > MAX_BODY_BYTES) { await reader.cancel(); return; }
           text += decoder.decode(value, { stream: true });
         }
         text += decoder.decode();
       } finally { reader.releaseLock(); }
       const body = JSON.parse(text);
-      if (!Array.isArray(body.events) || body.events.length > 1) return;
+      if (!Array.isArray(body.events) || body.events.length > MAX_PEER_EVENTS) return;
       events = body.events.filter(event => verifyNostrEventSig(event));
     } catch { /* absence/failure is invisible to players */ }
     finally { inFlight = false; }

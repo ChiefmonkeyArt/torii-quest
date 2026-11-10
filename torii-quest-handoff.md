@@ -1,3 +1,11 @@
+## FIPS FIRST FOR MANY PEERS: v0.2.939-alpha (ADR-0151 Accepted)
+
+- `server/presence/fipsPresence.js`: `MAX_PEERS = 8`, duplicates refused, peer file 8 KiB, per-peer RAM state, round-robin cursor, one timer at `POLL_MS / peers`, backoff 60 s → 10 min. `snapshot()` keeps `events` (now up to 8) and adds `peers` (count).
+- `src/engine/presence/nodePresenceClient.js`: `MAX_PEER_EVENTS = 8`, body limit 8 × 8 KiB + 2 KiB.
+- `server/presence/beacon.js`: capability adds `zoneId` + `website` (for Continuum introduction cards).
+- Regression check [22]; tests in `tests/fips-presence.test.js` and `tests/server-presence-beacon.test.js`.
+- Pairs with torii-suite v0.9.51-alpha (`fips/render-config.mjs` cap 8, 8 KiB). Peers still come from root `/etc/torii/fips/peers.json`; the Continuum introduction card (torii-continuum `docs/adr-fips-default.md`) writes it in a later release.
+
 ## NAPPLET HOSTS BEYOND QUEST: v0.2.938-alpha (docs only, ADR-0150 Proposed)
 
 - `docs/adr/0150-napplet-hosts-beyond-quest.md` + index row. Extends ADR-0057/0082/0083/0147, supersedes nothing; those files are unchanged.

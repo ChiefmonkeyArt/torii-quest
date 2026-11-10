@@ -61,6 +61,13 @@ function make(overrides = {}) {
 }
 
 describe('createBeacon lifecycle', () => {
+  it('publishes its heartbeat pins in the capability (ADR-0151 introductions)', () => {
+    const b = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t, zoneId: 'z1', website: 'https://w.example/quest/' });
+    expect(b.capability()).toMatchObject({ zoneId: 'z1', website: 'https://w.example/quest/' });
+    const none = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t });
+    expect(none.capability()).toMatchObject({ zoneId: 'quest-torii', website: null });
+  });
+
   it('enables in node-identity mode when no admin is configured', () => {
     const b = createBeacon({ statePath, adminPubkeyHex: '', fs, now: () => clock.t });
     const res = b.enable();

@@ -1,6 +1,6 @@
 # ADR-0126: FIPS two-node background presence
 
-Status: Accepted. Implementation and primary-node rollout approved on 24 September 2026. Two-operator production acceptance remains separate from installing this first slice.
+Status: Accepted. Implementation and primary-node rollout approved on 24 September 2026. Two-operator production acceptance remains separate from installing this first slice. The one-peer limit is widened to eight by [ADR-0151](./0151-fips-first-for-many-peers.md) (v0.2.939-alpha); everything else here stands.
 
 ## Decision
 

@@ -1,3 +1,10 @@
+## v0.2.939-alpha: see up to eight friends' worlds over the private mesh
+
+A node can now follow up to eight other nodes' worlds over FIPS instead of one, still
+falling back to the normal relays. It reads them one at a time on a fixed budget, and
+a node that keeps failing waits longer so it can't hold up the rest. Players see
+nothing new except more worlds turning up.
+
 ## v0.2.938-alpha: other Torii apps may host napplets, on Quest's terms
 
 A new proposal, ADR-0150, lets other Torii apps show sandboxed napplets, starting with

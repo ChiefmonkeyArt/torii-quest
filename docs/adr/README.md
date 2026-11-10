@@ -167,6 +167,7 @@ See [`TEMPLATE.md`](./TEMPLATE.md).
 | [0148](./0148-one-node-every-home.md) | One node, every home: the same Torii node packaged for VPS, laptop, Umbrel and Start9; worlds addressed by npub with optional onion/LAN/tunnel endpoints; keys stay with people; operator-approved updates | Proposed |
 | [0149](./0149-federation-network-policy.md) | Federation network policy: stage 1 `connect-src` allows any secure server (`https:` `wss:`); prepared stage 2 (operator-preferred list) and stage 3 (split network helper) with review triggers; per-build `csp.nginx.conf` for nginx nodes | Accepted (stage 1) |
 | [0150](./0150-napplet-hosts-beyond-quest.md) | Napplet hosts beyond Quest: one host-agnostic sandbox boundary binding on every host, Quest's runtime as the reference other hosts port, each host owns its contracts (first: `nap-torii-team@1`), FIPS node-side only, shared conformance list | Proposed |
+| [0151](./0151-fips-first-for-many-peers.md) | FIPS first for many peers: heartbeat reads from up to 8 operator-introduced peers, one round-robin budget, RAM only, snapshot as a list, nothing new for players | Accepted |
 
 ## Workflow for a new decision
 
@@ -202,8 +203,11 @@ Accepted for the operator-requested chiefmonkey restoration and full/headless co
 ADR-0127: [First-person weapon/body rendering ownership](./0127-first-person-weapon-body-ownership.md).
 Accepted for the operator-requested empty-hand regression fix; mirror and peer rigs are unchanged.
 
+ADR-0151: [FIPS first for many peers](./0151-fips-first-for-many-peers.md).
+Accepted; widens ADR-0126 from one peer to eight, read round-robin.
+
 ADR-0126: [FIPS two-node background presence](./0126-fips-two-node-background-presence.md).
-Accepted for narrow implementation; production validation and rollout remain gated.
+Accepted for narrow implementation; production validation and rollout remain gated. Peer cap widened to 8 by ADR-0151.
 
 1. Copy `TEMPLATE.md` to `docs/adr/NNNN-short-slug.md` (next unused number — taken from the highest merged file on `main`, per rule 7).
 2. Fill in Context, Decision, Consequences.

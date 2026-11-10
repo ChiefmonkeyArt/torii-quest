@@ -803,5 +803,15 @@ console.log('[21] service-worker deploy-base contract');
   if (ok) pass('service-worker registration and precache are deploy-base aware');
 }
 
+console.log('[22] FIPS peer cap is 8 on the node and in the browser (ADR-0151)');
+{
+  const server = readFileSync(join(ROOT, 'server/presence/fipsPresence.js'), 'utf8');
+  const client = readFileSync(join(ROOT, 'src/engine/presence/nodePresenceClient.js'), 'utf8');
+  if (!/export const MAX_PEERS = 8;/.test(server)) fail('fipsPresence.js MAX_PEERS must be 8 (ADR-0151; a new cap needs a new ADR)');
+  else if (!/export const MAX_PEER_EVENTS = 8;/.test(client)) fail('nodePresenceClient.js MAX_PEER_EVENTS must match MAX_PEERS (8)');
+  else if (/setInterval\(\(\) => void poll\(\), POLL_MS\)/.test(server)) fail('FIPS reads must be spread round-robin, not one interval per peer');
+  else pass('FIPS peer cap 8, matched in the browser, round-robin reads');
+}
+
 console.log(fails === 0 ? '\nALL GREEN' : `\n${fails} FAILURE(S)`);
 process.exit(fails === 0 ? 0 : 1);

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import {
-  createFipsPresence, meshAddress, parsePeerConfig, publicAddress, queryHeartbeat, validHeartbeat,
+  BACKOFF_MS, MAX_PEERS, createFipsPresence, createReloadingFipsPresence, meshAddress, parsePeerConfig, publicAddress, queryHeartbeat, validHeartbeat,
 } from '../server/presence/fipsPresence.js';
-import { createNodePresenceCache, mergeNodeWorlds } from '../src/engine/presence/nodePresenceClient.js';
+import { MAX_PEER_EVENTS, createNodePresenceCache, mergeNodeWorlds } from '../src/engine/presence/nodePresenceClient.js';
 
 const owner = '2'.repeat(64);
 const sk = generateSecretKey();
@@ -29,6 +29,24 @@ function heartbeat(nowMs = 1_800_000_000_000) {
   }, sk);
 }
 
+// n distinct peers, each with its own beacon key, world and fresh heartbeat.
+function fleet(n, nowMs = 1_800_000_000_000) {
+  return Array.from({ length: n }, (_, i) => {
+    const key = generateSecretKey();
+    const raw = {
+      beaconPubkey: getPublicKey(key), ownerPubkey: owner, zoneId: `world-${i}`,
+      website: `https://peer${i}.example/`, transportNpub: nip19.npubEncode(getPublicKey(generateSecretKey())),
+    };
+    const created_at = Math.floor(nowMs / 1000) - 10;
+    const event = finalizeEvent({
+      kind: 30078, created_at,
+      tags: [['d', raw.zoneId], ['t', 'torii-gateway'], ['p', owner], ['expiration', String(created_at + 1200)]],
+      content: JSON.stringify({ zoneId: raw.zoneId, website: raw.website, title: `World ${i}`, version: 1 }),
+    }, key);
+    return { raw, event, get peer() { return this._p ??= parsePeerConfig({ version: 1, peers: [raw] })[0]; } };
+  });
+}
+
 describe('two-node FIPS presence boundary', () => {
   it('derives the documented npub-bound fd address', () => {
     expect(meshAddress(transportNpub)).toMatch(/^fd[0-9a-f]{2}(?::[0-9a-f]{4}){7}$/);
@@ -45,7 +63,7 @@ describe('two-node FIPS presence boundary', () => {
     }) }, peer, now)).toBe(false);
   });
 
-  it('rejects unsafe and multi-peer proof configuration', () => {
+  it('rejects unsafe and duplicate peer configuration', () => {
     const config = { version: 1, peers: [{
       beaconPubkey, ownerPubkey: owner, zoneId: 'torii-quest',
       website: 'https://localhost/', transportNpub,
@@ -53,7 +71,76 @@ describe('two-node FIPS presence boundary', () => {
     expect(() => parsePeerConfig(config)).toThrow();
     config.peers[0].website = 'https://peer.example/';
     config.peers.push(config.peers[0]);
-    expect(() => parsePeerConfig(config)).toThrow(/at most one/);
+    expect(() => parsePeerConfig(config)).toThrow(/duplicate/);
+  });
+
+  it('accepts 8 peers and refuses a ninth (ADR-0151)', () => {
+    expect(MAX_PEERS).toBe(8);
+    const eight = { version: 1, peers: fleet(8).map(f => f.raw) };
+    expect(parsePeerConfig(eight)).toHaveLength(8);
+    expect(JSON.stringify(eight).length).toBeLessThan(8192);
+    expect(() => parsePeerConfig({ version: 1, peers: fleet(9).map(f => f.raw) })).toThrow(/at most 8/);
+    expect(() => createFipsPresence({ peers: fleet(9).map(f => f.peer) })).toThrow(/at most 8/);
+  });
+
+  it('reads peers one at a time, round-robin, and lists every live heartbeat', async () => {
+    const now = 1_800_000_000_000;
+    const peers = fleet(3, now);
+    const query = vi.fn(async (url, p) => (url === p.meshUrl ? peers.find(f => f.peer === p).event : null));
+    const p = createFipsPresence({ peers: peers.map(f => f.peer), query, now: () => now });
+    for (let i = 0; i < 3; i++) await p.poll();
+    expect(query.mock.calls.map(c => c[1])).toEqual(peers.map(f => f.peer));
+    const snap = p.snapshot();
+    expect(snap.peers).toBe(3);
+    expect(snap.events.map(e => e.id).sort()).toEqual(peers.map(f => f.event.id).sort());
+    // Same-origin client accepts the whole list (up to 8) and verifies each.
+    const cache = createNodePresenceCache({
+      now: () => now, origin: 'https://home.example',
+      fetchImpl: async () => new Response(JSON.stringify(snap)),
+    });
+    await cache.refresh('/mp');
+    expect(cache.worlds('')).toHaveLength(3);
+  });
+
+  it('never runs two reads at once across peers', async () => {
+    const peers = fleet(2);
+    let release;
+    const query = vi.fn(() => new Promise(resolve => { release = resolve; }));
+    const p = createFipsPresence({ peers: peers.map(f => f.peer), query, now: () => 1_800_000_000_000 });
+    const first = p.poll();
+    await p.poll();
+    expect(query).toHaveBeenCalledTimes(1);
+    release(null); await Promise.resolve(); await Promise.resolve(); release(null);
+    await first;
+  });
+
+  it('backs off a failing peer so the others keep their turns', async () => {
+    let now = 1_800_000_000_000;
+    const peers = fleet(2, now);
+    const [bad, good] = peers;
+    const query = vi.fn(async (url, p) => (p === good.peer ? good.event : null));
+    const p = createFipsPresence({ peers: peers.map(f => f.peer), query, now: () => now });
+    await p.poll(); // bad fails (mesh + wss)
+    await p.poll(); // good
+    query.mockClear();
+    for (let i = 0; i < 3; i++) await p.poll();
+    expect(query.mock.calls.every(c => c[1] === good.peer)).toBe(true);
+    now += BACKOFF_MS[0];
+    query.mockClear();
+    await p.poll(); await p.poll();
+    expect(query.mock.calls.some(c => c[1] === bad.peer)).toBe(true);
+  });
+
+  it('refuses a snapshot list longer than 8 in the browser', async () => {
+    const now = 1_800_000_000_000;
+    const events = fleet(9, now).map(f => f.event);
+    const cache = createNodePresenceCache({
+      now: () => now, origin: 'https://home.example',
+      fetchImpl: async () => new Response(JSON.stringify({ events })),
+    });
+    await cache.refresh('/mp');
+    expect(cache.worlds('')).toHaveLength(0);
+    expect(MAX_PEER_EVENTS).toBe(MAX_PEERS);
   });
 
   it('tries FIPS first, then bounded WSS fallback, outside UI flow', async () => {
@@ -150,5 +237,27 @@ describe('two-node FIPS presence boundary', () => {
       signed({ tags: good.tags.map(t => t[0] === 'expiration' ? ['expiration', String(good.created_at + 99999)] : t) }),
       signed({ content: 'x'.repeat(9000) }),
     ]) expect(validHeartbeat(event, peer, 1_800_000_000_000)).toBe(false);
+  });
+
+  it('reloads a changed peer file without a restart, and survives a bad one', () => {
+    let st = { ino: 1, size: 10, mtimeMs: 1 }, configs = [{ peers: [] }];
+    const made = [];
+    const create = cfg => { const o = { cfg, started: 0, stopped: 0, snapshot: () => ({ n: cfg.peers.length }), poll() {},
+      start() { this.started++; }, stop() { this.stopped++; } }; made.push(o); return o; };
+    const r = createReloadingFipsPresence('/etc/torii/fips/peers.json', {
+      stat: () => st, load: () => configs.shift() ?? { peers: [], error: 'invalid-peer-config' }, create, intervalMs: 1e9,
+    });
+    r.start();
+    expect(r.check()).toBe(false);
+    configs.push({ peers: [1, 2] });
+    st = { ...st, mtimeMs: 2 };
+    expect(r.check()).toBe(true);
+    expect(made[0].stopped).toBe(1);
+    expect(made[1].started).toBe(1);
+    expect(r.snapshot()).toEqual({ n: 2 });
+    st = { ...st, size: 11 };
+    expect(r.check()).toBe(true);
+    expect(made[2].cfg.error).toBe('invalid-peer-config');
+    r.stop();
   });
 });

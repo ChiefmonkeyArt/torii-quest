@@ -1,3 +1,10 @@
+## v0.2.939-alpha: FIPS first for many peers (ADR-0151)
+
+- [x] ADR-0151 Accepted: up to 8 operator-introduced peers, round-robin, backoff, RAM only, snapshot list, beacon capability pins.
+- [x] torii-suite v0.9.51-alpha: render-config cap 8 to match.
+- [ ] Rerun the ADR-0126 release gate with 8 configured peers, 4 unreachable (needs a second operator).
+- [ ] Continuum introduction cards write `peers.json` (torii-continuum `docs/adr-fips-default.md` §4).
+
 ## v0.2.938-alpha: napplet hosts beyond Quest (ADR-0150, docs only)
 
 - [x] ADR-0150 (Proposed): any Torii app may host napplets if it keeps Quest's boundary; Quest's runtime is the reference other hosts port; each host owns its contracts (first: `nap-torii-team@1`, owned by Continuum); FIPS node-side only; one conformance list. No Quest code change.

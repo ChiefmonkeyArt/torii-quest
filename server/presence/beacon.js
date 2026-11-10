@@ -198,6 +198,9 @@ export function createBeacon(opts = {}) {
       worldPublishedAt: state.worldPublishedAt || null,
       worldError: state.worldError || null,
       manifestHash: state.manifestHash || null,
+      // ADR-0151: public heartbeat pins, so an operator's introduction card can
+      // be checked against what this node actually publishes.
+      zoneId, website: website || null,
     };
   }
 

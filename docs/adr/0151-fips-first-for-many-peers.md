@@ -43,6 +43,7 @@ Browsers can't use FIPS (no browser or WebAssembly build upstream), so every pla
 - `server/presence/fipsPresence.js`: `MAX_PEERS = 8`, duplicate peers refused (same transport name, or same heartbeat signer and zone), peer file limit 4 → 8 KiB (8 peers fit with room), per-peer RAM state, a round-robin cursor, one timer at `POLL_MS / peers` and backoff 60 s, 120 s, 240 s, 480 s, then 10 min.
 - `src/engine/presence/nodePresenceClient.js`: `MAX_PEER_EVENTS = 8`, response limit 8 × 8 KiB + 2 KiB.
 - `server/presence/beacon.js`: the public `/mp/admin/beacon` capability also returns `zoneId` and `website`, so the Continuum introduction card can be checked against what the node really publishes (torii-continuum `docs/adr-fips-default.md` §4).
+- `createReloadingFipsPresence()` (used by `server/arena-ws.js`) checks the peer file every 30 s and swaps in the new list without restarting the game server, so adding or removing a peer never drops players. A bad new file leaves the reader empty with its error, as at startup.
 - Regression check [22] pins the cap in both files and the round-robin timer.
 
 ## Alternatives considered

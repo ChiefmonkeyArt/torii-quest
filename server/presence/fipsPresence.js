@@ -233,3 +233,37 @@ export function createFipsPresence({ peers = [], error = null, query = queryHear
   function stop() { stopped = true; clearInterval(timer); timer = null; for (const s of state) s.event = null; }
   return { snapshot, poll, start, stop };
 }
+
+// ADR-0151: pick up a changed peer file (written by the Suite's root helper from
+// a Continuum introduction) without restarting the game server. Checks the
+// file's identity every RELOAD_MS; a bad new file keeps the error, never crashes.
+export const RELOAD_MS = 30000;
+export function createReloadingFipsPresence(path, {
+  load = loadPeerConfig, create = createFipsPresence, stat = statSync, intervalMs = RELOAD_MS,
+} = {}) {
+  const stamp = () => {
+    try { const s = stat(path); return `${s.ino}:${s.size}:${s.mtimeMs}`; } catch { return 'absent'; }
+  };
+  let seen = stamp(), current = create(load(path)), started = false, timer = null;
+  function check() {
+    const now = stamp();
+    if (now === seen) return false;
+    seen = now;
+    current.stop();
+    current = create(load(path));
+    if (started) current.start();
+    return true;
+  }
+  return {
+    snapshot: () => current.snapshot(),
+    poll: () => current.poll(),
+    check,
+    start() {
+      if (started) return;
+      started = true;
+      current.start();
+      if (path) { timer = setInterval(check, intervalMs); timer.unref?.(); }
+    },
+    stop() { started = false; clearInterval(timer); timer = null; current.stop(); },
+  };
+}

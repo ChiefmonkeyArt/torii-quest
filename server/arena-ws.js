@@ -41,7 +41,7 @@ import { createTravelTokens } from './auth/travelToken.js';
 import { createAdminUpdate } from './auth/adminUpdate.js';
 import { isValidCharacterKey } from './auth/characterKeys.js';
 import { createBeacon, BEACON_INTERVAL_MS } from './presence/beacon.js';
-import { createFipsPresence, loadPeerConfig } from './presence/fipsPresence.js';
+import { createReloadingFipsPresence } from './presence/fipsPresence.js';
 import { buildWorldZones } from './world/worldPublish.js';
 import { resolveLegacyWorldConfigPaths, resolveHomeWorldPaths } from './world/worldConfigPath.js';
 import { planFromWorld, BUNDLED_HOME_WORLD, HOME_WORLD_MAX_BYTES } from '../src/engine/world/homeWorld.js';
@@ -299,7 +299,8 @@ const adminUpdate = createAdminUpdate({
 // ADR-0094 (v0.2.939-alpha): server-side always-on presence beacon authority.
 // Holds an instance-bound key + enabled flag, persisted to disk so a restart
 // resumes the pulse with no admin re-login.
-const fipsPresence = createFipsPresence(loadPeerConfig(process.env.QUEST_FIPS_PEERS_PATH));
+// ADR-0151: up to 8 peers, reloaded when the root peer file changes.
+const fipsPresence = createReloadingFipsPresence(process.env.QUEST_FIPS_PEERS_PATH);
 const beacon = createBeacon({
   statePath: BEACON_STATE_PATH,
   adminPubkeyHex: ADMIN_PUBKEY_HEX,

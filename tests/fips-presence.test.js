@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { finalizeEvent, generateSecretKey, getPublicKey, nip19 } from 'nostr-tools';
 import {
-  BACKOFF_MS, MAX_PEERS, createFipsPresence, meshAddress, parsePeerConfig, publicAddress, queryHeartbeat, validHeartbeat,
+  BACKOFF_MS, MAX_PEERS, createFipsPresence, createReloadingFipsPresence, meshAddress, parsePeerConfig, publicAddress, queryHeartbeat, validHeartbeat,
 } from '../server/presence/fipsPresence.js';
 import { MAX_PEER_EVENTS, createNodePresenceCache, mergeNodeWorlds } from '../src/engine/presence/nodePresenceClient.js';
 
@@ -237,5 +237,27 @@ describe('two-node FIPS presence boundary', () => {
       signed({ tags: good.tags.map(t => t[0] === 'expiration' ? ['expiration', String(good.created_at + 99999)] : t) }),
       signed({ content: 'x'.repeat(9000) }),
     ]) expect(validHeartbeat(event, peer, 1_800_000_000_000)).toBe(false);
+  });
+
+  it('reloads a changed peer file without a restart, and survives a bad one', () => {
+    let st = { ino: 1, size: 10, mtimeMs: 1 }, configs = [{ peers: [] }];
+    const made = [];
+    const create = cfg => { const o = { cfg, started: 0, stopped: 0, snapshot: () => ({ n: cfg.peers.length }), poll() {},
+      start() { this.started++; }, stop() { this.stopped++; } }; made.push(o); return o; };
+    const r = createReloadingFipsPresence('/etc/torii/fips/peers.json', {
+      stat: () => st, load: () => configs.shift() ?? { peers: [], error: 'invalid-peer-config' }, create, intervalMs: 1e9,
+    });
+    r.start();
+    expect(r.check()).toBe(false);
+    configs.push({ peers: [1, 2] });
+    st = { ...st, mtimeMs: 2 };
+    expect(r.check()).toBe(true);
+    expect(made[0].stopped).toBe(1);
+    expect(made[1].started).toBe(1);
+    expect(r.snapshot()).toEqual({ n: 2 });
+    st = { ...st, size: 11 };
+    expect(r.check()).toBe(true);
+    expect(made[2].cfg.error).toBe('invalid-peer-config');
+    r.stop();
   });
 });
